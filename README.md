@@ -1,7 +1,6 @@
 # tofly-ugc-management
 
-[![Frontend coverage](https://codecov.io/gh/PROPENSI-PPL-Tofly/tofly-ugc-management/branch/main/graph/badge.svg?flag=frontend)](https://app.codecov.io/gh/PROPENSI-PPL-Tofly/tofly-ugc-management?flags%5B0%5D=frontend)
-[![Backend coverage](https://codecov.io/gh/PROPENSI-PPL-Tofly/tofly-ugc-management/branch/main/graph/badge.svg?flag=backend)](https://app.codecov.io/gh/PROPENSI-PPL-Tofly/tofly-ugc-management?flags%5B0%5D=backend)
+[![CI](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/ci.yml)
 
 User-generated content management for Tofly. Monorepo with a Next.js frontend and a Nest.js backend.
 
