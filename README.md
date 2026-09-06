@@ -1,6 +1,7 @@
 # tofly-ugc-management
 
-[![CI](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/ci.yml)
+[![Frontend CI](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/frontend.yml/badge.svg?branch=main)](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/frontend.yml)
+[![Backend CI](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/backend.yml)
 
 User-generated content management for Tofly. Monorepo with a Next.js frontend and a Nest.js backend.
 
@@ -23,5 +24,7 @@ cd backend && npm install && npm run start:dev
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`) lints, builds, and tests both apps on push and PR.
-A manual deploy job is stubbed and left disabled until a hosting target is chosen.
+Two path-filtered GitHub Actions workflows — `frontend.yml` and `backend.yml` — each lint, test, and build
+their app. They run on pushes to `main` and on PRs to `main`, but only when that app's files (or its own
+workflow file) change, so an unrelated change never runs both pipelines. Each also has a manual
+`workflow_dispatch` deploy job, stubbed until a hosting target is chosen.
