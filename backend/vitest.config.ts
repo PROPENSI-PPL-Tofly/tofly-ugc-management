@@ -11,9 +11,16 @@ export default defineConfig({
     include: ['**/*.spec.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.ts'],
-      exclude: ['src/main.ts', 'src/**/*.spec.ts'],
+      exclude: [
+        'src/main.ts',
+        'src/**/*.module.ts',
+        'src/**/*.spec.ts',
+        'test/**',
+        '**/*.config.{ts,mts,js}',
+      ],
+      thresholds: { lines: 80 },
     },
   },
 });
