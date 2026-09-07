@@ -11,14 +11,65 @@ User-generated content management for Tofly. Monorepo with a Next.js frontend an
 
 ```
 frontend/   Next.js (TypeScript, App Router, Tailwind)
-backend/    Nest.js (TypeScript)
+backend/    Nest.js (TypeScript, ESM) — Postgres via Prisma
+supabase/   Local Supabase stack config (run by the Supabase CLI)
 ```
+
+Apps are independent folders (not a workspace); each has its own `package.json` and lockfile.
+The repo-root `package.json` only holds the Supabase CLI dev dependency.
+
+## Prerequisites
+
+- Node.js 22+ (24 used locally)
+- npm
+- Docker Desktop, running — the local Supabase stack runs in Docker
+- No global Supabase CLI needed — it's a dev dependency, invoked via `npx supabase`
+
+## Local setup
+
+The backend connects to Postgres from a local Supabase stack. The Supabase CLI manages its own
+Docker containers, so there is no hand-written compose file.
+
+1. Install dependencies (repo root and each app):
+
+```
+npm install
+cd backend
+npm install
+cd ../frontend
+npm install
+```
+
+2. Start the local Supabase stack (from the repo root):
+
+```
+npx supabase start
+```
+
+3. Create the backend env file (defaults already match the local stack):
+
+```
+cd backend
+Copy-Item .env.example .env
+```
+
+4. Generate the Prisma client:
+
+```
+npx prisma generate
+```
+
+Local Supabase ports: API `54321`, Postgres `54322`, Studio `54323`. Open Studio in a browser
+to inspect the database.
+
+Schema ownership: Supabase migrations own the schema. After adding a Supabase migration, sync
+Prisma with `npx prisma db pull` then `npx prisma generate`.
 
 ## Development
 
-Assumes dependencies are already installed.
+Assumes the setup above is done.
 
-```bash
+```
 # Frontend
 cd frontend
 npm run dev
@@ -28,11 +79,23 @@ cd backend
 npm run start:dev
 ```
 
+Verify the backend's database connection:
+
+```
+curl http://localhost:3000/health
+```
+
+Expected response:
+
+```
+{"db":"ok"}
+```
+
 ## Testing & Coverage
 
 Both apps use Vitest with V8 coverage.
 
-```bash
+```
 # Frontend
 cd frontend
 npm run test        # unit tests
