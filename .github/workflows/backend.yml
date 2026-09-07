@@ -54,6 +54,9 @@ jobs:
       - run: npx prisma validate
       - run: npm run lint
       - run: npm run test:cov
+      # Build the schema into the throwaway CI Postgres so e2e has real tables.
+      # No-op while the schema has no models; starts creating tables once it does.
+      - run: npx prisma db push --skip-generate
       - run: npm run test:e2e
       - run: npm run build
 
