@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { HealthController } from './health/health.controller.js';
-import { PrismaService } from './prisma/prisma.service.js';
+import { PrismaModule } from './prisma/prisma.module.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
 function validate(config: Record<string, unknown>): Record<string, unknown> {
@@ -14,8 +14,8 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
 }
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, validate })],
+  imports: [ConfigModule.forRoot({ isGlobal: true, validate }), PrismaModule],
   controllers: [AppController, HealthController],
-  providers: [AppService, PrismaService],
+  providers: [AppService],
 })
 export class AppModule {}
