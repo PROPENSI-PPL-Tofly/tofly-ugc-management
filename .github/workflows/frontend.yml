@@ -1,0 +1,86 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Lint, test & build
+    runs-on: ubuntu-latest
+    # Only one test run per branch at a time; a newer push cancels the
+    # superseded run. Scoped to this job so it never cancels a deploy.
+    concurrency:
+      group: frontend-test-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Check out the branch head (not the PR merge ref) so the coverage
+          # badge commit below can be pushed back to the source branch.
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:cov
+      - run: npm run build
+
+      - name: Generate coverage badge
+        working-directory: ${{ github.workspace }}
+        run: node scripts/coverage-badge.mjs frontend/coverage/coverage-summary.json .github/badges/frontend-coverage.svg
+
+      # Commit the badge on push to main, or on an internal (same-repo) PR back to
+      # its source branch. Fork PRs are skipped (no write access to the fork).
+      - name: Commit coverage badge
+        if: >
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          git add .github/badges/frontend-coverage.svg
+          if git diff --cached --quiet; then
+            echo "badge unchanged"
+            exit 0
+          fi
+          # [skip ci] stops the badge commit from re-triggering this workflow.
+          git commit -m "chore: update frontend coverage badge [skip ci]"
+          for i in 1 2 3; do
+            if git pull --rebase origin "$BRANCH" && git push origin HEAD:"$BRANCH"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "badge push failed after retries; skipping"
+
+  # Runs only on push/merge to main (after test passes). Wire a real host here later.
+  deploy:
+    name: Deploy (placeholder)
+    needs: [test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Frontend deploy placeholder — no target configured yet. Add deploy steps here."

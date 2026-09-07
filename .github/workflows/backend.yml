@@ -1,0 +1,107 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Lint, test & build
+    runs-on: ubuntu-latest
+    # Only one test run per branch at a time; a newer push cancels the
+    # superseded run. Scoped to this job so it never cancels a deploy.
+    concurrency:
+      group: backend-test-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Check out the branch head (not the PR merge ref) so the coverage
+          # badge commit below can be pushed back to the source branch.
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma validate
+      - run: npm run lint
+      - run: npm run test:cov
+      # Build the schema into the throwaway CI Postgres so e2e has real tables.
+      # No-op while the schema has no models; starts creating tables once it does.
+      - run: npx prisma db push --skip-generate
+      - run: npm run test:e2e
+      - run: npm run build
+
+      - name: Generate coverage badge
+        working-directory: ${{ github.workspace }}
+        run: node scripts/coverage-badge.mjs backend/coverage/coverage-summary.json .github/badges/backend-coverage.svg
+
+      # Commit the badge on push to main, or on an internal (same-repo) PR back to
+      # its source branch. Fork PRs are skipped (no write access to the fork).
+      - name: Commit coverage badge
+        if: >
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          git add .github/badges/backend-coverage.svg
+          if git diff --cached --quiet; then
+            echo "badge unchanged"
+            exit 0
+          fi
+          # [skip ci] stops the badge commit from re-triggering this workflow.
+          git commit -m "chore: update backend coverage badge [skip ci]"
+          for i in 1 2 3; do
+            if git pull --rebase origin "$BRANCH" && git push origin HEAD:"$BRANCH"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "badge push failed after retries; skipping"
+
+  # Runs only on push/merge to main (after test passes). Wire a real host here later.
+  deploy:
+    name: Deploy (placeholder)
+    needs: [test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Backend deploy placeholder — no target configured yet. Add deploy steps here."
