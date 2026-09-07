@@ -1,0 +1,12 @@
+// Supabase owns the schema (see PROJECT_NOTES §9): write tables as Supabase
+// migrations, then `npx prisma db pull` + `npx prisma generate` to sync models here.
+// No models yet — this datasource is enough to generate a client and connect.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
