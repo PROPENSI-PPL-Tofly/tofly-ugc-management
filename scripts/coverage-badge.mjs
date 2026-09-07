@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generate a flat "coverage | NN%" SVG badge from a Vitest v8 coverage-summary.json.
-// Metric = rounded line coverage. Color scales with the percentage.
+// Metric = rounded line coverage. Color: 3 tiers — red <50, yellow <80, green >=80.
 // Usage:  node scripts/coverage-badge.mjs <summary.json> <out.svg>
 //         node scripts/coverage-badge.mjs --selfcheck
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -8,10 +8,8 @@ import { dirname } from 'node:path';
 
 function color(pct) {
   if (pct < 50) return '#e05d44'; // red
-  if (pct < 70) return '#fe7d37'; // orange
   if (pct < 80) return '#dfb317'; // yellow
-  if (pct < 90) return '#a4a61d'; // yellow-green
-  return '#4c1'; // bright green
+  return '#4c1'; // green
 }
 
 // Rough per-character width at 11px Verdana; good enough for a stable badge.
@@ -54,8 +52,8 @@ function selfcheck() {
   };
   assert(color(49) === '#e05d44', 'red boundary');
   assert(color(79) === '#dfb317', 'yellow boundary');
-  assert(color(80) === '#a4a61d', 'yellow-green at threshold');
-  assert(color(100) === '#4c1', 'bright green');
+  assert(color(80) === '#4c1', 'green at 80% gate');
+  assert(color(100) === '#4c1', 'green');
   const out = svg('coverage', '95%', color(95));
   assert(out.includes('coverage: 95%') && out.includes('#4c1'), 'svg content');
   console.log('selfcheck ok');
