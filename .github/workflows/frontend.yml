@@ -13,15 +13,15 @@ on:
       - ".github/workflows/frontend.yml"
   workflow_dispatch:
 
-# Only one run per branch at a time; a newer push cancels the superseded run.
-concurrency:
-  group: frontend-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   test:
     name: Lint, test & build
     runs-on: ubuntu-latest
+    # Only one test run per branch at a time; a newer push cancels the
+    # superseded run. Scoped to this job so it never cancels a deploy.
+    concurrency:
+      group: frontend-test-${{ github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: write
     defaults:
