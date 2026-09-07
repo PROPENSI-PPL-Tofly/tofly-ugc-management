@@ -13,6 +13,11 @@ on:
       - ".github/workflows/frontend.yml"
   workflow_dispatch:
 
+# Only one run per branch at a time; a newer push cancels the superseded run.
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Lint, test & build
@@ -23,13 +28,13 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Check out the branch head (not the PR merge ref) so the coverage
           # badge commit below can be pushed back to the source branch.
           ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
