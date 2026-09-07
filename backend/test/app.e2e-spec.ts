@@ -23,6 +23,13 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 
+  it('/health (GET) reports the DB is reachable', () => {
+    return request(app.getHttpServer())
+      .get('/health')
+      .expect(200)
+      .expect({ db: 'ok' });
+  });
+
   afterEach(async () => {
     await app.close();
   });
