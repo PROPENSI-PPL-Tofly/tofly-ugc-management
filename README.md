@@ -20,7 +20,7 @@ The repo-root `package.json` only holds the Supabase CLI dev dependency.
 
 ## Prerequisites
 
-- Node.js 22+ (24 used locally)
+- Node.js 22+
 - npm
 - Docker Desktop, running — the local Supabase stack runs in Docker
 - No global Supabase CLI needed — it's a dev dependency, invoked via `npx supabase`
@@ -50,7 +50,7 @@ npx supabase start
 
 ```
 cd backend
-Copy-Item .env.example .env
+cp .env.example .env
 ```
 
 4. Generate the Prisma client:
