@@ -1,0 +1,8 @@
+{
+  "name": "tofly-ugc-management",
+  "private": true,
+  "description": "Repo-level dev tooling (Supabase CLI). Apps live in frontend/ and backend/; this is NOT a workspace.",
+  "devDependencies": {
+    "supabase": "^2.116.0"
+  }
+}
