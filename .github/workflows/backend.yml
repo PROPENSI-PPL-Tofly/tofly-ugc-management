@@ -97,11 +97,75 @@ jobs:
           done
           echo "badge push failed after retries; skipping"
 
-  # Runs only on push/merge to main (after test passes). Wire a real host here later.
-  deploy:
-    name: Deploy (placeholder)
+  # Applies Supabase migrations to the hosted database before the new revision
+  # serves. backend/Dockerfile bakes the generated Prisma client into the image,
+  # so code must never reach production ahead of the schema it expects.
+  migrate:
+    name: Apply Supabase migrations
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: backend-migrate-main
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
-      - run: echo "Backend deploy placeholder — no target configured yet. Add deploy steps here."
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+      # A no-op while supabase/migrations/ is empty ("Remote database is up to
+      # date"), which is exactly the point: it proves the credentials work
+      # before a real migration depends on them.
+      - run: supabase db push
+
+  # Builds the image, pushes it to Artifact Registry, and rolls it out to Cloud
+  # Run. needs migrate, so a failed migration blocks the deploy.
+  deploy:
+    name: Deploy to Cloud Run
+    needs: [test, migrate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Mints the OIDC token that Workload Identity Federation exchanges for GCP
+      # credentials. Without it, auth fails with a confusing 403.
+      id-token: write
+    concurrency:
+      group: backend-deploy-main
+      cancel-in-progress: false
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      # Tagged with both the SHA and latest: the SHA tag is what makes a
+      # rollback a one-liner against a known revision.
+      - name: Build and push
+        working-directory: backend
+        run: |
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+      # DB URLs come from Secret Manager, never --set-env-vars: env vars are
+      # readable in the Cloud Run console and in deploy logs.
+      - name: Deploy
+        run: |
+          gcloud run deploy backend \
+            --image "$IMAGE:${{ github.sha }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "run-backend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest" \
+            --allow-unauthenticated \
+            --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
+            --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
