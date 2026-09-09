@@ -67,8 +67,19 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
 
   const responseHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
-    if (!STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) responseHeaders.set(key, value);
+    const name = key.toLowerCase();
+    // Set-Cookie is the one header that legitimately repeats, and set() would
+    // keep only the last one. Handled separately below.
+    if (name === "set-cookie") return;
+    if (!STRIP_RESPONSE_HEADERS.has(name)) responseHeaders.set(key, value);
   });
+
+  // getSetCookie() returns each cookie intact. Reading them off the iterator
+  // instead risks a single comma-joined string, which cannot be split back
+  // apart safely because Expires dates contain commas.
+  for (const cookie of upstream.headers.getSetCookie()) {
+    responseHeaders.append("set-cookie", cookie);
+  }
 
   return new Response(upstream.body, {
     status: upstream.status,

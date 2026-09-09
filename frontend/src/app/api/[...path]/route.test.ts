@@ -92,6 +92,27 @@ describe("/api/* proxy", () => {
     expect(fetchMock.mock.calls[0][1]!.method).toBe("DELETE");
   });
 
+  it("preserves every Set-Cookie the backend sends", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, {
+        status: 204,
+        headers: [
+          ["set-cookie", "session=abc; Path=/; Expires=Wed, 21 Oct 2026 07:28:00 GMT"],
+          ["set-cookie", "refresh=xyz; Path=/; HttpOnly"],
+        ],
+      }),
+    );
+
+    const response = await GET(new Request("http://localhost:3000/api/login"), params("login"));
+
+    // Both survive: a login that sets a session and a refresh token must not
+    // silently lose one of them.
+    expect(response.headers.getSetCookie()).toEqual([
+      "session=abc; Path=/; Expires=Wed, 21 Oct 2026 07:28:00 GMT",
+      "refresh=xyz; Path=/; HttpOnly",
+    ]);
+  });
+
   it("returns 502 when the upstream fetch throws", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
 
