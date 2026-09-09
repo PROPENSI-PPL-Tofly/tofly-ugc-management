@@ -1,16 +1,12 @@
 import type { NextConfig } from "next";
 
-// Base path is empty for local dev (`next dev` stays at "/") and set to the
-// repo subpath in CI (PAGES_BASE_PATH) so assets resolve under the GitHub
-// Pages project URL. Drop this env when moving to a root/custom domain.
-const basePath = process.env.PAGES_BASE_PATH ?? "";
-
 const nextConfig: NextConfig = {
-  output: "export", // emit a fully static site into frontend/out
-  basePath,
-  assetPrefix: basePath || undefined,
-  images: { unoptimized: true }, // Image Optimization API can't run on Pages
-  trailingSlash: true, // stable directory-style URLs on static hosting
+  // Emits .next/standalone — a self-contained server bundle with only the
+  // node_modules it actually traced. Keeps the Cloud Run image small.
+  output: "standalone",
+  // Image Optimization needs `sharp` in the runtime image; not worth it until
+  // the app serves real images.
+  images: { unoptimized: true },
 };
 
 export default nextConfig;
