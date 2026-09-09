@@ -76,40 +76,50 @@ jobs:
           done
           echo "badge push failed after retries; skipping"
 
-  # Runs only on push/merge to main (after test passes). Publishes the static
-  # Next.js export to GitHub Pages.
+  # Runs only on push/merge to main (after test passes). Builds the image, pushes
+  # it to Artifact Registry, and rolls it out to Cloud Run.
   deploy:
-    name: Deploy to GitHub Pages
+    name: Deploy to Cloud Run
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      pages: write
+      contents: read
+      # Mints the OIDC token that Workload Identity Federation exchanges for GCP
+      # credentials. Without it, auth fails with a confusing 403.
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    defaults:
-      run:
-        working-directory: frontend
+    concurrency:
+      group: frontend-deploy-main
+      cancel-in-progress: false
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/frontend
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: google-github-actions/auth@v2
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - name: Build static export
-        run: npm run build
-        env:
-          PAGES_BASE_PATH: /tofly-ugc-management
-      # Without .nojekyll, Pages' Jekyll strips the _next/ folder and the site 404s its assets.
-      - name: Disable Jekyll
-        run: touch out/.nojekyll
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: frontend/out
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      # Tagged with both the SHA and latest: the SHA tag is what makes a
+      # rollback a one-liner against a known revision.
+      - name: Build and push
+        working-directory: frontend
+        run: |
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+      # BACKEND_URL is a runtime env var, not NEXT_PUBLIC_*, so the proxy route
+      # reads it per request and the URL can change without a rebuild.
+      - name: Deploy
+        run: |
+          gcloud run deploy frontend \
+            --image "$IMAGE:${{ github.sha }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "run-frontend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --set-env-vars "BACKEND_URL=${{ vars.BACKEND_URL }}" \
+            --allow-unauthenticated \
+            --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
+            --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
