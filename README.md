@@ -23,7 +23,6 @@ The repo-root `package.json` only holds the Supabase CLI dev dependency.
 - Node.js 24
 - npm
 - Docker Desktop, running — the local Supabase stack runs in Docker
-- Windows: run these commands in **Git Bash**
 
 ## First-time setup
 
@@ -83,17 +82,15 @@ The frontend proxies `/api/*` to the backend, so in the browser you only ever vi
 Open <http://localhost:3000/health> — it should read `ok`, which means the browser reached the
 frontend, the frontend reached the backend, and the backend queried Postgres.
 
-To check the backend alone:
-
-```
-curl http://localhost:3001/health     # {"db":"ok"}
-```
+To check the backend alone, open <http://localhost:3001/health> — it should return
+`{"db":"ok"}`.
 
 ## After you pull
 
 ```
 npx supabase db reset          # repo root — replay all migrations onto your local DB
-cd backend && npx prisma generate
+cd backend
+npx prisma generate
 ```
 
 `db reset` wipes your local data. To keep it, use `npx supabase migration up` instead, and put
@@ -109,7 +106,9 @@ Supabase migrations own the schema; Prisma reads it.
 npx supabase migration new <name>     # creates supabase/migrations/<timestamp>_<name>.sql
 # write the SQL
 npx supabase db reset                 # apply locally and confirm it replays cleanly
-cd backend && npx prisma db pull && npx prisma generate
+cd backend
+npx prisma db pull
+npx prisma generate
 ```
 
 Commit the migration file and the updated `schema.prisma` together. Never edit a migration that
