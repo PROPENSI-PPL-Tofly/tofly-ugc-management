@@ -196,3 +196,25 @@ jobs:
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
+
+      # Proves the deployed revision actually works: the image runs, the secrets
+      # mounted, and the database answers. A green `gcloud run deploy` only means
+      # the revision started, not that anything behind it is reachable.
+      # Retried because with --min-instances 0 the first request pays a cold start.
+      - name: Smoke test the deployed backend
+        run: |
+          URL="$(gcloud run services describe backend \
+            --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          echo "checking $URL/health"
+          for i in 1 2 3 4 5; do
+            CODE="$(curl -sS -o /tmp/smoke.out -w '%{http_code}' --max-time 30 "$URL/health" || echo 000)"
+            if [ "$CODE" = "200" ]; then
+              echo "healthy: $(cat /tmp/smoke.out)"
+              exit 0
+            fi
+            echo "attempt $i: HTTP $CODE"
+            sleep 5
+          done
+          echo "smoke test failed after 5 attempts; last body:"
+          cat /tmp/smoke.out || true
+          exit 1
