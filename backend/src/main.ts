@@ -11,6 +11,10 @@ async function bootstrap() {
   if (frontendUrl) {
     app.enableCors({ origin: frontendUrl, credentials: true });
   }
+  // Cloud Run sends SIGTERM on every deploy and scale-down, then allows 10 s
+  // for cleanup. Without this Nest ignores the signal and onModuleDestroy
+  // hooks (e.g. PrismaService releasing its connection) never run.
+  app.enableShutdownHooks();
   // Bind all interfaces: Cloud Run injects PORT and health-checks over the
   // container network, so listening on loopback fails the revision at startup.
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
