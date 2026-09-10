@@ -74,7 +74,10 @@ jobs:
       # the same tool, and the same command production gets in the migrate job.
       # A migration that fails does so here, not during a production deploy.
       # No-op while supabase/migrations/ is empty.
-      - run: npx supabase db push --db-url "$DIRECT_URL" --skip-vault
+      # Host is 127.0.0.1, not localhost: the CLI treats 127.0.0.1 as a local
+      # database and connects over plain TCP; any other host is "remote" and
+      # forced over TLS, which the CI service container does not speak.
+      - run: npx supabase db push --skip-vault --db-url "postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
         working-directory: ${{ github.workspace }}
       - run: npm run test:e2e
       - run: npm run build
