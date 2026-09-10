@@ -28,7 +28,10 @@ jobs:
       contents: write
     services:
       postgres:
-        image: postgres:16
+        # The exact image `npx supabase start` runs locally, so CI has the same
+        # Postgres major, extensions, roles and schemas as dev and production.
+        # Keep in step with supabase/config.toml major_version.
+        image: supabase/postgres:17.6.1.166
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -37,7 +40,7 @@ jobs:
           --health-cmd pg_isready
           --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 12
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
@@ -55,15 +58,24 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      # Root lockfile holds the Supabase CLI, pinned to the same release as
+      # local dev.
+      - run: npm ci
+        working-directory: ${{ github.workspace }}
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma validate
       - run: npm run lint
       - run: npm run test:cov
-      # Build the schema into the throwaway CI Postgres so e2e has real tables.
-      # No-op while the schema has no models; starts creating tables once it does.
-      - run: npx prisma db push --skip-generate
+      # Apply the real Supabase migrations to the CI database — the same files,
+      # the same tool, and the same command production gets in the migrate job.
+      # A migration that fails does so here, not during a production deploy.
+      # No-op while supabase/migrations/ is empty.
+      - run: npx supabase db push --db-url "$DIRECT_URL" --skip-vault
+        working-directory: ${{ github.workspace }}
       - run: npm run test:e2e
       - run: npm run build
 
@@ -153,14 +165,19 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
-      - uses: supabase/setup-cli@v1
+      - uses: actions/setup-node@v5
         with:
-          version: latest
-      - run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # Supabase CLI from the root lockfile: the same pinned release local dev
+      # and the test job use, never a floating `latest` against production.
+      - run: npm ci
+      - run: npx supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
       # A no-op while supabase/migrations/ is empty ("Remote database is up to
       # date"), which is exactly the point: it proves the credentials work
       # before a real migration depends on them.
-      - run: supabase db push
+      - run: npx supabase db push
 
   # Rolls the already-pushed image out to Cloud Run. needs migrate, so a failed
   # migration blocks the rollout.
