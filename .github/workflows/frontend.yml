@@ -76,40 +76,90 @@ jobs:
           done
           echo "badge push failed after retries; skipping"
 
-  # Runs only on push/merge to main (after test passes). Publishes the static
-  # Next.js export to GitHub Pages.
+  # Runs only on push/merge to main (after test passes). Builds the image, pushes
+  # it to Artifact Registry, and rolls it out to Cloud Run.
   deploy:
-    name: Deploy to GitHub Pages
+    name: Deploy to Cloud Run
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      pages: write
+      contents: read
+      # Mints the OIDC token that Workload Identity Federation exchanges for GCP
+      # credentials. Without it, auth fails with a confusing 403.
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    defaults:
-      run:
-        working-directory: frontend
+    concurrency:
+      group: frontend-deploy-main
+      cancel-in-progress: false
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/frontend
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: google-github-actions/auth@v2
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - name: Build static export
-        run: npm run build
-        env:
-          PAGES_BASE_PATH: /tofly-ugc-management
-      # Without .nojekyll, Pages' Jekyll strips the _next/ folder and the site 404s its assets.
-      - name: Disable Jekyll
-        run: touch out/.nojekyll
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: frontend/out
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      # Tagged with both the SHA and latest: the SHA tag is what makes a
+      # rollback a one-liner against a known revision.
+      - name: Build and push
+        working-directory: frontend
+        run: |
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+      # BACKEND_URL is a runtime env var, not NEXT_PUBLIC_*, so the proxy route
+      # reads it per request and the URL can change without a rebuild.
+      # Deployed with no traffic behind a `candidate` tag: the new revision gets
+      # its own URL to be tested at while the previous revision keeps serving.
+      # A brand-new service has no previous revision to protect, so its first
+      # deploy takes traffic directly — the smoke test still gates the run.
+      - name: Deploy candidate revision
+        run: |
+          if gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" >/dev/null 2>&1; then
+            TRAFFIC="--no-traffic"
+          else
+            echo "first deploy of frontend: no previous revision to keep serving"
+            TRAFFIC=""
+          fi
+          gcloud run deploy frontend $TRAFFIC --tag candidate \
+            --image "$IMAGE:${{ github.sha }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "run-frontend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --set-env-vars "BACKEND_URL=${{ vars.BACKEND_URL }}" \
+            --allow-unauthenticated \
+            --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
+            --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
+
+      # Hits the candidate at its tag URL, so a broken revision is caught while
+      # it has zero traffic. Retried because the candidate starts cold.
+      - name: Smoke test the candidate
+        run: |
+          URL="$(gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" --format=json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
+          test -n "$URL" || { echo "no candidate URL found"; exit 1; }
+          echo "checking $URL/api/health"
+          for i in 1 2 3 4 5; do
+            CODE="$(curl -sS -o /tmp/smoke.out -w '%{http_code}' --max-time 30 "$URL/api/health" || echo 000)"
+            if [ "$CODE" = "200" ]; then
+              echo "healthy: $(cat /tmp/smoke.out)"
+              exit 0
+            fi
+            echo "attempt $i: HTTP $CODE"
+            sleep 5
+          done
+          echo "smoke test failed after 5 attempts; last body:"
+          cat /tmp/smoke.out || true
+          echo "candidate was never given traffic; the previous revision is still serving"
+          exit 1
+
+      # Only a candidate that passed the smoke test takes traffic. Skipped on
+      # failure, so a bad revision is never promoted and nothing needs rolling back.
+      - name: Promote candidate to 100% traffic
+        run: |
+          gcloud run services update-traffic frontend \
+            --region "${{ vars.GCP_REGION }}" --to-latest
+          echo "serving: $(gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"

@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - "backend/**"
+      - "supabase/**"
       - ".github/workflows/backend.yml"
   pull_request:
     branches: [main]
     paths:
       - "backend/**"
+      - "supabase/**"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
 
@@ -26,7 +28,10 @@ jobs:
       contents: write
     services:
       postgres:
-        image: postgres:16
+        # The exact image `npx supabase start` runs locally, so CI has the same
+        # Postgres major, extensions, roles and schemas as dev and production.
+        # Keep in step with supabase/config.toml major_version.
+        image: supabase/postgres:17.6.1.166
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -35,7 +40,7 @@ jobs:
           --health-cmd pg_isready
           --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 12
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
@@ -53,15 +58,27 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      # Root lockfile holds the Supabase CLI, pinned to the same release as
+      # local dev.
+      - run: npm ci
+        working-directory: ${{ github.workspace }}
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma validate
       - run: npm run lint
       - run: npm run test:cov
-      # Build the schema into the throwaway CI Postgres so e2e has real tables.
-      # No-op while the schema has no models; starts creating tables once it does.
-      - run: npx prisma db push --skip-generate
+      # Apply the real Supabase migrations to the CI database — the same files,
+      # the same tool, and the same command production gets in the migrate job.
+      # A migration that fails does so here, not during a production deploy.
+      # No-op while supabase/migrations/ is empty.
+      # Host is 127.0.0.1, not localhost: the CLI treats 127.0.0.1 as a local
+      # database and connects over plain TCP; any other host is "remote" and
+      # forced over TLS, which the CI service container does not speak.
+      - run: npx supabase db push --skip-vault --db-url "postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
+        working-directory: ${{ github.workspace }}
       - run: npm run test:e2e
       - run: npm run build
 
@@ -97,11 +114,145 @@ jobs:
           done
           echo "badge push failed after retries; skipping"
 
-  # Runs only on push/merge to main (after test passes). Wire a real host here later.
-  deploy:
-    name: Deploy (placeholder)
+  # Build first, migrate second, deploy third. Migrations are the only step here
+  # that cannot be undone by re-running the pipeline, so nothing irreversible
+  # happens until a deployable image already exists in Artifact Registry. A
+  # broken Dockerfile then fails before the database is touched, instead of
+  # leaving production migrated but still serving the old revision.
+  build:
+    name: Build and push image
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Mints the OIDC token that Workload Identity Federation exchanges for GCP
+      # credentials. Without it, auth fails with a confusing 403.
+      id-token: write
+    concurrency:
+      group: backend-build-main
+      cancel-in-progress: false
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/backend
     steps:
-      - run: echo "Backend deploy placeholder — no target configured yet. Add deploy steps here."
+      - uses: actions/checkout@v5
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      # Tagged with both the SHA and latest: the SHA tag is what makes a
+      # rollback a one-liner against a known revision.
+      - name: Build and push
+        working-directory: backend
+        run: |
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+  # Applies Supabase migrations to the hosted database before the new revision
+  # serves. backend/Dockerfile bakes the generated Prisma client into the image,
+  # so code must never reach production ahead of the schema it expects.
+  migrate:
+    name: Apply Supabase migrations
+    needs: [test, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: backend-migrate-main
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # Supabase CLI from the root lockfile: the same pinned release local dev
+      # and the test job use, never a floating `latest` against production.
+      - run: npm ci
+      - run: npx supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+      # A no-op while supabase/migrations/ is empty ("Remote database is up to
+      # date"), which is exactly the point: it proves the credentials work
+      # before a real migration depends on them.
+      - run: npx supabase db push
+
+  # Rolls the already-pushed image out to Cloud Run. needs migrate, so a failed
+  # migration blocks the rollout.
+  deploy:
+    name: Deploy to Cloud Run
+    needs: [build, migrate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: backend-deploy-main
+      cancel-in-progress: false
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/backend
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # DB URLs come from Secret Manager, never --set-env-vars: env vars are
+      # readable in the Cloud Run console and in deploy logs.
+      # Deployed with no traffic behind a `candidate` tag: the new revision gets
+      # its own URL to be tested at while the previous revision keeps serving.
+      # A brand-new service has no previous revision to protect, so its first
+      # deploy takes traffic directly — the smoke test still gates the run.
+      - name: Deploy candidate revision
+        run: |
+          if gcloud run services describe backend --region "${{ vars.GCP_REGION }}" >/dev/null 2>&1; then
+            TRAFFIC="--no-traffic"
+          else
+            echo "first deploy of backend: no previous revision to keep serving"
+            TRAFFIC=""
+          fi
+          gcloud run deploy backend $TRAFFIC --tag candidate \
+            --image "$IMAGE:${{ github.sha }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "run-backend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest" \
+            --allow-unauthenticated \
+            --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
+            --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
+
+      # Hits the candidate at its tag URL, so a broken revision is caught while
+      # it has zero traffic. Retried because the candidate starts cold.
+      - name: Smoke test the candidate
+        run: |
+          URL="$(gcloud run services describe backend --region "${{ vars.GCP_REGION }}" --format=json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
+          test -n "$URL" || { echo "no candidate URL found"; exit 1; }
+          echo "checking $URL/health"
+          for i in 1 2 3 4 5; do
+            CODE="$(curl -sS -o /tmp/smoke.out -w '%{http_code}' --max-time 30 "$URL/health" || echo 000)"
+            if [ "$CODE" = "200" ]; then
+              echo "healthy: $(cat /tmp/smoke.out)"
+              exit 0
+            fi
+            echo "attempt $i: HTTP $CODE"
+            sleep 5
+          done
+          echo "smoke test failed after 5 attempts; last body:"
+          cat /tmp/smoke.out || true
+          echo "candidate was never given traffic; the previous revision is still serving"
+          exit 1
+
+      # Only a candidate that passed the smoke test takes traffic. Skipped on
+      # failure, so a bad revision is never promoted and nothing needs rolling back.
+      - name: Promote candidate to 100% traffic
+        run: |
+          gcloud run services update-traffic backend \
+            --region "${{ vars.GCP_REGION }}" --to-latest
+          echo "serving: $(gcloud run services describe backend --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"
