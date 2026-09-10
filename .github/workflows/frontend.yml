@@ -113,9 +113,19 @@ jobs:
 
       # BACKEND_URL is a runtime env var, not NEXT_PUBLIC_*, so the proxy route
       # reads it per request and the URL can change without a rebuild.
-      - name: Deploy
+      # Deployed with no traffic behind a `candidate` tag: the new revision gets
+      # its own URL to be tested at while the previous revision keeps serving.
+      # A brand-new service has no previous revision to protect, so its first
+      # deploy takes traffic directly — the smoke test still gates the run.
+      - name: Deploy candidate revision
         run: |
-          gcloud run deploy frontend \
+          if gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" >/dev/null 2>&1; then
+            TRAFFIC="--no-traffic"
+          else
+            echo "first deploy of frontend: no previous revision to keep serving"
+            TRAFFIC=""
+          fi
+          gcloud run deploy frontend $TRAFFIC --tag candidate \
             --image "$IMAGE:${{ github.sha }}" \
             --region "${{ vars.GCP_REGION }}" \
             --service-account "run-frontend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
@@ -124,14 +134,13 @@ jobs:
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
 
-      # Proves the deployed revision actually works: the image runs, the secrets
-      # mounted, and the database answers. A green `gcloud run deploy` only means
-      # the revision started, not that anything behind it is reachable.
-      # Retried because with --min-instances 0 the first request pays a cold start.
-      - name: Smoke test the whole chain through the proxy
+      # Hits the candidate at its tag URL, so a broken revision is caught while
+      # it has zero traffic. Retried because the candidate starts cold.
+      - name: Smoke test the candidate
         run: |
-          URL="$(gcloud run services describe frontend \
-            --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          URL="$(gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" --format=json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
+          test -n "$URL" || { echo "no candidate URL found"; exit 1; }
           echo "checking $URL/api/health"
           for i in 1 2 3 4 5; do
             CODE="$(curl -sS -o /tmp/smoke.out -w '%{http_code}' --max-time 30 "$URL/api/health" || echo 000)"
@@ -144,4 +153,13 @@ jobs:
           done
           echo "smoke test failed after 5 attempts; last body:"
           cat /tmp/smoke.out || true
+          echo "candidate was never given traffic; the previous revision is still serving"
           exit 1
+
+      # Only a candidate that passed the smoke test takes traffic. Skipped on
+      # failure, so a bad revision is never promoted and nothing needs rolling back.
+      - name: Promote candidate to 100% traffic
+        run: |
+          gcloud run services update-traffic frontend \
+            --region "${{ vars.GCP_REGION }}" --to-latest
+          echo "serving: $(gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"
