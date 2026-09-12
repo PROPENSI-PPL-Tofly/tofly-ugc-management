@@ -237,11 +237,13 @@ jobs:
       # Supabase CLI from the root lockfile: the same pinned release local dev
       # and the test job use, never a floating `latest` against production.
       - run: npm ci
-      - run: npx supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+      # Target the project directly instead of `supabase link` first: link
+      # fetches the project's legacy API keys and the platform 403s that call
+      # even for owners (supabase/cli#6392). db push does not need those keys.
       # A no-op while supabase/migrations/ is empty ("Remote database is up to
       # date"), which is exactly the point: it proves the credentials work
       # before a real migration depends on them.
-      - run: npx supabase db push
+      - run: npx supabase db push --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}" --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
 
   # Rolls the already-pushed image out to Cloud Run. needs migrate, so a failed
   # migration blocks the rollout.
