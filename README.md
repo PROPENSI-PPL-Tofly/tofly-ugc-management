@@ -4,8 +4,6 @@
 [![Backend CI](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/PROPENSI-PPL-Tofly/tofly-ugc-management/actions/workflows/backend.yml)
 ![Frontend coverage](./.github/badges/frontend-coverage.svg)
 ![Backend coverage](./.github/badges/backend-coverage.svg)
-[![Frontend quality gate](https://sonarcloud.io/api/project_badges/measure?project=PROPENSI-PPL-Tofly_tofly-ugc-management_frontend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=PROPENSI-PPL-Tofly_tofly-ugc-management_frontend)
-[![Backend quality gate](https://sonarcloud.io/api/project_badges/measure?project=PROPENSI-PPL-Tofly_tofly-ugc-management_backend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=PROPENSI-PPL-Tofly_tofly-ugc-management_backend)
 
 User-generated content management for Tofly. Monorepo with a Next.js frontend and a Nest.js backend.
 
