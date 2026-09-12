@@ -42,6 +42,14 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run test:cov
+      # Handed to the sonar job. coverage/ is git-ignored and never leaves the
+      # runner otherwise. Uploaded before build so a build failure still leaves
+      # the report available for debugging.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/lcov.info
+          retention-days: 1
       - run: npm run build
 
       - name: Generate coverage badge
@@ -76,11 +84,62 @@ jobs:
           done
           echo "badge push failed after retries; skipping"
 
-  # Runs only on push/merge to main (after test passes). Builds the image, pushes
-  # it to Artifact Registry, and rolls it out to Cloud Run.
+  # Static analysis + coverage on SonarCloud. sonar.qualitygate.wait turns a
+  # failed quality gate into a failed job, which deploy `needs`.
+  # Skipped on fork PRs: SONAR_TOKEN is not exposed to them.
+  sonar:
+    name: SonarCloud analysis
+    needs: [test]
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    concurrency:
+      group: frontend-sonar-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Same ref as test, so the lcov paths and sonar.scm.revision line up.
+          # Full history: the scanner blames lines and diffs against main.
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # node_modules gives the TypeScript analyzer type information; rules that
+      # need it are silently skipped without it. Tests are not rerun here —
+      # coverage comes from the artifact.
+      - run: npm ci
+        working-directory: frontend
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+      - uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: frontend
+          # Identity from repo variables; sources, tests, exclusions and the
+          # lcov path from frontend/sonar-project.properties.
+          # sonar.scm.revision is pinned because on PRs GITHUB_SHA is the merge
+          # commit while the checkout above is the branch head.
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.projectKey=${{ vars.SONAR_FRONTEND_PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+
+  # Runs only on push/merge to main (after test and sonar pass). Builds the
+  # image, pushes it to Artifact Registry, and rolls it out to Cloud Run.
   deploy:
     name: Deploy to Cloud Run
-    needs: [test]
+    needs: [test, sonar]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

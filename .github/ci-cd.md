@@ -5,8 +5,8 @@ This repository uses 2 GitHub Actions workflows:
 - `.github/workflows/backend.yml`
 - `.github/workflows/frontend.yml`
 
-Both workflows implement CI (lint, test, coverage gate, build) and CD (container image → Artifact
-Registry → Cloud Run, on push to `main`).
+Both workflows implement CI (lint, test, coverage, Sonar, build) and CD (container image →
+Artifact Registry → Cloud Run, on push to `main`).
 
 ## 1) Workflow Triggers
 
@@ -34,6 +34,9 @@ Pushes to any branch other than `main` trigger nothing. Open a PR to get CI.
 
 ## 2) CI Stages
 
+Backend has 5 jobs: `test`, `sonar`, `build`, `migrate`, `deploy`. Frontend has 3: `test`,
+`sonar`, `deploy`.
+
 ### `test` job (both workflows)
 
 Runs on every trigger. One run per branch at a time; a newer push cancels the superseded run
@@ -48,6 +51,7 @@ Runs on every trigger. One run per branch at a time; a newer push cancels the su
   - `npx prisma generate` and `npx prisma validate`
   - lint (`oxlint`)
   - unit tests with coverage (`npm run test:cov`)
+  - upload coverage artifact (`lcov.info`)
   - apply `supabase/migrations/` to the CI database with `npx supabase db push --db-url …`
     (the same tool and command the production `migrate` job uses)
   - e2e tests against that database (`npm run test:e2e`)
@@ -58,20 +62,34 @@ Runs on every trigger. One run per branch at a time; a newer push cancels the su
   - `npm ci`
   - lint (`eslint`)
   - unit tests with coverage (`npm run test:cov`)
+  - upload coverage artifact (`lcov.info`)
   - build (`next build`, standalone output)
   - generate/update coverage badge SVG
 
 Both apps enforce a **minimum 80% line coverage** in their Vitest config; the `test:cov` step
 fails below it.
 
+### `sonar` job (both workflows)
+
+- Runs after `test` (`needs: test`). Skipped on fork PRs (no access to `SONAR_TOKEN`).
+- One SonarCloud project per app (monorepo mode), so each workflow only analyses its own app.
+- Checks out the same ref as `test` with full history, installs dependencies (backend also
+  `npx prisma generate`) so the analyzer has type information.
+- Downloads the coverage artifact from `test` — tests are not rerun.
+- Uses SonarCloud scan action (`SonarSource/sonarqube-scan-action`) with `projectBaseDir` set to
+  the app. Organization and project key come from repo variables (§5); sources, tests,
+  exclusions and the lcov path from `<app>/sonar-project.properties`.
+- Waits for quality gate (`sonar.qualitygate.wait=true`).
+- PRs are analysed as pull requests (SonarCloud decorates the PR); pushes analyse `main`.
+
 ## 3) CD Stages
 
 All CD jobs run only on `push` to `main` (`if: github.event_name == 'push' && github.ref ==
 'refs/heads/main'`). Each uses `cancel-in-progress: false` — a deploy is never interrupted.
 
-### Backend: `test` → `build` → `migrate` → `deploy`
+### Backend: `test` → `sonar` → `build` → `migrate` → `deploy`
 
-**`build`** (`needs: test`)
+**`build`** (`needs: test, sonar`)
 
 - Authenticate to Google Cloud with Workload Identity Federation (`google-github-actions/auth@v2`)
   — no service-account key is stored anywhere
@@ -96,10 +114,10 @@ All CD jobs run only on `push` to `main` (`if: github.event_name == 'push' && gi
 Runtime config on the service: `DATABASE_URL` and `DIRECT_URL` mounted from **Secret Manager**
 (`--set-secrets`), never as env vars.
 
-### Frontend: `test` → `deploy`
+### Frontend: `test` → `sonar` → `deploy`
 
-**`deploy`** (`needs: test`) — build and deploy share one job since there is nothing to order
-against.
+**`deploy`** (`needs: test, sonar`) — build and deploy share one job since there is nothing to
+order against.
 
 - Authenticate with Workload Identity Federation
 - `docker build` `frontend/Dockerfile`, push tagged with `${{ github.sha }}` and `latest`
@@ -154,10 +172,14 @@ Badge files:
 - `SUPABASE_ACCESS_TOKEN` — personal access token, used by `migrate` to link the project
 - `SUPABASE_DB_PASSWORD` — hosted database password, used by `supabase db push`
 - `SUPABASE_PROJECT_ID` — Supabase project ref
+- `SONAR_TOKEN` — SonarCloud token, used by the `sonar` job
 - `GITHUB_TOKEN` (provided by Actions; used for the badge commit)
 
 ### Variables (`Repository Variables`)
 
+- `SONAR_ORG` — SonarCloud organization key (`propensi-ppl-tofly`)
+- `SONAR_BACKEND_PROJECT_KEY` — `PROPENSI-PPL-Tofly_tofly-ugc-management_backend`
+- `SONAR_FRONTEND_PROJECT_KEY` — `PROPENSI-PPL-Tofly_tofly-ugc-management_frontend`
 - `GCP_PROJECT_ID`
 - `GCP_REGION` — `asia-southeast2`
 - `GCP_AR_REPO` — Artifact Registry repository name (`tofly`)
@@ -171,7 +193,13 @@ the trust is established on the GCP side (§8).
 
 ## 6) Failure Rules
 
-- If `test` fails: nothing downstream runs.
+- If `test` fails: `sonar` and every CD job do not run.
+- If the `sonar` quality gate fails: no CD job runs. Gate rules are configured in SonarCloud, not
+  in this repo; the 80% Vitest threshold still applies independently.
+- A failed gate blocks merging only if branch protection requires the SonarCloud check. Require
+  SonarCloud's own `SonarCloud Code Analysis` check, not the per-workflow `sonar` jobs — the
+  workflows are path-filtered, so a required job that never runs leaves the PR stuck at
+  "Expected".
 - Backend: if `build` fails, `migrate` and `deploy` do not run — the database is untouched.
 - Backend: if `migrate` fails, `deploy` does not run — the already-pushed image is not rolled out.
 - If the **smoke test** fails: the `Promote` step does not run. The candidate revision stays at
@@ -199,6 +227,9 @@ the trust is established on the GCP side (§8).
 - Health endpoints:
   - backend: `<backend URL>/health` → `{"db":"ok"}`
   - frontend: `<frontend URL>/api/health` → `{"db":"ok"}` (full chain via the proxy)
+- SonarCloud:
+  - backend: <https://sonarcloud.io/project/overview?id=PROPENSI-PPL-Tofly_tofly-ugc-management_backend>
+  - frontend: <https://sonarcloud.io/project/overview?id=PROPENSI-PPL-Tofly_tofly-ugc-management_frontend>
 
 ## 8) Google Cloud Setup
 
