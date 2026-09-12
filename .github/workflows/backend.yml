@@ -70,6 +70,14 @@ jobs:
       - run: npx prisma validate
       - run: npm run lint
       - run: npm run test:cov
+      # Handed to the sonar job. coverage/ is git-ignored and never leaves the
+      # runner otherwise. Uploaded before e2e/build so a later failure still
+      # leaves the report available for debugging.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage
+          path: backend/coverage/lcov.info
+          retention-days: 1
       # Apply the real Supabase migrations to the CI database — the same files,
       # the same tool, and the same command production gets in the migrate job.
       # A migration that fails does so here, not during a production deploy.
@@ -114,6 +122,59 @@ jobs:
           done
           echo "badge push failed after retries; skipping"
 
+  # Static analysis + coverage on SonarCloud. sonar.qualitygate.wait turns a
+  # failed quality gate into a failed job, which build (and so migrate and
+  # deploy) `needs`. Skipped on fork PRs: SONAR_TOKEN is not exposed to them.
+  sonar:
+    name: SonarCloud analysis
+    needs: [test]
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    concurrency:
+      group: backend-sonar-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Same ref as test, so the lcov paths and sonar.scm.revision line up.
+          # Full history: the scanner blames lines and diffs against main.
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      # node_modules and the generated Prisma client give the TypeScript
+      # analyzer type information; rules that need it are silently skipped
+      # without it. Tests are not rerun here — coverage comes from the artifact.
+      - run: npm ci
+        working-directory: backend
+      - run: npx prisma generate
+        working-directory: backend
+      - uses: actions/download-artifact@v8
+        with:
+          name: backend-coverage
+          path: backend/coverage
+      - uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: backend
+          # Identity from repo variables; sources, tests, exclusions and the
+          # lcov path from backend/sonar-project.properties.
+          # sonar.scm.revision is pinned because on PRs GITHUB_SHA is the merge
+          # commit while the checkout above is the branch head.
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.projectKey=${{ vars.SONAR_BACKEND_PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+
   # Build first, migrate second, deploy third. Migrations are the only step here
   # that cannot be undone by re-running the pipeline, so nothing irreversible
   # happens until a deployable image already exists in Artifact Registry. A
@@ -121,7 +182,7 @@ jobs:
   # leaving production migrated but still serving the old revision.
   build:
     name: Build and push image
-    needs: [test]
+    needs: [test, sonar]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
