@@ -5,8 +5,8 @@ This repository uses 2 GitHub Actions workflows:
 - `.github/workflows/backend.yml`
 - `.github/workflows/frontend.yml`
 
-Both workflows implement CI (lint, test, coverage gate, build, SonarCloud analysis with a quality
-gate) and CD (container image → Artifact Registry → Cloud Run, on push to `main`).
+Both workflows implement CI (lint, test, coverage, Sonar, build) and CD (container image →
+Artifact Registry → Cloud Run, on push to `main`).
 
 ## 1) Workflow Triggers
 
@@ -34,6 +34,9 @@ Pushes to any branch other than `main` trigger nothing. Open a PR to get CI.
 
 ## 2) CI Stages
 
+Backend has 5 jobs: `test`, `sonar`, `build`, `migrate`, `deploy`. Frontend has 3: `test`,
+`sonar`, `deploy`.
+
 ### `test` job (both workflows)
 
 Runs on every trigger. One run per branch at a time; a newer push cancels the superseded run
@@ -48,8 +51,7 @@ Runs on every trigger. One run per branch at a time; a newer push cancels the su
   - `npx prisma generate` and `npx prisma validate`
   - lint (`oxlint`)
   - unit tests with coverage (`npm run test:cov`)
-  - upload `coverage/lcov.info` as the `backend-coverage` workflow artifact (1-day retention)
-    for the `sonar` job
+  - upload coverage artifact (`lcov.info`)
   - apply `supabase/migrations/` to the CI database with `npx supabase db push --db-url …`
     (the same tool and command the production `migrate` job uses)
   - e2e tests against that database (`npm run test:e2e`)
@@ -60,8 +62,7 @@ Runs on every trigger. One run per branch at a time; a newer push cancels the su
   - `npm ci`
   - lint (`eslint`)
   - unit tests with coverage (`npm run test:cov`)
-  - upload `coverage/lcov.info` as the `frontend-coverage` workflow artifact (1-day retention)
-    for the `sonar` job
+  - upload coverage artifact (`lcov.info`)
   - build (`next build`, standalone output)
   - generate/update coverage badge SVG
 
@@ -70,24 +71,16 @@ fails below it.
 
 ### `sonar` job (both workflows)
 
-`needs: test`. Runs on every trigger except fork PRs, where it is skipped (not failed) because
-`SONAR_TOKEN` is not exposed to forks. Same per-branch `concurrency` pattern as `test`.
-
-- check out the same ref as `test` (`github.head_ref`, `fetch-depth: 0`) so blame, new-code
-  detection and `sonar.scm.revision` all refer to the analysed commit
-- `npm ci` (backend also `npx prisma generate`) so the TypeScript analyzer has type information
-- download the lcov artifact into `<app>/coverage/` — tests are **not** rerun
-- `SonarSource/sonarqube-scan-action` with `projectBaseDir: <app>`:
-  - identity (`sonar.organization`, `sonar.projectKey`) comes from repo variables (§5)
-  - sources, tests, exclusions and the lcov path come from `<app>/sonar-project.properties`
-  - `sonar.qualitygate.wait=true`: the job waits for SonarCloud's quality gate and fails if it
-    fails
-- `pull_request` runs are analysed as pull requests: SonarCloud decorates the PR and posts its
-  own `SonarCloud Code Analysis` check. `push` and `workflow_dispatch` runs analyse the `main`
-  branch.
-
-One SonarCloud project per app (monorepo mode), so a backend-only change only ever analyses —
-and only ever waits on — the backend project.
+- Runs after `test` (`needs: test`). Skipped on fork PRs (no access to `SONAR_TOKEN`).
+- One SonarCloud project per app (monorepo mode), so each workflow only analyses its own app.
+- Checks out the same ref as `test` with full history, installs dependencies (backend also
+  `npx prisma generate`) so the analyzer has type information.
+- Downloads the coverage artifact from `test` — tests are not rerun.
+- Uses SonarCloud scan action (`SonarSource/sonarqube-scan-action`) with `projectBaseDir` set to
+  the app. Organization and project key come from repo variables (§5); sources, tests,
+  exclusions and the lcov path from `<app>/sonar-project.properties`.
+- Waits for quality gate (`sonar.qualitygate.wait=true`).
+- PRs are analysed as pull requests (SonarCloud decorates the PR); pushes analyse `main`.
 
 ## 3) CD Stages
 
@@ -179,8 +172,7 @@ Badge files:
 - `SUPABASE_ACCESS_TOKEN` — personal access token, used by `migrate` to link the project
 - `SUPABASE_DB_PASSWORD` — hosted database password, used by `supabase db push`
 - `SUPABASE_PROJECT_ID` — Supabase project ref
-- `SONAR_TOKEN` — SonarCloud token (personal or organization), used by the `sonar` job. If it
-  has an expiry, the job starts failing with "Not authorized" when it lapses — rotate it.
+- `SONAR_TOKEN` — SonarCloud token, used by the `sonar` job
 - `GITHUB_TOKEN` (provided by Actions; used for the badge commit)
 
 ### Variables (`Repository Variables`)
@@ -201,16 +193,13 @@ the trust is established on the GCP side (§8).
 
 ## 6) Failure Rules
 
-- If `test` fails: nothing downstream runs.
-- If the SonarCloud **quality gate** fails: `sonar` fails and no CD job runs. `test` is
-  unaffected — it already passed. Gate rules live in SonarCloud (§9), not in this repo; the 80%
-  Vitest threshold in `test:cov` still applies independently.
-- `sonar` is skipped on fork PRs. CD jobs only run on push to `main`, so a skipped `sonar` never
-  skips a deploy.
-- A failed gate blocks **merging** only if branch protection requires the SonarCloud app's
-  `SonarCloud Code Analysis` check (§9). Do **not** require the per-workflow `SonarCloud analysis`
-  jobs: the workflows are path-filtered, so on a backend-only PR the frontend job never runs and a
-  required-but-never-run job leaves the PR stuck at "Expected — waiting for status".
+- If `test` fails: `sonar` and every CD job do not run.
+- If the `sonar` quality gate fails: no CD job runs. Gate rules are configured in SonarCloud, not
+  in this repo; the 80% Vitest threshold still applies independently.
+- A failed gate blocks merging only if branch protection requires the SonarCloud check. Require
+  SonarCloud's own `SonarCloud Code Analysis` check, not the per-workflow `sonar` jobs — the
+  workflows are path-filtered, so a required job that never runs leaves the PR stuck at
+  "Expected".
 - Backend: if `build` fails, `migrate` and `deploy` do not run — the database is untouched.
 - Backend: if `migrate` fails, `deploy` does not run — the already-pushed image is not rolled out.
 - If the **smoke test** fails: the `Promote` step does not run. The candidate revision stays at
@@ -241,7 +230,6 @@ the trust is established on the GCP side (§8).
 - SonarCloud:
   - backend: <https://sonarcloud.io/project/overview?id=PROPENSI-PPL-Tofly_tofly-ugc-management_backend>
   - frontend: <https://sonarcloud.io/project/overview?id=PROPENSI-PPL-Tofly_tofly-ugc-management_frontend>
-  - in the `sonar` job log, look for `QUALITY GATE STATUS: PASSED` / `FAILED`
 
 ## 8) Google Cloud Setup
 
@@ -321,77 +309,3 @@ revision.
   explicitly with `supabase db push --db-url "$DIRECT_URL"`
 - **Google says "permission denied … (or it may not exist)":** usually a misspelled resource
   name, not IAM — check spelling first
-
-## 9) SonarCloud Setup
-
-Static analysis, coverage and a quality gate on SonarCloud (<https://sonarcloud.io>), one
-project per app in **monorepo mode**. Created once, by hand; nothing on the SonarCloud side is
-managed from this repository.
-
-### Organization and projects
-
-| Piece | Value |
-| --- | --- |
-| Organization | `propensi-ppl-tofly` (imported from the GitHub org; installs the SonarCloud GitHub App) |
-| Backend project key | `PROPENSI-PPL-Tofly_tofly-ugc-management_backend` |
-| Frontend project key | `PROPENSI-PPL-Tofly_tofly-ugc-management_frontend` |
-| Analysis method | CI-based (the `sonar` job). Monorepo projects have no Automatic Analysis, so there is no conflict. |
-| Quality gate | `Sonar way` (default): on new code ≥ 80% coverage, ≤ 3% duplication, no new issues, security hotspots reviewed |
-| New Code | **Reference branch: `main`**. Only selectable after the first analysis — until then use "Number of days". PR analysis is unaffected either way; it always compares against the PR's target branch. |
-
-To recreate: org page → **+** → *Analyze new project* → select the repo → **Set up as a
-monorepo** → add the two projects with the keys above. A plain (non-monorepo) import binds the
-whole repo to one project and must be deleted before the monorepo import is offered.
-
-### Credentials
-
-- `SONAR_TOKEN` secret — *My Account → Security → Generate token*.
-- `SONAR_ORG`, `SONAR_BACKEND_PROJECT_KEY`, `SONAR_FRONTEND_PROJECT_KEY` variables — the values
-  above. Identity lives in GitHub variables so a key or org can change without a commit.
-
-### Per-app configuration
-
-`backend/sonar-project.properties` and `frontend/sonar-project.properties` hold everything that
-describes the code layout: `sonar.sources`, `sonar.tests`, test inclusion patterns (specs are
-colocated in `src/`), `sonar.coverage.exclusions` (mirrors `coverage.exclude` in each
-`vitest.config.ts`, so Sonar's percentage matches the badge) and
-`sonar.javascript.lcov.reportPaths=coverage/lcov.info`.
-
-They deliberately omit `sonar.organization` and `sonar.projectKey` — the workflow passes those.
-
-### Running the scanner locally
-
-```bash
-cd backend            # or frontend
-npm run test:cov
-npx sonar-scanner \
-  -Dsonar.organization=propensi-ppl-tofly \
-  -Dsonar.projectKey=PROPENSI-PPL-Tofly_tofly-ugc-management_backend \
-  -Dsonar.token=<token>
-```
-
-`.scannerwork/` (the scanner's cache) is git-ignored in both apps.
-
-### Branch protection
-
-To make a red quality gate block merging, require the SonarCloud app's **`SonarCloud Code
-Analysis`** check on `main` (GitHub → Settings → Branches). The picker only lists checks that have
-reported at least once, so this can only be done after the first PR analysis. Confirm on that PR
-that the app posts a single check (not one per project) before requiring it; see §6 for why the
-per-workflow `SonarCloud analysis` jobs must not be required.
-
-### Troubleshooting
-
-- **`Not authorized` / `Project not found` in the `sonar` log:** `SONAR_TOKEN` expired or
-  wrong, or `SONAR_ORG` / a project-key variable does not match SonarCloud
-- **Coverage shows 0% on SonarCloud but the badge is fine:** the lcov artifact was not
-  downloaded into `<app>/coverage/`, or `projectBaseDir` / `sonar.javascript.lcov.reportPaths`
-  is wrong
-- **PR not decorated, no SonarCloud check:** the SonarCloud GitHub App lacks access to the repo,
-  or it is a fork PR (the job is skipped)
-- **`Could not find ref main` / shallow-clone warning:** `fetch-depth: 0` was removed from the
-  `sonar` checkout
-- **Analysis attached to the wrong commit:** `-Dsonar.scm.revision=…` was dropped — on PRs the
-  checkout is the branch head while `GITHUB_SHA` is the merge commit
-- **PR stuck at "Expected — waiting for status":** a per-workflow `SonarCloud analysis` job was
-  made a required check; require the app check instead (§6)
