@@ -98,8 +98,10 @@ All CD jobs run only on `push` to `main` (`if: github.event_name == 'push' && gi
 
 **`migrate`** (`needs: test, build`)
 
-- `npx supabase link --project-ref …`
-- `npx supabase db push` — applies `supabase/migrations/` to the hosted Supabase database
+- `npx supabase db push --project-ref … --password …` — applies `supabase/migrations/` to the
+  hosted Supabase database. Targets the project directly rather than `supabase link` first:
+  `link` fetches the legacy API keys and the platform rejects that call even for owners
+  (supabase/cli#6392)
 - Runs **after** the image is pushed so a broken Dockerfile can never leave production migrated
   but not deployed; runs **before** `deploy` because the Prisma client is baked into the image at
   build time and must not reach production ahead of its schema
@@ -169,7 +171,7 @@ Badge files:
 
 ### Secrets
 
-- `SUPABASE_ACCESS_TOKEN` — personal access token, used by `migrate` to link the project
+- `SUPABASE_ACCESS_TOKEN` — personal access token, used by `migrate` to resolve the project
 - `SUPABASE_DB_PASSWORD` — hosted database password, used by `supabase db push`
 - `SUPABASE_PROJECT_ID` — Supabase project ref
 - `SONAR_TOKEN` — SonarCloud token, used by the `sonar` job
