@@ -18,9 +18,9 @@ Examples:
 
 <!-- Exact steps a reviewer can follow locally (see README for setup). -->
 
-1.
-2.
-3. Expected result:
+1. Step 1
+2. Step 2
+3. Expected result
 
 ## Related Issues
 
