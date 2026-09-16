@@ -33,6 +33,24 @@ describe("/api/* proxy", () => {
     expect(String(target)).toBe("http://backend:3001/health?verbose=1");
   });
 
+  it("passes the original client address on to the backend", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await GET(
+      new Request("http://localhost:3000/api/creators", {
+        headers: { "x-forwarded-for": "203.0.113.5" },
+      }),
+      params("creators"),
+    );
+
+    // The backend sees every request coming from this server, so without the original
+    // address anything it does per client would treat the whole team as one caller.
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(new Headers(init.headers).get("x-forwarded-for")).toBe("203.0.113.5");
+  });
+
   it("keeps a trailing slash on BACKEND_URL from swallowing the path", async () => {
     vi.stubEnv("BACKEND_URL", "http://backend:3001/");
     const fetchMock = vi

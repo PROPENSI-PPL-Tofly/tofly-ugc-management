@@ -3,9 +3,9 @@ import type { ExecutionContext } from '@nestjs/common';
 import type { Clock } from './clock.js';
 import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS, RateLimitGuard } from './rate-limit.guard.js';
 
-function requestFrom(ip: string): ExecutionContext {
+function requestFrom(ip: string, headers: Record<string, unknown> = {}): ExecutionContext {
   return {
-    switchToHttp: () => ({ getRequest: () => ({ ip }) }),
+    switchToHttp: () => ({ getRequest: () => ({ ip, headers }) }),
   } as unknown as ExecutionContext;
 }
 
@@ -65,8 +65,50 @@ describe('RateLimitGuard', () => {
     expect(guard.canActivate(requestFrom('10.0.0.1'))).toBe(true);
   });
 
+  it('counts the forwarded client, not the proxy that relayed the request', () => {
+    const proxyIp = '10.0.0.9';
+
+    for (let attempt = 0; attempt < RATE_LIMIT_MAX; attempt += 1) {
+      guard.canActivate(requestFrom(proxyIp, { 'x-forwarded-for': '203.0.113.5' }));
+    }
+
+    // Same proxy, different person: without this the first admin through the door would
+    // spend everyone else's allowance.
+    expect(
+      guard.canActivate(requestFrom(proxyIp, { 'x-forwarded-for': '203.0.113.6' })),
+    ).toBe(true);
+  });
+
+  it('reads the original client from the front of a forwarded chain', () => {
+    for (let attempt = 0; attempt < RATE_LIMIT_MAX; attempt += 1) {
+      guard.canActivate(
+        requestFrom('10.0.0.9', { 'x-forwarded-for': '203.0.113.5, 70.41.3.18' }),
+      );
+    }
+
+    expect(() =>
+      guard.canActivate(requestFrom('10.0.0.9', { 'x-forwarded-for': ' 203.0.113.5 ' })),
+    ).toThrow(HttpException);
+  });
+
+  it('accepts a repeated forwarded header without tripping over the array', () => {
+    expect(
+      guard.canActivate(requestFrom('10.0.0.9', { 'x-forwarded-for': ['203.0.113.5'] })),
+    ).toBe(true);
+  });
+
+  it('falls back to the socket address when nothing was forwarded', () => {
+    for (let attempt = 0; attempt < RATE_LIMIT_MAX; attempt += 1) {
+      guard.canActivate(requestFrom('10.0.0.1'));
+    }
+
+    expect(() => guard.canActivate(requestFrom('10.0.0.1'))).toThrow(HttpException);
+  });
+
   it('treats a client with no address as one bucket rather than crashing', () => {
-    const anonymous = { switchToHttp: () => ({ getRequest: () => ({}) }) } as ExecutionContext;
+    const anonymous = {
+      switchToHttp: () => ({ getRequest: () => ({}) }),
+    } as unknown as ExecutionContext;
 
     expect(guard.canActivate(anonymous)).toBe(true);
   });
