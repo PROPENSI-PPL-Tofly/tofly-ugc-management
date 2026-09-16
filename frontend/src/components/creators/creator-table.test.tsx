@@ -49,6 +49,23 @@ describe("CreatorTable", () => {
     expect(within(row).getByText("berakhir 30 hari lalu, periode ke-2")).toBeInTheDocument();
   });
 
+  it("lists every connected account on its own line", () => {
+    render(
+      <CreatorTable
+        creators={[creatorSummary({ socials: { instagram: "rangga.creates", tiktok: "ranggacreates" } })]}
+      />,
+    );
+
+    expect(screen.getByText("Instagram @rangga.creates")).toBeInTheDocument();
+    expect(screen.getByText("TikTok @ranggacreates")).toBeInTheDocument();
+  });
+
+  it("says when a creator's access has been revoked", () => {
+    render(<CreatorTable creators={[creatorSummary({ accessRevokeDate: "2026-10-01" })]} />);
+
+    expect(screen.getByText("Akses dicabut 1 Okt 2026")).toBeInTheDocument();
+  });
+
   it("writes a missing on-time rate as a dash rather than a zero", () => {
     render(
       <CreatorTable

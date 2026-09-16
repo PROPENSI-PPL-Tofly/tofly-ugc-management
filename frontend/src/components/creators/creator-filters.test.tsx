@@ -88,6 +88,15 @@ describe("CreatorFilters", () => {
     expect(replace).toHaveBeenCalledWith("/admin/creators?contract=active");
   });
 
+  it("drops the contract filter when everything is chosen again", async () => {
+    currentQuery = "contract=active";
+    renderFilters({ filters: { ...FILTERS, contract: "active" } });
+
+    await userEvent.selectOptions(screen.getByLabelText(/status kontrak/i), "all");
+
+    expect(replace).toHaveBeenCalledWith("/admin/creators");
+  });
+
   it("filters by productivity", async () => {
     renderFilters();
 

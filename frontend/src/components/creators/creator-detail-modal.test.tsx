@@ -49,6 +49,87 @@ describe("CreatorDetailModal", () => {
     expect(await screen.findByText(/gagal memuat/i)).toBeInTheDocument();
   });
 
+  it("shows a dash for contact details that are not on file", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(creatorDetail({ phoneNumber: null, socials: {} }))),
+    );
+
+    open();
+
+    expect(await screen.findByText("rangga@example.com")).toBeInTheDocument();
+    expect(screen.getAllByText("—")).toHaveLength(3);
+  });
+
+  it("lists a TikTok handle when there is one", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(creatorDetail({ socials: { tiktok: "ranggacreates" } }))),
+    );
+
+    open();
+
+    expect(await screen.findByText("@ranggacreates")).toBeInTheDocument();
+  });
+
+  it("marks only the running period in the contract history", async () => {
+    const detail = creatorDetail();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          creatorDetail({
+            contractHistory: [
+              {
+                ...detail.contractHistory[0],
+                id: "contract-0",
+                periodNumber: 1,
+                startDate: "2025-06-01",
+                endDate: "2025-12-01",
+                isCurrent: false,
+              },
+              { ...detail.contractHistory[0], id: "contract-1", periodNumber: 2, isCurrent: true },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    open();
+
+    expect(await screen.findByText(/Periode 2 \(berjalan\)/)).toBeInTheDocument();
+    expect(screen.getByText(/^Periode 1:/)).toBeInTheDocument();
+  });
+
+  it("drops a late answer once the dialog has been closed", async () => {
+    let resolve: (value: Response) => void = () => {};
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>((r) => (resolve = r)),
+    );
+
+    const { unmount } = render(
+      <CreatorDetailModal creatorId="creator-rangga" name="Rangga Pratama" onClose={vi.fn()} />,
+    );
+    unmount();
+    resolve(new Response(JSON.stringify(creatorDetail())));
+    await Promise.resolve();
+
+    expect(screen.queryByText("rangga@example.com")).not.toBeInTheDocument();
+  });
+
+  it("drops a late failure once the dialog has been closed", async () => {
+    let reject: (reason: Error) => void = () => {};
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>((_, r) => (reject = r)),
+    );
+
+    const { unmount } = render(
+      <CreatorDetailModal creatorId="creator-rangga" name="Rangga Pratama" onClose={vi.fn()} />,
+    );
+    unmount();
+    reject(new Error("too late"));
+    await Promise.resolve();
+
+    expect(screen.queryByText(/gagal memuat/i)).not.toBeInTheDocument();
+  });
+
   it("says so when a creator has no content yet", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(creatorDetail({ contents: [], drafts: [] }))),

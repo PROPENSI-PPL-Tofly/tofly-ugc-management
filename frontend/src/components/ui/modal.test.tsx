@@ -34,6 +34,14 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("ignores every other key", async () => {
+    const onClose = renderModal();
+
+    await userEvent.keyboard("{Enter}");
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("closes when the backdrop is clicked", async () => {
     const onClose = renderModal();
 

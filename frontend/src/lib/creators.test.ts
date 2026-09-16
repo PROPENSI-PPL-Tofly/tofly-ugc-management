@@ -32,6 +32,10 @@ describe("parseFilters", () => {
   it("takes the first value when a parameter is repeated", () => {
     expect(parseFilters({ q: ["rangga", "dimas"] }).q).toBe("rangga");
   });
+
+  it("treats a repeated parameter with no values as absent", () => {
+    expect(parseFilters({ q: [] }).q).toBe("");
+  });
 });
 
 describe("buildCreatorsQuery", () => {
@@ -91,6 +95,17 @@ describe("fetchCreators", () => {
       "http://backend:3001/creators?q=rangga&pageSize=10",
       expect.objectContaining({ cache: "no-store" }),
     );
+  });
+
+  it("copes with a backend address that ends in slashes", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001//");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(response)));
+
+    await fetchCreators({ q: "", contract: "all", productivity: "all", page: 1 });
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe("http://backend:3001/creators?pageSize=10");
   });
 
   it("fails loudly when the backend address is missing", async () => {
