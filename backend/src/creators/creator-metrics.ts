@@ -79,14 +79,23 @@ export function currentContract(
   const now = atMidnight(today);
   const finished = contracts.filter((contract) => atMidnight(contract.endDate) < now);
   if (finished.length > 0) {
-    return finished.reduce((latest, contract) =>
-      atMidnight(contract.endDate) > atMidnight(latest.endDate) ? contract : latest,
-    );
+    return pickBy(finished, (contract) => atMidnight(contract.endDate), Math.max);
   }
 
-  return contracts.reduce((earliest, contract) =>
-    atMidnight(contract.startDate) < atMidnight(earliest.startDate) ? contract : earliest,
-  );
+  return pickBy(contracts, (contract) => atMidnight(contract.startDate), Math.min);
+}
+
+/** The contract whose key wins under `choose` (Math.max for latest, Math.min for earliest). */
+function pickBy(
+  contracts: MetricsContract[],
+  key: (contract: MetricsContract) => number,
+  choose: (a: number, b: number) => number,
+): MetricsContract {
+  let winner = contracts[0];
+  for (const contract of contracts.slice(1)) {
+    if (choose(key(contract), key(winner)) === key(contract)) winner = contract;
+  }
+  return winner;
 }
 
 /** Days left before the contract ends; negative once it has. Zero on the final day. */

@@ -84,6 +84,8 @@ const DETAIL_SELECT = {
   },
 } as const;
 
+type SubmissionRow = { id: string; link: string; revisionNotes: string | null; createdAt: Date };
+
 type ContentRow = {
   id: string;
   name: string;
@@ -94,19 +96,18 @@ type ContentRow = {
   videoLink: string | null;
   videoSubmittedAt: Date | null;
   _count: { submissions: number };
-  submissions?: { id: string; link: string; revisionNotes: string | null; createdAt: Date }[];
 };
 
-type ContractRow = {
+type ContractRow<Content extends ContentRow = ContentRow> = {
   id: string;
   startDate: Date;
   endDate: Date;
   daysBetween: number;
   contentQuota: number;
-  contents: ContentRow[];
+  contents: Content[];
 };
 
-type CreatorRow = {
+type CreatorRow<Content extends ContentRow = ContentRow> = {
   id: string;
   firstName: string;
   middleName: string | null;
@@ -115,8 +116,11 @@ type CreatorRow = {
   accessRevokeDate: Date | null;
   user: { email: string };
   socialAccounts: { platform: string; username: string; isConnected: boolean }[];
-  contracts: ContractRow[];
+  contracts: ContractRow<Content>[];
 };
+
+/** The detail query also carries every draft, so the rows here are never without them. */
+type DetailContentRow = ContentRow & { submissions: SubmissionRow[] };
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -131,7 +135,7 @@ function toMetricsContent(content: ContentRow): MetricsContent {
     deadline: content.deadline,
     videoSubmittedAt: content.videoSubmittedAt,
     isProposal: content.isProposal,
-    submissionCount: content.submissions?.length ?? content._count.submissions,
+    submissionCount: content._count.submissions,
   };
 }
 
@@ -270,7 +274,7 @@ export class CreatorsService {
     const creator = (await this.prisma.creator.findUnique({
       where: { id },
       select: DETAIL_SELECT,
-    })) as unknown as CreatorRow | null;
+    })) as unknown as CreatorRow<DetailContentRow> | null;
 
     if (!creator) {
       this.logger.warn(`Creator ${id} not found`);
@@ -309,9 +313,9 @@ export class CreatorsService {
         videoLink: content.videoLink,
       })),
       drafts: contents
-        .filter((content) => (content.submissions?.length ?? 0) > 0)
+        .filter((content) => content.submissions.length > 0)
         .map((content) => {
-          const submissions = content.submissions ?? [];
+          const { submissions } = content;
           const latest = submissions[submissions.length - 1];
           return {
             contentId: content.id,
