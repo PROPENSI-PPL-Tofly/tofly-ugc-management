@@ -1,15 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-// The admin sections of the module. Only the ones that exist are links; the rest are listed
-// so the shape of the module is visible, but marked unavailable rather than leading nowhere.
-const NAV = [
-  { label: "Overview", href: null },
-  { label: "Creator Database", href: "/admin/creators" },
-  { label: "Content Plan", href: null },
-  { label: "Performance", href: null },
-  { label: "Rate & Invoicing", href: null },
-] as const;
+// Only the sections that exist are listed; a new one is added here when its page lands.
+const NAV = [{ label: "Creator Database", href: "/admin/creators" }] as const;
 
 export function AppShell({
   title,
@@ -33,32 +26,19 @@ export function AppShell({
           <span className="text-[17px] font-bold tracking-tight text-ink">Tofly</span>
         </div>
 
-        <p className="px-6 pb-2 text-xs text-muted">Module 1 — UGC Task Management</p>
-
         <nav className="flex flex-col">
-          {NAV.map((item) =>
-            item.href ? (
-              // A left rail rather than a tinted block: the rail says "you are here" without
-              // turning the item into a button-shaped thing.
-              <Link
-                key={item.label}
-                href={item.href}
-                aria-current="page"
-                className="border-l-[3px] border-blue bg-blue-wash py-2.5 pl-[21px] pr-6 text-[13.5px] font-semibold text-blue-deep"
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <span
-                key={item.label}
-                aria-disabled="true"
-                title="Belum tersedia"
-                className="cursor-not-allowed border-l-[3px] border-transparent py-2.5 pl-[21px] pr-6 text-[13.5px] font-medium text-line-strong"
-              >
-                {item.label}
-              </span>
-            ),
-          )}
+          {NAV.map((item) => (
+            // A left rail rather than a tinted block: the rail says "you are here" without
+            // turning the item into a button-shaped thing.
+            <Link
+              key={item.label}
+              href={item.href}
+              aria-current="page"
+              className="border-l-[3px] border-blue bg-blue-wash py-2.5 pl-[21px] pr-6 text-[13.5px] font-semibold text-blue-deep"
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
       </aside>
 
