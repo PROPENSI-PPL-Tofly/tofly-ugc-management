@@ -131,6 +131,12 @@ export function buildCreatorsQuery(filters: CreatorFilters): string {
   return query.toString();
 }
 
+function withoutTrailingSlash(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end -= 1;
+  return url.slice(0, end);
+}
+
 async function readJson<T>(response: Response, what: string): Promise<T> {
   if (!response.ok) {
     throw new Error(`${what} failed with HTTP ${response.status}`);
@@ -147,7 +153,7 @@ export async function fetchCreators(filters: CreatorFilters): Promise<CreatorLis
   if (!backendUrl) throw new Error("BACKEND_URL is not configured");
 
   const response = await fetch(
-    `${backendUrl.replace(/\/+$/, "")}/creators?${buildCreatorsQuery(filters)}`,
+    `${withoutTrailingSlash(backendUrl)}/creators?${buildCreatorsQuery(filters)}`,
     { cache: "no-store" },
   );
 

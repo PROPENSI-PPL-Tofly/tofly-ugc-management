@@ -32,7 +32,8 @@ function counts(stats: CreatorListResponse["stats"]): Record<Band, number> {
 
 function share(part: number, whole: number): string {
   if (whole === 0) return "0%";
-  return `${((part / whole) * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+  // Number() drops the trailing zeros toFixed leaves behind: 41.67 stays, 25.00 becomes 25.
+  return `${Number(((part / whole) * 100).toFixed(2))}%`;
 }
 
 export function RosterHealth({
