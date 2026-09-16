@@ -10,17 +10,20 @@ import { updateQuery } from "@/lib/query";
 const SEARCH_DEBOUNCE_MS = 300;
 
 const CONTRACT_OPTIONS = [
-  { value: "all", label: "Semua" },
-  { value: "active", label: "Kontrak Active" },
-  { value: "expired", label: "Kontrak Expired" },
+  { value: "all", label: "Semua kontrak" },
+  { value: "active", label: "Kontrak aktif" },
+  { value: "expired", label: "Kontrak berakhir" },
 ];
 
 const PRODUCTIVITY_OPTIONS = [
-  { value: "all", label: "Semua" },
+  { value: "all", label: "Semua produktivitas" },
   { value: "good", label: "Baik" },
-  { value: "watch", label: "Perlu Perhatian" },
+  { value: "watch", label: "Perlu perhatian" },
   { value: "risk", label: "Berisiko" },
 ];
+
+const CONTROL =
+  "h-9 rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-[13px] text-ink";
 
 export function CreatorFilters({
   filters,
@@ -62,66 +65,61 @@ export function CreatorFilters({
     navigate("");
   };
 
+  const narrowed = filters.q || filters.contract !== "all" || filters.productivity !== "all";
+
   return (
-    <div className="flex flex-wrap items-end gap-2 border-b border-line bg-[#FAFAF8] px-[18px] py-3.5">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="creator-search" className="text-[10.5px] font-semibold uppercase text-muted">
-          Cari nama / email
-        </label>
-        <input
-          id="creator-search"
-          type="search"
-          value={term}
-          onChange={(event) => setTerm(event.target.value)}
-          placeholder="cari creator..."
-          className="min-w-[200px] rounded-[6px] border border-line-strong bg-surface px-2.5 py-1.5 text-[12.5px]"
-        />
-      </div>
+    <div className="flex flex-wrap items-center gap-2 border-y border-line bg-surface-low px-5 py-3">
+      <label htmlFor="creator-search" className="sr-only">
+        Cari nama atau email
+      </label>
+      <input
+        id="creator-search"
+        type="search"
+        value={term}
+        onChange={(event) => setTerm(event.target.value)}
+        placeholder="Cari nama atau email"
+        className={`${CONTROL} min-w-[240px] flex-1 sm:flex-none`}
+      />
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="creator-contract" className="text-[10.5px] font-semibold uppercase text-muted">
-          Status Kontrak
-        </label>
-        <select
-          id="creator-contract"
-          value={filters.contract}
-          onChange={(event) => change("contract", event.target.value)}
-          className="min-w-[150px] rounded-[6px] border border-line-strong bg-surface px-2.5 py-1.5 text-[12.5px]"
-        >
-          {CONTRACT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <label htmlFor="creator-contract" className="sr-only">
+        Status kontrak
+      </label>
+      <select
+        id="creator-contract"
+        value={filters.contract}
+        onChange={(event) => change("contract", event.target.value)}
+        className={CONTROL}
+      >
+        {CONTRACT_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="creator-productivity"
-          className="text-[10.5px] font-semibold uppercase text-muted"
-        >
-          Produktivitas
-        </label>
-        <select
-          id="creator-productivity"
-          value={filters.productivity}
-          onChange={(event) => change("productivity", event.target.value)}
-          className="min-w-[150px] rounded-[6px] border border-line-strong bg-surface px-2.5 py-1.5 text-[12.5px]"
-        >
-          {PRODUCTIVITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <label htmlFor="creator-productivity" className="sr-only">
+        Produktivitas
+      </label>
+      <select
+        id="creator-productivity"
+        value={filters.productivity}
+        onChange={(event) => change("productivity", event.target.value)}
+        className={CONTROL}
+      >
+        {PRODUCTIVITY_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
 
-      <Button variant="ghost" onClick={reset}>
-        Reset
-      </Button>
+      {narrowed ? (
+        <Button variant="ghost" onClick={reset}>
+          Reset filter
+        </Button>
+      ) : null}
 
-      <span className="ml-auto text-[11.5px] text-muted">
+      <span className="ml-auto text-[12.5px] text-muted">
         {shown} dari {total} creator
       </span>
     </div>

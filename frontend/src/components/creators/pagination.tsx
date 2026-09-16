@@ -31,19 +31,19 @@ export function Pagination({
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-[18px] py-3">
-      <p className="text-[11.5px] text-muted">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+      <p className="text-[12.5px] text-muted">
         Menampilkan {first}–{last} dari {total} creator
       </p>
       <div className="flex items-center gap-2">
-        <span className="text-[11.5px] text-muted">
+        <span className="text-[12.5px] text-muted">
           Halaman {page} dari {totalPages}
         </span>
-        <Button variant="ghost" disabled={page <= 1} onClick={() => goTo(page - 1)}>
-          ‹ Sebelumnya
+        <Button disabled={page <= 1} onClick={() => goTo(page - 1)}>
+          Sebelumnya
         </Button>
-        <Button variant="ghost" disabled={page >= totalPages} onClick={() => goTo(page + 1)}>
-          Berikutnya ›
+        <Button disabled={page >= totalPages} onClick={() => goTo(page + 1)}>
+          Berikutnya
         </Button>
       </div>
     </div>

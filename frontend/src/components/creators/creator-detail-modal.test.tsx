@@ -35,9 +35,9 @@ describe("CreatorDetailModal", () => {
 
     expect(await screen.findByText("rangga@example.com")).toBeInTheDocument();
     expect(screen.getByText("081234567001")).toBeInTheDocument();
-    expect(screen.getAllByText(/Periode 1/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Periode 1 \(berjalan\)/)).toBeInTheDocument();
     expect(screen.getAllByText("Evergreen - Tips Belajar Cepat")).toHaveLength(2);
-    expect(screen.getByText("Tepat waktu")).toBeInTheDocument();
+    expect(screen.getAllByText("Tepat waktu")).toHaveLength(2);
     expect(screen.getByText(/1x revisi/)).toBeInTheDocument();
   });
 

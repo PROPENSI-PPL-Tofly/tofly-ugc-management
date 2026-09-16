@@ -29,7 +29,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-5"
       data-testid="modal-backdrop"
       // The backdrop is a convenience for pointer users; Escape and the close button are the
       // accessible paths, so this element stays out of the keyboard flow on purpose.
@@ -39,23 +39,23 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-[88vh] w-full max-w-[640px] overflow-y-auto rounded-[10px] border border-line bg-surface"
+        className="max-h-[88vh] w-full max-w-[660px] overflow-y-auto rounded-[var(--radius-panel)] bg-surface"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-line px-5 py-[18px]">
-          <h2 className="text-[15px]">{title}</h2>
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+          <h2 className="text-lg">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Tutup dialog"
-            className="cursor-pointer border-none bg-transparent text-lg leading-none text-muted hover:text-ink"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-base leading-none text-muted hover:bg-surface-low hover:text-ink"
           >
             ✕
           </button>
         </div>
-        <div className="flex flex-col gap-3.5 p-5">{children}</div>
+        <div className="flex flex-col gap-5 px-6 py-5">{children}</div>
         {footer ? (
-          <div className="flex justify-end gap-2 border-t border-line px-5 py-4">{footer}</div>
+          <div className="flex justify-end gap-2 border-t border-line px-6 py-4">{footer}</div>
         ) : null}
       </div>
     </div>

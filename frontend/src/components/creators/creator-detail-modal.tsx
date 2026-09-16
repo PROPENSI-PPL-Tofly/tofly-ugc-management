@@ -1,11 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Pill, type PillTone } from "@/components/ui/pill";
-import { fetchCreatorDetail, type ContentOutcome, type CreatorDetail } from "@/lib/creators";
+import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import {
+  fetchCreatorDetail,
+  type ContentOutcome,
+  type ContractStatus,
+  type CreatorDetail,
+  type Productivity,
+} from "@/lib/creators";
 import {
   formatContractWindow,
   formatDate,
@@ -21,21 +27,53 @@ const OUTCOME_LABELS: Record<ContentOutcome, string> = {
   open: "Berjalan",
 };
 
-const OUTCOME_TONES: Record<ContentOutcome, PillTone> = {
-  on_time: "success",
-  submitted_late: "warning",
-  late: "danger",
+const OUTCOME_TONES: Record<ContentOutcome, Tone> = {
+  on_time: "green",
+  submitted_late: "amber",
+  late: "red",
   open: "neutral",
 };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+const CONTRACT_LABELS: Record<ContractStatus, string> = {
+  active: "Kontrak aktif",
+  expired: "Kontrak berakhir",
+  upcoming: "Kontrak belum mulai",
+  none: "Belum ada kontrak",
+};
+
+const CONTRACT_TONES: Record<ContractStatus, Tone> = {
+  active: "green",
+  expired: "red",
+  upcoming: "blue",
+  none: "neutral",
+};
+
+const PRODUCTIVITY_TONES: Record<Productivity, Tone> = {
+  good: "green",
+  watch: "amber",
+  risk: "red",
+};
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div>
-      <p className="mb-1 text-[12.5px] font-semibold">{label}</p>
-      <div className="text-[13px]">{children}</div>
+    <section>
+      <h3 className="mb-2 text-[13px] font-semibold text-ink">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function Figure({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-[var(--radius-control)] bg-surface-low px-3.5 py-3">
+      <p className="text-xs text-muted">{label}</p>
+      <div className="mt-1 text-lg font-bold tabular-nums">{value}</div>
     </div>
   );
 }
+
+const ROW =
+  "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line py-2 text-[13px] last:border-none";
 
 /**
  * Loads the detail when it opens rather than being handed the data.
@@ -83,117 +121,100 @@ export function CreatorDetailModal({
             Tutup
           </Button>
           <Button
-            variant="accent"
+            variant="primary"
             onClick={() => router.push(`/admin/creators/${creatorId}/content-plan`)}
           >
-            Lihat Content Plan
+            Lihat content plan
           </Button>
         </>
       }
     >
       {failed ? (
-        <p className="py-6 text-center text-[13px] text-danger">
-          Gagal memuat detail creator. Coba tutup dan buka lagi.
+        <p className="py-8 text-center text-[13px] text-red">
+          Gagal memuat detail creator. Tutup dialog ini dan coba lagi.
         </p>
       ) : null}
 
       {!failed && !detail ? (
-        <p className="py-6 text-center text-[13px] text-muted">Memuat detail creator…</p>
+        <p className="py-8 text-center text-[13px] text-muted">Memuat detail creator…</p>
       ) : null}
 
       {detail ? (
         <>
-          <div className="grid gap-3.5 sm:grid-cols-2">
-            <Field label="Email">{detail.email}</Field>
-            <Field label="Nomor telepon">{detail.phoneNumber ?? "—"}</Field>
-            <Field label="Kontrak">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+            <StatusDot tone={CONTRACT_TONES[detail.contract.status]}>
+              {CONTRACT_LABELS[detail.contract.status]}
+            </StatusDot>
+            <span className="text-muted">
               {formatContractWindow(detail.contract.startDate, detail.contract.endDate)}
-              <p className="mt-1 text-xs text-muted">
-                Periode {detail.contract.periodNumber} ·{" "}
-                {formatDaysRemaining(detail.contract.daysRemaining)} · kuota{" "}
-                {detail.contract.contentQuota} konten
-              </p>
-            </Field>
-            <Field label="Akun media sosial">
-              {[
-                detail.socials.instagram && `IG @${detail.socials.instagram}`,
-                detail.socials.tiktok && `TikTok @${detail.socials.tiktok}`,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "—"}
-            </Field>
+            </span>
+            <span className="text-muted">{formatDaysRemaining(detail.contract.daysRemaining)}</span>
           </div>
+
+          <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0 text-muted">Email</dt>
+              <dd>{detail.email}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0 text-muted">Telepon</dt>
+              <dd>{detail.phoneNumber ?? "—"}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0 text-muted">Instagram</dt>
+              <dd>{detail.socials.instagram ? `@${detail.socials.instagram}` : "—"}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0 text-muted">TikTok</dt>
+              <dd>{detail.socials.tiktok ? `@${detail.socials.tiktok}` : "—"}</dd>
+            </div>
+          </dl>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
-              <p className="text-xs text-muted">Progress</p>
-              <p className="font-heading text-lg font-bold">
-                {detail.progress.submitted}/{detail.progress.total}
-              </p>
-            </div>
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
-              <p className="text-xs text-muted">On-time</p>
-              <p className="font-heading text-lg font-bold">
-                {formatPercent(detail.performance.onTimeRate)}
-              </p>
-            </div>
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
-              <p className="text-xs text-muted">Avg revisi</p>
-              <p className="font-heading text-lg font-bold">
-                {formatRevisions(detail.performance.avgRevisions)}
-              </p>
-            </div>
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
-              <p className="text-xs text-muted">Produktivitas</p>
-              <p className="mt-1">
-                <Pill
-                  tone={
-                    detail.performance.productivity === "good"
-                      ? "success"
-                      : detail.performance.productivity === "risk"
-                        ? "danger"
-                        : "warning"
-                  }
-                >
+            <Figure
+              label="Progress"
+              value={`${detail.progress.submitted}/${detail.progress.total}`}
+            />
+            <Figure label="Tepat waktu" value={formatPercent(detail.performance.onTimeRate)} />
+            <Figure label="Rata-rata revisi" value={formatRevisions(detail.performance.avgRevisions)} />
+            <Figure
+              label="Produktivitas"
+              value={
+                <Pill tone={PRODUCTIVITY_TONES[detail.performance.productivity]}>
                   {detail.performance.productivityLabel}
                 </Pill>
-              </p>
-            </div>
+              }
+            />
           </div>
 
-          <Field label="Riwayat kontrak">
-            <ul className="flex flex-col gap-1">
+          <Section title="Riwayat kontrak">
+            <ul>
               {detail.contractHistory.map((period) => (
-                <li
-                  key={period.id}
-                  className="flex flex-wrap justify-between gap-2 border-b border-dashed border-line py-1.5 text-xs last:border-none"
-                >
+                <li key={period.id} className={ROW}>
                   <span>
-                    Periode {period.periodNumber}: {formatDate(period.startDate)} –{" "}
-                    {formatDate(period.endDate)} · {period.contentQuota} konten
+                    Periode {period.periodNumber}
+                    {period.isCurrent ? " (berjalan)" : ""}:{" "}
+                    {formatContractWindow(period.startDate, period.endDate)}, kuota{" "}
+                    {period.contentQuota} konten
                   </span>
-                  <span className="text-muted">
+                  <span className="text-muted tabular-nums">
                     {period.completed}/{period.total} selesai
-                    {period.isCurrent ? " · berjalan" : ""}
                   </span>
                 </li>
               ))}
             </ul>
-          </Field>
+          </Section>
 
-          <Field label="Riwayat konten">
+          <Section title="Konten pada kontrak ini">
             {detail.contents.length === 0 ? (
-              <p className="text-xs text-muted">Belum ada konten pada periode ini.</p>
+              <p className="text-[13px] text-muted">Belum ada konten pada periode ini.</p>
             ) : (
-              <ul className="flex flex-col gap-1">
+              <ul>
                 {detail.contents.map((content) => (
-                  <li
-                    key={content.id}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-line py-1.5 text-xs last:border-none"
-                  >
+                  <li key={content.id} className={ROW}>
                     <span>{content.name}</span>
-                    <span className="flex items-center gap-2 text-muted">
-                      {formatDate(content.deadline)}
+                    <span className="flex items-center gap-3 text-muted">
+                      <span className="tabular-nums">{formatDate(content.deadline)}</span>
                       <Pill tone={OUTCOME_TONES[content.outcome]}>
                         {OUTCOME_LABELS[content.outcome]}
                       </Pill>
@@ -202,28 +223,25 @@ export function CreatorDetailModal({
                 ))}
               </ul>
             )}
-          </Field>
+          </Section>
 
-          <Field label="Riwayat draft">
+          <Section title="Draft yang dikirim">
             {detail.drafts.length === 0 ? (
-              <p className="text-xs text-muted">Belum ada draft yang dikirim.</p>
+              <p className="text-[13px] text-muted">Belum ada draft yang dikirim.</p>
             ) : (
-              <ul className="flex flex-col gap-1">
+              <ul>
                 {detail.drafts.map((draft) => (
-                  <li
-                    key={draft.contentId}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-line py-1.5 text-xs last:border-none"
-                  >
+                  <li key={draft.contentId} className={ROW}>
                     <span>{draft.contentName}</span>
-                    <span className="text-muted">
-                      {formatRevisions(draft.revisionCount)} revisi ·{" "}
+                    <span className="text-muted tabular-nums">
+                      {formatRevisions(draft.revisionCount)} revisi, terakhir{" "}
                       {formatDate(draft.lastSubmittedAt)}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-          </Field>
+          </Section>
         </>
       ) : null}
     </Modal>

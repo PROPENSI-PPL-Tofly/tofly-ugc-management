@@ -2,7 +2,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
 import { Pagination } from "@/components/creators/pagination";
-import { StatCards } from "@/components/creators/stat-cards";
+import { RosterHealth } from "@/components/creators/roster-health";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { fetchCreators, parseFilters } from "@/lib/creators";
 
@@ -26,14 +26,14 @@ export default async function CreatorsPage({
   return (
     <AppShell
       title="Creator Database"
-      subtitle="Data terpusat creator untuk pengambilan keputusan operasional"
+      subtitle="Semua creator yang bekerja sama dengan Tofly, dalam satu tabel"
     >
-      <StatCards stats={result.stats} />
+      <RosterHealth stats={result.stats} productivity={filters.productivity} />
 
       <Panel>
         <PanelHead
-          title="Creator Database"
-          hint="Kontrak, progress task, dan produktivitas creator — dasar keputusan perpanjangan kontrak dan alokasi task baru."
+          title="Semua creator"
+          hint="Kontrak, progress konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
         />
         <CreatorFilters filters={filters} shown={result.total} total={result.stats.total} />
         <CreatorTable creators={result.items} />

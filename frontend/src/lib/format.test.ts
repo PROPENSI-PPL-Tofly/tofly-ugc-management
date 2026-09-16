@@ -16,13 +16,17 @@ describe("formatDate", () => {
   });
 
   it("reads the day as written rather than shifting it by timezone", () => {
-    expect(formatDate("2026-01-01")).toBe("01 Jan 2026");
+    expect(formatDate("2026-01-01")).toBe("1 Jan 2026");
   });
 });
 
 describe("formatContractWindow", () => {
-  it("joins the two ends of a contract", () => {
-    expect(formatContractWindow("2026-06-08", "2026-12-25")).toBe("08 Jun 2026 — 25 Des 2026");
+  it("writes the year once when both ends share it", () => {
+    expect(formatContractWindow("2026-06-08", "2026-12-25")).toBe("8 Jun – 25 Des 2026");
+  });
+
+  it("keeps both years when the contract crosses one", () => {
+    expect(formatContractWindow("2026-07-01", "2027-01-31")).toBe("1 Jul 2026 – 31 Jan 2027");
   });
 
   it("says so when there is no contract", () => {

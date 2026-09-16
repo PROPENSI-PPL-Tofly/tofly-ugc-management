@@ -45,7 +45,7 @@ describe("CreatorsPage", () => {
 
     expect(screen.getByRole("heading", { name: "Creator Database", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
-    expect(screen.getByText("Total creator terdaftar").nextSibling).toHaveTextContent("12");
+    expect(screen.getByText("12 creator")).toBeInTheDocument();
   });
 
   it("counts the filtered rows against the whole roster", async () => {

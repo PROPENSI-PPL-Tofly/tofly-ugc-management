@@ -14,8 +14,8 @@ describe("CreatorTable", () => {
     const row = screen.getByRole("row", { name: /Rangga Pratama/ });
 
     expect(within(row).getByText("rangga@example.com")).toBeInTheDocument();
-    expect(within(row).getByText("IG @rangga.creates")).toBeInTheDocument();
-    expect(within(row).getByText("08 Jun 2026 — 25 Des 2026")).toBeInTheDocument();
+    expect(within(row).getByText("Instagram @rangga.creates")).toBeInTheDocument();
+    expect(within(row).getByText("8 Jun – 25 Des 2026")).toBeInTheDocument();
     expect(within(row).getByText("sisa 100 hari")).toBeInTheDocument();
     expect(within(row).getByText("2/3 konten terkirim")).toBeInTheDocument();
     expect(within(row).getByText("100%")).toBeInTheDocument();
@@ -45,9 +45,8 @@ describe("CreatorTable", () => {
 
     const row = screen.getByRole("row", { name: /Salsa Amelia/ });
 
-    expect(within(row).getByText("Kontrak Expired")).toBeInTheDocument();
-    expect(within(row).getByText("berakhir 30 hari lalu")).toBeInTheDocument();
-    expect(within(row).getByText("Periode 2")).toBeInTheDocument();
+    expect(within(row).getByText("Kontrak berakhir")).toBeInTheDocument();
+    expect(within(row).getByText("berakhir 30 hari lalu, periode ke-2")).toBeInTheDocument();
   });
 
   it("writes a missing on-time rate as a dash rather than a zero", () => {

@@ -11,16 +11,20 @@ export const metadata = {
 // ending on a 404.
 export default function ContentPlanPage() {
   return (
-    <AppShell title="Content Plan Creator" subtitle="Kelola alokasi konten untuk satu creator">
-      <Link href="/admin/creators" className="mb-3 inline-block text-[12.5px] text-muted hover:text-ink">
-        ← Kembali ke Creator Database
+    <AppShell title="Content plan" subtitle="Jadwal konten untuk satu creator">
+      <Link
+        href="/admin/creators"
+        className="mb-4 inline-block text-[13px] font-medium text-blue-deep hover:underline"
+      >
+        Kembali ke Creator Database
       </Link>
 
       <Panel>
-        <PanelHead title="Content Plan" hint="Jadwal konten per creator." />
+        <PanelHead title="Content plan" />
         <PanelBody>
-          <p className="text-[13px] text-muted">
-            Halaman Content Plan sedang dikerjakan dan akan tersedia pada iterasi berikutnya.
+          <p className="max-w-[60ch] text-[13px] text-muted">
+            Halaman ini sedang dikerjakan. Kembali ke Creator Database untuk melihat kontrak dan
+            progres creator sementara itu.
           </p>
         </PanelBody>
       </Panel>

@@ -2,7 +2,7 @@
 // language of the interface: months abbreviated as "Sep"/"Des", decimals with a comma.
 
 const DATE_FORMAT = new Intl.DateTimeFormat("id-ID", {
-  day: "2-digit",
+  day: "numeric",
   month: "short",
   year: "numeric",
   timeZone: "UTC",
@@ -22,9 +22,15 @@ export function formatDate(date: string | null): string {
   return DATE_FORMAT.format(new Date(`${date}T00:00:00Z`));
 }
 
+/** "8 Jun – 25 Des 2026" when both ends share a year, the full dates otherwise. */
 export function formatContractWindow(start: string | null, end: string | null): string {
   if (!start || !end) return "Belum ada kontrak";
-  return `${formatDate(start)} — ${formatDate(end)}`;
+
+  const from = formatDate(start);
+  const to = formatDate(end);
+  const sameYear = start.slice(0, 4) === end.slice(0, 4);
+
+  return sameYear ? `${from.slice(0, -5)} – ${to}` : `${from} – ${to}`;
 }
 
 export function formatDaysRemaining(days: number | null): string {
