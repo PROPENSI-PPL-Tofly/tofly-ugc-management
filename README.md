@@ -98,6 +98,34 @@ anything that should survive a reset into `supabase/seed.sql`.
 
 Run `npm install` in an app folder whenever its `package.json` changed in the diff.
 
+## Domain data
+
+The schema covers the UGC workflow end to end:
+
+| Table | What it holds |
+| --- | --- |
+| `users` | A login. `is_admin` separates staff from creators. |
+| `creators` | A creator profile, attached one-to-one to a user. |
+| `social_accounts` | Connected Instagram/TikTok accounts and their tokens. |
+| `contracts` | One row per contract period; renewals add rows, keeping history. |
+| `contents` | One piece of content owed under a contract, with its deadline. |
+| `submissions` | One row per draft version; a second row means one revision. |
+
+Some values are deliberately **not** stored. Whether a contract is active, whether a content
+is late, how many revisions it took and how a creator's productivity is rated are all derived
+on read from dates and row counts (`backend/src/creators/creator-metrics.ts`). Storing them
+would make every read depend on an update having run first, and a missed update silently
+shows an ended contract as live.
+
+## Admin views
+
+| Route | What it is |
+| --- | --- |
+| `/admin/creators` | Creator database: table, search, contract and productivity filters, paging, detail dialog. |
+| `/admin/creators/[id]/content-plan` | Per-creator content plan (placeholder for now). |
+
+Filters live in the URL, so any view can be linked, bookmarked and reloaded.
+
 ## Changing the database schema
 
 Supabase migrations own the schema; Prisma reads it.

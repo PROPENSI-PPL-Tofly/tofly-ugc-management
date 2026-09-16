@@ -240,9 +240,8 @@ jobs:
       # Target the project directly instead of `supabase link` first: link
       # fetches the project's legacy API keys and the platform 403s that call
       # even for owners (supabase/cli#6392). db push does not need those keys.
-      # A no-op while supabase/migrations/ is empty ("Remote database is up to
-      # date"), which is exactly the point: it proves the credentials work
-      # before a real migration depends on them.
+      # Runs before the Cloud Run rollout, so the new revision never starts
+      # against a database that is missing the tables it expects.
       - run: npx supabase db push --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}" --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
 
   # Rolls the already-pushed image out to Cloud Run. needs migrate, so a failed
