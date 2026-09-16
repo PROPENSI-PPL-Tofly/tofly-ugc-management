@@ -25,6 +25,7 @@ interface CreatorSeed {
   firstName: string;
   lastName?: string | null;
   email: string;
+  accessRevokeOffset?: number;
   contracts?: { startOffset: number; endOffset: number; contents?: ContentSeed[] }[];
 }
 
@@ -36,7 +37,7 @@ function creatorRow(seed: CreatorSeed) {
     middleName: null,
     lastName: seed.lastName ?? null,
     phoneNumber: '081234567890',
-    accessRevokeDate: null,
+    accessRevokeDate: seed.accessRevokeOffset === undefined ? null : day(seed.accessRevokeOffset),
     user: { email: seed.email },
     socialAccounts: [
       { platform: 'instagram', username: `${seed.firstName.toLowerCase()}.ig`, isConnected: true },
@@ -331,6 +332,21 @@ describe('CreatorsService', () => {
         progress: { submitted: 0, total: 0, percent: 0 },
         performance: { productivityLabel: 'Belum Ada Data' },
       });
+    });
+
+    it('reports the date a creator loses access, as a calendar day', async () => {
+      findMany.mockResolvedValue([
+        creatorRow({
+          id: 'creator-dicabut',
+          firstName: 'Dicabut',
+          email: 'dicabut@example.com',
+          accessRevokeOffset: 1,
+        }),
+      ]);
+
+      const result = await service.list({});
+
+      expect(result.items[0].accessRevokeDate).toBe('2026-09-17');
     });
 
     it('marks a contract that has not started yet as upcoming', async () => {

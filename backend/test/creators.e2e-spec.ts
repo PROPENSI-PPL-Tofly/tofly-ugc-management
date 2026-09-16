@@ -173,11 +173,19 @@ describe('Creators (e2e)', () => {
   });
 
   it('rejects a filter value it does not recognise', async () => {
-    await request(app.getHttpServer()).get('/creators').query({ contract: 'bogus' }).expect(400);
+    const response = await request(app.getHttpServer())
+      .get('/creators')
+      .query({ contract: 'bogus' });
+
+    expect(response.status).toBe(400);
   });
 
   it('rejects a parameter it was never asked to accept', async () => {
-    await request(app.getHttpServer()).get('/creators').query({ isAdmin: 'true' }).expect(400);
+    const response = await request(app.getHttpServer())
+      .get('/creators')
+      .query({ isAdmin: 'true' });
+
+    expect(response.status).toBe(400);
   });
 
   it('describes one creator in full', async () => {
@@ -198,7 +206,9 @@ describe('Creators (e2e)', () => {
   });
 
   it('refuses a malformed id before it reaches the database', async () => {
-    await request(app.getHttpServer()).get('/creators/not-a-uuid').expect(400);
+    const response = await request(app.getHttpServer()).get('/creators/not-a-uuid');
+
+    expect(response.status).toBe(400);
   });
 
   it('reports an unknown creator as not found', async () => {
