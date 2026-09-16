@@ -47,7 +47,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Tutup"
+            aria-label="Tutup dialog"
             className="cursor-pointer border-none bg-transparent text-lg leading-none text-muted hover:text-ink"
           >
             ✕

@@ -21,7 +21,7 @@ describe("Modal", () => {
   it("closes on the close button", async () => {
     const onClose = renderModal();
 
-    await userEvent.click(screen.getByRole("button", { name: /tutup/i }));
+    await userEvent.click(screen.getByRole("button", { name: /tutup dialog/i }));
 
     expect(onClose).toHaveBeenCalled();
   });
