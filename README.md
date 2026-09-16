@@ -117,15 +117,6 @@ on read from dates and row counts (`backend/src/creators/creator-metrics.ts`). S
 would make every read depend on an update having run first, and a missed update silently
 shows an ended contract as live.
 
-## Admin views
-
-| Route | What it is |
-| --- | --- |
-| `/admin/creators` | Creator database: table, search, contract and productivity filters, paging, detail dialog. |
-| `/admin/creators/[id]/content-plan` | Per-creator content plan (placeholder for now). |
-
-Filters live in the URL, so any view can be linked, bookmarked and reloaded.
-
 ## Changing the database schema
 
 Supabase migrations own the schema; Prisma reads it.
