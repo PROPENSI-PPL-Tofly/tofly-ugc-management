@@ -21,6 +21,14 @@ describe('Creators (e2e)', () => {
     return date;
   }
 
+  // creators.user_id is ON DELETE RESTRICT — a user cannot be removed while a creator still
+  // points at it — so the creator goes first and its contracts, content and submissions
+  // cascade away with it.
+  async function cleanup() {
+    await prisma.creator.deleteMany({ where: { user: { email: { in: emails } } } });
+    await prisma.user.deleteMany({ where: { email: { in: emails } } });
+  }
+
   async function seed() {
     await prisma.user.create({
       data: {
@@ -96,12 +104,12 @@ describe('Creators (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
-    await prisma.user.deleteMany({ where: { email: { in: emails } } });
+    await cleanup();
     await seed();
   });
 
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { in: emails } } });
+    await cleanup();
     await app.close();
   });
 
