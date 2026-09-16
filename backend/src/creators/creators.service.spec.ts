@@ -304,6 +304,49 @@ describe('CreatorsService', () => {
 
       expect(result.totalPages).toBe(1);
     });
+
+    it('caps an oversized page size instead of returning the whole roster', async () => {
+      const result = await service.list({ pageSize: 9999 });
+
+      expect(result.pageSize).toBe(50);
+    });
+
+    it('describes a creator who has no contract at all', async () => {
+      findMany.mockResolvedValue([
+        creatorRow({ id: 'creator-baru', firstName: 'Baru', email: 'baru@example.com' }),
+      ]);
+
+      const result = await service.list({});
+
+      expect(result.items[0]).toMatchObject({
+        name: 'Baru',
+        contract: {
+          status: 'none',
+          startDate: null,
+          endDate: null,
+          daysRemaining: null,
+          periodNumber: 0,
+          contentQuota: 0,
+        },
+        progress: { submitted: 0, total: 0, percent: 0 },
+        performance: { productivityLabel: 'Belum Ada Data' },
+      });
+    });
+
+    it('marks a contract that has not started yet as upcoming', async () => {
+      findMany.mockResolvedValue([
+        creatorRow({
+          id: 'creator-besok',
+          firstName: 'Besok',
+          email: 'besok@example.com',
+          contracts: [{ startOffset: 10, endOffset: 200, contents: [] }],
+        }),
+      ]);
+
+      const result = await service.list({});
+
+      expect(result.items[0].contract).toMatchObject({ status: 'upcoming', daysRemaining: 200 });
+    });
   });
 
   describe('findOne', () => {
@@ -359,6 +402,19 @@ describe('CreatorsService', () => {
         revisionCount: 1,
         latestLink: 'https://drive.example.com/draft-2',
       });
+    });
+
+    it('returns empty sections for a creator without any contract', async () => {
+      findUnique.mockResolvedValue(
+        creatorRow({ id: 'creator-baru', firstName: 'Baru', email: 'baru@example.com' }),
+      );
+
+      const detail = await service.findOne('creator-baru');
+
+      expect(detail.contractHistory).toEqual([]);
+      expect(detail.contents).toEqual([]);
+      expect(detail.drafts).toEqual([]);
+      expect(detail.contract.status).toBe('none');
     });
 
     it('describes the content of the current contract only', async () => {

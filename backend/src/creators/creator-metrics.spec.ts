@@ -79,11 +79,19 @@ describe('currentContract', () => {
     expect(currentContract([older, newer], TODAY)?.id).toBe('newer');
   });
 
+  it('picks the latest finished period whichever order they arrive in', () => {
+    const older = contract({ id: 'older', startDate: day(-400), endDate: day(-300) });
+    const newer = contract({ id: 'newer', startDate: day(-200), endDate: day(-30) });
+
+    expect(currentContract([newer, older], TODAY)?.id).toBe('newer');
+  });
+
   it('falls back to the earliest upcoming period when none has started', () => {
     const soon = contract({ id: 'soon', startDate: day(10), endDate: day(200) });
     const later = contract({ id: 'later', startDate: day(220), endDate: day(400) });
 
     expect(currentContract([later, soon], TODAY)?.id).toBe('soon');
+    expect(currentContract([soon, later], TODAY)?.id).toBe('soon');
   });
 });
 
