@@ -9,12 +9,24 @@ import {
 import { CLOCK, type Clock } from './clock.js';
 
 /** Requests one client may make per window before the API starts refusing. */
-export const RATE_LIMIT_MAX = 60;
+export const RATE_LIMIT_MAX = 120;
 export const RATE_LIMIT_WINDOW_MS = 60_000;
 
 interface Window {
   count: number;
   resetAt: number;
+}
+
+/** The originating address: the first X-Forwarded-For entry, else the socket address. */
+function clientAddress(request: {
+  ip?: string;
+  headers?: Record<string, string | string[] | undefined>;
+}): string {
+  const forwarded = request.headers?.['x-forwarded-for'];
+  const header = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  const first = header?.split(',')[0]?.trim();
+
+  return first || request.ip || 'unknown';
 }
 
 /**
@@ -23,6 +35,12 @@ interface Window {
  * Deliberately in-process: it exists to stop one caller from hammering the roster query,
  * not to enforce a quota across instances. A shared store would be the answer for that, and
  * for anything stronger the limit belongs in front of the service entirely.
+ *
+ * Clients are identified by X-Forwarded-For before the socket address, because in
+ * production every browser request arrives through the frontend's proxy: keying on the
+ * socket alone would put every admin in one bucket and let ordinary use lock the team out.
+ * That header is caller-controllable, so this is a guard against accidental load, never an
+ * access control — someone deliberately spoofing it simply gets their own bucket.
  */
 @Injectable()
 export class RateLimitGuard implements CanActivate {
@@ -36,8 +54,11 @@ export class RateLimitGuard implements CanActivate {
   }
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<{ ip?: string }>();
-    const client = request.ip ?? 'unknown';
+    const request = context.switchToHttp().getRequest<{
+      ip?: string;
+      headers?: Record<string, string | string[] | undefined>;
+    }>();
+    const client = clientAddress(request);
     const now = this.clock.now().getTime();
 
     this.evictExpired(now);
