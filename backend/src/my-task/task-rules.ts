@@ -23,6 +23,8 @@ export type ContentStatus =
   | 'draft_approved'
   | 'link_submitted';
 
+export type VideoPlatform = 'instagram' | 'tiktok';
+
 /** Statuses from which a draft may be (re)submitted. */
 export const DRAFT_ELIGIBLE_STATUSES: readonly ContentStatus[] = [
   'scheduled',
@@ -35,7 +37,7 @@ export const GRACE_DAYS = 1;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** Midnight UTC, matching how Postgres `date` columns arrive, so comparisons are day-wise. */
-function atMidnight(date: Date): number {
+export function atMidnight(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
@@ -64,4 +66,34 @@ export function canSubmitVideo(
 ): boolean {
   if (status === 'link_submitted') return false;
   return status === 'draft_approved' || isInGracePeriod(deadline, today);
+}
+
+/**
+ * The platform a link points at, judged by its host only: instagram.com or tiktok.com,
+ * or any subdomain of either (www., m., vm.). Anything else — including look-alikes such as
+ * `instagram.com.evil.example` or a non-http scheme — is null.
+ */
+export function detectPlatform(link: string): VideoPlatform | null {
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+
+  const host = url.hostname.toLowerCase();
+  const matches = (domain: string) =>
+    host === domain || host.endsWith(`.${domain}`);
+  if (matches('instagram.com')) return 'instagram';
+  if (matches('tiktok.com')) return 'tiktok';
+  return null;
+}
+
+/**
+ * The latest deadline still inside the grace window today, as a `date` column value. Used to
+ * put the same H-1 rule into a database condition.
+ */
+export function graceCutoff(today: Date): Date {
+  return new Date(atMidnight(today) + GRACE_DAYS * MS_PER_DAY);
 }

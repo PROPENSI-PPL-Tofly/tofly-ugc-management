@@ -3,6 +3,8 @@ import {
   canSubmitVideo,
   type ContentStatus,
   daysUntil,
+  detectPlatform,
+  graceCutoff,
   isInGracePeriod,
 } from './task-rules.js';
 
@@ -83,5 +85,40 @@ describe('canSubmitVideo', () => {
   it('never accepts a second link for content already submitted', () => {
     expect(canSubmitVideo('link_submitted', day(0), TODAY)).toBe(false);
     expect(canSubmitVideo('link_submitted', day(30), TODAY)).toBe(false);
+  });
+});
+
+describe('graceCutoff', () => {
+  it('is tomorrow at midnight: the last deadline H-1 still covers', () => {
+    expect(graceCutoff(TODAY).toISOString()).toBe('2026-09-18T00:00:00.000Z');
+  });
+});
+
+describe('detectPlatform', () => {
+  it.each([
+    ['https://www.instagram.com/reel/C8abc/', 'instagram'],
+    ['https://instagram.com/p/xyz', 'instagram'],
+    ['http://m.instagram.com/reel/1', 'instagram'],
+    ['https://WWW.INSTAGRAM.COM/reel/1', 'instagram'],
+    ['https://www.tiktok.com/@tofly.id/video/7412345678901234567', 'tiktok'],
+    ['https://vm.tiktok.com/ZSabc123/', 'tiktok'],
+    ['https://tiktok.com/@a/video/1', 'tiktok'],
+  ])('reads %s as %s', (link, platform) => {
+    expect(detectPlatform(link)).toBe(platform);
+  });
+
+  it.each([
+    'https://youtube.com/shorts/abc',
+    'https://instagram.com.evil.example/reel/1',
+    'https://notinstagram.com/reel/1',
+    'https://fakeinstagram.com/reel/1',
+    'https://example.com/?next=instagram.com',
+    'ftp://instagram.com/reel/1',
+    'javascript://instagram.com/%0Aalert(1)',
+    'instagram.com/reel/1',
+    'bukan link',
+    '',
+  ])('refuses %s', (link) => {
+    expect(detectPlatform(link)).toBeNull();
   });
 });

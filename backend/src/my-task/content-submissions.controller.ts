@@ -10,6 +10,7 @@ import { CurrentCreator } from '../auth/current-creator.decorator.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import type { MyTask } from './dto/my-task.dto.js';
 import { SubmitDraftDto } from './dto/submit-draft.dto.js';
+import { SubmitVideoDto } from './dto/submit-video.dto.js';
 import { MyTaskService } from './my-task.service.js';
 
 // What a creator hands in for one piece of content. Each route answers with the content's
@@ -29,5 +30,14 @@ export class ContentSubmissionsController {
     @Body() body: SubmitDraftDto,
   ): Promise<MyTask> {
     return this.tasks.submitDraft(creatorId, id, body);
+  }
+
+  @Post(':id/video')
+  submitVideo(
+    @CurrentCreator() creatorId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SubmitVideoDto,
+  ): Promise<MyTask> {
+    return this.tasks.submitVideo(creatorId, id, body);
   }
 }
