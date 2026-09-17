@@ -1,7 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { MyTask, MyTaskListResponse } from './dto/my-task.dto.js';
+import type { SubmitDraftDto } from './dto/submit-draft.dto.js';
 import {
   DEFAULT_TASK_PAGE_SIZE,
   type ListMyContentsQuery,
@@ -11,6 +18,7 @@ import {
   canSubmitDraft,
   canSubmitVideo,
   type ContentStatus,
+  DRAFT_ELIGIBLE_STATUSES,
   daysUntil,
   isInGracePeriod,
 } from './task-rules.js';
@@ -26,7 +34,12 @@ export const TASK_SELECT = {
   platform: true,
   submissions: {
     orderBy: { createdAt: 'asc' },
-    select: { link: true, revisionNotes: true, createdAt: true },
+    select: {
+      link: true,
+      creatorNotes: true,
+      revisionNotes: true,
+      createdAt: true,
+    },
   },
 } as const;
 
@@ -41,6 +54,7 @@ export type TaskRow = {
   platform: 'instagram' | 'tiktok' | null;
   submissions: {
     link: string;
+    creatorNotes: string | null;
     revisionNotes: string | null;
     createdAt: Date;
   }[];
@@ -75,6 +89,7 @@ export function toMyTask(row: TaskRow, today: Date): MyTask {
     latestDraft: latest
       ? {
           link: latest.link,
+          creatorNotes: latest.creatorNotes,
           submittedAt: isoDate(latest.createdAt),
           revisionNotes: latest.revisionNotes,
           revisionCount: row.submissions.length - 1,
@@ -95,6 +110,8 @@ export function toMyTask(row: TaskRow, today: Date): MyTask {
 @Injectable()
 /* v8 ignore stop */
 export class MyTaskService {
+  private readonly logger = new Logger(MyTaskService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CLOCK) private readonly clock: Clock,
@@ -132,4 +149,71 @@ export class MyTaskService {
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
     };
   }
+
+  /**
+   * Hands in a draft (first time or after "Minta Revisi") and puts the content back in the
+   * review queue.
+   *
+   * Eligibility is re-checked here rather than trusted from the button: the content must be
+   * Scheduled or waiting for revision. The status change is a conditional update on the
+   * status it was read with, so two submits racing each other cannot both succeed — the
+   * loser gets the same 409 as any other ineligible submit.
+   */
+  async submitDraft(
+    creatorId: string,
+    contentId: string,
+    dto: SubmitDraftDto,
+  ): Promise<MyTask> {
+    const today = this.clock.now();
+
+    const task = await this.prisma.$transaction(async (tx) => {
+      const content = await tx.content.findFirst({
+        where: { id: contentId, ...ownedContent(creatorId) },
+        select: { status: true },
+      });
+      // Someone else's content is reported exactly like content that does not exist.
+      if (!content) throw contentNotFound();
+      if (!canSubmitDraft(content.status))
+        throw draftNotAllowed(content.status);
+
+      const claimed = await tx.content.updateMany({
+        where: { id: contentId, status: { in: [...DRAFT_ELIGIBLE_STATUSES] } },
+        data: { status: 'draft_review' },
+      });
+      if (claimed.count === 0) throw draftNotAllowed(content.status);
+
+      await tx.submission.create({
+        data: {
+          contentId,
+          creatorId,
+          link: dto.link,
+          creatorNotes: dto.creatorNotes || null,
+        },
+      });
+
+      return tx.content.findUniqueOrThrow({
+        where: { id: contentId },
+        select: TASK_SELECT,
+      });
+    });
+
+    this.logger.log(`Draft submitted for content ${contentId}`);
+    return toMyTask(task as unknown as TaskRow, today);
+  }
+}
+
+function contentNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: 'CONTENT_NOT_FOUND',
+    message: 'Konten tidak ditemukan',
+  });
+}
+
+function draftNotAllowed(status: ContentStatus): ConflictException {
+  return new ConflictException({
+    code: 'DRAFT_NOT_ALLOWED',
+    message:
+      'Draft hanya bisa dikirim saat konten berstatus Scheduled atau perlu revisi',
+    status,
+  });
 }
