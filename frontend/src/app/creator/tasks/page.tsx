@@ -1,6 +1,6 @@
 import { Pagination } from "@/components/creators/pagination";
 import { AppShell, CREATOR_NAV } from "@/components/shell/app-shell";
-import { TaskTable } from "@/components/tasks/task-table";
+import { MyTaskBoard } from "@/components/tasks/my-task-board";
 import { Panel, PanelBody, PanelHead } from "@/components/ui/panel";
 import { fetchMyTasks, parseTaskPage, type MyTaskListResponse } from "@/lib/tasks";
 
@@ -41,7 +41,7 @@ export default async function MyTasksPage({
         />
         {result ? (
           <>
-            <TaskTable tasks={result.items} />
+            <MyTaskBoard tasks={result.items} />
             <Pagination
               page={result.page}
               pageSize={result.pageSize}
