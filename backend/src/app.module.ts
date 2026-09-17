@@ -7,6 +7,7 @@ import { CLOCK, systemClock } from './common/clock.js';
 import { RateLimitGuard } from './common/rate-limit.guard.js';
 import { CreatorsModule } from './creators/creators.module.js';
 import { HealthController } from './health/health.controller.js';
+import { MyTaskModule } from './my-task/my-task.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
@@ -18,7 +19,12 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
 }
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, validate }), PrismaModule, CreatorsModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, validate }),
+    PrismaModule,
+    CreatorsModule,
+    MyTaskModule,
+  ],
   controllers: [AppController, HealthController],
   providers: [
     AppService,

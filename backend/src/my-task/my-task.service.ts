@@ -1,0 +1,135 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { CLOCK, type Clock } from '../common/clock.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import type { MyTask, MyTaskListResponse } from './dto/my-task.dto.js';
+import {
+  DEFAULT_TASK_PAGE_SIZE,
+  type ListMyContentsQuery,
+  MAX_TASK_PAGE_SIZE,
+} from './dto/list-my-contents.query.js';
+import {
+  canSubmitDraft,
+  canSubmitVideo,
+  type ContentStatus,
+  daysUntil,
+  isInGracePeriod,
+} from './task-rules.js';
+
+export const TASK_SELECT = {
+  id: true,
+  name: true,
+  type: true,
+  brief: true,
+  deadline: true,
+  status: true,
+  videoLink: true,
+  platform: true,
+  submissions: {
+    orderBy: { createdAt: 'asc' },
+    select: { link: true, revisionNotes: true, createdAt: true },
+  },
+} as const;
+
+export type TaskRow = {
+  id: string;
+  name: string;
+  type: 'evergreen' | 'specific';
+  brief: string;
+  deadline: Date;
+  status: ContentStatus;
+  videoLink: string | null;
+  platform: 'instagram' | 'tiktok' | null;
+  submissions: {
+    link: string;
+    revisionNotes: string | null;
+    createdAt: Date;
+  }[];
+};
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Content this creator owes: everything under their contracts except proposals an admin has
+ * not accepted yet. The PRD keeps a pending proposal off every schedule view, and it is not
+ * a commitment until accepted.
+ */
+export function ownedContent(creatorId: string) {
+  return { isProposal: false, contract: { creatorId } };
+}
+
+export function toMyTask(row: TaskRow, today: Date): MyTask {
+  const latest = row.submissions.at(-1);
+
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    brief: row.brief,
+    deadline: isoDate(row.deadline),
+    status: row.status,
+    daysUntilDeadline: daysUntil(row.deadline, today),
+    videoLink: row.videoLink,
+    platform: row.platform,
+    latestDraft: latest
+      ? {
+          link: latest.link,
+          submittedAt: isoDate(latest.createdAt),
+          revisionNotes: latest.revisionNotes,
+          revisionCount: row.submissions.length - 1,
+        }
+      : null,
+    actions: {
+      canSubmitDraft: canSubmitDraft(row.status),
+      isResubmission: row.status === 'draft_revision',
+      canSubmitVideo: canSubmitVideo(row.status, row.deadline, today),
+      inGracePeriod:
+        row.status !== 'link_submitted' && isInGracePeriod(row.deadline, today),
+    },
+  };
+}
+
+// The coverage hint covers a branch the compiler emits for decorator metadata.
+/* v8 ignore start */
+@Injectable()
+/* v8 ignore stop */
+export class MyTaskService {
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
+
+  /** Nearest deadline first; ties broken by name, then id, so paging never reshuffles rows. */
+  async list(
+    creatorId: string,
+    query: ListMyContentsQuery,
+  ): Promise<MyTaskListResponse> {
+    const today = this.clock.now();
+    const pageSize = Math.min(
+      query.pageSize ?? DEFAULT_TASK_PAGE_SIZE,
+      MAX_TASK_PAGE_SIZE,
+    );
+    const page = query.page ?? 1;
+    const where = ownedContent(creatorId);
+
+    const [total, rows] = await Promise.all([
+      this.prisma.content.count({ where }),
+      this.prisma.content.findMany({
+        where,
+        orderBy: [{ deadline: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: TASK_SELECT,
+      }),
+    ]);
+
+    return {
+      items: (rows as unknown as TaskRow[]).map((row) => toMyTask(row, today)),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+}
