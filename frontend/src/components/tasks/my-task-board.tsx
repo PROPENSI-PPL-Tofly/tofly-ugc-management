@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { MyTask } from "@/lib/tasks";
 import { SubmitDraftModal } from "./submit-draft-modal";
+import { SubmitVideoModal } from "./submit-video-modal";
 import { TaskTable } from "./task-table";
 
-type Dialog = { kind: "draft"; task: MyTask } | null;
+type Dialog = { kind: "draft" | "video"; task: MyTask } | null;
 
 /**
  * The task table plus the dialogs its buttons open. After a successful submit the updated row
@@ -51,6 +52,10 @@ export function MyTaskBoard({ tasks }: { tasks: MyTask[] }) {
           setConfirmation(null);
           setDialog({ kind: "draft", task });
         }}
+        onSubmitVideo={(task) => {
+          setConfirmation(null);
+          setDialog({ kind: "video", task });
+        }}
       />
 
       {dialog?.kind === "draft" ? (
@@ -59,6 +64,16 @@ export function MyTaskBoard({ tasks }: { tasks: MyTask[] }) {
           onClose={() => setDialog(null)}
           onSubmitted={submitted(
             `Draft untuk "${dialog.task.name}" berhasil dikirim dan menunggu review Admin.`,
+          )}
+        />
+      ) : null}
+
+      {dialog?.kind === "video" ? (
+        <SubmitVideoModal
+          task={dialog.task}
+          onClose={() => setDialog(null)}
+          onSubmitted={submitted(
+            `Link video untuk "${dialog.task.name}" berhasil dikirim. Konten ditandai Content Link Submitted.`,
           )}
         />
       ) : null}
