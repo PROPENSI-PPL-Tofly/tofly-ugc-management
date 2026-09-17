@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -9,6 +10,7 @@ import { CLOCK, type Clock } from '../common/clock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { MyTask, MyTaskListResponse } from './dto/my-task.dto.js';
 import type { SubmitDraftDto } from './dto/submit-draft.dto.js';
+import type { SubmitVideoDto } from './dto/submit-video.dto.js';
 import {
   DEFAULT_TASK_PAGE_SIZE,
   type ListMyContentsQuery,
@@ -19,7 +21,10 @@ import {
   canSubmitVideo,
   type ContentStatus,
   DRAFT_ELIGIBLE_STATUSES,
+  atMidnight,
   daysUntil,
+  detectPlatform,
+  graceCutoff,
   isInGracePeriod,
 } from './task-rules.js';
 
@@ -200,6 +205,69 @@ export class MyTaskService {
     this.logger.log(`Draft submitted for content ${contentId}`);
     return toMyTask(task as unknown as TaskRow, today);
   }
+  /**
+   * Hands in the published video link, which immediately marks the content "Content Link
+   * Submitted" — there is no approval step after this.
+   *
+   * Allowed when the draft is approved, or inside the H-1 grace window even without an
+   * approved draft; never twice. The platform is read off the link's domain and stored with
+   * the content. As with drafts, the write is conditional on the same rule, so it cannot
+   * slip past a status change that landed after the read.
+   */
+  async submitVideo(
+    creatorId: string,
+    contentId: string,
+    dto: SubmitVideoDto,
+  ): Promise<MyTask> {
+    const today = this.clock.now();
+    const platform = detectPlatform(dto.link);
+    // The DTO already refuses these; kept so the service is safe to call on its own.
+    if (!platform) {
+      throw new BadRequestException({
+        code: 'INVALID_VIDEO_LINK',
+        message: 'Link harus berupa URL Instagram atau TikTok',
+      });
+    }
+
+    const task = await this.prisma.$transaction(async (tx) => {
+      const content = await tx.content.findFirst({
+        where: { id: contentId, ...ownedContent(creatorId) },
+        select: { status: true, deadline: true },
+      });
+      if (!content) throw contentNotFound();
+      if (!canSubmitVideo(content.status, content.deadline, today)) {
+        throw videoNotAllowed(content.status);
+      }
+
+      const claimed = await tx.content.updateMany({
+        where: {
+          id: contentId,
+          status: { not: 'link_submitted' },
+          OR: [
+            { status: 'draft_approved' },
+            { deadline: { lte: graceCutoff(today) } },
+          ],
+        },
+        data: {
+          status: 'link_submitted',
+          videoLink: dto.link,
+          videoSubmittedAt: new Date(atMidnight(today)),
+          platform,
+        },
+      });
+      if (claimed.count === 0) throw videoNotAllowed(content.status);
+
+      return tx.content.findUniqueOrThrow({
+        where: { id: contentId },
+        select: TASK_SELECT,
+      });
+    });
+
+    this.logger.log(
+      `Video link (${platform}) submitted for content ${contentId}`,
+    );
+    return toMyTask(task as unknown as TaskRow, today);
+  }
 }
 
 function contentNotFound(): NotFoundException {
@@ -214,6 +282,17 @@ function draftNotAllowed(status: ContentStatus): ConflictException {
     code: 'DRAFT_NOT_ALLOWED',
     message:
       'Draft hanya bisa dikirim saat konten berstatus Scheduled atau perlu revisi',
+    status,
+  });
+}
+
+function videoNotAllowed(status: ContentStatus): ConflictException {
+  return new ConflictException({
+    code: 'VIDEO_NOT_ALLOWED',
+    message:
+      status === 'link_submitted'
+        ? 'Link video untuk konten ini sudah dikirim'
+        : 'Link video hanya bisa dikirim setelah draft disetujui atau mulai H-1 deadline',
     status,
   });
 }

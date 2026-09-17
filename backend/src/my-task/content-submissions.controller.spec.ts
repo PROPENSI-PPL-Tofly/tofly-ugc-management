@@ -6,15 +6,21 @@ import { MyTaskService } from './my-task.service.js';
 describe('ContentSubmissionsController', () => {
   let controller: ContentSubmissionsController;
   let submitDraft: ReturnType<typeof vi.fn>;
+  let submitVideo: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     submitDraft = vi
       .fn()
       .mockResolvedValue({ id: 'content-1', status: 'draft_review' });
+    submitVideo = vi
+      .fn()
+      .mockResolvedValue({ id: 'content-1', status: 'link_submitted' });
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ContentSubmissionsController],
-      providers: [{ provide: MyTaskService, useValue: { submitDraft } }],
+      providers: [
+        { provide: MyTaskService, useValue: { submitDraft, submitVideo } },
+      ],
     })
       .overrideGuard(DevCreatorGuard)
       .useValue({ canActivate: () => true })
@@ -32,5 +38,14 @@ describe('ContentSubmissionsController', () => {
       status: 'draft_review',
     });
     expect(submitDraft).toHaveBeenCalledWith('creator-1', 'content-1', body);
+  });
+
+  it('submits a video link as the signed-in creator', async () => {
+    const body = { link: 'https://www.instagram.com/reel/C8abc/' };
+
+    await expect(
+      controller.submitVideo('creator-1', 'content-1', body),
+    ).resolves.toMatchObject({ status: 'link_submitted' });
+    expect(submitVideo).toHaveBeenCalledWith('creator-1', 'content-1', body);
   });
 });
