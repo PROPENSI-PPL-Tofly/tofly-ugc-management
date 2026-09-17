@@ -9,6 +9,10 @@ export const dynamic = "force-dynamic";
 
 // Hop-by-hop headers describe the browser→frontend connection, not the
 // frontend→backend one. Forwarding them corrupts the upstream request.
+//
+// X-Forwarded-For is deliberately not in this list. Every request reaches the backend from
+// this server, so dropping the original address would make the whole team look like one
+// caller to anything the backend does per client — rate limiting today, auditing later.
 const STRIP_REQUEST_HEADERS = new Set(["host", "connection", "content-length"]);
 
 // fetch() has already decoded and framed the upstream body, so replaying the

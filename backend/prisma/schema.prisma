@@ -1,6 +1,9 @@
 // Supabase owns the schema (see PROJECT_NOTES §9): write tables as Supabase
 // migrations, then `npx prisma db pull` + `npx prisma generate` to sync models here.
-// No models yet — this datasource is enough to generate a client and connect.
+//
+// Model and field names are the TypeScript-side spelling; `@@map`/`@map` keep them
+// pointing at the snake_case names the migrations create. `db pull` preserves these
+// annotations, so re-introspecting does not undo the renames.
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,4 +12,133 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String   @unique @db.Citext
+  isAdmin   Boolean  @default(false) @map("is_admin")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  creator   Creator?
+
+  @@map("users")
+}
+
+model Creator {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String          @unique @map("user_id") @db.Uuid
+  firstName        String          @map("first_name")
+  middleName       String?         @map("middle_name")
+  lastName         String?         @map("last_name")
+  phoneNumber      String?         @map("phone_number")
+  accessRevokeDate DateTime?       @map("access_revoke_date") @db.Date
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  contracts        Contract[]
+  user             User            @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  socialAccounts   SocialAccount[]
+  submissions      Submission[]
+
+  @@map("creators")
+}
+
+model SocialAccount {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creatorId      String         @map("creator_id") @db.Uuid
+  platform       SocialPlatform
+  username       String
+  accessToken    String?        @map("access_token")
+  refreshToken   String?        @map("refresh_token")
+  tokenExpiresAt DateTime?      @map("token_expires_at") @db.Timestamptz(6)
+  isConnected    Boolean        @default(false) @map("is_connected")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  creator        Creator        @relation(fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([creatorId, platform])
+  @@map("social_accounts")
+}
+
+model Contract {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creatorId    String    @map("creator_id") @db.Uuid
+  startDate    DateTime  @map("start_date") @db.Date
+  endDate      DateTime  @map("end_date") @db.Date
+  daysBetween  Int       @map("days_between")
+  contentQuota Int       @map("content_quota")
+  fixedRate    Decimal   @map("fixed_rate") @db.Decimal(14, 2)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  contents     Content[]
+  creator      Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([creatorId, endDate(sort: Desc)], map: "contracts_creator_end_date_idx")
+  @@map("contracts")
+}
+
+model Content {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contractId       String          @map("contract_id") @db.Uuid
+  name             String
+  type             ContentType
+  brief            String          @default("")
+  deadline         DateTime        @db.Date
+  status           ContentStatus   @default(scheduled)
+  isProposal       Boolean         @default(false) @map("is_proposal")
+  proposalNotes    String?         @map("proposal_notes")
+  videoLink        String?         @map("video_link")
+  videoSubmittedAt DateTime?       @map("video_submitted_at") @db.Date
+  platform         SocialPlatform?
+  views            Int?
+  likes            Int?
+  engagement       Decimal?        @db.Decimal(5, 2)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  contract         Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  submissions      Submission[]
+
+  @@index([contractId, deadline], map: "contents_contract_deadline_idx")
+  @@map("contents")
+}
+
+model Submission {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contentId     String   @map("content_id") @db.Uuid
+  creatorId     String   @map("creator_id") @db.Uuid
+  link          String
+  revisionNotes String?  @map("revision_notes")
+  creatorNotes  String?  @map("creator_notes")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  content       Content  @relation(fields: [contentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator       Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([contentId, createdAt], map: "submissions_content_created_at_idx")
+  @@map("submissions")
+}
+
+enum ContentType {
+  evergreen
+  specific
+
+  @@map("content_type")
+}
+
+enum ContentStatus {
+  scheduled
+  draft_review
+  draft_revision
+  draft_revised
+  draft_approved
+  link_submitted
+
+  @@map("content_status")
+}
+
+enum SocialPlatform {
+  instagram
+  tiktok
+
+  @@map("social_platform")
 }

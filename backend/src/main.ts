@@ -1,8 +1,19 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Sets the defensive response headers (nosniff, frame-deny, HSTS in production) that the
+  // browser needs before it can enforce anything on our behalf. The default CSP is left in
+  // place: this service returns JSON, so nothing here should ever be treated as a document.
+  app.use(helmet());
+  // Query and body parameters are only what a DTO declares: anything else is dropped, and
+  // a value of the wrong shape is a 400 instead of reaching a query.
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+  );
   // Only enable CORS when a frontend origin is named. In production the browser
   // talks solely to the frontend's own origin, which proxies /api/* to us, so
   // nothing calls this API cross-origin and a permissive default would be
