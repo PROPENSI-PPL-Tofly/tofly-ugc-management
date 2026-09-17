@@ -6,6 +6,7 @@
 // cannot drift apart.
 
 import type { Tone } from "@/components/ui/pill";
+import { withoutTrailingSlash } from "@/lib/creators";
 
 /** PRD: "Paginated at 5 rows/page". */
 export const TASK_PAGE_SIZE = 5;
@@ -30,6 +31,7 @@ export interface MyTask {
   platform: "instagram" | "tiktok" | null;
   latestDraft: {
     link: string;
+    creatorNotes: string | null;
     submittedAt: string;
     revisionNotes: string | null;
     revisionCount: number;
@@ -99,9 +101,66 @@ export async function fetchMyTasks(page: number): Promise<MyTaskListResponse> {
   const query = new URLSearchParams({ pageSize: String(TASK_PAGE_SIZE) });
   if (page > 1) query.set("page", String(page));
 
-  const response = await fetch(`${backendUrl.replace(/\/+$/, "")}/me/contents?${query}`, {
+  const response = await fetch(`${withoutTrailingSlash(backendUrl)}/me/contents?${query}`, {
     cache: "no-store",
   });
   if (!response.ok) throw new Error(`Loading tasks failed with HTTP ${response.status}`);
   return (await response.json()) as MyTaskListResponse;
+}
+
+/** A refusal from a submit endpoint, carrying the message the backend wrote for the creator. */
+export class SubmitError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "SubmitError";
+  }
+}
+
+/** Mirrors the backend's rule for a draft link: an absolute http(s) URL with a host. */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === "http:" || url.protocol === "https:") && url.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
+
+const FALLBACK_SUBMIT_MESSAGE = "Gagal mengirim. Coba lagi sebentar lagi.";
+
+/** Browser-side: posts through this app's /api proxy and returns the updated task row. */
+async function postSubmission(path: string, body: Record<string, string>): Promise<MyTask> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new SubmitError(FALLBACK_SUBMIT_MESSAGE, 0);
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | (Partial<MyTask> & { message?: unknown })
+    | null;
+
+  if (!response.ok) {
+    // Validation errors arrive as a list; the backend's own refusals as a sentence.
+    const message = typeof payload?.message === "string" ? payload.message : FALLBACK_SUBMIT_MESSAGE;
+    throw new SubmitError(message, response.status);
+  }
+  return payload as MyTask;
+}
+
+export function submitDraft(
+  contentId: string,
+  draft: { link: string; creatorNotes: string },
+): Promise<MyTask> {
+  const body: Record<string, string> = { link: draft.link.trim() };
+  if (draft.creatorNotes.trim()) body.creatorNotes = draft.creatorNotes.trim();
+  return postSubmission(`/api/contents/${encodeURIComponent(contentId)}/draft`, body);
 }
