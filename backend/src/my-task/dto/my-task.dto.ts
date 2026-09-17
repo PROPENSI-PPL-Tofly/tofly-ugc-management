@@ -5,6 +5,8 @@ import type { ContentStatus } from '../task-rules.js';
 
 export interface MyTaskDraft {
   link: string;
+  /** The creator's own "Catatan untuk Admin" on that draft. */
+  creatorNotes: string | null;
   /** ISO calendar day the latest draft was handed in. */
   submittedAt: string;
   /** The admin's note from the latest "Minta Revisi", if any. */

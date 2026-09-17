@@ -55,11 +55,13 @@ describe('toMyTask', () => {
         submissions: [
           {
             link: 'https://drive.example/v1',
-            revisionNotes: null,
+            creatorNotes: null,
+            revisionNotes: 'Durasi terlalu panjang',
             createdAt: day(-4),
           },
           {
             link: 'https://drive.example/v2',
+            creatorNotes: 'Sudah dipersingkat',
             revisionNotes: 'Hook kurang kuat',
             createdAt: day(-2),
           },
@@ -74,6 +76,7 @@ describe('toMyTask', () => {
     });
     expect(task.latestDraft).toEqual({
       link: 'https://drive.example/v2',
+      creatorNotes: 'Sudah dipersingkat',
       submittedAt: '2026-09-15',
       revisionNotes: 'Hook kurang kuat',
       revisionCount: 1,
