@@ -164,3 +164,35 @@ export function submitDraft(
   if (draft.creatorNotes.trim()) body.creatorNotes = draft.creatorNotes.trim();
   return postSubmission(`/api/contents/${encodeURIComponent(contentId)}/draft`, body);
 }
+
+export const PLATFORM_LABELS: Record<NonNullable<MyTask["platform"]>, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+};
+
+/**
+ * Mirrors the backend's platform check so Submit can stay disabled for a link the server would
+ * refuse: an http(s) URL whose host is instagram.com or tiktok.com, or a subdomain of either.
+ * The backend remains the source of truth.
+ */
+export function detectVideoPlatform(value: string): MyTask["platform"] {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+
+  const host = url.hostname.toLowerCase();
+  const matches = (domain: string) => host === domain || host.endsWith(`.${domain}`);
+  if (matches("instagram.com")) return "instagram";
+  if (matches("tiktok.com")) return "tiktok";
+  return null;
+}
+
+export function submitVideo(contentId: string, link: string): Promise<MyTask> {
+  return postSubmission(`/api/contents/${encodeURIComponent(contentId)}/video`, {
+    link: link.trim(),
+  });
+}

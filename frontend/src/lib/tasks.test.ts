@@ -1,4 +1,12 @@
-import { fetchMyTasks, formatDeadlineDistance, isHttpUrl, parseTaskPage, submitDraft } from "./tasks";
+import {
+  detectVideoPlatform,
+  fetchMyTasks,
+  formatDeadlineDistance,
+  isHttpUrl,
+  parseTaskPage,
+  submitDraft,
+  submitVideo,
+} from "./tasks";
 
 describe("parseTaskPage", () => {
   it("starts on the first page", () => {
@@ -152,6 +160,49 @@ describe("submitDraft", () => {
     await expect(submitDraft("c", { link: "https://a.co", creatorNotes: "" })).rejects.toMatchObject({
       message: "Gagal mengirim. Coba lagi sebentar lagi.",
       status: 0,
+    });
+  });
+});
+
+describe("detectVideoPlatform", () => {
+  it.each([
+    ["https://www.instagram.com/reel/C8abc/", "instagram"],
+    ["http://m.instagram.com/p/1", "instagram"],
+    [" https://vm.tiktok.com/ZSabc123/ ", "tiktok"],
+    ["https://www.TikTok.com/@a/video/1", "tiktok"],
+  ])("reads %s as %s", (link, platform) => {
+    expect(detectVideoPlatform(link)).toBe(platform);
+  });
+
+  it.each([
+    "https://youtube.com/shorts/abc",
+    "https://instagram.com.evil.example/reel/1",
+    "https://notinstagram.com/reel/1",
+    "ftp://tiktok.com/x",
+    "instagram.com/reel/1",
+    "",
+  ])("refuses %s", (link) => {
+    expect(detectVideoPlatform(link)).toBeNull();
+  });
+});
+
+describe("submitVideo", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("posts the trimmed link to the video endpoint through the proxy", async () => {
+    const updated = { id: "content-1", status: "link_submitted" };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(updated), { status: 201 }));
+
+    await expect(submitVideo("content-1", " https://vm.tiktok.com/Z/ ")).resolves.toEqual(updated);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/contents/content-1/video", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ link: "https://vm.tiktok.com/Z/" }),
     });
   });
 });
