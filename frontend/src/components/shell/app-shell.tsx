@@ -4,14 +4,28 @@ import type { ReactNode } from "react";
 // Only the sections that exist are listed; a new one is added here when its page lands.
 const NAV = [{ label: "Creator Database", href: "/admin/creators" }] as const;
 
+export interface NavItem {
+  label: string;
+  href: string;
+}
+
+/** The creator-facing area. Kept here so both navs sit side by side. */
+export const CREATOR_NAV: readonly NavItem[] = [{ label: "Task Saya", href: "/creator/tasks" }];
+
 export function AppShell({
   title,
   subtitle,
   children,
+  nav = NAV,
+  who = { label: "Admin", initials: "AD" },
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  /** The sections of the area this page belongs to; the first is the one shown as current. */
+  nav?: readonly NavItem[];
+  /** Whose area this is, shown as the avatar in the top bar. */
+  who?: { label: string; initials: string };
 }) {
   return (
     <div className="flex min-h-screen flex-1">
@@ -27,7 +41,7 @@ export function AppShell({
         </div>
 
         <nav className="flex flex-col">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             // A left rail rather than a tinted block: the rail says "you are here" without
             // turning the item into a button-shaped thing.
             <Link
@@ -49,10 +63,10 @@ export function AppShell({
             {subtitle ? <p className="mt-0.5 text-[12.5px] text-muted">{subtitle}</p> : null}
           </div>
           <span
-            aria-label="Admin"
+            aria-label={who.label}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-tint text-xs font-bold text-blue-deep"
           >
-            AD
+            {who.initials}
           </span>
         </header>
 

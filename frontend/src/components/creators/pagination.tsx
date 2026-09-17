@@ -9,11 +9,14 @@ export function Pagination({
   pageSize,
   total,
   totalPages,
+  noun = "creator",
 }: {
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
+  /** What the rows are, for the "Menampilkan 1–5 dari 12 …" line. */
+  noun?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -33,7 +36,7 @@ export function Pagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
       <p className="text-[12.5px] text-muted">
-        Menampilkan {first}–{last} dari {total} creator
+        Menampilkan {first}–{last} dari {total} {noun}
       </p>
       <div className="flex items-center gap-2">
         <span className="text-[12.5px] text-muted">
