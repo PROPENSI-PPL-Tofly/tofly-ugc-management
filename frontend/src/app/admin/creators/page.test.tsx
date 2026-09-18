@@ -57,6 +57,17 @@ describe("Creator database page", () => {
     );
   });
 
+  it("renders whatever was typed in the URL as text, never as markup", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(listResponse());
+
+    await renderPage({ page: "<img src=x onerror=alert(1)>" });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Halaman “<img src=x onerror=alert(1)>” tidak dikenal, menampilkan halaman pertama.",
+    );
+    expect(document.querySelector("img")).toBeNull();
+  });
+
   it("explains when the backend cannot be reached instead of crashing", async () => {
     vi.mocked(fetchCreators).mockRejectedValue(new Error("Loading creators failed with HTTP 503"));
 

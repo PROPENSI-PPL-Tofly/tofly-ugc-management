@@ -15,7 +15,13 @@ describe("CreatorTable", () => {
     expect(within(row).getByText("10 Jun – 7 Des 2026")).toBeInTheDocument();
     expect(within(row).getByText("sisa 80 hari")).toBeInTheDocument();
     expect(within(row).getByText("5/6 konten terkirim")).toBeInTheDocument();
-    expect(within(row).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "83");
+    // A real <progress> element: no inline style, so a strict Content-Security-Policy can
+    // forbid inline styles across the whole app.
+    const bar = within(row).getByRole("progressbar");
+    expect(bar.tagName).toBe("PROGRESS");
+    expect(bar).toHaveAttribute("value", "83");
+    expect(bar).toHaveAttribute("max", "100");
+    expect(bar).not.toHaveAttribute("style");
     expect(within(row).getByText("80%")).toBeInTheDocument();
     expect(within(row).getByText("0,17x")).toBeInTheDocument();
     expect(within(row).getByText("Baik")).toBeInTheDocument();

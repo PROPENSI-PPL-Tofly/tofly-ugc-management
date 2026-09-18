@@ -30,6 +30,18 @@ describe('AppController (e2e)', () => {
       .expect({ db: 'ok' });
   });
 
+  it('sends hardening headers and no server banner', async () => {
+    const response = await request(app.getHttpServer()).get('/health').expect(200);
+
+    expect(response.headers['x-powered-by']).toBeUndefined();
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-frame-options']).toBe('SAMEORIGIN');
+    expect(response.headers['content-security-policy']).toContain(
+      "default-src 'self'",
+    );
+    expect(response.headers['referrer-policy']).toBeDefined();
+  });
+
   afterEach(async () => {
     await app.close();
   });
