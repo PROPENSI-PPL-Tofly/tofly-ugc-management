@@ -92,10 +92,9 @@ export function currentContract<T extends MetricsContract>(
     (contract) => contractStatus(contract, today) === 'expired',
   );
   if (finished.length > 0) {
-    const ends = finished
-      .map((contract) => atMidnight(contract.endDate))
-      .sort();
-    const latestEnd = ends[ends.length - 1];
+    const latestEnd = Math.max(
+      ...finished.map((contract) => atMidnight(contract.endDate)),
+    );
     return finished.filter(
       (contract) => atMidnight(contract.endDate) === latestEnd,
     )[0];
