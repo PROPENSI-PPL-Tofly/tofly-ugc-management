@@ -1,6 +1,6 @@
-// Supabase owns the schema (see PROJECT_NOTES §9): write tables as Supabase
-// migrations, then `npx prisma db pull` + `npx prisma generate` to sync models here.
-// No models yet — this datasource is enough to generate a client and connect.
+// Supabase owns the schema: write tables as Supabase migrations, then run
+// `npx prisma db pull` + `npx prisma generate` to sync these models. Do not edit by hand.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,4 +9,120 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model contents {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id        String           @db.Uuid
+  name               String
+  type               content_type
+  brief              String           @default("")
+  deadline           DateTime         @db.Date
+  status             content_status   @default(scheduled)
+  is_proposal        Boolean          @default(false)
+  proposal_notes     String?
+  video_link         String?
+  video_submitted_at DateTime?        @db.Date
+  platform           social_platform?
+  views              Int?
+  likes              Int?
+  engagement         Decimal?         @db.Decimal(5, 2)
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime         @default(now()) @db.Timestamptz(6)
+  contracts          contracts        @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  submissions        submissions[]
+
+  @@index([contract_id, deadline], map: "contents_contract_deadline_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model contracts {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creator_id    String     @db.Uuid
+  start_date    DateTime   @db.Date
+  end_date      DateTime   @db.Date
+  days_between  Int
+  content_quota Int
+  fixed_rate    Decimal    @db.Decimal(14, 2)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime   @default(now()) @db.Timestamptz(6)
+  contents      contents[]
+  creators      creators   @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([creator_id, end_date(sort: Desc)], map: "contracts_creator_end_date_idx")
+}
+
+model creators {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String            @unique @db.Uuid
+  first_name         String
+  middle_name        String?
+  last_name          String?
+  phone_number       String?
+  access_revoke_date DateTime?         @db.Date
+  created_at         DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime          @default(now()) @db.Timestamptz(6)
+  contracts          contracts[]
+  users              users             @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  social_accounts    social_accounts[]
+  submissions        submissions[]
+}
+
+model social_accounts {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creator_id       String          @db.Uuid
+  platform         social_platform
+  username         String
+  access_token     String?
+  refresh_token    String?
+  token_expires_at DateTime?       @db.Timestamptz(6)
+  is_connected     Boolean         @default(false)
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime        @default(now()) @db.Timestamptz(6)
+  creators         creators        @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([creator_id, platform])
+}
+
+model submissions {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content_id     String   @db.Uuid
+  creator_id     String   @db.Uuid
+  link           String
+  revision_notes String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+  contents       contents @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creators       creators @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([content_id, created_at], map: "submissions_content_created_at_idx")
+}
+
+model users {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String    @unique @db.Citext
+  is_admin   Boolean   @default(false)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  creators   creators?
+}
+
+enum content_status {
+  scheduled
+  draft_review
+  draft_revision
+  draft_revised
+  draft_approved
+  link_submitted
+}
+
+enum content_type {
+  evergreen
+  specific
+}
+
+enum social_platform {
+  instagram
+  tiktok
 }
