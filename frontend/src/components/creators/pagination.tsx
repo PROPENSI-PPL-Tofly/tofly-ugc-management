@@ -59,7 +59,7 @@ export function Pagination({
         Menampilkan {first}–{last} dari {total} creator
       </p>
       <div className="flex items-center gap-2">
-        <span className="mr-1 text-xs text-muted tabular-nums">
+        <span className="mr-1 whitespace-nowrap text-xs text-muted tabular-nums">
           Halaman {page} dari {totalPages}
         </span>
         <PageLink page={page > 1 ? page - 1 : null}>Sebelumnya</PageLink>

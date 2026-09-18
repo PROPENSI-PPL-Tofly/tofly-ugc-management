@@ -23,7 +23,7 @@ const DOT_TONES: Record<Tone, string> = {
 export function Pill({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${PILL_TONES[tone]}`}
+      className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ${PILL_TONES[tone]}`}
     >
       {children}
     </span>
@@ -32,7 +32,7 @@ export function Pill({ tone = "neutral", children }: { tone?: Tone; children: Re
 
 export function StatusDot({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-2">
+    <span className="inline-flex items-center gap-2 text-xs font-semibold text-ink-2">
       <span aria-hidden="true" className={`size-2 rounded-full ${DOT_TONES[tone]}`} />
       {children}
     </span>

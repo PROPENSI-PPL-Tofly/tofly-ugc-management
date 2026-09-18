@@ -40,8 +40,8 @@ const COLUMNS: { label: string; numeric?: boolean }[] = [
   { label: "Produktivitas" },
 ];
 
-const HEAD = "border-b border-rule px-5 pb-2.5 pt-3 text-left text-xs font-semibold text-muted";
-const CELL = "border-b border-rule-2 px-5 py-3.5 align-top text-[13px]";
+const HEAD = "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";
+const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 const NUMERIC = `${CELL} text-right tabular-nums`;
 
 function socials(creator: CreatorSummary): string[] {
@@ -155,7 +155,7 @@ export function CreatorTable({ creators, total }: { creators: CreatorSummary[]; 
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-label={`Progres ${creator.progress.percent}%`}
-                  className="mt-1.5 block h-1.5 w-28 overflow-hidden rounded-full bg-surface-2"
+                  className="mt-2 block h-1.5 w-28 overflow-hidden rounded-full bg-surface-2"
                 >
                   <span
                     className="block h-full rounded-full bg-accent"

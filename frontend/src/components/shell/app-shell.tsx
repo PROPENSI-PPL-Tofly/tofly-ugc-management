@@ -22,7 +22,7 @@ export function AppShell({
           href="/admin/creators"
           className="inline-flex items-center gap-2 rounded-(--radius-control) text-base font-bold tracking-tight text-ink"
         >
-          <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-accent" />
+          <span aria-hidden="true" className="size-2 rounded-[3px] bg-accent" />
           tofly
         </Link>
         <AdminNav />
