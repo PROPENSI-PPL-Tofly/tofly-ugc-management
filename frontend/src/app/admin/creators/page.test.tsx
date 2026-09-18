@@ -8,6 +8,8 @@ vi.mock("@/lib/creators", async (importOriginal) => {
   return { ...actual, fetchCreators: vi.fn() };
 });
 
+vi.mock("next/navigation", () => ({ usePathname: () => "/admin/creators" }));
+
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
   return { ...actual, useLinkStatus: () => ({ pending: false }) };

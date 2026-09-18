@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { AppShell } from "./app-shell";
 
+vi.mock("next/navigation", () => ({ usePathname: () => "/admin/creators" }));
+
 describe("AppShell", () => {
   it("names the page and puts the content in main", () => {
     render(
