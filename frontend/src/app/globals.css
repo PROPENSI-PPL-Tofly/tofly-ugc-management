@@ -74,6 +74,30 @@ h3 {
   min-width: 0;
 }
 
+/* The progress bar is a real <progress> so no inline style is needed — the Content-Security-
+   Policy forbids inline styles everywhere. Each engine paints the element its own way, so the
+   track and the fill are set explicitly for both. */
+.progress {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--color-surface-2);
+  color: var(--color-accent);
+}
+.progress::-webkit-progress-bar {
+  background: var(--color-surface-2);
+}
+.progress::-webkit-progress-value {
+  background: var(--color-accent);
+  border-radius: 9999px;
+}
+.progress::-moz-progress-bar {
+  background: var(--color-accent);
+  border-radius: 9999px;
+}
+
 /* Keyboard focus is instant and brand-blue on every control; never removed without this. */
 :focus-visible {
   outline: 2px solid var(--color-focus);

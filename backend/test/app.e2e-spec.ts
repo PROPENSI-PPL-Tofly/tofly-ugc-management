@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module.js';
+import { applySecurityHeaders } from './../src/security-headers.js';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -13,6 +14,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    applySecurityHeaders(app);
     await app.init();
   });
 
@@ -31,7 +33,9 @@ describe('AppController (e2e)', () => {
   });
 
   it('sends hardening headers and no server banner', async () => {
-    const response = await request(app.getHttpServer()).get('/health').expect(200);
+    const response = await request(app.getHttpServer())
+      .get('/health')
+      .expect(200);
 
     expect(response.headers['x-powered-by']).toBeUndefined();
     expect(response.headers['x-content-type-options']).toBe('nosniff');

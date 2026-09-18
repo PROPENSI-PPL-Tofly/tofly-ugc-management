@@ -25,10 +25,17 @@ describe("proxy", () => {
     expect(first).not.toBe(second);
   });
 
-  it("allows eval in development only, where React needs it for error overlays", () => {
+  it("relaxes only what the dev tooling needs, and only in development", () => {
     vi.stubEnv("NODE_ENV", "development");
 
-    expect(headersFor().get("content-security-policy")).toContain("'unsafe-eval'");
+    const csp = headersFor().get("content-security-policy") ?? "";
+    expect(csp).toMatch(/script-src [^;]*'unsafe-eval'/);
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(csp).not.toMatch(/style-src [^;]*nonce/);
+  });
+
+  it("stamps styles with the nonce outside development", () => {
+    expect(headersFor().get("content-security-policy")).toMatch(/style-src 'self' 'nonce-/);
   });
 
   it("hands the nonce to the page so Next can stamp its own scripts with it", () => {

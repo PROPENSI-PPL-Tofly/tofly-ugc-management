@@ -48,13 +48,13 @@ export default async function CreatorsPage({
       subtitle="Semua creator yang bekerja sama dengan Tofly, dalam satu tabel"
     >
       {invalid !== null ? (
+        // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
         <p
           role="status"
           className="mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink"
-          dangerouslySetInnerHTML={{
-            __html: `Halaman “${invalid}” tidak dikenal, menampilkan halaman pertama.`,
-          }}
-        />
+        >
+          Halaman “{invalid}” tidak dikenal, menampilkan halaman pertama.
+        </p>
       ) : null}
 
       <Panel>

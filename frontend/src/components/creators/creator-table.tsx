@@ -149,19 +149,14 @@ export function CreatorTable({ creators, total }: { creators: CreatorSummary[]; 
                 <p className="whitespace-nowrap">
                   {creator.progress.submitted}/{creator.progress.total} konten terkirim
                 </p>
-                <span
-                  role="progressbar"
-                  aria-valuenow={creator.progress.percent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
+                <progress
+                  value={creator.progress.percent}
+                  max={100}
                   aria-label={`Progres ${creator.progress.percent}%`}
-                  className="mt-2 block h-1.5 w-28 overflow-hidden rounded-full bg-surface-2"
+                  className="progress mt-2 block h-1.5 w-28"
                 >
-                  <span
-                    className="block h-full rounded-full bg-accent"
-                    style={{ width: `${creator.progress.percent}%` }}
-                  />
-                </span>
+                  {creator.progress.percent}%
+                </progress>
               </td>
 
               <td className={NUMERIC}>{formatPercent(creator.performance.onTimeRate)}</td>

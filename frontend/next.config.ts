@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   // Image Optimization needs `sharp` in the runtime image; not worth it until
   // the app serves real images.
   images: { unoptimized: true },
+  // The framework banner tells an attacker what to probe for; nothing needs it.
+  poweredByHeader: false,
 };
 
 export default nextConfig;
