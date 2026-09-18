@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -82,9 +82,17 @@ function toMetricsContract(
   };
 }
 
+/** The slice of the database client this service touches; tests hand in a stub of just that. */
+export type CreatorsClient = Pick<PrismaService, 'creators'>;
+
+/** What the controller needs from the service, so it can be swapped or stubbed by contract. */
+export interface CreatorLister {
+  list(paging: Paging, today?: Date): Promise<CreatorListResponse>;
+}
+
 @Injectable()
-export class CreatorsService {
-  constructor(private readonly prisma: PrismaService) {}
+export class CreatorsService implements CreatorLister {
+  constructor(@Inject(PrismaService) private readonly prisma: CreatorsClient) {}
 
   async list(
     { page, pageSize }: Paging,

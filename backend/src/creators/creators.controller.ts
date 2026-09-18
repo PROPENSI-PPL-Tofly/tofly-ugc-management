@@ -2,16 +2,19 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
+  Inject,
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
-import { CreatorsService } from './creators.service.js';
+import { CreatorsService, type CreatorLister } from './creators.service.js';
 import type { CreatorListResponse } from './dto/creator-summary.dto.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from './paging.js';
 
 @Controller('creators')
 export class CreatorsController {
-  constructor(private readonly creators: CreatorsService) {}
+  constructor(
+    @Inject(CreatorsService) private readonly creators: CreatorLister,
+  ) {}
 
   // The pipes turn anything that is not an integer into a 400 before this runs; checkPaging
   // then keeps the integers inside the range the listing can serve.
