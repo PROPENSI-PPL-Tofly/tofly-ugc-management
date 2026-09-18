@@ -46,14 +46,8 @@ describe("proxy", () => {
     expect(response.headers.get("x-middleware-request-x-nonce")).toBe(nonce);
   });
 
-  it("sends the other hardening headers", () => {
-    const headers = headersFor();
-
-    expect(headers.get("x-content-type-options")).toBe("nosniff");
-    expect(headers.get("x-frame-options")).toBe("DENY");
-    expect(headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
-    expect(headers.get("permissions-policy")).toBe("camera=(), microphone=(), geolocation=()");
-    expect(headers.get("cross-origin-resource-policy")).toBe("same-origin");
+  it("refuses to be framed", () => {
+    expect(headersFor().get("x-frame-options")).toBe("DENY");
   });
 
   it("leaves static assets and the API proxy alone", () => {

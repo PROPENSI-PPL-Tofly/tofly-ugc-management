@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Response hardening for every page. Scripts run only when they carry this request's nonce
-// (Next stamps its own with it), nothing may be framed, embedded objects, inline styles and
-// eval are off, and the browser is told not to sniff types or leak the full referrer.
-// The API proxy and static assets are skipped: they serve JSON and files, not documents.
-
-const HEADERS: Record<string, string> = {
-  "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "DENY",
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-  "Cross-Origin-Resource-Policy": "same-origin",
-};
+// Per-request hardening for every page: scripts run only when they carry this request's
+// nonce (Next stamps its own with it), nothing may be framed, and embedded objects, inline
+// styles and eval are off. The API proxy and static assets are skipped — they serve JSON
+// and files, not documents; the headers that need no nonce are set for every path in
+// next.config.ts.
 
 function contentSecurityPolicy(nonce: string): string {
   // Development only: React rebuilds server error stacks with eval, and the Next dev overlay
@@ -44,7 +37,7 @@ export function proxy(request: NextRequest): NextResponse {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
-  for (const [name, value] of Object.entries(HEADERS)) response.headers.set(name, value);
+  response.headers.set("X-Frame-Options", "DENY");
 
   return response;
 }

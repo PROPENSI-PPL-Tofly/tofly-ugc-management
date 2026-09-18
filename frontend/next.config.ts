@@ -14,6 +14,21 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   // The framework banner tells an attacker what to probe for; nothing needs it.
   poweredByHeader: false,
+  // Static hardening headers on every path, static assets included. The per-request ones
+  // (the nonce-bearing Content-Security-Policy, X-Frame-Options) live in src/proxy.ts.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
