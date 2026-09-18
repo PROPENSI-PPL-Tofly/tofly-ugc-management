@@ -27,9 +27,24 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
         end_date: day(80),
         content_quota: 6,
         contents: [
-          { deadline: day(-30), video_submitted_at: day(-31), is_proposal: false, _count: { submissions: 1 } },
-          { deadline: day(-10), video_submitted_at: day(-8), is_proposal: false, _count: { submissions: 2 } },
-          { deadline: day(20), video_submitted_at: null, is_proposal: false, _count: { submissions: 0 } },
+          {
+            deadline: day(-30),
+            video_submitted_at: day(-31),
+            is_proposal: false,
+            _count: { submissions: 1 },
+          },
+          {
+            deadline: day(-10),
+            video_submitted_at: day(-8),
+            is_proposal: false,
+            _count: { submissions: 2 },
+          },
+          {
+            deadline: day(20),
+            video_submitted_at: null,
+            is_proposal: false,
+            _count: { submissions: 0 },
+          },
         ],
       },
     ],
@@ -46,7 +61,10 @@ describe('CreatorsService', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     const module = await Test.createTestingModule({
-      providers: [CreatorsService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        CreatorsService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
     service = module.get(CreatorsService);
   });
@@ -105,7 +123,9 @@ describe('CreatorsService', () => {
   });
 
   it('joins the middle name into the display name', async () => {
-    prisma.creators.findMany.mockResolvedValue([row({ middle_name: 'Nur', last_name: 'Aini' })]);
+    prisma.creators.findMany.mockResolvedValue([
+      row({ middle_name: 'Nur', last_name: 'Aini' }),
+    ]);
     prisma.creators.count.mockResolvedValue(1);
 
     const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
@@ -123,7 +143,9 @@ describe('CreatorsService', () => {
   });
 
   it('describes a creator without any contract', async () => {
-    prisma.creators.findMany.mockResolvedValue([row({ contracts: [], social_accounts: [] })]);
+    prisma.creators.findMany.mockResolvedValue([
+      row({ contracts: [], social_accounts: [] }),
+    ]);
     prisma.creators.count.mockResolvedValue(1);
 
     const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
@@ -143,13 +165,25 @@ describe('CreatorsService', () => {
     });
   });
 
-  it('numbers the period from the creator\'s contract history', async () => {
+  it("numbers the period from the creator's contract history", async () => {
     prisma.creators.findMany.mockResolvedValue([
       row({
         access_revoke_date: day(-14),
         contracts: [
-          { id: 'second', start_date: day(-30), end_date: day(150), content_quota: 4, contents: [] },
-          { id: 'first', start_date: day(-400), end_date: day(-40), content_quota: 6, contents: [] },
+          {
+            id: 'second',
+            start_date: day(-30),
+            end_date: day(150),
+            content_quota: 4,
+            contents: [],
+          },
+          {
+            id: 'first',
+            start_date: day(-400),
+            end_date: day(-40),
+            content_quota: 6,
+            contents: [],
+          },
         ],
       }),
     ]);
@@ -158,7 +192,11 @@ describe('CreatorsService', () => {
     const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
     expect(items[0].accessRevokeDate).toBe('2026-09-04');
-    expect(items[0].contract).toMatchObject({ status: 'active', periodNumber: 2, contentQuota: 4 });
+    expect(items[0].contract).toMatchObject({
+      status: 'active',
+      periodNumber: 2,
+      contentQuota: 4,
+    });
   });
 
   it('reports the page count from the total, not from the rows returned', async () => {
@@ -167,7 +205,12 @@ describe('CreatorsService', () => {
 
     const result = await service.list({ page: 5, pageSize: 10 }, TODAY);
 
-    expect(result).toMatchObject({ items: [], page: 5, total: 23, totalPages: 3 });
+    expect(result).toMatchObject({
+      items: [],
+      page: 5,
+      total: 23,
+      totalPages: 3,
+    });
   });
 
   it('has at least one page even when the roster is empty', async () => {
@@ -181,7 +224,17 @@ describe('CreatorsService', () => {
 
   it('uses the current date when none is given', async () => {
     prisma.creators.findMany.mockResolvedValue([
-      row({ contracts: [{ id: 'c', start_date: day(-1), end_date: new Date('2999-01-01T00:00:00Z'), content_quota: 1, contents: [] }] }),
+      row({
+        contracts: [
+          {
+            id: 'c',
+            start_date: day(-1),
+            end_date: new Date('2999-01-01T00:00:00Z'),
+            content_quota: 1,
+            contents: [],
+          },
+        ],
+      }),
     ]);
     prisma.creators.count.mockResolvedValue(1);
 

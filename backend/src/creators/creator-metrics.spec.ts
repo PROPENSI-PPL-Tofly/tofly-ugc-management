@@ -68,23 +68,33 @@ describe('currentContract', () => {
 
   it('prefers the contract running today', () => {
     const running = contract('running', -10, 10);
-    expect(currentContract([contract('old', -200, -100), running], TODAY)).toBe(running);
+    expect(currentContract([contract('old', -200, -100), running], TODAY)).toBe(
+      running,
+    );
   });
 
   it('falls back to the most recently finished contract', () => {
     const latest = contract('latest', -90, -20);
-    const contracts = [contract('older', -400, -300), latest, contract('oldest', -700, -600)];
+    const contracts = [
+      contract('older', -400, -300),
+      latest,
+      contract('oldest', -700, -600),
+    ];
     expect(currentContract(contracts, TODAY)).toBe(latest);
   });
 
   it('shows the earliest upcoming contract when nothing has run yet', () => {
     const first = contract('first', 5, 60);
-    expect(currentContract([contract('later', 90, 150), first], TODAY)).toBe(first);
+    expect(currentContract([contract('later', 90, 150), first], TODAY)).toBe(
+      first,
+    );
   });
 
   it('prefers a finished contract over an upcoming one', () => {
     const finished = contract('finished', -90, -20);
-    expect(currentContract([contract('next', 10, 100), finished], TODAY)).toBe(finished);
+    expect(currentContract([contract('next', 10, 100), finished], TODAY)).toBe(
+      finished,
+    );
   });
 });
 
@@ -96,7 +106,11 @@ describe('periodNumber', () => {
 
   it('counts the contracts that started before the current one', () => {
     const third = contract('c', -10, 10);
-    const contracts = [third, contract('a', -400, -300), contract('b', -200, -100)];
+    const contracts = [
+      third,
+      contract('a', -400, -300),
+      contract('b', -200, -100),
+    ];
     expect(periodNumber(contracts, third)).toBe(3);
   });
 
@@ -122,33 +136,51 @@ describe('daysRemaining', () => {
 
 describe('contentOutcome', () => {
   it('is on time when the video was handed in by the deadline', () => {
-    expect(contentOutcome(content({ deadline: day(-5), videoSubmittedAt: day(-5) }), TODAY)).toBe(
-      'on_time',
-    );
-    expect(contentOutcome(content({ deadline: day(-5), videoSubmittedAt: day(-7) }), TODAY)).toBe(
-      'on_time',
-    );
+    expect(
+      contentOutcome(
+        content({ deadline: day(-5), videoSubmittedAt: day(-5) }),
+        TODAY,
+      ),
+    ).toBe('on_time');
+    expect(
+      contentOutcome(
+        content({ deadline: day(-5), videoSubmittedAt: day(-7) }),
+        TODAY,
+      ),
+    ).toBe('on_time');
   });
 
   it('is submitted late when the video came after the deadline', () => {
-    expect(contentOutcome(content({ deadline: day(-5), videoSubmittedAt: day(-4) }), TODAY)).toBe(
-      'submitted_late',
-    );
+    expect(
+      contentOutcome(
+        content({ deadline: day(-5), videoSubmittedAt: day(-4) }),
+        TODAY,
+      ),
+    ).toBe('submitted_late');
   });
 
   it('is late once the deadline has passed without a video', () => {
-    expect(contentOutcome(content({ deadline: day(-1), videoSubmittedAt: null }), TODAY)).toBe(
-      'late',
-    );
+    expect(
+      contentOutcome(
+        content({ deadline: day(-1), videoSubmittedAt: null }),
+        TODAY,
+      ),
+    ).toBe('late');
   });
 
   it('is still open on the deadline day itself and before', () => {
-    expect(contentOutcome(content({ deadline: day(0), videoSubmittedAt: null }), TODAY)).toBe(
-      'open',
-    );
-    expect(contentOutcome(content({ deadline: day(3), videoSubmittedAt: null }), TODAY)).toBe(
-      'open',
-    );
+    expect(
+      contentOutcome(
+        content({ deadline: day(0), videoSubmittedAt: null }),
+        TODAY,
+      ),
+    ).toBe('open');
+    expect(
+      contentOutcome(
+        content({ deadline: day(3), videoSubmittedAt: null }),
+        TODAY,
+      ),
+    ).toBe('open');
   });
 });
 
@@ -159,12 +191,23 @@ describe('computeProgress', () => {
       content({ videoSubmittedAt: null }),
       content({ videoSubmittedAt: null }),
     ];
-    expect(computeProgress(contents)).toEqual({ submitted: 1, total: 3, percent: 33 });
+    expect(computeProgress(contents)).toEqual({
+      submitted: 1,
+      total: 3,
+      percent: 33,
+    });
   });
 
   it('leaves proposals out until an admin accepts them', () => {
-    const contents = [content(), content({ isProposal: true, videoSubmittedAt: null })];
-    expect(computeProgress(contents)).toEqual({ submitted: 1, total: 1, percent: 100 });
+    const contents = [
+      content(),
+      content({ isProposal: true, videoSubmittedAt: null }),
+    ];
+    expect(computeProgress(contents)).toEqual({
+      submitted: 1,
+      total: 1,
+      percent: 100,
+    });
   });
 
   it('is zero without content rather than dividing by zero', () => {
@@ -186,7 +229,9 @@ describe('computePerformance', () => {
     const open = contract('a', -10, 60, [
       content({ deadline: day(5), videoSubmittedAt: null, submissionCount: 0 }),
     ]);
-    expect(computePerformance(open, TODAY).productivityLabel).toBe('Belum Ada Data');
+    expect(computePerformance(open, TODAY).productivityLabel).toBe(
+      'Belum Ada Data',
+    );
   });
 
   it('rates a reliable creator as Baik', () => {
@@ -195,8 +240,16 @@ describe('computePerformance', () => {
       content({ deadline: day(-60), videoSubmittedAt: day(-60) }),
       content({ deadline: day(-40), videoSubmittedAt: day(-40) }),
       content({ deadline: day(-20), videoSubmittedAt: day(-20) }),
-      content({ deadline: day(-10), videoSubmittedAt: day(-8), submissionCount: 2 }),
-      content({ deadline: day(20), videoSubmittedAt: null, submissionCount: 1 }),
+      content({
+        deadline: day(-10),
+        videoSubmittedAt: day(-8),
+        submissionCount: 2,
+      }),
+      content({
+        deadline: day(20),
+        videoSubmittedAt: null,
+        submissionCount: 1,
+      }),
     ]);
     expect(computePerformance(good, TODAY)).toEqual({
       onTimeRate: 80,
@@ -233,8 +286,16 @@ describe('computePerformance', () => {
 
   it('rates a creator who needs many revisions as Berisiko even when on time', () => {
     const revised = contract('a', -90, 90, [
-      content({ deadline: day(-30), videoSubmittedAt: day(-30), submissionCount: 4 }),
-      content({ deadline: day(-10), videoSubmittedAt: day(-10), submissionCount: 3 }),
+      content({
+        deadline: day(-30),
+        videoSubmittedAt: day(-30),
+        submissionCount: 4,
+      }),
+      content({
+        deadline: day(-10),
+        videoSubmittedAt: day(-10),
+        submissionCount: 3,
+      }),
     ]);
     expect(computePerformance(revised, TODAY)).toMatchObject({
       onTimeRate: 100,
@@ -245,11 +306,31 @@ describe('computePerformance', () => {
 
   it('rates everything in between as Perlu Perhatian', () => {
     const middling = contract('a', -90, 90, [
-      content({ deadline: day(-60), videoSubmittedAt: day(-60), submissionCount: 2 }),
-      content({ deadline: day(-40), videoSubmittedAt: day(-38), submissionCount: 1 }),
-      content({ deadline: day(-20), videoSubmittedAt: day(-20), submissionCount: 3 }),
-      content({ deadline: day(-5), videoSubmittedAt: day(-3), submissionCount: 2 }),
-      content({ deadline: day(-1), videoSubmittedAt: day(-1), submissionCount: 1 }),
+      content({
+        deadline: day(-60),
+        videoSubmittedAt: day(-60),
+        submissionCount: 2,
+      }),
+      content({
+        deadline: day(-40),
+        videoSubmittedAt: day(-38),
+        submissionCount: 1,
+      }),
+      content({
+        deadline: day(-20),
+        videoSubmittedAt: day(-20),
+        submissionCount: 3,
+      }),
+      content({
+        deadline: day(-5),
+        videoSubmittedAt: day(-3),
+        submissionCount: 2,
+      }),
+      content({
+        deadline: day(-1),
+        videoSubmittedAt: day(-1),
+        submissionCount: 1,
+      }),
     ]);
     expect(computePerformance(middling, TODAY)).toEqual({
       onTimeRate: 60,
@@ -262,7 +343,12 @@ describe('computePerformance', () => {
   it('ignores proposals when judging performance', () => {
     const withProposal = contract('a', -90, 90, [
       content({ deadline: day(-30), videoSubmittedAt: day(-30) }),
-      content({ deadline: day(-10), videoSubmittedAt: null, isProposal: true, submissionCount: 5 }),
+      content({
+        deadline: day(-10),
+        videoSubmittedAt: null,
+        isProposal: true,
+        submissionCount: 5,
+      }),
     ]);
     expect(computePerformance(withProposal, TODAY)).toMatchObject({
       onTimeRate: 100,
