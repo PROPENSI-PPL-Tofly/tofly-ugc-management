@@ -15,8 +15,21 @@ function single(value: string | string[] | undefined): string {
   return value ?? '';
 }
 
+function oneOf<T extends readonly string[]>(
+  allowed: T,
+  value: string,
+  fallback: T[number],
+): T[number] {
+  return (allowed as readonly string[]).includes(value)
+    ? (value as T[number])
+    : fallback;
+}
+
 export function parseFilterQuery(
-  _params: Record<string, string | string[] | undefined>,
+  params: Record<string, string | string[] | undefined>,
 ): CreatorFilters {
-  throw new Error('NOT_IMPLEMENTED');
+  const raw = single(params.q).trim();
+  const contract = oneOf(CONTRACT_FILTERS, single(params.contract), 'all');
+  const productivity = oneOf(PRODUCTIVITY_FILTERS, single(params.productivity), 'all');
+  return { q: raw, contract, productivity };
 }
