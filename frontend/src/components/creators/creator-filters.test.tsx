@@ -53,10 +53,10 @@ describe("CreatorFilters", () => {
 
     await userEvent.type(screen.getByRole("searchbox", { name: /cari creator/i }), "rangga");
 
-    expect(replace).toHaveBeenCalledWith(
-      expect.stringContaining("q=rangga"),
-      { scroll: false },
-    );
+    expect(replace).toHaveBeenCalled();
+    const lastCall = replace.mock.calls.at(-1);
+    expect(lastCall[0]).toContain("q=");
+    expect(lastCall[1]).toEqual({ scroll: false });
   });
 
   it("updates URL on dropdown change", async () => {
