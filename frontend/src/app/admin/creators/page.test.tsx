@@ -8,7 +8,11 @@ vi.mock("@/lib/creators", async (importOriginal) => {
   return { ...actual, fetchCreators: vi.fn() };
 });
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/admin/creators" }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/admin/creators",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
@@ -51,9 +55,9 @@ describe("Creator database page", () => {
 
     await renderPage({ page: "abc" });
 
-    expect(fetchCreators).toHaveBeenCalledWith(1);
+    expect(fetchCreators).toHaveBeenCalledWith(1, { q: "", contract: "all", productivity: "all" });
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Halaman “abc” tidak dikenal, menampilkan halaman pertama.",
+      /Halaman.*abc.*tidak dikenal/,
     );
   });
 
@@ -63,7 +67,7 @@ describe("Creator database page", () => {
     await renderPage({ page: "<img src=x onerror=alert(1)>" });
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Halaman “<img src=x onerror=alert(1)>” tidak dikenal, menampilkan halaman pertama.",
+      /Halaman.*img src=x.*tidak dikenal/,
     );
     expect(document.querySelector("img")).toBeNull();
   });

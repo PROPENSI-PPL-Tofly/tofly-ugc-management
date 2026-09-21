@@ -1,8 +1,9 @@
 import { AppShell } from "@/components/shell/app-shell";
+import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
 import { Pagination } from "@/components/creators/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
-import { fetchCreators, parsePage, type CreatorListResponse } from "@/lib/creators";
+import { fetchCreators, parseFilters, parsePage, type CreatorListResponse } from "@/lib/creators";
 
 export const dynamic = "force-dynamic";
 
@@ -26,21 +27,25 @@ function LoadFailed() {
 }
 
 // Fetched on the server so the first paint already has the rows and the backend address
-// stays out of the browser. The URL is the only state: the page number comes in as a search
-// param, which keeps the view linkable and reload-safe.
+// stays out of the browser. The URL is the only state: the page number and filters come
+// in as search params, which keeps the view linkable and reload-safe.
 export default async function CreatorsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { page, invalid } = parsePage(await searchParams);
+  const params = await searchParams;
+  const { page, invalid } = parsePage(params);
+  const filters = parseFilters(params);
 
   let result: CreatorListResponse | null = null;
   try {
-    result = await fetchCreators(page);
+    result = await fetchCreators(page, filters);
   } catch {
     result = null;
   }
+
+  const hasActiveFilters = filters.q !== "" || filters.contract !== "all" || filters.productivity !== "all";
 
   return (
     <AppShell
@@ -48,20 +53,20 @@ export default async function CreatorsPage({
       subtitle="Semua creator yang bekerja sama dengan Tofly, dalam satu tabel"
     >
       {invalid !== null ? (
-        // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
         <p
           role="status"
           className="mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink"
         >
-          Halaman “{invalid}” tidak dikenal, menampilkan halaman pertama.
+          Halaman "{invalid}" tidak dikenal, menampilkan halaman pertama.
         </p>
       ) : null}
 
       <Panel>
         <PanelHead
-          title="Semua creator"
+          title={hasActiveFilters ? "Hasil pencarian" : "Semua creator"}
           hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
         />
+        <CreatorFilters />
         {result ? (
           <>
             <CreatorTable creators={result.items} total={result.total} />
