@@ -17,6 +17,7 @@ export interface CreatorFilters {
   q: string;
   contract: ContractFilter;
   productivity: ProductivityFilter;
+  page?: number;
 }
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
@@ -102,7 +103,7 @@ export function parseFilters(
 }
 
 /** Builds a query string for the backend, omitting defaults. */
-export function buildCreatorsQuery(filters: CreatorFilters): string {
+export function buildCreatorsQuery(filters: CreatorFilters & { page: number }): string {
   const query = new URLSearchParams();
   if (filters.q) query.set("q", filters.q);
   if (filters.contract !== "all") query.set("contract", filters.contract);
