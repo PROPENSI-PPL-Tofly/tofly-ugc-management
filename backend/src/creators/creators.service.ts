@@ -15,6 +15,7 @@ import type {
   CreatorListResponse,
   CreatorSummary,
 } from './dto/creator-summary.dto.js';
+import type { CreatorFilters } from './dto/parse-filter-query.js';
 import type { Paging } from './paging.js';
 
 // Only what the summary needs. Selecting columns (rather than whole rows) is what keeps
@@ -87,8 +88,10 @@ export type CreatorsClient = Pick<PrismaService, 'creators'>;
 
 /** What the controller needs from the service, so it can be swapped or stubbed by contract. */
 export interface CreatorLister {
-  list(paging: Paging, today?: Date): Promise<CreatorListResponse>;
+  list(paging: Paging, today?: Date, filters?: CreatorFilters): Promise<CreatorListResponse>;
 }
+
+const DEFAULT_FILTERS: CreatorFilters = { q: '', contract: 'all', productivity: 'all' };
 
 @Injectable()
 export class CreatorsService implements CreatorLister {
@@ -97,24 +100,39 @@ export class CreatorsService implements CreatorLister {
   async list(
     { page, pageSize }: Paging,
     today = new Date(),
+    filters: CreatorFilters = DEFAULT_FILTERS,
   ): Promise<CreatorListResponse> {
-    const [rows, total] = await Promise.all([
-      this.prisma.creators.findMany({
-        select: CREATOR_SELECT,
-        orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.creators.count(),
-    ]);
+    const rows = await this.prisma.creators.findMany({
+      select: CREATOR_SELECT,
+      orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
+    });
+
+    const summaries = rows.map((row) => this.toSummary(row, today));
+    const filtered = this.applyFilters(summaries, filters);
+    const total = filtered.length;
+    const start = (page - 1) * pageSize;
 
     return {
-      items: rows.map((row) => this.toSummary(row, today)),
+      items: filtered.slice(start, start + pageSize),
       page,
       pageSize,
       total,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
     };
+  }
+
+  private applyFilters(items: CreatorSummary[], filters: CreatorFilters): CreatorSummary[] {
+    return items.filter((item) => {
+      if (filters.q) {
+        const needle = filters.q.toLowerCase();
+        const matchesName = item.name.toLowerCase().includes(needle);
+        const matchesEmail = item.email.toLowerCase().includes(needle);
+        if (!matchesName && !matchesEmail) return false;
+      }
+      if (filters.contract !== 'all' && item.contract.status !== filters.contract) return false;
+      if (filters.productivity !== 'all' && item.performance.productivity !== filters.productivity) return false;
+      return true;
+    });
   }
 
   private toSummary(row: CreatorRow, today: Date): CreatorSummary {
