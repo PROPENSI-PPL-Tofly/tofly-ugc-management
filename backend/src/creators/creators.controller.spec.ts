@@ -48,4 +48,35 @@ describe('CreatorsController', () => {
     );
     await expect(controller.list(1, 50)).resolves.toBe(response);
   });
+
+  it('passes q, contract, productivity to the service', async () => {
+    await controller.list(1, 10, 'rangga', 'active', 'good');
+
+    expect(service.list).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: 10,
+      }),
+      expect.anything(),
+      expect.objectContaining({
+        q: 'rangga',
+        contract: 'active',
+        productivity: 'good',
+      }),
+    );
+  });
+
+  it('passes defaults when query params are absent', async () => {
+    await controller.list(1, 10, undefined, undefined, undefined);
+
+    expect(service.list).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, pageSize: 10 }),
+      expect.anything(),
+      expect.objectContaining({
+        q: '',
+        contract: 'all',
+        productivity: 'all',
+      }),
+    );
+  });
 });
