@@ -31,7 +31,7 @@ describe("Creator database page", () => {
 
     await renderPage({ page: "2" });
 
-    expect(fetchCreators).toHaveBeenCalledWith(2);
+    expect(fetchCreators).toHaveBeenCalledWith(2, { q: "", contract: "all", productivity: "all" });
     expect(screen.getByRole("heading", { level: 1, name: "Creator Database" })).toBeInTheDocument();
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Halaman 2 dari 2")).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe("Creator database page", () => {
 
     await renderPage();
 
-    expect(fetchCreators).toHaveBeenCalledWith(1);
+    expect(fetchCreators).toHaveBeenCalledWith(1, { q: "", contract: "all", productivity: "all" });
     expect(screen.queryByRole("status")).toBeNull();
   });
 
@@ -79,5 +79,25 @@ describe("Creator database page", () => {
       "/admin/creators",
     );
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("passes filter params from URL to fetchCreators", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(listResponse());
+
+    await renderPage({ q: "rangga", contract: "active", productivity: "good" });
+
+    expect(fetchCreators).toHaveBeenCalledWith(1, {
+      q: "rangga",
+      contract: "active",
+      productivity: "good",
+    });
+  });
+
+  it("renders the CreatorFilters component", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(listResponse());
+
+    await renderPage();
+
+    expect(screen.getByRole("searchbox", { name: /cari creator/i })).toBeInTheDocument();
   });
 });
