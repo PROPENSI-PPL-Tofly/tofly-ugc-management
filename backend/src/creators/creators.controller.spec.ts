@@ -26,7 +26,11 @@ describe('CreatorsController', () => {
 
   it('hands the requested page to the service', async () => {
     await expect(controller.list(2, 25)).resolves.toBe(response);
-    expect(service.list).toHaveBeenCalledWith({ page: 2, pageSize: 25 });
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 2, pageSize: 25 },
+      undefined,
+      { q: '', contract: 'all', productivity: 'all' },
+    );
   });
 
   it('rejects a page below one', async () => {
@@ -53,16 +57,9 @@ describe('CreatorsController', () => {
     await controller.list(1, 10, 'rangga', 'active', 'good');
 
     expect(service.list).toHaveBeenCalledWith(
-      expect.objectContaining({
-        page: 1,
-        pageSize: 10,
-      }),
-      expect.anything(),
-      expect.objectContaining({
-        q: 'rangga',
-        contract: 'active',
-        productivity: 'good',
-      }),
+      { page: 1, pageSize: 10 },
+      undefined,
+      { q: 'rangga', contract: 'active', productivity: 'good' },
     );
   });
 
@@ -70,13 +67,9 @@ describe('CreatorsController', () => {
     await controller.list(1, 10, undefined, undefined, undefined);
 
     expect(service.list).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, pageSize: 10 }),
-      expect.anything(),
-      expect.objectContaining({
-        q: '',
-        contract: 'all',
-        productivity: 'all',
-      }),
+      { page: 1, pageSize: 10 },
+      undefined,
+      { q: '', contract: 'all', productivity: 'all' },
     );
   });
 });
