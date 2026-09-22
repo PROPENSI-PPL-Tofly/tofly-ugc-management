@@ -2,17 +2,18 @@ name: Backend CI
 
 on:
   push:
-    # feat/pbi-1-creator-database is the PBI 1 integration branch: subtask PRs
-    # land there before the whole PBI goes into main as one PR. The deploy
+    # feat/pbi-* are the per-PBI integration branches: subtask PRs land on one
+    # of them before the whole PBI goes into main as a single PR. The deploy
     # jobs below stay gated to main specifically, so this only widens test
-    # coverage, never what gets deployed.
-    branches: [main, feat/pbi-1-creator-database]
+    # coverage, never what gets deployed. `*` does not cross `/`, so a branch
+    # that nests another segment would need `feat/pbi-**`.
+    branches: [main, "feat/pbi-*"]
     paths:
       - "backend/**"
       - "supabase/**"
       - ".github/workflows/backend.yml"
   pull_request:
-    branches: [main, feat/pbi-1-creator-database]
+    branches: [main, "feat/pbi-*"]
     paths:
       - "backend/**"
       - "supabase/**"
@@ -98,13 +99,11 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: node scripts/coverage-badge.mjs backend/coverage/coverage-summary.json .github/badges/backend-coverage.svg
 
-      # Commit the badge on push to main, or on an internal (same-repo) PR back to
-      # its source branch. Fork PRs are skipped (no write access to the fork).
+      # Only main moves the badge, so the SVG in the README always describes main
+      # rather than whichever branch happened to run last. PR runs still generate
+      # the badge above, so a broken generator fails here and not first on main.
       - name: Commit coverage badge
-        if: >
-          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-          (github.event_name == 'pull_request' &&
-           github.event.pull_request.head.repo.full_name == github.repository)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         working-directory: ${{ github.workspace }}
         run: |
@@ -132,9 +131,16 @@ jobs:
   sonar:
     name: SonarCloud analysis
     needs: [test]
+    # PR analysis and main branch analysis only. A push to any other branch asks
+    # SonarCloud for a branch analysis it refuses ("Not authorized or project not
+    # found"), which would turn every merge into an integration branch red for a
+    # reason no change here can fix. Fork PRs stay excluded: SONAR_TOKEN is not
+    # exposed to them.
     if: >
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
       group: backend-sonar-${{ github.ref }}

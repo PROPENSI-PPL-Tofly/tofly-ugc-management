@@ -34,7 +34,7 @@ Examples:
 - [ ] All tests and lint pass locally
 - [ ] Code is properly documented
 - [ ] Config/env changes are documented
-- [ ] Synced with latest `main` branch
+- [ ] Synced with the latest base branch of this PR
 - [ ] PR title follows conventional commit format
 - [ ] Meaningful commit messages used
 
