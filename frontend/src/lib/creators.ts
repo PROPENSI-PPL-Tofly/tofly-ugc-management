@@ -1,12 +1,32 @@
-// Everything the admin views know about the creators API: the shapes it returns, how the
-// page number comes out of the URL, and the ways of asking for data. Pages never assemble
-// API URLs themselves.
+// Everything the admin views know about the creators API: the shapes it returns, how a URL
+// turns into a page number and filters, and the ways of asking for data. Pages never
+// assemble API URLs themselves.
+//
+// The list is fetched on the server, this app talking to the backend directly; the detail is
+// fetched in the browser through this app's own /api proxy, which keeps BACKEND_URL out of
+// the browser either way.
 
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
 export type Productivity = "good" | "watch" | "risk";
 export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
+
+// "all" plus every value the API accepts, spelled the way the API spells them: these go
+// straight into the query string, so a name that drifts from the backend is a filter that
+// silently stops filtering.
+export const CONTRACT_STATUS_FILTERS = ["all", "active", "expired", "upcoming", "none"] as const;
+export const PRODUCTIVITY_FILTERS = ["all", "good", "watch", "risk"] as const;
+
+export type ContractStatusFilter = (typeof CONTRACT_STATUS_FILTERS)[number];
+export type ProductivityFilter = (typeof PRODUCTIVITY_FILTERS)[number];
+
+/** The filter state the URL carries; "all" means the filter is not applied. */
+export interface CreatorFilterState {
+  q: string;
+  contractStatus: ContractStatusFilter;
+  productivity: ProductivityFilter;
+}
 
 export interface CreatorSummary {
   id: string;
@@ -90,6 +110,14 @@ function single(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
+function oneOf<T extends readonly string[]>(
+  allowed: T,
+  value: string,
+  fallback: T[number],
+): T[number] {
+  return (allowed as readonly string[]).includes(value) ? (value as T[number]) : fallback;
+}
+
 /**
  * The URL is the only place the page lives, so the view can be linked, bookmarked and
  * reloaded. Anything that is not a positive integer falls back to page one rather than being
@@ -116,6 +144,38 @@ export function parsePage(params: Record<string, string | string[] | undefined>)
       };
 }
 
+/**
+ * Reads filter state from URL search params. Unknown values fall back to "all" so a
+ * stale bookmark never breaks the page.
+ */
+export function parseFilters(
+  params: Record<string, string | string[] | undefined>,
+): CreatorFilterState {
+  return {
+    q: single(params.q).trim(),
+    contractStatus: oneOf(CONTRACT_STATUS_FILTERS, single(params.contractStatus), "all"),
+    productivity: oneOf(PRODUCTIVITY_FILTERS, single(params.productivity), "all"),
+  };
+}
+
+/** True when the listing is showing a subset, so the page can say so. */
+export function hasActiveFilters(filters: CreatorFilterState): boolean {
+  return (
+    filters.q !== "" || filters.contractStatus !== "all" || filters.productivity !== "all"
+  );
+}
+
+/** Builds a query string for the backend, omitting defaults. */
+export function buildCreatorsQuery(filters: CreatorFilterState & { page: number }): string {
+  const query = new URLSearchParams();
+  if (filters.q) query.set("q", filters.q);
+  if (filters.contractStatus !== "all") query.set("contractStatus", filters.contractStatus);
+  if (filters.productivity !== "all") query.set("productivity", filters.productivity);
+  query.set("page", String(filters.page));
+  query.set("pageSize", String(PAGE_SIZE));
+  return query.toString();
+}
+
 function withoutTrailingSlash(url: string): string {
   let end = url.length;
 
@@ -131,17 +191,23 @@ function withoutTrailingSlash(url: string): string {
  * the browser. BACKEND_URL is read per call because it is a plain runtime variable on the
  * deployed service; a module-scope read would freeze whatever it was at build time.
  */
-export async function fetchCreators(page: number): Promise<CreatorListResponse> {
+export const NO_FILTERS: CreatorFilterState = {
+  q: "",
+  contractStatus: "all",
+  productivity: "all",
+};
+
+export async function fetchCreators(
+  page: number,
+  filters: CreatorFilterState = NO_FILTERS,
+): Promise<CreatorListResponse> {
   const backendUrl = process.env.BACKEND_URL;
 
   if (!backendUrl) {
     throw new Error("BACKEND_URL is not configured");
   }
 
-  const query = new URLSearchParams({
-    page: String(page),
-    pageSize: String(PAGE_SIZE),
-  });
+  const query = buildCreatorsQuery({ ...filters, page });
 
   const response = await fetch(`${withoutTrailingSlash(backendUrl)}/creators?${query}`, {
     cache: "no-store",

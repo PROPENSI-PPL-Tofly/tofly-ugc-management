@@ -1,4 +1,4 @@
-import { fetchCreators, PAGE_SIZE, parsePage } from "./creators";
+import { fetchCreators, PAGE_SIZE, parsePage, parseFilters, buildCreatorsQuery } from "./creators";
 
 describe("parsePage", () => {
   it("defaults to the first page when nothing is given", () => {
@@ -72,5 +72,62 @@ describe("fetchCreators", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 503 }));
 
     await expect(fetchCreators(1)).rejects.toThrow("HTTP 503");
+  });
+});
+
+describe("parseFilters", () => {
+  it("returns defaults for empty params", () => {
+    expect(parseFilters({})).toEqual({
+      q: "",
+      contractStatus: "all",
+      productivity: "all",
+    });
+  });
+
+  it("reads q from URL params", () => {
+    expect(parseFilters({ q: "rangga" })).toMatchObject({ q: "rangga" });
+  });
+
+  it("reads the contract status filter", () => {
+    expect(parseFilters({ contractStatus: "active" })).toMatchObject({ contractStatus: "active" });
+  });
+
+  it("reads productivity filter", () => {
+    expect(parseFilters({ productivity: "risk" })).toMatchObject({ productivity: "risk" });
+  });
+
+  it("falls back to 'all' for unknown values", () => {
+    expect(parseFilters({ contractStatus: "unknown" }).contractStatus).toBe("all");
+    expect(parseFilters({ productivity: "unknown" }).productivity).toBe("all");
+  });
+});
+
+describe("buildCreatorsQuery", () => {
+  it("includes page and pageSize", () => {
+    const query = buildCreatorsQuery({ page: 2, q: "", contractStatus: "all", productivity: "all" });
+    expect(query).toContain("page=2");
+    expect(query).toContain(`pageSize=${PAGE_SIZE}`);
+  });
+
+  it("includes q when non-empty", () => {
+    const query = buildCreatorsQuery({ page: 1, q: "rangga", contractStatus: "all", productivity: "all" });
+    expect(query).toContain("q=rangga");
+  });
+
+  it("includes contractStatus when not 'all'", () => {
+    const query = buildCreatorsQuery({ page: 1, q: "", contractStatus: "active", productivity: "all" });
+    expect(query).toContain("contractStatus=active");
+  });
+
+  it("includes productivity when not 'all'", () => {
+    const query = buildCreatorsQuery({ page: 1, q: "", contractStatus: "all", productivity: "good" });
+    expect(query).toContain("productivity=good");
+  });
+
+  it("omits q, contractStatus, productivity when at defaults", () => {
+    const query = buildCreatorsQuery({ page: 1, q: "", contractStatus: "all", productivity: "all" });
+    expect(query).not.toContain("q=");
+    expect(query).not.toContain("contractStatus=");
+    expect(query).not.toContain("productivity=");
   });
 });
