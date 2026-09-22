@@ -2,12 +2,16 @@ name: Frontend CI
 
 on:
   push:
-    branches: [main]
+    # feat/pbi-1-creator-database is the PBI 1 integration branch: subtask PRs
+    # land there before the whole PBI goes into main as one PR. The deploy
+    # job below stays gated to main specifically, so this only widens test
+    # coverage, never what gets deployed.
+    branches: [main, feat/pbi-1-creator-database]
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
   pull_request:
-    branches: [main]
+    branches: [main, feat/pbi-1-creator-database]
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
