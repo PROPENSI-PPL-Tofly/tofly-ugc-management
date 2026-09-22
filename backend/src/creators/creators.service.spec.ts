@@ -222,6 +222,19 @@ describe('CreatorsService', () => {
     expect(result.totalPages).toBe(1);
   });
 
+  it('searches the whole roster by name or email when q is given', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1', first_name: 'Nadia', last_name: 'Putri', users: { email: 'nadia@example.com' } }),
+      row({ id: 'creator-2', first_name: 'Budi', last_name: 'Santoso', users: { email: 'budi@example.com' } }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+
+    expect(result.items.map((item) => item.id)).toEqual(['creator-1']);
+    expect(result.total).toBe(1);
+  });
+
   it('uses the current date when none is given', async () => {
     prisma.creators.findMany.mockResolvedValue([
       row({
