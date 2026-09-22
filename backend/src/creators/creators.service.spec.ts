@@ -275,6 +275,19 @@ describe('CreatorsService', () => {
     expect(result.total).toBe(1);
   });
 
+  it('does not ask the database to skip/take when a filter is active', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(0);
+
+    await service.list({ page: 2, pageSize: 10 }, TODAY, { q: 'anything' });
+
+    expect(prisma.creators.findMany).toHaveBeenCalledWith({
+      select: expect.anything(),
+      orderBy: expect.anything(),
+    });
+    expect(prisma.creators.count).not.toHaveBeenCalled();
+  });
+
   it('uses the current date when none is given', async () => {
     prisma.creators.findMany.mockResolvedValue([
       row({
