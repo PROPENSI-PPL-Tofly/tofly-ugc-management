@@ -133,31 +133,31 @@ export function CreatorDetailModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
+            <div className="rounded-(--radius-control) border border-rule-2 px-3.5 py-3">
               <p className="text-xs text-muted">Progress</p>
 
-              <p className="font-heading text-lg font-bold">
+              <p className="text-lg font-bold tabular-nums">
                 {detail.progress.submitted}/{detail.progress.total}
               </p>
             </div>
 
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
+            <div className="rounded-(--radius-control) border border-rule-2 px-3.5 py-3">
               <p className="text-xs text-muted">On-time</p>
 
-              <p className="font-heading text-lg font-bold">
+              <p className="text-lg font-bold tabular-nums">
                 {formatPercent(detail.performance.onTimeRate)}
               </p>
             </div>
 
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
+            <div className="rounded-(--radius-control) border border-rule-2 px-3.5 py-3">
               <p className="text-xs text-muted">Avg revisi</p>
 
-              <p className="font-heading text-lg font-bold">
+              <p className="text-lg font-bold tabular-nums">
                 {formatRevisions(detail.performance.avgRevisions)}
               </p>
             </div>
 
-            <div className="rounded-[10px] border border-line px-3.5 py-3">
+            <div className="rounded-(--radius-control) border border-rule-2 px-3.5 py-3">
               <p className="text-xs text-muted">Produktivitas</p>
 
               <p className="mt-1">
@@ -184,7 +184,7 @@ export function CreatorDetailModal({
                 {detail.contractHistory.map((period) => (
                   <li
                     key={period.id}
-                    className="flex flex-wrap justify-between gap-2 border-b border-dashed border-line py-1.5 text-xs last:border-none"
+                    className="flex flex-wrap justify-between gap-2 border-b border-dashed border-rule-2 py-1.5 text-xs last:border-none"
                   >
                     <span>
                       Periode {period.periodNumber}: {formatDate(period.startDate)} –{" "}
@@ -209,7 +209,7 @@ export function CreatorDetailModal({
                 {detail.contents.map((content) => (
                   <li
                     key={content.id}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-line py-1.5 text-xs last:border-none"
+                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-rule-2 py-1.5 text-xs last:border-none"
                   >
                     <span>{content.name}</span>
 
@@ -234,7 +234,7 @@ export function CreatorDetailModal({
                 {detail.drafts.map((draft) => (
                   <li
                     key={draft.contentId}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-line py-1.5 text-xs last:border-none"
+                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-rule-2 py-1.5 text-xs last:border-none"
                   >
                     <span>{draft.contentName}</span>
 
