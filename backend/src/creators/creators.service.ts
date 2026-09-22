@@ -8,15 +8,14 @@ import {
   currentContract,
   daysRemaining,
   periodNumber,
-  type ContractStatus,
   type MetricsContract,
-  type Productivity,
 } from './creator-metrics.js';
 import type {
   ContractSummary,
   CreatorListResponse,
   CreatorSummary,
 } from './dto/creator-summary.dto.js';
+import type { Filters } from './filters.js';
 import type { Paging } from './paging.js';
 
 // Only what the summary needs. Selecting columns (rather than whole rows) is what keeps
@@ -92,17 +91,15 @@ export type CreatorsClient = Pick<PrismaService, 'creators'>;
 // SQL on its own, but keeping all three filters on the same code path (rather than a SQL
 // path for some and JS for others) is what keeps "which creators does the admin see" a single
 // rule to read, instead of two that have to agree.
-export interface Filters {
-  q?: string;
-  contractStatus?: ContractStatus;
-  productivity?: Productivity;
-}
-
 function hasFilters(filters: Filters): boolean {
   return filters.q !== undefined || filters.contractStatus !== undefined || filters.productivity !== undefined;
 }
 
-const ORDER_BY = [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }] as const;
+const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
+  { first_name: 'asc' },
+  { last_name: 'asc' },
+  { id: 'asc' },
+];
 
 /** What the controller needs from the service, so it can be swapped or stubbed by contract. */
 export interface CreatorLister {
