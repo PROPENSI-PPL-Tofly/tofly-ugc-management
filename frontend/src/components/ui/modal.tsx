@@ -1,70 +1,120 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
+
+const FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
 
 /**
  * A dialog with the three ways out people expect: the close button, Escape,
- * and a click on the backdrop.
+ * and a click on the backdrop. Focus moves in on open, cannot Tab out to the
+ * page behind, and returns to whatever opened it on close.
  */
 export function Modal({
-                          title,
-                          onClose,
-                          children,
-                          footer,
-                      }: {
-    title: string;
-    onClose: () => void;
-    children: ReactNode;
-    footer?: ReactNode;
+  title,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
 }) {
-    useEffect(() => {
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
-                onClose();
-            }
-        };
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingId = useId();
 
-        document.addEventListener("keydown", onKeyDown);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
 
-        return () => {
-            document.removeEventListener("keydown", onKeyDown);
-        };
-    }, [onClose]);
+    // Read fresh on each key: the footer and body swap contents while the detail
+    // loads, so a list captured on open would go stale.
+    const focusable = () =>
+      Array.from(dialog?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
 
-    return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5"
-            data-testid="modal-backdrop"
+    // The container, not the first control: screen readers then announce the
+    // dialog and its title before the user starts tabbing through it.
+    dialog?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const items = focusable();
+      if (items.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const active = document.activeElement as HTMLElement | null;
+      const index = active ? items.indexOf(active) : -1;
+
+      // index === -1 means focus is on the container itself, so Tab enters at the
+      // top and Shift+Tab enters at the bottom. Both ends wrap.
+      if (event.shiftKey && index <= 0) {
+        event.preventDefault();
+        items[items.length - 1].focus();
+      } else if (!event.shiftKey && (index === -1 || index === items.length - 1)) {
+        event.preventDefault();
+        items[0].focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      opener?.focus();
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-5"
+      data-testid="modal-backdrop"
+      onClick={onClose}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        tabIndex={-1}
+        className="max-h-[88vh] w-full max-w-[640px] overflow-y-auto rounded-(--radius-panel) border border-rule bg-surface focus:outline-none"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-rule px-5 py-[18px]">
+          <h2 id={headingId} className="text-[15px]">
+            {title}
+          </h2>
+
+          <button
+            type="button"
             onClick={onClose}
-        >
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={title}
-                className="max-h-[88vh] w-full max-w-[640px] overflow-y-auto rounded-[10px] border border-line bg-surface"
-                onClick={(event) => event.stopPropagation()}
-            >
-                <div className="flex items-center justify-between border-b border-line px-5 py-[18px]">
-                    <h2 className="text-[15px]">{title}</h2>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        aria-label="Tutup dialog"
-                        className="cursor-pointer border-none bg-transparent text-lg leading-none text-muted hover:text-ink"
-                    >
-                        ✕
-                    </button>
-                </div>
-
-                <div className="flex flex-col gap-3.5 p-5">{children}</div>
-
-                {footer ? (
-                    <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
-                        {footer}
-                    </div>
-                ) : null}
-            </div>
+            aria-label="Tutup dialog"
+            className="cursor-pointer rounded-(--radius-control) border-none bg-transparent px-1 text-lg leading-none text-muted hover:text-ink"
+          >
+            ✕
+          </button>
         </div>
-    );
+
+        <div className="flex flex-col gap-3.5 p-5">{children}</div>
+
+        {footer ? (
+          <div className="flex justify-end gap-2 border-t border-rule px-5 py-4">{footer}</div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
