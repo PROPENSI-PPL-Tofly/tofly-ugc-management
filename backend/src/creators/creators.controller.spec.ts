@@ -5,7 +5,12 @@ import { CreatorsService } from './creators.service.js';
 
 describe('CreatorsController', () => {
   let controller: CreatorsController;
-  const service = { list: vi.fn() };
+
+  const service = {
+    list: vi.fn(),
+    findOne: vi.fn(),
+  };
+
   const response = {
     items: [],
     page: 1,
@@ -14,13 +19,51 @@ describe('CreatorsController', () => {
     totalPages: 1,
   };
 
+  const detailResponse = {
+    id: 'creator-1',
+    name: 'Rangga Pratama',
+    email: 'rangga@example.com',
+    socials: {
+      instagram: 'rangga.creates',
+      tiktok: 'ranggacreates',
+    },
+    accessRevokeDate: null,
+    phoneNumber: '081234567001',
+    contract: {
+      status: 'active',
+      startDate: '2026-06-10',
+      endDate: '2026-12-07',
+      daysRemaining: 80,
+      periodNumber: 1,
+      contentQuota: 6,
+    },
+    progress: {
+      submitted: 1,
+      total: 2,
+      percent: 50,
+    },
+    performance: {
+      onTimeRate: 100,
+      avgRevisions: 1,
+      productivity: 'good',
+      productivityLabel: 'Baik',
+    },
+    contractHistory: [],
+    contents: [],
+    drafts: [],
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
+
     service.list.mockResolvedValue(response);
+    service.findOne.mockResolvedValue(detailResponse);
+
     const module = await Test.createTestingModule({
       controllers: [CreatorsController],
       providers: [{ provide: CreatorsService, useValue: service }],
     }).compile();
+
     controller = module.get(CreatorsController);
   });
 
@@ -59,7 +102,11 @@ describe('CreatorsController', () => {
     expect(service.list).toHaveBeenCalledWith(
       { page: 1, pageSize: 10 },
       expect.any(Date),
-      { q: 'nadia', contractStatus: 'active', productivity: 'good' },
+      {
+        q: 'nadia',
+        contractStatus: 'active',
+        productivity: 'good',
+      },
     );
   });
 
@@ -79,5 +126,25 @@ describe('CreatorsController', () => {
     await expect(
       controller.list(1, 10, 'a'.repeat(101)),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('delegates creator detail requests to the service', async () => {
+    const findOne = (
+      controller as unknown as {
+        findOne?: (id: string) => Promise<unknown>;
+      }
+    ).findOne;
+
+    expect(findOne).toBeTypeOf('function');
+
+    if (typeof findOne !== 'function') {
+      return;
+    }
+
+    await expect(findOne.call(controller, 'creator-1')).resolves.toBe(
+      detailResponse,
+    );
+
+    expect(service.findOne).toHaveBeenCalledWith('creator-1');
   });
 });
