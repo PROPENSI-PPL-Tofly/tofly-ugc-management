@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { CreatorTable } from "./creator-table";
 import { creator } from "./creator.fixture";
 
@@ -164,5 +164,43 @@ describe("CreatorTable", () => {
       "href",
       "/admin/creators",
     );
+  });
+
+  it("shows Detail and Content Plan actions for each creator", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const row = screen.getAllByRole("row")[1];
+
+    expect(within(row).getByRole("button", { name: "Detail" })).toBeInTheDocument();
+    expect(
+        within(row).getByRole("link", { name: "Content Plan" }),
+    ).toBeInTheDocument();
+  });
+
+  it("links Content Plan to the selected creator", () => {
+    render(<CreatorTable creators={[creator({ id: "creator-123" })]} total={1} />);
+
+    const row = screen.getAllByRole("row")[1];
+
+    expect(
+        within(row).getByRole("link", { name: "Content Plan" }),
+    ).toHaveAttribute(
+        "href",
+        "/admin/creators/creator-123/content-plan",
+    );
+  });
+
+  it("opens the creator detail dialog when Detail is clicked", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const row = screen.getAllByRole("row")[1];
+
+    fireEvent.click(
+        within(row).getByRole("button", { name: "Detail" }),
+    );
+
+    expect(
+        screen.getByRole("dialog", { name: "Rangga Pratama" }),
+    ).toBeInTheDocument();
   });
 });
