@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { CreatorDetailModal } from "./creator-detail-modal";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import type {
     ContractStatus,
@@ -37,7 +38,6 @@ const PRODUCTIVITY_TONES: Record<Productivity, Tone> = {
     risk: "red",
 };
 
-// Numbers sit flush right so the eye can compare them down the column.
 const COLUMNS: { label: string; numeric?: boolean }[] = [
     { label: "Creator" },
     { label: "Kontrak" },
@@ -49,18 +49,25 @@ const COLUMNS: { label: string; numeric?: boolean }[] = [
 
 const HEAD =
     "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";
-const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
+
+const CELL =
+    "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
+
 const NUMERIC = `${CELL} text-right tabular-nums`;
 
 function socials(creator: CreatorSummary): string[] {
     return [
-        creator.socials.instagram && `Instagram @${creator.socials.instagram}`,
-        creator.socials.tiktok && `TikTok @${creator.socials.tiktok}`,
+        creator.socials.instagram &&
+        `Instagram @${creator.socials.instagram}`,
+        creator.socials.tiktok &&
+        `TikTok @${creator.socials.tiktok}`,
     ].filter((entry): entry is string => Boolean(entry));
 }
 
 function contractNote(creator: CreatorSummary): string {
-    const remaining = formatDaysRemaining(creator.contract.daysRemaining);
+    const remaining = formatDaysRemaining(
+        creator.contract.daysRemaining,
+    );
 
     return creator.contract.periodNumber > 1
         ? `${remaining}, periode ke-${creator.contract.periodNumber}`
@@ -76,7 +83,8 @@ function EmptyState({ total }: { total: number }) {
                 </p>
 
                 <p className="mt-1 text-[13px] text-muted">
-                    Creator muncul di sini begitu akunnya dibuat dan kontraknya dicatat.
+                    Creator muncul di sini begitu akunnya dibuat dan kontraknya
+                    dicatat.
                 </p>
             </div>
         );
@@ -135,7 +143,9 @@ export function CreatorTable({
                                 key={column.label}
                                 scope="col"
                                 className={
-                                    column.numeric ? `${HEAD} text-right` : HEAD
+                                    column.numeric
+                                        ? `${HEAD} text-right`
+                                        : HEAD
                                 }
                             >
                                 {column.label}
@@ -171,20 +181,29 @@ export function CreatorTable({
 
                                 {creator.accessRevokeDate ? (
                                     <p className="mt-1 text-xs font-semibold text-red-ink">
-                                        Akses dicabut {formatDate(creator.accessRevokeDate)}
+                                        Akses dicabut{" "}
+                                        {formatDate(creator.accessRevokeDate)}
                                     </p>
                                 ) : null}
                             </td>
 
                             <td className={CELL}>
                                 <StatusDot
-                                    tone={CONTRACT_TONES[creator.contract.status]}
+                                    tone={
+                                        CONTRACT_TONES[
+                                            creator.contract.status
+                                            ]
+                                    }
                                 >
-                                    {CONTRACT_LABELS[creator.contract.status]}
+                                    {CONTRACT_LABELS[
+                                        creator.contract.status
+                                        ]}
                                 </StatusDot>
 
                                 {creator.contract.status === "none" ? (
-                                    <p className="mt-1 text-xs text-muted">{EMPTY}</p>
+                                    <p className="mt-1 text-xs text-muted">
+                                        {EMPTY}
+                                    </p>
                                 ) : (
                                     <>
                                         <p className="mt-1 whitespace-nowrap">
@@ -218,11 +237,15 @@ export function CreatorTable({
                             </td>
 
                             <td className={NUMERIC}>
-                                {formatPercent(creator.performance.onTimeRate)}
+                                {formatPercent(
+                                    creator.performance.onTimeRate,
+                                )}
                             </td>
 
                             <td className={NUMERIC}>
-                                {formatRevisions(creator.performance.avgRevisions)}
+                                {formatRevisions(
+                                    creator.performance.avgRevisions,
+                                )}
                             </td>
 
                             <td className={CELL}>
@@ -237,12 +260,16 @@ export function CreatorTable({
                                 </Pill>
                             </td>
 
-                            <td className={CELL}>
+                            <td
+                                className={`${CELL} whitespace-nowrap`}
+                            >
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => setSelectedCreator(creator)}
-                                        className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 active:bg-surface-2"
+                                        onClick={() =>
+                                            setSelectedCreator(creator)
+                                        }
+                                        className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
                                     >
                                         Detail
                                     </button>
@@ -251,7 +278,7 @@ export function CreatorTable({
                                         href={`/admin/creators/${encodeURIComponent(
                                             creator.id,
                                         )}/content-plan`}
-                                        className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 active:bg-surface-2"
+                                        className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
                                     >
                                         Content Plan
                                     </Link>
@@ -264,111 +291,11 @@ export function CreatorTable({
             </div>
 
             {selectedCreator ? (
-                <dialog
-                    open
-                    aria-labelledby="creator-detail-title"
-                    className="fixed inset-0 m-auto w-[min(92vw,600px)] rounded-(--radius-panel) border border-rule bg-surface p-0 shadow-whisper"
-                >
-                    <div className="border-b border-rule px-5 py-4">
-                        <h2
-                            id="creator-detail-title"
-                            className="text-base font-semibold"
-                        >
-                            {selectedCreator.name}
-                        </h2>
-                    </div>
-
-                    <div className="grid gap-4 px-5 py-5 text-[13px] sm:grid-cols-2">
-                        <div>
-                            <p className="text-xs text-muted">Email</p>
-                            <p>{selectedCreator.email}</p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs text-muted">Social media</p>
-                            <p>
-                                {socials(selectedCreator).join(" · ") || EMPTY}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs text-muted">Kontrak</p>
-
-                            <p>
-                                {CONTRACT_LABELS[
-                                    selectedCreator.contract.status
-                                    ]}
-                            </p>
-
-                            <p className="text-xs text-muted">
-                                {formatContractWindow(
-                                    selectedCreator.contract.startDate,
-                                    selectedCreator.contract.endDate,
-                                )}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs text-muted">Progress</p>
-
-                            <p>
-                                {selectedCreator.progress.submitted}/
-                                {selectedCreator.progress.total} konten terkirim
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs text-muted">Tepat waktu</p>
-
-                            <p>
-                                {formatPercent(
-                                    selectedCreator.performance.onTimeRate,
-                                )}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs text-muted">
-                                Rata-rata revisi
-                            </p>
-
-                            <p>
-                                {formatRevisions(
-                                    selectedCreator.performance.avgRevisions,
-                                )}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs text-muted">Produktivitas</p>
-
-                            <p>
-                                {selectedCreator.performance.productivityLabel}
-                            </p>
-                        </div>
-
-                        {selectedCreator.accessRevokeDate ? (
-                            <div>
-                                <p className="text-xs text-muted">Akses</p>
-
-                                <p>
-                                    Akses dicabut{" "}
-                                    {formatDate(selectedCreator.accessRevokeDate)}
-                                </p>
-                            </div>
-                        ) : null}
-                    </div>
-
-                    <div className="flex justify-end border-t border-rule px-5 py-3">
-                        <button
-                            type="button"
-                            onClick={() => setSelectedCreator(null)}
-                            className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 active:bg-surface-2"
-                        >
-                            Tutup
-                        </button>
-                    </div>
-                </dialog>
+                <CreatorDetailModal
+                    creatorId={selectedCreator.id}
+                    name={selectedCreator.name}
+                    onClose={() => setSelectedCreator(null)}
+                />
             ) : null}
         </>
     );
