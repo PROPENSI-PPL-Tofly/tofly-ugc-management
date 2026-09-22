@@ -116,10 +116,6 @@ const DETAIL_SELECT = {
   },
 } satisfies Prisma.creatorsSelect;
 
-type DetailRow = Prisma.creatorsGetPayload<{
-  select: typeof DETAIL_SELECT;
-}>;
-
 const NO_CONTRACT: ContractSummary = {
   status: 'none',
   startDate: null,
