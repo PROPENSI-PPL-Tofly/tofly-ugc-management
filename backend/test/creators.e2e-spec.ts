@@ -180,4 +180,54 @@ describe('GET /creators (e2e)', () => {
       .get('/creators?pageSize=1.5')
       .expect(400);
   });
+
+  it('searches by name across the whole roster, not just the current page', async () => {
+    const { body } = await request(app.getHttpServer())
+      .get('/creators')
+      .query({ q: `${MARKER} Aulia`, pageSize: 50 })
+      .expect(200);
+
+    expect(body.items.map((item: { name: string }) => item.name)).toEqual([
+      `${MARKER} Aulia Rahma`,
+    ]);
+  });
+
+  it('filters by contract status', async () => {
+    const { body } = await request(app.getHttpServer())
+      .get('/creators')
+      .query({ q: MARKER, contractStatus: 'none', pageSize: 50 })
+      .expect(200);
+
+    const names = body.items.map((item: { name: string }) => item.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        `${MARKER} Budi Santoso`,
+        `${MARKER} Citra Lestari`,
+      ]),
+    );
+    expect(names).not.toContain(`${MARKER} Aulia Rahma`);
+  });
+
+  it('filters by productivity band', async () => {
+    const { body } = await request(app.getHttpServer())
+      .get('/creators')
+      .query({ q: MARKER, productivity: 'good', pageSize: 50 })
+      .expect(200);
+
+    expect(body.items.map((item: { name: string }) => item.name)).toEqual([
+      `${MARKER} Aulia Rahma`,
+    ]);
+  });
+
+  it('rejects filter values outside what the metrics module produces', async () => {
+    await request(app.getHttpServer())
+      .get('/creators?contractStatus=cancelled')
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/creators?productivity=excellent')
+      .expect(400);
+    await request(app.getHttpServer())
+      .get(`/creators?q=${'a'.repeat(101)}`)
+      .expect(400);
+  });
 });

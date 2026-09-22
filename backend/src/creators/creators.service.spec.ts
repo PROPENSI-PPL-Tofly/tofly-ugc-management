@@ -222,6 +222,90 @@ describe('CreatorsService', () => {
     expect(result.totalPages).toBe(1);
   });
 
+  it('searches the whole roster by name or email when q is given', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1', first_name: 'Nadia', last_name: 'Putri', users: { email: 'nadia@example.com' } }),
+      row({ id: 'creator-2', first_name: 'Budi', last_name: 'Santoso', users: { email: 'budi@example.com' } }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+
+    expect(result.items.map((item) => item.id)).toEqual(['creator-1']);
+    expect(result.total).toBe(1);
+  });
+
+  it('filters the roster by contract status', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1' }),
+      row({
+        id: 'creator-2',
+        contracts: [{ id: 'c2', start_date: day(-400), end_date: day(-40), content_quota: 4, contents: [] }],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { contractStatus: 'expired' });
+
+    expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
+    expect(result.total).toBe(1);
+  });
+
+  it('filters the roster by productivity band', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1' }),
+      row({
+        id: 'creator-2',
+        contracts: [
+          {
+            id: 'c2',
+            start_date: day(-100),
+            end_date: day(80),
+            content_quota: 1,
+            contents: [{ deadline: day(-30), video_submitted_at: null, is_proposal: false, _count: { submissions: 0 } }],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { productivity: 'risk' });
+
+    expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
+    expect(result.total).toBe(1);
+  });
+
+  it('combines q, contractStatus and productivity with AND, not OR', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      // Matches the search and the contract status, but not the productivity band.
+      row({ id: 'creator-1', first_name: 'Nadia' }),
+      // Matches nothing: wrong name entirely.
+      row({ id: 'creator-2', first_name: 'Budi', last_name: 'Santoso', users: { email: 'budi@example.com' } }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list(
+      { page: 1, pageSize: 10 },
+      TODAY,
+      { q: 'nadia', contractStatus: 'active', productivity: 'risk' },
+    );
+
+    expect(result.items).toEqual([]);
+  });
+
+  it('does not ask the database to skip/take when a filter is active', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(0);
+
+    await service.list({ page: 2, pageSize: 10 }, TODAY, { q: 'anything' });
+
+    expect(prisma.creators.findMany).toHaveBeenCalledWith({
+      select: expect.anything(),
+      orderBy: expect.anything(),
+    });
+    expect(prisma.creators.count).not.toHaveBeenCalled();
+  });
+
   it('uses the current date when none is given', async () => {
     prisma.creators.findMany.mockResolvedValue([
       row({

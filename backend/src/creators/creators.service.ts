@@ -86,6 +86,21 @@ function toMetricsContract(
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
 export type CreatorsClient = Pick<PrismaService, 'creators'>;
 
+// contractStatus and productivity are derived from dates and nested content/submission
+// counts, not stored columns — there is no WHERE clause for them. Search could be pushed to
+// SQL on its own, but keeping all three filters on the same code path (rather than a SQL
+// path for some and JS for others) is what keeps "which creators does the admin see" a single
+// rule to read, instead of two that have to agree.
+function hasFilters(filters: Filters): boolean {
+  return filters.q !== undefined || filters.contractStatus !== undefined || filters.productivity !== undefined;
+}
+
+const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
+  { first_name: 'asc' },
+  { last_name: 'asc' },
+  { id: 'asc' },
+];
+
 /** What the controller needs from the service, so it can be swapped or stubbed by contract. */
 export interface CreatorLister {
   list(paging: Paging, today?: Date, filters?: CreatorFilters): Promise<CreatorListResponse>;
@@ -112,6 +127,11 @@ export class CreatorsService implements CreatorLister {
     const total = filtered.length;
     const start = (page - 1) * pageSize;
 
+    return this.paged(matched.slice(start, start + pageSize), page, pageSize, matched.length);
+  }
+
+  /** Wraps an already-correctly-sliced page of items with the response envelope. */
+  private paged(items: CreatorSummary[], page: number, pageSize: number, total: number): CreatorListResponse {
     return {
       items: filtered.slice(start, start + pageSize),
       page,
