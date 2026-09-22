@@ -43,16 +43,23 @@ describe("Modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
     expect(onClose).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByTestId("modal-backdrop"));
+    fireEvent.mouseDown(screen.getByTestId("modal-backdrop"));
     expect(onClose).toHaveBeenCalledTimes(3);
   });
 
-  it("does not close when the dialog itself is clicked", () => {
+  it("does not close when the press lands inside the dialog", () => {
     const onClose = vi.fn();
     render(<Harness open onClose={onClose} />);
 
-    fireEvent.click(screen.getByText("isi dialog"));
+    fireEvent.mouseDown(screen.getByText("isi dialog"));
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("leaves the backdrop out of the accessibility tree", () => {
+    render(<Harness open />);
+
+    // Scenery, not a control: Escape and the close button are the keyboard exits.
+    expect(screen.getByTestId("modal-backdrop")).not.toHaveAttribute("role");
   });
 
   it("moves focus into the dialog when it opens", () => {

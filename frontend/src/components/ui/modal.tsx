@@ -71,10 +71,21 @@ export function Modal({
       }
     };
 
+    // Dismiss on a press that starts outside the dialog. Listening here rather than
+    // putting onClick on the backdrop keeps the backdrop out of the accessibility tree:
+    // it is scenery, not a control, and Escape and the close button are the real exits.
+    // mousedown, not click, so the press that opened the dialog cannot immediately
+    // close it again as it finishes bubbling.
+    const onMouseDown = (event: MouseEvent) => {
+      if (!dialog?.contains(event.target as Node)) onClose();
+    };
+
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onMouseDown);
 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onMouseDown);
       opener?.focus();
     };
   }, [onClose]);
@@ -83,7 +94,6 @@ export function Modal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-5"
       data-testid="modal-backdrop"
-      onClick={onClose}
     >
       <div
         ref={dialogRef}
@@ -92,7 +102,6 @@ export function Modal({
         aria-labelledby={headingId}
         tabIndex={-1}
         className="max-h-[88vh] w-full max-w-[640px] overflow-y-auto rounded-(--radius-panel) border border-rule bg-surface focus:outline-none"
-        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-rule px-5 py-[18px]">
           <h2 id={headingId} className="text-[15px]">
