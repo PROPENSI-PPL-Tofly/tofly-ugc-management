@@ -15,6 +15,7 @@ import type {
   CreatorListResponse,
   CreatorSummary,
 } from './dto/creator-summary.dto.js';
+import type { Filters } from './filters.js';
 import type { Paging } from './paging.js';
 
 // Only what the summary needs. Selecting columns (rather than whole rows) is what keeps
@@ -85,9 +86,24 @@ function toMetricsContract(
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
 export type CreatorsClient = Pick<PrismaService, 'creators'>;
 
+// contractStatus and productivity are derived from dates and nested content/submission
+// counts, not stored columns — there is no WHERE clause for them. Search could be pushed to
+// SQL on its own, but keeping all three filters on the same code path (rather than a SQL
+// path for some and JS for others) is what keeps "which creators does the admin see" a single
+// rule to read, instead of two that have to agree.
+function hasFilters(filters: Filters): boolean {
+  return filters.q !== undefined || filters.contractStatus !== undefined || filters.productivity !== undefined;
+}
+
+const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
+  { first_name: 'asc' },
+  { last_name: 'asc' },
+  { id: 'asc' },
+];
+
 /** What the controller needs from the service, so it can be swapped or stubbed by contract. */
 export interface CreatorLister {
-  list(paging: Paging, today?: Date): Promise<CreatorListResponse>;
+  list(paging: Paging, today?: Date, filters?: Filters): Promise<CreatorListResponse>;
 }
 
 @Injectable()
@@ -97,24 +113,52 @@ export class CreatorsService implements CreatorLister {
   async list(
     { page, pageSize }: Paging,
     today = new Date(),
+    filters: Filters = {},
   ): Promise<CreatorListResponse> {
-    const [rows, total] = await Promise.all([
-      this.prisma.creators.findMany({
-        select: CREATOR_SELECT,
-        orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.creators.count(),
-    ]);
+    if (!hasFilters(filters)) {
+      const [rows, total] = await Promise.all([
+        this.prisma.creators.findMany({
+          select: CREATOR_SELECT,
+          orderBy: ORDER_BY,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        this.prisma.creators.count(),
+      ]);
 
+      // The DB already returned exactly this page's rows.
+      return this.paged(rows.map((row) => this.toSummary(row, today)), page, pageSize, total);
+    }
+
+    // Filtering needs every row's derived contract/performance state before it can decide
+    // which creators match, so the DB can't paginate for us here — it can only sort. The
+    // matched set is paginated in JS below instead.
+    const rows = await this.prisma.creators.findMany({ select: CREATOR_SELECT, orderBy: ORDER_BY });
+    const matched = rows.map((row) => this.toSummary(row, today)).filter((item) => this.matches(item, filters));
+    const start = (page - 1) * pageSize;
+
+    return this.paged(matched.slice(start, start + pageSize), page, pageSize, matched.length);
+  }
+
+  /** Wraps an already-correctly-sliced page of items with the response envelope. */
+  private paged(items: CreatorSummary[], page: number, pageSize: number, total: number): CreatorListResponse {
     return {
-      items: rows.map((row) => this.toSummary(row, today)),
+      items,
       page,
       pageSize,
       total,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
     };
+  }
+
+  private matches(item: CreatorSummary, filters: Filters): boolean {
+    if (filters.q) {
+      const q = filters.q.toLowerCase();
+      if (!item.name.toLowerCase().includes(q) && !item.email.toLowerCase().includes(q)) return false;
+    }
+    if (filters.contractStatus && item.contract.status !== filters.contractStatus) return false;
+    if (filters.productivity && item.performance.productivity !== filters.productivity) return false;
+    return true;
   }
 
   private toSummary(row: CreatorRow, today: Date): CreatorSummary {

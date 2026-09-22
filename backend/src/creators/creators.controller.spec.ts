@@ -26,7 +26,11 @@ describe('CreatorsController', () => {
 
   it('hands the requested page to the service', async () => {
     await expect(controller.list(2, 25)).resolves.toBe(response);
-    expect(service.list).toHaveBeenCalledWith({ page: 2, pageSize: 25 });
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 2, pageSize: 25 },
+      expect.any(Date),
+      {},
+    );
   });
 
   it('rejects a page below one', async () => {
@@ -47,5 +51,33 @@ describe('CreatorsController', () => {
       BadRequestException,
     );
     await expect(controller.list(1, 50)).resolves.toBe(response);
+  });
+
+  it('passes q, contractStatus and productivity through to the service', async () => {
+    await controller.list(1, 10, 'nadia', 'active', 'good');
+
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      { q: 'nadia', contractStatus: 'active', productivity: 'good' },
+    );
+  });
+
+  it('rejects an unrecognised contractStatus value', async () => {
+    await expect(
+      controller.list(1, 10, undefined, 'bogus'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects an unrecognised productivity value', async () => {
+    await expect(
+      controller.list(1, 10, undefined, undefined, 'bogus'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a search string over 100 characters', async () => {
+    await expect(
+      controller.list(1, 10, 'a'.repeat(101)),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
