@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { vi } from "vitest";
 
 const replace = vi.fn();
 let searchParams = new URLSearchParams();
@@ -17,78 +17,107 @@ function renderFilters(overrides: Record<string, string> = {}) {
   render(<CreatorFilters />);
 }
 
+function search() {
+  return screen.getByRole("searchbox", { name: /cari creator/i });
+}
+
+function contractStatus() {
+  return screen.getByRole("combobox", { name: /status kontrak/i });
+}
+
+/** Past the debounce, so the URL update the typing scheduled actually runs. */
+function settle() {
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
+}
+
 describe("CreatorFilters", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
     searchParams = new URLSearchParams();
   });
 
-  it("renders search input", () => {
-    renderFilters();
-
-    expect(screen.getByRole("searchbox", { name: /cari creator/i })).toBeInTheDocument();
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("renders contract status dropdown", () => {
+  it("renders a search box and both dropdowns", () => {
     renderFilters();
 
-    expect(screen.getByRole("combobox", { name: /status kontrak/i })).toBeInTheDocument();
-  });
-
-  it("renders productivity dropdown", () => {
-    renderFilters();
-
+    expect(search()).toBeInTheDocument();
+    expect(contractStatus()).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /produktivitas/i })).toBeInTheDocument();
   });
 
+  it("offers every contract status the API accepts", () => {
+    renderFilters();
+
+    const values = Array.from(contractStatus().querySelectorAll("option")).map(
+      (option) => option.value,
+    );
+    expect(values).toEqual(["all", "active", "expired", "upcoming", "none"]);
+  });
+
   it("reflects current filter values in inputs", () => {
-    renderFilters({ q: "rangga", contract: "active" });
+    renderFilters({ q: "rangga", contractStatus: "active" });
 
-    expect(screen.getByRole("searchbox", { name: /cari creator/i })).toHaveValue("rangga");
-    expect(screen.getByRole("combobox", { name: /status kontrak/i })).toHaveValue("active");
+    expect(search()).toHaveValue("rangga");
+    expect(contractStatus()).toHaveValue("active");
   });
 
-  it("updates URL on search input change", async () => {
+  it("waits for a pause in typing before updating the URL", () => {
     renderFilters();
 
-    await userEvent.type(screen.getByRole("searchbox", { name: /cari creator/i }), "rangga");
+    fireEvent.change(search(), { target: { value: "ran" } });
+    fireEvent.change(search(), { target: { value: "rangga" } });
 
-    expect(replace).toHaveBeenCalled();
-    const lastCall = replace.mock.calls.at(-1)!;
-    expect(lastCall[0]).toContain("q=");
-    expect(lastCall[1]).toEqual({ scroll: false });
+    // Still mid-word: nothing has been sent yet.
+    expect(replace).not.toHaveBeenCalled();
+
+    settle();
+
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith(expect.stringContaining("q=rangga"), {
+      scroll: false,
+    });
   });
 
-  it("updates URL on dropdown change", async () => {
+  it("updates the URL with the API's parameter name on a dropdown change", () => {
     renderFilters();
 
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: /status kontrak/i }),
-      "active",
-    );
+    fireEvent.change(contractStatus(), { target: { value: "active" } });
 
-    expect(replace).toHaveBeenCalledWith(
-      expect.stringContaining("contract=active"),
-      { scroll: false },
-    );
+    expect(replace).toHaveBeenCalledWith(expect.stringContaining("contractStatus=active"), {
+      scroll: false,
+    });
   });
 
-  it("does not show reset button when no filters active", () => {
+  it("drops the page number when a filter changes", () => {
+    renderFilters({ page: "3" });
+
+    fireEvent.change(contractStatus(), { target: { value: "expired" } });
+
+    expect(replace.mock.calls.at(-1)![0]).not.toContain("page=");
+  });
+
+  it("does not show the reset button when no filter is active", () => {
     renderFilters();
 
     expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
   });
 
-  it("shows reset button when any filter is active", () => {
+  it("shows the reset button when any filter is active", () => {
     renderFilters({ q: "rangga" });
 
     expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
   });
 
-  it("resets all filters when reset button clicked", async () => {
-    renderFilters({ q: "rangga", contract: "active" });
+  it("resets every filter back to the bare path", () => {
+    renderFilters({ q: "rangga", contractStatus: "active" });
 
-    await userEvent.click(screen.getByRole("button", { name: /reset/i }));
+    fireEvent.click(screen.getByRole("button", { name: /reset/i }));
 
     expect(replace).toHaveBeenCalledWith("/admin/creators", { scroll: false });
   });

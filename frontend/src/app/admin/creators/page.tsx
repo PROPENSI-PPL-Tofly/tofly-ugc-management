@@ -3,7 +3,13 @@ import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
 import { Pagination } from "@/components/creators/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
-import { fetchCreators, parseFilters, parsePage, type CreatorListResponse } from "@/lib/creators";
+import {
+  fetchCreators,
+  hasActiveFilters,
+  parseFilters,
+  parsePage,
+  type CreatorListResponse,
+} from "@/lib/creators";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +51,7 @@ export default async function CreatorsPage({
     result = null;
   }
 
-  const hasActiveFilters = filters.q !== "" || filters.contract !== "all" || filters.productivity !== "all";
+  const filtered = hasActiveFilters(filters);
 
   return (
     <AppShell
@@ -64,7 +70,7 @@ export default async function CreatorsPage({
 
       <Panel>
         <PanelHead
-          title={hasActiveFilters ? "Hasil pencarian" : "Semua creator"}
+          title={filtered ? "Hasil pencarian" : "Semua creator"}
           hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
         />
         <CreatorFilters />
