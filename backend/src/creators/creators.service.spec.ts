@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatorsService, type CreatorRow } from './creators.service.js';
@@ -52,20 +53,149 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
   };
 }
 
+type DetailSubmissionRow = {
+  id: string;
+  link: string;
+  revision_notes: string | null;
+  created_at: Date;
+};
+
+type DetailContentRow = {
+  id: string;
+  name: string;
+  type: string;
+  deadline: Date;
+  status: string;
+  is_proposal: boolean;
+  video_link: string | null;
+  video_submitted_at: Date | null;
+  _count: { submissions: number };
+  submissions: DetailSubmissionRow[];
+};
+
+type DetailContractRow = {
+  id: string;
+  start_date: Date;
+  end_date: Date;
+  days_between: number;
+  content_quota: number;
+  contents: DetailContentRow[];
+};
+
+type DetailCreatorRow = {
+  id: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string | null;
+  phone_number: string | null;
+  access_revoke_date: Date | null;
+  users: {
+    email: string;
+  };
+  social_accounts: {
+    platform: string;
+    username: string;
+  }[];
+  contracts: DetailContractRow[];
+};
+
+function detailRow(): DetailCreatorRow {
+  return {
+    id: 'creator-1',
+    first_name: 'Rangga',
+    middle_name: null,
+    last_name: 'Pratama',
+    phone_number: '081234567001',
+    access_revoke_date: null,
+    users: {
+      email: 'rangga@example.com',
+    },
+    social_accounts: [
+      {
+        platform: 'instagram',
+        username: 'rangga.creates',
+      },
+      {
+        platform: 'tiktok',
+        username: 'ranggacreates',
+      },
+    ],
+    contracts: [
+      {
+        id: 'contract-1',
+        start_date: day(-100),
+        end_date: day(80),
+        days_between: 180,
+        content_quota: 6,
+        contents: [
+          {
+            id: 'content-1',
+            name: 'Evergreen - Tips Belajar Cepat',
+            type: 'evergreen',
+            deadline: day(-30),
+            status: 'link_submitted',
+            is_proposal: false,
+            video_link: 'https://example.com/video-1',
+            video_submitted_at: day(-31),
+            _count: {
+              submissions: 2,
+            },
+            submissions: [
+              {
+                id: 'submission-1',
+                link: 'https://example.com/draft-v1',
+                revision_notes: null,
+                created_at: day(-32),
+              },
+              {
+                id: 'submission-2',
+                link: 'https://example.com/draft-v2',
+                revision_notes: 'Perbaiki opening',
+                created_at: day(-31),
+              },
+            ],
+          },
+          {
+            id: 'content-2',
+            name: 'Specific - September',
+            type: 'specific',
+            deadline: day(2),
+            status: 'draft_review',
+            is_proposal: false,
+            video_link: null,
+            video_submitted_at: null,
+            _count: {
+              submissions: 0,
+            },
+            submissions: [],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe('CreatorsService', () => {
   let service: CreatorsService;
+
   const prisma = {
-    creators: { findMany: vi.fn(), count: vi.fn() },
+    creators: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+      findUnique: vi.fn(),
+    },
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
     const module = await Test.createTestingModule({
       providers: [
         CreatorsService,
         { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
+
     service = module.get(CreatorsService);
   });
 
@@ -96,7 +226,10 @@ describe('CreatorsService', () => {
           id: 'creator-1',
           name: 'Rangga Pratama',
           email: 'rangga@example.com',
-          socials: { instagram: 'rangga.creates', tiktok: 'ranggacreates' },
+          socials: {
+            instagram: 'rangga.creates',
+            tiktok: 'ranggacreates',
+          },
           accessRevokeDate: null,
           contract: {
             status: 'active',
@@ -106,7 +239,11 @@ describe('CreatorsService', () => {
             periodNumber: 1,
             contentQuota: 6,
           },
-          progress: { submitted: 2, total: 3, percent: 67 },
+          progress: {
+            submitted: 2,
+            total: 3,
+            percent: 67,
+          },
           performance: {
             onTimeRate: 50,
             avgRevisions: 0.5,
@@ -124,7 +261,10 @@ describe('CreatorsService', () => {
 
   it('joins the middle name into the display name', async () => {
     prisma.creators.findMany.mockResolvedValue([
-      row({ middle_name: 'Nur', last_name: 'Aini' }),
+      row({
+        middle_name: 'Nur',
+        last_name: 'Aini',
+      }),
     ]);
     prisma.creators.count.mockResolvedValue(1);
 
@@ -134,7 +274,11 @@ describe('CreatorsService', () => {
   });
 
   it('copes with a creator who only has a first name', async () => {
-    prisma.creators.findMany.mockResolvedValue([row({ last_name: null })]);
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        last_name: null,
+      }),
+    ]);
     prisma.creators.count.mockResolvedValue(1);
 
     const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
@@ -144,7 +288,10 @@ describe('CreatorsService', () => {
 
   it('describes a creator without any contract', async () => {
     prisma.creators.findMany.mockResolvedValue([
-      row({ contracts: [], social_accounts: [] }),
+      row({
+        contracts: [],
+        social_accounts: [],
+      }),
     ]);
     prisma.creators.count.mockResolvedValue(1);
 
@@ -160,8 +307,15 @@ describe('CreatorsService', () => {
         periodNumber: 0,
         contentQuota: 0,
       },
-      progress: { submitted: 0, total: 0, percent: 0 },
-      performance: { onTimeRate: null, productivityLabel: 'Belum Ada Data' },
+      progress: {
+        submitted: 0,
+        total: 0,
+        percent: 0,
+      },
+      performance: {
+        onTimeRate: null,
+        productivityLabel: 'Belum Ada Data',
+      },
     });
   });
 
@@ -322,8 +476,88 @@ describe('CreatorsService', () => {
     ]);
     prisma.creators.count.mockResolvedValue(1);
 
-    const { items } = await service.list({ page: 1, pageSize: 10 });
+    const { items } = await service.list({
+      page: 1,
+      pageSize: 10,
+    });
 
     expect(items[0].contract.status).toBe('active');
+  });
+
+  it('exposes a creator detail operation', () => {
+    const findOne = (
+      service as unknown as {
+        findOne?: (id: string, today?: Date) => Promise<unknown>;
+      }
+    ).findOne;
+
+    expect(findOne).toBeTypeOf('function');
+  });
+
+  it('returns full creator details and rejects a missing creator', async () => {
+    const findOne = (
+      service as unknown as {
+        findOne?: (
+          id: string,
+          today?: Date,
+        ) => Promise<{
+          phoneNumber: string | null;
+          contractHistory: unknown[];
+          contents: unknown[];
+          drafts: unknown[];
+        }>;
+      }
+    ).findOne;
+
+    expect(findOne).toBeTypeOf('function');
+
+    if (typeof findOne !== 'function') {
+      return;
+    }
+
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    const result = await findOne.call(service, 'creator-1', TODAY);
+
+    expect(result).toMatchObject({
+      phoneNumber: '081234567001',
+      contractHistory: [
+        expect.objectContaining({
+          id: 'contract-1',
+          periodNumber: 1,
+          contentQuota: 6,
+          completed: 1,
+          total: 2,
+          isCurrent: true,
+        }),
+      ],
+      contents: [
+        expect.objectContaining({
+          id: 'content-1',
+          name: 'Evergreen - Tips Belajar Cepat',
+          outcome: 'on_time',
+          videoLink: 'https://example.com/video-1',
+        }),
+        expect.objectContaining({
+          id: 'content-2',
+          name: 'Specific - September',
+          outcome: 'open',
+          videoLink: null,
+        }),
+      ],
+      drafts: [
+        expect.objectContaining({
+          contentId: 'content-1',
+          revisionCount: 1,
+          latestLink: 'https://example.com/draft-v2',
+        }),
+      ],
+    });
+
+    prisma.creators.findUnique.mockResolvedValue(null);
+
+    await expect(
+      findOne.call(service, 'missing-creator', TODAY),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

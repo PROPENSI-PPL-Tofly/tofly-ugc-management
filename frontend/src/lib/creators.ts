@@ -1,11 +1,12 @@
 // Everything the admin views know about the creators API: the shapes it returns, how the
-// page number comes out of the URL, and the one way of asking for data. Pages never
-// assemble a URL themselves.
+// page number comes out of the URL, and the ways of asking for data. Pages never assemble
+// API URLs themselves.
 
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
 export type Productivity = "good" | "watch" | "risk";
+export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
 
 export interface CreatorSummary {
   id: string;
@@ -21,7 +22,11 @@ export interface CreatorSummary {
     periodNumber: number;
     contentQuota: number;
   };
-  progress: { submitted: number; total: number; percent: number };
+  progress: {
+    submitted: number;
+    total: number;
+    percent: number;
+  };
   performance: {
     onTimeRate: number | null;
     avgRevisions: number;
@@ -38,8 +43,43 @@ export interface CreatorListResponse {
   totalPages: number;
 }
 
+export interface CreatorDetail extends CreatorSummary {
+  phoneNumber: string | null;
+
+  contractHistory: {
+    id: string;
+    periodNumber: number;
+    startDate: string;
+    endDate: string;
+    daysBetween: number;
+    contentQuota: number;
+    completed: number;
+    total: number;
+    isCurrent: boolean;
+  }[];
+
+  contents: {
+    id: string;
+    name: string;
+    type: string;
+    deadline: string;
+    status: string;
+    outcome: ContentOutcome;
+    videoLink: string | null;
+  }[];
+
+  drafts: {
+    contentId: string;
+    contentName: string;
+    revisionCount: number;
+    latestLink: string;
+    lastSubmittedAt: string;
+  }[];
+}
+
 export interface PageRequest {
   page: number;
+
   /** The raw value when it was not a positive integer, so the page can say what it ignored. */
   invalid: string | null;
 }
@@ -57,16 +97,32 @@ function single(value: string | string[] | undefined): string {
  */
 export function parsePage(params: Record<string, string | string[] | undefined>): PageRequest {
   const raw = single(params.page);
-  if (raw === "") return { page: 1, invalid: null };
+
+  if (raw === "") {
+    return {
+      page: 1,
+      invalid: null,
+    };
+  }
 
   return /^[1-9]\d*$/.test(raw)
-    ? { page: Number(raw), invalid: null }
-    : { page: 1, invalid: raw };
+    ? {
+        page: Number(raw),
+        invalid: null,
+      }
+    : {
+        page: 1,
+        invalid: raw,
+      };
 }
 
 function withoutTrailingSlash(url: string): string {
   let end = url.length;
-  while (end > 0 && url[end - 1] === "/") end -= 1;
+
+  while (end > 0 && url[end - 1] === "/") {
+    end -= 1;
+  }
+
   return url.slice(0, end);
 }
 
@@ -77,9 +133,16 @@ function withoutTrailingSlash(url: string): string {
  */
 export async function fetchCreators(page: number): Promise<CreatorListResponse> {
   const backendUrl = process.env.BACKEND_URL;
-  if (!backendUrl) throw new Error("BACKEND_URL is not configured");
 
-  const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+  if (!backendUrl) {
+    throw new Error("BACKEND_URL is not configured");
+  }
+
+  const query = new URLSearchParams({
+    page: String(page),
+    pageSize: String(PAGE_SIZE),
+  });
+
   const response = await fetch(`${withoutTrailingSlash(backendUrl)}/creators?${query}`, {
     cache: "no-store",
   });
@@ -87,5 +150,22 @@ export async function fetchCreators(page: number): Promise<CreatorListResponse> 
   if (!response.ok) {
     throw new Error(`Loading creators failed with HTTP ${response.status}`);
   }
+
   return (await response.json()) as CreatorListResponse;
+}
+
+/**
+ * Browser-side: the same-origin Next.js API proxy forwards this request to the backend.
+ * Keeping the backend address out of the browser avoids exposing BACKEND_URL.
+ */
+export async function fetchCreatorDetail(id: string): Promise<CreatorDetail> {
+  const response = await fetch(`/api/creators/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Loading creator detail failed with HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as CreatorDetail;
 }

@@ -3,11 +3,16 @@ import {
   DefaultValuePipe,
   Get,
   Inject,
+  Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Query,
 } from '@nestjs/common';
 import { CreatorsService, type CreatorLister } from './creators.service.js';
-import type { CreatorListResponse } from './dto/creator-summary.dto.js';
+import type {
+  CreatorDetail,
+  CreatorListResponse,
+} from './dto/creator-summary.dto.js';
 import { checkFilters } from './filters.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from './paging.js';
 
@@ -17,9 +22,9 @@ export class CreatorsController {
     @Inject(CreatorsService) private readonly creators: CreatorLister,
   ) {}
 
-  // The pipes turn anything that is not an integer into a 400 before this runs; checkPaging
-  // then keeps the integers inside the range the listing can serve. checkFilters does the
-  // same job for q/contractStatus/productivity.
+  // The pipes turn anything that is not an integer into a 400 before this runs;
+  // checkPaging then keeps the integers inside the range the listing can serve.
+  // checkFilters does the same job for q/contractStatus/productivity.
   @Get()
   async list(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -34,5 +39,16 @@ export class CreatorsController {
       new Date(),
       checkFilters(q, contractStatus, productivity),
     );
+  }
+
+  /**
+   * ParseUUIDPipe prevents malformed IDs from reaching the database.
+   * The service handles the valid-but-missing creator case.
+   */
+  @Get(':id')
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CreatorDetail> {
+    return this.creators.findOne(id);
   }
 }
