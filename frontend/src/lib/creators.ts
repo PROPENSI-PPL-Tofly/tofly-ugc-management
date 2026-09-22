@@ -95,9 +95,7 @@ function single(value: string | string[] | undefined): string {
  * reloaded. Anything that is not a positive integer falls back to page one rather than being
  * forwarded to the API, which would only answer with a 400.
  */
-export function parsePage(
-    params: Record<string, string | string[] | undefined>,
-): PageRequest {
+export function parsePage(params: Record<string, string | string[] | undefined>): PageRequest {
   const raw = single(params.page);
 
   if (raw === "") {
@@ -108,11 +106,11 @@ export function parsePage(
   }
 
   return /^[1-9]\d*$/.test(raw)
-      ? {
+    ? {
         page: Number(raw),
         invalid: null,
       }
-      : {
+    : {
         page: 1,
         invalid: raw,
       };
@@ -133,9 +131,7 @@ function withoutTrailingSlash(url: string): string {
  * the browser. BACKEND_URL is read per call because it is a plain runtime variable on the
  * deployed service; a module-scope read would freeze whatever it was at build time.
  */
-export async function fetchCreators(
-    page: number,
-): Promise<CreatorListResponse> {
+export async function fetchCreators(page: number): Promise<CreatorListResponse> {
   const backendUrl = process.env.BACKEND_URL;
 
   if (!backendUrl) {
@@ -147,17 +143,12 @@ export async function fetchCreators(
     pageSize: String(PAGE_SIZE),
   });
 
-  const response = await fetch(
-      `${withoutTrailingSlash(backendUrl)}/creators?${query}`,
-      {
-        cache: "no-store",
-      },
-  );
+  const response = await fetch(`${withoutTrailingSlash(backendUrl)}/creators?${query}`, {
+    cache: "no-store",
+  });
 
   if (!response.ok) {
-    throw new Error(
-        `Loading creators failed with HTTP ${response.status}`,
-    );
+    throw new Error(`Loading creators failed with HTTP ${response.status}`);
   }
 
   return (await response.json()) as CreatorListResponse;
@@ -167,20 +158,13 @@ export async function fetchCreators(
  * Browser-side: the same-origin Next.js API proxy forwards this request to the backend.
  * Keeping the backend address out of the browser avoids exposing BACKEND_URL.
  */
-export async function fetchCreatorDetail(
-    id: string,
-): Promise<CreatorDetail> {
-  const response = await fetch(
-      `/api/creators/${encodeURIComponent(id)}`,
-      {
-        cache: "no-store",
-      },
-  );
+export async function fetchCreatorDetail(id: string): Promise<CreatorDetail> {
+  const response = await fetch(`/api/creators/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
 
   if (!response.ok) {
-    throw new Error(
-        `Loading creator detail failed with HTTP ${response.status}`,
-    );
+    throw new Error(`Loading creator detail failed with HTTP ${response.status}`);
   }
 
   return (await response.json()) as CreatorDetail;
