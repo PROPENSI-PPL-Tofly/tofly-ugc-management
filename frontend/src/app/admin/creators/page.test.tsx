@@ -57,7 +57,7 @@ describe("Creator database page", () => {
 
     expect(fetchCreators).toHaveBeenCalledWith(1, { q: "", contract: "all", productivity: "all" });
     expect(screen.getByRole("status")).toHaveTextContent(
-      /Halaman.*abc.*tidak dikenal/,
+      "Halaman “abc” tidak dikenal, menampilkan halaman pertama.",
     );
   });
 
@@ -67,7 +67,7 @@ describe("Creator database page", () => {
     await renderPage({ page: "<img src=x onerror=alert(1)>" });
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      /Halaman.*img src=x.*tidak dikenal/,
+      "Halaman “<img src=x onerror=alert(1)>” tidak dikenal, menampilkan halaman pertama.",
     );
     expect(document.querySelector("img")).toBeNull();
   });
