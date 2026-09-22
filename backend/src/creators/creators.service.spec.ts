@@ -275,6 +275,24 @@ describe('CreatorsService', () => {
     expect(result.total).toBe(1);
   });
 
+  it('combines q, contractStatus and productivity with AND, not OR', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      // Matches the search and the contract status, but not the productivity band.
+      row({ id: 'creator-1', first_name: 'Nadia' }),
+      // Matches nothing: wrong name entirely.
+      row({ id: 'creator-2', first_name: 'Budi', last_name: 'Santoso', users: { email: 'budi@example.com' } }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list(
+      { page: 1, pageSize: 10 },
+      TODAY,
+      { q: 'nadia', contractStatus: 'active', productivity: 'risk' },
+    );
+
+    expect(result.items).toEqual([]);
+  });
+
   it('does not ask the database to skip/take when a filter is active', async () => {
     prisma.creators.findMany.mockResolvedValue([]);
     prisma.creators.count.mockResolvedValue(0);
