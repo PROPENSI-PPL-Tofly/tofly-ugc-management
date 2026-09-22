@@ -12,11 +12,11 @@ Artifact Registry → Cloud Run, on push to `main`).
 
 ### Backend (`backend.yml`)
 
-- `push` to `main` when files change in:
+- `push` to `main` or to a `feat/pbi-*` branch when files change in:
   - `backend/**`
   - `supabase/**`
   - `.github/workflows/backend.yml`
-- `pull_request` targeting `main` when files change in the same paths
+- `pull_request` targeting `main` or a `feat/pbi-*` branch when files change in the same paths
 - `workflow_dispatch` (manual; runs `test` only — see §6)
 
 `supabase/**` is included so that a migration-only commit still runs the pipeline and reaches the
@@ -24,13 +24,19 @@ hosted database.
 
 ### Frontend (`frontend.yml`)
 
-- `push` to `main` when files change in:
+- `push` to `main` or to a `feat/pbi-*` branch when files change in:
   - `frontend/**`
   - `.github/workflows/frontend.yml`
-- `pull_request` targeting `main` when files change in the same paths
+- `pull_request` targeting `main` or a `feat/pbi-*` branch when files change in the same paths
 - `workflow_dispatch` (manual; runs `test` only — see §6)
 
-Pushes to any branch other than `main` trigger nothing. Open a PR to get CI.
+`feat/pbi-*` are the per-PBI integration branches: subtask PRs land on one of them before the
+whole PBI goes to `main` as a single PR, and the pattern means a new PBI branch gets CI without
+editing these files. `*` does not cross `/`, so a branch nesting another segment
+(`feat/pbi-2/foo`) would need `feat/pbi-**`.
+
+Pushes to any other branch trigger nothing. Open a PR to get CI. CD is unaffected — every deploy
+job is separately gated on `push` to `main` (§3).
 
 ## 2) CI Stages
 
@@ -80,7 +86,14 @@ fails below it.
   the app. Organization and project key come from repo variables (§5); sources, tests,
   exclusions and the lcov path from `<app>/sonar-project.properties`.
 - Waits for quality gate (`sonar.qualitygate.wait=true`).
-- PRs are analysed as pull requests (SonarCloud decorates the PR); pushes analyse `main`.
+- Runs on same-repo PRs, on `push` to `main`, and on `workflow_dispatch` — not on pushes to
+  `feat/pbi-*`. A push to a non-`main` branch asks SonarCloud for a *branch* analysis, which it
+  refuses with "Not authorized or project not found", so those runs would fail for a reason no
+  change in this repo can fix. PR analysis and `main` branch analysis both work and are kept.
+- PRs are analysed as pull requests (SonarCloud decorates the PR); pushes to `main` analyse `main`.
+- Because the integration branch itself is never analysed as a branch, SonarCloud falls back to the
+  main branch as the new-code reference for PRs targeting it: a subtask PR's quality gate covers the
+  whole diff from `main`, not just that PR's own commits.
 
 ## 3) CD Stages
 
@@ -147,20 +160,21 @@ deploy. Any value above `0` bills continuously.
 
 Coverage badge updates only run for:
 
-- `push` events on `main`
-- internal `pull_request` events targeting `main` (same repository, not fork PR)
+- `push` events on `main`, and nothing else
 
-For these events, the workflow resolves the target branch dynamically:
+The badge is generated on every run, so a broken `scripts/coverage-badge.mjs` fails on the PR that
+breaks it rather than first appearing on `main`; only the commit step is restricted. Keeping the
+commit on `main` alone means the SVG in the README always describes `main`, and contributors'
+branches never receive an automated badge commit mid-review.
 
-- PR: `github.head_ref` (source branch of the PR within this repository)
-- Push to `main`: `github.ref_name` (which is `main`)
-
-It then commits and pushes badge changes back to that branch with `[skip ci]` so the badge
+It commits and pushes badge changes back to `main` with `[skip ci]` so the badge
 commit does not re-trigger the workflow. The push is retried up to 3 times; the step is
 `continue-on-error`, so a badge failure never fails the build.
 
-To make this possible, `test` checks out the branch head (`ref: github.head_ref`) rather than
-the PR merge ref.
+`test` checks out the branch head (`ref: github.head_ref`) rather than the PR merge ref. The badge
+commit no longer depends on that, but `sonar` does — it needs the same ref for the lcov paths and
+`sonar.scm.revision` to line up. `permissions: contents: write` on `test` likewise stays, because
+job permissions cannot be made conditional on the event.
 
 Badge files:
 
