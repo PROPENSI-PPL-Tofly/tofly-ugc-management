@@ -28,8 +28,8 @@ describe('CreatorsController', () => {
     await expect(controller.list(2, 25)).resolves.toBe(response);
     expect(service.list).toHaveBeenCalledWith(
       { page: 2, pageSize: 25 },
-      undefined,
-      { q: '', contract: 'all', productivity: 'all' },
+      expect.any(Date),
+      {},
     );
   });
 
@@ -53,23 +53,31 @@ describe('CreatorsController', () => {
     await expect(controller.list(1, 50)).resolves.toBe(response);
   });
 
-  it('passes q, contract, productivity to the service', async () => {
-    await controller.list(1, 10, 'rangga', 'active', 'good');
+  it('passes q, contractStatus and productivity through to the service', async () => {
+    await controller.list(1, 10, 'nadia', 'active', 'good');
 
     expect(service.list).toHaveBeenCalledWith(
       { page: 1, pageSize: 10 },
-      undefined,
-      { q: 'rangga', contract: 'active', productivity: 'good' },
+      expect.any(Date),
+      { q: 'nadia', contractStatus: 'active', productivity: 'good' },
     );
   });
 
-  it('passes defaults when query params are absent', async () => {
-    await controller.list(1, 10, undefined, undefined, undefined);
+  it('rejects an unrecognised contractStatus value', async () => {
+    await expect(
+      controller.list(1, 10, undefined, 'bogus'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 
-    expect(service.list).toHaveBeenCalledWith(
-      { page: 1, pageSize: 10 },
-      undefined,
-      { q: '', contract: 'all', productivity: 'all' },
-    );
+  it('rejects an unrecognised productivity value', async () => {
+    await expect(
+      controller.list(1, 10, undefined, undefined, 'bogus'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a search string over 100 characters', async () => {
+    await expect(
+      controller.list(1, 10, 'a'.repeat(101)),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

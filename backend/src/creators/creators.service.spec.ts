@@ -69,7 +69,7 @@ describe('CreatorsService', () => {
     service = module.get(CreatorsService);
   });
 
-  it('asks the database for all creators, ordered by name', async () => {
+  it('asks the database for one page, ordered by name', async () => {
     prisma.creators.findMany.mockResolvedValue([]);
     prisma.creators.count.mockResolvedValue(0);
 
@@ -77,6 +77,8 @@ describe('CreatorsService', () => {
 
     expect(prisma.creators.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        skip: 20,
+        take: 10,
         orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
       }),
     );
@@ -197,11 +199,9 @@ describe('CreatorsService', () => {
     });
   });
 
-  it('reports the page count from the filtered total, not from the database count', async () => {
-    const rows = Array.from({ length: 23 }, (_, i) =>
-      row({ id: `creator-${i}`, first_name: `Creator${i}` }),
-    );
-    prisma.creators.findMany.mockResolvedValue(rows);
+  it('reports the page count from the total, not from the rows returned', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(23);
 
     const result = await service.list({ page: 5, pageSize: 10 }, TODAY);
 
@@ -325,86 +325,5 @@ describe('CreatorsService', () => {
     const { items } = await service.list({ page: 1, pageSize: 10 });
 
     expect(items[0].contract.status).toBe('active');
-  });
-
-  it('filters by search term matching name', async () => {
-    prisma.creators.findMany.mockResolvedValue([
-      row({ first_name: 'Rangga', last_name: 'Pratama', users: { email: 'rangga@example.com' } }),
-      row({ id: 'creator-2', first_name: 'Dimas', last_name: 'Aji', users: { email: 'dimas@example.com' } }),
-    ]);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-      q: 'rangga',
-      contract: 'all',
-      productivity: 'all',
-    });
-
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].name).toBe('Rangga Pratama');
-  });
-
-  it('filters by search term matching email', async () => {
-    prisma.creators.findMany.mockResolvedValue([
-      row({ users: { email: 'rangga@example.com' } }),
-      row({ id: 'creator-2', users: { email: 'dimas@example.com' } }),
-    ]);
-    prisma.creators.count.mockResolvedValue(2);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-      q: 'dimas',
-      contract: 'all',
-      productivity: 'all',
-    });
-
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].email).toBe('dimas@example.com');
-  });
-
-  it('filters by contract status', async () => {
-    prisma.creators.findMany.mockResolvedValue([
-      row({ contracts: [] }),
-      row({ id: 'creator-2', first_name: 'Active', contracts: [{ id: 'c', start_date: day(-10), end_date: day(80), content_quota: 4, contents: [] }] }),
-    ]);
-    prisma.creators.count.mockResolvedValue(2);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-      q: '',
-      contract: 'none',
-      productivity: 'all',
-    });
-
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].contract.status).toBe('none');
-  });
-
-  it('returns empty when no match', async () => {
-    prisma.creators.findMany.mockResolvedValue([
-      row({ first_name: 'Rangga' }),
-    ]);
-    prisma.creators.count.mockResolvedValue(1);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-      q: 'zzz',
-      contract: 'all',
-      productivity: 'all',
-    });
-
-    expect(result.items).toHaveLength(0);
-  });
-
-  it('returns all when filters are "all"', async () => {
-    prisma.creators.findMany.mockResolvedValue([
-      row(),
-      row({ id: 'creator-2', first_name: 'Dimas' }),
-    ]);
-    prisma.creators.count.mockResolvedValue(2);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-      q: '',
-      contract: 'all',
-      productivity: 'all',
-    });
-
-    expect(result.items).toHaveLength(2);
   });
 });

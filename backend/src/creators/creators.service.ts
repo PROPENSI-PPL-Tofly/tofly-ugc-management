@@ -15,7 +15,7 @@ import type {
   CreatorListResponse,
   CreatorSummary,
 } from './dto/creator-summary.dto.js';
-import type { CreatorFilters } from './dto/parse-filter-query.js';
+import type { Filters } from './filters.js';
 import type { Paging } from './paging.js';
 
 // Only what the summary needs. Selecting columns (rather than whole rows) is what keeps
@@ -103,10 +103,8 @@ const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
 
 /** What the controller needs from the service, so it can be swapped or stubbed by contract. */
 export interface CreatorLister {
-  list(paging: Paging, today?: Date, filters?: CreatorFilters): Promise<CreatorListResponse>;
+  list(paging: Paging, today?: Date, filters?: Filters): Promise<CreatorListResponse>;
 }
-
-const DEFAULT_FILTERS: CreatorFilters = { q: '', contract: 'all', productivity: 'all' };
 
 @Injectable()
 export class CreatorsService implements CreatorLister {
@@ -115,16 +113,28 @@ export class CreatorsService implements CreatorLister {
   async list(
     { page, pageSize }: Paging,
     today = new Date(),
-    filters: CreatorFilters = DEFAULT_FILTERS,
+    filters: Filters = {},
   ): Promise<CreatorListResponse> {
-    const rows = await this.prisma.creators.findMany({
-      select: CREATOR_SELECT,
-      orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
-    });
+    if (!hasFilters(filters)) {
+      const [rows, total] = await Promise.all([
+        this.prisma.creators.findMany({
+          select: CREATOR_SELECT,
+          orderBy: ORDER_BY,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        this.prisma.creators.count(),
+      ]);
 
-    const summaries = rows.map((row) => this.toSummary(row, today));
-    const filtered = this.applyFilters(summaries, filters);
-    const total = filtered.length;
+      // The DB already returned exactly this page's rows.
+      return this.paged(rows.map((row) => this.toSummary(row, today)), page, pageSize, total);
+    }
+
+    // Filtering needs every row's derived contract/performance state before it can decide
+    // which creators match, so the DB can't paginate for us here — it can only sort. The
+    // matched set is paginated in JS below instead.
+    const rows = await this.prisma.creators.findMany({ select: CREATOR_SELECT, orderBy: ORDER_BY });
+    const matched = rows.map((row) => this.toSummary(row, today)).filter((item) => this.matches(item, filters));
     const start = (page - 1) * pageSize;
 
     return this.paged(matched.slice(start, start + pageSize), page, pageSize, matched.length);
@@ -133,7 +143,7 @@ export class CreatorsService implements CreatorLister {
   /** Wraps an already-correctly-sliced page of items with the response envelope. */
   private paged(items: CreatorSummary[], page: number, pageSize: number, total: number): CreatorListResponse {
     return {
-      items: filtered.slice(start, start + pageSize),
+      items,
       page,
       pageSize,
       total,
@@ -141,18 +151,14 @@ export class CreatorsService implements CreatorLister {
     };
   }
 
-  private applyFilters(items: CreatorSummary[], filters: CreatorFilters): CreatorSummary[] {
-    return items.filter((item) => {
-      if (filters.q) {
-        const needle = filters.q.toLowerCase();
-        const matchesName = item.name.toLowerCase().includes(needle);
-        const matchesEmail = item.email.toLowerCase().includes(needle);
-        if (!matchesName && !matchesEmail) return false;
-      }
-      if (filters.contract !== 'all' && item.contract.status !== filters.contract) return false;
-      if (filters.productivity !== 'all' && item.performance.productivity !== filters.productivity) return false;
-      return true;
-    });
+  private matches(item: CreatorSummary, filters: Filters): boolean {
+    if (filters.q) {
+      const q = filters.q.toLowerCase();
+      if (!item.name.toLowerCase().includes(q) && !item.email.toLowerCase().includes(q)) return false;
+    }
+    if (filters.contractStatus && item.contract.status !== filters.contractStatus) return false;
+    if (filters.productivity && item.performance.productivity !== filters.productivity) return false;
+    return true;
   }
 
   private toSummary(row: CreatorRow, today: Date): CreatorSummary {
