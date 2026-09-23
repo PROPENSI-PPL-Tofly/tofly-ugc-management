@@ -9,7 +9,9 @@ FROM node:24-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# public/ holds no files right now, and git does not keep an empty folder; create it so the
+# runtime COPY below works whether or not the app ships static assets.
+RUN mkdir -p public && npm run build
 
 FROM node:24-slim AS runtime
 WORKDIR /app
