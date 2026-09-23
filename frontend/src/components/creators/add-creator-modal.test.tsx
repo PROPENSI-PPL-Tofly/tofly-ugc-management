@@ -60,6 +60,17 @@ describe("AddCreatorModal", () => {
     });
   });
 
+  // Manual UI review: fixedRate/quota started at 0, so typing "1" produced "01" — the admin
+  // had to delete the leading zero first. Empty + placeholder fixes the typing experience
+  // without changing what counts as valid.
+  it("starts the fixed rate field empty with a placeholder", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+    const fixedRateInput = screen.getByLabelText(/fixed rate/i);
+    expect(fixedRateInput).toHaveValue(null);
+    expect(fixedRateInput).toHaveAttribute("placeholder", "mis. 500000");
+  });
+
   // `loading` is not a prop of AddCreatorModal yet — GREEN adds it and disables Simpan while true.
   it("disables the submit button while loading", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} loading />);
@@ -146,6 +157,17 @@ describe("AddCreatorModal", () => {
       );
 
       fillValidForm();
+
+      expect(simpanButton()).toBeDisabled();
+    });
+
+    // Manual UI review: 0 must not be mistaken for "not filled in yet" — it is a filled-in,
+    // invalid value, same treatment as a negative fixed rate.
+    it("stays disabled when the fixed rate is zero", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "0" } });
 
       expect(simpanButton()).toBeDisabled();
     });

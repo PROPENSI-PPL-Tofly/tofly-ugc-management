@@ -62,12 +62,19 @@ describe("validateCreatorForm", () => {
     expect(errors.quota).toBe("Jumlah konten tidak boleh negatif");
   });
 
-  // Mirrors the database's `fixed_rate >= 0` check constraint, same shape as the quota
-  // rule above.
+  // Stricter than the database's `fixed_rate >= 0` check constraint: a new creator's rate
+  // is a business amount, not a counter like quota, so exactly 0 makes no sense either.
+  // (Manual UI review: a numeric field pre-filled with "0" made typing "1" produce "01".)
+  it("rejects a fixed rate of zero", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 0 });
+
+    expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
+  });
+
   it("rejects a negative fixed rate", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: -1 });
 
-    expect(errors.fixedRate).toBe("Fixed rate tidak boleh negatif");
+    expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
   });
 
   // `existingEmails` is not a parameter of validateCreatorForm yet — GREEN adds it. This is
