@@ -7,6 +7,7 @@ export interface CreatorFormInput {
   contractStart: string;
   contractEnd: string;
   interval: number;
+  quota: number;
 }
 
 export interface CreatorFormErrors {
@@ -14,6 +15,7 @@ export interface CreatorFormErrors {
   email?: string;
   contractStart?: string;
   interval?: string;
+  quota?: string;
 }
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -47,6 +49,10 @@ export function validateCreatorForm(
 
   if (input.interval <= 0) {
     errors.interval = "Jarak antar-deadline minimal 1 hari";
+  }
+
+  if (input.quota < 0) {
+    errors.quota = "Jumlah konten tidak boleh negatif";
   }
 
   return errors;
