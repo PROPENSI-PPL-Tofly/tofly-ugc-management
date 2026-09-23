@@ -6,6 +6,7 @@ describe("validateCreatorForm", () => {
     email: "bagas@example.com",
     contractStart: "2026-10-01",
     contractEnd: "2026-12-31",
+    interval: 14,
   };
 
   it("requires a name", () => {
@@ -41,10 +42,10 @@ describe("validateCreatorForm", () => {
     expect(errors.contractStart).toBe("Tanggal mulai tidak boleh sebelum hari ini");
   });
 
-  // `interval` does not exist on CreatorFormInput yet — GREEN adds it. Boundary at 0 mirrors
-  // the database's `days_between > 0` check constraint (supabase/migrations/..._creator_database.sql).
+  // Boundary at 0 mirrors the database's `days_between > 0` check constraint
+  // (supabase/migrations/..._creator_database.sql).
   it("rejects an interval of zero days", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, interval: 0 } as never);
+    const errors = validateCreatorForm({ ...VALID_INPUT, interval: 0 });
 
     expect(errors.interval).toBe("Jarak antar-deadline minimal 1 hari");
   });
