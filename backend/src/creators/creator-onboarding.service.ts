@@ -61,6 +61,43 @@ function isEmailTaken(error: unknown): boolean {
   );
 }
 
+/**
+ * The whole onboarding as one nested create: the whitelisted login, the creator, their social
+ * account, the contract and one Evergreen content per deadline, earliest first.
+ */
+function onboardingData(input: NewCreator): Prisma.creatorsCreateInput {
+  const name = input.name.trim();
+  const deadlines = [...input.deadlines].sort((a, b) => a.localeCompare(b));
+  return {
+    ...splitName(name),
+    users: { create: { email: input.email.trim() } },
+    social_accounts: {
+      create: {
+        platform: input.socialPlatform,
+        username: input.socialUsername,
+      },
+    },
+    contracts: {
+      create: {
+        start_date: toDate(input.contractStart),
+        end_date: toDate(input.contractEnd),
+        days_between: input.interval,
+        content_quota: input.quota,
+        fixed_rate: input.fixedRate,
+        contents: {
+          create: deadlines.map((day) => ({
+            name: evergreenName(name, day),
+            type: 'evergreen',
+            brief: '',
+            deadline: toDate(day),
+            status: 'scheduled',
+          })),
+        },
+      },
+    },
+  };
+}
+
 /** The slice of the database client onboarding touches; tests hand in a stub of just that. */
 export type OnboardingClient = Pick<PrismaService, 'creators'>;
 
@@ -89,50 +126,15 @@ export class CreatorOnboardingService implements CreatorOnboarder {
       throw invalid(errors);
     }
 
-    const name = input.name.trim();
-    const deadlines = [...input.deadlines].sort((a, b) => a.localeCompare(b));
-
     // No lookup before the insert: the citext unique index on users.email is the check, so
     // two admins saving the same address at once cannot both succeed.
-    let row: OnboardedRow;
-    try {
-      row = await this.prisma.creators.create({
-        data: {
-          ...splitName(name),
-          users: { create: { email: input.email.trim() } },
-          social_accounts: {
-            create: {
-              platform: input.socialPlatform,
-              username: input.socialUsername,
-            },
-          },
-          contracts: {
-            create: {
-              start_date: toDate(input.contractStart),
-              end_date: toDate(input.contractEnd),
-              days_between: input.interval,
-              content_quota: input.quota,
-              fixed_rate: input.fixedRate,
-              contents: {
-                create: deadlines.map((day) => ({
-                  name: evergreenName(name, day),
-                  type: 'evergreen' as const,
-                  brief: '',
-                  deadline: toDate(day),
-                  status: 'scheduled' as const,
-                })),
-              },
-            },
-          },
-        },
-        select: ONBOARDED_SELECT,
+    const row = await this.prisma.creators
+      .create({ data: onboardingData(input), select: ONBOARDED_SELECT })
+      .catch((error: unknown) => {
+        throw isEmailTaken(error)
+          ? invalid({ email: 'Email sudah terdaftar' })
+          : error;
       });
-    } catch (error) {
-      if (isEmailTaken(error)) {
-        throw invalid({ email: 'Email sudah terdaftar' });
-      }
-      throw error;
-    }
 
     return this.toOnboarded(row);
   }
