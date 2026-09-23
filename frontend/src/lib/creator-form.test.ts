@@ -29,4 +29,13 @@ describe("validateCreatorForm", () => {
 
     expect(errors.contractStart).toBe("Tanggal mulai tidak boleh setelah tanggal berakhir");
   });
+
+  // `today` is not a parameter of validateCreatorForm yet — GREEN adds it.
+  it("rejects a contract start before today", () => {
+    const today = new Date("2026-10-05T00:00:00Z");
+
+    const errors = validateCreatorForm({ ...VALID_INPUT, contractStart: "2026-10-01" }, today);
+
+    expect(errors.contractStart).toBe("Tanggal mulai tidak boleh sebelum hari ini");
+  });
 });
