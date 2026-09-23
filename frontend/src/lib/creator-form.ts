@@ -16,7 +16,15 @@ export interface CreatorFormErrors {
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function validateCreatorForm(input: CreatorFormInput): CreatorFormErrors {
+/** `today` as the same calendar-day string format the API and this form use. */
+function calendarDay(today: Date): string {
+  return today.toISOString().slice(0, 10);
+}
+
+export function validateCreatorForm(
+  input: CreatorFormInput,
+  today: Date = new Date(),
+): CreatorFormErrors {
   const errors: CreatorFormErrors = {};
 
   if (input.name === "") {
@@ -29,6 +37,10 @@ export function validateCreatorForm(input: CreatorFormInput): CreatorFormErrors 
 
   if (input.contractStart > input.contractEnd) {
     errors.contractStart = "Tanggal mulai tidak boleh setelah tanggal berakhir";
+  }
+
+  if (input.contractStart < calendarDay(today)) {
+    errors.contractStart = "Tanggal mulai tidak boleh sebelum hari ini";
   }
 
   return errors;
