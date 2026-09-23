@@ -5,7 +5,6 @@ interface DeadlineSlotProps {
   day: number;
   isAutoDeadline: boolean;
   isBufferDate: boolean;
-  onAssign: (date: string) => void;
 }
 
 export function DeadlineSlot({
@@ -13,7 +12,6 @@ export function DeadlineSlot({
   day,
   isAutoDeadline,
   isBufferDate,
-  onAssign,
 }: DeadlineSlotProps) {
   if (isAutoDeadline) {
     return (
@@ -45,14 +43,9 @@ export function DeadlineSlot({
 
   return (
     <td className="h-14 p-0.5">
-      <button
-        type="button"
-        onClick={() => onAssign(date)}
-        className="flex h-full min-h-12 w-full items-start justify-start rounded-lg border border-zinc-200 bg-white p-2 text-sm text-zinc-600 hover:border-blue-300 hover:bg-blue-50 cursor-pointer"
-        data-testid={`slot-${date}`}
-      >
+      <span className="flex h-full min-h-12 items-start justify-start rounded-lg border border-zinc-200 bg-white p-2 text-sm text-zinc-600">
         {day}
-      </button>
+      </span>
     </td>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { AssignSlotModal } from './assign-slot-modal';
 import { DeadlineSlot } from './deadline-slot';
 
 interface DeadlinePreviewProps {
@@ -22,7 +21,6 @@ export default function DeadlinePreview({
   allocatedCount,
   quota,
 }: DeadlinePreviewProps) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // Start the calendar from the contract month, or use the first auto deadline as fallback.
   const calendarSourceDate = contractStart ?? autoDeadlines[0];
 
@@ -208,7 +206,6 @@ export default function DeadlinePreview({
                       day={day}
                       isAutoDeadline={isAutoDeadline}
                       isBufferDate={isBufferDate}
-                      onAssign={setSelectedDate}
                     />
                   );
                 })}
@@ -229,14 +226,6 @@ export default function DeadlinePreview({
         {allocatedCount} / {quota} teralokasi
       </p>
     </div>
-
-    {selectedDate && (
-      <AssignSlotModal
-        deadline={selectedDate}
-        onClose={() => setSelectedDate(null)}
-        onAssigned={() => setSelectedDate(null)}
-      />
-    )}
   </section>
 );
 }
