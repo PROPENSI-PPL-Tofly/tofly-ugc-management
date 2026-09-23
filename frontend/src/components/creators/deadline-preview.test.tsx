@@ -290,4 +290,81 @@ describe('DeadlinePreview', () => {
       within(calendar).getByTestId('deadline-2026-09-25'),
     );
   });
+
+  describe('picking deadlines by hand', () => {
+    // Contract 1 Okt – 20 Okt, today 24 Sep, 5-day buffer: days from 6 Okt to 20 Okt are open.
+    function renderPicker(overrides: Partial<Parameters<typeof DeadlinePreview>[0]> = {}) {
+      const handlers = { onToggleAuto: vi.fn(), onAddManual: vi.fn() };
+      render(
+        <DeadlinePreview
+          contractStart="2026-10-01"
+          contractEnd="2026-10-20"
+          today="2026-09-24"
+          bufferDays={5}
+          autoDeadlines={['2026-10-06', '2026-10-20']}
+          allocatedCount={2}
+          remainingCount={1}
+          quota={3}
+          {...handlers}
+          {...overrides}
+        />,
+      );
+      return handlers;
+    }
+
+    it('removes an auto deadline when it is clicked', () => {
+      const { onToggleAuto } = renderPicker();
+
+      fireEvent.click(screen.getByRole('button', { name: /6 Okt 2026: lepas deadline otomatis/ }));
+
+      expect(onToggleAuto).toHaveBeenCalledWith('2026-10-06');
+    });
+
+    it('restores a removed auto deadline when it is clicked again', () => {
+      const { onToggleAuto } = renderPicker({
+        autoDeadlines: ['2026-10-20'],
+        removedAuto: ['2026-10-06'],
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /6 Okt 2026: kembalikan deadline otomatis/ }));
+
+      expect(onToggleAuto).toHaveBeenCalledWith('2026-10-06');
+    });
+
+    it('adds a manual deadline on an open day inside the contract', () => {
+      const { onAddManual } = renderPicker();
+
+      fireEvent.click(screen.getByRole('button', { name: /13 Okt 2026: tambah deadline manual/ }));
+
+      expect(onAddManual).toHaveBeenCalledWith('2026-10-13');
+    });
+
+    it('offers no manual pick in the buffer or after the contract ends', () => {
+      renderPicker();
+
+      expect(screen.queryByRole('button', { name: /^5 Okt 2026/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^21 Okt 2026/ })).not.toBeInTheDocument();
+    });
+
+    it('offers no manual pick once every content has a deadline', () => {
+      renderPicker({ remainingCount: 0 });
+
+      expect(screen.queryByRole('button', { name: /tambah deadline manual/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /6 Okt 2026: lepas deadline otomatis/ })).toBeInTheDocument();
+    });
+
+    it('marks manual deadlines and lets another content share the day', () => {
+      const { onAddManual } = renderPicker({ manualDeadlines: ['2026-10-13', '2026-10-13'] });
+
+      expect(screen.getByTestId('deadline-2026-10-13')).toHaveAttribute('data-deadline-type', 'manual');
+      fireEvent.click(screen.getByRole('button', { name: /13 Okt 2026: tambah deadline manual/ }));
+      expect(onAddManual).toHaveBeenCalledWith('2026-10-13');
+    });
+
+    it('stays read-only without handlers', () => {
+      renderPicker({ onToggleAuto: undefined, onAddManual: undefined });
+
+      expect(screen.queryByRole('button', { name: /deadline/ })).not.toBeInTheDocument();
+    });
+  });
 });
