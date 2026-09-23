@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import HealthPage from "./page";
 
@@ -48,4 +48,44 @@ describe("Health page", () => {
     expect(await screen.findByText("error")).toBeInTheDocument();
     expect(screen.getByTestId("detail")).toHaveTextContent("NetworkError");
   });
+
+  it("describes a non-Error failure", async () => {
+    mockFetch(() => Promise.reject("offline"));
+
+    render(<HealthPage />);
+
+    expect(await screen.findByText("error")).toBeInTheDocument();
+    expect(screen.getByTestId("detail")).toHaveTextContent("offline");
+  });
+
+  // Leaving the page mid-request must not write the late answer into an unmounted component.
+  it.each([
+    ["succeeds", (settle: Settle) => settle.resolve(new Response("{}", { status: 200 }))],
+    ["fails", (settle: Settle) => settle.reject(new Error("late"))],
+  ])("ignores a request that %s after the page is left", async (_, finish) => {
+    const settle = deferred();
+    mockFetch(() => settle.promise);
+
+    const { unmount } = render(<HealthPage />);
+    unmount();
+    await act(async () => finish(settle));
+
+    expect(screen.queryByTestId("status")).not.toBeInTheDocument();
+  });
 });
+
+interface Settle {
+  promise: Promise<Response>;
+  resolve: (response: Response) => void;
+  reject: (error: unknown) => void;
+}
+
+function deferred(): Settle {
+  let resolve!: Settle["resolve"];
+  let reject!: Settle["reject"];
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}

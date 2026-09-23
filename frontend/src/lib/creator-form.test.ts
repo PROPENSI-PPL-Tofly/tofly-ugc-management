@@ -1,0 +1,240 @@
+import {
+  contractDateLimits,
+  localCalendarDay,
+  scheduleDeadlines,
+  validateCreatorForm,
+} from "./creator-form";
+
+describe("validateCreatorForm", () => {
+  const VALID_INPUT = {
+    name: "Bagas",
+    email: "bagas@example.com",
+    contractStart: "2026-10-01",
+    contractEnd: "2026-12-31",
+    interval: 14,
+    quota: 6,
+    fixedRate: 500000,
+    socialPlatform: "instagram" as const,
+    socialUsername: "salsa.amelia",
+  };
+
+  it("requires a name", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, name: "" });
+
+    expect(errors.name).toBe("Nama wajib diisi");
+  });
+
+  it("rejects an invalid email format", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, email: "not-an-email" });
+
+    expect(errors.email).toBe("Format email tidak valid");
+  });
+
+  // PR review: an unescaped `.` in EMAIL_FORMAT would match any single character, so a domain
+  // with no literal dot at all (just a long-enough run of characters) could slip through as
+  // "valid" — the regex engine backtracks to treat any one character as the stand-in dot.
+  it("rejects a domain with no literal dot", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, email: "bagas@examplecom" });
+
+    expect(errors.email).toBe("Format email tidak valid");
+  });
+
+  it("rejects a contract start after the contract end", () => {
+    // Pinned well before both dates: this test isolates the range rule from the
+    // "not before today" rule, so it stays deterministic regardless of the real clock.
+    const today = new Date("2026-01-01T00:00:00Z");
+
+    const errors = validateCreatorForm(
+      { ...VALID_INPUT, contractStart: "2026-10-10", contractEnd: "2026-10-01" },
+      today,
+    );
+
+    expect(errors.contractStart).toBe("Tanggal mulai tidak boleh setelah tanggal berakhir");
+  });
+
+  it("rejects a contract start before today", () => {
+    const today = new Date("2026-10-05T00:00:00Z");
+
+    const errors = validateCreatorForm({ ...VALID_INPUT, contractStart: "2026-10-01" }, today);
+
+    expect(errors.contractStart).toBe("Tanggal mulai tidak boleh sebelum hari ini");
+  });
+
+  // Boundary at 0 mirrors the database's `days_between > 0` check constraint
+  // (supabase/migrations/..._creator_database.sql).
+  it("rejects an interval of zero days", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, interval: 0 });
+
+    expect(errors.interval).toBe("Jarak antar-deadline minimal 1 hari");
+  });
+
+  // Stricter than the database's `content_quota >= 0` check constraint: the earlier "is 0
+  // allowed?" question is now settled — a new creator with a 0-content commitment makes no
+  // sense from a manual UI review, same reasoning as fixed rate below.
+  it("rejects a quota of zero", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, quota: 0 });
+
+    expect(errors.quota).toBe("Jumlah konten harus lebih dari 0");
+  });
+
+  it("rejects a negative quota", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, quota: -1 });
+
+    expect(errors.quota).toBe("Jumlah konten harus lebih dari 0");
+  });
+
+  // Stricter than the database's `fixed_rate >= 0` check constraint: a new creator's rate
+  // is a business amount, not a counter like quota, so exactly 0 makes no sense either.
+  // (Manual UI review: a numeric field pre-filled with "0" made typing "1" produce "01".)
+  it("rejects a fixed rate of zero", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 0 });
+
+    expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
+  });
+
+  it("rejects a negative fixed rate", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: -1 });
+
+    expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
+  });
+
+  // A new creator needs at least one connected account before Tofly can pull performance
+  // data — only the platform is enum-constrained by the database (instagram | tiktok); the
+  // username itself is free text, same as the DB's `social_accounts.username` column.
+  it("requires a social platform", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, socialPlatform: "" });
+
+    expect(errors.socialPlatform).toBe("Platform wajib dipilih");
+  });
+
+  it("requires a social username", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, socialUsername: "" });
+
+    expect(errors.socialUsername).toBe("Username wajib diisi");
+  });
+
+  // `existingEmails` is not a parameter of validateCreatorForm yet — GREEN adds it. This is
+  // the frontend-only half of duplicate detection: checked against whatever creator list the
+  // page already has loaded, not a backend lookup (that stays the database's unique
+  // constraint on `users.email`, enforced when the create endpoint ships later).
+  it("rejects an email that is already registered", () => {
+    const today = new Date("2026-01-01T00:00:00Z");
+
+    const errors = validateCreatorForm(VALID_INPUT, today, ["bagas@example.com"]);
+
+    expect(errors.email).toBe("Email sudah terdaftar");
+  });
+});
+
+describe("localCalendarDay", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  // 01:30 WIB on the 24th is still the 23rd in UTC; the admin's "today" is the 24th.
+  it("reads the calendar day in the admin's own timezone, not UTC", () => {
+    process.env.TZ = "Asia/Jakarta";
+
+    expect(localCalendarDay(new Date("2026-09-23T18:30:00Z"))).toBe("2026-09-24");
+  });
+
+  it("pads single-digit months and days", () => {
+    process.env.TZ = "UTC";
+
+    expect(localCalendarDay(new Date("2026-01-05T10:00:00Z"))).toBe("2026-01-05");
+  });
+
+  it("rejects yesterday as a contract start just after local midnight", () => {
+    process.env.TZ = "Asia/Jakarta";
+
+    const errors = validateCreatorForm(
+      {
+        name: "Bagas",
+        email: "bagas@example.com",
+        contractStart: "2026-09-23",
+        contractEnd: "2026-12-31",
+        interval: 14,
+        quota: 1,
+        fixedRate: 500000,
+        socialPlatform: "instagram",
+        socialUsername: "bagas",
+      },
+      new Date("2026-09-23T18:30:00Z"),
+    );
+
+    expect(errors.contractStart).toBe("Tanggal mulai tidak boleh sebelum hari ini");
+  });
+});
+
+describe("contractDateLimits", () => {
+  it("keeps the start between today and the chosen end", () => {
+    expect(contractDateLimits({ contractStart: "", contractEnd: "2026-12-31" }, "2026-09-24")).toEqual({
+      startMin: "2026-09-24",
+      startMax: "2026-12-31",
+      endMin: "2026-09-24",
+    });
+  });
+
+  it("keeps the end on or after the chosen start", () => {
+    expect(contractDateLimits({ contractStart: "2026-10-01", contractEnd: "" }, "2026-09-24")).toEqual({
+      startMin: "2026-09-24",
+      startMax: undefined,
+      endMin: "2026-10-01",
+    });
+  });
+});
+
+describe("scheduleDeadlines", () => {
+  const FORM = {
+    contractStart: "2026-10-01",
+    contractEnd: "2026-12-31",
+    interval: 14,
+    quota: 3,
+  };
+
+  it("places the deadlines five days after the later of start and today, one interval apart", () => {
+    expect(scheduleDeadlines(FORM, "2026-09-24")).toEqual({
+      autoDeadlines: ["2026-10-06", "2026-10-20", "2026-11-03"],
+      allocatedCount: 3,
+      remainingCount: 0,
+      quota: 3,
+    });
+  });
+
+  it.each([
+    { contractStart: "" },
+    { contractEnd: "" },
+    { contractStart: "2026-12-31", contractEnd: "2026-10-01" },
+    { quota: 0 },
+    { interval: 0 },
+  ])("has no schedule while the contract is incomplete: %j", (change) => {
+    expect(scheduleDeadlines({ ...FORM, ...change }, "2026-09-24")).toBeNull();
+  });
+});
+
+describe("validateCreatorForm schedule", () => {
+  const INPUT = {
+    name: "Bagas",
+    email: "bagas@example.com",
+    contractStart: "2026-10-01",
+    contractEnd: "2026-10-20",
+    interval: 14,
+    quota: 3,
+    fixedRate: 500000,
+    socialPlatform: "instagram" as const,
+    socialUsername: "bagas",
+  };
+  const TODAY = new Date("2026-09-24T05:00:00Z");
+
+  it("rejects a contract too short to fit every content", () => {
+    expect(validateCreatorForm(INPUT, TODAY).deadlines).toBe(
+      "Kontrak hanya memuat 2 dari 3 deadline",
+    );
+  });
+
+  it("accepts a contract that fits every content", () => {
+    expect(validateCreatorForm({ ...INPUT, quota: 2 }, TODAY).deadlines).toBeUndefined();
+  });
+});
