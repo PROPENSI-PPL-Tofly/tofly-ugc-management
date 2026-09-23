@@ -6,26 +6,36 @@ import {
 } from './evergreen.js';
 
 describe('evergreenName', () => {
-  it('joins the creator name without spaces and the deadline as DDMMYYYY', () => {
-    expect(evergreenName('Rangga Pratama', '2026-09-12')).toBe(
-      'Evg_RanggaPratama_12092026',
+  it('numbers the content, then names the creator and the deadline as DDMMYYYY', () => {
+    expect(evergreenName('Rangga Pratama', '2026-09-12', 1)).toBe(
+      'Evg_1_Rangga Pratama_12092026',
     );
   });
 
-  it('collapses leading, trailing and repeated whitespace', () => {
-    expect(evergreenName('  Nabila   Putri\tSari ', '2026-10-09')).toBe(
-      'Evg_NabilaPutriSari_09102026',
+  it('carries the sequence number it is given', () => {
+    expect(evergreenName('Rangga Pratama', '2026-10-10', 12)).toBe(
+      'Evg_12_Rangga Pratama_10102026',
+    );
+  });
+
+  it('trims the name and collapses repeated or odd whitespace to one space', () => {
+    expect(evergreenName('  Nabila   Putri	Sari ', '2026-10-09', 2)).toBe(
+      'Evg_2_Nabila Putri Sari_09102026',
     );
   });
 
   it('keeps a single-word name as it is', () => {
-    expect(evergreenName('Bagas', '2026-01-05')).toBe('Evg_Bagas_05012026');
+    expect(evergreenName('Bagas', '2026-01-05', 1)).toBe(
+      'Evg_1_Bagas_05012026',
+    );
   });
 
   // The day comes from the string itself, so a deadline never shifts by the server's
   // timezone the way new Date('2028-02-29') would read it in UTC-something.
   it('reads the calendar day straight from the string, leap day included', () => {
-    expect(evergreenName('Intan', '2028-02-29')).toBe('Evg_Intan_29022028');
+    expect(evergreenName('Intan', '2028-02-29', 1)).toBe(
+      'Evg_1_Intan_29022028',
+    );
   });
 });
 

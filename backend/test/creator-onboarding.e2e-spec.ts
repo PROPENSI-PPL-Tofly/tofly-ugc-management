@@ -100,12 +100,11 @@ describe('CreatorOnboardingService (e2e)', () => {
     ]);
     expect(user.creators?.contracts).toHaveLength(1);
     expect(user.creators?.contracts[0].id).toBe(created.contractId);
-    const slug = `Evg_${MARKER.replaceAll(' ', '')}AuliaRahma`;
     expect(user.creators?.contracts[0].contents).toEqual(
-      [day(14), day(28), day(42)].map((deadline) => {
+      [day(14), day(28), day(42)].map((deadline, index) => {
         const [year, month, date] = deadline.split('-');
         return {
-          name: `${slug}_${date}${month}${year}`,
+          name: `Evg_${index + 1}_${MARKER} Aulia Rahma_${date}${month}${year}`,
           type: 'evergreen',
           status: 'scheduled',
           brief: '',

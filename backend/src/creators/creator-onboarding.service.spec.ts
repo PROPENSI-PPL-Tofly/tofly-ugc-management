@@ -36,12 +36,12 @@ const CREATED = {
       contents: [
         {
           id: 'content-1',
-          name: 'Evg_RanggaPratama_26092026',
+          name: 'Evg_1_Rangga Pratama_26092026',
           deadline: day('2026-09-26'),
         },
         {
           id: 'content-2',
-          name: 'Evg_RanggaPratama_10102026',
+          name: 'Evg_2_Rangga Pratama_10102026',
           deadline: day('2026-10-10'),
         },
       ],
@@ -104,14 +104,14 @@ describe('CreatorOnboardingService', () => {
           contents: {
             create: [
               {
-                name: 'Evg_RanggaPratama_26092026',
+                name: 'Evg_1_Rangga Pratama_26092026',
                 type: 'evergreen',
                 brief: '',
                 deadline: day('2026-09-26'),
                 status: 'scheduled',
               },
               {
-                name: 'Evg_RanggaPratama_10102026',
+                name: 'Evg_2_Rangga Pratama_10102026',
                 type: 'evergreen',
                 brief: '',
                 deadline: day('2026-10-10'),
@@ -135,7 +135,7 @@ describe('CreatorOnboardingService', () => {
     const { data } = prisma.creators.create.mock.calls[0][0];
     expect(data.users).toEqual({ create: { email: 'rangga@example.com' } });
     expect(data.contracts.create.contents.create[0].name).toBe(
-      'Evg_RanggaPratama_26092026',
+      'Evg_1_Rangga Pratama_26092026',
     );
   });
 
@@ -149,12 +149,12 @@ describe('CreatorOnboardingService', () => {
       contents: [
         {
           id: 'content-1',
-          name: 'Evg_RanggaPratama_26092026',
+          name: 'Evg_1_Rangga Pratama_26092026',
           deadline: '2026-09-26',
         },
         {
           id: 'content-2',
-          name: 'Evg_RanggaPratama_10102026',
+          name: 'Evg_2_Rangga Pratama_10102026',
           deadline: '2026-10-10',
         },
       ],
