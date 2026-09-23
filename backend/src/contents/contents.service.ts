@@ -33,7 +33,7 @@ export class ContentsService {
       });
     }
 
-    const contract = await this.prisma.contract.findUnique({
+    const contract = await this.prisma.contracts.findUnique({
       where: { id: content.contract_id },
       select: { startDate: true, endDate: true },
     });
