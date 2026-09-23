@@ -228,13 +228,8 @@ describe("validateCreatorForm schedule", () => {
   };
   const TODAY = new Date("2026-09-24T05:00:00Z");
 
-  it("rejects a contract too short to fit every content", () => {
-    expect(validateCreatorForm(INPUT, TODAY).deadlines).toBe(
-      "Kontrak hanya memuat 2 dari 3 deadline",
-    );
-  });
-
-  it("accepts a contract that fits every content", () => {
-    expect(validateCreatorForm({ ...INPUT, quota: 2 }, TODAY).deadlines).toBeUndefined();
+  // The admin places the contents the auto schedule cannot fit by hand on the calendar.
+  it("leaves a contract too short for the auto schedule to the calendar", () => {
+    expect(validateCreatorForm(INPUT, TODAY)).toEqual({});
   });
 });

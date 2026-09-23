@@ -124,10 +124,5 @@ export function validateCreatorForm(
     errors.socialUsername = "Username wajib diisi";
   }
 
-  const schedule = scheduleDeadlines(input, todayDay);
-  if (schedule !== null && schedule.remainingCount > 0) {
-    errors.deadlines = `Kontrak hanya memuat ${schedule.allocatedCount} dari ${schedule.quota} deadline`;
-  }
-
   return errors;
 }
