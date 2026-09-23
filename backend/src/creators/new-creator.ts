@@ -6,6 +6,11 @@ export const MAX_NAME_LENGTH = 100;
 /** The longest address SMTP can deliver to (RFC 5321). */
 export const MAX_EMAIL_LENGTH = 254;
 
+/** Every platform the database's `social_platform` enum accepts, spelled the same way. */
+export const SOCIAL_PLATFORMS: social_platform[] = ['instagram', 'tiktok'];
+/** A handle, not a bio. */
+export const MAX_USERNAME_LENGTH = 100;
+
 // PRD 3.4's format rules as one pattern: exactly one "@", dot-separated runs of allowed
 // characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
 // the domain. Every run is anchored by a literal dot, so the pattern cannot backtrack
@@ -67,6 +72,33 @@ function checkEmail(value: unknown, errors: NewCreatorErrors): string {
   return email;
 }
 
+type SocialAccount = Pick<NewCreator, 'socialPlatform' | 'socialUsername'>;
+
+function checkSocial(
+  platform: unknown,
+  username: unknown,
+  errors: NewCreatorErrors,
+): SocialAccount {
+  if (platform === undefined || platform === '') {
+    errors.socialPlatform = 'Platform wajib dipilih';
+  } else if (!SOCIAL_PLATFORMS.includes(platform as social_platform)) {
+    errors.socialPlatform = 'Platform harus instagram atau tiktok';
+  }
+
+  const handle = typeof username === 'string' ? username.trim() : '';
+
+  if (handle === '') {
+    errors.socialUsername = 'Username wajib diisi';
+  } else if (handle.length > MAX_USERNAME_LENGTH) {
+    errors.socialUsername = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
+  }
+
+  return {
+    socialPlatform: platform as social_platform,
+    socialUsername: handle,
+  };
+}
+
 /** A calendar day from the date picker, as Postgres `date` columns hold it: midnight UTC. */
 function toDay(value: string): Date {
   return new Date(`${value}T00:00:00Z`);
@@ -81,6 +113,7 @@ export function checkNewCreator(input: unknown, _today: Date): NewCreator {
   const errors: NewCreatorErrors = {};
   const name = checkName(body.name, errors);
   const email = checkEmail(body.email, errors);
+  const social = checkSocial(body.socialPlatform, body.socialUsername, errors);
 
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
@@ -92,8 +125,7 @@ export function checkNewCreator(input: unknown, _today: Date): NewCreator {
   return {
     ...name,
     email,
-    socialPlatform: body.socialPlatform as social_platform,
-    socialUsername: body.socialUsername as string,
+    ...social,
     contractStart: toDay(body.contractStart as string),
     contractEnd: toDay(body.contractEnd as string),
     interval: body.interval as number,
