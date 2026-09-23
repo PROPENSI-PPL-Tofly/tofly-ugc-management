@@ -7,6 +7,7 @@ describe("validateCreatorForm", () => {
     contractStart: "2026-10-01",
     contractEnd: "2026-12-31",
     interval: 14,
+    quota: 6,
   };
 
   it("requires a name", () => {
@@ -50,12 +51,12 @@ describe("validateCreatorForm", () => {
     expect(errors.interval).toBe("Jarak antar-deadline minimal 1 hari");
   });
 
-  // `quota` does not exist on CreatorFormInput yet — GREEN adds it. Mirrors the database's
-  // `content_quota >= 0` check constraint exactly: 0 is valid, negative is not. Whether a new
-  // creator should be allowed a quota of exactly 0 is a product decision the PRD does not
-  // settle — left open rather than inventing a stricter (>= 1) rule here.
+  // Mirrors the database's `content_quota >= 0` check constraint exactly: 0 is valid,
+  // negative is not. Whether a new creator should be allowed a quota of exactly 0 is a
+  // product decision the PRD does not settle — left open rather than inventing a
+  // stricter (>= 1) rule here.
   it("rejects a negative quota", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, quota: -1 } as never);
+    const errors = validateCreatorForm({ ...VALID_INPUT, quota: -1 });
 
     expect(errors.quota).toBe("Jumlah konten tidak boleh negatif");
   });
