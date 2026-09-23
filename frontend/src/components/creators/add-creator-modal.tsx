@@ -53,6 +53,11 @@ export function AddCreatorModal({
   const [form, setForm] = useState<CreatorFormInput>(INITIAL_FORM);
   const [errors, setErrors] = useState<CreatorFormErrors>({});
 
+  // Recomputed on every render, separate from the `errors` state above: `errors` only
+  // updates on a submit attempt (so the form stays quiet while the admin is still typing),
+  // but Simpan's disabled state has to track validity live, field by field.
+  const isFormValid = Object.keys(validateCreatorForm(form)).length === 0;
+
   function handleSubmit() {
     const nextErrors = validateCreatorForm(form);
     setErrors(nextErrors);
@@ -72,7 +77,7 @@ export function AddCreatorModal({
             Batal
           </Button>
 
-          <Button variant="accent" onClick={handleSubmit} disabled={loading}>
+          <Button variant="accent" onClick={handleSubmit} disabled={loading || !isFormValid}>
             Simpan
           </Button>
         </>

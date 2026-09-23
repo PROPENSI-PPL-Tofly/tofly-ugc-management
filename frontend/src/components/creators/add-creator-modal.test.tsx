@@ -15,13 +15,18 @@ describe("AddCreatorModal", () => {
     expect(screen.getByLabelText(/jumlah konten/i)).toBeInTheDocument();
   });
 
-  it("shows an error and does not submit when required fields are empty", () => {
+  // Simpan is disabled while the form is empty (see "Simpan disabled state" below), so a
+  // click here is a no-op in a real browser. This guards the outcome that actually matters
+  // — no submission slips through — as a regression check independent of *how* Simpan gets
+  // disabled. The inline "Nama wajib diisi" message this test used to assert on is gone:
+  // `errors` state only updates from handleSubmit, which the disabled button now prevents
+  // from ever running while the form is invalid.
+  it("does not call onSubmit when required fields are empty", () => {
     const onSubmit = vi.fn();
 
     render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
 
-    expect(screen.getByText("Nama wajib diisi")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
