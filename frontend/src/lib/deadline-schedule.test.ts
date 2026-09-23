@@ -1,4 +1,8 @@
-import { generateDeadlineSchedule, type DeadlineScheduleInput } from './deadline-schedule';
+import {
+  generateDeadlineSchedule,
+  getDeadlinePreview,
+  type DeadlineScheduleInput,
+} from './deadline-schedule';
 
 const defaultInput: Readonly<DeadlineScheduleInput> = {
   contractStart: '2026-09-20',
@@ -9,14 +13,14 @@ const defaultInput: Readonly<DeadlineScheduleInput> = {
   quota: 1,
 };
 
-describe('generateDeadlineSchedule', () => {
-  it('places the first deadline five days after the contract starts when start equals today', () => {
+describe('generateDeadlineSchedule', () => { 
+  it('places the first deadline five days after the contract starts when start equals today', () => { // Test case for when the contract start date is the same as today
     const deadlines = generateDeadlineSchedule({ ...defaultInput });
 
     expect(deadlines).toEqual(['2026-09-25']);
   });
 
-  it('calculates the first deadline from today when the contract started in the past', () => {
+  it('calculates the first deadline from today when the contract started in the past', () => { // Test case for when the contract start date is in the past
     const deadlines = generateDeadlineSchedule({
       ...defaultInput,
       contractStart: '2026-09-01',
@@ -25,7 +29,7 @@ describe('generateDeadlineSchedule', () => {
     expect(deadlines).toEqual(['2026-09-25']);
   });
 
-  it('generates deadlines at the configured interval until the quota is met', () => {
+  it('generates deadlines at the configured interval until the quota is met', () => { // Test case for generating multiple deadlines based on the interval and quota
     const deadlines = generateDeadlineSchedule({
       ...defaultInput,
       contractEnd: '2026-10-31',
@@ -60,5 +64,25 @@ describe('generateDeadlineSchedule', () => {
     });
 
     expect(deadlines).toEqual([]); // Check that no deadlines are generated when the first deadline is after the contract end
+  });
+});
+
+describe('getDeadlinePreview', () => { 
+  it('reports remaining slots when automatic deadlines cannot fill the quota', () => { // Test case for when the automatic deadlines do not fill the quota
+    const preview = getDeadlinePreview({ 
+      ...defaultInput,
+      contractEnd: '2026-10-03',
+      quota: 4,
+    });
+
+    expect(preview).toEqual({ 
+      autoDeadlines: [
+        '2026-09-25',
+        '2026-10-02',
+      ],
+      allocatedCount: 2, // Check that the allocated count is 2, which is the number of automatic deadlines generated
+      remainingCount: 2, // Check that the remaining count is 2, which is the number of slots left to be filled
+      quota: 4, 
+    });
   });
 });
