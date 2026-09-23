@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'; 
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import DeadlinePreview from './deadline-preview';
 
 describe('DeadlinePreview', () => { 
@@ -207,5 +207,47 @@ describe('DeadlinePreview', () => {
     expect(screen.queryByTestId('deadline-2026-10-02')).not.toBeInTheDocument();
     expect(screen.getByText(/2 \/ 4 allocated/i)).toBeInTheDocument();
     expect(screen.getByText(/2 remaining/i)).toBeInTheDocument();
+  });
+
+  it('arranges calendar dates under seven weekday columns', () => { // Test case for ensuring that the calendar dates are arranged under seven weekday columns
+    render(
+      <DeadlinePreview
+        contractStart="2026-09-20"
+        autoDeadlines={['2026-09-25']}
+        allocatedCount={1}
+        remainingCount={0}
+        quota={1}
+      />,
+    );
+
+    const calendar = screen.getByRole('table', { // Get the calendar table element by its role and name
+      name: 'Deadline calendar September 2026',
+    });
+    const headers = within(calendar).getAllByRole('columnheader'); // Get all the column header elements within the calendar table
+    expect(headers.map((header) => header.textContent)).toEqual([
+      'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat',
+    ]);
+
+    const weekRows = within(calendar).getAllByRole('row').slice(1); // Get all the row elements within the calendar table, excluding the header row
+    for (const row of weekRows) { // Iterate through each week row in the calendar
+      expect(within(row).getAllByRole('cell')).toHaveLength(7); // Check that each week row contains exactly seven cells, corresponding to the seven days of the week
+    }
+
+    const firstWeek = within(weekRows[0]).getAllByRole('cell'); // Get all the cell elements within the first week row of the calendar
+    expect(firstWeek.map((cell) => cell.textContent)).toEqual([ // Check that the first week row contains the expected date values, including empty cells for days before the first of the month
+      '', '', '1', '2', '3', '4', '5',
+    ]);
+
+    const displayedDates = weekRows.flatMap((row) => 
+      within(row).getAllByRole('cell').map((cell) => cell.textContent), // Get the text content of all the cells in each week row
+    ).filter((text) => text !== ''); // Filter out any empty cells, leaving only the displayed dates in the calendar
+    expect(displayedDates).toEqual( 
+      Array.from({ length: 30 }, (_, index) => String(index + 1)), // Check that the displayed dates in the calendar match the expected range of dates for September 2026
+    );
+
+    const fourthWeek = within(weekRows[3]).getAllByRole('cell'); // Get all the cell elements within the fourth week row of the calendar
+    expect(fourthWeek[5]).toContainElement(
+      within(calendar).getByTestId('deadline-2026-09-25'),
+    );
   });
 });
