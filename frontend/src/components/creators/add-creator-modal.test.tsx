@@ -67,6 +67,19 @@ describe("AddCreatorModal", () => {
     expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
   });
 
+  it("closes without submitting when Batal is clicked", () => {
+    const onClose = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(<AddCreatorModal onClose={onClose} onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
+    fireEvent.click(screen.getByRole("button", { name: /batal/i }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   describe("Simpan disabled state", () => {
     // Dates pinned far in the future for the same reason as the valid-submit test above.
     function fillValidForm() {
