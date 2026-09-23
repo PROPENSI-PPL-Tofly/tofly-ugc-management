@@ -60,4 +60,12 @@ describe("validateCreatorForm", () => {
 
     expect(errors.quota).toBe("Jumlah konten tidak boleh negatif");
   });
+
+  // `fixedRate` does not exist on CreatorFormInput yet — GREEN adds it. Mirrors the
+  // database's `fixed_rate >= 0` check constraint, same shape as the quota rule above.
+  it("rejects a negative fixed rate", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: -1 } as never);
+
+    expect(errors.fixedRate).toBe("Fixed rate tidak boleh negatif");
+  });
 });
