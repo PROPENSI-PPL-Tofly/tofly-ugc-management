@@ -115,4 +115,26 @@ describe("Creator database page", () => {
 
     expect(screen.getByRole("dialog", { name: /tambah creator/i })).toBeInTheDocument();
   });
+
+  // The page already fetches result.items (with each creator's email) for the table —
+  // AddCreatorTrigger/AddCreatorModal do not receive it yet, so the modal's duplicate check
+  // has nothing to compare against. GREEN threads it through, no new fetch involved.
+  it("keeps Simpan disabled when the typed email matches an already-loaded creator", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(
+      listResponse({ items: [creator({ email: "existing@example.com" })] }),
+    );
+
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /tambah creator/i }));
+
+    fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "existing@example.com" } });
+    fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2099-01-01" } });
+    fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: "2099-12-31" } });
+    fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
+    fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
+    fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
+
+    expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+  });
 });
