@@ -270,12 +270,14 @@ function checkDeadlines(
 ): Date[] {
   if (!Array.isArray(value)) {
     errors.deadlines = 'Jadwal deadline wajib diisi';
+    // Stryker disable next-line ArrayDeclaration: equivalent mutant, an error was just recorded so checkNewCreator throws and this value is never read
     return [];
   }
 
   const days = value.map(toDay);
   if (days.some((day) => day === null)) {
     errors.deadlines = 'Deadline tidak valid';
+    // Stryker disable next-line ArrayDeclaration: equivalent mutant, an error was just recorded so checkNewCreator throws and this value is never read
     return [];
   }
 
