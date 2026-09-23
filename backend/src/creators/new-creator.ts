@@ -11,6 +11,11 @@ export const SOCIAL_PLATFORMS: social_platform[] = ['instagram', 'tiktok'];
 /** A handle, not a bio. */
 export const MAX_USERNAME_LENGTH = 100;
 
+/** Postgres `integer`, the type of contracts.days_between and contracts.content_quota. */
+export const MAX_INTEGER = 2 ** 31 - 1;
+/** contracts.fixed_rate is numeric(14, 2): twelve digits before the point, two after. */
+export const MAX_FIXED_RATE = 999_999_999_999.99;
+
 // PRD 3.4's format rules as one pattern: exactly one "@", dot-separated runs of allowed
 // characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
 // the domain. Every run is anchored by a literal dot, so the pattern cannot backtrack
@@ -159,6 +164,62 @@ function readDate(
   return day;
 }
 
+type NumberField = 'interval' | 'quota' | 'fixedRate';
+
+const NUMBER_RULES: Record<
+  NumberField,
+  { label: string; tooSmall: string; whole: boolean; max: number }
+> = {
+  interval: {
+    label: 'Jarak antar-deadline',
+    tooSmall: 'Jarak antar-deadline minimal 1 hari',
+    whole: true,
+    max: MAX_INTEGER,
+  },
+  quota: {
+    label: 'Jumlah konten',
+    tooSmall: 'Jumlah konten harus lebih dari 0',
+    whole: true,
+    max: MAX_INTEGER,
+  },
+  fixedRate: {
+    label: 'Fixed rate',
+    tooSmall: 'Fixed rate harus lebih dari 0',
+    whole: false,
+    max: MAX_FIXED_RATE,
+  },
+};
+
+/** True when the value has no more than two decimal places, allowing for float noise. */
+function hasCents(value: number): boolean {
+  return Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
+}
+
+/**
+ * Reads one positive number. Only a JSON number counts: "7" or true would be coerced by
+ * JavaScript but mean the client is sending something other than what the form holds.
+ */
+function readNumber(
+  field: NumberField,
+  value: unknown,
+  errors: NewCreatorErrors,
+): number {
+  const { label, tooSmall, whole, max } = NUMBER_RULES[field];
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    errors[field] = `${label} wajib diisi`;
+  } else if (value <= 0) {
+    errors[field] = tooSmall;
+  } else if (whole && !Number.isInteger(value)) {
+    errors[field] = `${label} harus bilangan bulat`;
+  } else if (!whole && !hasCents(value)) {
+    errors[field] = `${label} maksimal 2 angka desimal`;
+  } else if (value > max) {
+    errors[field] = `${label} terlalu besar`;
+  }
+  return value as number;
+}
+
 type ContractPeriod = Pick<NewCreator, 'contractStart' | 'contractEnd'>;
 
 function checkContract(
@@ -203,6 +264,10 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
     errors,
   );
 
+  const interval = readNumber('interval', body.interval, errors);
+  const quota = readNumber('quota', body.quota, errors);
+  const fixedRate = readNumber('fixedRate', body.fixedRate, errors);
+
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
       message: 'Data creator tidak valid',
@@ -215,9 +280,9 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
     email,
     ...social,
     ...contract,
-    interval: body.interval as number,
-    quota: body.quota as number,
-    fixedRate: body.fixedRate as number,
+    interval,
+    quota,
+    fixedRate,
     deadlines: (body.deadlines as string[]).map(
       (value) => toDay(value) as Date,
     ),
