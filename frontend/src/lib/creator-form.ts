@@ -4,11 +4,14 @@
 export interface CreatorFormInput {
   name: string;
   email: string;
+  contractStart: string;
+  contractEnd: string;
 }
 
 export interface CreatorFormErrors {
   name?: string;
   email?: string;
+  contractStart?: string;
 }
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,6 +25,10 @@ export function validateCreatorForm(input: CreatorFormInput): CreatorFormErrors 
 
   if (!EMAIL_FORMAT.test(input.email)) {
     errors.email = "Format email tidak valid";
+  }
+
+  if (input.contractStart > input.contractEnd) {
+    errors.contractStart = "Tanggal mulai tidak boleh setelah tanggal berakhir";
   }
 
   return errors;
