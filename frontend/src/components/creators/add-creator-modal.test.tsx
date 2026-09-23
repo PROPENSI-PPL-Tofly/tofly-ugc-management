@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { vi } from "vitest";
 import { AddCreatorModal } from "./add-creator-modal";
 
 describe("AddCreatorModal", () => {
@@ -12,5 +13,17 @@ describe("AddCreatorModal", () => {
     expect(screen.getByLabelText(/jarak antar-deadline/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/fixed rate/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/jumlah konten/i)).toBeInTheDocument();
+  });
+
+  // `onSubmit` is not a prop of AddCreatorModal yet, and there is no "Simpan" button yet —
+  // GREEN adds both, wiring validateCreatorForm to the submit click.
+  it("shows an error and does not submit when required fields are empty", () => {
+    const onSubmit = vi.fn();
+
+    render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
+    fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
+
+    expect(screen.getByText("Nama wajib diisi")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
