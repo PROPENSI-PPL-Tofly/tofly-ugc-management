@@ -139,4 +139,27 @@ describe('DeadlinePreview', () => {
   // Auto deadlines should have a special style so they stand out.
   expect(autoDeadline).toHaveClass('auto-deadline');
 });
+  it('marks dates inside the buffer window as unavailable', () => { // Test case for marking dates that fall within the buffer window as unavailable
+  render(
+    <DeadlinePreview
+      contractStart="2026-09-20"
+      today="2026-09-20"
+      bufferDays={5}
+      autoDeadlines={['2026-09-25']}
+      allocatedCount={1}
+      remainingCount={0}
+      quota={1}
+    />,
+  );
+
+  // 23 September is still inside the 5-day buffer window.
+  const bufferDate = screen.getByTestId('calendar-date-2026-09-23');
+
+  expect(bufferDate).toHaveAttribute( 
+    'data-date-status', 
+    'buffer',
+  );
+
+  expect(bufferDate).toHaveClass('buffer-date');
+});
 });
