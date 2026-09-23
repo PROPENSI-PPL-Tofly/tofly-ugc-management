@@ -17,8 +17,6 @@ interface DeadlinePreviewProps {
   contractEnd?: string;
   /** Days the admin picked by hand, once per content. */
   manualDeadlines?: string[];
-  /** Auto deadlines the admin took off the calendar. */
-  removedAuto?: string[];
   /** Without the handlers the calendar is read-only. */
   onToggleAuto?: (day: string) => void;
   onAddManual?: (day: string) => void;
@@ -34,7 +32,6 @@ export default function DeadlinePreview({
   quota,
   contractEnd,
   manualDeadlines = [],
-  removedAuto = [],
   onToggleAuto,
   onAddManual,
 }: DeadlinePreviewProps) {
@@ -88,7 +85,6 @@ export default function DeadlinePreview({
 
   // Makes checking whether a date is an auto deadline easier.
   const autoDeadlineSet = new Set(autoDeadlines);
-  const removedAutoSet = new Set(removedAuto);
 
   const bufferWindow =
     contractStart && today && bufferDays !== undefined
@@ -218,11 +214,6 @@ export default function DeadlinePreview({
                   if (onToggleAuto && isAutoDeadline) {
                     action = {
                       label: `${label}: lepas deadline otomatis`,
-                      onClick: () => onToggleAuto(date),
-                    };
-                  } else if (onToggleAuto && removedAutoSet.has(date)) {
-                    action = {
-                      label: `${label}: kembalikan deadline otomatis`,
                       onClick: () => onToggleAuto(date),
                     };
                   } else if (onAddManual && isPickable && remainingCount > 0) {

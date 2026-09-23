@@ -323,10 +323,7 @@ describe('DeadlinePreview', () => {
     // As in the product prototype: a removed auto day is an ordinary open day again, so a
     // click puts a content back on it as a manual pick, and more can be stacked there.
     it('treats a removed auto deadline as an open day', () => {
-      const { onAddManual, onToggleAuto } = renderPicker({
-        autoDeadlines: ['2026-10-20'],
-        removedAuto: ['2026-10-06'],
-      });
+      const { onAddManual, onToggleAuto } = renderPicker({ autoDeadlines: ['2026-10-20'] });
 
       fireEvent.click(screen.getByRole('button', { name: /^6 Okt 2026: tambah deadline manual/ }));
 

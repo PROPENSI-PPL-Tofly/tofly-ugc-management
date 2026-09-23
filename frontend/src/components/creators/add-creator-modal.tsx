@@ -152,7 +152,7 @@ export function AddCreatorModal({
     return live ?? (edited[field] ? undefined : serverErrors[field]);
   }
 
-  const scheduleError = liveErrors.deadlines ?? serverErrors.deadlines;
+  const scheduleError = serverErrors.deadlines;
 
   // Simpan is disabled until the form is valid and every content has a day, so there is
   // always an allocation by the time it can be clicked.
@@ -286,7 +286,7 @@ export function AddCreatorModal({
         </Field>
       </div>
 
-      {schedule !== null && allocation !== null ? (
+      {allocation !== null ? (
         <div className="mt-4">
           <DeadlinePreview
             contractStart={form.contractStart}
@@ -294,7 +294,6 @@ export function AddCreatorModal({
             today={today}
             bufferDays={BUFFER_DAYS}
             autoDeadlines={allocation.auto}
-            removedAuto={schedule.autoDeadlines.filter((day) => !allocation.auto.includes(day))}
             manualDeadlines={allocation.manual}
             allocatedCount={allocation.deadlines.length}
             remainingCount={remaining}
