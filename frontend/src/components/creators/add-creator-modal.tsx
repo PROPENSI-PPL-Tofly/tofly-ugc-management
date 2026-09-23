@@ -31,6 +31,13 @@ function Field({
   );
 }
 
+// A required numeric field displays empty rather than "0" — 0 is never a valid value for
+// either field that uses this, and showing it as a literal digit meant typing "1" into the
+// field produced "01" (manual UI review finding).
+function emptyIfZero(value: number): number | "" {
+  return value === 0 ? "" : value;
+}
+
 const INITIAL_FORM: CreatorFormInput = {
   name: "",
   email: "",
@@ -139,9 +146,7 @@ export function AddCreatorModal({
           type="number"
           className={FIELD}
           placeholder="mis. 500000"
-          // Displayed empty at 0 rather than the literal digit — 0 is never a valid rate
-          // anyway, and typing "1" into a field showing "0" used to produce "01".
-          value={form.fixedRate === 0 ? "" : form.fixedRate}
+          value={emptyIfZero(form.fixedRate)}
           onChange={(event) => setForm({ ...form, fixedRate: Number(event.target.value) })}
         />
       </Field>
@@ -151,7 +156,7 @@ export function AddCreatorModal({
           type="number"
           className={FIELD}
           placeholder="mis. 6"
-          value={form.quota === 0 ? "" : form.quota}
+          value={emptyIfZero(form.quota)}
           onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })}
         />
       </Field>
