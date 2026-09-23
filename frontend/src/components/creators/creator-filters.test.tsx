@@ -121,4 +121,35 @@ describe("CreatorFilters", () => {
 
     expect(replace).toHaveBeenCalledWith("/admin/creators", { scroll: false });
   });
+
+  it("filters by productivity band", () => {
+    renderFilters();
+
+    fireEvent.change(screen.getByRole("combobox", { name: /produktivitas/i }), {
+      target: { value: "risk" },
+    });
+
+    expect(replace).toHaveBeenCalledWith(expect.stringContaining("productivity=risk"), {
+      scroll: false,
+    });
+  });
+
+  it("goes back to the bare path when the only filter is set back to all", () => {
+    renderFilters({ contractStatus: "active" });
+
+    fireEvent.change(contractStatus(), { target: { value: "all" } });
+
+    expect(replace).toHaveBeenCalledWith("/admin/creators", { scroll: false });
+  });
+
+  // Back/forward changes q in the URL without any typing; the box has to follow it.
+  it("follows a search the URL changed on its own", () => {
+    searchParams = new URLSearchParams({ q: "rangga" });
+    const { rerender } = render(<CreatorFilters />);
+
+    searchParams = new URLSearchParams({ q: "salsa" });
+    rerender(<CreatorFilters />);
+
+    expect(search()).toHaveValue("salsa");
+  });
 });

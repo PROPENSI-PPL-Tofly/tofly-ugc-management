@@ -202,6 +202,68 @@ describe("CreatorDetailModal", () => {
     expect(screen.queryByText("rangga@example.com")).not.toBeInTheDocument();
   });
 
+  it("does not show a failure after the component is unmounted", async () => {
+    let reject: (error: unknown) => void = () => {};
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>((_, promiseReject) => (reject = promiseReject)),
+    );
+
+    const { unmount } = render(
+      <CreatorDetailModal creatorId="creator-rangga" name="Rangga Pratama" onClose={vi.fn()} />,
+    );
+    unmount();
+    reject(new Error("late"));
+    await Promise.resolve();
+
+    expect(screen.queryByText(/gagal memuat detail creator/i)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["risk", "Berisiko", "text-red-ink"],
+    ["watch", "Perlu Perhatian", "text-amber-ink"],
+  ] as const)("colours a %s productivity band by its judgement", async (productivity, label, tone) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...creatorDetail,
+          performance: { ...creatorDetail.performance, productivity, productivityLabel: label },
+        }),
+      ),
+    );
+
+    open();
+
+    expect(await screen.findByText(label)).toHaveClass(tone);
+  });
+
+  it("says so when there is no contract history", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ...creatorDetail, contractHistory: [] })),
+    );
+
+    open();
+
+    expect(await screen.findByText(/belum ada riwayat kontrak/i)).toBeInTheDocument();
+  });
+
+  it("marks only the running period in the contract history", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...creatorDetail,
+          contractHistory: [
+            { ...creatorDetail.contractHistory[0], id: "contract-0", isCurrent: false, completed: 6, total: 6 },
+          ],
+        }),
+      ),
+    );
+
+    open();
+
+    expect(await screen.findByText("6/6 selesai")).toBeInTheDocument();
+    expect(screen.queryByText(/berjalan/)).not.toBeInTheDocument();
+  });
+
   it("navigates to the creator Content Plan", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
 

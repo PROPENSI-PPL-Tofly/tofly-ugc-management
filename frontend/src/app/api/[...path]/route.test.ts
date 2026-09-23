@@ -134,4 +134,43 @@ describe("/api/* proxy", () => {
     expect(response.status).toBe(502);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("drops hop-by-hop request headers before forwarding", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+
+    await GET(
+      new Request("http://localhost:3000/api/health", {
+        headers: { connection: "keep-alive", accept: "application/json" },
+      }),
+      params("health"),
+    );
+
+    const headers = fetchMock.mock.calls[0][1]!.headers as Headers;
+    expect(headers.has("connection")).toBe(false);
+    expect(headers.get("accept")).toBe("application/json");
+  });
+
+  // fetch() has already decoded the body, so passing the upstream encoding on would make the
+  // browser try to decode it a second time.
+  it("drops upstream framing headers from the response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "content-encoding": "gzip", "content-type": "application/json" },
+      }),
+    );
+
+    const response = await GET(new Request("http://localhost:3000/api/health"), params("health"));
+
+    expect(response.headers.has("content-encoding")).toBe(false);
+    expect(response.headers.get("content-type")).toBe("application/json");
+  });
+
+  it("describes a non-Error rejection in the 502 body", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue("socket hang up");
+
+    const response = await GET(new Request("http://localhost:3000/api/health"), params("health"));
+
+    await expect(response.json()).resolves.toMatchObject({ detail: "socket hang up" });
+  });
 });

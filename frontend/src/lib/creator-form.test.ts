@@ -1,4 +1,9 @@
-import { validateCreatorForm } from "./creator-form";
+import {
+  contractDateLimits,
+  localCalendarDay,
+  scheduleDeadlines,
+  validateCreatorForm,
+} from "./creator-form";
 
 describe("validateCreatorForm", () => {
   const VALID_INPUT = {
@@ -118,5 +123,118 @@ describe("validateCreatorForm", () => {
     const errors = validateCreatorForm(VALID_INPUT, today, ["bagas@example.com"]);
 
     expect(errors.email).toBe("Email sudah terdaftar");
+  });
+});
+
+describe("localCalendarDay", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  // 01:30 WIB on the 24th is still the 23rd in UTC; the admin's "today" is the 24th.
+  it("reads the calendar day in the admin's own timezone, not UTC", () => {
+    process.env.TZ = "Asia/Jakarta";
+
+    expect(localCalendarDay(new Date("2026-09-23T18:30:00Z"))).toBe("2026-09-24");
+  });
+
+  it("pads single-digit months and days", () => {
+    process.env.TZ = "UTC";
+
+    expect(localCalendarDay(new Date("2026-01-05T10:00:00Z"))).toBe("2026-01-05");
+  });
+
+  it("rejects yesterday as a contract start just after local midnight", () => {
+    process.env.TZ = "Asia/Jakarta";
+
+    const errors = validateCreatorForm(
+      {
+        name: "Bagas",
+        email: "bagas@example.com",
+        contractStart: "2026-09-23",
+        contractEnd: "2026-12-31",
+        interval: 14,
+        quota: 1,
+        fixedRate: 500000,
+        socialPlatform: "instagram",
+        socialUsername: "bagas",
+      },
+      new Date("2026-09-23T18:30:00Z"),
+    );
+
+    expect(errors.contractStart).toBe("Tanggal mulai tidak boleh sebelum hari ini");
+  });
+});
+
+describe("contractDateLimits", () => {
+  it("keeps the start between today and the chosen end", () => {
+    expect(contractDateLimits({ contractStart: "", contractEnd: "2026-12-31" }, "2026-09-24")).toEqual({
+      startMin: "2026-09-24",
+      startMax: "2026-12-31",
+      endMin: "2026-09-24",
+    });
+  });
+
+  it("keeps the end on or after the chosen start", () => {
+    expect(contractDateLimits({ contractStart: "2026-10-01", contractEnd: "" }, "2026-09-24")).toEqual({
+      startMin: "2026-09-24",
+      startMax: undefined,
+      endMin: "2026-10-01",
+    });
+  });
+});
+
+describe("scheduleDeadlines", () => {
+  const FORM = {
+    contractStart: "2026-10-01",
+    contractEnd: "2026-12-31",
+    interval: 14,
+    quota: 3,
+  };
+
+  it("places the deadlines five days after the later of start and today, one interval apart", () => {
+    expect(scheduleDeadlines(FORM, "2026-09-24")).toEqual({
+      autoDeadlines: ["2026-10-06", "2026-10-20", "2026-11-03"],
+      allocatedCount: 3,
+      remainingCount: 0,
+      quota: 3,
+    });
+  });
+
+  it.each([
+    { contractStart: "" },
+    { contractEnd: "" },
+    { contractStart: "2026-12-31", contractEnd: "2026-10-01" },
+    { quota: 0 },
+    { interval: 0 },
+  ])("has no schedule while the contract is incomplete: %j", (change) => {
+    expect(scheduleDeadlines({ ...FORM, ...change }, "2026-09-24")).toBeNull();
+  });
+});
+
+describe("validateCreatorForm schedule", () => {
+  const INPUT = {
+    name: "Bagas",
+    email: "bagas@example.com",
+    contractStart: "2026-10-01",
+    contractEnd: "2026-10-20",
+    interval: 14,
+    quota: 3,
+    fixedRate: 500000,
+    socialPlatform: "instagram" as const,
+    socialUsername: "bagas",
+  };
+  const TODAY = new Date("2026-09-24T05:00:00Z");
+
+  it("rejects a contract too short to fit every content", () => {
+    expect(validateCreatorForm(INPUT, TODAY).deadlines).toBe(
+      "Kontrak hanya memuat 2 dari 3 deadline",
+    );
+  });
+
+  it("accepts a contract that fits every content", () => {
+    expect(validateCreatorForm({ ...INPUT, quota: 2 }, TODAY).deadlines).toBeUndefined();
   });
 });

@@ -6,6 +6,8 @@
 // fetched in the browser through this app's own /api proxy, which keeps BACKEND_URL out of
 // the browser either way.
 
+import type { CreatorFormErrors, CreatorFormInput } from "./creator-form";
+
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
@@ -234,4 +236,73 @@ export async function fetchCreatorDetail(id: string): Promise<CreatorDetail> {
   }
 
   return (await response.json()) as CreatorDetail;
+}
+
+/** What Add Creator sends: the form as the admin filled it, plus the deadlines it scheduled. */
+export interface NewCreatorRequest extends CreatorFormInput {
+  deadlines: string[];
+}
+
+export type CreateCreatorResult =
+  | { ok: true }
+  | { ok: false; message: string; errors: CreatorFormErrors };
+
+const FORM_ERROR_FIELDS: (keyof CreatorFormErrors)[] = [
+  "name",
+  "email",
+  "contractStart",
+  "contractEnd",
+  "interval",
+  "quota",
+  "fixedRate",
+  "socialPlatform",
+  "socialUsername",
+  "deadlines",
+];
+
+/** The server's per-field messages, narrowed to text for fields the form can show them under. */
+function formErrors(body: unknown): CreatorFormErrors {
+  const raw = (body as { errors?: Record<string, unknown> } | null)?.errors ?? {};
+  const errors: CreatorFormErrors = {};
+  for (const field of FORM_ERROR_FIELDS) {
+    const message = raw[field];
+    if (typeof message === "string") {
+      errors[field] = message;
+    }
+  }
+  return errors;
+}
+
+/**
+ * Browser-side, through the same-origin API proxy like fetchCreatorDetail. A 422 comes back as
+ * the server's message per field so the modal can show each under its input; any other failure,
+ * the network included, is one retryable message.
+ */
+export async function createCreator(request: NewCreatorRequest): Promise<CreateCreatorResult> {
+  const saveFailed: CreateCreatorResult = {
+    ok: false,
+    message: "Creator gagal disimpan. Coba lagi.",
+    errors: {},
+  };
+
+  let response: Response;
+  try {
+    response = await fetch("/api/creators", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+  } catch {
+    return saveFailed;
+  }
+
+  if (response.ok) {
+    return { ok: true };
+  }
+  if (response.status !== 422) {
+    return saveFailed;
+  }
+
+  const body: unknown = await response.json().catch(() => null);
+  return { ok: false, message: "Data creator tidak valid", errors: formErrors(body) };
 }

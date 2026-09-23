@@ -281,4 +281,14 @@ describe("CreatorTable", () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it("closes the creator detail dialog", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+    render(<CreatorTable creators={[creator()]} total={1} />);
+    fireEvent.click(within(screen.getAllByRole("row")[1]).getByRole("button", { name: "Detail" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 });
