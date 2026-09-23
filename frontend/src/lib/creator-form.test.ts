@@ -69,4 +69,16 @@ describe("validateCreatorForm", () => {
 
     expect(errors.fixedRate).toBe("Fixed rate tidak boleh negatif");
   });
+
+  // `existingEmails` is not a parameter of validateCreatorForm yet — GREEN adds it. This is
+  // the frontend-only half of duplicate detection: checked against whatever creator list the
+  // page already has loaded, not a backend lookup (that stays the database's unique
+  // constraint on `users.email`, enforced when the create endpoint ships later).
+  it("rejects an email that is already registered", () => {
+    const today = new Date("2026-01-01T00:00:00Z");
+
+    const errors = validateCreatorForm(VALID_INPUT, today, ["bagas@example.com"]);
+
+    expect(errors.email).toBe("Email sudah terdaftar");
+  });
 });
