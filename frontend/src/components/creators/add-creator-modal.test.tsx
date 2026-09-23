@@ -315,13 +315,52 @@ describe("AddCreatorModal", () => {
       expect(screen.getByText(/3 \/ 3 teralokasi/i)).toBeInTheDocument();
     });
 
-    it("blocks Simpan and says why when the contract cannot fit every content", () => {
-      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+    it("asks for the missing deadlines and saves the days the admin picks", () => {
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
       fillOthers();
       fillContract("2026-10-01", "2026-10-20", "3");
 
-      expect(screen.getByRole("alert")).toHaveTextContent("Kontrak hanya memuat 2 dari 3 deadline");
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Sisa 1 konten belum punya deadline. Pilih tanggalnya di kalender.",
+      );
       expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "13 Okt 2026: tambah deadline manual" }));
+      fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
+
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ deadlines: ["2026-10-06", "2026-10-13", "2026-10-20"] }),
+      );
+    });
+
+    it("lists the manual deadlines and takes one back off", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-10-01", "2026-10-20", "3");
+      fireEvent.click(screen.getByRole("button", { name: "13 Okt 2026: tambah deadline manual" }));
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus deadline manual 13 Okt 2026" }));
+
+      expect(screen.getByRole("status")).toHaveTextContent("Sisa 1 konten");
+      expect(screen.queryByRole("button", { name: /hapus deadline manual/i })).not.toBeInTheDocument();
+    });
+
+    it("frees a content when an auto deadline is removed, and takes it back when restored", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillOthers();
+      fillContract("2026-10-01", "2026-12-31", "3");
+      expect(screen.getByRole("button", { name: /simpan/i })).toBeEnabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "6 Okt 2026: lepas deadline otomatis" }));
+
+      expect(screen.getByRole("status")).toHaveTextContent("Sisa 1 konten");
+      expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "6 Okt 2026: kembalikan deadline otomatis" }));
+
+      expect(screen.getByRole("button", { name: /simpan/i })).toBeEnabled();
     });
 
     it("shows the server's message under each rejected field without waiting for a blur", () => {
