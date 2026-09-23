@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { getBufferWindow } from '@/lib/deadline-schedule';
+import { formatDate } from '@/lib/format';
 import { DeadlineSlot } from './deadline-slot';
 
 interface DeadlinePreviewProps {
@@ -12,6 +13,15 @@ interface DeadlinePreviewProps {
   allocatedCount: number;
   remainingCount: number;
   quota: number;
+  /** The last day a deadline may fall on; manual picks stop here. */
+  contractEnd?: string;
+  /** Days the admin picked by hand, once per content. */
+  manualDeadlines?: string[];
+  /** Auto deadlines the admin took off the calendar. */
+  removedAuto?: string[];
+  /** Without the handlers the calendar is read-only. */
+  onToggleAuto?: (day: string) => void;
+  onAddManual?: (day: string) => void;
 }
 
 export default function DeadlinePreview({
@@ -20,7 +30,13 @@ export default function DeadlinePreview({
   bufferDays,
   autoDeadlines,
   allocatedCount,
+  remainingCount,
   quota,
+  contractEnd,
+  manualDeadlines = [],
+  removedAuto = [],
+  onToggleAuto,
+  onAddManual,
 }: DeadlinePreviewProps) {
   // Start the calendar from the contract month, or use the first auto deadline as fallback.
   const calendarSourceDate = contractStart ?? autoDeadlines[0];
@@ -72,6 +88,7 @@ export default function DeadlinePreview({
 
   // Makes checking whether a date is an auto deadline easier.
   const autoDeadlineSet = new Set(autoDeadlines);
+  const removedAutoSet = new Set(removedAuto);
 
   const bufferWindow =
     contractStart && today && bufferDays !== undefined
@@ -184,6 +201,37 @@ export default function DeadlinePreview({
                     currentDate.getTime() <
                       bufferWindow.firstAllowedDate.getTime();
 
+                  const manualCount = manualDeadlines.filter(
+                    (picked) => picked === date,
+                  ).length;
+
+                  // A manual pick has to land after the buffer and on or before the contract end.
+                  const isPickable =
+                    bufferWindow !== null &&
+                    contractEnd !== undefined &&
+                    currentDate.getTime() >=
+                      bufferWindow.firstAllowedDate.getTime() &&
+                    date <= contractEnd;
+
+                  const label = formatDate(date);
+                  let action: { label: string; onClick: () => void } | undefined;
+                  if (onToggleAuto && isAutoDeadline) {
+                    action = {
+                      label: `${label}: lepas deadline otomatis`,
+                      onClick: () => onToggleAuto(date),
+                    };
+                  } else if (onToggleAuto && removedAutoSet.has(date)) {
+                    action = {
+                      label: `${label}: kembalikan deadline otomatis`,
+                      onClick: () => onToggleAuto(date),
+                    };
+                  } else if (onAddManual && isPickable && remainingCount > 0) {
+                    action = {
+                      label: `${label}: tambah deadline manual`,
+                      onClick: () => onAddManual(date),
+                    };
+                  }
+
                   return (
                     <DeadlineSlot
                       key={weekday}
@@ -191,6 +239,8 @@ export default function DeadlinePreview({
                       day={day}
                       isAutoDeadline={isAutoDeadline}
                       isBufferDate={isBufferDate}
+                      manualCount={manualCount}
+                      action={action}
                     />
                   );
                 })}
