@@ -58,7 +58,8 @@ describe('ContentsService', () => {
       expect(result).toHaveProperty('id', 'content-1');
       expect(prisma.content.update).toHaveBeenCalledWith({
         where: { id: 'content-1' },
-        data: { deadline: expect.any(Date) },
+        data: { deadline: day(20) },
+        select: expect.any(Object),
       });
     });
 
@@ -130,7 +131,7 @@ describe('ContentsService', () => {
       const updated = {
         id: 'content-1',
         name: 'Test Content',
-        deadline: day(20),
+        deadline: new Date('2026-10-13T00:00:00Z'),
         type: 'specific',
         status: 'scheduled',
       };
@@ -141,7 +142,13 @@ describe('ContentsService', () => {
         deadline: '2026-10-13',
       });
 
-      expect(result).toEqual(updated);
+      expect(result).toEqual({
+        id: 'content-1',
+        name: 'Test Content',
+        deadline: '2026-10-13',
+        type: 'specific',
+        status: 'scheduled',
+      });
     });
   });
 });
