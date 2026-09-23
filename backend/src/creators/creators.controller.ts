@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import {
   CreatorOnboardingService,
-  type CreatedCreator,
   type CreatorOnboarder,
 } from './creator-onboarding.service.js';
 import { CreatorsService, type CreatorLister } from './creators.service.js';
@@ -20,9 +19,32 @@ import type {
   CreatorDetail,
   CreatorListResponse,
 } from './dto/creator-summary.dto.js';
+import type {
+  NewCreator as OnboardingInput,
+  OnboardedCreator,
+} from './dto/new-creator.dto.js';
 import { checkFilters } from './filters.js';
-import { checkNewCreator } from './new-creator.js';
+import { checkNewCreator, type NewCreator } from './new-creator.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from './paging.js';
+
+/** checkNewCreator speaks in database terms; onboarding takes the form's shape back. */
+function onboardingInput(creator: NewCreator): OnboardingInput {
+  const day = (date: Date): string => date.toISOString().slice(0, 10);
+  return {
+    name: [creator.firstName, creator.middleName, creator.lastName]
+      .filter(Boolean)
+      .join(' '),
+    email: creator.email,
+    contractStart: day(creator.contractStart),
+    contractEnd: day(creator.contractEnd),
+    interval: creator.interval,
+    quota: creator.quota,
+    fixedRate: creator.fixedRate,
+    socialPlatform: creator.socialPlatform,
+    socialUsername: creator.socialUsername,
+    deadlines: creator.deadlines.map(day),
+  };
+}
 
 @Controller('creators')
 export class CreatorsController {
@@ -71,7 +93,11 @@ export class CreatorsController {
    * can add a creator. Admin-only access belongs with the Google sign-in work (PRD 3.1).
    */
   @Post()
-  async create(@Body() body: unknown): Promise<CreatedCreator> {
-    return this.onboarding.create(checkNewCreator(body, new Date()));
+  async create(@Body() body: unknown): Promise<OnboardedCreator> {
+    const now = new Date();
+    return this.onboarding.onboard(
+      onboardingInput(checkNewCreator(body, now)),
+      now,
+    );
   }
 }

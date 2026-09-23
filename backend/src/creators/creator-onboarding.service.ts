@@ -5,24 +5,106 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { planEvergreen } from './evergreen-planner.js';
-import type { NewCreator } from './new-creator.js';
+import type { NewCreator, OnboardedCreator } from './dto/new-creator.dto.js';
+import {
+  checkSchedule,
+  evergreenName,
+  jakartaDay,
+  splitName,
+  type ScheduleErrors,
+} from './evergreen.js';
 
-/** What POST /creators answers with: the new creator's id. */
-export interface CreatedCreator {
-  id: string;
+const ONBOARDED_SELECT = {
+  id: true,
+  users: { select: { email: true } },
+  contracts: {
+    select: {
+      id: true,
+      contents: {
+        select: { id: true, name: true, deadline: true },
+        orderBy: { deadline: 'asc' },
+      },
+    },
+  },
+} satisfies Prisma.creatorsSelect;
+
+type OnboardedRow = Prisma.creatorsGetPayload<{
+  select: typeof ONBOARDED_SELECT;
+}>;
+
+/** Postgres `date` columns travel as midnight UTC in both directions. */
+function toDate(day: string): Date {
+  return new Date(`${day}T00:00:00Z`);
 }
 
-/** What the controller needs to add a creator, kept apart from CreatorLister's read side. */
-export interface CreatorOnboarder {
-  create(creator: NewCreator): Promise<CreatedCreator>;
+function toDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+type FieldErrors = ScheduleErrors & { email?: string };
+
+/** One body shape for every rejected field, so the form shows each message under its input. */
+function invalid(errors: FieldErrors): UnprocessableEntityException {
+  return new UnprocessableEntityException({
+    code: 'VALIDATION_FAILED',
+    message: 'Data creator tidak valid',
+    errors,
+  });
+}
+
+// users.email is the only unique column this write can collide on: the creator, contract and
+// social account rows are all new, so their unique keys cannot already exist.
+function isEmailTaken(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}
+
+/**
+ * The whole onboarding as one nested create: the whitelisted login, the creator, their social
+ * account, the contract and one Evergreen content per deadline, earliest first.
+ */
+function onboardingData(input: NewCreator): Prisma.creatorsCreateInput {
+  const name = input.name.trim();
+  const deadlines = [...input.deadlines].sort((a, b) => a.localeCompare(b));
+  return {
+    ...splitName(name),
+    users: { create: { email: input.email.trim() } },
+    social_accounts: {
+      create: {
+        platform: input.socialPlatform,
+        username: input.socialUsername,
+      },
+    },
+    contracts: {
+      create: {
+        start_date: toDate(input.contractStart),
+        end_date: toDate(input.contractEnd),
+        days_between: input.interval,
+        content_quota: input.quota,
+        fixed_rate: input.fixedRate,
+        contents: {
+          create: deadlines.map((day, index) => ({
+            name: evergreenName(name, day, index + 1),
+            type: 'evergreen',
+            brief: '',
+            deadline: toDate(day),
+            status: 'scheduled',
+          })),
+        },
+      },
+    },
+  };
 }
 
 /** The slice of the database client onboarding touches; tests hand in a stub of just that. */
-export type OnboardingClient = Pick<PrismaService, 'users'>;
+export type OnboardingClient = Pick<PrismaService, 'creators'>;
 
-/** Prisma's code for a unique-constraint violation. */
-const UNIQUE_VIOLATION = 'P2002';
+/** What the Add Creator endpoint needs, so it can inject or stub onboarding by contract. */
+export interface CreatorOnboarder {
+  onboard(input: NewCreator, now?: Date): Promise<OnboardedCreator>;
+}
 
 @Injectable()
 export class CreatorOnboardingService implements CreatorOnboarder {
@@ -31,67 +113,43 @@ export class CreatorOnboardingService implements CreatorOnboarder {
   ) {}
 
   /**
-   * Whitelists the email and creates the creator, their social account, their first contract
-   * and its Evergreen schedule as one nested write, which Prisma runs in a single transaction:
-   * an admin never ends up with a login that has no creator behind it, or a creator with no
-   * schedule. The data is spelled out field by field, so nothing from the request that is not
-   * in NewCreator (users.is_admin above all) can reach the insert.
+   * Whitelists the email and creates the creator, their contract and one Evergreen content
+   * per deadline as a single nested write. Prisma runs a nested write in one transaction, so
+   * a login never exists without its contract and schedule, or the other way round.
    */
-  async create(creator: NewCreator): Promise<CreatedCreator> {
-    const name = [creator.firstName, creator.middleName, creator.lastName]
-      .filter(Boolean)
-      .join(' ');
+  async onboard(
+    input: NewCreator,
+    now = new Date(),
+  ): Promise<OnboardedCreator> {
+    const errors = checkSchedule(input, jakartaDay(now));
+    if (Object.keys(errors).length > 0) {
+      throw invalid(errors);
+    }
 
-    try {
-      const user = await this.prisma.users.create({
-        data: {
-          email: creator.email,
-          creators: {
-            create: {
-              first_name: creator.firstName,
-              middle_name: creator.middleName,
-              last_name: creator.lastName,
-              social_accounts: {
-                create: {
-                  platform: creator.socialPlatform,
-                  username: creator.socialUsername,
-                },
-              },
-              contracts: {
-                create: {
-                  start_date: creator.contractStart,
-                  end_date: creator.contractEnd,
-                  days_between: creator.interval,
-                  content_quota: creator.quota,
-                  fixed_rate: creator.fixedRate,
-                  contents: {
-                    create: planEvergreen(name, creator.deadlines).map(
-                      (item) => ({ ...item, type: 'evergreen' as const }),
-                    ),
-                  },
-                },
-              },
-            },
-          },
-        },
-        select: { creators: { select: { id: true } } },
+    // No lookup before the insert: the citext unique index on users.email is the check, so
+    // two admins saving the same address at once cannot both succeed.
+    const row = await this.prisma.creators
+      .create({ data: onboardingData(input), select: ONBOARDED_SELECT })
+      .catch((error: unknown) => {
+        throw isEmailTaken(error)
+          ? invalid({ email: 'Email sudah terdaftar' })
+          : error;
       });
 
-      // creators is optional on a users row in general, but this statement just created it.
-      return { id: (user.creators as { id: string }).id };
-    } catch (error) {
-      // Only users.email can collide here: every other unique column belongs to a row this
-      // same statement is creating.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === UNIQUE_VIOLATION
-      ) {
-        throw new UnprocessableEntityException({
-          message: 'Data creator tidak valid',
-          errors: { email: 'Email sudah terdaftar' },
-        });
-      }
-      throw error;
-    }
+    return this.toOnboarded(row);
+  }
+
+  private toOnboarded(row: OnboardedRow): OnboardedCreator {
+    const [contract] = row.contracts;
+    return {
+      id: row.id,
+      email: row.users.email,
+      contractId: contract.id,
+      contents: contract.contents.map((content) => ({
+        id: content.id,
+        name: content.name,
+        deadline: toDay(content.deadline),
+      })),
+    };
   }
 }

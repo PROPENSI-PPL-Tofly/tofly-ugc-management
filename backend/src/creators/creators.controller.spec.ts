@@ -16,7 +16,7 @@ describe('CreatorsController', () => {
   };
 
   const onboarding = {
-    create: vi.fn(),
+    onboard: vi.fn(),
   };
 
   const response = {
@@ -66,7 +66,7 @@ describe('CreatorsController', () => {
 
     service.list.mockResolvedValue(response);
     service.findOne.mockResolvedValue(detailResponse);
-    onboarding.create.mockResolvedValue({ id: 'creator-9' });
+    onboarding.onboard.mockResolvedValue({ id: 'creator-9' });
 
     const module = await Test.createTestingModule({
       controllers: [CreatorsController],
@@ -188,13 +188,13 @@ describe('CreatorsController', () => {
       await expect(controller.create(body)).resolves.toEqual({
         id: 'creator-9',
       });
-      expect(onboarding.create).toHaveBeenCalledWith(
+      expect(onboarding.onboard).toHaveBeenCalledWith(
         expect.objectContaining({
-          firstName: 'Salsa',
-          lastName: 'Amelia',
-          contractStart: new Date('2026-10-01T00:00:00Z'),
-          deadlines: [new Date('2026-10-06T00:00:00Z')],
+          name: 'Salsa Amelia',
+          contractStart: '2026-10-01',
+          deadlines: ['2026-10-06'],
         }),
+        new Date('2026-09-23T08:00:00Z'),
       );
     });
 
@@ -202,7 +202,7 @@ describe('CreatorsController', () => {
       await expect(
         controller.create({ ...body, email: 'salsa' }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
-      expect(onboarding.create).not.toHaveBeenCalled();
+      expect(onboarding.onboard).not.toHaveBeenCalled();
     });
 
     it('judges "today" by the date the request arrives', async () => {
