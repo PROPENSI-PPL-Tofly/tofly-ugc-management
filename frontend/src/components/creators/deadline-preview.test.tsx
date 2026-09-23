@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import DeadlinePreview from './deadline-preview';
 
 describe('DeadlinePreview', () => { 
@@ -240,5 +241,41 @@ describe('DeadlinePreview', () => {
     expect(fourthWeek[5]).toContainElement(
       within(calendar).getByTestId('deadline-2026-09-25'),
     );
+  });
+
+  it('renders clickable slots for empty dates', () => {
+    render(
+      <DeadlinePreview
+        contractStart="2026-09-23"
+        today="2026-09-23"
+        bufferDays={7}
+        autoDeadlines={['2026-10-07']}
+        allocatedCount={1}
+        remainingCount={3}
+        quota={4}
+      />,
+    );
+
+    const emptySlots = screen.getAllByRole('button', { name: /^\d+$/ });
+    expect(emptySlots.length).toBeGreaterThan(0);
+  });
+
+  it('opens assign modal when empty slot clicked', async () => {
+    render(
+      <DeadlinePreview
+        contractStart="2026-09-23"
+        today="2026-09-23"
+        bufferDays={7}
+        autoDeadlines={['2026-10-07']}
+        allocatedCount={1}
+        remainingCount={3}
+        quota={4}
+      />,
+    );
+
+    const emptySlots = screen.getAllByRole('button', { name: /^\d+$/ });
+    await userEvent.click(emptySlots[0]);
+
+    expect(screen.getByRole('dialog', { name: /Tambah Konten/i })).toBeInTheDocument();
   });
 });
