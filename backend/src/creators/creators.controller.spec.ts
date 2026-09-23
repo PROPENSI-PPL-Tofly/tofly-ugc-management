@@ -1,5 +1,9 @@
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import { CreatorsController } from './creators.controller.js';
 import { CreatorsService } from './creators.service.js';
 
@@ -9,6 +13,10 @@ describe('CreatorsController', () => {
   const service = {
     list: vi.fn(),
     findOne: vi.fn(),
+  };
+
+  const onboarding = {
+    onboard: vi.fn(),
   };
 
   const response = {
@@ -58,10 +66,14 @@ describe('CreatorsController', () => {
 
     service.list.mockResolvedValue(response);
     service.findOne.mockResolvedValue(detailResponse);
+    onboarding.onboard.mockResolvedValue({ id: 'creator-9' });
 
     const module = await Test.createTestingModule({
       controllers: [CreatorsController],
-      providers: [{ provide: CreatorsService, useValue: service }],
+      providers: [
+        { provide: CreatorsService, useValue: service },
+        { provide: CreatorOnboardingService, useValue: onboarding },
+      ],
     }).compile();
 
     controller = module.get(CreatorsController);
@@ -146,5 +158,63 @@ describe('CreatorsController', () => {
     );
 
     expect(service.findOne).toHaveBeenCalledWith('creator-1');
+  });
+
+  describe('create', () => {
+    // The validator judges dates against the request's "today"; pin it so the body stays valid.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-09-23T08:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const body = {
+      name: 'Salsa Amelia',
+      email: 'salsa@example.com',
+      socialPlatform: 'tiktok',
+      socialUsername: 'salsa.amelia',
+      contractStart: '2026-10-01',
+      contractEnd: '2026-12-31',
+      interval: 7,
+      quota: 1,
+      fixedRate: 500000,
+      deadlines: ['2026-10-06'],
+    };
+
+    it('hands the validated creator to onboarding and answers with its id', async () => {
+      await expect(controller.create(body)).resolves.toEqual({
+        id: 'creator-9',
+      });
+      expect(onboarding.onboard).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Salsa Amelia',
+          contractStart: '2026-10-01',
+          deadlines: ['2026-10-06'],
+        }),
+        new Date('2026-09-23T08:00:00Z'),
+      );
+    });
+
+    it('rejects an invalid body with a 422 before anything is saved', async () => {
+      await expect(
+        controller.create({ ...body, email: 'salsa' }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(onboarding.onboard).not.toHaveBeenCalled();
+    });
+
+    it('judges "today" by the date the request arrives', async () => {
+      vi.setSystemTime(new Date('2026-10-02T00:00:00Z'));
+
+      await expect(controller.create(body)).rejects.toMatchObject({
+        response: {
+          errors: {
+            contractStart: 'Tanggal mulai tidak boleh sebelum hari ini',
+          },
+        },
+      });
+    });
   });
 });

@@ -20,3 +20,7 @@
 
 # sonar-scanner cache
 .scannerwork/
+
+# mutation testing (Stryker) output and sandbox
+/reports
+.stryker-tmp/
