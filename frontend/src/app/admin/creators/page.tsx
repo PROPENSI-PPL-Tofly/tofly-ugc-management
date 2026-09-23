@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/shell/app-shell";
+import { AddCreatorTrigger } from "@/components/creators/add-creator-trigger";
 import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
 import { Pagination } from "@/components/creators/pagination";
@@ -69,10 +70,15 @@ export default async function CreatorsPage({
       ) : null}
 
       <Panel>
-        <PanelHead
-          title={filtered ? "Hasil pencarian" : "Semua creator"}
-          hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
-        />
+        <div className="flex items-start justify-between gap-3">
+          <PanelHead
+            title={filtered ? "Hasil pencarian" : "Semua creator"}
+            hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
+          />
+          <div className="pr-5 pt-5">
+            <AddCreatorTrigger />
+          </div>
+        </div>
         <CreatorFilters />
         {result ? (
           <>
