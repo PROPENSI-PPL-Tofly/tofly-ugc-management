@@ -27,10 +27,11 @@ function body(
   };
 }
 
-/** The per-field messages a rejected body comes back with. */
-function errorsFor(input: unknown): Record<string, string> {
+/** The per-field messages a body is rejected with; empty when the body is accepted. */
+function fieldErrors(input: unknown): Record<string, string> {
   try {
     checkNewCreator(input, TODAY);
+    return {};
   } catch (error) {
     expect(error).toBeInstanceOf(UnprocessableEntityException);
     return (
@@ -39,7 +40,13 @@ function errorsFor(input: unknown): Record<string, string> {
       }
     ).errors;
   }
-  throw new Error('expected the body to be rejected');
+}
+
+/** Like fieldErrors, for a body that must be rejected. */
+function errorsFor(input: unknown): Record<string, string> {
+  const errors = fieldErrors(input);
+  expect(errors).not.toEqual({});
+  return errors;
 }
 
 describe('checkNewCreator', () => {
@@ -212,6 +219,83 @@ describe('checkNewCreator', () => {
       ).not.toThrow();
       expect(errorsFor(body({ socialUsername: 'u'.repeat(101) }))).toEqual({
         socialUsername: 'Username maksimal 100 karakter',
+      });
+    });
+  });
+
+  describe('contract dates', () => {
+    it('accepts a contract starting today', () => {
+      expect(
+        checkNewCreator(body({ contractStart: '2026-09-23' }), TODAY)
+          .contractStart,
+      ).toEqual(day('2026-09-23'));
+    });
+
+    // "Today" is the UTC calendar day, the same one the modal's date check uses; the time of
+    // day the request arrives must not turn today's date into "before today".
+    it('still accepts today late in the UTC day', () => {
+      const lateToday = new Date('2026-09-23T23:59:59Z');
+
+      expect(() =>
+        checkNewCreator(body({ contractStart: '2026-09-23' }), lateToday),
+      ).not.toThrow();
+    });
+
+    it('rejects a start before today', () => {
+      expect(errorsFor(body({ contractStart: '2026-09-22' }))).toMatchObject({
+        contractStart: 'Tanggal mulai tidak boleh sebelum hari ini',
+      });
+    });
+
+    it('rejects a start after the end', () => {
+      expect(
+        errorsFor(
+          body({ contractStart: '2027-01-01', contractEnd: '2026-12-31' }),
+        ),
+      ).toMatchObject({
+        contractStart: 'Tanggal mulai tidak boleh setelah tanggal berakhir',
+      });
+    });
+
+    it('allows a contract that starts and ends on the same day', () => {
+      const errors = fieldErrors(
+        body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' }),
+      );
+
+      expect(errors).not.toHaveProperty('contractStart');
+      expect(errors).not.toHaveProperty('contractEnd');
+    });
+
+    it('rejects an end before today', () => {
+      expect(errorsFor(body({ contractEnd: '2026-09-22' }))).toMatchObject({
+        contractEnd: 'Tanggal berakhir tidak boleh sebelum hari ini',
+      });
+    });
+
+    it.each([
+      ['contractStart', 'Tanggal mulai wajib diisi'],
+      ['contractEnd', 'Tanggal berakhir wajib diisi'],
+    ])('requires %s', (field, message) => {
+      expect(errorsFor(body({ [field]: undefined }))).toMatchObject({
+        [field]: message,
+      });
+      expect(errorsFor(body({ [field]: '' }))).toMatchObject({
+        [field]: message,
+      });
+    });
+
+    it.each([
+      ['day-month-year order', '01-10-2026'],
+      ['a month that does not exist', '2026-13-01'],
+      ['a day the month does not have', '2026-02-30'],
+      ['a timestamp instead of a day', '2026-10-01T00:00:00Z'],
+      ['a number', 20261001],
+    ])('rejects %s', (_case, value) => {
+      expect(errorsFor(body({ contractStart: value }))).toMatchObject({
+        contractStart: 'Tanggal mulai tidak valid',
+      });
+      expect(errorsFor(body({ contractEnd: value }))).toMatchObject({
+        contractEnd: 'Tanggal berakhir tidak valid',
       });
     });
   });
