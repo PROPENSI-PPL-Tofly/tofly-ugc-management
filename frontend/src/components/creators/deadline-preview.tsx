@@ -1,9 +1,11 @@
-'use client'; 
+'use client';
 
 import { useState } from 'react';
 
 interface DeadlinePreviewProps {
   contractStart?: string;
+  today?: string;
+  bufferDays?: number;
   autoDeadlines: string[];
   allocatedCount: number;
   remainingCount: number;
@@ -12,23 +14,26 @@ interface DeadlinePreviewProps {
 
 export default function DeadlinePreview({
   contractStart,
+  today,
+  bufferDays,
   autoDeadlines,
   allocatedCount,
   remainingCount,
   quota,
-}: DeadlinePreviewProps) { // React component that displays a preview of deadlines, including automatic deadlines, allocation summary, and a monthly calendar view
-
+}: DeadlinePreviewProps) {
   // Use the first auto deadline, or contract start if no auto deadline exists.
   const calendarSourceDate = autoDeadlines[0] ?? contractStart;
 
+  // This is the starting month of the calendar.
   const baseCalendarDate = calendarSourceDate
-    ? new Date(`${calendarSourceDate}T00:00:00Z`) // Create a Date object in UTC format
-    : null; // If there is no date available, set baseCalendarDate to null
+    ? new Date(`${calendarSourceDate}T00:00:00Z`)
+    : null;
 
-  // Track how many months the user moves from the starting month, initialized to 0 
-  const [monthOffset, setMonthOffset] = useState(0); 
+  // Keep track of how many months the user moves forward.
+  const [monthOffset, setMonthOffset] = useState(0);
 
-  const calendarDate = baseCalendarDate // Calculate the calendar date based on the base date and the month offset
+  // Create the month currently being displayed.
+  const calendarDate = baseCalendarDate
     ? new Date(
         Date.UTC(
           baseCalendarDate.getUTCFullYear(),
@@ -38,23 +43,25 @@ export default function DeadlinePreview({
       )
     : null;
 
-  const year = calendarDate?.getUTCFullYear(); // Get the year in UTC format
-  const month = calendarDate?.getUTCMonth(); // Get the month in UTC format
+  const year = calendarDate?.getUTCFullYear();
+  const month = calendarDate?.getUTCMonth();
 
-  const monthTitle = calendarDate // Format the month and year for the calendar heading
+  // Format the calendar heading, for example "September 2026".
+  const monthTitle = calendarDate
     ? calendarDate.toLocaleDateString('en-US', {
         month: 'long',
         year: 'numeric',
         timeZone: 'UTC',
       })
-    : null; // If there is no calendar date, set monthTitle to null
+    : null;
 
-  const daysInMonth = // Get the number of days in the displayed month
+  // Get the total number of days in the displayed month.
+  const daysInMonth =
     year !== undefined && month !== undefined
       ? new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
       : 0;
 
-  // Number of empty cells before day 1.
+  // Get the weekday of the first day so the calendar lines up correctly.
   const firstDayOfWeek =
     year !== undefined && month !== undefined
       ? new Date(Date.UTC(year, month, 1)).getUTCDay()
@@ -62,6 +69,26 @@ export default function DeadlinePreview({
 
   // Makes checking whether a date is an auto deadline easier.
   const autoDeadlineSet = new Set(autoDeadlines);
+
+  // Buffer starts from contract start or today, whichever is later.
+  const bufferStartDate =
+    contractStart && today
+      ? new Date(
+          `${contractStart > today ? contractStart : today}T00:00:00Z`,
+        )
+      : null;
+
+  // Calculate the first date that is allowed after the buffer.
+  const firstAllowedDate =
+    bufferStartDate && bufferDays !== undefined
+      ? new Date(bufferStartDate)
+      : null;
+
+  if (firstAllowedDate && bufferDays !== undefined) {
+    firstAllowedDate.setUTCDate(
+      firstAllowedDate.getUTCDate() + bufferDays,
+    );
+  }
 
   return (
     <section>
@@ -81,10 +108,11 @@ export default function DeadlinePreview({
           <div>
             <h4>{monthTitle}</h4>
 
+            {/* Move the calendar forward by one month. */}
             <button
               type="button"
               aria-label="Next month"
-              onClick={() => setMonthOffset((current) => current + 1)} // Increment the month offset to navigate to the next month
+              onClick={() => setMonthOffset((current) => current + 1)}
             >
               Next
             </button>
@@ -101,27 +129,53 @@ export default function DeadlinePreview({
           </div>
 
           <div>
+            {/* Add empty cells before the first day of the month. */}
             {Array.from({ length: firstDayOfWeek }).map((_, index) => (
               <span key={`empty-${index}`} />
             ))}
 
+            {/* Render every date in the current month. */}
             {Array.from({ length: daysInMonth }).map((_, index) => {
               const day = index + 1;
 
+              // Convert the calendar date into YYYY-MM-DD format.
               const date = `${year}-${String(month + 1).padStart(
                 2,
                 '0',
               )}-${String(day).padStart(2, '0')}`;
 
               const isAutoDeadline = autoDeadlineSet.has(date);
+              const currentDate = new Date(`${date}T00:00:00Z`);
 
-              if (isAutoDeadline) { // Mark automatically generated deadlines
+              // Check whether the date is still inside the buffer window.
+              const isBufferDate =
+                bufferStartDate !== null &&
+                firstAllowedDate !== null &&
+                currentDate.getTime() >= bufferStartDate.getTime() &&
+                currentDate.getTime() < firstAllowedDate.getTime();
+
+              // Mark dates that were generated automatically.
+              if (isAutoDeadline) {
                 return (
                   <span
                     key={date}
+                    className="auto-deadline"
                     data-testid={`deadline-${date}`}
                     data-deadline-type="auto"
-                    className="auto-deadline"
+                  >
+                    {day}
+                  </span>
+                );
+              }
+
+              // Mark dates that cannot be used because of the buffer.
+              if (isBufferDate) {
+                return (
+                  <span
+                    key={date}
+                    className="buffer-date"
+                    data-testid={`calendar-date-${date}`}
+                    data-date-status="buffer"
                   >
                     {day}
                   </span>
