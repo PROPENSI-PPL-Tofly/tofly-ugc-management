@@ -1,4 +1,5 @@
 import {
+  getBufferWindow,
   generateDeadlineSchedule,
   getDeadlinePreview,
   type DeadlineScheduleInput,
@@ -12,6 +13,19 @@ const defaultInput: Readonly<DeadlineScheduleInput> = {
   intervalDays: 7,
   quota: 1,
 };
+
+describe('getBufferWindow', () => {
+  it.each([
+    ['2026-09-01', '2026-09-20', '2026-09-25'],
+    ['2026-09-20', '2026-09-20', '2026-09-25'],
+    ['2026-09-30', '2026-09-30', '2026-10-05'],
+  ])('calculates the buffer for contract start %s', (contractStart, start, end) => {
+    const window = getBufferWindow({ ...defaultInput, contractStart });
+
+    expect(window.bufferStartDate).toEqual(new Date(`${start}T00:00:00Z`));
+    expect(window.firstAllowedDate).toEqual(new Date(`${end}T00:00:00Z`));
+  });
+});
 
 describe('generateDeadlineSchedule', () => { 
   it('places the first deadline five days after the contract starts when start equals today', () => { // Test case for when the contract start date is the same as today
