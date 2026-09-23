@@ -1,8 +1,18 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import {
+  Inject,
+  Injectable,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { NewCreator, OnboardedCreator } from './dto/new-creator.dto.js';
-import { evergreenName, splitName } from './evergreen.js';
+import {
+  checkSchedule,
+  evergreenName,
+  jakartaDay,
+  splitName,
+  type ScheduleErrors,
+} from './evergreen.js';
 
 const ONBOARDED_SELECT = {
   id: true,
@@ -31,6 +41,26 @@ function toDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+type FieldErrors = ScheduleErrors & { email?: string };
+
+/** One body shape for every rejected field, so the form shows each message under its input. */
+function invalid(errors: FieldErrors): UnprocessableEntityException {
+  return new UnprocessableEntityException({
+    code: 'VALIDATION_FAILED',
+    message: 'Data creator tidak valid',
+    errors,
+  });
+}
+
+// users.email is the only unique column this write can collide on: the creator, contract and
+// social account rows are all new, so their unique keys cannot already exist.
+function isEmailTaken(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}
+
 /** The slice of the database client onboarding touches; tests hand in a stub of just that. */
 export type OnboardingClient = Pick<PrismaService, 'creators'>;
 
@@ -54,40 +84,55 @@ export class CreatorOnboardingService implements CreatorOnboarder {
     input: NewCreator,
     now = new Date(),
   ): Promise<OnboardedCreator> {
+    const errors = checkSchedule(input, jakartaDay(now));
+    if (Object.keys(errors).length > 0) {
+      throw invalid(errors);
+    }
+
     const name = input.name.trim();
     const deadlines = [...input.deadlines].sort((a, b) => a.localeCompare(b));
 
-    const row = await this.prisma.creators.create({
-      data: {
-        ...splitName(name),
-        users: { create: { email: input.email.trim() } },
-        social_accounts: {
-          create: {
-            platform: input.socialPlatform,
-            username: input.socialUsername,
+    // No lookup before the insert: the citext unique index on users.email is the check, so
+    // two admins saving the same address at once cannot both succeed.
+    let row: OnboardedRow;
+    try {
+      row = await this.prisma.creators.create({
+        data: {
+          ...splitName(name),
+          users: { create: { email: input.email.trim() } },
+          social_accounts: {
+            create: {
+              platform: input.socialPlatform,
+              username: input.socialUsername,
+            },
           },
-        },
-        contracts: {
-          create: {
-            start_date: toDate(input.contractStart),
-            end_date: toDate(input.contractEnd),
-            days_between: input.interval,
-            content_quota: input.quota,
-            fixed_rate: input.fixedRate,
-            contents: {
-              create: deadlines.map((day) => ({
-                name: evergreenName(name, day),
-                type: 'evergreen' as const,
-                brief: '',
-                deadline: toDate(day),
-                status: 'scheduled' as const,
-              })),
+          contracts: {
+            create: {
+              start_date: toDate(input.contractStart),
+              end_date: toDate(input.contractEnd),
+              days_between: input.interval,
+              content_quota: input.quota,
+              fixed_rate: input.fixedRate,
+              contents: {
+                create: deadlines.map((day) => ({
+                  name: evergreenName(name, day),
+                  type: 'evergreen' as const,
+                  brief: '',
+                  deadline: toDate(day),
+                  status: 'scheduled' as const,
+                })),
+              },
             },
           },
         },
-      },
-      select: ONBOARDED_SELECT,
-    });
+        select: ONBOARDED_SELECT,
+      });
+    } catch (error) {
+      if (isEmailTaken(error)) {
+        throw invalid({ email: 'Email sudah terdaftar' });
+      }
+      throw error;
+    }
 
     return this.toOnboarded(row);
   }
