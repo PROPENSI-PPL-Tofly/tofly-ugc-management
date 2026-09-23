@@ -40,4 +40,12 @@ describe("validateCreatorForm", () => {
 
     expect(errors.contractStart).toBe("Tanggal mulai tidak boleh sebelum hari ini");
   });
+
+  // `interval` does not exist on CreatorFormInput yet — GREEN adds it. Boundary at 0 mirrors
+  // the database's `days_between > 0` check constraint (supabase/migrations/..._creator_database.sql).
+  it("rejects an interval of zero days", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, interval: 0 } as never);
+
+    expect(errors.interval).toBe("Jarak antar-deadline minimal 1 hari");
+  });
 });
