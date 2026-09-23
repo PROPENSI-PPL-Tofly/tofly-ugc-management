@@ -494,4 +494,50 @@ describe('checkNewCreator', () => {
       expect(errorsFor(body(overrides))).not.toHaveProperty('deadlines');
     });
   });
+
+  describe('body shape', () => {
+    it.each([
+      ['null', null],
+      ['a list', []],
+      ['a string', 'salsa@example.com'],
+      ['nothing', undefined],
+    ])(
+      'answers a %s body with a 422 listing every required field',
+      (_case, input) => {
+        expect(Object.keys(errorsFor(input)).sort()).toEqual([
+          'contractEnd',
+          'contractStart',
+          'deadlines',
+          'email',
+          'fixedRate',
+          'interval',
+          'name',
+          'quota',
+          'socialPlatform',
+          'socialUsername',
+        ]);
+      },
+    );
+
+    it('reports every invalid field at once, not just the first', () => {
+      expect(errorsFor(body({ name: '', email: 'salsa', quota: 0 }))).toEqual({
+        name: 'Nama wajib diisi',
+        email: 'Format email tidak valid',
+        quota: 'Jumlah konten harus lebih dari 0',
+      });
+    });
+
+    // Mass assignment: whatever else a client sends must not reach the insert, above all
+    // users.is_admin, which would turn a creator's login into an admin one.
+    it('drops fields it does not know, such as is_admin', () => {
+      const creator = checkNewCreator(
+        body({ is_admin: true, isAdmin: true, user_id: 'someone-else' }),
+        TODAY,
+      );
+
+      expect(creator).not.toHaveProperty('is_admin');
+      expect(creator).not.toHaveProperty('isAdmin');
+      expect(creator).not.toHaveProperty('user_id');
+    });
+  });
 });
