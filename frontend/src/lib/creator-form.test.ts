@@ -25,6 +25,15 @@ describe("validateCreatorForm", () => {
     expect(errors.email).toBe("Format email tidak valid");
   });
 
+  // PR review: an unescaped `.` in EMAIL_FORMAT would match any single character, so a domain
+  // with no literal dot at all (just a long-enough run of characters) could slip through as
+  // "valid" — the regex engine backtracks to treat any one character as the stand-in dot.
+  it("rejects a domain with no literal dot", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, email: "bagas@examplecom" });
+
+    expect(errors.email).toBe("Format email tidak valid");
+  });
+
   it("rejects a contract start after the contract end", () => {
     // Pinned well before both dates: this test isolates the range rule from the
     // "not before today" rule, so it stays deterministic regardless of the real clock.
