@@ -71,6 +71,14 @@ describe("AddCreatorModal", () => {
     expect(fixedRateInput).toHaveAttribute("placeholder", "mis. 500000");
   });
 
+  it("starts the content quota field empty with a placeholder", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+    const quotaInput = screen.getByLabelText(/jumlah konten/i);
+    expect(quotaInput).toHaveValue(null);
+    expect(quotaInput).toHaveAttribute("placeholder", "mis. 6");
+  });
+
   // `loading` is not a prop of AddCreatorModal yet — GREEN adds it and disables Simpan while true.
   it("disables the submit button while loading", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} loading />);
@@ -168,6 +176,15 @@ describe("AddCreatorModal", () => {
 
       fillValidForm();
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "0" } });
+
+      expect(simpanButton()).toBeDisabled();
+    });
+
+    it("stays disabled when the content quota is zero", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "0" } });
 
       expect(simpanButton()).toBeDisabled();
     });

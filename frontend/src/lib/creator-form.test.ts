@@ -52,14 +52,19 @@ describe("validateCreatorForm", () => {
     expect(errors.interval).toBe("Jarak antar-deadline minimal 1 hari");
   });
 
-  // Mirrors the database's `content_quota >= 0` check constraint exactly: 0 is valid,
-  // negative is not. Whether a new creator should be allowed a quota of exactly 0 is a
-  // product decision the PRD does not settle — left open rather than inventing a
-  // stricter (>= 1) rule here.
+  // Stricter than the database's `content_quota >= 0` check constraint: the earlier "is 0
+  // allowed?" question is now settled — a new creator with a 0-content commitment makes no
+  // sense from a manual UI review, same reasoning as fixed rate below.
+  it("rejects a quota of zero", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, quota: 0 });
+
+    expect(errors.quota).toBe("Jumlah konten harus lebih dari 0");
+  });
+
   it("rejects a negative quota", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, quota: -1 });
 
-    expect(errors.quota).toBe("Jumlah konten tidak boleh negatif");
+    expect(errors.quota).toBe("Jumlah konten harus lebih dari 0");
   });
 
   // Stricter than the database's `fixed_rate >= 0` check constraint: a new creator's rate
