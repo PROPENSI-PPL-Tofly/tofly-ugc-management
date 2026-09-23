@@ -73,7 +73,7 @@ export default async function CreatorsPage({
         <PanelHead
           title={filtered ? "Hasil pencarian" : "Semua creator"}
           hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
-          action={<AddCreatorTrigger />}
+          action={<AddCreatorTrigger existingEmails={result ? result.items.map((c) => c.email) : []} />}
         />
         <CreatorFilters />
         {result ? (

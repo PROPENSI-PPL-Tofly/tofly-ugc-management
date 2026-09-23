@@ -11,7 +11,12 @@ import { AddCreatorModal } from "./add-creator-modal";
  * onSubmit is a no-op for now — there is no POST /creators endpoint yet, and wiring it up
  * is a separate, later piece of work.
  */
-export function AddCreatorTrigger() {
+export function AddCreatorTrigger({
+  existingEmails = [],
+}: {
+  /** Passed straight through to AddCreatorModal — see its own prop for what this covers. */
+  existingEmails?: string[];
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -20,7 +25,13 @@ export function AddCreatorTrigger() {
         + Tambah Creator
       </Button>
 
-      {open ? <AddCreatorModal onClose={() => setOpen(false)} onSubmit={() => {}} /> : null}
+      {open ? (
+        <AddCreatorModal
+          onClose={() => setOpen(false)}
+          onSubmit={() => {}}
+          existingEmails={existingEmails}
+        />
+      ) : null}
     </>
   );
 }
