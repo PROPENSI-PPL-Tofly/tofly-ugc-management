@@ -66,18 +66,25 @@ export function AddCreatorModal({
   existingEmails?: string[];
 }) {
   const [form, setForm] = useState<CreatorFormInput>(INITIAL_FORM);
-  const [errors, setErrors] = useState<CreatorFormErrors>({});
+  // Which fields the admin has already blurred at least once. Simpan's disabled state tracks
+  // liveErrors directly regardless of this, but a field only *shows* its error once touched —
+  // otherwise every field would flash red the instant the modal opens.
+  const [touched, setTouched] = useState<Partial<Record<keyof CreatorFormInput, boolean>>>({});
 
-  // Recomputed on every render, separate from the `errors` state above: `errors` only
-  // updates on a submit attempt (so the form stays quiet while the admin is still typing),
-  // but Simpan's disabled state has to track validity live, field by field. handleSubmit
-  // below reuses this same result instead of calling validateCreatorForm a second time.
+  // Recomputed on every render — the single source of truth for both Simpan's disabled state
+  // and the per-field error messages below, so there is only one place validation ever runs.
   const liveErrors = validateCreatorForm(form, undefined, existingEmails);
   const isFormValid = Object.keys(liveErrors).length === 0;
 
-  function handleSubmit() {
-    setErrors(liveErrors);
+  function markTouched(field: keyof CreatorFormInput) {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  }
 
+  function fieldError(field: keyof CreatorFormErrors): string | undefined {
+    return touched[field] ? liveErrors[field] : undefined;
+  }
+
+  function handleSubmit() {
     if (isFormValid) {
       onSubmit(form);
     }
@@ -102,31 +109,34 @@ export function AddCreatorModal({
       {/* Two columns on desktop, one on mobile — same responsive grid pattern already used
           for CreatorDetailModal's info grid, so both modals share one layout vocabulary. */}
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Nama Creator" error={errors.name}>
+        <Field label="Nama Creator" error={fieldError("name")}>
           <input
             type="text"
             className={FIELD}
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
+            onBlur={() => markTouched("name")}
           />
         </Field>
 
-        <Field label="Email" error={errors.email}>
+        <Field label="Email" error={fieldError("email")}>
           <input
             type="email"
             className={FIELD}
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.target.value })}
+            onBlur={() => markTouched("email")}
           />
         </Field>
 
-        <Field label="Platform" error={errors.socialPlatform}>
+        <Field label="Platform" error={fieldError("socialPlatform")}>
           <select
             className={FIELD}
             value={form.socialPlatform}
             onChange={(event) =>
               setForm({ ...form, socialPlatform: event.target.value as SocialPlatform | "" })
             }
+            onBlur={() => markTouched("socialPlatform")}
           >
             <option value="">Pilih platform</option>
             <option value="instagram">Instagram</option>
@@ -134,22 +144,24 @@ export function AddCreatorModal({
           </select>
         </Field>
 
-        <Field label="Username Social Media" error={errors.socialUsername}>
+        <Field label="Username Social Media" error={fieldError("socialUsername")}>
           <input
             type="text"
             className={FIELD}
             placeholder="mis. salsa.amelia"
             value={form.socialUsername}
             onChange={(event) => setForm({ ...form, socialUsername: event.target.value })}
+            onBlur={() => markTouched("socialUsername")}
           />
         </Field>
 
-        <Field label="Mulai Kontrak" error={errors.contractStart}>
+        <Field label="Mulai Kontrak" error={fieldError("contractStart")}>
           <input
             type="date"
             className={FIELD}
             value={form.contractStart}
             onChange={(event) => setForm({ ...form, contractStart: event.target.value })}
+            onBlur={() => markTouched("contractStart")}
           />
         </Field>
 
@@ -162,32 +174,35 @@ export function AddCreatorModal({
           />
         </Field>
 
-        <Field label="Jarak antar-deadline (hari)" error={errors.interval}>
+        <Field label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
           <input
             type="number"
             className={FIELD}
             value={form.interval}
             onChange={(event) => setForm({ ...form, interval: Number(event.target.value) })}
+            onBlur={() => markTouched("interval")}
           />
         </Field>
 
-        <Field label="Fixed rate per konten (Rp)" error={errors.fixedRate}>
+        <Field label="Fixed rate per konten (Rp)" error={fieldError("fixedRate")}>
           <input
             type="number"
             className={FIELD}
             placeholder="mis. 500000"
             value={emptyIfZero(form.fixedRate)}
             onChange={(event) => setForm({ ...form, fixedRate: Number(event.target.value) })}
+            onBlur={() => markTouched("fixedRate")}
           />
         </Field>
 
-        <Field label="Jumlah konten yang disepakati" error={errors.quota}>
+        <Field label="Jumlah konten yang disepakati" error={fieldError("quota")}>
           <input
             type="number"
             className={FIELD}
             placeholder="mis. 6"
             value={emptyIfZero(form.quota)}
             onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })}
+            onBlur={() => markTouched("quota")}
           />
         </Field>
       </div>
