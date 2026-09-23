@@ -9,6 +9,8 @@ describe("validateCreatorForm", () => {
     interval: 14,
     quota: 6,
     fixedRate: 500000,
+    socialPlatform: "instagram" as const,
+    socialUsername: "salsa.amelia",
   };
 
   it("requires a name", () => {
@@ -80,6 +82,21 @@ describe("validateCreatorForm", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: -1 });
 
     expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
+  });
+
+  // A new creator needs at least one connected account before Tofly can pull performance
+  // data — only the platform is enum-constrained by the database (instagram | tiktok); the
+  // username itself is free text, same as the DB's `social_accounts.username` column.
+  it("requires a social platform", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, socialPlatform: "" });
+
+    expect(errors.socialPlatform).toBe("Platform wajib dipilih");
+  });
+
+  it("requires a social username", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, socialUsername: "" });
+
+    expect(errors.socialUsername).toBe("Username wajib diisi");
   });
 
   // `existingEmails` is not a parameter of validateCreatorForm yet — GREEN adds it. This is

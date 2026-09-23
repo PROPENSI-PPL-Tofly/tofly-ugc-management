@@ -13,6 +13,10 @@ describe("AddCreatorModal", () => {
     expect(screen.getByLabelText(/jarak antar-deadline/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/fixed rate/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/jumlah konten/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^platform$/i)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "TikTok" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
   });
 
   // Simpan is disabled while the form is empty (see "Simpan disabled state" below), so a
@@ -45,6 +49,8 @@ describe("AddCreatorModal", () => {
     fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
     fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
     fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
+    fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "instagram" } });
+    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
 
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
 
@@ -57,6 +63,8 @@ describe("AddCreatorModal", () => {
       interval: 14,
       quota: 6,
       fixedRate: 500000,
+      socialPlatform: "instagram",
+      socialUsername: "salsa.amelia",
     });
   });
 
@@ -109,6 +117,8 @@ describe("AddCreatorModal", () => {
       fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
       fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
+      fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "instagram" } });
+      fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
     }
 
     function simpanButton() {
@@ -185,6 +195,24 @@ describe("AddCreatorModal", () => {
 
       fillValidForm();
       fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "0" } });
+
+      expect(simpanButton()).toBeDisabled();
+    });
+
+    it("stays disabled when no social platform is selected", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "" } });
+
+      expect(simpanButton()).toBeDisabled();
+    });
+
+    it("stays disabled when the social username is empty", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "" } });
 
       expect(simpanButton()).toBeDisabled();
     });
