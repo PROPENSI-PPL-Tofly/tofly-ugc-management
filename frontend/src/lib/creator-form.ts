@@ -9,7 +9,12 @@ export interface CreatorFormErrors {
   name?: string;
 }
 
-// Not implemented yet — rules arrive one at a time, starting with the required name.
-export function validateCreatorForm(_input: CreatorFormInput): CreatorFormErrors {
-  return {};
+export function validateCreatorForm(input: CreatorFormInput): CreatorFormErrors {
+  const errors: CreatorFormErrors = {};
+
+  if (input.name === "") {
+    errors.name = "Nama wajib diisi";
+  }
+
+  return errors;
 }
