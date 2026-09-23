@@ -388,4 +388,33 @@ describe("AddCreatorModal", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Creator gagal disimpan. Coba lagi.");
     });
   });
+
+  it("shows each field's error once it is blurred while still invalid", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+    fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "0" } });
+
+    for (const label of [
+      /^email$/i,
+      /^platform$/i,
+      /username/i,
+      /mulai kontrak/i,
+      /jarak antar-deadline/i,
+      /fixed rate/i,
+      /jumlah konten/i,
+    ]) {
+      fireEvent.blur(screen.getByLabelText(label));
+    }
+
+    for (const message of [
+      "Format email tidak valid",
+      "Platform wajib dipilih",
+      "Username wajib diisi",
+      "Tanggal mulai tidak boleh sebelum hari ini",
+      "Jarak antar-deadline minimal 1 hari",
+      "Fixed rate harus lebih dari 0",
+      "Jumlah konten harus lebih dari 0",
+    ]) {
+      expect(screen.getByText(message)).toBeInTheDocument();
+    }
+  });
 });

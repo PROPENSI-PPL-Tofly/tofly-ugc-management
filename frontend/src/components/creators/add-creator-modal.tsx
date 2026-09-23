@@ -123,10 +123,11 @@ export function AddCreatorModal({
 
   const scheduleError = liveErrors.deadlines ?? serverErrors.deadlines;
 
+  // Simpan is disabled until the form is valid, and a valid form always has a schedule.
+  const deadlines = schedule?.autoDeadlines ?? [];
+
   function handleSubmit() {
-    if (isFormValid && schedule !== null) {
-      onSubmit({ ...form, deadlines: schedule.autoDeadlines });
-    }
+    onSubmit({ ...form, deadlines });
   }
 
   return (
