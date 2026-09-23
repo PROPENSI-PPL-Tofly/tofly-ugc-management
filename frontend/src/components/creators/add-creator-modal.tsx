@@ -99,94 +99,98 @@ export function AddCreatorModal({
         </>
       }
     >
-      <Field label="Nama Creator" error={errors.name}>
-        <input
-          type="text"
-          className={FIELD}
-          value={form.name}
-          onChange={(event) => setForm({ ...form, name: event.target.value })}
-        />
-      </Field>
+      {/* Two columns on desktop, one on mobile — same responsive grid pattern already used
+          for CreatorDetailModal's info grid, so both modals share one layout vocabulary. */}
+      <div className="grid gap-3.5 sm:grid-cols-2">
+        <Field label="Nama Creator" error={errors.name}>
+          <input
+            type="text"
+            className={FIELD}
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+          />
+        </Field>
 
-      <Field label="Email" error={errors.email}>
-        <input
-          type="email"
-          className={FIELD}
-          value={form.email}
-          onChange={(event) => setForm({ ...form, email: event.target.value })}
-        />
-      </Field>
+        <Field label="Email" error={errors.email}>
+          <input
+            type="email"
+            className={FIELD}
+            value={form.email}
+            onChange={(event) => setForm({ ...form, email: event.target.value })}
+          />
+        </Field>
 
-      <Field label="Mulai Kontrak" error={errors.contractStart}>
-        <input
-          type="date"
-          className={FIELD}
-          value={form.contractStart}
-          onChange={(event) => setForm({ ...form, contractStart: event.target.value })}
-        />
-      </Field>
+        <Field label="Platform" error={errors.socialPlatform}>
+          <select
+            className={FIELD}
+            value={form.socialPlatform}
+            onChange={(event) =>
+              setForm({ ...form, socialPlatform: event.target.value as SocialPlatform | "" })
+            }
+          >
+            <option value="">Pilih platform</option>
+            <option value="instagram">Instagram</option>
+            <option value="tiktok">TikTok</option>
+          </select>
+        </Field>
 
-      <Field label="Akhir Kontrak">
-        <input
-          type="date"
-          className={FIELD}
-          value={form.contractEnd}
-          onChange={(event) => setForm({ ...form, contractEnd: event.target.value })}
-        />
-      </Field>
+        <Field label="Username Social Media" error={errors.socialUsername}>
+          <input
+            type="text"
+            className={FIELD}
+            placeholder="mis. salsa.amelia"
+            value={form.socialUsername}
+            onChange={(event) => setForm({ ...form, socialUsername: event.target.value })}
+          />
+        </Field>
 
-      <Field label="Jarak antar-deadline (hari)" error={errors.interval}>
-        <input
-          type="number"
-          className={FIELD}
-          value={form.interval}
-          onChange={(event) => setForm({ ...form, interval: Number(event.target.value) })}
-        />
-      </Field>
+        <Field label="Mulai Kontrak" error={errors.contractStart}>
+          <input
+            type="date"
+            className={FIELD}
+            value={form.contractStart}
+            onChange={(event) => setForm({ ...form, contractStart: event.target.value })}
+          />
+        </Field>
 
-      <Field label="Fixed rate per konten (Rp)" error={errors.fixedRate}>
-        <input
-          type="number"
-          className={FIELD}
-          placeholder="mis. 500000"
-          value={emptyIfZero(form.fixedRate)}
-          onChange={(event) => setForm({ ...form, fixedRate: Number(event.target.value) })}
-        />
-      </Field>
+        <Field label="Akhir Kontrak">
+          <input
+            type="date"
+            className={FIELD}
+            value={form.contractEnd}
+            onChange={(event) => setForm({ ...form, contractEnd: event.target.value })}
+          />
+        </Field>
 
-      <Field label="Jumlah konten yang disepakati" error={errors.quota}>
-        <input
-          type="number"
-          className={FIELD}
-          placeholder="mis. 6"
-          value={emptyIfZero(form.quota)}
-          onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })}
-        />
-      </Field>
+        <Field label="Jarak antar-deadline (hari)" error={errors.interval}>
+          <input
+            type="number"
+            className={FIELD}
+            value={form.interval}
+            onChange={(event) => setForm({ ...form, interval: Number(event.target.value) })}
+          />
+        </Field>
 
-      <Field label="Platform" error={errors.socialPlatform}>
-        <select
-          className={FIELD}
-          value={form.socialPlatform}
-          onChange={(event) =>
-            setForm({ ...form, socialPlatform: event.target.value as SocialPlatform | "" })
-          }
-        >
-          <option value="">Pilih platform</option>
-          <option value="instagram">Instagram</option>
-          <option value="tiktok">TikTok</option>
-        </select>
-      </Field>
+        <Field label="Fixed rate per konten (Rp)" error={errors.fixedRate}>
+          <input
+            type="number"
+            className={FIELD}
+            placeholder="mis. 500000"
+            value={emptyIfZero(form.fixedRate)}
+            onChange={(event) => setForm({ ...form, fixedRate: Number(event.target.value) })}
+          />
+        </Field>
 
-      <Field label="Username Social Media" error={errors.socialUsername}>
-        <input
-          type="text"
-          className={FIELD}
-          placeholder="mis. salsa.amelia"
-          value={form.socialUsername}
-          onChange={(event) => setForm({ ...form, socialUsername: event.target.value })}
-        />
-      </Field>
+        <Field label="Jumlah konten yang disepakati" error={errors.quota}>
+          <input
+            type="number"
+            className={FIELD}
+            placeholder="mis. 6"
+            value={emptyIfZero(form.quota)}
+            onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })}
+          />
+        </Field>
+      </div>
     </Modal>
   );
 }
