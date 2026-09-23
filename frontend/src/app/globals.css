@@ -112,3 +112,20 @@ h3 {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Automatically generated deadline dates */
+.auto-deadline {
+  background-color: #6c4dff;
+  color: white;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+/* Dates that are still inside the minimum buffer window */
+.buffer-date {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
