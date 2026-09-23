@@ -385,4 +385,113 @@ describe('checkNewCreator', () => {
       });
     });
   });
+
+  // PRD 3.4 (Simpan only once exactly the quota is allocated) and 3.6 (every new deadline on
+  // or after max(today, contract start) + buffer). The body's contract starts 2026-10-01, so
+  // with the default 5-day buffer the earliest slot is 2026-10-06; it ends 2026-12-31.
+  describe('deadlines', () => {
+    const three = (...dates: string[]) => ({ quota: 3, deadlines: dates });
+
+    it.each([
+      ['missing', undefined],
+      ['not a list', '2026-10-06'],
+    ])('are required (%s)', (_case, deadlines) => {
+      expect(errorsFor(body({ deadlines }))).toEqual({
+        deadlines: 'Jadwal deadline wajib diisi',
+      });
+    });
+
+    it.each([
+      ['fewer than the quota', ['2026-10-06', '2026-10-13']],
+      [
+        'more than the quota',
+        ['2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27'],
+      ],
+    ])('must match the quota exactly (%s)', (_case, deadlines) => {
+      expect(errorsFor(body({ quota: 3, deadlines }))).toEqual({
+        deadlines: 'Jumlah deadline harus sama dengan jumlah konten (3)',
+      });
+    });
+
+    it('rejects a deadline that is not a calendar day', () => {
+      expect(
+        errorsFor(body(three('2026-10-06', '2026-02-30', '2026-10-20'))),
+      ).toEqual({ deadlines: 'Deadline tidak valid' });
+    });
+
+    it('accepts the first day after the buffer and rejects the day before it', () => {
+      expect(() =>
+        checkNewCreator(
+          body(three('2026-10-06', '2026-10-13', '2026-10-20')),
+          TODAY,
+        ),
+      ).not.toThrow();
+      expect(
+        errorsFor(body(three('2026-10-05', '2026-10-13', '2026-10-20'))),
+      ).toEqual({ deadlines: 'Deadline paling cepat 2026-10-06' });
+    });
+
+    it('measures the buffer from today when the contract starts today', () => {
+      const startsToday = { contractStart: '2026-09-23' };
+
+      expect(() =>
+        checkNewCreator(
+          body({
+            ...startsToday,
+            ...three('2026-09-28', '2026-10-05', '2026-10-12'),
+          }),
+          TODAY,
+        ),
+      ).not.toThrow();
+      expect(
+        errorsFor(
+          body({
+            ...startsToday,
+            ...three('2026-09-27', '2026-10-05', '2026-10-12'),
+          }),
+        ),
+      ).toEqual({ deadlines: 'Deadline paling cepat 2026-09-28' });
+    });
+
+    it('accepts the contract end date and rejects the day after it', () => {
+      expect(() =>
+        checkNewCreator(
+          body(three('2026-10-06', '2026-10-13', '2026-12-31')),
+          TODAY,
+        ),
+      ).not.toThrow();
+      expect(
+        errorsFor(body(three('2026-10-06', '2026-10-13', '2027-01-01'))),
+      ).toEqual({ deadlines: 'Deadline tidak boleh setelah akhir kontrak' });
+    });
+
+    it('allows more than one slot on the same day, as the PRD does', () => {
+      expect(
+        checkNewCreator(
+          body(three('2026-10-06', '2026-10-06', '2026-10-13')),
+          TODAY,
+        ).deadlines,
+      ).toEqual([day('2026-10-06'), day('2026-10-06'), day('2026-10-13')]);
+    });
+
+    // Evergreen titles are numbered in deadline order, so the service needs them sorted.
+    it('returns the deadlines in date order', () => {
+      expect(
+        checkNewCreator(
+          body(three('2026-10-20', '2026-10-06', '2026-10-13')),
+          TODAY,
+        ).deadlines,
+      ).toEqual([day('2026-10-06'), day('2026-10-13'), day('2026-10-20')]);
+    });
+
+    // With no usable contract period or quota there is nothing to check the slots against;
+    // the admin fixes that field first rather than reading a second, derived error.
+    it.each([
+      ['the quota is invalid', { quota: 0 }],
+      ['the start date is invalid', { contractStart: 'soon' }],
+      ['the end date is invalid', { contractEnd: '' }],
+    ])('are not judged when %s', (_case, overrides) => {
+      expect(errorsFor(body(overrides))).not.toHaveProperty('deadlines');
+    });
+  });
 });
