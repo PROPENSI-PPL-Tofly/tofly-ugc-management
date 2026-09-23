@@ -30,6 +30,7 @@ function calendarDay(today: Date): string {
 export function validateCreatorForm(
   input: CreatorFormInput,
   today: Date = new Date(),
+  existingEmails: string[] = [],
 ): CreatorFormErrors {
   const errors: CreatorFormErrors = {};
 
@@ -39,6 +40,8 @@ export function validateCreatorForm(
 
   if (!EMAIL_FORMAT.test(input.email)) {
     errors.email = "Format email tidak valid";
+  } else if (existingEmails.includes(input.email)) {
+    errors.email = "Email sudah terdaftar";
   }
 
   if (input.contractStart > input.contractEnd) {
