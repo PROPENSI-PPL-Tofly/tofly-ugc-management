@@ -275,13 +275,12 @@ describe('checkNewCreator', () => {
     it.each([
       ['contractStart', 'Tanggal mulai wajib diisi'],
       ['contractEnd', 'Tanggal berakhir wajib diisi'],
-    ])('requires %s', (field, message) => {
-      expect(errorsFor(body({ [field]: undefined }))).toMatchObject({
+    ])('requires %s, and reports nothing else', (field, message) => {
+      // Exact match: a missing end must not also read as "start after end".
+      expect(errorsFor(body({ [field]: undefined }))).toEqual({
         [field]: message,
       });
-      expect(errorsFor(body({ [field]: '' }))).toMatchObject({
-        [field]: message,
-      });
+      expect(errorsFor(body({ [field]: '' }))).toEqual({ [field]: message });
     });
 
     it.each([
@@ -289,6 +288,9 @@ describe('checkNewCreator', () => {
       ['a month that does not exist', '2026-13-01'],
       ['a day the month does not have', '2026-02-30'],
       ['a timestamp instead of a day', '2026-10-01T00:00:00Z'],
+      // Date parses both of these as 1 January / 1 October; only a full day is a day.
+      ['a year only', '2026'],
+      ['a year and month only', '2026-10'],
       ['a number', 20261001],
     ])('rejects %s', (_case, value) => {
       expect(errorsFor(body({ contractStart: value }))).toMatchObject({
@@ -326,7 +328,10 @@ describe('checkNewCreator', () => {
         ['null', null],
         ['a numeric string', '7'],
         ['a boolean', true],
-      ])('is required as a JSON number (%s)', (_case, value) => {
+        // JSON cannot carry these, but the checker should not rely on its caller being JSON.
+        ['NaN', Number.NaN],
+        ['Infinity', Number.POSITIVE_INFINITY],
+      ])('is required as a finite number (%s)', (_case, value) => {
         expect(errorsFor(body({ [field]: value }))).toMatchObject({
           [field]: required,
         });
@@ -518,6 +523,18 @@ describe('checkNewCreator', () => {
         ]);
       },
     );
+
+    it('rejects with a 422 carrying a summary message and the field errors', () => {
+      expect(() => checkNewCreator(body({ name: '' }), TODAY)).toThrow(
+        expect.objectContaining({
+          status: 422,
+          response: {
+            message: 'Data creator tidak valid',
+            errors: { name: 'Nama wajib diisi' },
+          },
+        }),
+      );
+    });
 
     it('reports every invalid field at once, not just the first', () => {
       expect(errorsFor(body({ name: '', email: 'salsa', quota: 0 }))).toEqual({
