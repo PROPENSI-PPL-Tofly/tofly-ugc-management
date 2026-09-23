@@ -44,9 +44,11 @@ const INITIAL_FORM: CreatorFormInput = {
 export function AddCreatorModal({
   onClose,
   onSubmit,
+  loading = false,
 }: {
   onClose: () => void;
   onSubmit: (input: CreatorFormInput) => void;
+  loading?: boolean;
 }) {
   const [form, setForm] = useState<CreatorFormInput>(INITIAL_FORM);
   const [errors, setErrors] = useState<CreatorFormErrors>({});
@@ -70,7 +72,7 @@ export function AddCreatorModal({
             Batal
           </Button>
 
-          <Button variant="accent" onClick={handleSubmit}>
+          <Button variant="accent" onClick={handleSubmit} disabled={loading}>
             Simpan
           </Button>
         </>
