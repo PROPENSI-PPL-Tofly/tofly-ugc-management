@@ -299,4 +299,90 @@ describe('checkNewCreator', () => {
       });
     });
   });
+
+  describe('numbers', () => {
+    // Each numeric field with the messages the modal already uses for its own checks.
+    const fields = [
+      {
+        field: 'interval',
+        required: 'Jarak antar-deadline wajib diisi',
+        tooSmall: 'Jarak antar-deadline minimal 1 hari',
+      },
+      {
+        field: 'quota',
+        required: 'Jumlah konten wajib diisi',
+        tooSmall: 'Jumlah konten harus lebih dari 0',
+      },
+      {
+        field: 'fixedRate',
+        required: 'Fixed rate wajib diisi',
+        tooSmall: 'Fixed rate harus lebih dari 0',
+      },
+    ];
+
+    describe.each(fields)('$field', ({ field, required, tooSmall }) => {
+      it.each([
+        ['missing', undefined],
+        ['null', null],
+        ['a numeric string', '7'],
+        ['a boolean', true],
+      ])('is required as a JSON number (%s)', (_case, value) => {
+        expect(errorsFor(body({ [field]: value }))).toMatchObject({
+          [field]: required,
+        });
+      });
+
+      it.each([
+        ['zero', 0],
+        ['negative', -1],
+      ])('rejects %s', (_case, value) => {
+        expect(errorsFor(body({ [field]: value }))).toMatchObject({
+          [field]: tooSmall,
+        });
+      });
+    });
+
+    it.each(['interval', 'quota'])('%s must be a whole number', (field) => {
+      expect(errorsFor(body({ [field]: 1.5 }))).toMatchObject({
+        [field]: expect.stringContaining('bilangan bulat'),
+      });
+    });
+
+    // Postgres `integer` stops at 2^31 - 1; anything above would fail inside the insert.
+    it.each(['interval', 'quota'])(
+      '%s is capped at the largest Postgres integer',
+      (field) => {
+        expect(errorsFor(body({ [field]: 2 ** 31 }))).toMatchObject({
+          [field]: expect.stringContaining('terlalu besar'),
+        });
+      },
+    );
+
+    it('accepts an interval of 1 day, the PRD minimum', () => {
+      expect(checkNewCreator(body({ interval: 1 }), TODAY).interval).toBe(1);
+    });
+
+    it('accepts a fixed rate with cents', () => {
+      expect(
+        checkNewCreator(body({ fixedRate: 750000.5 }), TODAY).fixedRate,
+      ).toBe(750000.5);
+    });
+
+    it('rejects a fixed rate with more than two decimals', () => {
+      expect(errorsFor(body({ fixedRate: 0.001 }))).toEqual({
+        fixedRate: 'Fixed rate maksimal 2 angka desimal',
+      });
+    });
+
+    // contracts.fixed_rate is numeric(14, 2): twelve digits before the decimal point.
+    it('accepts the largest numeric(14, 2) and rejects one more', () => {
+      expect(
+        checkNewCreator(body({ fixedRate: 999_999_999_999.99 }), TODAY)
+          .fixedRate,
+      ).toBe(999_999_999_999.99);
+      expect(errorsFor(body({ fixedRate: 1_000_000_000_000 }))).toEqual({
+        fixedRate: 'Fixed rate terlalu besar',
+      });
+    });
+  });
 });
