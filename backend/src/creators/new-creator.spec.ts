@@ -104,4 +104,61 @@ describe('checkNewCreator', () => {
       });
     });
   });
+
+  // One case per rule in PRD §3.4 (Email → format check), plus the RFC 5321 length limit.
+  describe('email', () => {
+    it.each([
+      ['a plain address', 'salsa@example.com', 'salsa@example.com'],
+      [
+        'dots, plus and subdomains',
+        'salsa.amelia+ugc@mail.example.co.id',
+        'salsa.amelia+ugc@mail.example.co.id',
+      ],
+      ['surrounding spaces', '  salsa@example.com ', 'salsa@example.com'],
+    ])('accepts %s', (_case, email, saved) => {
+      expect(checkNewCreator(body({ email }), TODAY).email).toBe(saved);
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['empty', ''],
+      ['not a string', 42],
+    ])('is required (%s)', (_case, email) => {
+      expect(errorsFor(body({ email }))).toEqual({
+        email: 'Email wajib diisi',
+      });
+    });
+
+    it.each([
+      ['no "@"', 'salsa.example.com'],
+      ['two "@"', 'sal@sa@example.com'],
+      ['an empty local part', '@example.com'],
+      ['no domain', 'salsa@'],
+      ['a domain without a dot', 'salsa@gmail'],
+      ['a space inside', 'sal sa@example.com'],
+      ['a disallowed character', 'sal<sa>@example.com'],
+      ['a leading dot', '.salsa@example.com'],
+      ['a trailing dot', 'salsa@example.com.'],
+      ['a dot right before "@"', 'salsa.@example.com'],
+      ['a dot right after "@"', 'salsa@.example.com'],
+      ['two dots in the local part', 'salsa..amelia@example.com'],
+      ['two dots in the domain', 'salsa@example..com'],
+    ])('rejects %s', (_case, email) => {
+      expect(errorsFor(body({ email }))).toEqual({
+        email: 'Format email tidak valid',
+      });
+    });
+
+    it('accepts 254 characters and rejects 255', () => {
+      const at = (length: number) =>
+        `${'a'.repeat(length - '@example.com'.length)}@example.com`;
+
+      expect(checkNewCreator(body({ email: at(254) }), TODAY).email).toBe(
+        at(254),
+      );
+      expect(errorsFor(body({ email: at(255) }))).toEqual({
+        email: 'Format email tidak valid',
+      });
+    });
+  });
 });
