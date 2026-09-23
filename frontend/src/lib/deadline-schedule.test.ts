@@ -26,4 +26,20 @@ describe('generateDeadlineSchedule', () => {
 
     expect(deadlines).toEqual(['2026-09-25']);
   });
+  it('generates deadlines at the configured interval until the quota is met', () => {
+    const deadlines = generateDeadlineSchedule({
+      contractStart: '2026-09-20',
+      contractEnd: '2026-10-31',
+      today: '2026-09-20',
+      bufferDays: 5,
+      intervalDays: 7,
+      quota: 3,
+    });
+
+    expect(deadlines).toEqual([
+      '2026-09-25',
+      '2026-10-02',
+      '2026-10-09',
+    ]);
+  });
 });
