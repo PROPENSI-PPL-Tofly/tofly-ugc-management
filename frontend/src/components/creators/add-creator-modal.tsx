@@ -138,7 +138,10 @@ export function AddCreatorModal({
         <input
           type="number"
           className={FIELD}
-          value={form.fixedRate}
+          placeholder="mis. 500000"
+          // Displayed empty at 0 rather than the literal digit — 0 is never a valid rate
+          // anyway, and typing "1" into a field showing "0" used to produce "01".
+          value={form.fixedRate === 0 ? "" : form.fixedRate}
           onChange={(event) => setForm({ ...form, fixedRate: Number(event.target.value) })}
         />
       </Field>

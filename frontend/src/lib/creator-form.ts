@@ -60,8 +60,8 @@ export function validateCreatorForm(
     errors.quota = "Jumlah konten tidak boleh negatif";
   }
 
-  if (input.fixedRate < 0) {
-    errors.fixedRate = "Fixed rate tidak boleh negatif";
+  if (input.fixedRate <= 0) {
+    errors.fixedRate = "Fixed rate harus lebih dari 0";
   }
 
   return errors;
