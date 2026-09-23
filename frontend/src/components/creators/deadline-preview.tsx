@@ -21,8 +21,8 @@ export default function DeadlinePreview({
   remainingCount,
   quota,
 }: DeadlinePreviewProps) {
-  // Use the first auto deadline, or contract start if no auto deadline exists.
-  const calendarSourceDate = autoDeadlines[0] ?? contractStart;
+  // Start the calendar from the contract month, or use the first auto deadline as fallback.
+  const calendarSourceDate = contractStart ?? autoDeadlines[0];
 
   // This is the starting month of the calendar.
   const baseCalendarDate = calendarSourceDate
