@@ -16,6 +16,13 @@ export const MAX_INTEGER = 2 ** 31 - 1;
 /** contracts.fixed_rate is numeric(14, 2): twelve digits before the point, two after. */
 export const MAX_FIXED_RATE = 999_999_999_999.99;
 
+/**
+ * Minimum days between max(today, contract start) and any new deadline (PRD 3.6). The PRD
+ * makes this an admin-editable global setting; until that setting exists, its default holds.
+ */
+export const DEFAULT_BUFFER_DAYS = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // PRD 3.4's format rules as one pattern: exactly one "@", dot-separated runs of allowed
 // characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
 // the domain. Every run is anchored by a literal dot, so the pattern cannot backtrack
@@ -247,6 +254,51 @@ function checkContract(
   };
 }
 
+function isoDay(day: Date): string {
+  return day.toISOString().slice(0, 10);
+}
+
+/**
+ * The Evergreen slots the admin allocated, in date order (their Evg_ sequence numbers follow
+ * it). Checked against the contract and quota only once those are valid themselves; otherwise
+ * the slot error would just restate theirs.
+ */
+function checkDeadlines(
+  value: unknown,
+  { contractStart, contractEnd }: ContractPeriod,
+  quota: number,
+  now: Date,
+  errors: NewCreatorErrors,
+): Date[] {
+  if (!Array.isArray(value)) {
+    errors.deadlines = 'Jadwal deadline wajib diisi';
+    return [];
+  }
+
+  const days = value.map(toDay);
+  if (days.some((day) => day === null)) {
+    errors.deadlines = 'Deadline tidak valid';
+    return [];
+  }
+
+  const deadlines = (days as Date[]).sort((a, b) => a.getTime() - b.getTime());
+  if (errors.contractStart || errors.contractEnd || errors.quota) {
+    return deadlines;
+  }
+
+  const from = Math.max(startOfDay(now).getTime(), contractStart.getTime());
+  const earliest = new Date(from + DEFAULT_BUFFER_DAYS * DAY_MS);
+
+  if (deadlines.length !== quota) {
+    errors.deadlines = `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
+  } else if (deadlines[0] < earliest) {
+    errors.deadlines = `Deadline paling cepat ${isoDay(earliest)}`;
+  } else if (deadlines[deadlines.length - 1] > contractEnd) {
+    errors.deadlines = 'Deadline tidak boleh setelah akhir kontrak';
+  }
+  return deadlines;
+}
+
 /**
  * Validates the Add Creator body once, at the edge, and hands the service values it can save
  * without checking anything again.
@@ -267,6 +319,13 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
   const interval = readNumber('interval', body.interval, errors);
   const quota = readNumber('quota', body.quota, errors);
   const fixedRate = readNumber('fixedRate', body.fixedRate, errors);
+  const deadlines = checkDeadlines(
+    body.deadlines,
+    contract,
+    quota,
+    today,
+    errors,
+  );
 
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
@@ -283,8 +342,6 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
     interval,
     quota,
     fixedRate,
-    deadlines: (body.deadlines as string[]).map(
-      (value) => toDay(value) as Date,
-    ),
+    deadlines,
   };
 }
