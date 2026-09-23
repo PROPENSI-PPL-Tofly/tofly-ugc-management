@@ -162,4 +162,21 @@ describe('DeadlinePreview', () => {
 
   expect(bufferDate).toHaveClass('buffer-date');
 });
+  it('starts the calendar from the contract start month', () => { // Test case for ensuring the calendar starts from the contract start month even if the first auto deadline is in the next month
+  render(
+    <DeadlinePreview
+      contractStart="2026-09-30"
+      autoDeadlines={['2026-10-05']}
+      allocatedCount={1}
+      remainingCount={0}
+      quota={1}
+    />,
+  );
+
+  // The preview should start from the contract month,
+  // even if the first auto deadline is in the next month.
+  expect(
+    screen.getByText('September 2026'),
+  ).toBeInTheDocument();
+});
 });
