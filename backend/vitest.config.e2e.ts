@@ -7,5 +7,8 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    // Every e2e file writes to the same database, and GET /creators asserts exact totals, so
+    // one file's rows must not be visible while another runs.
+    fileParallelism: false,
   },
 });
