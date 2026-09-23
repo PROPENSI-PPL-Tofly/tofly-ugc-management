@@ -3,12 +3,20 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import DeadlinePreview from "./deadline-preview";
 import {
+  BUFFER_DAYS,
+  contractDateLimits,
+  localCalendarDay,
+  scheduleDeadlines,
   validateCreatorForm,
   type CreatorFormErrors,
   type CreatorFormInput,
   type SocialPlatform,
 } from "@/lib/creator-form";
+import type { NewCreatorRequest } from "@/lib/creators";
+
+const ALERT = "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
 
 // Same field styling as the filter bar's inputs, for a consistent form control vocabulary.
 const FIELD =
@@ -24,11 +32,14 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-[13px]">
-      <span className="font-semibold">{label}</span>
-      {children}
+    // The message sits outside the label so it never becomes part of the input's name.
+    <div className="flex flex-col gap-1 text-[13px]">
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">{label}</span>
+        {children}
+      </label>
       {error ? <span className="text-xs text-red-ink">{error}</span> : null}
-    </label>
+    </div>
   );
 }
 
@@ -38,6 +49,8 @@ function Field({
 function emptyIfZero(value: number): number | "" {
   return value === 0 ? "" : value;
 }
+
+const NO_ERRORS: CreatorFormErrors = {};
 
 const INITIAL_FORM: CreatorFormInput = {
   name: "",
@@ -56,10 +69,16 @@ export function AddCreatorModal({
   onSubmit,
   loading = false,
   existingEmails = [],
+  serverErrors = NO_ERRORS,
+  formError,
 }: {
   onClose: () => void;
-  onSubmit: (input: CreatorFormInput) => void;
+  onSubmit: (input: NewCreatorRequest) => void;
   loading?: boolean;
+  /** The server's message per field from the last rejected save. */
+  serverErrors?: CreatorFormErrors;
+  /** A save failure that belongs to no single field. */
+  formError?: string;
   /** Emails already on this page's creator list — the frontend-only half of duplicate
    *  detection; the database's unique constraint remains the authoritative check once the
    *  create endpoint ships. */
@@ -70,6 +89,18 @@ export function AddCreatorModal({
   // liveErrors directly regardless of this, but a field only *shows* its error once touched —
   // otherwise every field would flash red the instant the modal opens.
   const [touched, setTouched] = useState<Partial<Record<keyof CreatorFormInput, boolean>>>({});
+  // Fields edited since the server last answered: their server message no longer describes
+  // what is in the input. Reset whenever a new set of server messages arrives.
+  const [answered, setAnswered] = useState(serverErrors);
+  const [edited, setEdited] = useState<Partial<Record<keyof CreatorFormInput, boolean>>>({});
+  if (answered !== serverErrors) {
+    setAnswered(serverErrors);
+    setEdited({});
+  }
+
+  const today = localCalendarDay(new Date());
+  const limits = contractDateLimits(form, today);
+  const schedule = scheduleDeadlines(form, today);
 
   // Recomputed on every render — the single source of truth for both Simpan's disabled state
   // and the per-field error messages below, so there is only one place validation ever runs.
@@ -80,13 +111,21 @@ export function AddCreatorModal({
     setTouched((prev) => ({ ...prev, [field]: true }));
   }
 
-  function fieldError(field: keyof CreatorFormErrors): string | undefined {
-    return touched[field] ? liveErrors[field] : undefined;
+  function change<K extends keyof CreatorFormInput>(field: K, value: CreatorFormInput[K]) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setEdited((prev) => ({ ...prev, [field]: true }));
   }
 
+  function fieldError(field: keyof CreatorFormInput): string | undefined {
+    const live = touched[field] ? liveErrors[field] : undefined;
+    return live ?? (edited[field] ? undefined : serverErrors[field]);
+  }
+
+  const scheduleError = liveErrors.deadlines ?? serverErrors.deadlines;
+
   function handleSubmit() {
-    if (isFormValid) {
-      onSubmit(form);
+    if (isFormValid && schedule !== null) {
+      onSubmit({ ...form, deadlines: schedule.autoDeadlines });
     }
   }
 
@@ -114,7 +153,7 @@ export function AddCreatorModal({
             type="text"
             className={FIELD}
             value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            onChange={(event) => change("name", event.target.value)}
             onBlur={() => markTouched("name")}
           />
         </Field>
@@ -124,7 +163,7 @@ export function AddCreatorModal({
             type="email"
             className={FIELD}
             value={form.email}
-            onChange={(event) => setForm({ ...form, email: event.target.value })}
+            onChange={(event) => change("email", event.target.value)}
             onBlur={() => markTouched("email")}
           />
         </Field>
@@ -134,7 +173,7 @@ export function AddCreatorModal({
             className={FIELD}
             value={form.socialPlatform}
             onChange={(event) =>
-              setForm({ ...form, socialPlatform: event.target.value as SocialPlatform | "" })
+              change("socialPlatform", event.target.value as SocialPlatform | "")
             }
             onBlur={() => markTouched("socialPlatform")}
           >
@@ -150,7 +189,7 @@ export function AddCreatorModal({
             className={FIELD}
             placeholder="mis. salsa.amelia"
             value={form.socialUsername}
-            onChange={(event) => setForm({ ...form, socialUsername: event.target.value })}
+            onChange={(event) => change("socialUsername", event.target.value)}
             onBlur={() => markTouched("socialUsername")}
           />
         </Field>
@@ -159,18 +198,21 @@ export function AddCreatorModal({
           <input
             type="date"
             className={FIELD}
+            min={limits.startMin}
+            max={limits.startMax}
             value={form.contractStart}
-            onChange={(event) => setForm({ ...form, contractStart: event.target.value })}
+            onChange={(event) => change("contractStart", event.target.value)}
             onBlur={() => markTouched("contractStart")}
           />
         </Field>
 
-        <Field label="Akhir Kontrak">
+        <Field label="Akhir Kontrak" error={fieldError("contractEnd")}>
           <input
             type="date"
             className={FIELD}
+            min={limits.endMin}
             value={form.contractEnd}
-            onChange={(event) => setForm({ ...form, contractEnd: event.target.value })}
+            onChange={(event) => change("contractEnd", event.target.value)}
           />
         </Field>
 
@@ -179,7 +221,7 @@ export function AddCreatorModal({
             type="number"
             className={FIELD}
             value={form.interval}
-            onChange={(event) => setForm({ ...form, interval: Number(event.target.value) })}
+            onChange={(event) => change("interval", Number(event.target.value))}
             onBlur={() => markTouched("interval")}
           />
         </Field>
@@ -190,7 +232,7 @@ export function AddCreatorModal({
             className={FIELD}
             placeholder="mis. 500000"
             value={emptyIfZero(form.fixedRate)}
-            onChange={(event) => setForm({ ...form, fixedRate: Number(event.target.value) })}
+            onChange={(event) => change("fixedRate", Number(event.target.value))}
             onBlur={() => markTouched("fixedRate")}
           />
         </Field>
@@ -201,11 +243,34 @@ export function AddCreatorModal({
             className={FIELD}
             placeholder="mis. 6"
             value={emptyIfZero(form.quota)}
-            onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })}
+            onChange={(event) => change("quota", Number(event.target.value))}
             onBlur={() => markTouched("quota")}
           />
         </Field>
       </div>
+
+      {schedule !== null ? (
+        <div className="mt-4">
+          <DeadlinePreview
+            contractStart={form.contractStart}
+            today={today}
+            bufferDays={BUFFER_DAYS}
+            {...schedule}
+          />
+        </div>
+      ) : null}
+
+      {scheduleError ? (
+        <p role="alert" className={`mt-3 ${ALERT}`}>
+          {scheduleError}
+        </p>
+      ) : null}
+
+      {formError ? (
+        <p role="alert" className={`mt-3 ${ALERT}`}>
+          {formError}
+        </p>
+      ) : null}
     </Modal>
   );
 }
