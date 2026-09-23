@@ -117,20 +117,17 @@ function checkSocial(
   };
 }
 
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * A calendar day from the date picker, as Postgres `date` columns hold it: midnight UTC.
- * Null when the value is not a real YYYY-MM-DD day; Date would quietly roll 2026-02-30 over
- * into March, so the day has to survive a round trip to count; month 13 is not a Date at
- * all, and calling toISOString() on it would throw.
+ * Null unless the value is exactly a YYYY-MM-DD day: it has to come back unchanged from a
+ * round trip through Date, which rejects 2026-02-30 (rolled into March), "2026" and
+ * "2026-10" (parsed as the first of the year/month) and anything that is not a string.
+ * Month 13 is not a Date at all, and toISOString() would throw on it, hence the NaN check.
  */
 function toDay(value: unknown): Date | null {
-  if (typeof value !== 'string' || !ISO_DAY.test(value)) {
-    return null;
-  }
-  const day = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(day.getTime()) && day.toISOString().startsWith(value)
+  const day = new Date(`${String(value)}T00:00:00Z`);
+  return !Number.isNaN(day.getTime()) &&
+    day.toISOString().slice(0, 10) === value
     ? day
     : null;
 }
@@ -197,9 +194,9 @@ const NUMBER_RULES: Record<
   },
 };
 
-/** True when the value has no more than two decimal places, allowing for float noise. */
+/** True when the value has no more than two decimal places (what numeric(14, 2) stores). */
 function hasCents(value: number): boolean {
-  return Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
+  return Number(value.toFixed(2)) === value;
 }
 
 /**
@@ -213,15 +210,16 @@ function readNumber(
 ): number {
   const { label, tooSmall, whole, max } = NUMBER_RULES[field];
 
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
+  // Number.isFinite is false for anything that is not a number, so this also rejects "7".
+  if (!Number.isFinite(value)) {
     errors[field] = `${label} wajib diisi`;
-  } else if (value <= 0) {
+  } else if ((value as number) <= 0) {
     errors[field] = tooSmall;
   } else if (whole && !Number.isInteger(value)) {
     errors[field] = `${label} harus bilangan bulat`;
-  } else if (!whole && !hasCents(value)) {
+  } else if (!whole && !hasCents(value as number)) {
     errors[field] = `${label} maksimal 2 angka desimal`;
-  } else if (value > max) {
+  } else if ((value as number) > max) {
     errors[field] = `${label} terlalu besar`;
   }
   return value as number;
@@ -304,10 +302,9 @@ function checkDeadlines(
  * without checking anything again.
  */
 export function checkNewCreator(input: unknown, today: Date): NewCreator {
-  // A body that is not an object (null, a string, nothing) is read as an empty one, so it
-  // gets the same per-field 422 as a form left blank instead of a TypeError.
-  const body: Record<string, unknown> =
-    typeof input === 'object' && input !== null ? { ...input } : {};
+  // Spreading null or undefined yields {}, so a missing or null body gets the same per-field
+  // 422 as a form left blank instead of a TypeError; a bare string only yields index keys.
+  const body: Record<string, unknown> = { ...(input as object) };
   const errors: NewCreatorErrors = {};
   const name = checkName(body.name, errors);
   const email = checkEmail(body.email, errors);
