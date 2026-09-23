@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -11,6 +11,7 @@ import {
   periodNumber,
   type MetricsContract,
 } from './creator-metrics.js';
+import type { CreateCreatorDto } from './dto/create-creator.dto.js';
 import type {
   ContractSummary,
   CreatorDetail,
@@ -24,48 +25,48 @@ import type { Paging } from './paging.js';
 // phone numbers and workflow-only fields out of the list response by construction.
 const CREATOR_SELECT = {
   id: true,
-  first_name: true,
-  middle_name: true,
-  last_name: true,
-  access_revoke_date: true,
-  users: { select: { email: true } },
-  social_accounts: { select: { platform: true, username: true } },
+  firstName: true,
+  middleName: true,
+  lastName: true,
+  accessRevokeDate: true,
+  user: { select: { email: true } },
+  socialAccounts: { select: { platform: true, username: true } },
   contracts: {
     select: {
       id: true,
-      start_date: true,
-      end_date: true,
-      content_quota: true,
+      startDate: true,
+      endDate: true,
+      contentQuota: true,
       contents: {
         select: {
           deadline: true,
-          video_submitted_at: true,
-          is_proposal: true,
+          videoSubmittedAt: true,
+          isProposal: true,
           _count: { select: { submissions: true } },
         },
       },
     },
   },
-} satisfies Prisma.creatorsSelect;
+} satisfies Prisma.CreatorSelect;
 
-export type CreatorRow = Prisma.creatorsGetPayload<{
+export type CreatorRow = Prisma.CreatorGetPayload<{
   select: typeof CREATOR_SELECT;
 }>;
 
 // Detail uses a wider selection so the detail modal can display the full creator record.
 const DETAIL_SELECT = {
   id: true,
-  first_name: true,
-  middle_name: true,
-  last_name: true,
-  phone_number: true,
-  access_revoke_date: true,
-  users: {
+  firstName: true,
+  middleName: true,
+  lastName: true,
+  phoneNumber: true,
+  accessRevokeDate: true,
+  user: {
     select: {
       email: true,
     },
   },
-  social_accounts: {
+  socialAccounts: {
     select: {
       platform: true,
       username: true,
@@ -73,14 +74,14 @@ const DETAIL_SELECT = {
   },
   contracts: {
     orderBy: {
-      start_date: 'asc',
+      startDate: 'asc',
     },
     select: {
       id: true,
-      start_date: true,
-      end_date: true,
-      days_between: true,
-      content_quota: true,
+      startDate: true,
+      endDate: true,
+      daysBetween: true,
+      contentQuota: true,
       contents: {
         orderBy: {
           deadline: 'asc',
@@ -91,9 +92,9 @@ const DETAIL_SELECT = {
           type: true,
           deadline: true,
           status: true,
-          is_proposal: true,
-          video_link: true,
-          video_submitted_at: true,
+          isProposal: true,
+          videoLink: true,
+          videoSubmittedAt: true,
           _count: {
             select: {
               submissions: true,
@@ -101,7 +102,7 @@ const DETAIL_SELECT = {
           },
           submissions: {
             orderBy: {
-              created_at: 'asc',
+              createdAt: 'asc',
             },
             select: {
               id: true,
@@ -137,20 +138,20 @@ function toMetricsContract(
 ): ContractWithQuota {
   return {
     id: contract.id,
-    contentQuota: contract.content_quota,
-    startDate: contract.start_date,
-    endDate: contract.end_date,
+    contentQuota: contract.contentQuota,
+    startDate: contract.startDate,
+    endDate: contract.endDate,
     contents: contract.contents.map((content) => ({
       deadline: content.deadline,
-      videoSubmittedAt: content.video_submitted_at,
-      isProposal: content.is_proposal,
+      videoSubmittedAt: content.videoSubmittedAt,
+      isProposal: content.isProposal,
       submissionCount: content._count.submissions,
     })),
   };
 }
 
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
-export type CreatorsClient = Pick<PrismaService, 'creators'>;
+export type CreatorsClient = Pick<PrismaService, 'creator'>;
 
 // contractStatus and productivity are derived from dates and nested content/submission
 // counts, not stored columns — there is no WHERE clause for them. Search could be pushed to
@@ -165,9 +166,9 @@ function hasFilters(filters: Filters): boolean {
   );
 }
 
-const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
-  { first_name: 'asc' },
-  { last_name: 'asc' },
+const ORDER_BY: Prisma.CreatorOrderByWithRelationInput[] = [
+  { firstName: 'asc' },
+  { lastName: 'asc' },
   { id: 'asc' },
 ];
 
@@ -180,6 +181,8 @@ export interface CreatorLister {
   ): Promise<CreatorListResponse>;
 
   findOne(id: string, today?: Date): Promise<CreatorDetail>;
+
+  create(dto: CreateCreatorDto): Promise<{ id: string }>;
 }
 
 @Injectable()
@@ -195,13 +198,13 @@ export class CreatorsService implements CreatorLister {
   ): Promise<CreatorListResponse> {
     if (!hasFilters(filters)) {
       const [rows, total] = await Promise.all([
-        this.prisma.creators.findMany({
+        this.prisma.creator.findMany({
           select: CREATOR_SELECT,
           orderBy: ORDER_BY,
           skip: (page - 1) * pageSize,
           take: pageSize,
         }),
-        this.prisma.creators.count(),
+        this.prisma.creator.count(),
       ]);
 
       return this.paged(
@@ -213,7 +216,7 @@ export class CreatorsService implements CreatorLister {
     }
 
     // Derived contract/performance filters need the full set before pagination.
-    const rows = await this.prisma.creators.findMany({
+    const rows = await this.prisma.creator.findMany({
       select: CREATOR_SELECT,
       orderBy: ORDER_BY,
     });
@@ -236,7 +239,7 @@ export class CreatorsService implements CreatorLister {
     id: string,
     today = new Date(),
   ): Promise<CreatorDetail> {
-    const row = await this.prisma.creators.findUnique({
+    const row = await this.prisma.creator.findUnique({
       where: {
         id,
       },
@@ -400,23 +403,23 @@ export class CreatorsService implements CreatorLister {
 
     const socials: CreatorSummary['socials'] = {};
 
-    for (const account of row.social_accounts) {
+    for (const account of row.socialAccounts) {
       socials[account.platform] = account.username;
     }
 
     return {
       id: row.id,
 
-      name: [row.first_name, row.middle_name, row.last_name]
+      name: [row.firstName, row.middleName, row.lastName]
         .filter(Boolean)
         .join(' '),
 
-      email: row.users.email,
+      email: row.user.email,
 
       socials,
 
-      accessRevokeDate: row.access_revoke_date
-        ? calendarDay(row.access_revoke_date)
+      accessRevokeDate: row.accessRevokeDate
+        ? calendarDay(row.accessRevokeDate)
         : null,
 
       contract: current
@@ -436,5 +439,44 @@ export class CreatorsService implements CreatorLister {
 
       performance: computePerformance(current, today),
     };
+  }
+
+  async create(dto: CreateCreatorDto): Promise<{ id: string }> {
+    const user = await this.prisma.users.create({
+      data: { email: dto.email },
+    });
+
+    const creator = await this.prisma.creator.create({
+      data: {
+        userId: user.id,
+        firstName: dto.firstName,
+      },
+    });
+
+    const contract = await this.prisma.contracts.create({
+      data: {
+        creatorId: creator.id,
+        startDate: new Date(dto.contractStart),
+        endDate: new Date(dto.contractEnd),
+        daysBetween: dto.daysBetween,
+        contentQuota: dto.contentQuota,
+        fixedRate: dto.fixedRate,
+      },
+    });
+
+    if (dto.manualSlotDate) {
+      await this.prisma.contents.create({
+        data: {
+          contractId: contract.id,
+          name: `${dto.firstName} - Manual Slot`,
+          type: 'specific',
+          brief: '',
+          deadline: new Date(dto.manualSlotDate),
+          status: 'scheduled',
+        },
+      });
+    }
+
+    return { id: creator.id };
   }
 }

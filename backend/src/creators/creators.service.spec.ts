@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatorsService, type CreatorRow } from './creators.service.js';
@@ -203,6 +203,7 @@ describe('CreatorsService', () => {
       providers: [
         CreatorsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: Logger, useValue: { log: vi.fn(), warn: vi.fn() } },
       ],
     }).compile();
 
