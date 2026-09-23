@@ -35,7 +35,7 @@ export class ContentsService {
 
     const contract = await this.prisma.contracts.findUnique({
       where: { id: content.contract_id },
-      select: { startDate: true, endDate: true },
+      select: { start_date: true, end_date: true },
     });
 
     if (!contract) {
@@ -56,7 +56,7 @@ export class ContentsService {
       });
     }
 
-    if (deadline < contract.startDate || deadline > contract.endDate) {
+    if (deadline < contract.start_date || deadline > contract.end_date) {
       throw new BadRequestException({
         code: 'DEADLINE_OUTSIDE_CONTRACT',
         message: 'Deadline harus dalam masa kontrak',

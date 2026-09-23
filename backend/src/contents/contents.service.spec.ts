@@ -41,8 +41,8 @@ describe('ContentsService', () => {
       });
       prisma.contracts.findUnique.mockResolvedValue({
         id: 'contract-1',
-        startDate: day(-30),
-        endDate: day(90),
+        start_date: day(-30),
+        end_date: day(90),
         days_between: 14,
       });
       prisma.contents.update.mockResolvedValue({
@@ -82,8 +82,8 @@ describe('ContentsService', () => {
       });
       prisma.contracts.findUnique.mockResolvedValue({
         id: 'contract-1',
-        startDate: day(-30),
-        endDate: day(90),
+        start_date: day(-30),
+        end_date: day(90),
         days_between: 14,
       });
 
@@ -103,8 +103,8 @@ describe('ContentsService', () => {
       });
       prisma.contracts.findUnique.mockResolvedValue({
         id: 'contract-1',
-        startDate: day(-30),
-        endDate: day(90),
+        start_date: day(-30),
+        end_date: day(90),
         days_between: 14,
       });
 
@@ -124,8 +124,8 @@ describe('ContentsService', () => {
       });
       prisma.contracts.findUnique.mockResolvedValue({
         id: 'contract-1',
-        startDate: day(-30),
-        endDate: day(90),
+        start_date: day(-30),
+        end_date: day(90),
         days_between: 14,
       });
       const updated = {
