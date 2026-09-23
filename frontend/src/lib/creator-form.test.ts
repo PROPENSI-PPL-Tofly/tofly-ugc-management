@@ -21,16 +21,18 @@ describe("validateCreatorForm", () => {
   });
 
   it("rejects a contract start after the contract end", () => {
-    const errors = validateCreatorForm({
-      ...VALID_INPUT,
-      contractStart: "2026-10-10",
-      contractEnd: "2026-10-01",
-    });
+    // Pinned well before both dates: this test isolates the range rule from the
+    // "not before today" rule, so it stays deterministic regardless of the real clock.
+    const today = new Date("2026-01-01T00:00:00Z");
+
+    const errors = validateCreatorForm(
+      { ...VALID_INPUT, contractStart: "2026-10-10", contractEnd: "2026-10-01" },
+      today,
+    );
 
     expect(errors.contractStart).toBe("Tanggal mulai tidak boleh setelah tanggal berakhir");
   });
 
-  // `today` is not a parameter of validateCreatorForm yet — GREEN adds it.
   it("rejects a contract start before today", () => {
     const today = new Date("2026-10-05T00:00:00Z");
 
