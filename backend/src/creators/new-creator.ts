@@ -3,6 +3,15 @@ import type { social_platform } from '@prisma/client';
 
 /** Longer than any real name; keeps a hostile body from filling the table. */
 export const MAX_NAME_LENGTH = 100;
+/** The longest address SMTP can deliver to (RFC 5321). */
+export const MAX_EMAIL_LENGTH = 254;
+
+// PRD 3.4's format rules as one pattern: exactly one "@", dot-separated runs of allowed
+// characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
+// the domain. Every run is anchored by a literal dot, so the pattern cannot backtrack
+// exponentially; the length cap is checked first regardless.
+const EMAIL_FORMAT =
+  /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 /** A creator as POST /creators saves it: already validated, already in the database's terms. */
 export interface NewCreator {
@@ -46,6 +55,18 @@ function checkName(value: unknown, errors: NewCreatorErrors): NameParts {
   };
 }
 
+function checkEmail(value: unknown, errors: NewCreatorErrors): string {
+  const email = typeof value === 'string' ? value.trim() : '';
+
+  if (email === '') {
+    errors.email = 'Email wajib diisi';
+  } else if (email.length > MAX_EMAIL_LENGTH || !EMAIL_FORMAT.test(email)) {
+    errors.email = 'Format email tidak valid';
+  }
+
+  return email;
+}
+
 /** A calendar day from the date picker, as Postgres `date` columns hold it: midnight UTC. */
 function toDay(value: string): Date {
   return new Date(`${value}T00:00:00Z`);
@@ -59,6 +80,7 @@ export function checkNewCreator(input: unknown, _today: Date): NewCreator {
   const body = input as Record<string, unknown>;
   const errors: NewCreatorErrors = {};
   const name = checkName(body.name, errors);
+  const email = checkEmail(body.email, errors);
 
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
@@ -69,7 +91,7 @@ export function checkNewCreator(input: unknown, _today: Date): NewCreator {
 
   return {
     ...name,
-    email: body.email as string,
+    email,
     socialPlatform: body.socialPlatform as social_platform,
     socialUsername: body.socialUsername as string,
     contractStart: toDay(body.contractStart as string),
