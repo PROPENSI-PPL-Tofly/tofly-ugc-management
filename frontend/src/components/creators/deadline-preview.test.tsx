@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react'; 
 import DeadlinePreview from './deadline-preview';
 
 describe('DeadlinePreview', () => { 
@@ -88,6 +88,39 @@ describe('DeadlinePreview', () => {
   expect(
     screen.getByText(/2 remaining/i),
   ).toBeInTheDocument();
+});
+  it('shows automatic deadlines in the next month after navigating forward', () => { // Test case for navigating to the next month in the DeadlinePreview component and checking for automatic deadlines
+  render(
+    <DeadlinePreview
+      contractStart="2026-09-20"
+      autoDeadlines={[
+        '2026-09-25',
+        '2026-10-02',
+      ]}
+      allocatedCount={2} 
+      remainingCount={0}
+      quota={2}
+    />,
+  );
+
+  // The preview starts from September.
+  expect(
+    screen.getByText('September 2026'),
+  ).toBeInTheDocument();
+
+  // Move to the next month.
+  fireEvent.click(
+    screen.getByRole('button', { name: /next month/i }),
+  );
+
+  // The October deadline should now be visible in the calendar.
+  expect(
+    screen.getByText('October 2026'),
+  ).toBeInTheDocument();
+
+  expect(
+    screen.getByTestId('deadline-2026-10-02'),
+  ).toHaveTextContent('2');
 });
 
 });
