@@ -304,7 +304,10 @@ function checkDeadlines(
  * without checking anything again.
  */
 export function checkNewCreator(input: unknown, today: Date): NewCreator {
-  const body = input as Record<string, unknown>;
+  // A body that is not an object (null, a string, nothing) is read as an empty one, so it
+  // gets the same per-field 422 as a form left blank instead of a TypeError.
+  const body: Record<string, unknown> =
+    typeof input === 'object' && input !== null ? { ...input } : {};
   const errors: NewCreatorErrors = {};
   const name = checkName(body.name, errors);
   const email = checkEmail(body.email, errors);
