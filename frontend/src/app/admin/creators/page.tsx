@@ -70,15 +70,11 @@ export default async function CreatorsPage({
       ) : null}
 
       <Panel>
-        <div className="flex items-start justify-between gap-3">
-          <PanelHead
-            title={filtered ? "Hasil pencarian" : "Semua creator"}
-            hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
-          />
-          <div className="pr-5 pt-5">
-            <AddCreatorTrigger />
-          </div>
-        </div>
+        <PanelHead
+          title={filtered ? "Hasil pencarian" : "Semua creator"}
+          hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
+          action={<AddCreatorTrigger />}
+        />
         <CreatorFilters />
         {result ? (
           <>
