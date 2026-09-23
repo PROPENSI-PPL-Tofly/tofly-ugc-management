@@ -85,8 +85,8 @@ function onboardingData(input: NewCreator): Prisma.creatorsCreateInput {
         content_quota: input.quota,
         fixed_rate: input.fixedRate,
         contents: {
-          create: deadlines.map((day) => ({
-            name: evergreenName(name, day),
+          create: deadlines.map((day, index) => ({
+            name: evergreenName(name, day, index + 1),
             type: 'evergreen',
             brief: '',
             deadline: toDate(day),

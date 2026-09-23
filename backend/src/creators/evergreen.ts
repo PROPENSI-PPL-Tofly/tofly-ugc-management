@@ -3,13 +3,19 @@
 // without a database and the persistence code only has to wire the results together.
 
 /**
- * `Evg_<NameWithoutSpaces>_DDMMYYYY`, the name the admin screens already use for
- * auto-scheduled Evergreen content. `day` is an ISO calendar day (`YYYY-MM-DD`); it is split
- * as text so the name never depends on the server's timezone.
+ * `Evg_<sequence>_<Creator Name>_DDMMYYYY`, the product's naming rule for Evergreen content:
+ * the sequence counts from 1 in deadline order and stays fixed once saved. `day` is an ISO
+ * calendar day (`YYYY-MM-DD`); it is split as text so the name never depends on the server's
+ * timezone.
  */
-export function evergreenName(fullName: string, day: string): string {
+export function evergreenName(
+  fullName: string,
+  day: string,
+  sequence: number,
+): string {
   const [year, month, date] = day.split('-');
-  return `Evg_${fullName.replaceAll(/\s+/g, '')}_${date}${month}${year}`;
+  const name = fullName.trim().replaceAll(/\s+/g, ' ');
+  return `Evg_${sequence}_${name}_${date}${month}${year}`;
 }
 
 export interface NameParts {
