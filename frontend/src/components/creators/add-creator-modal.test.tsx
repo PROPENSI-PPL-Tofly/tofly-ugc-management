@@ -4,7 +4,7 @@ import { AddCreatorModal } from "./add-creator-modal";
 
 describe("AddCreatorModal", () => {
   it("renders all the required fields", () => {
-    render(<AddCreatorModal onClose={() => {}} />);
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
     expect(screen.getByLabelText(/nama creator/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
@@ -15,8 +15,6 @@ describe("AddCreatorModal", () => {
     expect(screen.getByLabelText(/jumlah konten/i)).toBeInTheDocument();
   });
 
-  // `onSubmit` is not a prop of AddCreatorModal yet, and there is no "Simpan" button yet —
-  // GREEN adds both, wiring validateCreatorForm to the submit click.
   it("shows an error and does not submit when required fields are empty", () => {
     const onSubmit = vi.fn();
 
