@@ -8,8 +8,9 @@ import { AddCreatorModal } from "./add-creator-modal";
  * Owns the open/closed state for AddCreatorModal, kept separate from CreatorTable's
  * row-scoped CreatorDetailModal state since adding a creator is not a per-row action.
  *
- * onSubmit is a no-op for now — there is no POST /creators endpoint yet, and wiring it up
- * is a separate, later piece of work.
+ * onSubmit only closes the modal for now — there is no POST /creators endpoint yet, so there
+ * is nothing to persist. Closing on a valid submit is the one observable effect Subtask 1 owns;
+ * wiring the actual create request is a separate, later piece of work.
  */
 export function AddCreatorTrigger({
   existingEmails = [],
@@ -28,7 +29,7 @@ export function AddCreatorTrigger({
       {open ? (
         <AddCreatorModal
           onClose={() => setOpen(false)}
-          onSubmit={() => {}}
+          onSubmit={() => setOpen(false)}
           existingEmails={existingEmails}
         />
       ) : null}
