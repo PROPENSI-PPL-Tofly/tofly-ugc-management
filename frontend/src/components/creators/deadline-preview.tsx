@@ -67,6 +67,8 @@ export default function DeadlinePreview({
       ? new Date(Date.UTC(year, month, 1)).getUTCDay()
       : 0;
 
+  const weekCount = Math.ceil((firstDayOfWeek + daysInMonth) / 7); // Calculate the number of weeks needed to display the month, accounting for the first day offset and total days in the month.
+
   // Makes checking whether a date is an auto deadline easier.
   const autoDeadlineSet = new Set(autoDeadlines);
 
@@ -126,73 +128,64 @@ export default function DeadlinePreview({
             </button>
           </div>
 
-          <div>
-            <span>Sun</span>
-            <span>Mon</span>
-            <span>Tue</span>
-            <span>Wed</span>
-            <span>Thu</span>
-            <span>Fri</span>
-            <span>Sat</span>
-          </div>
+          <table
+            aria-label={`Deadline calendar ${monthTitle}`}
+            className="w-full table-fixed border-separate border-spacing-1 text-center"
+          >
+            <thead>
+              <tr>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((weekday) => (
+                  <th key={weekday} scope="col" className="py-2 text-sm font-medium">
+                    {weekday}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: weekCount }, (_, week) => ( // Iterate through each week in the month
+                <tr key={week}> 
+                  {Array.from({ length: 7 }, (_, weekday) => { // Iterate through each day of the week
+                    const day = week * 7 + weekday - firstDayOfWeek + 1; // Calculate the day of the month for the current cell in the calendar
 
-          <div>
-            {/* Add empty cells before the first day of the month. */}
-            {Array.from({ length: firstDayOfWeek }).map((_, index) => (
-              <span key={`empty-${index}`} />
-            ))}
+                    if (day < 1 || day > daysInMonth) { // If the calculated day is outside the valid range for the month, render an empty cell
+                      return <td key={weekday} className="h-10" />;
+                    }
 
-            {/* Render every date in the current month. */}
-            {Array.from({ length: daysInMonth }).map((_, index) => {
-              const day = index + 1;
+                    const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const isAutoDeadline = autoDeadlineSet.has(date);
+                    const currentDate = new Date(`${date}T00:00:00Z`);
+                    const isBufferDate =
+                      bufferStartDate !== null &&
+                      firstAllowedDate !== null &&
+                      currentDate.getTime() >= bufferStartDate.getTime() &&
+                      currentDate.getTime() < firstAllowedDate.getTime();
 
-              // Convert the calendar date into YYYY-MM-DD format.
-              const date = `${year}-${String(month + 1).padStart(
-                2,
-                '0',
-              )}-${String(day).padStart(2, '0')}`;
-
-              const isAutoDeadline = autoDeadlineSet.has(date);
-              const currentDate = new Date(`${date}T00:00:00Z`);
-
-              // Check whether the date is still inside the buffer window.
-              const isBufferDate =
-                bufferStartDate !== null &&
-                firstAllowedDate !== null &&
-                currentDate.getTime() >= bufferStartDate.getTime() &&
-                currentDate.getTime() < firstAllowedDate.getTime();
-
-              // Mark dates that were generated automatically.
-              if (isAutoDeadline) {
-                return (
-                  <span
-                    key={date}
-                    className="auto-deadline"
-                    data-testid={`deadline-${date}`}
-                    data-deadline-type="auto"
-                  >
-                    {day}
-                  </span>
-                );
-              }
-
-              // Mark dates that cannot be used because of the buffer.
-              if (isBufferDate) {
-                return (
-                  <span
-                    key={date}
-                    className="buffer-date"
-                    data-testid={`calendar-date-${date}`}
-                    data-date-status="buffer"
-                  >
-                    {day}
-                  </span>
-                );
-              }
-
-              return <span key={date}>{day}</span>;
-            })}
-          </div>
+                    return (
+                      <td key={weekday} className="h-10 text-sm">
+                        {isAutoDeadline ? (
+                          <span
+                            className="auto-deadline"
+                            data-testid={`deadline-${date}`}
+                            data-deadline-type="auto"
+                          >
+                            {day}
+                          </span>
+                        ) : isBufferDate ? (
+                          <span
+                            className="buffer-date"
+                            data-testid={`calendar-date-${date}`}
+                            data-date-status="buffer"
+                          >
+                            {day}
+                          </span>
+                        ) : <span>{day}</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
