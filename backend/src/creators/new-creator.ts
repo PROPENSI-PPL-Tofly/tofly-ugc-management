@@ -105,21 +105,103 @@ function checkSocial(
   };
 }
 
-/** A calendar day from the date picker, as Postgres `date` columns hold it: midnight UTC. */
-function toDay(value: string): Date {
-  return new Date(`${value}T00:00:00Z`);
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A calendar day from the date picker, as Postgres `date` columns hold it: midnight UTC.
+ * Null when the value is not a real YYYY-MM-DD day; Date would quietly roll 2026-02-30 over
+ * into March, so the day has to survive a round trip to count; month 13 is not a Date at
+ * all, and calling toISOString() on it would throw.
+ */
+function toDay(value: unknown): Date | null {
+  if (typeof value !== 'string' || !ISO_DAY.test(value)) {
+    return null;
+  }
+  const day = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().startsWith(value)
+    ? day
+    : null;
+}
+
+/** `now` as the UTC calendar day, the same "today" the modal's date check uses. */
+function startOfDay(now: Date): Date {
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+}
+
+const DATE_LABELS = {
+  contractStart: 'Tanggal mulai',
+  contractEnd: 'Tanggal berakhir',
+} as const;
+
+/** Reads one date field, recording why it is unusable; null means an error was recorded. */
+function readDate(
+  field: keyof typeof DATE_LABELS,
+  value: unknown,
+  today: Date,
+  errors: NewCreatorErrors,
+): Date | null {
+  const label = DATE_LABELS[field];
+
+  if (value === undefined || value === '') {
+    errors[field] = `${label} wajib diisi`;
+    return null;
+  }
+
+  const day = toDay(value);
+
+  if (!day) {
+    errors[field] = `${label} tidak valid`;
+  } else if (day < today) {
+    errors[field] = `${label} tidak boleh sebelum hari ini`;
+  }
+  return day;
+}
+
+type ContractPeriod = Pick<NewCreator, 'contractStart' | 'contractEnd'>;
+
+function checkContract(
+  start: unknown,
+  end: unknown,
+  now: Date,
+  errors: NewCreatorErrors,
+): ContractPeriod {
+  const today = startOfDay(now);
+  const contractStart = readDate('contractStart', start, today, errors);
+  const contractEnd = readDate('contractEnd', end, today, errors);
+
+  if (
+    contractStart &&
+    contractEnd &&
+    !errors.contractStart &&
+    contractStart > contractEnd
+  ) {
+    errors.contractStart = 'Tanggal mulai tidak boleh setelah tanggal berakhir';
+  }
+
+  return {
+    contractStart: contractStart as Date,
+    contractEnd: contractEnd as Date,
+  };
 }
 
 /**
  * Validates the Add Creator body once, at the edge, and hands the service values it can save
  * without checking anything again.
  */
-export function checkNewCreator(input: unknown, _today: Date): NewCreator {
+export function checkNewCreator(input: unknown, today: Date): NewCreator {
   const body = input as Record<string, unknown>;
   const errors: NewCreatorErrors = {};
   const name = checkName(body.name, errors);
   const email = checkEmail(body.email, errors);
   const social = checkSocial(body.socialPlatform, body.socialUsername, errors);
+  const contract = checkContract(
+    body.contractStart,
+    body.contractEnd,
+    today,
+    errors,
+  );
 
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
@@ -132,11 +214,12 @@ export function checkNewCreator(input: unknown, _today: Date): NewCreator {
     ...name,
     email,
     ...social,
-    contractStart: toDay(body.contractStart as string),
-    contractEnd: toDay(body.contractEnd as string),
+    ...contract,
     interval: body.interval as number,
     quota: body.quota as number,
     fixedRate: body.fixedRate as number,
-    deadlines: (body.deadlines as string[]).map(toDay),
+    deadlines: (body.deadlines as string[]).map(
+      (value) => toDay(value) as Date,
+    ),
   };
 }
