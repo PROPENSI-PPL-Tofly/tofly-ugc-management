@@ -243,7 +243,7 @@ describe('DeadlinePreview', () => {
     );
   });
 
-  it('renders clickable slots for empty dates', () => {
+  it('renders empty dates as non-clickable spans', () => {
     render(
       <DeadlinePreview
         contractStart="2026-09-23"
@@ -256,11 +256,11 @@ describe('DeadlinePreview', () => {
       />,
     );
 
-    const emptySlots = screen.getAllByRole('button', { name: /^\d+$/ });
-    expect(emptySlots.length).toBeGreaterThan(0);
+    const emptySlots = screen.queryAllByRole('button', { name: /^\d+$/ });
+    expect(emptySlots).toHaveLength(0);
   });
 
-  it('opens assign modal when empty slot clicked', async () => {
+  it('does not open any modal when dates are clicked', async () => {
     render(
       <DeadlinePreview
         contractStart="2026-09-23"
@@ -273,9 +273,6 @@ describe('DeadlinePreview', () => {
       />,
     );
 
-    const emptySlots = screen.getAllByRole('button', { name: /^\d+$/ });
-    await userEvent.click(emptySlots[0]);
-
-    expect(screen.getByRole('dialog', { name: /Tambah Konten/i })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
