@@ -29,7 +29,7 @@ export default function DeadlinePreview({
     ? new Date(`${calendarSourceDate}T00:00:00Z`)
     : null;
 
-  // Keep track of how many months the user moves forward.
+  // Keep track of the displayed month's offset from the starting month.
   const [monthOffset, setMonthOffset] = useState(0);
 
   // Create the month currently being displayed.
@@ -107,6 +107,14 @@ export default function DeadlinePreview({
         <div>
           <div>
             <h4>{monthTitle}</h4>
+
+            <button
+              type="button"
+              aria-label="Previous month"
+              onClick={() => setMonthOffset((current) => current - 1)}
+            >
+              Previous
+            </button>
 
             {/* Move the calendar forward by one month. */}
             <button
