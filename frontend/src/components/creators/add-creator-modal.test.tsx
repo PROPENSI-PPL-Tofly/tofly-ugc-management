@@ -54,4 +54,11 @@ describe("AddCreatorModal", () => {
       fixedRate: 500000,
     });
   });
+
+  // `loading` is not a prop of AddCreatorModal yet — GREEN adds it and disables Simpan while true.
+  it("disables the submit button while loading", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} loading />);
+
+    expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+  });
 });
