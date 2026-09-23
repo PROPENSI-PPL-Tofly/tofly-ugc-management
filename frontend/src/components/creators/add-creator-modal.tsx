@@ -7,6 +7,7 @@ import {
   validateCreatorForm,
   type CreatorFormErrors,
   type CreatorFormInput,
+  type SocialPlatform,
 } from "@/lib/creator-form";
 
 // Same field styling as the filter bar's inputs, for a consistent form control vocabulary.
@@ -46,6 +47,8 @@ const INITIAL_FORM: CreatorFormInput = {
   interval: 14,
   quota: 0,
   fixedRate: 0,
+  socialPlatform: "",
+  socialUsername: "",
 };
 
 export function AddCreatorModal({
@@ -158,6 +161,30 @@ export function AddCreatorModal({
           placeholder="mis. 6"
           value={emptyIfZero(form.quota)}
           onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })}
+        />
+      </Field>
+
+      <Field label="Platform" error={errors.socialPlatform}>
+        <select
+          className={FIELD}
+          value={form.socialPlatform}
+          onChange={(event) =>
+            setForm({ ...form, socialPlatform: event.target.value as SocialPlatform | "" })
+          }
+        >
+          <option value="">Pilih platform</option>
+          <option value="instagram">Instagram</option>
+          <option value="tiktok">TikTok</option>
+        </select>
+      </Field>
+
+      <Field label="Username Social Media" error={errors.socialUsername}>
+        <input
+          type="text"
+          className={FIELD}
+          placeholder="mis. salsa.amelia"
+          value={form.socialUsername}
+          onChange={(event) => setForm({ ...form, socialUsername: event.target.value })}
         />
       </Field>
     </Modal>

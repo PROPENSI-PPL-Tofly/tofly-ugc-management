@@ -1,6 +1,10 @@
 // Pure validation for the Add Creator form. Kept apart from the modal component so each
 // rule is testable without rendering anything, one RED/GREEN cycle at a time.
 
+// Matches the database's `social_platform` enum (supabase/migrations/..._creator_database.sql)
+// exactly — "" stands for "not chosen yet", the empty state of the select in the modal.
+export type SocialPlatform = "instagram" | "tiktok";
+
 export interface CreatorFormInput {
   name: string;
   email: string;
@@ -9,6 +13,8 @@ export interface CreatorFormInput {
   interval: number;
   quota: number;
   fixedRate: number;
+  socialPlatform: SocialPlatform | "";
+  socialUsername: string;
 }
 
 export interface CreatorFormErrors {
@@ -18,6 +24,8 @@ export interface CreatorFormErrors {
   interval?: string;
   quota?: string;
   fixedRate?: string;
+  socialPlatform?: string;
+  socialUsername?: string;
 }
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,6 +70,14 @@ export function validateCreatorForm(
 
   if (input.fixedRate <= 0) {
     errors.fixedRate = "Fixed rate harus lebih dari 0";
+  }
+
+  if (input.socialPlatform === "") {
+    errors.socialPlatform = "Platform wajib dipilih";
+  }
+
+  if (input.socialUsername === "") {
+    errors.socialUsername = "Username wajib diisi";
   }
 
   return errors;
