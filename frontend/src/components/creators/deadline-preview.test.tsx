@@ -3,7 +3,7 @@ import DeadlinePreview from './deadline-preview';
 
 describe('DeadlinePreview', () => { 
   it('shows automatic deadlines and the allocation summary', () => { // Test case for rendering the DeadlinePreview component with automatic deadlines and allocation summary
-    render(
+    render( 
       <DeadlinePreview
         autoDeadlines={[
           '2026-09-25',
@@ -64,4 +64,30 @@ describe('DeadlinePreview', () => {
     screen.getByTestId('deadline-2026-09-25'),
   ).toHaveAttribute('data-deadline-type', 'auto');
 });
+   it('shows the contract month when no automatic deadlines are available', () => { // Test case for rendering the DeadlinePreview component when no automatic deadlines are available
+  // No deadline fits inside the contract period.
+  render(
+    <DeadlinePreview
+      contractStart="2026-09-20"
+      autoDeadlines={[]}
+      allocatedCount={0}
+      remainingCount={2}
+      quota={2}
+    />,
+  );
+
+  // The preview should still show the contract month.
+  expect(
+    screen.getByText('September 2026'),
+  ).toBeInTheDocument();
+
+  expect(
+    screen.getByText(/0 \/ 2/i),
+  ).toBeInTheDocument();
+
+  expect(
+    screen.getByText(/2 remaining/i),
+  ).toBeInTheDocument();
+});
+
 });
