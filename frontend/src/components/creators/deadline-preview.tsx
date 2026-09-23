@@ -121,6 +121,7 @@ export default function DeadlinePreview({
                     key={date}
                     data-testid={`deadline-${date}`}
                     data-deadline-type="auto"
+                    className="auto-deadline"
                   >
                     {day}
                   </span>
