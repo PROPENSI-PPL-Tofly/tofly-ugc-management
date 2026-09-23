@@ -394,6 +394,7 @@ describe("AddCreatorModal", () => {
     fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "0" } });
 
     for (const label of [
+      /nama creator/i,
       /^email$/i,
       /^platform$/i,
       /username/i,
@@ -406,6 +407,7 @@ describe("AddCreatorModal", () => {
     }
 
     for (const message of [
+      "Nama wajib diisi",
       "Format email tidak valid",
       "Platform wajib dipilih",
       "Username wajib diisi",
