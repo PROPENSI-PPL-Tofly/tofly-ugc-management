@@ -45,10 +45,15 @@ export function AddCreatorModal({
   onClose,
   onSubmit,
   loading = false,
+  existingEmails = [],
 }: {
   onClose: () => void;
   onSubmit: (input: CreatorFormInput) => void;
   loading?: boolean;
+  /** Emails already on this page's creator list — the frontend-only half of duplicate
+   *  detection; the database's unique constraint remains the authoritative check once the
+   *  create endpoint ships. */
+  existingEmails?: string[];
 }) {
   const [form, setForm] = useState<CreatorFormInput>(INITIAL_FORM);
   const [errors, setErrors] = useState<CreatorFormErrors>({});
@@ -56,10 +61,11 @@ export function AddCreatorModal({
   // Recomputed on every render, separate from the `errors` state above: `errors` only
   // updates on a submit attempt (so the form stays quiet while the admin is still typing),
   // but Simpan's disabled state has to track validity live, field by field.
-  const isFormValid = Object.keys(validateCreatorForm(form)).length === 0;
+  const isFormValid =
+    Object.keys(validateCreatorForm(form, undefined, existingEmails)).length === 0;
 
   function handleSubmit() {
-    const nextErrors = validateCreatorForm(form);
+    const nextErrors = validateCreatorForm(form, undefined, existingEmails);
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length === 0) {
