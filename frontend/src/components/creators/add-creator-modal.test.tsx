@@ -61,4 +61,63 @@ describe("AddCreatorModal", () => {
 
     expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
   });
+
+  describe("Simpan disabled state", () => {
+    // Dates pinned far in the future for the same reason as the valid-submit test above.
+    function fillValidForm() {
+      fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
+      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "bagas@example.com" } });
+      fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2099-01-01" } });
+      fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: "2099-12-31" } });
+      fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
+      fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
+    }
+
+    function simpanButton() {
+      return screen.getByRole("button", { name: /simpan/i });
+    }
+
+    it("is disabled when the modal first opens with an empty form", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      expect(simpanButton()).toBeDisabled();
+    });
+
+    it("stays disabled when at least one required field is invalid", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "not-an-email" } });
+
+      expect(simpanButton()).toBeDisabled();
+    });
+
+    it("becomes enabled once all required fields are valid", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+
+      expect(simpanButton()).not.toBeDisabled();
+    });
+
+    it("becomes disabled again when a previously valid field is made invalid", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "" } });
+
+      expect(simpanButton()).toBeDisabled();
+    });
+
+    it("becomes enabled again once the invalid field is corrected", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "" } });
+      fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
+
+      expect(simpanButton()).not.toBeDisabled();
+    });
+  });
 });
