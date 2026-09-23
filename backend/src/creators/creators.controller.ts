@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   DefaultValuePipe,
   Get,
@@ -7,11 +6,9 @@ import {
   Param,
   ParseIntPipe,
   ParseUUIDPipe,
-  Post,
   Query,
 } from '@nestjs/common';
 import { CreatorsService, type CreatorLister } from './creators.service.js';
-import { CreateCreatorDto } from './dto/create-creator.dto.js';
 import type {
   CreatorDetail,
   CreatorListResponse,
@@ -53,12 +50,5 @@ export class CreatorsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<CreatorDetail> {
     return this.creators.findOne(id);
-  }
-
-  @Post()
-  async create(
-    @Body() dto: CreateCreatorDto,
-  ): Promise<{ id: string }> {
-    return this.creators.create(dto);
   }
 }

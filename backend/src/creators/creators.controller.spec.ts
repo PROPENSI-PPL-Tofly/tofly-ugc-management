@@ -9,7 +9,6 @@ describe('CreatorsController', () => {
   const service = {
     list: vi.fn(),
     findOne: vi.fn(),
-    create: vi.fn(),
   };
 
   const response = {
@@ -147,49 +146,5 @@ describe('CreatorsController', () => {
     );
 
     expect(service.findOne).toHaveBeenCalledWith('creator-1');
-  });
-
-  it('creates a creator via POST', async () => {
-    service.create.mockResolvedValue({ id: 'creator-1' });
-
-    const result = await controller.create({
-      firstName: 'Rangga',
-      email: 'rangga@example.com',
-      contractStart: '2026-10-01',
-      contractEnd: '2026-12-31',
-      contentQuota: 6,
-      daysBetween: 14,
-      fixedRate: 500000,
-    });
-
-    expect(result).toEqual({ id: 'creator-1' });
-    expect(service.create).toHaveBeenCalledWith({
-      firstName: 'Rangga',
-      email: 'rangga@example.com',
-      contractStart: '2026-10-01',
-      contractEnd: '2026-12-31',
-      contentQuota: 6,
-      daysBetween: 14,
-      fixedRate: 500000,
-    });
-  });
-
-  it('creates a creator with manualSlotDate', async () => {
-    service.create.mockResolvedValue({ id: 'creator-1' });
-
-    await controller.create({
-      firstName: 'Rangga',
-      email: 'rangga@example.com',
-      contractStart: '2026-10-01',
-      contractEnd: '2026-12-31',
-      contentQuota: 6,
-      daysBetween: 14,
-      fixedRate: 500000,
-      manualSlotDate: '2026-10-15',
-    });
-
-    expect(service.create).toHaveBeenCalledWith(
-      expect.objectContaining({ manualSlotDate: '2026-10-15' }),
-    );
   });
 });
