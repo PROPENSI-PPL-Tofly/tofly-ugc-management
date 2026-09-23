@@ -217,4 +217,47 @@ describe("AddCreatorModal", () => {
       expect(simpanButton()).toBeDisabled();
     });
   });
+
+  // Manual UI review finding: `errors` state was only ever written inside handleSubmit, but
+  // handleSubmit is bound to Simpan's onClick — and Simpan is natively `disabled` exactly
+  // when the form is invalid, so a disabled button never fires that click. Net effect: no
+  // field ever showed an error message, leaving the user with a greyed-out Simpan and no clue
+  // why. This cycle makes per-field errors visible on blur, independent of ever pressing Save.
+  describe("validation feedback on blur", () => {
+    it("shows no validation errors before any field has been touched", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      expect(screen.queryByText("Username wajib diisi")).not.toBeInTheDocument();
+      expect(screen.queryByText("Nama wajib diisi")).not.toBeInTheDocument();
+      expect(screen.queryByText("Format email tidak valid")).not.toBeInTheDocument();
+    });
+
+    it("shows the field's error once it is blurred while still invalid", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fireEvent.blur(screen.getByLabelText(/username/i));
+
+      expect(screen.getByText("Username wajib diisi")).toBeInTheDocument();
+    });
+
+    it("clears the field's error once it is filled with a valid value", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      const usernameInput = screen.getByLabelText(/username/i);
+      fireEvent.blur(usernameInput);
+      expect(screen.getByText("Username wajib diisi")).toBeInTheDocument();
+
+      fireEvent.change(usernameInput, { target: { value: "salsa.amelia" } });
+
+      expect(screen.queryByText("Username wajib diisi")).not.toBeInTheDocument();
+    });
+
+    it("keeps Simpan disabled while other required fields are still invalid, even after a blur reveals one error", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fireEvent.blur(screen.getByLabelText(/username/i));
+
+      expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+    });
+  });
 });
