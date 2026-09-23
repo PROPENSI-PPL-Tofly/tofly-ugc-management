@@ -38,4 +38,27 @@ describe('generateDeadlineSchedule', () => {
       '2026-10-09',
     ]);
   });
+
+  it.each([ // Test cases for contract end dates and expected deadlines
+    { contractEnd: '2026-10-01', expected: ['2026-09-25'] }, // Only the first deadline is before the contract end
+    { contractEnd: '2026-10-02', expected: ['2026-09-25', '2026-10-02'] }, // The first two deadlines are before the contract end
+    { contractEnd: '2026-10-03', expected: ['2026-09-25', '2026-10-02'] }, // The first two deadlines are before the contract end
+  ])('includes only deadlines on or before contract end $contractEnd', ({ contractEnd, expected }) => {
+    const deadlines = generateDeadlineSchedule({
+      ...defaultInput, 
+      contractEnd,
+      quota: 3,
+    });
+
+    expect(deadlines).toEqual(expected); // Check that the generated deadlines match the expected deadlines
+  });
+
+  it('returns no deadlines when the first deadline would be after the contract ends', () => { // Test case for when the first deadline is after the contract end
+    const deadlines = generateDeadlineSchedule({
+      ...defaultInput,
+      contractEnd: '2026-09-24',
+    });
+
+    expect(deadlines).toEqual([]); // Check that no deadlines are generated when the first deadline is after the contract end
+  });
 });
