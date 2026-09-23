@@ -7,16 +7,25 @@ export interface DeadlineScheduleInput { // Interface for the input parameters r
   quota: number; // The total number of deadlines to generate
 }
 
-export function generateDeadlineSchedule(input: DeadlineScheduleInput): string[] {
+export function getBufferWindow(
+  input: Pick<DeadlineScheduleInput, 'contractStart' | 'today' | 'bufferDays'>,
+) {
   // Use UTC calendar arithmetic so the browser's timezone cannot shift the date
   const contractStart = new Date(`${input.contractStart}T00:00:00Z`);
-  const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`); 
   const today = new Date(`${input.today}T00:00:00Z`);
-  const firstDeadline = new Date(Math.max(contractStart.getTime(), today.getTime()));
-  firstDeadline.setUTCDate(firstDeadline.getUTCDate() + input.bufferDays);
+  const bufferStartDate = new Date(Math.max(contractStart.getTime(), today.getTime()));
+  const firstAllowedDate = new Date(bufferStartDate);
+  firstAllowedDate.setUTCDate(firstAllowedDate.getUTCDate() + input.bufferDays);
+
+  return { bufferStartDate, firstAllowedDate };
+}
+
+export function generateDeadlineSchedule(input: DeadlineScheduleInput): string[] {
+  const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`);
+  const { firstAllowedDate } = getBufferWindow(input);
 
   const deadlines: string[] = []; //collect the generated deadlines in array of strings
-  const currentDeadline = new Date(firstDeadline); //initialize currentDeadline to firstDeadline
+  const currentDeadline = new Date(firstAllowedDate);
 
   while (
     deadlines.length < input.quota && // Continue generating deadlines until the quota is met

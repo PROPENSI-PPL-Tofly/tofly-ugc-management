@@ -2,6 +2,55 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import DeadlinePreview from './deadline-preview';
 
 describe('DeadlinePreview', () => { 
+  it.each([
+    ['2026-09-01', '2026-09-20', '2026-09-19', '2026-09-25'],
+    ['2026-09-23', '2026-09-23', '2026-09-22', '2026-09-28'],
+  ])('marks the shared buffer boundaries for start %s', (contractStart, start, before, end) => {
+    render(
+      <DeadlinePreview
+        contractStart={contractStart}
+        today="2026-09-20"
+        bufferDays={5}
+        autoDeadlines={[]}
+        allocatedCount={0}
+        remainingCount={2}
+        quota={2}
+      />,
+    );
+
+    expect(screen.getByTestId(`calendar-date-${start}`)).toHaveAttribute('data-date-status', 'buffer');
+    expect(screen.queryByTestId(`calendar-date-${before}`)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(`calendar-date-${end}`)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { today: undefined, bufferDays: 5 },
+    { today: '2026-09-20', bufferDays: undefined },
+  ])('keeps the calendar visible without complete buffer inputs: %j', (props) => {
+    const { container } = render(
+      <DeadlinePreview
+        contractStart="2026-09-20"
+        {...props}
+        autoDeadlines={[]}
+        allocatedCount={0}
+        remainingCount={2}
+        quota={2}
+      />,
+    );
+
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(container.querySelector('[data-date-status="buffer"]')).toBeNull();
+  });
+
+  it('shows the allocation summary without a calendar when no source date is available', () => {
+    render(
+      <DeadlinePreview autoDeadlines={[]} allocatedCount={0} remainingCount={2} quota={2} />,
+    );
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByText(/0 \/ 2 teralokasi/i)).toBeInTheDocument();
+  });
+
   it('shows automatic deadlines and the allocation summary', () => {
   render(
     <DeadlinePreview

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getBufferWindow } from '@/lib/deadline-schedule';
 
 interface DeadlinePreviewProps {
   contractStart?: string;
@@ -71,25 +72,10 @@ export default function DeadlinePreview({
   // Makes checking whether a date is an auto deadline easier.
   const autoDeadlineSet = new Set(autoDeadlines);
 
-  // Buffer starts from contract start or today, whichever is later.
-  const bufferStartDate =
-    contractStart && today
-      ? new Date(
-          `${contractStart > today ? contractStart : today}T00:00:00Z`,
-        )
+  const bufferWindow =
+    contractStart && today && bufferDays !== undefined
+      ? getBufferWindow({ contractStart, today, bufferDays })
       : null;
-
-  // Calculate the first date that is allowed after the buffer.
-  const firstAllowedDate =
-    bufferStartDate && bufferDays !== undefined
-      ? new Date(bufferStartDate)
-      : null;
-
-  if (firstAllowedDate && bufferDays !== undefined) {
-    firstAllowedDate.setUTCDate(
-      firstAllowedDate.getUTCDate() + bufferDays,
-    );
-  }
 
   return (
   <section className="w-full rounded-2xl border border-zinc-200 bg-white p-6">
@@ -191,12 +177,11 @@ export default function DeadlinePreview({
                   );
 
                   const isBufferDate =
-                    bufferStartDate !== null &&
-                    firstAllowedDate !== null &&
+                    bufferWindow !== null &&
                     currentDate.getTime() >=
-                      bufferStartDate.getTime() &&
+                      bufferWindow.bufferStartDate.getTime() &&
                     currentDate.getTime() <
-                      firstAllowedDate.getTime();
+                      bufferWindow.firstAllowedDate.getTime();
 
                   return (
                     <td
