@@ -21,7 +21,7 @@ export class ContentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async assignManualSlot(dto: ManualSlotDto): Promise<ContentResponse> {
-    const content = await this.prisma.content.findUnique({
+    const content = await this.prisma.contents.findUnique({
       where: { id: dto.contentId },
       select: { id: true, contract_id: true },
     });
@@ -33,9 +33,9 @@ export class ContentsService {
       });
     }
 
-    const contract = await this.prisma.contracts.findUnique({
+    const contract = await this.prisma.contract.findUnique({
       where: { id: content.contract_id },
-      select: { start_date: true, end_date: true },
+      select: { startDate: true, endDate: true },
     });
 
     if (!contract) {
@@ -56,14 +56,14 @@ export class ContentsService {
       });
     }
 
-    if (deadline < contract.start_date || deadline > contract.end_date) {
+    if (deadline < contract.startDate || deadline > contract.endDate) {
       throw new BadRequestException({
         code: 'DEADLINE_OUTSIDE_CONTRACT',
         message: 'Deadline harus dalam masa kontrak',
       });
     }
 
-    const updated = await this.prisma.content.update({
+    const updated = await this.prisma.contents.update({
       where: { id: dto.contentId },
       data: { deadline },
       select: {
