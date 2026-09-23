@@ -347,7 +347,20 @@ describe("AddCreatorModal", () => {
       expect(screen.queryByRole("button", { name: /hapus deadline manual/i })).not.toBeInTheDocument();
     });
 
-    it("frees a content when an auto deadline is removed, and takes it back when restored", () => {
+    it("counts contents that share a manual day", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-10-01", "2026-10-06", "3");
+      fireEvent.click(screen.getByRole("button", { name: "6 Okt 2026: lepas deadline otomatis" }));
+
+      for (let pick = 0; pick < 3; pick++) {
+        fireEvent.click(screen.getByRole("button", { name: "6 Okt 2026: tambah deadline manual" }));
+      }
+
+      expect(screen.getByRole("list", { name: "Deadline manual" })).toHaveTextContent("6 Okt 2026 ×3");
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("frees a content when an auto deadline is removed, and lets the admin pick that day again", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
       fillOthers();
       fillContract("2026-10-01", "2026-12-31", "3");
@@ -358,7 +371,7 @@ describe("AddCreatorModal", () => {
       expect(screen.getByRole("status")).toHaveTextContent("Sisa 1 konten");
       expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
 
-      fireEvent.click(screen.getByRole("button", { name: "6 Okt 2026: kembalikan deadline otomatis" }));
+      fireEvent.click(screen.getByRole("button", { name: "6 Okt 2026: tambah deadline manual" }));
 
       expect(screen.getByRole("button", { name: /simpan/i })).toBeEnabled();
     });
