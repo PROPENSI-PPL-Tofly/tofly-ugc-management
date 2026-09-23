@@ -9,7 +9,7 @@
  */
 export function evergreenName(fullName: string, day: string): string {
   const [year, month, date] = day.split('-');
-  return `Evg_${fullName.replace(/\s+/g, '')}_${date}${month}${year}`;
+  return `Evg_${fullName.replaceAll(/\s+/g, '')}_${date}${month}${year}`;
 }
 
 export interface NameParts {
@@ -24,13 +24,11 @@ export interface NameParts {
  * as the middle name so no part of a long Indonesian name is dropped.
  */
 export function splitName(fullName: string): NameParts {
-  const words = fullName.trim().split(/\s+/);
-  if (words.length === 1) {
-    return { first_name: words[0], middle_name: null, last_name: null };
-  }
+  const [first, ...rest] = fullName.trim().split(/\s+/);
+  const last = rest.pop() ?? null;
   return {
-    first_name: words[0],
-    middle_name: words.length > 2 ? words.slice(1, -1).join(' ') : null,
-    last_name: words[words.length - 1],
+    first_name: first,
+    middle_name: rest.length > 0 ? rest.join(' ') : null,
+    last_name: last,
   };
 }
