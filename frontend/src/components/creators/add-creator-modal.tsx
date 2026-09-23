@@ -150,7 +150,8 @@ export function AddCreatorModal({
         <input
           type="number"
           className={FIELD}
-          value={form.quota}
+          placeholder="mis. 6"
+          value={form.quota === 0 ? "" : form.quota}
           onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })}
         />
       </Field>

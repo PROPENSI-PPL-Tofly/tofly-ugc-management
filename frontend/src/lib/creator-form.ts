@@ -56,8 +56,8 @@ export function validateCreatorForm(
     errors.interval = "Jarak antar-deadline minimal 1 hari";
   }
 
-  if (input.quota < 0) {
-    errors.quota = "Jumlah konten tidak boleh negatif";
+  if (input.quota <= 0) {
+    errors.quota = "Jumlah konten harus lebih dari 0";
   }
 
   if (input.fixedRate <= 0) {
