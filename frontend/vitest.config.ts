@@ -19,7 +19,7 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.d.ts', 'src/**/layout.tsx', '**/*.config.{ts,mts,js}'],
-      thresholds: { lines: 80 },
+      thresholds: { lines: 100, statements: 100, functions: 100, branches: 100 },
     },
   },
 });
