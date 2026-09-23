@@ -38,6 +38,11 @@ export interface NewCreator {
 /** Keyed by the Add Creator modal's field names, so the modal can show each under its input. */
 export type NewCreatorErrors = Partial<Record<string, string>>;
 
+/** A text field's value with the padding the form may add; anything that is not text reads as blank. */
+function trimmed(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 type NameParts = Pick<NewCreator, 'firstName' | 'middleName' | 'lastName'>;
 
 /**
@@ -45,11 +50,12 @@ type NameParts = Pick<NewCreator, 'firstName' | 'middleName' | 'lastName'>;
  * name, the last word the last name, and everything between is the middle name.
  */
 function checkName(value: unknown, errors: NewCreatorErrors): NameParts {
-  const words = typeof value === 'string' ? value.trim().split(/\s+/) : [''];
+  const name = trimmed(value);
+  const words = name.split(/\s+/);
 
-  if (words[0] === '') {
+  if (name === '') {
     errors.name = 'Nama wajib diisi';
-  } else if ((value as string).trim().length > MAX_NAME_LENGTH) {
+  } else if (name.length > MAX_NAME_LENGTH) {
     errors.name = `Nama maksimal ${MAX_NAME_LENGTH} karakter`;
   }
 
@@ -61,7 +67,7 @@ function checkName(value: unknown, errors: NewCreatorErrors): NameParts {
 }
 
 function checkEmail(value: unknown, errors: NewCreatorErrors): string {
-  const email = typeof value === 'string' ? value.trim() : '';
+  const email = trimmed(value);
 
   if (email === '') {
     errors.email = 'Email wajib diisi';
@@ -85,7 +91,7 @@ function checkSocial(
     errors.socialPlatform = 'Platform harus instagram atau tiktok';
   }
 
-  const handle = typeof username === 'string' ? username.trim() : '';
+  const handle = trimmed(username);
 
   if (handle === '') {
     errors.socialUsername = 'Username wajib diisi';
