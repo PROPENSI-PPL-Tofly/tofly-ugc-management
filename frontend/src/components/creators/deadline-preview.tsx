@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { AssignSlotModal } from './assign-slot-modal';
+import { DeadlineSlot } from './deadline-slot';
 
 interface DeadlinePreviewProps {
   contractStart?: string;
@@ -20,6 +22,7 @@ export default function DeadlinePreview({
   allocatedCount,
   quota,
 }: DeadlinePreviewProps) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // Start the calendar from the contract month, or use the first auto deadline as fallback.
   const calendarSourceDate = contractStart ?? autoDeadlines[0];
 
@@ -199,32 +202,14 @@ export default function DeadlinePreview({
                       firstAllowedDate.getTime();
 
                   return (
-                    <td
+                    <DeadlineSlot
                       key={weekday}
-                      className="h-14 p-0.5"
-                    >
-                      {isAutoDeadline ? (
-                        <span
-                          className="auto-deadline flex h-full min-h-12 items-start justify-start rounded-lg p-2 text-sm font-bold text-white"
-                          data-testid={`deadline-${date}`}
-                          data-deadline-type="auto"
-                        >
-                          {day}
-                        </span>
-                      ) : isBufferDate ? (
-                        <span
-                          className="buffer-date flex h-full min-h-12 items-start justify-start rounded-lg p-2 text-sm"
-                          data-testid={`calendar-date-${date}`}
-                          data-date-status="buffer"
-                        >
-                          {day}
-                        </span>
-                      ) : (
-                        <span className="flex h-full min-h-12 items-start justify-start rounded-lg border border-zinc-200 bg-white p-2 text-sm text-zinc-600">
-                          {day}
-                        </span>
-                      )}
-                    </td>
+                      date={date}
+                      day={day}
+                      isAutoDeadline={isAutoDeadline}
+                      isBufferDate={isBufferDate}
+                      onAssign={setSelectedDate}
+                    />
                   );
                 })}
               </tr>
@@ -244,6 +229,14 @@ export default function DeadlinePreview({
         {allocatedCount} / {quota} teralokasi
       </p>
     </div>
+
+    {selectedDate && (
+      <AssignSlotModal
+        deadline={selectedDate}
+        onClose={() => setSelectedDate(null)}
+        onAssigned={() => setSelectedDate(null)}
+      />
+    )}
   </section>
 );
 }
