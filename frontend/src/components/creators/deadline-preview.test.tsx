@@ -122,5 +122,21 @@ describe('DeadlinePreview', () => {
     screen.getByTestId('deadline-2026-10-02'),
   ).toHaveTextContent('2');
 });
+  it('marks automatic deadline dates with an accent style', () => { // Test case for marking automatic deadline dates with a special style
+  render(
+    <DeadlinePreview
+      contractStart="2026-09-20"
+      autoDeadlines={['2026-09-25']}
+      allocatedCount={1}
+      remainingCount={0}
+      quota={1}
+    />,
+  );
 
+  // Get the automatically generated deadline date.
+  const autoDeadline = screen.getByTestId('deadline-2026-09-25');
+
+  // Auto deadlines should have a special style so they stand out.
+  expect(autoDeadline).toHaveClass('auto-deadline');
+});
 });
