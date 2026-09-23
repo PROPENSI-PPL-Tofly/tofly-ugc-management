@@ -161,4 +161,58 @@ describe('checkNewCreator', () => {
       });
     });
   });
+
+  describe('social account', () => {
+    it.each(['instagram', 'tiktok'])('accepts the %s platform', (platform) => {
+      expect(
+        checkNewCreator(body({ socialPlatform: platform }), TODAY),
+      ).toMatchObject({ socialPlatform: platform });
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['empty', ''],
+    ])('requires a platform (%s)', (_case, socialPlatform) => {
+      expect(errorsFor(body({ socialPlatform }))).toEqual({
+        socialPlatform: 'Platform wajib dipilih',
+      });
+    });
+
+    it.each([
+      ['a platform the database has no enum for', 'youtube'],
+      ['a differently cased value', 'Instagram'],
+      ['not a string', 1],
+    ])('rejects %s', (_case, socialPlatform) => {
+      expect(errorsFor(body({ socialPlatform }))).toEqual({
+        socialPlatform: 'Platform harus instagram atau tiktok',
+      });
+    });
+
+    it('trims the username', () => {
+      expect(
+        checkNewCreator(body({ socialUsername: ' salsa.amelia ' }), TODAY)
+          .socialUsername,
+      ).toBe('salsa.amelia');
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['empty', ''],
+      ['only spaces', '  '],
+      ['not a string', 7],
+    ])('requires a username (%s)', (_case, socialUsername) => {
+      expect(errorsFor(body({ socialUsername }))).toEqual({
+        socialUsername: 'Username wajib diisi',
+      });
+    });
+
+    it('accepts a 100-character username and rejects 101', () => {
+      expect(() =>
+        checkNewCreator(body({ socialUsername: 'u'.repeat(100) }), TODAY),
+      ).not.toThrow();
+      expect(errorsFor(body({ socialUsername: 'u'.repeat(101) }))).toEqual({
+        socialUsername: 'Username maksimal 100 karakter',
+      });
+    });
+  });
 });
