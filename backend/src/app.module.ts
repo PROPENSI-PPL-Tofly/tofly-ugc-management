@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -15,7 +16,7 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
 }
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, validate }), PrismaModule, CreatorsModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true, validate }), PrismaModule, CreatorsModule, ContentsModule],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })
