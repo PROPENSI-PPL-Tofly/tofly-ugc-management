@@ -1,14 +1,14 @@
-export interface DeadlineScheduleInput {
-  contractStart: string;
-  contractEnd: string;
-  today: string;
-  bufferDays: number;
-  intervalDays: number;
-  quota: number;
+export interface DeadlineScheduleInput { // Interface for the input parameters required to generate a deadline schedule
+  contractStart: string; // The start date of the contract in YYYY-MM-DD format
+  contractEnd: string; // The end date of the contract in YYYY-MM-DD format
+  today: string; // The current date in YYYY-MM-DD format
+  bufferDays: number; // The number of days to wait after the contract start date before the first deadline
+  intervalDays: number; // The number of days between each subsequent deadline
+  quota: number; // The total number of deadlines to generate
 }
 
 export function generateDeadlineSchedule(input: DeadlineScheduleInput): string[] {
-  // Use UTC calendar arithmetic so the browser's timezone cannot shift the date.
+  // Use UTC calendar arithmetic so the browser's timezone cannot shift the date
   const contractStart = new Date(`${input.contractStart}T00:00:00Z`);
   const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`); 
   const today = new Date(`${input.today}T00:00:00Z`);
@@ -27,4 +27,27 @@ export function generateDeadlineSchedule(input: DeadlineScheduleInput): string[]
   }
 
   return deadlines; 
+}
+
+export interface DeadlinePreview { // Interface for the preview of deadlines generated based on the input
+  autoDeadlines: string[]; // Array of automatically generated deadlines
+  allocatedCount: number; // Count of deadlines that have been succesfully allocated 
+  remainingCount: number; // Count of remaining slots that need to be filled to meet the quota
+  quota: number; // The total number of deadlines that should be generated based on the input
+}
+
+export function getDeadlinePreview( // Function to get a preview of the deadlines based on the input parameters
+  input: DeadlineScheduleInput, 
+): DeadlinePreview { 
+  const autoDeadlines = generateDeadlineSchedule(input); // Generate the automatic deadlines based on the input parameters
+
+  return {
+    autoDeadlines, 
+    allocatedCount: autoDeadlines.length, 
+    remainingCount: Math.max( //calculates how many content still need a deadline
+      0,
+      input.quota - autoDeadlines.length, 
+    ),
+    quota: input.quota,
+  };
 }
