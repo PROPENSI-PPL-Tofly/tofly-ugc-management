@@ -32,16 +32,17 @@ export function Modal({
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
+    // Set by the time effects run: the dialog element renders unconditionally.
+    const dialog = dialogRef.current as HTMLDivElement;
 
     // Read fresh on each key: the footer and body swap contents while the detail
     // loads, so a list captured on open would go stale.
     const focusable = () =>
-      Array.from(dialog?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
+      Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
 
     // The container, not the first control: screen readers then announce the
     // dialog and its title before the user starts tabbing through it.
-    dialog?.focus();
+    dialog.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -51,14 +52,9 @@ export function Modal({
 
       if (event.key !== "Tab") return;
 
+      // Never empty: the close button in the header is always there.
       const items = focusable();
-      if (items.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const active = document.activeElement as HTMLElement | null;
-      const index = active ? items.indexOf(active) : -1;
+      const index = items.indexOf(document.activeElement as HTMLElement);
 
       // index === -1 means focus is on the container itself, so Tab enters at the
       // top and Shift+Tab enters at the bottom. Both ends wrap.
@@ -77,7 +73,7 @@ export function Modal({
     // mousedown, not click, so the press that opened the dialog cannot immediately
     // close it again as it finishes bubbling.
     const onMouseDown = (event: MouseEvent) => {
-      if (!dialog?.contains(event.target as Node)) onClose();
+      if (!dialog.contains(event.target as Node)) onClose();
     };
 
     document.addEventListener("keydown", onKeyDown);

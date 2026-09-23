@@ -87,6 +87,26 @@ describe("Modal", () => {
     expect(last).toHaveFocus();
   });
 
+  it("lets Tab move normally between controls inside the dialog", () => {
+    render(<Harness open />);
+    const first = screen.getByRole("button", { name: "Tutup" });
+    first.focus();
+
+    const tab = fireEvent.keyDown(document, { key: "Tab" });
+
+    // Not prevented: the browser moves focus to the next control on its own.
+    expect(tab).toBe(true);
+    expect(first).toHaveFocus();
+  });
+
+  it("ignores keys other than Tab and Escape", () => {
+    const onClose = vi.fn();
+    render(<Harness open onClose={onClose} />);
+
+    expect(fireEvent.keyDown(document, { key: "a" })).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("returns focus to whatever opened it", () => {
     const { rerender } = render(<Harness open={false} />);
 
