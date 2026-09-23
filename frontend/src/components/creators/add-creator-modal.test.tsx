@@ -124,5 +124,17 @@ describe("AddCreatorModal", () => {
 
       expect(simpanButton()).not.toBeDisabled();
     });
+
+    // `existingEmails` is not a prop of AddCreatorModal yet — GREEN adds it, threading it
+    // through to validateCreatorForm the same way `today` already flows for the date rules.
+    it("stays disabled when the email is already registered", () => {
+      render(
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} existingEmails={["bagas@example.com"]} />,
+      );
+
+      fillValidForm();
+
+      expect(simpanButton()).toBeDisabled();
+    });
   });
 });
