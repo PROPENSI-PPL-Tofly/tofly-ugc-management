@@ -1,4 +1,6 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import type { NewCreator } from './dto/new-creator.dto.js';
@@ -46,6 +48,22 @@ const CREATED = {
     },
   ],
 };
+
+function uniqueViolation(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError(
+    'Unique constraint failed on the fields: (`email`)',
+    { code: 'P2002', clientVersion: 'test', meta: { target: ['email'] } },
+  );
+}
+
+async function rejection(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+  throw new Error('expected the promise to reject');
+}
 
 describe('CreatorOnboardingService', () => {
   const prisma = { creators: { create: vi.fn() } };
@@ -161,5 +179,66 @@ describe('CreatorOnboardingService', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('rejects an invalid schedule with per-field messages and writes nothing', async () => {
+    const error = await rejection(
+      service.onboard({ ...INPUT, deadlines: ['2026-09-26'] }, NOW),
+    );
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect((error as UnprocessableEntityException).getResponse()).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'Data creator tidak valid',
+      errors: {
+        deadlines: 'Jumlah deadline harus sama dengan jumlah konten (2)',
+      },
+    });
+    expect(prisma.creators.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a contract that started yesterday in WIB', async () => {
+    const error = await rejection(
+      service.onboard(INPUT, new Date('2026-09-12T17:00:00Z')),
+    );
+
+    expect((error as UnprocessableEntityException).getResponse()).toMatchObject(
+      {
+        errors: { contractStart: 'Tanggal mulai tidak boleh sebelum hari ini' },
+      },
+    );
+    expect(prisma.creators.create).not.toHaveBeenCalled();
+  });
+
+  // The unique index decides, not a lookup beforehand: two admins saving the same email at
+  // once cannot both pass, and citext makes Rangga@ and rangga@ the same login.
+  it('turns a unique-email violation into a 422 on the email field', async () => {
+    prisma.creators.create.mockRejectedValue(uniqueViolation());
+
+    const error = await rejection(service.onboard(INPUT, NOW));
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect((error as UnprocessableEntityException).getResponse()).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'Data creator tidak valid',
+      errors: { email: 'Email sudah terdaftar' },
+    });
+  });
+
+  it('lets any other database error through unchanged', async () => {
+    const failure = new Prisma.PrismaClientKnownRequestError('Foreign key', {
+      code: 'P2003',
+      clientVersion: 'test',
+    });
+    prisma.creators.create.mockRejectedValue(failure);
+
+    await expect(service.onboard(INPUT, NOW)).rejects.toBe(failure);
+  });
+
+  it('lets an error that is not from Prisma through unchanged', async () => {
+    const failure = new Error('connection reset');
+    prisma.creators.create.mockRejectedValue(failure);
+
+    await expect(service.onboard(INPUT, NOW)).rejects.toBe(failure);
   });
 });
