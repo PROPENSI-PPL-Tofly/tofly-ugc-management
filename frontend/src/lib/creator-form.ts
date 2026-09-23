@@ -8,6 +8,7 @@ export interface CreatorFormInput {
   contractEnd: string;
   interval: number;
   quota: number;
+  fixedRate: number;
 }
 
 export interface CreatorFormErrors {
@@ -16,6 +17,7 @@ export interface CreatorFormErrors {
   contractStart?: string;
   interval?: string;
   quota?: string;
+  fixedRate?: string;
 }
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,6 +55,10 @@ export function validateCreatorForm(
 
   if (input.quota < 0) {
     errors.quota = "Jumlah konten tidak boleh negatif";
+  }
+
+  if (input.fixedRate < 0) {
+    errors.fixedRate = "Fixed rate tidak boleh negatif";
   }
 
   return errors;
