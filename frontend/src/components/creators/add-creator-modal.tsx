@@ -14,6 +14,16 @@ import {
   type CreatorFormInput,
   type SocialPlatform,
 } from "@/lib/creator-form";
+import {
+  addManualDeadline,
+  allocateDeadlines,
+  NO_PICKS,
+  removeManualDeadline,
+  toggleAutoDeadline,
+  type SlotPicks,
+} from "@/lib/deadline-allocation";
+import { getBufferWindow } from "@/lib/deadline-schedule";
+import { formatDate } from "@/lib/format";
 import type { NewCreatorRequest } from "@/lib/creators";
 
 const ALERT = "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
@@ -101,6 +111,27 @@ export function AddCreatorModal({
   const today = localCalendarDay(new Date());
   const limits = contractDateLimits(form, today);
   const schedule = scheduleDeadlines(form, today);
+  // What the admin changed on the calendar; re-applied to whatever the contract now allows.
+  const [picks, setPicks] = useState<SlotPicks>(NO_PICKS);
+  const allocation =
+    schedule === null
+      ? null
+      : allocateDeadlines(
+          {
+            autoDeadlines: schedule.autoDeadlines,
+            quota: form.quota,
+            firstAllowed: getBufferWindow({
+              contractStart: form.contractStart,
+              today,
+              bufferDays: BUFFER_DAYS,
+            })
+              .firstAllowedDate.toISOString()
+              .slice(0, 10),
+            contractEnd: form.contractEnd,
+          },
+          picks,
+        );
+  const remaining = allocation?.remaining ?? 0;
 
   // Recomputed on every render — the single source of truth for both Simpan's disabled state
   // and the per-field error messages below, so there is only one place validation ever runs.
@@ -123,8 +154,9 @@ export function AddCreatorModal({
 
   const scheduleError = liveErrors.deadlines ?? serverErrors.deadlines;
 
-  // Simpan is disabled until the form is valid, and a valid form always has a schedule.
-  const deadlines = schedule?.autoDeadlines ?? [];
+  // Simpan is disabled until the form is valid and every content has a day, so there is
+  // always an allocation by the time it can be clicked.
+  const deadlines = allocation?.deadlines ?? [];
 
   function handleSubmit() {
     onSubmit({ ...form, deadlines });
@@ -140,7 +172,11 @@ export function AddCreatorModal({
             Batal
           </Button>
 
-          <Button variant="accent" onClick={handleSubmit} disabled={loading || !isFormValid}>
+          <Button
+            variant="accent"
+            onClick={handleSubmit}
+            disabled={loading || !isFormValid || remaining > 0}
+          >
             Simpan
           </Button>
         </>
@@ -250,14 +286,53 @@ export function AddCreatorModal({
         </Field>
       </div>
 
-      {schedule !== null ? (
+      {schedule !== null && allocation !== null ? (
         <div className="mt-4">
           <DeadlinePreview
             contractStart={form.contractStart}
+            contractEnd={form.contractEnd}
             today={today}
             bufferDays={BUFFER_DAYS}
-            {...schedule}
+            autoDeadlines={allocation.auto}
+            removedAuto={schedule.autoDeadlines.filter((day) => !allocation.auto.includes(day))}
+            manualDeadlines={allocation.manual}
+            allocatedCount={allocation.deadlines.length}
+            remainingCount={remaining}
+            quota={form.quota}
+            onToggleAuto={(day) => setPicks((prev) => toggleAutoDeadline(prev, day))}
+            onAddManual={(day) => setPicks((prev) => addManualDeadline(prev, day, remaining))}
           />
+
+          {remaining > 0 ? (
+            <p role="status" className="mt-3 text-[13px] text-amber-ink">
+              Sisa {remaining} konten belum punya deadline. Pilih tanggalnya di kalender.
+            </p>
+          ) : null}
+
+          {allocation.manual.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-2" aria-label="Deadline manual">
+              {[...new Set(allocation.manual)].map((day) => {
+                const count = allocation.manual.filter((picked) => picked === day).length;
+                return (
+                  <li
+                    key={day}
+                    className="inline-flex items-center gap-1 rounded-full bg-accent-wash px-3 py-0.5 text-xs font-semibold text-accent-deep"
+                  >
+                    {formatDate(day)}
+                    {count > 1 ? ` ×${count}` : ""}
+                    <button
+                      type="button"
+                      aria-label={`Hapus deadline manual ${formatDate(day)}`}
+                      onClick={() => setPicks((prev) => removeManualDeadline(prev, day))}
+                      className="ml-1 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
