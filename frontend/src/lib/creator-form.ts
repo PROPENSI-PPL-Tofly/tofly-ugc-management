@@ -6,12 +6,14 @@ export interface CreatorFormInput {
   email: string;
   contractStart: string;
   contractEnd: string;
+  interval: number;
 }
 
 export interface CreatorFormErrors {
   name?: string;
   email?: string;
   contractStart?: string;
+  interval?: string;
 }
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +43,10 @@ export function validateCreatorForm(
 
   if (input.contractStart < calendarDay(today)) {
     errors.contractStart = "Tanggal mulai tidak boleh sebelum hari ini";
+  }
+
+  if (input.interval <= 0) {
+    errors.interval = "Jarak antar-deadline minimal 1 hari";
   }
 
   return errors;
