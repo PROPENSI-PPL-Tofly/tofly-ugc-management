@@ -1,3 +1,7 @@
+'use client'; 
+
+import { useState } from 'react';
+
 interface DeadlinePreviewProps {
   contractStart?: string;
   autoDeadlines: string[];
@@ -15,11 +19,24 @@ export default function DeadlinePreview({
 }: DeadlinePreviewProps) { // React component that displays a preview of deadlines, including automatic deadlines, allocation summary, and a monthly calendar view
 
   // Use the first auto deadline, or contract start if no auto deadline exists.
-  const calendarSourceDate = autoDeadlines[0] ?? contractStart; 
+  const calendarSourceDate = autoDeadlines[0] ?? contractStart;
 
-  const calendarDate = calendarSourceDate
+  const baseCalendarDate = calendarSourceDate
     ? new Date(`${calendarSourceDate}T00:00:00Z`) // Create a Date object in UTC format
-    : null; // If there is no date available, set calendarDate to null
+    : null; // If there is no date available, set baseCalendarDate to null
+
+  // Track how many months the user moves from the starting month, initialized to 0 
+  const [monthOffset, setMonthOffset] = useState(0); 
+
+  const calendarDate = baseCalendarDate // Calculate the calendar date based on the base date and the month offset
+    ? new Date(
+        Date.UTC(
+          baseCalendarDate.getUTCFullYear(),
+          baseCalendarDate.getUTCMonth() + monthOffset,
+          1,
+        ),
+      )
+    : null;
 
   const year = calendarDate?.getUTCFullYear(); // Get the year in UTC format
   const month = calendarDate?.getUTCMonth(); // Get the month in UTC format
@@ -61,7 +78,17 @@ export default function DeadlinePreview({
 
       {calendarDate && year !== undefined && month !== undefined && (
         <div>
-          <h4>{monthTitle}</h4>
+          <div>
+            <h4>{monthTitle}</h4>
+
+            <button
+              type="button"
+              aria-label="Next month"
+              onClick={() => setMonthOffset((current) => current + 1)} // Increment the month offset to navigate to the next month
+            >
+              Next
+            </button>
+          </div>
 
           <div>
             <span>Sun</span>
