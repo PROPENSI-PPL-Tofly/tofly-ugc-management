@@ -60,15 +60,15 @@ export function AddCreatorModal({
 
   // Recomputed on every render, separate from the `errors` state above: `errors` only
   // updates on a submit attempt (so the form stays quiet while the admin is still typing),
-  // but Simpan's disabled state has to track validity live, field by field.
-  const isFormValid =
-    Object.keys(validateCreatorForm(form, undefined, existingEmails)).length === 0;
+  // but Simpan's disabled state has to track validity live, field by field. handleSubmit
+  // below reuses this same result instead of calling validateCreatorForm a second time.
+  const liveErrors = validateCreatorForm(form, undefined, existingEmails);
+  const isFormValid = Object.keys(liveErrors).length === 0;
 
   function handleSubmit() {
-    const nextErrors = validateCreatorForm(form, undefined, existingEmails);
-    setErrors(nextErrors);
+    setErrors(liveErrors);
 
-    if (Object.keys(nextErrors).length === 0) {
+    if (isFormValid) {
       onSubmit(form);
     }
   }
