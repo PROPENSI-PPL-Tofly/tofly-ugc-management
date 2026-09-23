@@ -1,5 +1,3 @@
-import { SubmitError } from "./tasks";
-
 export interface AssignSlotPayload {
   contentId: string;
   deadline: string;
@@ -26,7 +24,7 @@ export async function assignManualSlot(
       body: JSON.stringify(payload),
     });
   } catch {
-    throw new SubmitError(FALLBACK_MESSAGE, 0);
+    throw new Error(FALLBACK_MESSAGE);
   }
 
   const data = (await response.json().catch(() => null)) as
@@ -35,7 +33,7 @@ export async function assignManualSlot(
 
   if (!response.ok) {
     const message = typeof data?.message === "string" ? data.message : FALLBACK_MESSAGE;
-    throw new SubmitError(message, response.status);
+    throw new Error(message);
   }
 
   return data as AssignedContent;
