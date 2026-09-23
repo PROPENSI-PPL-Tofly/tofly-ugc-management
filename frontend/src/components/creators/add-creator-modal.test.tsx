@@ -65,6 +65,7 @@ describe("AddCreatorModal", () => {
       fixedRate: 500000,
       socialPlatform: "instagram",
       socialUsername: "salsa.amelia",
+      deadlines: ["2099-01-06", "2099-01-20", "2099-02-03", "2099-02-17", "2099-03-03", "2099-03-17"],
     });
   });
 
@@ -258,6 +259,133 @@ describe("AddCreatorModal", () => {
       fireEvent.blur(screen.getByLabelText(/username/i));
 
       expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+    });
+  });
+
+  describe("schedule and server feedback", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-09-24T05:00:00Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function fillContract(start: string, end: string, quota: string) {
+      fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: start } });
+      fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: end } });
+      fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: quota } });
+    }
+
+    function fillOthers() {
+      fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
+      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "bagas@example.com" } });
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
+      fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "instagram" } });
+      fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "bagas" } });
+    }
+
+    it("stops the date pickers at today and at each other", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const start = screen.getByLabelText(/mulai kontrak/i);
+      const end = screen.getByLabelText(/akhir kontrak/i);
+
+      expect(start).toHaveAttribute("min", "2026-09-24");
+      expect(start).not.toHaveAttribute("max");
+      expect(end).toHaveAttribute("min", "2026-09-24");
+
+      fillContract("2026-10-01", "2026-12-31", "3");
+
+      expect(start).toHaveAttribute("max", "2026-12-31");
+      expect(end).toHaveAttribute("min", "2026-10-01");
+    });
+
+    it("shows no deadline preview until the contract is complete", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      expect(screen.queryByText(/teralokasi/i)).not.toBeInTheDocument();
+    });
+
+    it("previews the auto-generated deadlines once the contract is complete", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-10-01", "2026-12-31", "3");
+
+      expect(screen.getByTestId("deadline-2026-10-06")).toBeInTheDocument();
+      expect(screen.getByText(/3 \/ 3 teralokasi/i)).toBeInTheDocument();
+    });
+
+    it("blocks Simpan and says why when the contract cannot fit every content", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillOthers();
+      fillContract("2026-10-01", "2026-10-20", "3");
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Kontrak hanya memuat 2 dari 3 deadline");
+      expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+    });
+
+    it("shows the server's message under each rejected field without waiting for a blur", () => {
+      render(
+        <AddCreatorModal
+          onClose={() => {}}
+          onSubmit={() => {}}
+          serverErrors={{
+            email: "Email sudah terdaftar",
+            contractEnd: "Tanggal berakhir tidak boleh sebelum hari ini",
+          }}
+        />,
+      );
+
+      expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+      expect(screen.getByText("Tanggal berakhir tidak boleh sebelum hari ini")).toBeInTheDocument();
+    });
+
+    it("drops a field's server message once the admin edits that field", () => {
+      render(
+        <AddCreatorModal
+          onClose={() => {}}
+          onSubmit={() => {}}
+          serverErrors={{ email: "Email sudah terdaftar", name: "Nama terlalu panjang" }}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "baru@example.com" } });
+
+      expect(screen.queryByText("Email sudah terdaftar")).not.toBeInTheDocument();
+      expect(screen.getByText("Nama terlalu panjang")).toBeInTheDocument();
+    });
+
+    it("shows a fresh set of server messages even for a field edited before", () => {
+      const { rerender } = render(
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
+      );
+      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "lagi@example.com" } });
+
+      rerender(
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
+      );
+
+      expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+    });
+
+    it("shows the server's schedule message as an alert", () => {
+      render(
+        <AddCreatorModal
+          onClose={() => {}}
+          onSubmit={() => {}}
+          serverErrors={{ deadlines: "Deadline paling cepat 2026-10-06" }}
+        />,
+      );
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Deadline paling cepat 2026-10-06");
+    });
+
+    it("shows a save failure above the actions", () => {
+      render(
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} formError="Creator gagal disimpan. Coba lagi." />,
+      );
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Creator gagal disimpan. Coba lagi.");
     });
   });
 });
