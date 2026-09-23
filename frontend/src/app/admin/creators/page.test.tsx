@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { creator, listResponse } from "@/components/creators/creator.fixture";
 import { fetchCreators } from "@/lib/creators";
 import CreatorsPage from "./page";
@@ -103,5 +103,16 @@ describe("Creator database page", () => {
     await renderPage();
 
     expect(screen.getByRole("searchbox", { name: /cari creator/i })).toBeInTheDocument();
+  });
+
+  // There is no "+ Tambah Creator" trigger on the page yet — GREEN adds it, wired to open
+  // AddCreatorModal (already built and unit-tested on its own in add-creator-modal.test.tsx).
+  it("opens the Add Creator modal when the trigger is clicked", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(listResponse());
+
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /tambah creator/i }));
+
+    expect(screen.getByRole("dialog", { name: /tambah creator/i })).toBeInTheDocument();
   });
 });
