@@ -179,4 +179,33 @@ describe('DeadlinePreview', () => {
     screen.getByText('September 2026'),
   ).toBeInTheDocument();
 });
+
+  it('returns to the previous month without changing the deadline allocation', () => { // Test case for navigating back to the previous month in the DeadlinePreview component and checking that the deadline allocation remains unchanged
+    render(
+      <DeadlinePreview
+        contractStart="2026-09-20"
+        autoDeadlines={['2026-09-25', '2026-10-02']}
+        allocatedCount={2}
+        remainingCount={2}
+        quota={4}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'September 2026' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /next month/i }));
+
+    expect(screen.getByRole('heading', { name: 'October 2026' })).toBeInTheDocument();
+    expect(screen.getByTestId('deadline-2026-10-02')).toHaveTextContent('2');
+
+    fireEvent.click(screen.getByRole('button', { name: /previous month/i }));
+
+    expect(screen.getByRole('heading', { name: 'September 2026' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'October 2026' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('deadline-2026-09-25')).toHaveTextContent('25');
+    expect(screen.getByTestId('deadline-2026-09-25')).toHaveAttribute('data-deadline-type', 'auto');
+    expect(screen.queryByTestId('deadline-2026-10-02')).not.toBeInTheDocument();
+    expect(screen.getByText(/2 \/ 4 allocated/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 remaining/i)).toBeInTheDocument();
+  });
 });
