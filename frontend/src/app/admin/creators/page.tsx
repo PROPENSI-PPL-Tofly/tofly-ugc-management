@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/shell/app-shell";
+import { AddCreatorTrigger } from "@/components/creators/add-creator-trigger";
 import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
 import { Pagination } from "@/components/creators/pagination";
@@ -52,6 +53,9 @@ export default async function CreatorsPage({
   }
 
   const filtered = hasActiveFilters(filters);
+  // Best-effort duplicate check: only whatever creators this page/filter view already
+  // loaded, not the full roster (see AddCreatorModal's own `existingEmails` prop for why).
+  const existingEmails = result ? result.items.map((c) => c.email) : [];
 
   return (
     <AppShell
@@ -72,6 +76,7 @@ export default async function CreatorsPage({
         <PanelHead
           title={filtered ? "Hasil pencarian" : "Semua creator"}
           hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
+          action={<AddCreatorTrigger existingEmails={existingEmails} />}
         />
         <CreatorFilters />
         {result ? (
