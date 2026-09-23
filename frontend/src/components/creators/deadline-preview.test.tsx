@@ -2,35 +2,29 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import DeadlinePreview from './deadline-preview';
 
 describe('DeadlinePreview', () => { 
-  it('shows automatic deadlines and the allocation summary', () => { // Test case for rendering the DeadlinePreview component with automatic deadlines and allocation summary
-    render( 
-      <DeadlinePreview
-        autoDeadlines={[
-          '2026-09-25',
-          '2026-10-02',
-        ]}
-        allocatedCount={2}
-        remainingCount={2}
-        quota={4}
-      />,
-    );
+  it('shows automatic deadlines and the allocation summary', () => {
+  render(
+    <DeadlinePreview
+      autoDeadlines={[
+        '2026-09-25',
+        '2026-10-02',
+      ]}
+      allocatedCount={2}
+      remainingCount={2}
+      quota={4}
+    />,
+  );
 
-    expect(
-      screen.getByText('2026-09-25'),
-    ).toBeInTheDocument();
+  // Check that the first automatic deadline is shown in the calendar.
+  expect(
+    screen.getByTestId('deadline-2026-09-25'),
+  ).toHaveTextContent('25');
 
-    expect(
-      screen.getByText('2026-10-02'),
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText(/2 \/ 4/i),
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText(/2 remaining/i),
-    ).toBeInTheDocument();
-  });
+  // Check the allocation summary using the final Indonesian UI text.
+  expect(
+    screen.getByText(/2 \/ 4 teralokasi/i),
+  ).toBeInTheDocument();
+});
   it('marks automatic deadline dates in the monthly calendar', () => {
   // Render the DeadlinePreview component with one automatically generated deadline.
   // In this example, the generated deadline is 25 September 2026.
@@ -82,12 +76,8 @@ describe('DeadlinePreview', () => {
   ).toBeInTheDocument();
 
   expect(
-    screen.getByText(/0 \/ 2/i),
-  ).toBeInTheDocument();
-
-  expect(
-    screen.getByText(/2 remaining/i),
-  ).toBeInTheDocument();
+  screen.getByText(/0 \/ 2 teralokasi/i),
+).toBeInTheDocument();
 });
   it('shows automatic deadlines in the next month after navigating forward', () => { // Test case for navigating to the next month in the DeadlinePreview component and checking for automatic deadlines
   render(
@@ -205,8 +195,9 @@ describe('DeadlinePreview', () => {
     expect(screen.getByTestId('deadline-2026-09-25')).toHaveTextContent('25');
     expect(screen.getByTestId('deadline-2026-09-25')).toHaveAttribute('data-deadline-type', 'auto');
     expect(screen.queryByTestId('deadline-2026-10-02')).not.toBeInTheDocument();
-    expect(screen.getByText(/2 \/ 4 allocated/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 remaining/i)).toBeInTheDocument();
+    expect(
+  screen.getByText(/2 \/ 4 teralokasi/i),
+).toBeInTheDocument();
   });
 
   it('arranges calendar dates under seven weekday columns', () => { // Test case for ensuring that the calendar dates are arranged under seven weekday columns
@@ -225,8 +216,8 @@ describe('DeadlinePreview', () => {
     });
     const headers = within(calendar).getAllByRole('columnheader'); // Get all the column header elements within the calendar table
     expect(headers.map((header) => header.textContent)).toEqual([
-      'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat',
-    ]);
+  'Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab',
+]);
 
     const weekRows = within(calendar).getAllByRole('row').slice(1); // Get all the row elements within the calendar table, excluding the header row
     for (const row of weekRows) { // Iterate through each week row in the calendar

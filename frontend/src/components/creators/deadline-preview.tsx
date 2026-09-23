@@ -18,7 +18,6 @@ export default function DeadlinePreview({
   bufferDays,
   autoDeadlines,
   allocatedCount,
-  remainingCount,
   quota,
 }: DeadlinePreviewProps) {
   // Start the calendar from the contract month, or use the first auto deadline as fallback.
@@ -93,107 +92,158 @@ export default function DeadlinePreview({
   }
 
   return (
-    <section>
-      <h3>Deadline Preview</h3>
+  <section className="w-full rounded-2xl border border-zinc-200 bg-white p-6">
+    <h3 className="mb-5 text-lg font-bold text-zinc-900">
+      Preview Jadwal Deadline
+    </h3>
 
+    {calendarDate && year !== undefined && month !== undefined && (
       <div>
-        {autoDeadlines.map((deadline) => (
-          <div key={deadline}>
-            <span>{deadline}</span>
-            <span>Auto</span>
-          </div>
-        ))}
-      </div>
+        {/* Calendar month and navigation */}
+        <div className="mb-4 flex items-center justify-between">
+          <h4 className="text-lg font-bold text-zinc-900">
+            {monthTitle}
+          </h4>
 
-      {calendarDate && year !== undefined && month !== undefined && (
-        <div>
-          <div>
-            <h4>{monthTitle}</h4>
-
+          <div className="flex gap-2">
             <button
               type="button"
               aria-label="Previous month"
-              onClick={() => setMonthOffset((current) => current - 1)}
+              onClick={() =>
+                setMonthOffset((current) => current - 1)
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-xl text-zinc-600 hover:bg-zinc-50"
             >
-              Previous
+              ‹
             </button>
 
-            {/* Move the calendar forward by one month. */}
             <button
               type="button"
               aria-label="Next month"
-              onClick={() => setMonthOffset((current) => current + 1)}
+              onClick={() =>
+                setMonthOffset((current) => current + 1)
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-xl text-zinc-600 hover:bg-zinc-50"
             >
-              Next
+              ›
             </button>
           </div>
-
-          <table
-            aria-label={`Deadline calendar ${monthTitle}`}
-            className="w-full table-fixed border-separate border-spacing-1 text-center"
-          >
-            <thead>
-              <tr>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((weekday) => (
-                  <th key={weekday} scope="col" className="py-2 text-sm font-medium">
-                    {weekday}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: weekCount }, (_, week) => ( // Iterate through each week in the month
-                <tr key={week}> 
-                  {Array.from({ length: 7 }, (_, weekday) => { // Iterate through each day of the week
-                    const day = week * 7 + weekday - firstDayOfWeek + 1; // Calculate the day of the month for the current cell in the calendar
-
-                    if (day < 1 || day > daysInMonth) { // If the calculated day is outside the valid range for the month, render an empty cell
-                      return <td key={weekday} className="h-10" />;
-                    }
-
-                    const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const isAutoDeadline = autoDeadlineSet.has(date);
-                    const currentDate = new Date(`${date}T00:00:00Z`);
-                    const isBufferDate =
-                      bufferStartDate !== null &&
-                      firstAllowedDate !== null &&
-                      currentDate.getTime() >= bufferStartDate.getTime() &&
-                      currentDate.getTime() < firstAllowedDate.getTime();
-
-                    return (
-                      <td key={weekday} className="h-10 text-sm">
-                        {isAutoDeadline ? (
-                          <span
-                            className="auto-deadline"
-                            data-testid={`deadline-${date}`}
-                            data-deadline-type="auto"
-                          >
-                            {day}
-                          </span>
-                        ) : isBufferDate ? (
-                          <span
-                            className="buffer-date"
-                            data-testid={`calendar-date-${date}`}
-                            data-date-status="buffer"
-                          >
-                            {day}
-                          </span>
-                        ) : <span>{day}</span>}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
-      )}
 
-      <p>
-        {allocatedCount} / {quota} allocated
+        {/* Monthly deadline calendar */}
+        <table
+          aria-label={`Deadline calendar ${monthTitle}`}
+          className="w-full table-fixed border-separate border-spacing-1 text-center"
+        >
+          <thead>
+            <tr>
+              {[
+                'Min',
+                'Sen',
+                'Sel',
+                'Rab',
+                'Kam',
+                'Jum',
+                'Sab',
+              ].map((weekday) => (
+                <th
+                  key={weekday}
+                  scope="col"
+                  className="py-2 text-sm font-semibold text-zinc-500"
+                >
+                  {weekday}
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {Array.from({ length: weekCount }, (_, week) => (
+              <tr key={week}>
+                {Array.from({ length: 7 }, (_, weekday) => {
+                  const day =
+                    week * 7 +
+                    weekday -
+                    firstDayOfWeek +
+                    1;
+
+                  if (day < 1 || day > daysInMonth) {
+                    return (
+                      <td
+                        key={weekday}
+                        className="h-14"
+                      />
+                    );
+                  }
+
+                  const date = `${year}-${String(
+                    month + 1,
+                  ).padStart(2, '0')}-${String(day).padStart(
+                    2,
+                    '0',
+                  )}`;
+
+                  const isAutoDeadline =
+                    autoDeadlineSet.has(date);
+
+                  const currentDate = new Date(
+                    `${date}T00:00:00Z`,
+                  );
+
+                  const isBufferDate =
+                    bufferStartDate !== null &&
+                    firstAllowedDate !== null &&
+                    currentDate.getTime() >=
+                      bufferStartDate.getTime() &&
+                    currentDate.getTime() <
+                      firstAllowedDate.getTime();
+
+                  return (
+                    <td
+                      key={weekday}
+                      className="h-14 p-0.5"
+                    >
+                      {isAutoDeadline ? (
+                        <span
+                          className="auto-deadline flex h-full min-h-12 items-start justify-start rounded-lg p-2 text-sm font-bold text-white"
+                          data-testid={`deadline-${date}`}
+                          data-deadline-type="auto"
+                        >
+                          {day}
+                        </span>
+                      ) : isBufferDate ? (
+                        <span
+                          className="buffer-date flex h-full min-h-12 items-start justify-start rounded-lg p-2 text-sm"
+                          data-testid={`calendar-date-${date}`}
+                          data-date-status="buffer"
+                        >
+                          {day}
+                        </span>
+                      ) : (
+                        <span className="flex h-full min-h-12 items-start justify-start rounded-lg border border-zinc-200 bg-white p-2 text-sm text-zinc-600">
+                          {day}
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+
+    {/* Required allocation progress */}
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+      <p className="text-xs text-zinc-500">
+        Alokasi konten
       </p>
 
-      <p>{remainingCount} remaining</p>
-    </section>
-  );
+      <p className="mt-1 font-semibold text-zinc-900">
+        {allocatedCount} / {quota} teralokasi
+      </p>
+    </div>
+  </section>
+);
 }
