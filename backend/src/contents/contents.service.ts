@@ -1,3 +1,4 @@
+
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -46,16 +47,8 @@ export class ContentCreationService {
   ) {}
 
   async create(input: NewSpecificContent): Promise<CreatedContent> {
-    const contract = await this.prisma.contracts.findUnique({
-  where: { id: input.contractId },
-});
+    await this.requireContract(input.contractId);
 
-if (!contract) {
-  throw new NotFoundException({
-    code: 'CONTRACT_NOT_FOUND',
-    message: 'Kontrak tidak ditemukan',
-  });
-}
     const saved = await this.prisma.contents.create({
       data: {
         contract_id: input.contractId,
@@ -76,5 +69,18 @@ if (!contract) {
       deadline: toDay(saved.deadline),
       status: 'scheduled',
     };
+  }
+
+  private async requireContract(contractId: string): Promise<void> {
+    const contract = await this.prisma.contracts.findUnique({
+      where: { id: contractId },
+    });
+
+    if (!contract) {
+      throw new NotFoundException({
+        code: 'CONTRACT_NOT_FOUND',
+        message: 'Kontrak tidak ditemukan',
+      });
+    }
   }
 }
