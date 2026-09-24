@@ -1,301 +1,258 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import {
     createContent,
     type ContentFieldErrors,
     type ContentType,
 } from "@/lib/contents";
+import { localCalendarDay } from "@/lib/creator-form";
+import { getBufferWindow } from "@/lib/deadline-schedule";
 
 const BUFFER_DAYS = 5;
 
-function isoToday(): string {
-    return new Date().toISOString().slice(0, 10);
+const FIELD =
+    "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
+
+const ALERT =
+    "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
+
+function Field({
+                   label,
+                   error,
+                   children,
+               }: {
+    label: string;
+    error?: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="flex flex-col gap-1 text-[13px]">
+            <label className="flex flex-col gap-1">
+                <span className="font-semibold">{label}</span>
+                {children}
+            </label>
+
+            {error ? <span className="text-xs text-red-ink">{error}</span> : null}
+        </div>
+    );
 }
 
-function addDays(day: string, days: number): string {
-    const value = new Date(`${day}T00:00:00Z`);
-    value.setUTCDate(value.getUTCDate() + days);
-    return value.toISOString().slice(0, 10);
-}
+function firstAllowedDeadline(contractStart: string): string {
+    const today = localCalendarDay(new Date());
 
-interface AddContentModalProps {
-    open: boolean;
-    creatorId: string;
-    creatorName: string;
-    quota: number;
-    evergreenCount: number;
-    contractStart: string;
-    contractEnd: string;
-    onClose: () => void;
-    onSaved: () => Promise<void> | void;
+    return getBufferWindow({
+        contractStart,
+        today,
+        bufferDays: BUFFER_DAYS,
+    }).firstAllowedDate.toISOString().slice(0, 10);
 }
 
 export function AddContentModal({
-                                    open,
                                     creatorId,
-                                    creatorName,
-                                    quota,
                                     evergreenCount,
+                                    quota,
                                     contractStart,
                                     contractEnd,
                                     onClose,
                                     onSaved,
-                                }: AddContentModalProps) {
-    const [type, setType] =
-        useState<ContentType>("evergreen");
+                                }: {
+    creatorId: string;
+    evergreenCount: number;
+    quota: number;
+    contractStart: string;
+    contractEnd: string;
+    onClose: () => void;
+    onSaved: () => void;
+}) {
+    const evergreenFull = evergreenCount >= quota && quota > 0;
+    const firstAllowed = firstAllowedDeadline(contractStart);
+
+    const [type, setType] = useState<ContentType>(
+        evergreenFull ? "specific" : "evergreen",
+    );
     const [name, setName] = useState("");
     const [brief, setBrief] = useState("");
-    const [deadline, setDeadline] = useState("");
-    const [errors, setErrors] =
-        useState<ContentFieldErrors>({});
+    const [deadline, setDeadline] = useState(firstAllowed);
+    const [errors, setErrors] = useState<ContentFieldErrors>({});
     const [generalError, setGeneralError] = useState("");
     const [saving, setSaving] = useState(false);
 
-    const evergreenFull =
-        evergreenCount >= quota && quota > 0;
+    function clearFieldError(field: keyof ContentFieldErrors) {
+        setErrors((current) => {
+            if (!current[field]) {
+                return current;
+            }
 
-    const firstAllowed = useMemo(() => {
-        const today = isoToday();
-        const base =
-            contractStart > today ? contractStart : today;
+            const next = { ...current };
+            delete next[field];
+            return next;
+        });
+    }
 
-        return addDays(base, BUFFER_DAYS);
-    }, [contractStart]);
+    function handleTypeChange(nextType: ContentType) {
+        setType(nextType);
+        clearFieldError("type");
+        setGeneralError("");
+    }
 
-    useEffect(() => {
-        if (!open) {
+    function handleSubmit() {
+        const clientErrors: ContentFieldErrors = {};
+
+        if (type === "specific") {
+            if (name.trim() === "") {
+                clientErrors.name = "Nama konten wajib diisi";
+            }
+
+            if (brief.trim() === "") {
+                clientErrors.brief = "Brief wajib diisi";
+            }
+        }
+
+        if (deadline === "") {
+            clientErrors.deadline = "Deadline wajib diisi";
+        }
+
+        if (type === "evergreen" && evergreenFull) {
+            clientErrors.type = "Kuota Evergreen sudah penuh";
+        }
+
+        if (deadline && (deadline < firstAllowed || deadline > contractEnd)) {
+            clientErrors.deadline =
+                deadline < firstAllowed
+                    ? `Deadline paling cepat ${firstAllowed}`
+                    : "Deadline tidak boleh setelah akhir kontrak";
+        }
+
+        if (Object.keys(clientErrors).length > 0) {
+            setErrors(clientErrors);
+            setGeneralError("");
             return;
         }
 
-        setType(evergreenFull ? "specific" : "evergreen");
-        setName("");
-        setBrief("");
-        setDeadline(
-            firstAllowed <= contractEnd ? firstAllowed : contractEnd,
-        );
-        setErrors({});
-        setGeneralError("");
-        setSaving(false);
-    }, [open, evergreenFull, firstAllowed, contractEnd]);
-
-    if (!open) {
-        return null;
-    }
-
-    async function submit() {
         setSaving(true);
         setErrors({});
         setGeneralError("");
 
-        const result = await createContent({
-            creatorId,
-            type,
-            name: type === "specific" ? name : undefined,
-            brief: type === "specific" ? brief : undefined,
-            deadline,
-        });
+        void (async () => {
+            const result = await createContent({
+                creatorId,
+                type,
+                name: type === "specific" ? name : undefined,
+                brief: type === "specific" ? brief : undefined,
+                deadline,
+            });
 
-        if (!result.ok) {
+            if (result.ok) {
+                onSaved();
+                onClose();
+                return;
+            }
+
             setErrors(result.errors);
             setGeneralError(result.message);
             setSaving(false);
-            return;
-        }
-
-        await onSaved();
-        onClose();
-        setSaving(false);
+        })();
     }
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-            role="presentation"
-            onMouseDown={(event) => {
-                if (event.target === event.currentTarget && !saving) {
-                    onClose();
-                }
-            }}
-        >
-            <div
-                className="w-full max-w-lg rounded-(--radius-panel) border border-rule bg-surface shadow-xl"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="add-content-title"
-            >
-                <div className="border-b border-rule px-5 py-4">
-                    <h2
-                        id="add-content-title"
-                        className="text-base font-semibold text-ink"
-                    >
-                        Tambah Konten
-                    </h2>
-
-                    <p className="mt-1 text-xs text-ink-3">
-                        Menambahkan konten untuk {creatorName}.
-                    </p>
-                </div>
-
-                <div className="space-y-4 px-5 py-5">
-                    {generalError && (
-                        <div
-                            className="rounded-(--radius-control) border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger"
-                            role="alert"
-                        >
-                            {generalError}
-                        </div>
-                    )}
-
-                    <div>
-                        <label
-                            htmlFor="content-type"
-                            className="mb-1.5 block text-xs font-semibold text-ink"
-                        >
-                            Status konten
-                        </label>
-
-                        <select
-                            id="content-type"
-                            value={type}
-                            onChange={(event) =>
-                                setType(event.target.value as ContentType)
-                            }
-                            className="w-full rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
-                        >
-                            <option
-                                value="evergreen"
-                                disabled={evergreenFull}
-                            >
-                                Evergreen
-                            </option>
-                            <option value="specific">Specific</option>
-                        </select>
-
-                        {evergreenFull && (
-                            <p
-                                className="mt-1 text-xs text-danger"
-                                role="status"
-                            >
-                                Kuota Evergreen sudah penuh. Pilih Specific untuk
-                                menambahkan konten baru.
-                            </p>
-                        )}
-
-                        {errors.type && (
-                            <p className="mt-1 text-xs text-danger">
-                                {errors.type}
-                            </p>
-                        )}
-                    </div>
-
-                    {type === "specific" && (
-                        <>
-                            <div>
-                                <label
-                                    htmlFor="content-name"
-                                    className="mb-1.5 block text-xs font-semibold text-ink"
-                                >
-                                    Nama Konten
-                                </label>
-
-                                <input
-                                    id="content-name"
-                                    value={name}
-                                    onChange={(event) =>
-                                        setName(event.target.value)
-                                    }
-                                    className="w-full rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
-                                    placeholder="Contoh: Promo Payday September"
-                                />
-
-                                {errors.name && (
-                                    <p className="mt-1 text-xs text-danger">
-                                        {errors.name}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label
-                                    htmlFor="content-brief"
-                                    className="mb-1.5 block text-xs font-semibold text-ink"
-                                >
-                                    Brief
-                                </label>
-
-                                <textarea
-                                    id="content-brief"
-                                    value={brief}
-                                    onChange={(event) =>
-                                        setBrief(event.target.value)
-                                    }
-                                    rows={4}
-                                    className="w-full rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
-                                    placeholder="Jelaskan kebutuhan konten..."
-                                />
-
-                                {errors.brief && (
-                                    <p className="mt-1 text-xs text-danger">
-                                        {errors.brief}
-                                    </p>
-                                )}
-                            </div>
-                        </>
-                    )}
-
-                    <div>
-                        <label
-                            htmlFor="content-deadline"
-                            className="mb-1.5 block text-xs font-semibold text-ink"
-                        >
-                            Tanggal deadline
-                        </label>
-
-                        <input
-                            id="content-deadline"
-                            type="date"
-                            value={deadline}
-                            min={firstAllowed}
-                            max={contractEnd}
-                            onChange={(event) =>
-                                setDeadline(event.target.value)
-                            }
-                            className="w-full rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
-                        />
-
-                        <p className="mt-1 text-xs text-ink-3">
-                            Deadline minimal {firstAllowed}.
-                        </p>
-
-                        {errors.deadline && (
-                            <p className="mt-1 text-xs text-danger">
-                                {errors.deadline}
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex justify-end gap-2 border-t border-rule px-5 py-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={saving}
-                        className="rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                    >
+        <Modal
+            title="Tambah Konten"
+            onClose={saving ? () => undefined : onClose}
+            footer={
+                <>
+                    <Button variant="ghost" onClick={onClose} disabled={saving}>
                         Batal
-                    </button>
+                    </Button>
 
-                    <button
-                        type="button"
-                        onClick={submit}
-                        disabled={saving || !deadline}
-                        className="rounded-(--radius-control) bg-ink px-3 py-2 text-xs font-semibold text-surface disabled:cursor-not-allowed disabled:opacity-50"
+                    <Button
+                        variant="accent"
+                        onClick={handleSubmit}
+                        disabled={saving}
                     >
                         {saving ? "Menyimpan..." : "Simpan"}
-                    </button>
+                    </Button>
+                </>
+            }
+        >
+            {generalError || errors.quota ? (
+                <div role="alert" className={ALERT}>
+                    {errors.quota ?? generalError}
                 </div>
-            </div>
-        </div>
+            ) : null}
+
+            <Field label="Jenis Konten" error={errors.type}>
+                <select
+                    className={FIELD}
+                    value={type}
+                    onChange={(event) =>
+                        handleTypeChange(event.target.value as ContentType)
+                    }
+                    disabled={saving}
+                >
+                    <option value="evergreen" disabled={evergreenFull}>
+                        Evergreen
+                    </option>
+                    <option value="specific">Specific</option>
+                </select>
+
+                {evergreenFull ? (
+                    <span className="text-xs text-red-ink">
+            Kuota Evergreen sudah penuh. Pilih Specific.
+          </span>
+                ) : null}
+            </Field>
+
+            {type === "specific" ? (
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                    <Field label="Nama Konten" error={errors.name}>
+                        <input
+                            type="text"
+                            className={FIELD}
+                            value={name}
+                            onChange={(event) => {
+                                setName(event.target.value);
+                                clearFieldError("name");
+                            }}
+                            disabled={saving}
+                        />
+                    </Field>
+
+                    <Field label="Brief" error={errors.brief}>
+            <textarea
+                className={`${FIELD} min-h-24 resize-y`}
+                value={brief}
+                onChange={(event) => {
+                    setBrief(event.target.value);
+                    clearFieldError("brief");
+                }}
+                disabled={saving}
+            />
+                    </Field>
+                </div>
+            ) : null}
+
+            <Field label="Deadline" error={errors.deadline}>
+                <input
+                    type="date"
+                    className={FIELD}
+                    min={firstAllowed}
+                    max={contractEnd}
+                    value={deadline}
+                    onChange={(event) => {
+                        setDeadline(event.target.value);
+                        clearFieldError("deadline");
+                    }}
+                    disabled={saving}
+                />
+            </Field>
+
+            <p className="text-xs text-muted">
+                Deadline harus minimal {BUFFER_DAYS} hari setelah hari ini atau tanggal
+                mulai kontrak, mana yang lebih akhir.
+            </p>
+        </Modal>
     );
 }

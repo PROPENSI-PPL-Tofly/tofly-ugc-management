@@ -1,84 +1,134 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AddContentModal } from "./add-content-modal";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Panel, PanelHead } from "@/components/ui/panel";
-import { fetchCreatorDetail, type CreatorDetail } from "@/lib/creators";
+import { AddContentModal } from "@/components/contents/add-content-modal";
+import {
+    fetchCreatorDetail,
+    type CreatorDetail,
+} from "@/lib/creators";
+import { formatDate } from "@/lib/format";
 
-interface ContentPlanClientProps {
-    creatorId: string;
+const TABLE_HEAD =
+    "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";
+
+const TABLE_CELL =
+    "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
+
+function contentTypeLabel(type: string): string {
+    return type === "evergreen" ? "Evergreen" : "Specific";
+}
+
+function statusLabel(status: string): string {
+    if (status === "scheduled") {
+        return "Dijadwalkan";
+    }
+
+    return status;
 }
 
 export function ContentPlanClient({
                                       creatorId,
-                                  }: ContentPlanClientProps) {
-    const [creator, setCreator] =
-        useState<CreatorDetail | null>(null);
-    const [loading, setLoading] = useState(true);
+                                  }: {
+    creatorId: string;
+}) {
+    const [detail, setDetail] = useState<CreatorDetail | null>(null);
     const [error, setError] = useState("");
-    const [modalOpen, setModalOpen] = useState(false);
+    const [showModal, setShowModal] = useState(false);
     const [toast, setToast] = useState("");
-
-    async function load() {
-        setLoading(true);
-        setError("");
-
-        try {
-            const result = await fetchCreatorDetail(creatorId);
-            setCreator(result);
-        } catch {
-            setError("Data Content Plan tidak bisa dimuat.");
-        } finally {
-            setLoading(false);
-        }
-    }
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
-        void load();
-    }, [creatorId]);
+        let cancelled = false;
 
-    const currentContract = useMemo(
-        () =>
-            creator?.contractHistory.find(
-                (contract) => contract.isCurrent,
-            ) ??
-            creator?.contractHistory.at(-1) ??
-            null,
-        [creator],
-    );
+        void (async () => {
+            try {
+                const nextDetail = await fetchCreatorDetail(creatorId);
 
-    const evergreenCount =
-        creator?.contents.filter(
-            (content) => content.type === "evergreen",
-        ).length ?? 0;
+                if (cancelled) {
+                    return;
+                }
 
-    function showToast() {
+                setDetail(nextDetail);
+                setError("");
+            } catch {
+                if (cancelled) {
+                    return;
+                }
+
+                setDetail(null);
+                setError("Content Plan gagal dimuat. Coba lagi.");
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [creatorId, refreshKey]);
+
+    const currentContract =
+        detail?.contractHistory.find((contract) => contract.isCurrent) ?? null;
+
+    const contents = detail?.contents ?? [];
+
+    const evergreenCount = contents.filter(
+        (content) => content.type === "evergreen",
+    ).length;
+
+    function handleSaved() {
+        setDetail(null);
+        setError("");
         setToast("Konten berhasil ditambahkan.");
-
-        window.setTimeout(() => {
-            setToast("");
-        }, 3000);
+        setRefreshKey((current) => current + 1);
     }
 
-    if (loading) {
+    if (error) {
         return (
             <Panel>
                 <PanelHead
                     title="Content Plan"
-                    hint="Memuat jadwal konten..."
+                    hint="Jadwal konten creator"
                 />
+
+                <div className="px-5 pb-5">
+                    <p role="alert" className="text-[13px] text-red-ink">
+                        {error}
+                    </p>
+                </div>
             </Panel>
         );
     }
 
-    if (error || !creator) {
+    if (!detail) {
         return (
             <Panel>
-                <div
-                    className="px-5 py-6 text-sm text-danger"
-                    role="alert"
-                >
-                    {error || "Creator tidak ditemukan."}
+                <PanelHead
+                    title="Content Plan"
+                    hint="Jadwal konten creator"
+                />
+
+                <div className="px-5 pb-5">
+                    <p className="text-[13px] text-muted">
+                        Memuat jadwal konten...
+                    </p>
+                </div>
+            </Panel>
+        );
+    }
+
+    if (!currentContract) {
+        return (
+            <Panel>
+                <PanelHead
+                    title="Content Plan"
+                    hint="Jadwal konten creator"
+                />
+
+                <div className="px-5 pb-5">
+                    <p className="text-[13px] text-muted">
+                        Creator ini belum memiliki kontrak aktif.
+                    </p>
                 </div>
             </Panel>
         );
@@ -86,109 +136,105 @@ export function ContentPlanClient({
 
     return (
         <>
-            <Panel>
-                <div className="flex items-center justify-between gap-4 border-b border-rule px-5 py-4">
-                    <div>
-                        <PanelHead
-                            title={`Content Plan — ${creator.name}`}
-                            hint={
-                                currentContract
-                                    ? `${currentContract.startDate} sampai ${currentContract.endDate} · Kuota ${currentContract.contentQuota}`
-                                    : "Creator belum memiliki kontrak."
-                            }
-                        />
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => setModalOpen(true)}
-                        disabled={!currentContract}
-                        className="shrink-0 rounded-(--radius-control) bg-ink px-3 py-2 text-xs font-semibold text-surface disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        + Tambah Konten
-                    </button>
+            {toast ? (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="mb-3 rounded-(--radius-control) border border-rule bg-surface px-4 py-3 text-[13px] text-ink shadow-whisper"
+                >
+                    {toast}
                 </div>
+            ) : null}
 
-                <div className="overflow-x-auto">
-                    {creator.contents.length === 0 ? (
-                        <div className="px-5 py-8 text-sm text-ink-3">
-                            Belum ada konten dalam Content Plan.
-                        </div>
-                    ) : (
-                        <table className="min-w-full text-left text-sm">
-                            <thead className="border-b border-rule bg-surface-2">
+            <Panel>
+                <PanelHead
+                    title="Content Plan"
+                    hint={`${detail.name} · ${contents.length}/${currentContract.contentQuota} konten`}
+                    action={
+                        <Button
+                            variant="accent"
+                            onClick={() => setShowModal(true)}
+                        >
+                            + Tambah Konten
+                        </Button>
+                    }
+                />
+
+                {contents.length === 0 ? (
+                    <div className="px-5 pb-8 pt-4">
+                        <p className="text-[13px] text-muted">
+                            Belum ada konten pada periode kontrak ini.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="relative overflow-x-auto">
+                        <table className="w-full border-collapse">
+                            <caption className="sr-only">
+                                Jadwal konten creator
+                            </caption>
+
+                            <thead>
                             <tr>
-                                <th className="px-5 py-3 text-xs font-semibold text-ink-2">
-                                    Tipe
+                                <th scope="col" className={TABLE_HEAD}>
+                                    Konten
                                 </th>
-                                <th className="px-5 py-3 text-xs font-semibold text-ink-2">
-                                    Nama Konten
+
+                                <th scope="col" className={TABLE_HEAD}>
+                                    Jenis
                                 </th>
-                                <th className="px-5 py-3 text-xs font-semibold text-ink-2">
+
+                                <th scope="col" className={TABLE_HEAD}>
                                     Deadline
                                 </th>
-                                <th className="px-5 py-3 text-xs font-semibold text-ink-2">
+
+                                <th scope="col" className={TABLE_HEAD}>
                                     Status
                                 </th>
                             </tr>
                             </thead>
 
                             <tbody>
-                            {creator.contents.map((content) => (
+                            {contents.map((content) => (
                                 <tr
                                     key={content.id}
-                                    className="border-b border-rule last:border-b-0"
+                                    className="transition-colors hover:bg-surface-2"
                                 >
-                                    <td className="px-5 py-3">
-                      <span className="rounded-full border border-rule px-2 py-1 text-[11px] font-semibold uppercase">
-                        {content.type}
-                      </span>
+                                    <td className={`${TABLE_CELL} min-w-52`}>
+                                        <p className="font-semibold text-ink">
+                                            {content.name}
+                                        </p>
                                     </td>
 
-                                    <td className="px-5 py-3 font-medium text-ink">
-                                        {content.name}
+                                    <td className={TABLE_CELL}>
+                                        {contentTypeLabel(content.type)}
                                     </td>
 
-                                    <td className="px-5 py-3 text-ink-2">
-                                        {content.deadline}
+                                    <td className={`${TABLE_CELL} whitespace-nowrap`}>
+                                        {formatDate(content.deadline)}
                                     </td>
 
-                                    <td className="px-5 py-3 text-ink-2">
-                                        {content.status}
+                                    <td className={TABLE_CELL}>
+                                        {statusLabel(content.status)}
                                     </td>
                                 </tr>
                             ))}
                             </tbody>
                         </table>
-                    )}
-                </div>
+                    </div>
+                )}
             </Panel>
 
-            {toast && (
-                <div
-                    className="fixed bottom-5 right-5 z-50 rounded-(--radius-control) border border-rule bg-surface px-4 py-3 text-sm font-semibold text-ink shadow-lg"
-                    role="status"
-                >
-                    {toast}
-                </div>
-            )}
-
-            {currentContract && (
+            {showModal ? (
                 <AddContentModal
-                    open={modalOpen}
-                    creatorId={creator.id}
-                    creatorName={creator.name}
-                    quota={currentContract.contentQuota}
+                    creatorId={creatorId}
                     evergreenCount={evergreenCount}
+                    quota={currentContract.contentQuota}
                     contractStart={currentContract.startDate}
                     contractEnd={currentContract.endDate}
-                    onClose={() => setModalOpen(false)}
-                    onSaved={async () => {
-                        await load();
-                        showToast();
-                    }}
+                    onClose={() => setShowModal(false)}
+                    onSaved={handleSaved}
                 />
-            )}
+            ) : null}
         </>
     );
 }
