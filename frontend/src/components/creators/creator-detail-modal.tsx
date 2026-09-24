@@ -13,6 +13,7 @@ import {
   formatPercent,
   formatRevisions,
 } from "@/lib/format";
+import { PRODUCTIVITY_TONES } from "./productivity-tones";
 
 const OUTCOME_LABELS: Record<ContentOutcome, string> = {
   on_time: "Tepat waktu",
@@ -161,15 +162,7 @@ export function CreatorDetailModal({
               <p className="text-xs text-muted">Produktivitas</p>
 
               <p className="mt-1">
-                <Pill
-                  tone={
-                    detail.performance.productivity === "good"
-                      ? "green"
-                      : detail.performance.productivity === "risk"
-                        ? "red"
-                        : "amber"
-                  }
-                >
+                <Pill tone={PRODUCTIVITY_TONES[detail.performance.productivity]}>
                   {detail.performance.productivityLabel}
                 </Pill>
               </p>

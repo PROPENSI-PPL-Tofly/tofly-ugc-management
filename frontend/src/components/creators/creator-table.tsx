@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CreatorDetailModal } from "./creator-detail-modal";
+import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
-import type { ContractStatus, CreatorSummary, Productivity } from "@/lib/creators";
+import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
   formatContractWindow,
@@ -26,12 +27,6 @@ const CONTRACT_TONES: Record<ContractStatus, Tone> = {
   expired: "red",
   upcoming: "accent",
   none: "neutral",
-};
-
-const PRODUCTIVITY_TONES: Record<Productivity, Tone> = {
-  good: "green",
-  watch: "amber",
-  risk: "red",
 };
 
 const COLUMNS: { label: string; numeric?: boolean }[] = [

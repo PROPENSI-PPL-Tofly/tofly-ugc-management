@@ -11,14 +11,14 @@ import type { CreatorFormErrors, CreatorFormInput } from "./creator-form";
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
-export type Productivity = "good" | "watch" | "risk";
+export type Productivity = "good" | "watch" | "risk" | "no_data";
 export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
 
 // "all" plus every value the API accepts, spelled the way the API spells them: these go
 // straight into the query string, so a name that drifts from the backend is a filter that
 // silently stops filtering.
 export const CONTRACT_STATUS_FILTERS = ["all", "active", "expired", "upcoming", "none"] as const;
-export const PRODUCTIVITY_FILTERS = ["all", "good", "watch", "risk"] as const;
+export const PRODUCTIVITY_FILTERS = ["all", "good", "watch", "risk", "no_data"] as const;
 
 export type ContractStatusFilter = (typeof CONTRACT_STATUS_FILTERS)[number];
 export type ProductivityFilter = (typeof PRODUCTIVITY_FILTERS)[number];
