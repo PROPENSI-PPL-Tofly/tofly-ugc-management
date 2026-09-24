@@ -174,6 +174,45 @@ describe('ContentCreationService', () => {
     });
   });
 
+
+  it('rejects a deadline when the contract starts in the future', async () => {
+    const input = {
+      contractId: CONTRACT_ID,
+      type: 'specific' as const,
+      deadline: '2026-10-14',
+      name: 'Product launch',
+      brief: 'Introduce the new product.',
+    };
+
+    const prisma = {
+      contracts: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: CONTRACT_ID,
+          start_date: new Date('2026-10-10T00:00:00.000Z'),
+          end_date: new Date('2026-12-31T00:00:00.000Z'),
+        }),
+      },
+      contents: {
+        create: vi.fn(),
+      },
+    };
+
+    const service = new ContentCreationService(prisma, {
+      today: () => new Date('2026-09-24T00:00:00.000Z'),
+      bufferDays: async () => 5,
+    });
+
+    await expect(service.create(input)).rejects.toMatchObject({
+      status: 422,
+      response: {
+        errors: {
+          deadline: expect.any(String),
+        },
+      },
+    });
+
+    expect(prisma.contents.create).not.toHaveBeenCalled();
+  });
   it.each([
     {
       label: 'before the minimum deadline after the global buffer',

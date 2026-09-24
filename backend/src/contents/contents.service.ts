@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { evergreenName, jakartaDay } from '../creators/evergreen.js';
+import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
+import type { content_status, content_type } from '@prisma/client';
 import type { NewContent } from './new-content.js';
+
 
 function toDate(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
@@ -70,7 +73,7 @@ export class ContentCreationService {
   ) {
     this.scheduling = scheduling ?? {
       today: () => new Date(),
-      bufferDays: async () => 5,
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
     };
   }
 
