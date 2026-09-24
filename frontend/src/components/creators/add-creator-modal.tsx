@@ -192,120 +192,128 @@ export function AddCreatorModal({
         </>
       }
     >
-      {/* Two columns on desktop, one on mobile — same responsive grid pattern already used
-          for CreatorDetailModal's info grid, so both modals share one layout vocabulary. */}
+      {/* Who the creator is, then what the contract and schedule are. Two columns on desktop,
+          one on mobile — the same grid CreatorDetailModal's info grid uses. */}
       <p className="mb-3 text-xs text-muted">Kolom bertanda * wajib diisi.</p>
 
-      <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field required label="Nama Creator" error={fieldError("name")}>
-          <input
-            type="text"
-            className={FIELD}
-            required
-            value={form.name}
-            onChange={(event) => change("name", event.target.value)}
-            onBlur={() => markTouched("name")}
-          />
-        </Field>
+      <fieldset className="mb-4 border-t border-rule pt-3">
+        <legend className="pr-2 text-[13px] font-bold text-ink">Data Creator</legend>
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field required label="Nama Creator" error={fieldError("name")}>
+            <input
+              type="text"
+              className={FIELD}
+              required
+              value={form.name}
+              onChange={(event) => change("name", event.target.value)}
+              onBlur={() => markTouched("name")}
+            />
+          </Field>
 
-        <Field required label="Email" error={fieldError("email")}>
-          <input
-            type="email"
-            className={FIELD}
-            required
-            value={form.email}
-            onChange={(event) => change("email", event.target.value)}
-            onBlur={() => markTouched("email")}
-          />
-        </Field>
+          <Field required label="Email" error={fieldError("email")}>
+            <input
+              type="email"
+              className={FIELD}
+              required
+              value={form.email}
+              onChange={(event) => change("email", event.target.value)}
+              onBlur={() => markTouched("email")}
+            />
+          </Field>
 
-        <Field required label="Platform" error={fieldError("socialPlatform")}>
-          <select
-            className={FIELD}
-            required
-            value={form.socialPlatform}
-            onChange={(event) =>
-              change("socialPlatform", event.target.value as SocialPlatform | "")
-            }
-            onBlur={() => markTouched("socialPlatform")}
-          >
-            <option value="">Pilih platform</option>
-            <option value="instagram">Instagram</option>
-            <option value="tiktok">TikTok</option>
-          </select>
-        </Field>
+          <Field required label="Platform" error={fieldError("socialPlatform")}>
+            <select
+              className={FIELD}
+              required
+              value={form.socialPlatform}
+              onChange={(event) =>
+                change("socialPlatform", event.target.value as SocialPlatform | "")
+              }
+              onBlur={() => markTouched("socialPlatform")}
+            >
+              <option value="">Pilih platform</option>
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+            </select>
+          </Field>
 
-        <Field required label="Username Social Media" error={fieldError("socialUsername")}>
-          <input
-            type="text"
-            className={FIELD}
-            required
-            placeholder="mis. salsa.amelia"
-            value={form.socialUsername}
-            onChange={(event) => change("socialUsername", event.target.value)}
-            onBlur={() => markTouched("socialUsername")}
-          />
-        </Field>
+          <Field required label="Username Social Media" error={fieldError("socialUsername")}>
+            <input
+              type="text"
+              className={FIELD}
+              required
+              placeholder="mis. salsa.amelia"
+              value={form.socialUsername}
+              onChange={(event) => change("socialUsername", event.target.value)}
+              onBlur={() => markTouched("socialUsername")}
+            />
+          </Field>
+        </div>
+      </fieldset>
 
-        <Field required label="Mulai Kontrak" error={fieldError("contractStart")}>
-          <input
-            type="date"
-            className={FIELD}
-            required
-            min={limits.startMin}
-            max={limits.startMax}
-            value={form.contractStart}
-            onChange={(event) => change("contractStart", event.target.value)}
-            onBlur={() => markTouched("contractStart")}
-          />
-        </Field>
+      <fieldset className="mb-4 border-t border-rule pt-3">
+        <legend className="pr-2 text-[13px] font-bold text-ink">Kontrak &amp; Jadwal</legend>
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field required label="Contract Fixed Rate (Rp)" error={fieldError("fixedRate")}>
+            <input
+              type="number"
+              className={FIELD}
+              required
+              placeholder="mis. 500000"
+              value={emptyIfZero(form.fixedRate)}
+              onChange={(event) => change("fixedRate", Number(event.target.value))}
+              onBlur={() => markTouched("fixedRate")}
+            />
+          </Field>
 
-        <Field required label="Akhir Kontrak" error={fieldError("contractEnd")}>
-          <input
-            type="date"
-            className={FIELD}
-            required
-            min={limits.endMin}
-            value={form.contractEnd}
-            onChange={(event) => change("contractEnd", event.target.value)}
-          />
-        </Field>
+          <Field required label="Mulai Kontrak" error={fieldError("contractStart")}>
+            <input
+              type="date"
+              className={FIELD}
+              required
+              min={limits.startMin}
+              max={limits.startMax}
+              value={form.contractStart}
+              onChange={(event) => change("contractStart", event.target.value)}
+              onBlur={() => markTouched("contractStart")}
+            />
+          </Field>
 
-        <Field required label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
-          <input
-            type="number"
-            className={FIELD}
-            required
-            value={form.interval}
-            onChange={(event) => change("interval", Number(event.target.value))}
-            onBlur={() => markTouched("interval")}
-          />
-        </Field>
+          <Field required label="Akhir Kontrak" error={fieldError("contractEnd")}>
+            <input
+              type="date"
+              className={FIELD}
+              required
+              min={limits.endMin}
+              value={form.contractEnd}
+              onChange={(event) => change("contractEnd", event.target.value)}
+            />
+          </Field>
 
-        <Field required label="Fixed rate kontrak (Rp)" error={fieldError("fixedRate")}>
-          <input
-            type="number"
-            className={FIELD}
-            required
-            placeholder="mis. 500000"
-            value={emptyIfZero(form.fixedRate)}
-            onChange={(event) => change("fixedRate", Number(event.target.value))}
-            onBlur={() => markTouched("fixedRate")}
-          />
-        </Field>
+          <Field required label="Jumlah konten yang disepakati" error={fieldError("quota")}>
+            <input
+              type="number"
+              className={FIELD}
+              required
+              placeholder="mis. 6"
+              value={emptyIfZero(form.quota)}
+              onChange={(event) => change("quota", Number(event.target.value))}
+              onBlur={() => markTouched("quota")}
+            />
+          </Field>
 
-        <Field required label="Jumlah konten yang disepakati" error={fieldError("quota")}>
-          <input
-            type="number"
-            className={FIELD}
-            required
-            placeholder="mis. 6"
-            value={emptyIfZero(form.quota)}
-            onChange={(event) => change("quota", Number(event.target.value))}
-            onBlur={() => markTouched("quota")}
-          />
-        </Field>
-      </div>
+          <Field required label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
+            <input
+              type="number"
+              className={FIELD}
+              required
+              value={form.interval}
+              onChange={(event) => change("interval", Number(event.target.value))}
+              onBlur={() => markTouched("interval")}
+            />
+          </Field>
+        </div>
+      </fieldset>
 
       {allocation !== null ? (
         <div className="mt-4">
