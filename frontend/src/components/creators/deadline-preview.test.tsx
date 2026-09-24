@@ -19,8 +19,34 @@ describe('DeadlinePreview', () => {
     );
 
     expect(screen.getByTestId(`calendar-date-${start}`)).toHaveAttribute('data-date-status', 'buffer');
-    expect(screen.queryByTestId(`calendar-date-${before}`)).not.toBeInTheDocument();
+    // The day before may still be greyed as outside the contract, but it is never buffer.
+    expect(screen.queryByTestId(`calendar-date-${before}`)?.dataset.dateStatus).not.toBe('buffer');
     expect(screen.queryByTestId(`calendar-date-${end}`)).not.toBeInTheDocument();
+  });
+
+  it('greys the days before the contract starts and after it ends', () => {
+    render(
+      <DeadlinePreview
+        contractStart="2026-09-10"
+        contractEnd="2026-09-25"
+        today="2026-09-01"
+        bufferDays={5}
+        autoDeadlines={[]}
+        allocatedCount={0}
+        remainingCount={2}
+        quota={2}
+        onAddManual={() => {}}
+      />,
+    );
+
+    for (const day of ['2026-09-09', '2026-09-26']) {
+      const slot = screen.getByTestId(`calendar-date-${day}`);
+      expect(slot).toHaveAttribute('data-date-status', 'outside');
+      // Not colour alone: the day also says why it is unavailable.
+      expect(slot).toHaveTextContent('di luar kontrak');
+    }
+    expect(screen.queryByRole('button', { name: /26 Sep 2026/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('calendar-date-2026-09-20')).not.toBeInTheDocument();
   });
 
   it.each([
