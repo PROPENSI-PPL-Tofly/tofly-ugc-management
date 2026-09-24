@@ -19,7 +19,7 @@ import {
   formatRevisions,
 } from "@/lib/format";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
-import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
+import { CONTRACT_TYPE_LABELS, contractTypePrefix } from "@/lib/creator-form";
 
 // A resolved content gets a judgement (on time or not) as a pill; one still in progress
 // shows the plain fact of where it is in the workflow instead.
@@ -144,7 +144,7 @@ export function CreatorDetailModal({
 
               <p className="mt-1 text-xs text-muted">
                 Periode {detail.contract.periodNumber} ·{" "}
-                {detail.contract.type ? `${CONTRACT_TYPE_LABELS[detail.contract.type]} · ` : ""}
+                {contractTypePrefix(detail.contract.type)}
                 {formatDaysRemaining(detail.contract.daysRemaining)} · kuota{" "}
                 {detail.contract.contentQuota} konten
               </p>

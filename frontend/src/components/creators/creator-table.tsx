@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { CreatorDetailModal } from "./creator-detail-modal";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
-import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
+import { contractTypePrefix } from "@/lib/creator-form";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
@@ -59,7 +59,7 @@ function contractNote(creator: CreatorSummary): string {
       ? `${remaining}, periode ke-${creator.contract.periodNumber}`
       : remaining;
 
-  return creator.contract.type ? `${CONTRACT_TYPE_LABELS[creator.contract.type]} · ${note}` : note;
+  return `${contractTypePrefix(creator.contract.type)}${note}`;
 }
 
 function EmptyState({ total }: { total: number }) {

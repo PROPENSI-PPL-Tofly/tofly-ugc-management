@@ -18,6 +18,11 @@ export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
   regular: "Regular",
 };
 
+/** "Probation · " to lead a contract note, or nothing for a creator without a contract. */
+export function contractTypePrefix(type: ContractType | null): string {
+  return type ? `${CONTRACT_TYPE_LABELS[type]} · ` : "";
+}
+
 export interface CreatorFormInput {
   name: string;
   email: string;

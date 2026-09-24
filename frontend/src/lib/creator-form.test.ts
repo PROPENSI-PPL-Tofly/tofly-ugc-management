@@ -1,5 +1,6 @@
 import {
   contractDateLimits,
+  contractTypePrefix,
   localCalendarDay,
   scheduleDeadlines,
   validateCreatorForm,
@@ -220,6 +221,14 @@ describe("scheduleDeadlines", () => {
     { interval: 0 },
   ])("has no schedule while the contract is incomplete: %j", (change) => {
     expect(scheduleDeadlines({ ...FORM, ...change }, "2026-09-24")).toBeNull();
+  });
+});
+
+describe("contractTypePrefix", () => {
+  it("leads a contract note with the type, and with nothing when there is no contract", () => {
+    expect(contractTypePrefix("probation")).toBe("Probation · ");
+    expect(contractTypePrefix("regular")).toBe("Regular · ");
+    expect(contractTypePrefix(null)).toBe("");
   });
 });
 
