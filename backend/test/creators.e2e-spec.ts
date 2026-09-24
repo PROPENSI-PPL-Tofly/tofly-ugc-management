@@ -120,6 +120,7 @@ describe('GET /creators (e2e)', () => {
         daysRemaining: 30,
         periodNumber: 1,
         contentQuota: 2,
+        type: 'regular',
       },
       progress: { submitted: 1, total: 2, percent: 50 },
       performance: {
