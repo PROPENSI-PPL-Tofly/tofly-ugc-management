@@ -1,6 +1,3 @@
-// Supabase owns the schema: write tables as Supabase migrations, then run
-// `npx prisma db pull` + `npx prisma generate` to sync these models. Do not edit by hand.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -38,17 +35,18 @@ model contents {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model contracts {
-  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  creator_id    String     @db.Uuid
-  start_date    DateTime   @db.Date
-  end_date      DateTime   @db.Date
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creator_id    String        @db.Uuid
+  start_date    DateTime      @db.Date
+  end_date      DateTime      @db.Date
   days_between  Int
   content_quota Int
-  fixed_rate    Decimal    @db.Decimal(14, 2)
-  created_at    DateTime   @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime   @default(now()) @db.Timestamptz(6)
+  fixed_rate    Decimal       @db.Decimal(14, 2)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime      @default(now()) @db.Timestamptz(6)
+  contract_type contract_type
   contents      contents[]
-  creators      creators   @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creators      creators      @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([creator_id, end_date(sort: Desc)], map: "contracts_creator_end_date_idx")
 }
@@ -125,4 +123,9 @@ enum content_type {
 enum social_platform {
   instagram
   tiktok
+}
+
+enum contract_type {
+  probation
+  regular
 }
