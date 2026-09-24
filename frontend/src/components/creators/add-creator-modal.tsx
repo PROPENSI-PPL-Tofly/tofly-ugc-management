@@ -35,17 +35,27 @@ const FIELD =
 function Field({
   label,
   error,
+  required = false,
   children,
 }: {
   label: string;
   error?: string;
+  /** Shows the asterisk; the control itself still carries `required` for assistive tech. */
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     // The message sits outside the label so it never becomes part of the input's name.
     <div className="flex flex-col gap-1 text-[13px]">
       <label className="flex flex-col gap-1">
-        <span className="font-semibold">{label}</span>
+        <span className="font-semibold">
+          {label}
+          {required ? (
+            <span aria-hidden="true" className="ml-0.5 text-red-ink">
+              *
+            </span>
+          ) : null}
+        </span>
         {children}
       </label>
       {error ? <span className="text-xs text-red-ink">{error}</span> : null}
@@ -184,30 +194,35 @@ export function AddCreatorModal({
     >
       {/* Two columns on desktop, one on mobile — same responsive grid pattern already used
           for CreatorDetailModal's info grid, so both modals share one layout vocabulary. */}
+      <p className="mb-3 text-xs text-muted">Kolom bertanda * wajib diisi.</p>
+
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Nama Creator" error={fieldError("name")}>
+        <Field required label="Nama Creator" error={fieldError("name")}>
           <input
             type="text"
             className={FIELD}
+            required
             value={form.name}
             onChange={(event) => change("name", event.target.value)}
             onBlur={() => markTouched("name")}
           />
         </Field>
 
-        <Field label="Email" error={fieldError("email")}>
+        <Field required label="Email" error={fieldError("email")}>
           <input
             type="email"
             className={FIELD}
+            required
             value={form.email}
             onChange={(event) => change("email", event.target.value)}
             onBlur={() => markTouched("email")}
           />
         </Field>
 
-        <Field label="Platform" error={fieldError("socialPlatform")}>
+        <Field required label="Platform" error={fieldError("socialPlatform")}>
           <select
             className={FIELD}
+            required
             value={form.socialPlatform}
             onChange={(event) =>
               change("socialPlatform", event.target.value as SocialPlatform | "")
@@ -220,10 +235,11 @@ export function AddCreatorModal({
           </select>
         </Field>
 
-        <Field label="Username Social Media" error={fieldError("socialUsername")}>
+        <Field required label="Username Social Media" error={fieldError("socialUsername")}>
           <input
             type="text"
             className={FIELD}
+            required
             placeholder="mis. salsa.amelia"
             value={form.socialUsername}
             onChange={(event) => change("socialUsername", event.target.value)}
@@ -231,10 +247,11 @@ export function AddCreatorModal({
           />
         </Field>
 
-        <Field label="Mulai Kontrak" error={fieldError("contractStart")}>
+        <Field required label="Mulai Kontrak" error={fieldError("contractStart")}>
           <input
             type="date"
             className={FIELD}
+            required
             min={limits.startMin}
             max={limits.startMax}
             value={form.contractStart}
@@ -243,30 +260,33 @@ export function AddCreatorModal({
           />
         </Field>
 
-        <Field label="Akhir Kontrak" error={fieldError("contractEnd")}>
+        <Field required label="Akhir Kontrak" error={fieldError("contractEnd")}>
           <input
             type="date"
             className={FIELD}
+            required
             min={limits.endMin}
             value={form.contractEnd}
             onChange={(event) => change("contractEnd", event.target.value)}
           />
         </Field>
 
-        <Field label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
+        <Field required label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
           <input
             type="number"
             className={FIELD}
+            required
             value={form.interval}
             onChange={(event) => change("interval", Number(event.target.value))}
             onBlur={() => markTouched("interval")}
           />
         </Field>
 
-        <Field label="Fixed rate per konten (Rp)" error={fieldError("fixedRate")}>
+        <Field required label="Fixed rate kontrak (Rp)" error={fieldError("fixedRate")}>
           <input
             type="number"
             className={FIELD}
+            required
             placeholder="mis. 500000"
             value={emptyIfZero(form.fixedRate)}
             onChange={(event) => change("fixedRate", Number(event.target.value))}
@@ -274,10 +294,11 @@ export function AddCreatorModal({
           />
         </Field>
 
-        <Field label="Jumlah konten yang disepakati" error={fieldError("quota")}>
+        <Field required label="Jumlah konten yang disepakati" error={fieldError("quota")}>
           <input
             type="number"
             className={FIELD}
+            required
             placeholder="mis. 6"
             value={emptyIfZero(form.quota)}
             onChange={(event) => change("quota", Number(event.target.value))}
