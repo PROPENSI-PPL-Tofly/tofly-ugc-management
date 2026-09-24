@@ -1,7 +1,10 @@
 // Pure rules for adding ONE content item to a creator's already-active schedule (PBI-10's
 // "Tambah Konten"), re-run on the server since a request can skip the client entirely. Kept
 // apart from evergreen.ts, which validates the whole deadline batch at onboarding — this
-// judges a single new slot against the quota that batch already used up.
+// judges a single new slot against the quota that batch already used up. The buffer formula,
+// the calendar-day check and the "after contract end" message are shared with evergreen.ts
+// rather than re-derived here, so onboarding and Tambah Konten can never quietly disagree.
+import { DEADLINE_AFTER_CONTRACT_END, earliestDeadline, isCalendarDay } from './evergreen.js';
 
 export type ContentType = 'evergreen' | 'specific';
 
@@ -20,23 +23,6 @@ export interface EvergreenSlotContext {
 }
 
 export type EvergreenSlotErrors = Partial<Record<'contentType' | 'deadline', string>>;
-
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** A `YYYY-MM-DD` that names a day that exists; 2026-02-30 rolls over, so it fails the round trip. */
-function isCalendarDay(value: string): boolean {
-  if (!ISO_DAY.test(value)) {
-    return false;
-  }
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
-}
-
-function addDays(day: string, amount: number): string {
-  const date = new Date(`${day}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + amount);
-  return date.toISOString().slice(0, 10);
-}
 
 /**
  * `contentType` and `deadline` are the raw Tambah Konten body fields, taken as `unknown`
@@ -70,13 +56,12 @@ export function checkEvergreenSlot(
     return errors;
   }
 
-  const from = context.contractStart > today ? context.contractStart : today;
-  const earliest = addDays(from, context.bufferDays);
+  const earliest = earliestDeadline(context.contractStart, today, context.bufferDays);
 
   if (deadline < earliest) {
     errors.deadline = `Deadline paling cepat ${earliest}`;
   } else if (deadline > context.contractEnd) {
-    errors.deadline = 'Deadline tidak boleh setelah akhir kontrak';
+    errors.deadline = DEADLINE_AFTER_CONTRACT_END;
   }
 
   return errors;
