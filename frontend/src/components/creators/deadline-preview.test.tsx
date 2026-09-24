@@ -278,7 +278,7 @@ describe('DeadlinePreview', () => {
   it('arranges calendar dates under seven weekday columns', () => { // Test case for ensuring that the calendar dates are arranged under seven weekday columns
     render(
       <DeadlinePreview
-        contractStart="2026-09-20"
+        contractStart="2026-09-01"
         autoDeadlines={['2026-09-25']}
         allocatedCount={1}
         remainingCount={0}
