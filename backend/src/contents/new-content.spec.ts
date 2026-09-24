@@ -179,4 +179,30 @@ describe('checkNewContent', () => {
     }),
   );
 });
+  it.each([
+  ['missing', undefined],
+  ['null', null],
+  ['empty', ''],
+  ['whitespace', '   '],
+  ['number', 42],
+  ['invalid UUID', 'not-a-uuid'],
+])('rejects a %s contractId', (_label, contractId) => {
+  expect(() =>
+    checkNewContent({
+      contractId,
+      type: 'evergreen',
+      deadline: '2026-10-10',
+    }),
+  ).toThrow(
+    expect.objectContaining({
+      status: 422,
+      response: expect.objectContaining({
+        errors: expect.objectContaining({
+          contractId: expect.any(String),
+        }),
+      }),
+    }),
+  );
+});
+
 });
