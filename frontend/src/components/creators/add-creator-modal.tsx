@@ -6,11 +6,13 @@ import { Modal } from "@/components/ui/modal";
 import DeadlinePreview from "./deadline-preview";
 import {
   BUFFER_DAYS,
+  CONTRACT_TYPE_LABELS,
   contractDateLimits,
   localCalendarDay,
   scheduleDeadlines,
   validateCreatorForm,
   type CreatorFormErrors,
+  type ContractType,
   type CreatorFormInput,
   type SocialPlatform,
 } from "@/lib/creator-form";
@@ -81,6 +83,7 @@ const INITIAL_FORM: CreatorFormInput = {
   quota: 0,
   fixedRate: 0,
   socialPlatform: "",
+  contractType: "",
   socialUsername: "",
 };
 
@@ -254,6 +257,23 @@ export function AddCreatorModal({
       <fieldset className="mb-4 border-t border-rule pt-3">
         <legend className="pr-2 text-[13px] font-bold text-ink">Kontrak &amp; Jadwal</legend>
         <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field required label="Jenis Kontrak" error={fieldError("contractType")}>
+            <select
+              className={FIELD}
+              required
+              value={form.contractType}
+              onChange={(event) => change("contractType", event.target.value as ContractType | "")}
+              onBlur={() => markTouched("contractType")}
+            >
+              <option value="">Pilih jenis kontrak</option>
+              {(Object.keys(CONTRACT_TYPE_LABELS) as ContractType[]).map((type) => (
+                <option key={type} value={type}>
+                  {CONTRACT_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
           <Field required label="Contract Fixed Rate (Rp)" error={fieldError("fixedRate")}>
             <input
               type="number"

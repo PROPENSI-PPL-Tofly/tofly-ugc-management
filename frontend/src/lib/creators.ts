@@ -6,7 +6,7 @@
 // fetched in the browser through this app's own /api proxy, which keeps BACKEND_URL out of
 // the browser either way.
 
-import type { CreatorFormErrors, CreatorFormInput } from "./creator-form";
+import type { ContractType, CreatorFormErrors, CreatorFormInput } from "./creator-form";
 
 export const PAGE_SIZE = 10;
 
@@ -52,6 +52,8 @@ export interface CreatorSummary {
     daysRemaining: number | null;
     periodNumber: number;
     contentQuota: number;
+    /** The current contract's type; null without a contract. */
+    type: ContractType | null;
   };
   progress: {
     submitted: number;
@@ -84,6 +86,7 @@ export interface CreatorDetail extends CreatorSummary {
     endDate: string;
     daysBetween: number;
     contentQuota: number;
+    type: ContractType;
     completed: number;
     total: number;
     isCurrent: boolean;

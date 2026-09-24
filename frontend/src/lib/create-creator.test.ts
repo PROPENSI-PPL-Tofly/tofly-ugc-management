@@ -10,6 +10,7 @@ describe("createCreator", () => {
     quota: 1,
     fixedRate: 500000,
     socialPlatform: "tiktok" as const,
+    contractType: "regular" as const,
     socialUsername: "salsa.amelia",
     deadlines: ["2026-10-06"],
   };

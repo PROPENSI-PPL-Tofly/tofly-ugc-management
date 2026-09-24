@@ -10,6 +10,14 @@ export const BUFFER_DAYS = 5;
 // exactly — "" stands for "not chosen yet", the empty state of the select in the modal.
 export type SocialPlatform = "instagram" | "tiktok";
 
+// Matches the database's `contract_type` enum. Informational only (PRD 3.4): no rule reads it.
+export type ContractType = "probation" | "regular";
+
+export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
+  probation: "Probation",
+  regular: "Regular",
+};
+
 export interface CreatorFormInput {
   name: string;
   email: string;
@@ -20,6 +28,7 @@ export interface CreatorFormInput {
   fixedRate: number;
   socialPlatform: SocialPlatform | "";
   socialUsername: string;
+  contractType: ContractType | "";
 }
 
 export interface CreatorFormErrors {
@@ -32,6 +41,7 @@ export interface CreatorFormErrors {
   fixedRate?: string;
   socialPlatform?: string;
   socialUsername?: string;
+  contractType?: string;
   deadlines?: string;
 }
 
@@ -122,6 +132,10 @@ export function validateCreatorForm(
 
   if (input.socialUsername === "") {
     errors.socialUsername = "Username wajib diisi";
+  }
+
+  if (input.contractType === "") {
+    errors.contractType = "Jenis kontrak wajib dipilih";
   }
 
   return errors;

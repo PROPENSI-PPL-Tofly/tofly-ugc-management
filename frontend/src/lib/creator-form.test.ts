@@ -234,6 +234,7 @@ describe("validateCreatorForm schedule", () => {
     fixedRate: 500000,
     socialPlatform: "instagram" as const,
     socialUsername: "bagas",
+    contractType: "regular" as const,
   };
   const TODAY = new Date("2026-09-24T05:00:00Z");
 

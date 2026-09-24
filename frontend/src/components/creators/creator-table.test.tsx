@@ -36,7 +36,7 @@ describe("CreatorTable", () => {
 
     expect(within(row).getByText("10 Jun – 7 Des 2026")).toBeInTheDocument();
 
-    expect(within(row).getByText("sisa 80 hari")).toBeInTheDocument();
+    expect(within(row).getByText("Regular · sisa 80 hari")).toBeInTheDocument();
 
     expect(within(row).getByText("5/6 konten terkirim")).toBeInTheDocument();
 
@@ -114,6 +114,7 @@ describe("CreatorTable", () => {
               daysRemaining: -19,
               periodNumber: 1,
               contentQuota: 6,
+              type: "regular",
             },
           }),
           creator({
@@ -125,6 +126,7 @@ describe("CreatorTable", () => {
               daysRemaining: 190,
               periodNumber: 1,
               contentQuota: 6,
+              type: "probation",
             },
           }),
           creator({
@@ -136,6 +138,7 @@ describe("CreatorTable", () => {
               daysRemaining: null,
               periodNumber: 0,
               contentQuota: 0,
+              type: null,
             },
           }),
         ]}
@@ -145,7 +148,7 @@ describe("CreatorTable", () => {
 
     expect(screen.getByText("Kontrak berakhir")).toBeInTheDocument();
 
-    expect(screen.getByText("berakhir 19 hari lalu")).toBeInTheDocument();
+    expect(screen.getByText("Regular · berakhir 19 hari lalu")).toBeInTheDocument();
 
     expect(screen.getByText("Kontrak belum mulai")).toBeInTheDocument();
 
