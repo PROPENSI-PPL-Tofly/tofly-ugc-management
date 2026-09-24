@@ -23,8 +23,28 @@ describe("AddCreatorModal", () => {
   it("labels the fee as the contract's fixed rate", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-    expect(screen.getByLabelText(/^fixed rate kontrak \(rp\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^contract fixed rate \(rp\)/i)).toBeInTheDocument();
     expect(screen.queryByText(/per konten/i)).not.toBeInTheDocument();
+  });
+
+  it("groups the creator's identity apart from the contract and schedule fields", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+    const creator = screen.getByRole("group", { name: "Data Creator" });
+    const contract = screen.getByRole("group", { name: "Kontrak & Jadwal" });
+    const names = (group: HTMLElement) =>
+      Array.from(group.querySelectorAll("label > span:first-child")).map((span) =>
+        span.textContent?.replace("*", ""),
+      );
+
+    expect(names(creator)).toEqual(["Nama Creator", "Email", "Platform", "Username Social Media"]);
+    expect(names(contract)).toEqual([
+      "Contract Fixed Rate (Rp)",
+      "Mulai Kontrak",
+      "Akhir Kontrak",
+      "Jumlah konten yang disepakati",
+      "Jarak antar-deadline (hari)",
+    ]);
   });
 
   it("marks every field as required, in the markup and visibly", () => {
