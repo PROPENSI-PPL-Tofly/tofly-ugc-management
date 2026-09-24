@@ -8,9 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { evergreenName, jakartaDay } from '../creators/evergreen.js';
 import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
-import type { content_status, content_type } from '@prisma/client';
 import type { NewContent } from './new-content.js';
-
 
 function toDate(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
@@ -36,13 +34,35 @@ interface CreatedContent {
   status: 'scheduled';
 }
 
-interface EvergreenContract {
-  creators: {
-    first_name: string;
-    middle_name: string | null;
-    last_name: string | null;
-  };
-  contents: Array<{ type: string }>;
+interface CreatorName {
+  first_name: string;
+  middle_name: string | null;
+  last_name: string | null;
+}
+
+interface ExistingContent {
+  type: string;
+}
+
+interface ContentContract {
+  start_date: Date;
+  end_date: Date;
+
+  // These fields are included by the actual Prisma query.
+  // They are optional here because the Specific-content unit tests
+  // use smaller contract mocks that do not need them.
+  creators?: CreatorName;
+  contents?: ExistingContent[];
+}
+
+interface SavedContent {
+  id: string;
+  contract_id: string;
+  type: string;
+  name: string;
+  brief: string;
+  deadline: Date;
+  status: string;
 }
 
 interface SchedulingDependencies {
@@ -52,10 +72,26 @@ interface SchedulingDependencies {
 
 export interface ContentsClient {
   contracts: {
-    findUnique: (...args: any[]) => Promise<any>;
+    findUnique: (args: {
+      where: { id: string };
+      include: {
+        creators: true;
+        contents: true;
+      };
+    }) => Promise<ContentContract | null>;
   };
+
   contents: {
-    create: (...args: any[]) => Promise<any>;
+    create: (args: {
+      data: {
+        contract_id: string;
+        type: 'evergreen' | 'specific';
+        name: string;
+        brief: string;
+        deadline: Date;
+        status: 'scheduled';
+      };
+    }) => Promise<SavedContent>;
   };
 }
 
@@ -107,17 +143,17 @@ export class ContentCreationService {
     return {
       id: saved.id,
       contractId: saved.contract_id,
-      type: saved.type,
+      type: input.type,
       name: saved.name,
       brief: saved.brief,
       deadline: toDay(saved.deadline),
-      status: saved.status,
+      status: 'scheduled',
     };
   }
 
   private async validateDeadline(
     deadline: string,
-    contract: { start_date: Date; end_date: Date },
+    contract: ContentContract,
   ): Promise<void> {
     const today = jakartaDay(this.scheduling.today());
     const contractStart = toDay(contract.start_date);
@@ -138,9 +174,16 @@ export class ContentCreationService {
   }
 
   private generateEvergreenName(
-    contract: EvergreenContract,
+    contract: ContentContract,
     deadline: string,
   ): string {
+    // The real database query includes both relations.
+    // This check also keeps the method safe if a future caller
+    // supplies a contract without the required Evergreen data.
+    if (!contract.creators || !contract.contents) {
+      throw new Error('Data kreator atau konten kontrak tidak lengkap');
+    }
+
     const creator = contract.creators;
 
     const fullName = [
@@ -158,7 +201,7 @@ export class ContentCreationService {
     return evergreenName(fullName, deadline, existingEvergreenCount + 1);
   }
 
-  private async requireContract(contractId: string): Promise<any> {
+  private async requireContract(contractId: string): Promise<ContentContract> {
     const contract = await this.prisma.contracts.findUnique({
       where: { id: contractId },
       include: {

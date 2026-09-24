@@ -174,7 +174,6 @@ describe('ContentCreationService', () => {
     });
   });
 
-
   it('rejects a deadline when the contract starts in the future', async () => {
     const input = {
       contractId: CONTRACT_ID,
