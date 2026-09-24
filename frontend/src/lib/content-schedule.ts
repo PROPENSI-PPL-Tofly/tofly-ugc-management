@@ -37,10 +37,17 @@ export function validateEvergreenSlot(input: EvergreenSlotInput): EvergreenSlotE
     return errors;
   }
 
+  // A non-empty string that still isn't a real date (e.g. "abc") parses to an Invalid Date;
+  // every comparison against it is false, so the bound checks below would silently pass it.
+  const deadline = new Date(`${input.deadline}T00:00:00Z`);
+  if (Number.isNaN(deadline.getTime())) {
+    errors.deadline = "Format tanggal deadline tidak valid";
+    return errors;
+  }
+
   // Same buffer rule generateDeadlineSchedule uses at onboarding (PRD 3.6): on/after
   // max(contract start, today) + buffer, and on/before the contract end date.
   const { firstAllowedDate } = getBufferWindow(input);
-  const deadline = new Date(`${input.deadline}T00:00:00Z`);
   const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`);
 
   if (deadline < firstAllowedDate) {
