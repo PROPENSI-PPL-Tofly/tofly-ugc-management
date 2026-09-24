@@ -287,4 +287,51 @@ it.each([
 
   expect(prisma.contents.create).toHaveBeenCalledOnce();
 });
+
+it('uses the default scheduling functions when none are provided', async () => {
+  const contractId = '550e8400-e29b-41d4-a716-446655440000';
+
+  const input = {
+    contractId,
+    type: 'specific' as const,
+    deadline: '2099-12-31',
+    name: 'Future campaign',
+    brief: 'Test the default scheduling functions.',
+  };
+
+  const savedContent = {
+    id: 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0',
+    contract_id: contractId,
+    type: 'specific',
+    name: input.name,
+    brief: input.brief,
+    deadline: new Date('2099-12-31T00:00:00.000Z'),
+    status: 'scheduled',
+  };
+
+  const prisma = {
+    contracts: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: contractId,
+        start_date: new Date('2099-12-01T00:00:00.000Z'),
+        end_date: new Date('2099-12-31T00:00:00.000Z'),
+      }),
+    },
+    contents: {
+      create: vi.fn().mockResolvedValue(savedContent),
+    },
+  };
+
+  // Do not supply scheduling dependencies here:
+  // this exercises the service's default today() and bufferDays().
+  const service = new ContentCreationService(prisma);
+
+  await expect(service.create(input)).resolves.toMatchObject({
+    contractId,
+    deadline: '2099-12-31',
+    status: 'scheduled',
+  });
+
+  expect(prisma.contents.create).toHaveBeenCalledOnce();
+});
 });
