@@ -3,8 +3,6 @@
 // apart from evergreen.ts, which validates the whole deadline batch at onboarding — this
 // judges a single new slot against the quota that batch already used up.
 
-import { DEFAULT_BUFFER_DAYS } from './new-creator.js';
-
 export type ContentType = 'evergreen' | 'specific';
 
 const CONTENT_TYPES: ContentType[] = ['evergreen', 'specific'];
@@ -16,6 +14,9 @@ export interface EvergreenSlotContext {
   contentQuota: number;
   /** How many Evergreen contents this contract period already has. */
   evergreenScheduledCount: number;
+  /** Minimum days between max(contract start, today) and any new deadline (PRD 3.6) — a
+   *  global, admin-editable setting, so this is read from the caller, not hardcoded here. */
+  bufferDays: number;
 }
 
 export type EvergreenSlotErrors = Partial<Record<'contentType' | 'deadline', string>>;
@@ -69,11 +70,8 @@ export function checkEvergreenSlot(
     return errors;
   }
 
-  // Same buffer rule the frontend's content-schedule.ts applies (PRD 3.6): on/after
-  // max(contract start, today) + buffer, and on/before the contract end date. ISO days
-  // compare correctly as strings (same fact evergreen.ts's checkSchedule already relies on).
   const from = context.contractStart > today ? context.contractStart : today;
-  const earliest = addDays(from, DEFAULT_BUFFER_DAYS);
+  const earliest = addDays(from, context.bufferDays);
 
   if (deadline < earliest) {
     errors.deadline = `Deadline paling cepat ${earliest}`;
