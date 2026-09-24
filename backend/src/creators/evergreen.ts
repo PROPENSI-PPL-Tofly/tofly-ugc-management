@@ -54,7 +54,7 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const INVALID_DAY = 'Format tanggal tidak valid';
 
 /** A `YYYY-MM-DD` that names a day that exists; 2026-02-30 rolls over, so it fails the round trip. */
-function isCalendarDay(value: string): boolean {
+export function isCalendarDay(value: string): boolean {
   if (!ISO_DAY.test(value)) {
     return false;
   }
@@ -63,6 +63,26 @@ function isCalendarDay(value: string): boolean {
     !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value)
   );
 }
+
+/**
+ * The earliest a new deadline may fall (PRD 3.6): max(contract start, today) + the global
+ * buffer. Shared by onboarding (new-creator.ts, a whole batch of deadlines at once) and adding
+ * a single content later (evergreen-slot.ts), so the formula lives in one place. ISO days
+ * compare correctly as strings — same fact this file's own deadlineProblem already relies on.
+ */
+export function earliestDeadline(
+  contractStart: string,
+  today: string,
+  bufferDays: number,
+): string {
+  const from = contractStart > today ? contractStart : today;
+  const date = new Date(`${from}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + bufferDays);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Shared with evergreen-slot.ts, so both sides of a deadline's upper bound read identically. */
+export const DEADLINE_AFTER_CONTRACT_END = 'Deadline tidak boleh setelah akhir kontrak';
 
 /** Today's calendar day where the admins work (WIB), so "not before today" holds after midnight. */
 export function jakartaDay(now: Date): string {

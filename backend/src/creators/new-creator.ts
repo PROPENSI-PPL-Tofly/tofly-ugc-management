@@ -1,5 +1,6 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { social_platform } from '@prisma/client';
+import { DEADLINE_AFTER_CONTRACT_END, earliestDeadline } from './evergreen.js';
 
 /** Longer than any real name; keeps a hostile body from filling the table. */
 export const MAX_NAME_LENGTH = 100;
@@ -21,7 +22,6 @@ export const MAX_FIXED_RATE = 999_999_999_999.99;
  * makes this an admin-editable global setting; until that setting exists, its default holds.
  */
 export const DEFAULT_BUFFER_DAYS = 5;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 // PRD 3.4's format rules as one pattern: exactly one "@", dot-separated runs of allowed
 // characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
@@ -286,15 +286,14 @@ function checkDeadlines(
     return deadlines;
   }
 
-  const from = Math.max(startOfDay(now).getTime(), contractStart.getTime());
-  const earliest = new Date(from + DEFAULT_BUFFER_DAYS * DAY_MS);
+  const earliest = earliestDeadline(isoDay(contractStart), isoDay(startOfDay(now)), DEFAULT_BUFFER_DAYS);
 
   if (deadlines.length !== quota) {
     errors.deadlines = `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
-  } else if (deadlines[0] < earliest) {
-    errors.deadlines = `Deadline paling cepat ${isoDay(earliest)}`;
+  } else if (isoDay(deadlines[0]) < earliest) {
+    errors.deadlines = `Deadline paling cepat ${earliest}`;
   } else if (deadlines[deadlines.length - 1] > contractEnd) {
-    errors.deadlines = 'Deadline tidak boleh setelah akhir kontrak';
+    errors.deadlines = DEADLINE_AFTER_CONTRACT_END;
   }
   return deadlines;
 }
