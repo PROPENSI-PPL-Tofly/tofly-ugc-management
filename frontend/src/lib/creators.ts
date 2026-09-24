@@ -11,6 +11,15 @@ import type { CreatorFormErrors, CreatorFormInput } from "./creator-form";
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
+/** Where a content is in the review workflow, as the API reports it. */
+export type ContentStatus =
+  | "scheduled"
+  | "draft_review"
+  | "draft_revision"
+  | "draft_revised"
+  | "draft_approved"
+  | "link_submitted";
+
 export type Productivity = "good" | "watch" | "risk" | "no_data";
 export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
 
@@ -85,7 +94,7 @@ export interface CreatorDetail extends CreatorSummary {
     name: string;
     type: string;
     deadline: string;
-    status: string;
+    status: ContentStatus;
     outcome: ContentOutcome;
     videoLink: string | null;
   }[];

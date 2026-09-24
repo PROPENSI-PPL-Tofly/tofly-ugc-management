@@ -4,8 +4,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Pill, type Tone } from "@/components/ui/pill";
-import { fetchCreatorDetail, type ContentOutcome, type CreatorDetail } from "@/lib/creators";
+import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import {
+  fetchCreatorDetail,
+  type ContentOutcome,
+  type ContentStatus,
+  type CreatorDetail,
+} from "@/lib/creators";
 import {
   formatContractWindow,
   formatDate,
@@ -15,18 +20,29 @@ import {
 } from "@/lib/format";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 
-const OUTCOME_LABELS: Record<ContentOutcome, string> = {
+// A resolved content gets a judgement (on time or not) as a pill; one still in progress
+// shows the plain fact of where it is in the workflow instead.
+type ResolvedOutcome = Exclude<ContentOutcome, "open">;
+
+const OUTCOME_LABELS: Record<ResolvedOutcome, string> = {
   on_time: "Tepat waktu",
   submitted_late: "Terlambat kirim",
   late: "Lewat deadline",
-  open: "Berjalan",
 };
 
-const OUTCOME_TONES: Record<ContentOutcome, Tone> = {
+const OUTCOME_TONES: Record<ResolvedOutcome, Tone> = {
   on_time: "green",
   submitted_late: "amber",
   late: "red",
-  open: "neutral",
+};
+
+const CONTENT_STATUS_LABELS: Record<ContentStatus, string> = {
+  scheduled: "Scheduled",
+  draft_review: "Draft Menunggu Review",
+  draft_revision: "Draft Perlu Revisi",
+  draft_revised: "Draft Revised",
+  draft_approved: "Draft Approved",
+  link_submitted: "Content Link Submitted",
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -209,9 +225,13 @@ export function CreatorDetailModal({
                     <span className="flex items-center gap-2 text-muted">
                       {formatDate(content.deadline)}
 
-                      <Pill tone={OUTCOME_TONES[content.outcome]}>
-                        {OUTCOME_LABELS[content.outcome]}
-                      </Pill>
+                      {content.outcome === "open" ? (
+                        <StatusDot>{CONTENT_STATUS_LABELS[content.status]}</StatusDot>
+                      ) : (
+                        <Pill tone={OUTCOME_TONES[content.outcome]}>
+                          {OUTCOME_LABELS[content.outcome]}
+                        </Pill>
+                      )}
                     </span>
                   </li>
                 ))}

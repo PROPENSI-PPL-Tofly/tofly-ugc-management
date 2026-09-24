@@ -72,12 +72,21 @@ export interface ContractHistoryEntry {
   isCurrent: boolean;
 }
 
+/** Where a content is in the review workflow; mirrors the `content_status` enum. */
+export type ContentStatus =
+  | 'scheduled'
+  | 'draft_review'
+  | 'draft_revision'
+  | 'draft_revised'
+  | 'draft_approved'
+  | 'link_submitted';
+
 export interface ContentEntry {
   id: string;
   name: string;
   type: string;
   deadline: string;
-  status: string;
+  status: ContentStatus;
   outcome: ContentOutcome;
   videoLink: string | null;
 }
