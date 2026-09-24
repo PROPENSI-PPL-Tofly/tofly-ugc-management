@@ -125,7 +125,7 @@ describe("AddContentModal", () => {
         ).toBeInTheDocument();
     });
 
-    it("disables Evergreen when the total quota is zero", () => {
+    it("keeps Evergreen available when the quota is zero", () => {
         openModal({
             evergreenCount: 0,
             quota: 0,
@@ -135,7 +135,7 @@ describe("AddContentModal", () => {
             name: "Evergreen",
         });
 
-        expect(evergreenOption).toBeDisabled();
+        expect(evergreenOption).not.toBeDisabled();
     });
 
     it("requires Name and Brief for Specific content", () => {
@@ -389,6 +389,12 @@ describe("AddContentModal", () => {
         expect(
             screen.getByRole("button", {
                 name: "Menyimpan...",
+            }),
+        ).toBeDisabled();
+
+        expect(
+            screen.getByRole("button", {
+                name: "Batal",
             }),
         ).toBeDisabled();
 

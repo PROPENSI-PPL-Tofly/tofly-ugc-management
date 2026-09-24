@@ -39,27 +39,32 @@ vi.mock("@/components/contents/add-content-modal", () => ({
         onSaved: () => void;
     }) => (
         <div role="dialog" aria-label="Tambah Konten">
-      <span data-testid="modal-creator-id">
-        {creatorId}
-      </span>
+            <span data-testid="modal-creator-id">
+                {creatorId}
+            </span>
 
             <span data-testid="modal-evergreen-count">
-        {evergreenCount}
-      </span>
+                {evergreenCount}
+            </span>
 
             <span data-testid="modal-quota">
-        {quota}
-      </span>
+                {quota}
+            </span>
 
             <span data-testid="modal-contract-start">
-        {contractStart}
-      </span>
+                {contractStart}
+            </span>
 
             <span data-testid="modal-contract-end">
-        {contractEnd}
-      </span>
+                {contractEnd}
+            </span>
 
-            <button onClick={onSaved}>
+            <button
+                onClick={() => {
+                    onSaved();
+                    onClose();
+                }}
+            >
                 Simulate Save
             </button>
 
@@ -182,7 +187,8 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-10-05",
                         status: "submitted",
                         outcome: "on_time",
-                        videoLink: "https://example.com/video",
+                        videoLink:
+                            "https://example.com/video",
                     },
                 ],
             }),
@@ -295,9 +301,7 @@ describe("ContentPlanClient", () => {
             <ContentPlanClient creatorId="creator-1" />,
         );
 
-        await screen.findByText(
-            "Existing Evergreen",
-        );
+        await screen.findByText("Existing Evergreen");
 
         fireEvent.click(
             screen.getByRole("button", {
