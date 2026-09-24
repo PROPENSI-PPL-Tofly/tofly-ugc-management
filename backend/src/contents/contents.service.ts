@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -57,14 +58,21 @@ export interface ContentsClient {
 
 @Injectable()
 export class ContentCreationService {
+  private readonly scheduling: SchedulingDependencies;
+
   constructor(
     @Inject(PrismaService)
     private readonly prisma: ContentsClient,
-    private readonly scheduling: SchedulingDependencies = {
+
+    @Optional()
+    @Inject('CONTENT_SCHEDULING')
+    scheduling?: SchedulingDependencies,
+  ) {
+    this.scheduling = scheduling ?? {
       today: () => new Date(),
       bufferDays: async () => 5,
-    },
-  ) {}
+    };
+  }
 
   async create(input: NewContent): Promise<CreatedContent> {
     const contract = await this.requireContract(input.contractId);
