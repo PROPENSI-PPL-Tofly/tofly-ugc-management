@@ -7,12 +7,12 @@ vi.mock('./new-content.js', () => ({
 
 describe('ContentsController', () => {
   const body: NewContent = {
-  contractId: '550e8400-e29b-41d4-a716-446655440000',
-  type: 'specific',
-  deadline: '2026-10-10',
-  name: 'Product launch',
-  brief: 'Introduce the new product.',
-};
+    contractId: '550e8400-e29b-41d4-a716-446655440000',
+    type: 'specific',
+    deadline: '2026-10-10',
+    name: 'Product launch',
+    brief: 'Introduce the new product.',
+  };
 
   const createdContent = {
     id: 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0',

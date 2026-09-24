@@ -113,8 +113,7 @@ export class ContentCreationService {
     const contractEnd = toDay(contract.end_date);
 
     const bufferDays = await this.scheduling.bufferDays();
-    const baseDay =
-      contractStart > today ? contractStart : today;
+    const baseDay = contractStart > today ? contractStart : today;
     const minimumDeadline = addDays(baseDay, bufferDays);
 
     if (deadline < minimumDeadline || deadline > contractEnd) {
@@ -145,11 +144,7 @@ export class ContentCreationService {
       (content) => content.type === 'evergreen',
     ).length;
 
-    return evergreenName(
-      fullName,
-      deadline,
-      existingEvergreenCount + 1,
-    );
+    return evergreenName(fullName, deadline, existingEvergreenCount + 1);
   }
 
   private async requireContract(contractId: string): Promise<any> {
