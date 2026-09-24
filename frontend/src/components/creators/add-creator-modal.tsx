@@ -34,16 +34,15 @@ const ALERT = "rounded-(--radius-control) border border-red-wash bg-red-wash px-
 const FIELD =
   "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
 
+// Every field in this form is required, so each label carries the asterisk; the control itself
+// still sets `required` for assistive tech.
 function Field({
   label,
   error,
-  required = false,
   children,
 }: {
   label: string;
   error?: string;
-  /** Shows the asterisk; the control itself still carries `required` for assistive tech. */
-  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -52,11 +51,9 @@ function Field({
       <label className="flex flex-col gap-1">
         <span className="font-semibold">
           {label}
-          {required ? (
-            <span aria-hidden="true" className="ml-0.5 text-red-ink">
-              *
-            </span>
-          ) : null}
+          <span aria-hidden="true" className="ml-0.5 text-red-ink">
+            *
+          </span>
         </span>
         {children}
       </label>
@@ -202,7 +199,7 @@ export function AddCreatorModal({
       <fieldset className="mb-4 border-t border-rule pt-3">
         <legend className="pr-2 text-[13px] font-bold text-ink">Data Creator</legend>
         <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field required label="Nama Creator" error={fieldError("name")}>
+          <Field label="Nama Creator" error={fieldError("name")}>
             <input
               type="text"
               className={FIELD}
@@ -213,7 +210,7 @@ export function AddCreatorModal({
             />
           </Field>
 
-          <Field required label="Email" error={fieldError("email")}>
+          <Field label="Email" error={fieldError("email")}>
             <input
               type="email"
               className={FIELD}
@@ -224,7 +221,7 @@ export function AddCreatorModal({
             />
           </Field>
 
-          <Field required label="Platform" error={fieldError("socialPlatform")}>
+          <Field label="Platform" error={fieldError("socialPlatform")}>
             <select
               className={FIELD}
               required
@@ -240,7 +237,7 @@ export function AddCreatorModal({
             </select>
           </Field>
 
-          <Field required label="Username Social Media" error={fieldError("socialUsername")}>
+          <Field label="Username Social Media" error={fieldError("socialUsername")}>
             <input
               type="text"
               className={FIELD}
@@ -257,7 +254,7 @@ export function AddCreatorModal({
       <fieldset className="mb-4 border-t border-rule pt-3">
         <legend className="pr-2 text-[13px] font-bold text-ink">Kontrak &amp; Jadwal</legend>
         <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field required label="Jenis Kontrak" error={fieldError("contractType")}>
+          <Field label="Jenis Kontrak" error={fieldError("contractType")}>
             <select
               className={FIELD}
               required
@@ -274,7 +271,7 @@ export function AddCreatorModal({
             </select>
           </Field>
 
-          <Field required label="Contract Fixed Rate (Rp)" error={fieldError("fixedRate")}>
+          <Field label="Contract Fixed Rate (Rp)" error={fieldError("fixedRate")}>
             <input
               type="number"
               className={FIELD}
@@ -286,7 +283,7 @@ export function AddCreatorModal({
             />
           </Field>
 
-          <Field required label="Mulai Kontrak" error={fieldError("contractStart")}>
+          <Field label="Mulai Kontrak" error={fieldError("contractStart")}>
             <input
               type="date"
               className={FIELD}
@@ -299,7 +296,7 @@ export function AddCreatorModal({
             />
           </Field>
 
-          <Field required label="Akhir Kontrak" error={fieldError("contractEnd")}>
+          <Field label="Akhir Kontrak" error={fieldError("contractEnd")}>
             <input
               type="date"
               className={FIELD}
@@ -310,7 +307,7 @@ export function AddCreatorModal({
             />
           </Field>
 
-          <Field required label="Jumlah konten yang disepakati" error={fieldError("quota")}>
+          <Field label="Jumlah konten yang disepakati" error={fieldError("quota")}>
             <input
               type="number"
               className={FIELD}
@@ -322,7 +319,7 @@ export function AddCreatorModal({
             />
           </Field>
 
-          <Field required label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
+          <Field label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
             <input
               type="number"
               className={FIELD}
