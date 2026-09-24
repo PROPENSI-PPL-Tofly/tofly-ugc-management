@@ -82,6 +82,15 @@ describe("validateEvergreenSlot", () => {
 
       expect(errors.deadline).toBeUndefined();
     });
+
+    // Peer review finding: a string that isn't empty but also isn't a real date (e.g. "abc")
+    // parses to an Invalid Date; every `<`/`>` comparison against an Invalid Date is false, so
+    // both bound checks below silently pass and the slot was wrongly accepted as valid.
+    it("rejects a deadline that is not a real calendar day", () => {
+      const errors = validateEvergreenSlot({ ...VALID_INPUT, deadline: "abc" });
+
+      expect(errors.deadline).toBe("Format tanggal deadline tidak valid");
+    });
   });
 
   it("reports the quota and deadline errors independently, not just the first one found", () => {
