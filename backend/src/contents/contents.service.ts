@@ -24,6 +24,15 @@ interface CreatedContent {
   status: 'scheduled';
 }
 
+interface EvergreenContract {
+  creators: {
+    first_name: string;
+    middle_name: string | null;
+    last_name: string | null;
+  };
+  contents: Array<{ type: string }>;
+}
+
 export interface ContentsClient {
   contracts: {
     findUnique: (...args: any[]) => Promise<any>;
@@ -47,25 +56,7 @@ export class ContentCreationService {
     let brief: string;
 
     if (input.type === 'evergreen') {
-      const creator = contract.creators;
-
-      const fullName = [
-        creator.first_name,
-        creator.middle_name,
-        creator.last_name,
-      ]
-        .filter(Boolean)
-        .join(' ');
-
-      const existingEvergreen = contract.contents.filter(
-        (content: { type: string }) => content.type === 'evergreen',
-      );
-
-      name = evergreenName(
-        fullName,
-        input.deadline,
-        existingEvergreen.length + 1,
-      );
+      name = this.generateEvergreenName(contract, input.deadline);
       brief = '';
     } else {
       name = input.name!;
@@ -92,6 +83,31 @@ export class ContentCreationService {
       deadline: toDay(saved.deadline),
       status: saved.status,
     };
+  }
+
+  private generateEvergreenName(
+    contract: EvergreenContract,
+    deadline: string,
+  ): string {
+    const creator = contract.creators;
+
+    const fullName = [
+      creator.first_name,
+      creator.middle_name,
+      creator.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const existingEvergreenCount = contract.contents.filter(
+      (content) => content.type === 'evergreen',
+    ).length;
+
+    return evergreenName(
+      fullName,
+      deadline,
+      existingEvergreenCount + 1,
+    );
   }
 
   private async requireContract(contractId: string): Promise<any> {
