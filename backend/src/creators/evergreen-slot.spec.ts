@@ -69,6 +69,14 @@ describe('checkEvergreenSlot', () => {
       expect(errors.deadline).toBe('Format tanggal deadline tidak valid');
     });
 
+    // Distinct from the case above: this string is not even shaped like YYYY-MM-DD, so it
+    // never reaches the round-trip check at all.
+    it('rejects a deadline that is not shaped like a date at all', () => {
+      const errors = checkEvergreenSlot('evergreen', 'not-a-date', CONTEXT, TODAY);
+
+      expect(errors.deadline).toBe('Format tanggal deadline tidak valid');
+    });
+
     it('rejects a deadline before the buffer window', () => {
       // First allowed day is 2026-10-06 (contract starts 1 Okt, 5-day buffer).
       const errors = checkEvergreenSlot('evergreen', '2026-10-05', CONTEXT, TODAY);
