@@ -10,4 +10,22 @@ export function checkNewContent(input: unknown): void {
       },
     });
   }
+
+  const body = input as Record<string, unknown>;
+  const errors: Record<string, string> = {};
+
+  if (typeof body.type !== 'string' || body.type.trim() === '') {
+    errors.type = 'Jenis konten wajib dipilih';
+  }
+
+  if (typeof body.deadline !== 'string' || body.deadline.trim() === '') {
+    errors.deadline = 'Tanggal deadline wajib diisi';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    throw new UnprocessableEntityException({
+      message: 'Data konten tidak valid',
+      errors,
+    });
+  }
 }
