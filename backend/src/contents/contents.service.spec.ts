@@ -191,8 +191,16 @@ it.each([
       }),
     },
     contents: {
-      create: vi.fn(),
-    },
+  create: vi.fn().mockResolvedValue({
+    id: 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0',
+    contract_id: contractId,
+    type: 'specific',
+    name: input.name,
+    brief: input.brief,
+    deadline: new Date(`${deadline}T00:00:00.000Z`),
+    status: 'scheduled',
+  }),
+},
   };
 
   const service = new ContentCreationService(prisma);
