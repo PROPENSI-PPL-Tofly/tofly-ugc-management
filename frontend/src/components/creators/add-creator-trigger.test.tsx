@@ -30,6 +30,7 @@ describe("AddCreatorTrigger", () => {
     fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
     fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "bagas@example.com" } });
     fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
+    fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "bagas" } });
     fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2026-10-01" } });
     fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: "2026-12-31" } });
@@ -60,6 +61,7 @@ describe("AddCreatorTrigger", () => {
       fixedRate: 500000,
       socialPlatform: "instagram",
       socialUsername: "bagas",
+      contractType: "probation",
       deadlines: ["2026-10-06", "2026-10-20"],
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

@@ -30,6 +30,7 @@ const creatorDetail = {
     daysRemaining: 80,
     periodNumber: 1,
     contentQuota: 6,
+    type: "probation" as const,
   },
   progress: {
     submitted: 1,
@@ -50,6 +51,7 @@ const creatorDetail = {
       endDate: "2026-12-07",
       daysBetween: 180,
       contentQuota: 6,
+      type: "probation" as const,
       completed: 1,
       total: 2,
       isCurrent: true,
@@ -119,6 +121,15 @@ describe("CreatorDetailModal", () => {
     expect(screen.getAllByText("Evergreen - Tips Belajar Cepat")).toHaveLength(2);
 
     expect(screen.getByText("Tepat waktu")).toBeInTheDocument();
+  });
+
+  it("names the contract type of the current contract and of each period", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
+
+    open();
+
+    expect(await screen.findByText(/Periode 1 · Probation ·/)).toBeInTheDocument();
+    expect(screen.getByText(/Periode 1 \(Probation\):/)).toBeInTheDocument();
   });
 
   it("requests the selected creator detail from the API", async () => {

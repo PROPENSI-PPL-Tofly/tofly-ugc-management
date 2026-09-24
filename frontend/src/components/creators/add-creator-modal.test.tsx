@@ -39,11 +39,26 @@ describe("AddCreatorModal", () => {
 
     expect(names(creator)).toEqual(["Nama Creator", "Email", "Platform", "Username Social Media"]);
     expect(names(contract)).toEqual([
+      "Jenis Kontrak",
       "Contract Fixed Rate (Rp)",
       "Mulai Kontrak",
       "Akhir Kontrak",
       "Jumlah konten yang disepakati",
       "Jarak antar-deadline (hari)",
+    ]);
+  });
+
+  it("asks for the contract type, probation or regular, with nothing picked yet", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+    const select = screen.getByLabelText(/jenis kontrak/i);
+    expect(select).toHaveValue("");
+    expect(
+      Array.from(select.querySelectorAll("option")).map((option) => [option.value, option.textContent]),
+    ).toEqual([
+      ["", "Pilih jenis kontrak"],
+      ["probation", "Probation"],
+      ["regular", "Regular"],
     ]);
   });
 
@@ -55,6 +70,7 @@ describe("AddCreatorModal", () => {
       /^email/i,
       /^platform/i,
       /username/i,
+      /jenis kontrak/i,
       /mulai kontrak/i,
       /akhir kontrak/i,
       /jarak antar-deadline/i,
@@ -63,7 +79,7 @@ describe("AddCreatorModal", () => {
     ]) {
       expect(screen.getByLabelText(label)).toBeRequired();
     }
-    expect(screen.getAllByText("*")).toHaveLength(9);
+    expect(screen.getAllByText("*")).toHaveLength(10);
     expect(screen.getByText(/wajib diisi/i)).toBeInTheDocument();
   });
 
@@ -98,6 +114,7 @@ describe("AddCreatorModal", () => {
     fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
     fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
     fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
+    fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
 
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
@@ -113,6 +130,7 @@ describe("AddCreatorModal", () => {
       fixedRate: 500000,
       socialPlatform: "instagram",
       socialUsername: "salsa.amelia",
+      contractType: "probation",
       deadlines: ["2099-01-06", "2099-01-20", "2099-02-03", "2099-02-17", "2099-03-03", "2099-03-17"],
     });
   });
@@ -167,6 +185,7 @@ describe("AddCreatorModal", () => {
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
       fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
       fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
+      fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
       fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
     }
 
@@ -331,6 +350,7 @@ describe("AddCreatorModal", () => {
       fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "bagas@example.com" } });
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
       fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
+      fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
       fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "bagas" } });
     }
 

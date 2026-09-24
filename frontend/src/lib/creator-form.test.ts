@@ -16,7 +16,15 @@ describe("validateCreatorForm", () => {
     fixedRate: 500000,
     socialPlatform: "instagram" as const,
     socialUsername: "salsa.amelia",
+    contractType: "regular" as const,
   };
+
+  it("requires a contract type", () => {
+    expect(validateCreatorForm({ ...VALID_INPUT, contractType: "" }).contractType).toBe(
+      "Jenis kontrak wajib dipilih",
+    );
+    expect(validateCreatorForm(VALID_INPUT).contractType).toBeUndefined();
+  });
 
   it("requires a name", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, name: "" });
@@ -160,6 +168,7 @@ describe("localCalendarDay", () => {
         fixedRate: 500000,
         socialPlatform: "instagram",
         socialUsername: "bagas",
+        contractType: "regular",
       },
       new Date("2026-09-23T18:30:00Z"),
     );

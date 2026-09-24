@@ -87,7 +87,18 @@ describe("CreatorTable", () => {
       />,
     );
 
-    expect(screen.getByText("sisa 80 hari, periode ke-2")).toBeInTheDocument();
+    expect(screen.getByText("Regular · sisa 80 hari, periode ke-2")).toBeInTheDocument();
+  });
+
+  it("names the contract type beside the time left", () => {
+    render(
+      <CreatorTable
+        creators={[creator({ contract: { ...creator().contract, type: "probation" } })]}
+        total={1}
+      />,
+    );
+
+    expect(screen.getByText("Probation · sisa 80 hari")).toBeInTheDocument();
   });
 
   it("describes an expired, an upcoming and a missing contract", () => {
