@@ -113,7 +113,7 @@ describe('checkCreateContent', () => {
       expect(error).toMatchObject({
         response: {
           errors: {
-            deadline: 'Kuota content sudah penuh',
+            quota: 'Kuota content sudah penuh',
           },
         },
       });
