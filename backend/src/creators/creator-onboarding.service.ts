@@ -81,6 +81,7 @@ function onboardingData(input: NewCreator): Prisma.creatorsCreateInput {
       create: {
         start_date: toDate(input.contractStart),
         end_date: toDate(input.contractEnd),
+        contract_type: input.contractType,
         days_between: input.interval,
         content_quota: input.quota,
         fixed_rate: input.fixedRate,

@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import type { social_platform } from '@prisma/client';
+import type { contract_type, social_platform } from '@prisma/client';
 
 /** Longer than any real name; keeps a hostile body from filling the table. */
 export const MAX_NAME_LENGTH = 100;
@@ -8,6 +8,8 @@ export const MAX_EMAIL_LENGTH = 254;
 
 /** Every platform the database's `social_platform` enum accepts, spelled the same way. */
 export const SOCIAL_PLATFORMS: social_platform[] = ['instagram', 'tiktok'];
+/** Every contract type the database's `contract_type` enum accepts (PRD 3.4: informational only). */
+export const CONTRACT_TYPES: contract_type[] = ['probation', 'regular'];
 /** A handle, not a bio. */
 export const MAX_USERNAME_LENGTH = 100;
 
@@ -38,6 +40,7 @@ export interface NewCreator {
   email: string;
   socialPlatform: social_platform;
   socialUsername: string;
+  contractType: contract_type;
   contractStart: Date;
   contractEnd: Date;
   interval: number;
@@ -256,6 +259,18 @@ function isoDay(day: Date): string {
   return day.toISOString().slice(0, 10);
 }
 
+function checkContractType(
+  value: unknown,
+  errors: NewCreatorErrors,
+): contract_type {
+  if (value === undefined || value === '') {
+    errors.contractType = 'Jenis kontrak wajib dipilih';
+  } else if (!CONTRACT_TYPES.includes(value as contract_type)) {
+    errors.contractType = 'Jenis kontrak harus probation atau regular';
+  }
+  return value as contract_type;
+}
+
 /**
  * The Evergreen slots the admin allocated, in date order (their Evg_ sequence numbers follow
  * it). Checked against the contract and quota only once those are valid themselves; otherwise
@@ -311,6 +326,7 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
   const name = checkName(body.name, errors);
   const email = checkEmail(body.email, errors);
   const social = checkSocial(body.socialPlatform, body.socialUsername, errors);
+  const contractType = checkContractType(body.contractType, errors);
   const contract = checkContract(
     body.contractStart,
     body.contractEnd,
@@ -340,6 +356,7 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
     ...name,
     email,
     ...social,
+    contractType,
     ...contract,
     interval,
     quota,
