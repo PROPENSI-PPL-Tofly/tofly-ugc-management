@@ -1,9 +1,9 @@
 import { Body, Controller, Inject, Post } from '@nestjs/common';
 import { ContentCreationService } from './contents.service.js';
-import { checkNewContent } from './new-content.js';
+import { checkNewContent, type NewContent } from './new-content.js';
 
 export interface ContentCreator {
-  create(input: unknown): Promise<unknown>;
+  create(input: NewContent): Promise<unknown>;
 }
 
 @Controller('contents')
@@ -15,7 +15,7 @@ export class ContentsController {
 
   @Post()
   async create(@Body() body: unknown): Promise<unknown> {
-    checkNewContent(body);
-    return this.contents.create(body);
+    const validated = checkNewContent(body);
+    return this.contents.create(validated);
   }
 }

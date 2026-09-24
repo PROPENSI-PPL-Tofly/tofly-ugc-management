@@ -1,6 +1,14 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 
-export function checkNewContent(input: unknown): void {
+export interface NewContent {
+  contractId: string;
+  type: 'evergreen' | 'specific';
+  deadline: string;
+  name?: string;
+  brief?: string;
+}
+
+export function checkNewContent(input: unknown): NewContent {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new UnprocessableEntityException({
       message: 'Data konten tidak valid',
@@ -69,4 +77,15 @@ if (
       errors,
     });
   }
+  return {
+  contractId: body.contractId as string,
+  type: body.type as NewContent['type'],
+  deadline: body.deadline as string,
+  ...(body.type === 'specific'
+    ? {
+        name: body.name as string,
+        brief: body.brief as string,
+      }
+    : {}),
+};
 }
