@@ -48,4 +48,73 @@ describe('checkEvergreenSlot', () => {
 
     expect(errors.contentType).toBe('Tipe konten harus evergreen atau specific');
   });
+
+  // PRD 3.4/3.6: deadline must be on/after max(contract start, today) + buffer, and
+  // on/before the contract end date — same rule the frontend's content-schedule.ts applies,
+  // re-run here since a request can skip the client entirely.
+  describe('deadline', () => {
+    it.each([
+      ['missing', undefined],
+      ['empty', ''],
+      ['not a string', 42],
+    ])('is required (%s)', (_case, deadline) => {
+      const errors = checkEvergreenSlot('evergreen', deadline, CONTEXT, TODAY);
+
+      expect(errors.deadline).toBe('Tanggal deadline wajib diisi');
+    });
+
+    it('rejects a deadline that is not a real calendar day', () => {
+      const errors = checkEvergreenSlot('evergreen', '2026-13-01', CONTEXT, TODAY);
+
+      expect(errors.deadline).toBe('Format tanggal deadline tidak valid');
+    });
+
+    it('rejects a deadline before the buffer window', () => {
+      // First allowed day is 2026-10-06 (contract starts 1 Okt, 5-day buffer).
+      const errors = checkEvergreenSlot('evergreen', '2026-10-05', CONTEXT, TODAY);
+
+      expect(errors.deadline).toBe('Deadline paling cepat 2026-10-06');
+    });
+
+    it('accepts the first day the buffer allows', () => {
+      const errors = checkEvergreenSlot('evergreen', '2026-10-06', CONTEXT, TODAY);
+
+      expect(errors.deadline).toBeUndefined();
+    });
+
+    it('measures the buffer from today when the contract already started', () => {
+      // Contract started in the past (1 Agu); the buffer must count from today (24 Sep).
+      const context = { ...CONTEXT, contractStart: '2026-08-01' };
+
+      const errors = checkEvergreenSlot('evergreen', '2026-09-28', context, TODAY);
+
+      expect(errors.deadline).toBe('Deadline paling cepat 2026-09-29');
+    });
+
+    it('rejects a deadline after the contract ends', () => {
+      const errors = checkEvergreenSlot('evergreen', '2027-01-01', CONTEXT, TODAY);
+
+      expect(errors.deadline).toBe('Deadline tidak boleh setelah akhir kontrak');
+    });
+
+    it('accepts the contract end date itself', () => {
+      const errors = checkEvergreenSlot('evergreen', '2026-12-31', CONTEXT, TODAY);
+
+      expect(errors.deadline).toBeUndefined();
+    });
+  });
+
+  it('reports the quota and deadline errors independently, not just the first one found', () => {
+    const errors = checkEvergreenSlot(
+      'evergreen',
+      '2027-01-01',
+      { ...CONTEXT, evergreenScheduledCount: 6 },
+      TODAY,
+    );
+
+    expect(errors).toEqual({
+      contentType: 'Slot Evergreen sudah penuh',
+      deadline: 'Deadline tidak boleh setelah akhir kontrak',
+    });
+  });
 });
