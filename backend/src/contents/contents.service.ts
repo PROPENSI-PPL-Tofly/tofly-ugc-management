@@ -1,6 +1,8 @@
 
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { evergreenName } from '../creators/evergreen.js';
+import type { NewContent } from './new-content.js';
 
 // Convert a YYYY-MM-DD string to a Date object at midnight UTC.
 function toDate(day: string): Date {
@@ -12,18 +14,10 @@ function toDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-interface NewSpecificContent {
-  contractId: string;
-  type: 'specific';
-  deadline: string;
-  name: string;
-  brief: string;
-}
-
 interface CreatedContent {
   id: string;
   contractId: string;
-  type: 'specific';
+  type: 'evergreen' | 'specific';
   name: string;
   brief: string;
   deadline: string;
@@ -46,15 +40,44 @@ export class ContentCreationService {
     private readonly prisma: ContentsClient,
   ) {}
 
-  async create(input: NewSpecificContent): Promise<CreatedContent> {
-    await this.requireContract(input.contractId);
+  async create(input: NewContent): Promise<CreatedContent> {
+    const contract = await this.requireContract(input.contractId);
+
+    let name: string;
+    let brief: string;
+
+    if (input.type === 'evergreen') {
+      const creator = contract.creators;
+
+      const fullName = [
+        creator.first_name,
+        creator.middle_name,
+        creator.last_name,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      const existingEvergreen = contract.contents.filter(
+        (content: { type: string }) => content.type === 'evergreen',
+      );
+
+      name = evergreenName(
+        fullName,
+        input.deadline,
+        existingEvergreen.length + 1,
+      );
+      brief = '';
+    } else {
+      name = input.name!;
+      brief = input.brief!;
+    }
 
     const saved = await this.prisma.contents.create({
       data: {
         contract_id: input.contractId,
-        type: 'specific',
-        name: input.name,
-        brief: input.brief,
+        type: input.type,
+        name,
+        brief,
         deadline: toDate(input.deadline),
         status: 'scheduled',
       },
@@ -63,17 +86,21 @@ export class ContentCreationService {
     return {
       id: saved.id,
       contractId: saved.contract_id,
-      type: 'specific',
+      type: saved.type,
       name: saved.name,
       brief: saved.brief,
       deadline: toDay(saved.deadline),
-      status: 'scheduled',
+      status: saved.status,
     };
   }
 
-  private async requireContract(contractId: string): Promise<void> {
+  private async requireContract(contractId: string): Promise<any> {
     const contract = await this.prisma.contracts.findUnique({
       where: { id: contractId },
+      include: {
+        creators: true,
+        contents: true,
+      },
     });
 
     if (!contract) {
@@ -82,5 +109,7 @@ export class ContentCreationService {
         message: 'Kontrak tidak ditemukan',
       });
     }
+
+    return contract;
   }
 }

@@ -87,9 +87,11 @@ it('rejects content creation when the contract does not exist', async () => {
     },
   });
 
-  expect(prisma.contracts.findUnique).toHaveBeenCalledWith({
+  expect(prisma.contracts.findUnique).toHaveBeenCalledWith(
+  expect.objectContaining({
     where: { id: contractId },
-  });
+  }),
+);
 
   expect(prisma.contents.create).not.toHaveBeenCalled();
 });
