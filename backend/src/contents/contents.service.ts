@@ -1,138 +1,240 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import type { content_type } from '@prisma/client';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { checkCreateContent } from './create-content.js';
+import { evergreenName, jakartaDay } from '../creators/evergreen.js';
+import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
+import { checkEvergreenSlot } from '../creators/evergreen-slot.js';
+import type { NewContent } from './new-content.js';
 
-export interface CreatedContent {
-  id: string;
-  name: string;
-  type: content_type;
-  brief: string;
-  deadline: string;
-  status: string;
+function toDate(day: string): Date {
+  return new Date(`${day}T00:00:00.000Z`);
 }
 
-function calendarDay(date: Date): string {
+function toDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function creatorName(creator: {
+interface CreatedContent {
+  id: string;
+  contractId: string;
+  type: 'evergreen' | 'specific';
+  name: string;
+  brief: string;
+  deadline: string;
+  status: 'scheduled';
+}
+
+interface CreatorName {
   first_name: string;
   middle_name: string | null;
   last_name: string | null;
-}): string {
-  return [creator.first_name, creator.middle_name, creator.last_name]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
+}
+
+interface ExistingContent {
+  type: string;
+}
+
+interface ContentContract {
+  start_date: Date;
+  end_date: Date;
+  content_quota: number;
+  creator_id?: string;
+  creators: CreatorName;
+  contents: ExistingContent[];
+}
+
+interface SavedContent {
+  id: string;
+  contract_id: string;
+  type: string;
+  name: string;
+  brief: string;
+  deadline: Date;
+  status: string;
+}
+
+interface SchedulingDependencies {
+  today(): Date;
+  bufferDays(): Promise<number>;
+}
+
+export interface ContentsTransaction {
+  $queryRaw: (query: Prisma.Sql) => Promise<unknown>;
+
+  contracts: {
+    findUnique: (args: {
+      where: { id: string };
+      include: {
+        creators: true;
+        contents: true;
+      };
+    }) => Promise<ContentContract | null>;
+  };
+
+  contents: {
+    create: (args: {
+      data: {
+        contract_id: string;
+        type: 'evergreen' | 'specific';
+        name: string;
+        brief: string;
+        deadline: Date;
+        status: 'scheduled';
+      };
+    }) => Promise<SavedContent>;
+  };
+}
+
+export interface ContentsClient {
+  $transaction<T>(
+    work: (transaction: ContentsTransaction) => Promise<T>,
+    options: { isolationLevel: 'ReadCommitted' },
+  ): Promise<T>;
 }
 
 @Injectable()
-export class ContentsService {
-  constructor(private readonly prisma: PrismaService) {}
+export class ContentCreationService {
+  private readonly scheduling: SchedulingDependencies;
 
-  async create(input: unknown, now = new Date()): Promise<CreatedContent> {
-    const today = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  constructor(
+    @Inject(PrismaService)
+    private readonly prisma: ContentsClient,
+
+    @Optional()
+    @Inject('CONTENT_SCHEDULING')
+    scheduling?: SchedulingDependencies,
+  ) {
+    this.scheduling = scheduling ?? {
+      today: () => new Date(),
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    };
+  }
+
+  async create(input: NewContent): Promise<CreatedContent> {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        // Lock before reading: the next request must see the preceding insert
+        // before checking quota and assigning an Evergreen sequence.
+        await transaction.$queryRaw(Prisma.sql`
+          SELECT id
+          FROM contracts
+          WHERE id = ${input.contractId}::uuid
+          FOR UPDATE
+        `);
+
+        const contract = await this.requireContract(
+          transaction,
+          input.contractId,
+        );
+
+        const evergreenCount = contract.contents.filter(
+          (content) => content.type === 'evergreen',
+        ).length;
+
+        await this.validateSlot(input, contract, evergreenCount);
+
+        let name: string;
+        let brief: string;
+
+        if (input.type === 'evergreen') {
+          name = this.generateEvergreenName(
+            contract,
+            input.deadline,
+            evergreenCount,
+          );
+          brief = '';
+        } else {
+          name = input.name!;
+          brief = input.brief!;
+        }
+
+        const saved = await transaction.contents.create({
+          data: {
+            contract_id: input.contractId,
+            type: input.type,
+            name,
+            brief,
+            deadline: toDate(input.deadline),
+            status: 'scheduled',
+          },
+        });
+
+        if (contract.creator_id) {
+          this.notifyCreatorMock({
+            creatorId: contract.creator_id,
+            contentName: saved.name,
+            deadline: toDay(saved.deadline),
+          });
+        }
+
+        return {
+          id: saved.id,
+          contractId: saved.contract_id,
+          type: input.type,
+          name: saved.name,
+          brief: saved.brief,
+          deadline: toDay(saved.deadline),
+          status: 'scheduled',
+        };
+      },
+      { isolationLevel: 'ReadCommitted' },
+    );
+  }
+
+  private async validateSlot(
+    input: NewContent,
+    contract: ContentContract,
+    evergreenCount: number,
+  ): Promise<void> {
+    const { contentType, deadline } = checkEvergreenSlot(
+      input.type,
+      input.deadline,
+      {
+        contractStart: toDay(contract.start_date),
+        contractEnd: toDay(contract.end_date),
+        contentQuota: contract.content_quota,
+        evergreenScheduledCount: evergreenCount,
+        bufferDays: await this.scheduling.bufferDays(),
+      },
+      jakartaDay(this.scheduling.today()),
     );
 
-    const creatorId =
-      typeof (input as { creatorId?: unknown } | null)?.creatorId === 'string'
-        ? (input as { creatorId: string }).creatorId
-        : '';
+    // SCRUM-103 calls this field contentType; the HTTP request uses type.
+    const errors = {
+      ...(contentType ? { type: contentType } : {}),
+      ...(deadline ? { deadline } : {}),
+    };
 
-    const contracts = await this.prisma.contracts.findMany({
-      where: {
-        creator_id: creatorId,
-        end_date: {
-          gte: today,
-        },
-      },
-      orderBy: {
-        start_date: 'desc',
-      },
-      include: {
-        creators: {
-          select: {
-            first_name: true,
-            middle_name: true,
-            last_name: true,
-          },
-        },
-        contents: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            is_proposal: true,
-          },
-        },
-      },
-    });
-
-    const contract =
-      contracts.find(
-        (item) => item.start_date <= today && item.end_date >= today,
-      ) ?? contracts.at(0);
-
-    if (!contract) {
-      throw new NotFoundException({
-        code: 'CONTRACT_NOT_FOUND',
-        message: 'Kontrak creator tidak ditemukan',
+    if (Object.keys(errors).length > 0) {
+      throw new UnprocessableEntityException({
+        message: 'Data konten tidak valid',
+        errors,
       });
     }
+  }
 
-    const actualContents = contract.contents.filter(
-      (content) => !content.is_proposal,
-    );
+  private generateEvergreenName(
+    contract: ContentContract,
+    deadline: string,
+    evergreenCount: number,
+  ): string {
+    const creator = contract.creators;
 
-    const evergreenContents = actualContents.filter(
-      (content) => content.type === 'evergreen',
-    );
+    const fullName = [
+      creator.first_name,
+      creator.middle_name,
+      creator.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    const validated = checkCreateContent(input, {
-      today,
-      contractStart: contract.start_date,
-      contractEnd: contract.end_date,
-      quota: contract.content_quota,
-      totalContentCount: actualContents.length,
-      evergreenCount: evergreenContents.length,
-    });
-
-    const finalName =
-      validated.type === 'evergreen'
-        ? this.nextEvergreenName(
-            evergreenContents.map((content) => content.name),
-            creatorName(contract.creators),
-            validated.deadline,
-          )
-        : validated.name;
-
-    const content = await this.prisma.contents.create({
-      data: {
-        contract_id: contract.id,
-        name: finalName,
-        type: validated.type,
-        brief: validated.brief,
-        deadline: validated.deadline,
-        is_proposal: false,
-      },
-    });
-
-    this.notifyCreatorMock({
-      creatorId: contract.creator_id,
-      contentName: content.name,
-      deadline: calendarDay(content.deadline),
-    });
-
-    return {
-      id: content.id,
-      name: content.name,
-      type: content.type,
-      brief: content.brief,
-      deadline: calendarDay(content.deadline),
-      status: content.status,
-    };
+    return evergreenName(fullName, deadline, evergreenCount + 1);
   }
 
   private notifyCreatorMock(input: {
@@ -143,23 +245,25 @@ export class ContentsService {
     console.info('[MOCK EMAIL] Creator content notification', input);
   }
 
-  private nextEvergreenName(
-    existingNames: string[],
-    creator: string,
-    deadline: Date,
-  ): string {
-    let nextNumber = 1;
+  private async requireContract(
+    transaction: ContentsTransaction,
+    contractId: string,
+  ): Promise<ContentContract> {
+    const contract = await transaction.contracts.findUnique({
+      where: { id: contractId },
+      include: {
+        creators: true,
+        contents: true,
+      },
+    });
 
-    for (const name of existingNames) {
-      const match = /^Evg_(\d+)_/.exec(name);
-
-      if (match) {
-        nextNumber = Math.max(nextNumber, Number(match[1]) + 1);
-      }
+    if (!contract) {
+      throw new NotFoundException({
+        code: 'CONTRACT_NOT_FOUND',
+        message: 'Kontrak tidak ditemukan',
+      });
     }
 
-    const safeCreator = creator.trim().replace(/\s+/g, '_') || 'Creator';
-
-    return `Evg_${nextNumber}_${safeCreator}_${calendarDay(deadline)}`;
+    return contract;
   }
 }

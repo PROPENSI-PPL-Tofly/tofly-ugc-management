@@ -9,26 +9,26 @@ import { PrismaModule } from './prisma/prisma.module.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
 function validate(config: Record<string, unknown>): Record<string, unknown> {
-  for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
-    if (!config[key]) {
-      throw new Error(`Missing required env var: ${key}`);
+    for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
+        if (!config[key]) {
+            throw new Error(`Missing required env var: ${key}`);
+        }
     }
-  }
 
-  return config;
+    return config;
 }
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validate,
-    }),
-    PrismaModule,
-    CreatorsModule,
-    ContentsModule,
-  ],
-  controllers: [AppController, HealthController],
-  providers: [AppService],
+    imports: [
+        ConfigModule.forRoot({
+            isGlobal: true,
+            validate,
+        }),
+        PrismaModule,
+        CreatorsModule,
+        ContentsModule,
+    ],
+    controllers: [AppController, HealthController],
+    providers: [AppService],
 })
 export class AppModule {}
