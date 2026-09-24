@@ -24,6 +24,16 @@ export function checkNewContent(input: unknown): void {
     errors.deadline = 'Tanggal deadline wajib diisi';
   }
 
+  if (body.type === 'specific') {
+  if (typeof body.name !== 'string' || body.name.trim() === '') {
+    errors.name = 'Nama konten wajib diisi';
+  }
+
+  if (typeof body.brief !== 'string' || body.brief.trim() === '') {
+    errors.brief = 'Brief wajib diisi';
+  }
+}
+
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
       message: 'Data konten tidak valid',
