@@ -61,7 +61,7 @@ const creatorDetail = {
       name: "Evergreen - Tips Belajar Cepat",
       type: "evergreen",
       deadline: "2026-09-30",
-      status: "submitted",
+      status: "link_submitted",
       outcome: "on_time" as const,
       videoLink: "https://example.com/video",
     },
@@ -235,6 +235,29 @@ describe("CreatorDetailModal", () => {
     open();
 
     expect(await screen.findByText(label)).toHaveClass(tone);
+  });
+
+  // Content still in progress shows where it is in the workflow, starting at Scheduled.
+  it.each([
+    ["scheduled", "Scheduled"],
+    ["draft_review", "Draft Menunggu Review"],
+    ["draft_revision", "Draft Perlu Revisi"],
+    ["draft_revised", "Draft Revised"],
+    ["draft_approved", "Draft Approved"],
+  ] as const)("shows open %s content by its workflow status", async (status, label) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...creatorDetail,
+          contents: [{ ...creatorDetail.contents[0], status, outcome: "open" }],
+        }),
+      ),
+    );
+
+    open();
+
+    expect(await screen.findByText(label)).toBeInTheDocument();
+    expect(screen.queryByText("Berjalan")).not.toBeInTheDocument();
   });
 
   it("says so when there is no contract history", async () => {
