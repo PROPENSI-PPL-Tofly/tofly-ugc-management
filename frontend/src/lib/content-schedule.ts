@@ -2,6 +2,8 @@
 // (PBI-10, Content Plan's "Tambah Konten"). Kept apart from the modal so each rule is
 // testable without rendering anything, same pattern as creator-form.ts.
 
+import { getBufferWindow } from "./deadline-schedule";
+
 export type ContentType = "evergreen" | "specific";
 
 export interface EvergreenSlotInput {
@@ -28,6 +30,23 @@ export function validateEvergreenSlot(input: EvergreenSlotInput): EvergreenSlotE
   // check only applies when Evergreen itself is being added.
   if (input.contentType === "evergreen" && input.evergreenScheduledCount >= input.contentQuota) {
     errors.contentType = "Slot Evergreen sudah penuh";
+  }
+
+  if (input.deadline === "") {
+    errors.deadline = "Tanggal deadline wajib diisi";
+    return errors;
+  }
+
+  // Same buffer rule generateDeadlineSchedule uses at onboarding (PRD 3.6): on/after
+  // max(contract start, today) + buffer, and on/before the contract end date.
+  const { firstAllowedDate } = getBufferWindow(input);
+  const deadline = new Date(`${input.deadline}T00:00:00Z`);
+  const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`);
+
+  if (deadline < firstAllowedDate) {
+    errors.deadline = `Deadline paling cepat ${firstAllowedDate.toISOString().slice(0, 10)}`;
+  } else if (deadline > contractEnd) {
+    errors.deadline = "Deadline tidak boleh setelah akhir kontrak";
   }
 
   return errors;
