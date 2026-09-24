@@ -23,6 +23,11 @@ describe('ContentCreationService', () => {
     };
 
     const prisma = {
+        contracts: {
+    findUnique: vi.fn().mockResolvedValue({
+      id: contractId,
+    }),
+  },
       contents: {
         create: vi.fn().mockResolvedValue(savedContent),
       },

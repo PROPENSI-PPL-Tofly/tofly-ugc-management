@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 // Convert a YYYY-MM-DD string to a Date object at midnight UTC.
@@ -30,6 +30,9 @@ interface CreatedContent {
 }
 
 export interface ContentsClient {
+  contracts: {
+    findUnique: (...args: any[]) => Promise<any>;
+  };
   contents: {
     create: (...args: any[]) => Promise<any>;
   };
@@ -43,6 +46,16 @@ export class ContentCreationService {
   ) {}
 
   async create(input: NewSpecificContent): Promise<CreatedContent> {
+    const contract = await this.prisma.contracts.findUnique({
+  where: { id: input.contractId },
+});
+
+if (!contract) {
+  throw new NotFoundException({
+    code: 'CONTRACT_NOT_FOUND',
+    message: 'Kontrak tidak ditemukan',
+  });
+}
     const saved = await this.prisma.contents.create({
       data: {
         contract_id: input.contractId,
