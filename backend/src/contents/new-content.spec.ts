@@ -2,6 +2,35 @@ import { UnprocessableEntityException } from '@nestjs/common';
 import { checkNewContent } from './new-content.js';
  
 describe('checkNewContent', () => { 
+  it.each(['evergreen', 'specific'])('accepts the %s content type', (type) => {
+    expect(() =>
+      checkNewContent({
+        type,
+        deadline: '2026-10-10',
+        name: 'Product launch',
+        brief: 'Introduce the new product and its main features.',
+      }),
+    ).not.toThrow();
+  });
+
+  it.each(['other', 'Evergreen', 'Specific', ' evergreen ', 'scheduled'])(
+    'rejects unsupported content type %j',
+    (type) => {
+      expect(() =>
+        checkNewContent({ type, deadline: '2026-10-10' }),
+      ).toThrow(
+        expect.objectContaining({
+          status: 422,
+          response: expect.objectContaining({
+            errors: expect.objectContaining({
+              type: 'Jenis konten harus evergreen atau specific',
+            }),
+          }),
+        }),
+      );
+    },
+  );
+
   it('reports both required fields when the body is empty', () => {
     expect(() => checkNewContent({})).toThrow(
       expect.objectContaining({
