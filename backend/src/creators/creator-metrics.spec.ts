@@ -220,7 +220,7 @@ describe('computePerformance', () => {
     expect(computePerformance(null, TODAY)).toEqual({
       onTimeRate: null,
       avgRevisions: 0,
-      productivity: 'watch',
+      productivity: 'no_data',
       productivityLabel: 'Belum Ada Data',
     });
   });
@@ -229,9 +229,10 @@ describe('computePerformance', () => {
     const open = contract('a', -10, 60, [
       content({ deadline: day(5), videoSubmittedAt: null, submissionCount: 0 }),
     ]);
-    expect(computePerformance(open, TODAY).productivityLabel).toBe(
-      'Belum Ada Data',
-    );
+    expect(computePerformance(open, TODAY)).toMatchObject({
+      productivity: 'no_data',
+      productivityLabel: 'Belum Ada Data',
+    });
   });
 
   it('rates a reliable creator as Baik', () => {

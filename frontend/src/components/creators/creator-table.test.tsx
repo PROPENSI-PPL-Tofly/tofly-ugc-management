@@ -172,11 +172,11 @@ describe("CreatorTable", () => {
       <CreatorTable
         creators={[
           creator({
-            id: "watch",
+            id: "no-data",
             performance: {
               onTimeRate: null,
               avgRevisions: 0,
-              productivity: "watch",
+              productivity: "no_data",
               productivityLabel: "Belum Ada Data",
             },
           }),
@@ -194,7 +194,8 @@ describe("CreatorTable", () => {
       />,
     );
 
-    expect(screen.getByText("Belum Ada Data").className).toContain("amber");
+    // Nothing to judge yet is not a warning, so it stays neutral rather than amber.
+    expect(screen.getByText("Belum Ada Data").className).toContain("text-ink-2");
 
     expect(screen.getByText("Berisiko").className).toContain("red");
 

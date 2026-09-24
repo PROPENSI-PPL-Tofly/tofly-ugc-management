@@ -221,6 +221,7 @@ describe("CreatorDetailModal", () => {
   it.each([
     ["risk", "Berisiko", "text-red-ink"],
     ["watch", "Perlu Perhatian", "text-amber-ink"],
+    ["no_data", "Belum Ada Data", "text-ink-2"],
   ] as const)("colours a %s productivity band by its judgement", async (productivity, label, tone) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

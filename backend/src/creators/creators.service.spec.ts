@@ -429,6 +429,19 @@ describe('CreatorsService', () => {
     expect(result.total).toBe(1);
   });
 
+  // A creator with nothing to judge yet is its own band, not a watch-listed one.
+  it('filters the roster to creators without data yet', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1' }),
+      row({ id: 'creator-2', contracts: [] }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { productivity: 'no_data' });
+
+    expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
+  });
+
   it('combines q, contractStatus and productivity with AND, not OR', async () => {
     prisma.creators.findMany.mockResolvedValue([
       // Matches the search and the contract status, but not the productivity band.

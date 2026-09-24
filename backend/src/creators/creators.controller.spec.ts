@@ -122,6 +122,16 @@ describe('CreatorsController', () => {
     );
   });
 
+  it('accepts no_data as a productivity filter', async () => {
+    await controller.list(1, 10, undefined, undefined, 'no_data');
+
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      { productivity: 'no_data' },
+    );
+  });
+
   it('rejects an unrecognised contractStatus value', async () => {
     await expect(
       controller.list(1, 10, undefined, 'bogus'),
