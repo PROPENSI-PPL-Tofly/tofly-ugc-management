@@ -21,8 +21,24 @@ export function checkNewContent(input: unknown): void {
   }
 
   if (typeof body.deadline !== 'string' || body.deadline.trim() === '') {
-    errors.deadline = 'Tanggal deadline wajib diisi';
+  errors.deadline = 'Tanggal deadline wajib diisi';
+} else {
+  const deadline = body.deadline;
+  const dateFormat = /^\d{4}-\d{2}-\d{2}$/;
+
+  if (!dateFormat.test(deadline)) {
+    errors.deadline = 'Format tanggal deadline tidak valid';
+  } else {
+    const parsedDate = new Date(`${deadline}T00:00:00.000Z`);
+
+    if (
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== deadline
+    ) {
+      errors.deadline = 'Format tanggal deadline tidak valid';
+    }
   }
+}
 
   if (body.type === 'specific') {
   if (typeof body.name !== 'string' || body.name.trim() === '') {
