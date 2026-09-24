@@ -45,6 +45,9 @@ const CONTENT_STATUS_LABELS: Record<ContentStatus, string> = {
   link_submitted: "Content Link Submitted",
 };
 
+/** Content history rows per page; keeps the modal short for creators with long contracts. */
+const CONTENTS_PER_PAGE = 5;
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -67,6 +70,7 @@ export function CreatorDetailModal({
 
   const [detail, setDetail] = useState<CreatorDetail | null>(null);
   const [failed, setFailed] = useState(false);
+  const [contentPage, setContentPage] = useState(0);
 
   // No reset on creatorId here: the caller keys this component by creator, so a
   // different creator is a different mount that starts from the initial state.
@@ -90,6 +94,11 @@ export function CreatorDetailModal({
       cancelled = true;
     };
   }, [creatorId]);
+
+  const contentTotal = detail?.contents.length ?? 0;
+  const contentFirst = contentPage * CONTENTS_PER_PAGE;
+  const contentLast = Math.min(contentFirst + CONTENTS_PER_PAGE, contentTotal);
+  const visibleContents = detail?.contents.slice(contentFirst, contentLast) ?? [];
 
   return (
     <Modal
@@ -215,7 +224,7 @@ export function CreatorDetailModal({
               <p className="text-xs text-muted">Belum ada konten pada periode ini.</p>
             ) : (
               <ul className="flex flex-col gap-1">
-                {detail.contents.map((content) => (
+                {visibleContents.map((content) => (
                   <li
                     key={content.id}
                     className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-rule-2 py-1.5 text-xs last:border-none"
@@ -237,6 +246,30 @@ export function CreatorDetailModal({
                 ))}
               </ul>
             )}
+
+            {contentTotal > CONTENTS_PER_PAGE ? (
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <span className="text-xs text-muted tabular-nums">
+                  {contentFirst + 1}–{contentLast} dari {contentTotal}
+                </span>
+                <Button
+                  aria-label="Riwayat konten sebelumnya"
+                  className="px-2! py-0.5!"
+                  disabled={contentPage === 0}
+                  onClick={() => setContentPage((page) => page - 1)}
+                >
+                  ‹
+                </Button>
+                <Button
+                  aria-label="Riwayat konten berikutnya"
+                  className="px-2! py-0.5!"
+                  disabled={contentLast >= contentTotal}
+                  onClick={() => setContentPage((page) => page + 1)}
+                >
+                  ›
+                </Button>
+              </div>
+            ) : null}
           </Field>
 
           <Field label="Riwayat draft">
