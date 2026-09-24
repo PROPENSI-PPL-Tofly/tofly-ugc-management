@@ -141,6 +141,26 @@ describe('CreatorOnboardingService (e2e)', () => {
     ).resolves.toBe(1);
   });
 
+  it('stores two contents that share one deadline under their own sequence numbers', async () => {
+    await onboarding.onboard(
+      newCreator({ deadlines: [day(14), day(14), day(42)] }),
+    );
+
+    const contents = await prisma.contents.findMany({
+      where: {
+        contracts: { creators: { first_name: { startsWith: MARKER } } },
+      },
+      select: { name: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const [year, month, date] = day(14).split('-');
+    expect(contents.map((content) => content.name).slice(0, 2)).toEqual([
+      `Evg_1_${MARKER} Aulia Rahma_${date}${month}${year}`,
+      `Evg_2_${MARKER} Aulia Rahma_${date}${month}${year}`,
+    ]);
+  });
+
   it('writes nothing when the deadlines do not fit the contract', async () => {
     const error = await rejection(
       onboarding.onboard(

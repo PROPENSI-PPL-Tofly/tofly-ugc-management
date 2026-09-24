@@ -130,13 +130,14 @@ describe('checkSchedule', () => {
     ).toEqual({ deadlines: 'Format tanggal deadline tidak valid' });
   });
 
-  it('rejects the same deadline twice', () => {
+  // The calendar lets the admin stack several contents on one day, so a repeated day is valid.
+  it('accepts the same deadline for more than one content', () => {
     expect(
       checkSchedule(
         { ...valid, deadlines: ['2026-09-26', '2026-09-26', '2026-10-24'] },
         TODAY,
       ),
-    ).toEqual({ deadlines: 'Deadline tidak boleh ganda' });
+    ).toEqual({});
   });
 
   it('rejects a deadline outside the contract period', () => {
