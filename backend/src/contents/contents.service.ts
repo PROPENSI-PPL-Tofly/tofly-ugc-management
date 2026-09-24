@@ -119,6 +119,12 @@ export class ContentsService {
       },
     });
 
+    this.notifyCreatorMock({
+      creatorId: contract.creator_id,
+      contentName: content.name,
+      deadline: calendarDay(content.deadline),
+    });
+
     return {
       id: content.id,
       name: content.name,
@@ -127,6 +133,14 @@ export class ContentsService {
       deadline: calendarDay(content.deadline),
       status: content.status,
     };
+  }
+
+  private notifyCreatorMock(input: {
+    creatorId: string;
+    contentName: string;
+    deadline: string;
+  }): void {
+    console.info('[MOCK EMAIL] Creator content notification', input);
   }
 
   private nextEvergreenName(
