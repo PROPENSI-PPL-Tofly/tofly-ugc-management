@@ -5,6 +5,7 @@ export function checkNewContent(input: unknown): void {
     throw new UnprocessableEntityException({
       message: 'Data konten tidak valid',
       errors: {
+        contractId: 'Kontrak wajib dipilih',
         type: 'Jenis konten wajib dipilih',
         deadline: 'Tanggal deadline wajib diisi',
       },
@@ -13,6 +14,18 @@ export function checkNewContent(input: unknown): void {
 
   const body = input as Record<string, unknown>;
   const errors: Record<string, string> = {};
+
+  const UUID_FORMAT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+if (
+  typeof body.contractId !== 'string' ||
+  body.contractId.trim() === ''
+) {
+  errors.contractId = 'Kontrak wajib dipilih';
+} else if (!UUID_FORMAT.test(body.contractId)) {
+  errors.contractId = 'ID kontrak tidak valid';
+}
 
   if (typeof body.type !== 'string' || body.type.trim() === '') {
     errors.type = 'Jenis konten wajib dipilih';
