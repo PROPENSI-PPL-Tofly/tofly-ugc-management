@@ -186,6 +186,7 @@ describe('CreatorsController', () => {
       email: 'salsa@example.com',
       socialPlatform: 'tiktok',
       socialUsername: 'salsa.amelia',
+      contractType: 'regular',
       contractStart: '2026-10-01',
       contractEnd: '2026-12-31',
       interval: 7,
@@ -201,6 +202,7 @@ describe('CreatorsController', () => {
       expect(onboarding.onboard).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'Salsa Amelia',
+          contractType: 'regular',
           contractStart: '2026-10-01',
           deadlines: ['2026-10-06'],
         }),

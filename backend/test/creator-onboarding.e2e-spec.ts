@@ -28,6 +28,7 @@ function newCreator(overrides: Partial<NewCreator> = {}): NewCreator {
     fixedRate: 1500000,
     socialPlatform: 'instagram',
     socialUsername: 'aulia.creates',
+    contractType: 'probation',
     deadlines: [day(14), day(28), day(42)],
     ...overrides,
   };
@@ -82,6 +83,7 @@ describe('CreatorOnboardingService (e2e)', () => {
               select: {
                 id: true,
                 content_quota: true,
+                contract_type: true,
                 contents: {
                   select: { name: true, type: true, status: true, brief: true },
                   orderBy: { deadline: 'asc' },
@@ -100,6 +102,7 @@ describe('CreatorOnboardingService (e2e)', () => {
     ]);
     expect(user.creators?.contracts).toHaveLength(1);
     expect(user.creators?.contracts[0].id).toBe(created.contractId);
+    expect(user.creators?.contracts[0].contract_type).toBe('probation');
     expect(user.creators?.contracts[0].contents).toEqual(
       [day(14), day(28), day(42)].map((deadline, index) => {
         const [year, month, date] = deadline.split('-');
