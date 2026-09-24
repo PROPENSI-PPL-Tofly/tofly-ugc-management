@@ -230,4 +230,61 @@ describe('ContentCreationService', () => {
 
     expect(prisma.contents.create).not.toHaveBeenCalled();
   });
+
+it.each([
+  {
+    label: 'the earliest allowed deadline',
+    deadline: '2026-10-15',
+  },
+  {
+    label: 'the contract end date',
+    deadline: '2026-10-31',
+  },
+])('accepts $label', async ({ deadline }) => {
+  const contractId = '550e8400-e29b-41d4-a716-446655440000';
+
+  const input = {
+    contractId,
+    type: 'specific' as const,
+    deadline,
+    name: 'Product launch',
+    brief: 'Introduce the new product.',
+  };
+
+  const savedContent = {
+    id: 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0',
+    contract_id: contractId,
+    type: 'specific',
+    name: input.name,
+    brief: input.brief,
+    deadline: new Date(`${deadline}T00:00:00.000Z`),
+    status: 'scheduled',
+  };
+
+  const prisma = {
+    contracts: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: contractId,
+        start_date: new Date('2026-10-10T00:00:00.000Z'),
+        end_date: new Date('2026-10-31T00:00:00.000Z'),
+      }),
+    },
+    contents: {
+      create: vi.fn().mockResolvedValue(savedContent),
+    },
+  };
+
+  const service = new ContentCreationService(prisma, {
+    today: () => new Date('2026-10-10T00:00:00.000Z'),
+    bufferDays: async () => 5,
+  });
+
+  await expect(service.create(input)).resolves.toMatchObject({
+    contractId,
+    deadline,
+    status: 'scheduled',
+  });
+
+  expect(prisma.contents.create).toHaveBeenCalledOnce();
+});
 });
