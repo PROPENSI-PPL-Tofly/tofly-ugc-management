@@ -8,6 +8,7 @@ const CONTEXT: EvergreenSlotContext = {
   contractEnd: '2026-12-31',
   contentQuota: 6,
   evergreenScheduledCount: 3,
+  bufferDays: 5,
 };
 
 describe('checkEvergreenSlot', () => {
@@ -109,6 +110,17 @@ describe('checkEvergreenSlot', () => {
       const errors = checkEvergreenSlot('evergreen', '2026-12-31', CONTEXT, TODAY);
 
       expect(errors.deadline).toBeUndefined();
+    });
+
+    // Peer review finding (PRD 3.6): the buffer is a global, admin-editable setting, not a
+    // fixed constant — the caller (eventually SCRUM-104, reading it from the buffer settings
+    // table) must be able to change it without editing this function.
+    it('uses the buffer days from the context, not a hardcoded default', () => {
+      const context = { ...CONTEXT, bufferDays: 10 };
+
+      const errors = checkEvergreenSlot('evergreen', '2026-10-10', context, TODAY);
+
+      expect(errors.deadline).toBe('Deadline paling cepat 2026-10-11');
     });
   });
 
