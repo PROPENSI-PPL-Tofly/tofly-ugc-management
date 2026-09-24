@@ -7,16 +7,44 @@ describe("AddCreatorModal", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
     expect(screen.getByLabelText(/nama creator/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/mulai kontrak/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/akhir kontrak/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/jarak antar-deadline/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/fixed rate/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/jumlah konten/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^platform$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^platform/i)).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Instagram" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "TikTok" })).toBeInTheDocument();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
+  });
+
+  // The fixed rate is agreed for the whole contract, not paid per content.
+  it("labels the fee as the contract's fixed rate", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+    expect(screen.getByLabelText(/^fixed rate kontrak \(rp\)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/per konten/i)).not.toBeInTheDocument();
+  });
+
+  it("marks every field as required, in the markup and visibly", () => {
+    render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+    for (const label of [
+      /nama creator/i,
+      /^email/i,
+      /^platform/i,
+      /username/i,
+      /mulai kontrak/i,
+      /akhir kontrak/i,
+      /jarak antar-deadline/i,
+      /fixed rate/i,
+      /jumlah konten/i,
+    ]) {
+      expect(screen.getByLabelText(label)).toBeRequired();
+    }
+    expect(screen.getAllByText("*")).toHaveLength(9);
+    expect(screen.getByText(/wajib diisi/i)).toBeInTheDocument();
   });
 
   // Simpan is disabled while the form is empty (see "Simpan disabled state" below), so a
@@ -43,13 +71,13 @@ describe("AddCreatorModal", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
-    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "bagas@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "bagas@example.com" } });
     fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2099-01-01" } });
     fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: "2099-12-31" } });
     fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
     fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
     fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
-    fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "instagram" } });
+    fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
 
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
@@ -112,13 +140,13 @@ describe("AddCreatorModal", () => {
     // Dates pinned far in the future for the same reason as the valid-submit test above.
     function fillValidForm() {
       fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
-      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "bagas@example.com" } });
+      fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "bagas@example.com" } });
       fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2099-01-01" } });
       fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: "2099-12-31" } });
       fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
       fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
-      fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "instagram" } });
+      fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
       fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
     }
 
@@ -136,7 +164,7 @@ describe("AddCreatorModal", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
       fillValidForm();
-      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "not-an-email" } });
+      fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "not-an-email" } });
 
       expect(simpanButton()).toBeDisabled();
     });
@@ -204,7 +232,7 @@ describe("AddCreatorModal", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
       fillValidForm();
-      fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "" } });
+      fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "" } });
 
       expect(simpanButton()).toBeDisabled();
     });
@@ -280,9 +308,9 @@ describe("AddCreatorModal", () => {
 
     function fillOthers() {
       fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
-      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "bagas@example.com" } });
+      fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "bagas@example.com" } });
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
-      fireEvent.change(screen.getByLabelText(/^platform$/i), { target: { value: "instagram" } });
+      fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
       fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "bagas" } });
     }
 
@@ -401,7 +429,7 @@ describe("AddCreatorModal", () => {
         />,
       );
 
-      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "baru@example.com" } });
+      fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "baru@example.com" } });
 
       expect(screen.queryByText("Email sudah terdaftar")).not.toBeInTheDocument();
       expect(screen.getByText("Nama terlalu panjang")).toBeInTheDocument();
@@ -411,7 +439,7 @@ describe("AddCreatorModal", () => {
       const { rerender } = render(
         <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
       );
-      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "lagi@example.com" } });
+      fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "lagi@example.com" } });
 
       rerender(
         <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
@@ -447,8 +475,8 @@ describe("AddCreatorModal", () => {
 
     for (const label of [
       /nama creator/i,
-      /^email$/i,
-      /^platform$/i,
+      /^email/i,
+      /^platform/i,
       /username/i,
       /mulai kontrak/i,
       /jarak antar-deadline/i,
