@@ -156,4 +156,27 @@ describe('checkNewContent', () => {
       }),
     );
   });
+  it.each([
+  'not-a-date',
+  '2026/10/10',
+  '10-10-2026',
+  '2026-02-30',
+  '2026-13-10',
+])('rejects invalid deadline %j', (deadline) => {
+  expect(() =>
+    checkNewContent({
+      type: 'evergreen',
+      deadline,
+    }),
+  ).toThrow(
+    expect.objectContaining({
+      status: 422,
+      response: expect.objectContaining({
+        errors: expect.objectContaining({
+          deadline: 'Format tanggal deadline tidak valid',
+        }),
+      }),
+    }),
+  );
+});
 });
