@@ -425,6 +425,71 @@ describe('ContentCreationService', () => {
 
     expect(prisma.contents.create).toHaveBeenCalledOnce();
   });
+
+  it('triggers the temporary creator email notification marker after save', async () => {
+    const consoleInfo = vi
+      .spyOn(console, 'info')
+      .mockImplementation(() => undefined);
+
+    try {
+      const input = {
+        contractId: CONTRACT_ID,
+        type: 'specific' as const,
+        deadline: '2026-10-10',
+        name: 'New Specific Content',
+        brief: 'Specific content brief',
+      };
+
+      const savedContent = {
+        id: CONTENT_ID,
+        contract_id: CONTRACT_ID,
+        type: 'specific',
+        name: input.name,
+        brief: input.brief,
+        deadline: new Date('2026-10-10T00:00:00.000Z'),
+        status: 'scheduled',
+      };
+
+      const prisma = {
+        contracts: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: CONTRACT_ID,
+            creator_id: '11111111-1111-4111-8111-111111111111',
+            contents: [],
+            creators: {
+              first_name: 'Rangga',
+              middle_name: null,
+              last_name: 'Pratama',
+            },
+            content_quota: 2,
+            start_date: new Date('2026-09-01T00:00:00.000Z'),
+            end_date: new Date('2026-12-31T00:00:00.000Z'),
+          }),
+        },
+        contents: {
+          create: vi.fn().mockResolvedValue(savedContent),
+        },
+      };
+
+      const service = new ContentCreationService(
+        transactional(prisma),
+        TEST_SCHEDULING,
+      );
+
+      await service.create(input);
+
+      expect(consoleInfo).toHaveBeenCalledWith(
+        '[MOCK EMAIL] Creator content notification',
+        {
+          creatorId: '11111111-1111-4111-8111-111111111111',
+          contentName: 'New Specific Content',
+          deadline: '2026-10-10',
+        },
+      );
+    } finally {
+      consoleInfo.mockRestore();
+    }
+  });
 });
 
 describe('atomic Evergreen allocation', () => {
@@ -484,11 +549,7 @@ describe('atomic Evergreen allocation', () => {
 
       await expect(service.create(input)).rejects.toMatchObject({
         status: 422,
-        response: {
-          errors: {
-            type: expect.any(String),
-          },
-        },
+        response: { errors: { type: expect.any(String) } },
       });
 
       expect(transaction.contents.create).not.toHaveBeenCalled();
@@ -508,19 +569,18 @@ describe('atomic Evergreen allocation', () => {
     const query = transaction.$queryRaw.mock.calls[0][0];
 
     expect(query.values).toEqual([input.contractId]);
-    expect(query.sql).toContain('WHERE id = ?::uuid FOR UPDATE');
 
-    expect(
-      transaction.$queryRaw.mock.invocationCallOrder[0],
-    ).toBeLessThan(
+    const normalizedSql = query.sql.replace(/\s+/g, ' ').trim();
+
+    expect(normalizedSql).toContain('WHERE id = ?::uuid FOR UPDATE');
+
+    expect(transaction.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
       transaction.contracts.findUnique.mock.invocationCallOrder[0],
     );
 
     expect(
       transaction.contracts.findUnique.mock.invocationCallOrder[0],
-    ).toBeLessThan(
-      transaction.contents.create.mock.invocationCallOrder[0],
-    );
+    ).toBeLessThan(transaction.contents.create.mock.invocationCallOrder[0]);
 
     expect(client.$transaction).toHaveBeenCalledWith(
       expect.any(Function),
@@ -531,9 +591,7 @@ describe('atomic Evergreen allocation', () => {
   });
 
   it('returns both quota and deadline errors from SCRUM-103 before inserting', async () => {
-    const { service, input, transaction } = setup(1, [
-      'evergreen',
-    ]);
+    const { service, input, transaction } = setup(1, ['evergreen']);
 
     await expect(
       service.create({
@@ -556,13 +614,10 @@ describe('atomic Evergreen allocation', () => {
   it('uses the supplied global buffer value for Specific content', async () => {
     const { transaction, input } = setup(1, []);
 
-    const service = new ContentCreationService(
-      transactional(transaction),
-      {
-        today: () => new Date('2026-09-24Z'),
-        bufferDays: async () => 20,
-      },
-    );
+    const service = new ContentCreationService(transactional(transaction), {
+      today: () => new Date('2026-09-24Z'),
+      bufferDays: async () => 20,
+    });
 
     await expect(
       service.create({
@@ -583,9 +638,7 @@ describe('atomic Evergreen allocation', () => {
   });
 
   it('allows Specific content even when Evergreen quota is full', async () => {
-    const { service, input } = setup(1, [
-      'evergreen',
-    ]);
+    const { service, input } = setup(1, ['evergreen']);
 
     await expect(
       service.create({
@@ -606,17 +659,10 @@ describe('atomic Evergreen allocation', () => {
 
     transaction.$queryRaw.mockRejectedValue(error);
 
-    await expect(
-      service.create(input),
-    ).rejects.toBe(error);
+    await expect(service.create(input)).rejects.toBe(error);
 
-    expect(
-      transaction.contracts.findUnique,
-    ).not.toHaveBeenCalled();
-
-    expect(
-      transaction.contents.create,
-    ).not.toHaveBeenCalled();
+    expect(transaction.contracts.findUnique).not.toHaveBeenCalled();
+    expect(transaction.contents.create).not.toHaveBeenCalled();
   });
 
   it('propagates insert failure to the transaction without reporting success', async () => {
@@ -626,8 +672,6 @@ describe('atomic Evergreen allocation', () => {
 
     transaction.contents.create.mockRejectedValue(error);
 
-    await expect(
-      service.create(input),
-    ).rejects.toBe(error);
+    await expect(service.create(input)).rejects.toBe(error);
   });
 });
