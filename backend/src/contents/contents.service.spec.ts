@@ -42,6 +42,12 @@ describe('ContentCreationService', () => {
       contracts: {
         findUnique: vi.fn().mockResolvedValue({
           id: CONTRACT_ID,
+          contents: [],
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+          },
           content_quota: 2,
           start_date: new Date('2026-09-01T00:00:00.000Z'),
           end_date: new Date('2026-12-31T00:00:00.000Z'),
@@ -208,6 +214,12 @@ describe('ContentCreationService', () => {
       contracts: {
         findUnique: vi.fn().mockResolvedValue({
           id: CONTRACT_ID,
+          contents: [],
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+          },
           content_quota: 2,
           start_date: new Date('2026-10-10T00:00:00.000Z'),
           end_date: new Date('2026-12-31T00:00:00.000Z'),
@@ -256,6 +268,12 @@ describe('ContentCreationService', () => {
       contracts: {
         findUnique: vi.fn().mockResolvedValue({
           id: CONTRACT_ID,
+          contents: [],
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+          },
           content_quota: 2,
           start_date: new Date('2026-10-10T00:00:00.000Z'),
           end_date: new Date('2026-10-31T00:00:00.000Z'),
@@ -325,6 +343,12 @@ describe('ContentCreationService', () => {
       contracts: {
         findUnique: vi.fn().mockResolvedValue({
           id: contractId,
+          contents: [],
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+          },
           content_quota: 2,
           start_date: new Date('2026-10-10T00:00:00.000Z'),
           end_date: new Date('2026-10-31T00:00:00.000Z'),
@@ -374,6 +398,12 @@ describe('ContentCreationService', () => {
       contracts: {
         findUnique: vi.fn().mockResolvedValue({
           id: contractId,
+          contents: [],
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+          },
           content_quota: 2,
           start_date: new Date('2099-12-01T00:00:00.000Z'),
           end_date: new Date('2099-12-31T00:00:00.000Z'),
@@ -474,6 +504,41 @@ describe('atomic Evergreen allocation', () => {
     expect(client.$transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: 'ReadCommitted',
     });
+  });
+
+  it('returns both quota and deadline errors from SCRUM-103 before inserting', async () => {
+    const { service, input, transaction } = setup(1, ['evergreen']);
+    await expect(
+      service.create({ ...input, deadline: '2026-09-28' }),
+    ).rejects.toMatchObject({
+      status: 422,
+      response: {
+        errors: {
+          type: 'Slot Evergreen sudah penuh',
+          deadline: 'Deadline paling cepat 2026-09-29',
+        },
+      },
+    });
+    expect(transaction.contents.create).not.toHaveBeenCalled();
+  });
+
+  it('uses the supplied global buffer value for Specific content', async () => {
+    const { transaction, input } = setup(1, []);
+    const service = new ContentCreationService(transactional(transaction), {
+      today: () => new Date('2026-09-24Z'),
+      bufferDays: async () => 20,
+    });
+    await expect(
+      service.create({
+        ...input,
+        type: 'specific',
+        name: 'Campaign',
+        brief: 'Brief',
+      }),
+    ).rejects.toMatchObject({
+      response: { errors: { deadline: 'Deadline paling cepat 2026-10-14' } },
+    });
+    expect(transaction.contents.create).not.toHaveBeenCalled();
   });
 
   it('allows Specific content even when Evergreen quota is full', async () => {

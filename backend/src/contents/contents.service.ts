@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { evergreenName, jakartaDay } from '../creators/evergreen.js';
 import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
+import { checkEvergreenSlot } from '../creators/evergreen-slot.js';
 import type { NewContent } from './new-content.js';
 
 function toDate(day: string): Date {
@@ -17,12 +18,6 @@ function toDate(day: string): Date {
 
 function toDay(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function addDays(day: string, days: number): string {
-  const date = toDate(day);
-  date.setUTCDate(date.getUTCDate() + days);
-  return toDay(date);
 }
 
 interface CreatedContent {
@@ -133,13 +128,20 @@ export class ContentCreationService {
           input.contractId,
         );
 
-        await this.validateDeadline(input.deadline, contract);
+        const evergreenCount = contract.contents.filter(
+          (content) => content.type === 'evergreen',
+        ).length;
+        await this.validateSlot(input, contract, evergreenCount);
 
         let name: string;
         let brief: string;
 
         if (input.type === 'evergreen') {
-          name = this.generateEvergreenName(contract, input.deadline);
+          name = this.generateEvergreenName(
+            contract,
+            input.deadline,
+            evergreenCount,
+          );
           brief = '';
         } else {
           name = input.name!;
@@ -171,24 +173,32 @@ export class ContentCreationService {
     );
   }
 
-  private async validateDeadline(
-    deadline: string,
+  private async validateSlot(
+    input: NewContent,
     contract: ContentContract,
+    evergreenCount: number,
   ): Promise<void> {
-    const today = jakartaDay(this.scheduling.today());
-    const contractStart = toDay(contract.start_date);
-    const contractEnd = toDay(contract.end_date);
-
-    const bufferDays = await this.scheduling.bufferDays();
-    const baseDay = contractStart > today ? contractStart : today;
-    const minimumDeadline = addDays(baseDay, bufferDays);
-
-    if (deadline < minimumDeadline || deadline > contractEnd) {
+    const { contentType, deadline } = checkEvergreenSlot(
+      input.type,
+      input.deadline,
+      {
+        contractStart: toDay(contract.start_date),
+        contractEnd: toDay(contract.end_date),
+        contentQuota: contract.content_quota,
+        evergreenScheduledCount: evergreenCount,
+        bufferDays: await this.scheduling.bufferDays(),
+      },
+      jakartaDay(this.scheduling.today()),
+    );
+    // SCRUM-103 calls this field contentType; the HTTP request uses type.
+    const errors = {
+      ...(contentType ? { type: contentType } : {}),
+      ...(deadline ? { deadline } : {}),
+    };
+    if (Object.keys(errors).length > 0) {
       throw new UnprocessableEntityException({
         message: 'Data konten tidak valid',
-        errors: {
-          deadline: 'Deadline harus sesuai periode kontrak dan buffer global',
-        },
+        errors,
       });
     }
   }
@@ -196,6 +206,7 @@ export class ContentCreationService {
   private generateEvergreenName(
     contract: ContentContract,
     deadline: string,
+    evergreenCount: number,
   ): string {
     const creator = contract.creators;
 
@@ -207,17 +218,7 @@ export class ContentCreationService {
       .filter(Boolean)
       .join(' ');
 
-    const existingEvergreenCount = contract.contents.filter(
-      (content) => content.type === 'evergreen',
-    ).length;
-
-    if (existingEvergreenCount >= contract.content_quota) {
-      throw new UnprocessableEntityException({
-        message: 'Data konten tidak valid',
-        errors: { type: 'Kuota Evergreen kontrak sudah penuh' },
-      });
-    }
-    return evergreenName(fullName, deadline, existingEvergreenCount + 1);
+    return evergreenName(fullName, deadline, evergreenCount + 1);
   }
 
   private async requireContract(
