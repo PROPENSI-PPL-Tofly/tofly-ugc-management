@@ -16,6 +16,8 @@ export function checkNewContent(input: unknown): void {
 
   if (typeof body.type !== 'string' || body.type.trim() === '') {
     errors.type = 'Jenis konten wajib dipilih';
+  } else if (body.type !== 'evergreen' && body.type !== 'specific') {
+    errors.type = 'Jenis konten harus evergreen atau specific';
   }
 
   if (typeof body.deadline !== 'string' || body.deadline.trim() === '') {
