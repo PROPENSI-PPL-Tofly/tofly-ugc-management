@@ -2,6 +2,57 @@ import { UnprocessableEntityException } from '@nestjs/common';
 import { checkNewContent } from './new-content.js';
  
 describe('checkNewContent', () => { 
+  describe('Specific content fields', () => {
+    describe.each([
+      ['name', 'Nama konten wajib diisi'],
+      ['brief', 'Brief wajib diisi'],
+    ])('requires text for %s', (field, message) => {
+      it.each([undefined, null, '', '   ', 42, true, [], {}].map((value) => ({ value })))(
+        'rejects value $value',
+        ({ value }) => {
+          const body = {
+            type: 'specific',
+            deadline: '2026-10-10',
+            name: 'Product launch',
+            brief: 'Introduce the new product.',
+            [field]: value,
+          };
+
+          expect(() => checkNewContent(body)).toThrow(
+            expect.objectContaining({
+              status: 422,
+              response: expect.objectContaining({
+                errors: { [field]: message },
+              }),
+            }),
+          );
+        },
+      );
+    });
+
+    it('reports name and brief errors together when both are missing', () => {
+      expect(() =>
+        checkNewContent({ type: 'specific', deadline: '2026-10-10' }),
+      ).toThrow(
+        expect.objectContaining({
+          status: 422,
+          response: expect.objectContaining({
+            errors: {
+              name: 'Nama konten wajib diisi',
+              brief: 'Brief wajib diisi',
+            },
+          }),
+        }),
+      );
+    });
+
+    it('allows Evergreen content without a name or brief', () => {
+      expect(() =>
+        checkNewContent({ type: 'evergreen', deadline: '2026-10-10' }),
+      ).not.toThrow();
+    });
+  });
+
   it.each(['evergreen', 'specific'])('accepts the %s content type', (type) => {
     expect(() =>
       checkNewContent({
