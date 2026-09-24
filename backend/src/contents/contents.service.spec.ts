@@ -51,4 +51,41 @@ describe('ContentCreationService', () => {
       },
     });
   });
+
+it('rejects content creation when the contract does not exist', async () => {
+  const contractId = '550e8400-e29b-41d4-a716-446655440000';
+
+  const input = {
+    contractId,
+    type: 'specific' as const,
+    deadline: '2026-10-10',
+    name: 'Product launch',
+    brief: 'Introduce the new product.',
+  };
+
+  const prisma = {
+    contracts: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    contents: {
+      create: vi.fn(),
+    },
+  };
+
+  const service = new ContentCreationService(prisma);
+
+  await expect(service.create(input)).rejects.toMatchObject({
+    status: 404,
+    response: {
+      code: 'CONTRACT_NOT_FOUND',
+      message: 'Kontrak tidak ditemukan',
+    },
+  });
+
+  expect(prisma.contracts.findUnique).toHaveBeenCalledWith({
+    where: { id: contractId },
+  });
+
+  expect(prisma.contents.create).not.toHaveBeenCalled();
+});
 });
