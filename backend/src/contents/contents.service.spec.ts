@@ -161,4 +161,51 @@ it('creates Evergreen content with an automatically generated name', async () =>
     },
   });
 });
+
+it.each([
+  {
+    label: 'before the minimum deadline after the global buffer',
+    deadline: '2026-10-14',
+  },
+  {
+    label: 'after the contract ends',
+    deadline: '2026-11-01',
+  },
+])('rejects a deadline $label', async ({ deadline }) => {
+  const contractId = '550e8400-e29b-41d4-a716-446655440000';
+
+  const input = {
+    contractId,
+    type: 'specific' as const,
+    deadline,
+    name: 'Product launch',
+    brief: 'Introduce the new product.',
+  };
+
+  const prisma = {
+    contracts: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: contractId,
+        start_date: new Date('2026-10-10T00:00:00.000Z'),
+        end_date: new Date('2026-10-31T00:00:00.000Z'),
+      }),
+    },
+    contents: {
+      create: vi.fn(),
+    },
+  };
+
+  const service = new ContentCreationService(prisma);
+
+  await expect(service.create(input)).rejects.toMatchObject({
+    status: 422,
+    response: {
+      errors: expect.objectContaining({
+        deadline: expect.any(String),
+      }),
+    },
+  });
+
+  expect(prisma.contents.create).not.toHaveBeenCalled();
+});
 });
