@@ -1,6 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+// Convert a YYYY-MM-DD string to a Date object at midnight UTC.
+function toDate(day: string): Date {
+  return new Date(`${day}T00:00:00.000Z`);
+}
+
+// Convert a Date object to a YYYY-MM-DD string.
+function toDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
 interface NewSpecificContent {
   contractId: string;
   type: 'specific';
@@ -39,7 +49,7 @@ export class ContentCreationService {
         type: 'specific',
         name: input.name,
         brief: input.brief,
-        deadline: new Date(`${input.deadline}T00:00:00.000Z`),
+        deadline: toDate(input.deadline),
         status: 'scheduled',
       },
     });
@@ -50,7 +60,7 @@ export class ContentCreationService {
       type: 'specific',
       name: saved.name,
       brief: saved.brief,
-      deadline: saved.deadline.toISOString().slice(0, 10),
+      deadline: toDay(saved.deadline),
       status: 'scheduled',
     };
   }
