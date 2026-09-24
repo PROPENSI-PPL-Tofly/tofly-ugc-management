@@ -1,17 +1,25 @@
-
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { evergreenName } from '../creators/evergreen.js';
+import { evergreenName, jakartaDay } from '../creators/evergreen.js';
 import type { NewContent } from './new-content.js';
 
-// Convert a YYYY-MM-DD string to a Date object at midnight UTC.
 function toDate(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
 }
 
-// Convert a Date object to a YYYY-MM-DD string.
 function toDay(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function addDays(day: string, days: number): string {
+  const date = toDate(day);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toDay(date);
 }
 
 interface CreatedContent {
@@ -33,6 +41,11 @@ interface EvergreenContract {
   contents: Array<{ type: string }>;
 }
 
+interface SchedulingDependencies {
+  today(): Date;
+  bufferDays(): Promise<number>;
+}
+
 export interface ContentsClient {
   contracts: {
     findUnique: (...args: any[]) => Promise<any>;
@@ -47,10 +60,16 @@ export class ContentCreationService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: ContentsClient,
+    private readonly scheduling: SchedulingDependencies = {
+      today: () => new Date(),
+      bufferDays: async () => 5,
+    },
   ) {}
 
   async create(input: NewContent): Promise<CreatedContent> {
     const contract = await this.requireContract(input.contractId);
+
+    await this.validateDeadline(input.deadline, contract);
 
     let name: string;
     let brief: string;
@@ -83,6 +102,29 @@ export class ContentCreationService {
       deadline: toDay(saved.deadline),
       status: saved.status,
     };
+  }
+
+  private async validateDeadline(
+    deadline: string,
+    contract: { start_date: Date; end_date: Date },
+  ): Promise<void> {
+    const today = jakartaDay(this.scheduling.today());
+    const contractStart = toDay(contract.start_date);
+    const contractEnd = toDay(contract.end_date);
+
+    const bufferDays = await this.scheduling.bufferDays();
+    const baseDay =
+      contractStart > today ? contractStart : today;
+    const minimumDeadline = addDays(baseDay, bufferDays);
+
+    if (deadline < minimumDeadline || deadline > contractEnd) {
+      throw new UnprocessableEntityException({
+        message: 'Data konten tidak valid',
+        errors: {
+          deadline: 'Deadline harus sesuai periode kontrak dan buffer global',
+        },
+      });
+    }
   }
 
   private generateEvergreenName(
