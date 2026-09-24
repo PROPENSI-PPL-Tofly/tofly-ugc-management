@@ -260,6 +260,64 @@ describe("CreatorDetailModal", () => {
     expect(screen.queryByText("Berjalan")).not.toBeInTheDocument();
   });
 
+  describe("content history paging", () => {
+    const contents = Array.from({ length: 12 }, (_, index) => ({
+      ...creatorDetail.contents[0],
+      id: `content-${index + 1}`,
+      name: `Konten ${index + 1}`,
+    }));
+
+    function previous() {
+      return screen.getByRole("button", { name: "Riwayat konten sebelumnya" });
+    }
+
+    function next() {
+      return screen.getByRole("button", { name: "Riwayat konten berikutnya" });
+    }
+
+    beforeEach(() => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ ...creatorDetail, contents, drafts: [] })),
+      );
+    });
+
+    it("shows five contents at a time, starting on the first page", async () => {
+      open();
+
+      expect(await screen.findByText("Konten 1")).toBeInTheDocument();
+      expect(screen.getByText("Konten 5")).toBeInTheDocument();
+      expect(screen.queryByText("Konten 6")).not.toBeInTheDocument();
+      expect(screen.getByText("1–5 dari 12")).toBeInTheDocument();
+      expect(previous()).toBeDisabled();
+      expect(next()).toBeEnabled();
+    });
+
+    it("steps forward to the last page and back again", async () => {
+      open();
+      await screen.findByText("Konten 1");
+
+      fireEvent.click(next());
+      expect(screen.getByText("Konten 6")).toBeInTheDocument();
+      expect(screen.queryByText("Konten 1")).not.toBeInTheDocument();
+
+      fireEvent.click(next());
+      expect(screen.getByText("11–12 dari 12")).toBeInTheDocument();
+      expect(next()).toBeDisabled();
+
+      fireEvent.click(previous());
+      expect(screen.getByText("6–10 dari 12")).toBeInTheDocument();
+    });
+  });
+
+  it("shows no paging controls when every content fits on one page", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
+
+    open();
+
+    await screen.findByText("rangga@example.com");
+    expect(screen.queryByRole("button", { name: /riwayat konten/i })).not.toBeInTheDocument();
+  });
+
   it("says so when there is no contract history", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ...creatorDetail, contractHistory: [] })),
