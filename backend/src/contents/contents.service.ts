@@ -5,6 +5,7 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { evergreenName, jakartaDay } from '../creators/evergreen.js';
 import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
@@ -48,11 +49,9 @@ interface ContentContract {
   start_date: Date;
   end_date: Date;
 
-  // These fields are included by the actual Prisma query.
-  // They are optional here because the Specific-content unit tests
-  // use smaller contract mocks that do not need them.
-  creators?: CreatorName;
-  contents?: ExistingContent[];
+  content_quota: number;
+  creators: CreatorName;
+  contents: ExistingContent[];
 }
 
 interface SavedContent {
@@ -70,7 +69,8 @@ interface SchedulingDependencies {
   bufferDays(): Promise<number>;
 }
 
-export interface ContentsClient {
+export interface ContentsTransaction {
+  $queryRaw: (query: Prisma.Sql) => Promise<unknown>;
   contracts: {
     findUnique: (args: {
       where: { id: string };
@@ -95,6 +95,13 @@ export interface ContentsClient {
   };
 }
 
+export interface ContentsClient {
+  $transaction<T>(
+    work: (transaction: ContentsTransaction) => Promise<T>,
+    options: { isolationLevel: 'ReadCommitted' },
+  ): Promise<T>;
+}
+
 @Injectable()
 export class ContentCreationService {
   private readonly scheduling: SchedulingDependencies;
@@ -114,41 +121,54 @@ export class ContentCreationService {
   }
 
   async create(input: NewContent): Promise<CreatedContent> {
-    const contract = await this.requireContract(input.contractId);
+    return this.prisma.$transaction(
+      async (transaction) => {
+        // Lock before reading: the next request must see the preceding insert
+        // before checking quota and assigning an Evergreen sequence.
+        await transaction.$queryRaw(Prisma.sql`
+      SELECT id FROM contracts WHERE id = ${input.contractId}::uuid FOR UPDATE
+    `);
+        const contract = await this.requireContract(
+          transaction,
+          input.contractId,
+        );
 
-    await this.validateDeadline(input.deadline, contract);
+        await this.validateDeadline(input.deadline, contract);
 
-    let name: string;
-    let brief: string;
+        let name: string;
+        let brief: string;
 
-    if (input.type === 'evergreen') {
-      name = this.generateEvergreenName(contract, input.deadline);
-      brief = '';
-    } else {
-      name = input.name!;
-      brief = input.brief!;
-    }
+        if (input.type === 'evergreen') {
+          name = this.generateEvergreenName(contract, input.deadline);
+          brief = '';
+        } else {
+          name = input.name!;
+          brief = input.brief!;
+        }
 
-    const saved = await this.prisma.contents.create({
-      data: {
-        contract_id: input.contractId,
-        type: input.type,
-        name,
-        brief,
-        deadline: toDate(input.deadline),
-        status: 'scheduled',
+        const saved = await transaction.contents.create({
+          data: {
+            contract_id: input.contractId,
+            type: input.type,
+            name,
+            brief,
+            deadline: toDate(input.deadline),
+            status: 'scheduled',
+          },
+        });
+
+        return {
+          id: saved.id,
+          contractId: saved.contract_id,
+          type: input.type,
+          name: saved.name,
+          brief: saved.brief,
+          deadline: toDay(saved.deadline),
+          status: 'scheduled',
+        };
       },
-    });
-
-    return {
-      id: saved.id,
-      contractId: saved.contract_id,
-      type: input.type,
-      name: saved.name,
-      brief: saved.brief,
-      deadline: toDay(saved.deadline),
-      status: 'scheduled',
-    };
+      { isolationLevel: 'ReadCommitted' },
+    );
   }
 
   private async validateDeadline(
@@ -177,13 +197,6 @@ export class ContentCreationService {
     contract: ContentContract,
     deadline: string,
   ): string {
-    // The real database query includes both relations.
-    // This check also keeps the method safe if a future caller
-    // supplies a contract without the required Evergreen data.
-    if (!contract.creators || !contract.contents) {
-      throw new Error('Data kreator atau konten kontrak tidak lengkap');
-    }
-
     const creator = contract.creators;
 
     const fullName = [
@@ -198,11 +211,20 @@ export class ContentCreationService {
       (content) => content.type === 'evergreen',
     ).length;
 
+    if (existingEvergreenCount >= contract.content_quota) {
+      throw new UnprocessableEntityException({
+        message: 'Data konten tidak valid',
+        errors: { type: 'Kuota Evergreen kontrak sudah penuh' },
+      });
+    }
     return evergreenName(fullName, deadline, existingEvergreenCount + 1);
   }
 
-  private async requireContract(contractId: string): Promise<ContentContract> {
-    const contract = await this.prisma.contracts.findUnique({
+  private async requireContract(
+    transaction: ContentsTransaction,
+    contractId: string,
+  ): Promise<ContentContract> {
+    const contract = await transaction.contracts.findUnique({
       where: { id: contractId },
       include: {
         creators: true,
