@@ -15,6 +15,7 @@ function stubClient(
     revisions: {
       revision_notes: string | null;
       created_at: Date;
+      updated_at: Date;
     }[];
   } | null,
 ) {
@@ -46,7 +47,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('SubmissionDetailService.getDetail', () => {
-  it('returns brief, draft link, current status, and complete revision history', async () => {
+  it('returns brief, draft link, current status, and revision history with notes only', async () => {
     const client = stubClient({
       brief: 'Create a short product review',
       status: 'draft_revised',
@@ -55,10 +56,12 @@ describe('SubmissionDetailService.getDetail', () => {
         {
           revision_notes: null,
           created_at: new Date('2026-09-01T00:00:00.000Z'),
+          updated_at: new Date('2026-09-20T00:00:00.000Z'),
         },
         {
           revision_notes: 'Tolong ubah opening',
           created_at: new Date('2026-09-05T00:00:00.000Z'),
+          updated_at: new Date('2026-09-21T00:00:00.000Z'),
         },
       ],
     });
@@ -71,18 +74,14 @@ describe('SubmissionDetailService.getDetail', () => {
       status: 'draft_revised',
       revisionHistory: [
         {
-          note: null,
-          date: '2026-09-01T00:00:00.000Z',
-        },
-        {
           note: 'Tolong ubah opening',
-          date: '2026-09-05T00:00:00.000Z',
+          date: '2026-09-21T00:00:00.000Z',
         },
       ],
     });
   });
 
-  it('reads the requested submission together with its content and complete revision history', async () => {
+  it('reads only revision notes with the note update timestamp', async () => {
     const client = stubClient({
       brief: 'Create a short product review',
       status: 'draft_revised',
@@ -91,10 +90,12 @@ describe('SubmissionDetailService.getDetail', () => {
         {
           revision_notes: null,
           created_at: new Date('2026-09-01T00:00:00.000Z'),
+          updated_at: new Date('2026-09-20T00:00:00.000Z'),
         },
         {
           revision_notes: 'Tolong ubah opening',
           created_at: new Date('2026-09-05T00:00:00.000Z'),
+          updated_at: new Date('2026-09-21T00:00:00.000Z'),
         },
       ],
     });
@@ -112,10 +113,15 @@ describe('SubmissionDetailService.getDetail', () => {
             brief: true,
             status: true,
             submissions: {
-              orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+              where: {
+                revision_notes: {
+                  not: null,
+                },
+              },
+              orderBy: [{ updated_at: 'asc' }, { id: 'asc' }],
               select: {
                 revision_notes: true,
-                created_at: true,
+                updated_at: true,
               },
             },
           },
