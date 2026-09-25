@@ -22,6 +22,7 @@ const INPUT: NewCreator = {
   fixedRate: 1500000,
   socialPlatform: 'instagram',
   socialUsername: 'rangga.creates',
+  contractType: 'probation',
   deadlines: ['2026-10-10', '2026-09-26'],
 };
 
@@ -98,6 +99,7 @@ describe('CreatorOnboardingService', () => {
         create: {
           start_date: day('2026-09-12'),
           end_date: day('2026-11-12'),
+          contract_type: 'probation',
           days_between: 14,
           content_quota: 2,
           fixed_rate: 1500000,

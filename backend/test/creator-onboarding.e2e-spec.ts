@@ -28,6 +28,7 @@ function newCreator(overrides: Partial<NewCreator> = {}): NewCreator {
     fixedRate: 1500000,
     socialPlatform: 'instagram',
     socialUsername: 'aulia.creates',
+    contractType: 'probation',
     deadlines: [day(14), day(28), day(42)],
     ...overrides,
   };
@@ -82,6 +83,7 @@ describe('CreatorOnboardingService (e2e)', () => {
               select: {
                 id: true,
                 content_quota: true,
+                contract_type: true,
                 contents: {
                   select: { name: true, type: true, status: true, brief: true },
                   orderBy: { deadline: 'asc' },
@@ -100,6 +102,7 @@ describe('CreatorOnboardingService (e2e)', () => {
     ]);
     expect(user.creators?.contracts).toHaveLength(1);
     expect(user.creators?.contracts[0].id).toBe(created.contractId);
+    expect(user.creators?.contracts[0].contract_type).toBe('probation');
     expect(user.creators?.contracts[0].contents).toEqual(
       [day(14), day(28), day(42)].map((deadline, index) => {
         const [year, month, date] = deadline.split('-');
@@ -139,6 +142,26 @@ describe('CreatorOnboardingService (e2e)', () => {
         where: { creators: { first_name: { startsWith: MARKER } } },
       }),
     ).resolves.toBe(1);
+  });
+
+  it('stores two contents that share one deadline under their own sequence numbers', async () => {
+    await onboarding.onboard(
+      newCreator({ deadlines: [day(14), day(14), day(42)] }),
+    );
+
+    const contents = await prisma.contents.findMany({
+      where: {
+        contracts: { creators: { first_name: { startsWith: MARKER } } },
+      },
+      select: { name: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const [year, month, date] = day(14).split('-');
+    expect(contents.map((content) => content.name).slice(0, 2)).toEqual([
+      `Evg_1_${MARKER} Aulia Rahma_${date}${month}${year}`,
+      `Evg_2_${MARKER} Aulia Rahma_${date}${month}${year}`,
+    ]);
   });
 
   it('writes nothing when the deadlines do not fit the contract', async () => {

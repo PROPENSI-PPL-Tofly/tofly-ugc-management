@@ -15,6 +15,8 @@ export interface NewCreator {
   fixedRate: number;
   socialPlatform: 'instagram' | 'tiktok';
   socialUsername: string;
+  /** Probation or regular; informational only, no rule reads it. */
+  contractType: 'probation' | 'regular';
   /** One ISO calendar day per Evergreen content: auto-generated slots plus manual ones. */
   deadlines: string[];
 }

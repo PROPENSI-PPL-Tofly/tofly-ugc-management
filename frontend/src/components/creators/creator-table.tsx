@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CreatorDetailModal } from "./creator-detail-modal";
+import { PRODUCTIVITY_TONES } from "./productivity-tones";
+import { contractTypePrefix } from "@/lib/creator-form";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
-import type { ContractStatus, CreatorSummary, Productivity } from "@/lib/creators";
+import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
   formatContractWindow,
@@ -26,12 +28,6 @@ const CONTRACT_TONES: Record<ContractStatus, Tone> = {
   expired: "red",
   upcoming: "accent",
   none: "neutral",
-};
-
-const PRODUCTIVITY_TONES: Record<Productivity, Tone> = {
-  good: "green",
-  watch: "amber",
-  risk: "red",
 };
 
 const COLUMNS: { label: string; numeric?: boolean }[] = [
@@ -58,10 +54,12 @@ function socials(creator: CreatorSummary): string[] {
 
 function contractNote(creator: CreatorSummary): string {
   const remaining = formatDaysRemaining(creator.contract.daysRemaining);
+  const note =
+    creator.contract.periodNumber > 1
+      ? `${remaining}, periode ke-${creator.contract.periodNumber}`
+      : remaining;
 
-  return creator.contract.periodNumber > 1
-    ? `${remaining}, periode ke-${creator.contract.periodNumber}`
-    : remaining;
+  return `${contractTypePrefix(creator.contract.type)}${note}`;
 }
 
 function EmptyState({ total }: { total: number }) {

@@ -15,6 +15,7 @@ export function creator(overrides: Partial<CreatorSummary> = {}): CreatorSummary
       daysRemaining: 80,
       periodNumber: 1,
       contentQuota: 6,
+      type: "regular",
     },
     progress: { submitted: 5, total: 6, percent: 83 },
     performance: {

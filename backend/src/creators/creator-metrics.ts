@@ -9,7 +9,7 @@ export type ContractStatus = 'active' | 'expired' | 'upcoming' | 'none';
 
 export type ContentOutcome = 'on_time' | 'submitted_late' | 'late' | 'open';
 
-export type Productivity = 'good' | 'watch' | 'risk';
+export type Productivity = 'good' | 'watch' | 'risk' | 'no_data';
 
 export type ProductivityLabel =
   'Baik' | 'Perlu Perhatian' | 'Berisiko' | 'Belum Ada Data';
@@ -176,7 +176,7 @@ function classify(
     return {
       onTimeRate,
       avgRevisions,
-      productivity: 'watch',
+      productivity: 'no_data',
       productivityLabel: 'Belum Ada Data',
     };
   }

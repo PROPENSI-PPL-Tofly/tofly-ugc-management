@@ -96,9 +96,6 @@ function deadlineProblem(schedule: Schedule): string | undefined {
   if (!deadlines.every(isCalendarDay)) {
     return 'Format tanggal deadline tidak valid';
   }
-  if (new Set(deadlines).size !== deadlines.length) {
-    return 'Deadline tidak boleh ganda';
-  }
   // ISO days compare correctly as strings; contractStart is already known to be >= today.
   if (deadlines.some((day) => day < contractStart || day > contractEnd)) {
     return 'Deadline harus di dalam periode kontrak';

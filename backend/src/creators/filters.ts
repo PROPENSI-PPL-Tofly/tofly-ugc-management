@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { ContractStatus, Productivity } from './creator-metrics.js';
 
 export const CONTRACT_STATUSES: ContractStatus[] = ['active', 'expired', 'upcoming', 'none'];
-export const PRODUCTIVITIES: Productivity[] = ['good', 'watch', 'risk'];
+export const PRODUCTIVITIES: Productivity[] = ['good', 'watch', 'risk', 'no_data'];
 /** Nobody searches for a paragraph; a cap keeps a hostile query from driving the scan. */
 export const MAX_SEARCH_LENGTH = 100;
 

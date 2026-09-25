@@ -1,5 +1,6 @@
 import {
   contractDateLimits,
+  contractTypePrefix,
   localCalendarDay,
   scheduleDeadlines,
   validateCreatorForm,
@@ -16,7 +17,15 @@ describe("validateCreatorForm", () => {
     fixedRate: 500000,
     socialPlatform: "instagram" as const,
     socialUsername: "salsa.amelia",
+    contractType: "regular" as const,
   };
+
+  it("requires a contract type", () => {
+    expect(validateCreatorForm({ ...VALID_INPUT, contractType: "" }).contractType).toBe(
+      "Jenis kontrak wajib dipilih",
+    );
+    expect(validateCreatorForm(VALID_INPUT).contractType).toBeUndefined();
+  });
 
   it("requires a name", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, name: "" });
@@ -160,6 +169,7 @@ describe("localCalendarDay", () => {
         fixedRate: 500000,
         socialPlatform: "instagram",
         socialUsername: "bagas",
+        contractType: "regular",
       },
       new Date("2026-09-23T18:30:00Z"),
     );
@@ -214,6 +224,14 @@ describe("scheduleDeadlines", () => {
   });
 });
 
+describe("contractTypePrefix", () => {
+  it("leads a contract note with the type, and with nothing when there is no contract", () => {
+    expect(contractTypePrefix("probation")).toBe("Probation · ");
+    expect(contractTypePrefix("regular")).toBe("Regular · ");
+    expect(contractTypePrefix(null)).toBe("");
+  });
+});
+
 describe("validateCreatorForm schedule", () => {
   const INPUT = {
     name: "Bagas",
@@ -225,6 +243,7 @@ describe("validateCreatorForm schedule", () => {
     fixedRate: 500000,
     socialPlatform: "instagram" as const,
     socialUsername: "bagas",
+    contractType: "regular" as const,
   };
   const TODAY = new Date("2026-09-24T05:00:00Z");
 

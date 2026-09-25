@@ -197,6 +197,10 @@ export default function DeadlinePreview({
                     currentDate.getTime() <
                       bufferWindow.firstAllowedDate.getTime();
 
+                  const isOutsideContract =
+                    (contractStart !== undefined && date < contractStart) ||
+                    (contractEnd !== undefined && date > contractEnd);
+
                   const manualCount = manualDeadlines.filter(
                     (picked) => picked === date,
                   ).length;
@@ -230,6 +234,7 @@ export default function DeadlinePreview({
                       day={day}
                       isAutoDeadline={isAutoDeadline}
                       isBufferDate={isBufferDate}
+                      isOutsideContract={isOutsideContract}
                       manualCount={manualCount}
                       action={action}
                     />

@@ -69,25 +69,27 @@ join users u on u.email = v.email
 join creators c on c.user_id = u.id;
 
 -- Salsa and Adit carry two rows each: a finished period and the one that followed it.
--- Melati has none. Reza's ends today. Farah's has not started yet.
-insert into contracts (creator_id, start_date, end_date, days_between, content_quota, fixed_rate)
+-- Melati has none. Reza's ends today. Farah's has not started yet. Newcomers Farah and Bagas,
+-- and Salsa's first period, are on probation; everyone else is regular.
+insert into contracts (creator_id, start_date, end_date, days_between, content_quota, fixed_rate,
+                       contract_type)
 select c.id, current_date + v.start_offset, current_date + v.end_offset,
-       v.days_between, v.content_quota, v.fixed_rate
+       v.days_between, v.content_quota, v.fixed_rate, v.contract_type::contract_type
 from (values
-  ('rangga@example.com', -100,   80, 14, 6, 500000),
-  ('dimas@example.com',   -90,   90, 14, 6, 450000),
-  ('nabila@example.com',  -75,  105, 14, 6, 450000),
-  ('salsa@example.com',  -400,  -40, 14, 6, 400000),
-  ('salsa@example.com',   -30,  150, 14, 6, 550000),
-  ('yusuf@example.com',  -200,  -20, 14, 6, 400000),
-  ('farah@example.com',    10,  190, 14, 6, 500000),
-  ('bagas@example.com',   -10,  170, 14, 6, 450000),
-  ('intan@example.com',  -120,   60, 14, 6, 600000),
-  ('reza@example.com',   -180,    0, 14, 6, 500000),
-  ('kirana@example.com', -240,  -60, 14, 6, 450000),
-  ('adit@example.com',   -420,  -240, 14, 6, 400000),
-  ('adit@example.com',   -230,  -50, 14, 6, 400000)
-) as v (email, start_offset, end_offset, days_between, content_quota, fixed_rate)
+  ('rangga@example.com', -100,   80, 14, 6, 500000, 'regular'),
+  ('dimas@example.com',   -90,   90, 14, 6, 450000, 'regular'),
+  ('nabila@example.com',  -75,  105, 14, 6, 450000, 'regular'),
+  ('salsa@example.com',  -400,  -40, 14, 6, 400000, 'probation'),
+  ('salsa@example.com',   -30,  150, 14, 6, 550000, 'regular'),
+  ('yusuf@example.com',  -200,  -20, 14, 6, 400000, 'regular'),
+  ('farah@example.com',    10,  190, 14, 6, 500000, 'probation'),
+  ('bagas@example.com',   -10,  170, 14, 6, 450000, 'probation'),
+  ('intan@example.com',  -120,   60, 14, 6, 600000, 'regular'),
+  ('reza@example.com',   -180,    0, 14, 6, 500000, 'regular'),
+  ('kirana@example.com', -240,  -60, 14, 6, 450000, 'regular'),
+  ('adit@example.com',   -420,  -240, 14, 6, 400000, 'regular'),
+  ('adit@example.com',   -230,  -50, 14, 6, 400000, 'regular')
+) as v (email, start_offset, end_offset, days_between, content_quota, fixed_rate, contract_type)
 join users u on u.email = v.email
 join creators c on c.user_id = u.id;
 

@@ -36,7 +36,7 @@ describe("CreatorTable", () => {
 
     expect(within(row).getByText("10 Jun – 7 Des 2026")).toBeInTheDocument();
 
-    expect(within(row).getByText("sisa 80 hari")).toBeInTheDocument();
+    expect(within(row).getByText("Regular · sisa 80 hari")).toBeInTheDocument();
 
     expect(within(row).getByText("5/6 konten terkirim")).toBeInTheDocument();
 
@@ -87,7 +87,18 @@ describe("CreatorTable", () => {
       />,
     );
 
-    expect(screen.getByText("sisa 80 hari, periode ke-2")).toBeInTheDocument();
+    expect(screen.getByText("Regular · sisa 80 hari, periode ke-2")).toBeInTheDocument();
+  });
+
+  it("names the contract type beside the time left", () => {
+    render(
+      <CreatorTable
+        creators={[creator({ contract: { ...creator().contract, type: "probation" } })]}
+        total={1}
+      />,
+    );
+
+    expect(screen.getByText("Probation · sisa 80 hari")).toBeInTheDocument();
   });
 
   it("describes an expired, an upcoming and a missing contract", () => {
@@ -103,6 +114,7 @@ describe("CreatorTable", () => {
               daysRemaining: -19,
               periodNumber: 1,
               contentQuota: 6,
+              type: "regular",
             },
           }),
           creator({
@@ -114,6 +126,7 @@ describe("CreatorTable", () => {
               daysRemaining: 190,
               periodNumber: 1,
               contentQuota: 6,
+              type: "probation",
             },
           }),
           creator({
@@ -125,6 +138,7 @@ describe("CreatorTable", () => {
               daysRemaining: null,
               periodNumber: 0,
               contentQuota: 0,
+              type: null,
             },
           }),
         ]}
@@ -134,7 +148,7 @@ describe("CreatorTable", () => {
 
     expect(screen.getByText("Kontrak berakhir")).toBeInTheDocument();
 
-    expect(screen.getByText("berakhir 19 hari lalu")).toBeInTheDocument();
+    expect(screen.getByText("Regular · berakhir 19 hari lalu")).toBeInTheDocument();
 
     expect(screen.getByText("Kontrak belum mulai")).toBeInTheDocument();
 
@@ -172,11 +186,11 @@ describe("CreatorTable", () => {
       <CreatorTable
         creators={[
           creator({
-            id: "watch",
+            id: "no-data",
             performance: {
               onTimeRate: null,
               avgRevisions: 0,
-              productivity: "watch",
+              productivity: "no_data",
               productivityLabel: "Belum Ada Data",
             },
           }),
@@ -194,7 +208,8 @@ describe("CreatorTable", () => {
       />,
     );
 
-    expect(screen.getByText("Belum Ada Data").className).toContain("amber");
+    // Nothing to judge yet is not a warning, so it stays neutral rather than amber.
+    expect(screen.getByText("Belum Ada Data").className).toContain("text-ink-2");
 
     expect(screen.getByText("Berisiko").className).toContain("red");
 

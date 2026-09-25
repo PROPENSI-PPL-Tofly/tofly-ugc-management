@@ -92,6 +92,7 @@ function detail(
             daysRemaining: 80,
             periodNumber: 1,
             contentQuota: 6,
+            type: "regular",
         },
         progress: {
             submitted: 0,
@@ -112,6 +113,7 @@ function detail(
                 endDate: "2026-12-07",
                 daysBetween: 180,
                 contentQuota: 6,
+                type: "regular",
                 completed: 0,
                 total: 6,
                 isCurrent: true,
@@ -185,7 +187,7 @@ describe("ContentPlanClient", () => {
                         name: "Campaign Review",
                         type: "specific",
                         deadline: "2026-10-05",
-                        status: "submitted",
+                        status: "link_submitted",
                         outcome: "on_time",
                         videoLink:
                             "https://example.com/video",
@@ -221,7 +223,7 @@ describe("ContentPlanClient", () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByText("submitted"),
+            screen.getByText("link_submitted"),
         ).toBeInTheDocument();
     });
 
@@ -252,6 +254,7 @@ describe("ContentPlanClient", () => {
                         endDate: "2026-12-07",
                         daysBetween: 180,
                         contentQuota: 6,
+                        type: "regular",
                         completed: 0,
                         total: 6,
                         isCurrent: false,
@@ -289,7 +292,7 @@ describe("ContentPlanClient", () => {
                         name: "Existing Specific",
                         type: "specific",
                         deadline: "2026-10-05",
-                        status: "submitted",
+                        status: "link_submitted",
                         outcome: "on_time",
                         videoLink: null,
                     },
@@ -378,7 +381,7 @@ describe("ContentPlanClient", () => {
                             name: "Existing Content",
                             type: "specific",
                             deadline: "2026-09-30",
-                            status: "submitted",
+                            status: "link_submitted",
                             outcome: "on_time",
                             videoLink: null,
                         },
@@ -393,7 +396,7 @@ describe("ContentPlanClient", () => {
                             name: "Existing Content",
                             type: "specific",
                             deadline: "2026-09-30",
-                            status: "submitted",
+                            status: "link_submitted",
                             outcome: "on_time",
                             videoLink: null,
                         },

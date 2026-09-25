@@ -44,6 +44,7 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
         content_quota: 1,
         days_between: 7,
         fixed_rate: 0,
+        contract_type: 'regular',
       },
     });
     contractId = contract.id;
@@ -176,6 +177,7 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
           content_quota: quota,
           days_between: 7,
           fixed_rate: 0,
+          contract_type: 'regular',
         },
       });
       const service = new ContentCreationService(prisma, {
