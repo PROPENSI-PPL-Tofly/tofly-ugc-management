@@ -32,4 +32,17 @@ describe('checkRevisionRequest', () => {
       }),
     );
   });
+  it('rejects an undefined request body with a field-specific 422 error', () => {
+    expect(() => checkRevisionRequest(undefined)).toThrow(
+      expect.objectContaining({
+        status: 422,
+        response: {
+          message: 'Data revisi tidak valid',
+          errors: {
+            revisionNotes: 'Catatan revisi harus berupa teks',
+          },
+        },
+      }),
+    );
+  });
 });
