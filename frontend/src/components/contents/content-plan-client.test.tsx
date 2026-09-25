@@ -556,6 +556,30 @@ describe("ContentPlanClient", () => {
         ).toHaveBeenCalledWith("creator-2");
     });
 
+    it.each([
+        ["loads", (late: Promise<CreatorDetail>) => late],
+        ["fails", (late: Promise<CreatorDetail>) => late.then(() => Promise.reject(new Error("late")))],
+    ])("ignores a previous creator whose detail %s after the id changed", async (_, settle) => {
+        let resolveOld!: (value: CreatorDetail) => void;
+        const old = new Promise<CreatorDetail>((resolve) => (resolveOld = resolve));
+        mockedFetchCreatorDetail
+            .mockReturnValueOnce(settle(old))
+            .mockResolvedValueOnce(detail({ id: "creator-2", name: "Creator Dua" }));
+
+        const { rerender } = render(<ContentPlanClient creatorId="creator-1" />);
+        rerender(<ContentPlanClient creatorId="creator-2" />);
+        await screen.findByText(/Creator Dua/);
+
+        resolveOld(detail({ name: "Creator Lama" }));
+        await act(async () => {
+            await old;
+        });
+
+        expect(screen.queryByText(/Creator Lama/)).toBeNull();
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(screen.getByText(/Creator Dua/)).toBeInTheDocument();
+    });
+
     describe("success toast", () => {
         beforeEach(() => {
             vi.useFakeTimers({ shouldAdvanceTime: true });

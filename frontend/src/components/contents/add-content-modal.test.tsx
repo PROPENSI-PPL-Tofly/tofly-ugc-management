@@ -200,6 +200,57 @@ describe("AddContentModal", () => {
         expect(screen.queryByText(/Pilih Specific/)).toBeNull();
     });
 
+    it("refuses Evergreen on submit when the quota is full even if it is forced", () => {
+        openModal({ evergreenCount: 6, quota: 6 });
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "evergreen" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+        expect(
+            screen.getAllByText("Kuota Evergreen sudah terpenuhi."),
+        ).toHaveLength(2);
+        expect(mockedCreateContent).not.toHaveBeenCalled();
+    });
+
+    it("requires a deadline", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Deadline"), {
+            target: { value: "" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+        expect(screen.getByText("Deadline wajib diisi")).toBeInTheDocument();
+        expect(mockedCreateContent).not.toHaveBeenCalled();
+    });
+
+    it("clears only the error of the field being corrected", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+        fireEvent.change(screen.getByLabelText("Nama Konten"), {
+            target: { value: "Promo" },
+        });
+
+        expect(screen.queryByText("Nama konten wajib diisi")).toBeNull();
+        expect(screen.getByText("Brief wajib diisi")).toBeInTheDocument();
+    });
+
+    it("ignores Escape while the content is being saved", () => {
+        mockedCreateContent.mockReturnValue(new Promise(() => undefined));
+        openModal();
+
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+        fireEvent.keyDown(document, { key: "Escape" });
+
+        expect(defaultProps.onClose).not.toHaveBeenCalled();
+    });
+
     it("keeps Evergreen available when the quota is zero", () => {
         openModal({
             evergreenCount: 0,
