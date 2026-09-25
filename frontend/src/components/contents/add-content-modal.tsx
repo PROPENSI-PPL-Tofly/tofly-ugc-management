@@ -19,7 +19,7 @@ const MAX_BRIEF_LENGTH = 2000;
 const FIELD =
     "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
 
-// Drawn by CSS so the asterisk stays out of the label text and the accessible name;
+// Every field in this form is required. Drawn by CSS so the asterisk stays out of the label text and the accessible name;
 // screen readers announce "required" from the control's own attribute instead.
 const REQUIRED_MARK = "after:ml-0.5 after:text-red-ink after:content-['*']";
 
@@ -30,12 +30,9 @@ function Field({
                    label,
                    error,
                    count,
-                   required = false,
                    children,
                }: {
     label: string;
-    /** Adds the visual marker; the control itself carries the required attribute. */
-    required?: boolean;
     error?: string;
     /** Rendered outside the label so it stays out of the control's accessible name. */
     count?: React.ReactNode;
@@ -44,7 +41,7 @@ function Field({
     return (
         <div className="flex flex-col gap-1 text-[13px]">
             <label className="flex flex-col gap-1">
-                <span className={`font-semibold ${required ? REQUIRED_MARK : ""}`}>
+                <span className={`font-semibold ${REQUIRED_MARK}`}>
                     {label}
                 </span>
                 {children}
@@ -214,7 +211,7 @@ export function AddContentModal({
                 <span className="text-red-ink">*</span> <span>wajib diisi</span>
             </p>
 
-            <Field label="Jenis Konten" error={errors.type} required>
+            <Field label="Jenis Konten" error={errors.type}>
                 <select
                     required
                     className={FIELD}
@@ -242,7 +239,6 @@ export function AddContentModal({
                     <Field
                         label="Nama Konten"
                         error={errors.name}
-                        required
                         count={<CharCount id={nameCountId} used={name.length} max={MAX_NAME_LENGTH} />}
                     >
                         <input
@@ -263,7 +259,6 @@ export function AddContentModal({
                     <Field
                         label="Brief"
                         error={errors.brief}
-                        required
                         count={<CharCount id={briefCountId} used={brief.length} max={MAX_BRIEF_LENGTH} />}
                     >
             <textarea
@@ -282,7 +277,7 @@ export function AddContentModal({
                 </>
             ) : null}
 
-            <Field label="Deadline" error={errors.deadline} required>
+            <Field label="Deadline" error={errors.deadline}>
                 <input
                     type="date"
                     required
