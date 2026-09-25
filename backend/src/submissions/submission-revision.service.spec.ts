@@ -80,4 +80,34 @@ it('rejects a submission that is not in review status', async () => {
 
   expect(saveRevision).not.toHaveBeenCalled();
 });
+it('passes the related content ID when saving the revision', async () => {
+  const submission = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    content_id: '550e8400-e29b-41d4-a716-446655440001',
+    status: 'review',
+  };
+
+  const findById = vi.fn().mockResolvedValue(submission);
+
+  const saveRevision = vi.fn().mockResolvedValue({
+    id: submission.id,
+    status: 'draft_revision',
+    revisionNotes: 'Mohon perbaiki bagian pembuka.',
+  });
+
+  const service = new SubmissionRevisionService({
+    findById,
+    saveRevision,
+  });
+
+  await service.revise(submission.id, {
+    revisionNotes: 'Mohon perbaiki bagian pembuka.',
+  });
+
+  expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+    submission.id,
+    submission.content_id,
+    'Mohon perbaiki bagian pembuka.',
+  );
+});
 });
