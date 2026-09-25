@@ -39,9 +39,11 @@ type Props = ComponentProps<typeof DraftPreviewModal>;
 
 function renderModal(props: Partial<Props> = {}) {
   const onClose = vi.fn();
-  const load = vi.fn<NonNullable<Props["load"]>>().mockResolvedValue(preview());
+  // Hand back the loader the modal was actually given, so a test that passes its own can
+  // assert on it rather than on an unused default.
+  const load = props.load ?? vi.fn<NonNullable<Props["load"]>>().mockResolvedValue(preview());
   const utils = render(
-    <DraftPreviewModal submissionId="sub-2" onClose={onClose} load={load} {...props} />,
+    <DraftPreviewModal submissionId="sub-2" onClose={onClose} {...props} load={load} />,
   );
   return { ...utils, onClose, load };
 }
