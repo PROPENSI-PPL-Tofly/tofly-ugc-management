@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import type { RevisionRequest } from './revise-submission.js';
 
 export interface SubmissionRevisionRepository {
@@ -20,7 +21,11 @@ export class SubmissionRevisionService {
     submissionId: string,
     input: RevisionRequest,
   ): Promise<unknown> {
-    await this.repository.findById(submissionId);
+    const submission = await this.repository.findById(submissionId);
+
+    if (!submission) {
+      throw new NotFoundException('Submission tidak ditemukan');
+    }
 
     return this.repository.saveRevision(
       submissionId,
