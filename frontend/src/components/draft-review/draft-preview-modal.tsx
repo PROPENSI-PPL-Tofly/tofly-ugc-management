@@ -97,11 +97,11 @@ function RevisionNote({ revision }: Readonly<{ revision: DraftRevision }>) {
 
 function RevisionHistory({ revisions }: Readonly<{ revisions: DraftRevision[] }>) {
   if (revisions.length === 0) {
-    return <p className="text-xs text-muted">Belum ada riwayat draft.</p>;
+    return <p className="text-xs text-muted">Belum ada riwayat revisi.</p>;
   }
 
   return (
-    <ol aria-label="Riwayat draft" className="flex flex-col">
+    <ol aria-label="Riwayat revisi" className="flex flex-col">
       {revisions.map((revision, index) => {
         const number = index + 1;
 
@@ -150,9 +150,15 @@ function PreviewBody({ preview }: Readonly<{ preview: DraftPreview }>) {
 
       <Field label="File draft">
         <CreatorLink link={preview.draftLink} label="Buka file draft" />
+
+        {/* The address itself, so the admin sees where the link leads before opening it.
+            An unsafe link already shows as text inside CreatorLink. */}
+        {safeHref(preview.draftLink) ? (
+          <p className="mt-1 break-all text-xs text-muted">{preview.draftLink.trim()}</p>
+        ) : null}
       </Field>
 
-      <Field label="Riwayat draft">
+      <Field label="Riwayat revisi">
         <RevisionHistory revisions={preview.revisions} />
       </Field>
     </>
