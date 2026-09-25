@@ -224,7 +224,7 @@ export function AddContentModal({
             </Field>
 
             {type === "specific" ? (
-                <div className="grid gap-3.5 sm:grid-cols-2">
+                <>
                     <Field
                         label="Nama Konten"
                         error={errors.name}
@@ -261,7 +261,7 @@ export function AddContentModal({
                 disabled={saving}
             />
                     </Field>
-                </div>
+                </>
             ) : null}
 
             <Field label="Deadline" error={errors.deadline}>
