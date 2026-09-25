@@ -17,9 +17,14 @@ export class SubmissionRevisionService {
   ) {}
 
   async revise(
-    _submissionId: string,
-    _input: RevisionRequest,
+    submissionId: string,
+    input: RevisionRequest,
   ): Promise<unknown> {
-    throw new Error('Submission revision service is not implemented yet');
+    await this.repository.findById(submissionId);
+
+    return this.repository.saveRevision(
+      submissionId,
+      input.revisionNotes,
+    );
   }
 }
