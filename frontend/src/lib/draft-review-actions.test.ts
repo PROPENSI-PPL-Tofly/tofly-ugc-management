@@ -38,7 +38,7 @@ describe("approveSubmission", () => {
   });
 
   it("resolves when the backend answers 2xx", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response("", { status: 204 }));
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(approveSubmission(UUID)).resolves.toBeUndefined();
   });
