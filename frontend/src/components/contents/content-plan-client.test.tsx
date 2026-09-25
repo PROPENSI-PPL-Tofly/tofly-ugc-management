@@ -22,7 +22,7 @@ vi.mock("@/lib/creators", async (importOriginal) => {
 
 vi.mock("@/components/contents/add-content-modal", () => ({
     AddContentModal: ({
-                          creatorId,
+                          contractId,
                           evergreenCount,
                           quota,
                           contractStart,
@@ -30,7 +30,7 @@ vi.mock("@/components/contents/add-content-modal", () => ({
                           onClose,
                           onSaved,
                       }: {
-        creatorId: string;
+        contractId: string;
         evergreenCount: number;
         quota: number;
         contractStart: string;
@@ -39,8 +39,8 @@ vi.mock("@/components/contents/add-content-modal", () => ({
         onSaved: () => void;
     }) => (
         <div role="dialog" aria-label="Tambah Konten">
-            <span data-testid="modal-creator-id">
-                {creatorId}
+            <span data-testid="modal-contract-id">
+                {contractId}
             </span>
 
             <span data-testid="modal-evergreen-count">
@@ -274,7 +274,7 @@ describe("ContentPlanClient", () => {
         ).toBeInTheDocument();
     });
 
-    it("opens Add Content with the current creator and contract values", async () => {
+    it("opens Add Content with the current contract id and values", async () => {
         mockedFetchCreatorDetail.mockResolvedValue(
             detail({
                 contents: [
@@ -319,8 +319,8 @@ describe("ContentPlanClient", () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByTestId("modal-creator-id"),
-        ).toHaveTextContent("creator-1");
+            screen.getByTestId("modal-contract-id"),
+        ).toHaveTextContent("contract-1");
 
         expect(
             screen.getByTestId("modal-evergreen-count"),
