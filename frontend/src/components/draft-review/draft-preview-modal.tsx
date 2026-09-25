@@ -26,15 +26,11 @@ type LoadState =
   | { kind: "failed" };
 
 /**
- * A creator-typed link: clickable only when it is a web address. Anything else is shown as
- * text, so the admin can still see what was sent without a click being able to run it.
- * `showAddress` also prints a safe link's address, so the admin sees where it leads first.
+ * A creator-typed link: clickable only when it is a web address, with the address printed
+ * under it so the admin sees where it leads first. Anything else is shown as text, so the
+ * admin can still see what was sent without a click being able to run it.
  */
-function CreatorLink({
-  link,
-  label,
-  showAddress = false,
-}: Readonly<{ link: string; label: string; showAddress?: boolean }>) {
+function CreatorLink({ link, label }: Readonly<{ link: string; label: string }>) {
   const href = safeHref(link);
 
   if (!href) {
@@ -59,7 +55,7 @@ function CreatorLink({
         {label}
       </a>
 
-      {showAddress ? <p className="mt-1 break-all text-xs text-muted">{href}</p> : null}
+      <p className="mt-1 break-all text-xs text-muted">{href}</p>
     </>
   );
 }
@@ -117,7 +113,7 @@ function PreviewBody({ preview }: Readonly<{ preview: DraftPreview }>) {
       )}
 
       <DetailField label="File draft">
-        <CreatorLink link={preview.draftLink} label="Buka file draft" showAddress />
+        <CreatorLink link={preview.draftLink} label="Buka file draft" />
       </DetailField>
 
       <DetailField label="Riwayat revisi">
