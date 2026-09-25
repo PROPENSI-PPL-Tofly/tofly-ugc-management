@@ -180,4 +180,40 @@ it('rejects a submission that has been superseded by a newer submission', async 
 
   expect(saveRevision).not.toHaveBeenCalled();
 });
+it('rejects when the submission becomes non-reviewable during revision', async () => {
+  const submission = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    content_id: '550e8400-e29b-41d4-a716-446655440001',
+    status: 'draft_review',
+    isLatest: true,
+  };
+
+  const findById = vi.fn().mockResolvedValue(submission);
+
+  // Simulates another request approving/revising the draft first
+  const saveRevision = vi.fn().mockResolvedValue(null);
+
+  const service = new SubmissionRevisionService({
+    findById,
+    saveRevision,
+  });
+
+  await expect(
+    service.revise(submission.id, {
+      revisionNotes: 'Mohon perbaiki draft ini.',
+    }),
+  ).rejects.toMatchObject({
+    status: 409,
+    response: {
+      code: 'DRAFT_NOT_REVIEWABLE',
+      message: 'Draft ini sudah tidak menunggu keputusan',
+    },
+  });
+
+  expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+    submission.id,
+    submission.content_id,
+    'Mohon perbaiki draft ini.',
+  );
+});
 });
