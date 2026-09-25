@@ -1,3 +1,26 @@
+interface SubmissionLookup {
+  submissions: {
+    findUnique(args: {
+      where: { id: string };
+      select: {
+        id: true;
+        content_id: true;
+        contents: {
+          select: {
+            status: true;
+          };
+        };
+      };
+    }): Promise<{
+      id: string;
+      content_id: string;
+      contents: {
+        status: string;
+      };
+    } | null>;
+  };
+}
+
 interface RevisionTransaction {
   submissions: {
     update(args: {
@@ -21,7 +44,7 @@ interface RevisionTransaction {
   };
 }
 
-interface RevisionPrismaClient {
+interface RevisionPrismaClient extends SubmissionLookup {
   $transaction<T>(
     callback: (transaction: RevisionTransaction) => Promise<T>,
   ): Promise<T>;
@@ -29,6 +52,37 @@ interface RevisionPrismaClient {
 
 export class SubmissionRevisionRepository {
   constructor(private readonly prisma: RevisionPrismaClient) {}
+
+  async findById(submissionId: string): Promise<{
+    id: string;
+    content_id: string;
+    status: string;
+  } | null> {
+    const submission = await this.prisma.submissions.findUnique({
+      where: {
+        id: submissionId,
+      },
+      select: {
+        id: true,
+        content_id: true,
+        contents: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!submission) {
+      return null;
+    }
+
+    return {
+      id: submission.id,
+      content_id: submission.content_id,
+      status: submission.contents.status,
+    };
+  }
 
   async saveRevision(
     submissionId: string,

@@ -28,8 +28,11 @@ describe('SubmissionRevisionRepository', () => {
     );
 
     const repository = new SubmissionRevisionRepository({
-      $transaction: transaction,
-    });
+  submissions: {
+    findUnique: vi.fn(),
+  },
+  $transaction: transaction,
+});
 
     const result = await repository.saveRevision(
       submissionId,
