@@ -13,6 +13,7 @@ import {
 } from './creator-metrics.js';
 import type {
   ContractSummary,
+  ContractType,
   CreatorDetail,
   CreatorListResponse,
   CreatorSummary,
@@ -36,6 +37,7 @@ const CREATOR_SELECT = {
       start_date: true,
       end_date: true,
       content_quota: true,
+      contract_type: true,
       contents: {
         select: {
           deadline: true,
@@ -81,6 +83,7 @@ const DETAIL_SELECT = {
       end_date: true,
       days_between: true,
       content_quota: true,
+      contract_type: true,
       contents: {
         orderBy: {
           deadline: 'asc',
@@ -123,6 +126,7 @@ const NO_CONTRACT: ContractSummary = {
   daysRemaining: null,
   periodNumber: 0,
   contentQuota: 0,
+  type: null,
 };
 
 /** Postgres `date` columns arrive as midnight UTC; the first ten ISO characters are the day. */
@@ -130,7 +134,10 @@ function calendarDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-type ContractWithQuota = MetricsContract & { contentQuota: number };
+type ContractWithQuota = MetricsContract & {
+  contentQuota: number;
+  contractType: ContractType;
+};
 
 function toMetricsContract(
   contract: CreatorRow['contracts'][number],
@@ -138,6 +145,7 @@ function toMetricsContract(
   return {
     id: contract.id,
     contentQuota: contract.content_quota,
+    contractType: contract.contract_type,
     startDate: contract.start_date,
     endDate: contract.end_date,
     contents: contract.contents.map((content) => ({
@@ -293,6 +301,7 @@ export class CreatorsService implements CreatorLister {
           endDate: calendarDay(contract.end_date),
           daysBetween: contract.days_between,
           contentQuota: contract.content_quota,
+          type: contract.contract_type,
           completed: committed.filter(
             (content) => content.video_submitted_at !== null,
           ).length,
@@ -427,6 +436,7 @@ export class CreatorsService implements CreatorLister {
           daysRemaining: daysRemaining(current, today),
           periodNumber: periodNumber(contracts, current),
           contentQuota: current.contentQuota,
+          type: current.contractType,
         }
         : NO_CONTRACT,
 

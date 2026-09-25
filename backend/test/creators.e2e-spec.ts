@@ -54,6 +54,7 @@ describe('GET /creators (e2e)', () => {
           create: {
             start_date: day(-30),
             end_date: day(30),
+            contract_type: 'regular',
             days_between: 14,
             content_quota: 2,
             fixed_rate: 100000,
@@ -119,6 +120,7 @@ describe('GET /creators (e2e)', () => {
         daysRemaining: 30,
         periodNumber: 1,
         contentQuota: 2,
+        type: 'regular',
       },
       progress: { submitted: 1, total: 2, percent: 50 },
       performance: {

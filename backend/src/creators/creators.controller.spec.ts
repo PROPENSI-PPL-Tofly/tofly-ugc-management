@@ -122,6 +122,16 @@ describe('CreatorsController', () => {
     );
   });
 
+  it('accepts no_data as a productivity filter', async () => {
+    await controller.list(1, 10, undefined, undefined, 'no_data');
+
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      { productivity: 'no_data' },
+    );
+  });
+
   it('rejects an unrecognised contractStatus value', async () => {
     await expect(
       controller.list(1, 10, undefined, 'bogus'),
@@ -176,6 +186,7 @@ describe('CreatorsController', () => {
       email: 'salsa@example.com',
       socialPlatform: 'tiktok',
       socialUsername: 'salsa.amelia',
+      contractType: 'regular',
       contractStart: '2026-10-01',
       contractEnd: '2026-12-31',
       interval: 7,
@@ -191,6 +202,7 @@ describe('CreatorsController', () => {
       expect(onboarding.onboard).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'Salsa Amelia',
+          contractType: 'regular',
           contractStart: '2026-10-01',
           deadlines: ['2026-10-06'],
         }),

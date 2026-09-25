@@ -17,6 +17,7 @@ function body(
     email: 'salsa@example.com',
     socialPlatform: 'instagram',
     socialUsername: 'salsa.amelia',
+    contractType: 'probation',
     contractStart: '2026-10-01',
     contractEnd: '2026-12-31',
     interval: 7,
@@ -58,6 +59,7 @@ describe('checkNewCreator', () => {
       email: 'salsa@example.com',
       socialPlatform: 'instagram',
       socialUsername: 'salsa.amelia',
+      contractType: 'probation',
       contractStart: day('2026-10-01'),
       contractEnd: day('2026-12-31'),
       interval: 7,
@@ -165,6 +167,33 @@ describe('checkNewCreator', () => {
       );
       expect(errorsFor(body({ email: at(255) }))).toEqual({
         email: 'Format email tidak valid',
+      });
+    });
+  });
+
+  describe('contract type', () => {
+    it.each(['probation', 'regular'])('accepts a %s contract', (contractType) => {
+      expect(checkNewCreator(body({ contractType }), TODAY)).toMatchObject({
+        contractType,
+      });
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['empty', ''],
+    ])('requires a contract type (%s)', (_case, contractType) => {
+      expect(errorsFor(body({ contractType }))).toEqual({
+        contractType: 'Jenis kontrak wajib dipilih',
+      });
+    });
+
+    it.each([
+      ['a type the database has no enum for', 'freelance'],
+      ['a differently cased value', 'Probation'],
+      ['not a string', 1],
+    ])('rejects %s', (_case, contractType) => {
+      expect(errorsFor(body({ contractType }))).toEqual({
+        contractType: 'Jenis kontrak harus probation atau regular',
       });
     });
   });
@@ -512,6 +541,7 @@ describe('checkNewCreator', () => {
         expect(Object.keys(errorsFor(input)).sort()).toEqual([
           'contractEnd',
           'contractStart',
+          'contractType',
           'deadlines',
           'email',
           'fixedRate',

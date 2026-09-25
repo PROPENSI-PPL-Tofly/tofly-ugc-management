@@ -23,9 +23,10 @@ const CONTRACT_LABELS: Record<(typeof CONTRACT_STATUS_FILTERS)[number], string> 
 
 const PRODUCTIVITY_LABELS: Record<(typeof PRODUCTIVITY_FILTERS)[number], string> = {
   all: "Semua",
-  good: "Bagus",
-  watch: "Perlu perhatian",
-  risk: "Risiko",
+  good: "Baik",
+  watch: "Perlu Perhatian",
+  risk: "Berisiko",
+  no_data: "Belum Ada Data",
 };
 
 export function CreatorFilters() {

@@ -128,7 +128,7 @@ describe("Creator database page", () => {
     fireEvent.click(screen.getByRole("button", { name: /tambah creator/i }));
 
     fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
-    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "existing@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "existing@example.com" } });
     fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2099-01-01" } });
     fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: "2099-12-31" } });
     fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });

@@ -36,6 +36,7 @@ function body(email: string, overrides: Record<string, unknown> = {}) {
     email,
     socialPlatform: 'instagram',
     socialUsername: 'salsa.amelia',
+    contractType: 'regular',
     contractStart: iso(1),
     contractEnd: iso(60),
     interval: 7,

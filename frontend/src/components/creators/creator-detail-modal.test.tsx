@@ -30,6 +30,7 @@ const creatorDetail = {
     daysRemaining: 80,
     periodNumber: 1,
     contentQuota: 6,
+    type: "probation" as const,
   },
   progress: {
     submitted: 1,
@@ -50,6 +51,7 @@ const creatorDetail = {
       endDate: "2026-12-07",
       daysBetween: 180,
       contentQuota: 6,
+      type: "probation" as const,
       completed: 1,
       total: 2,
       isCurrent: true,
@@ -61,7 +63,7 @@ const creatorDetail = {
       name: "Evergreen - Tips Belajar Cepat",
       type: "evergreen",
       deadline: "2026-09-30",
-      status: "submitted",
+      status: "link_submitted",
       outcome: "on_time" as const,
       videoLink: "https://example.com/video",
     },
@@ -119,6 +121,15 @@ describe("CreatorDetailModal", () => {
     expect(screen.getAllByText("Evergreen - Tips Belajar Cepat")).toHaveLength(2);
 
     expect(screen.getByText("Tepat waktu")).toBeInTheDocument();
+  });
+
+  it("names the contract type of the current contract and of each period", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
+
+    open();
+
+    expect(await screen.findByText(/Periode 1 · Probation ·/)).toBeInTheDocument();
+    expect(screen.getByText(/Periode 1 \(Probation\):/)).toBeInTheDocument();
   });
 
   it("requests the selected creator detail from the API", async () => {
@@ -221,6 +232,7 @@ describe("CreatorDetailModal", () => {
   it.each([
     ["risk", "Berisiko", "text-red-ink"],
     ["watch", "Perlu Perhatian", "text-amber-ink"],
+    ["no_data", "Belum Ada Data", "text-ink-2"],
   ] as const)("colours a %s productivity band by its judgement", async (productivity, label, tone) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
@@ -234,6 +246,87 @@ describe("CreatorDetailModal", () => {
     open();
 
     expect(await screen.findByText(label)).toHaveClass(tone);
+  });
+
+  // Content still in progress shows where it is in the workflow, starting at Scheduled.
+  it.each([
+    ["scheduled", "Scheduled"],
+    ["draft_review", "Draft Menunggu Review"],
+    ["draft_revision", "Draft Perlu Revisi"],
+    ["draft_revised", "Draft Revised"],
+    ["draft_approved", "Draft Approved"],
+  ] as const)("shows open %s content by its workflow status", async (status, label) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...creatorDetail,
+          contents: [{ ...creatorDetail.contents[0], status, outcome: "open" }],
+        }),
+      ),
+    );
+
+    open();
+
+    expect(await screen.findByText(label)).toBeInTheDocument();
+    expect(screen.queryByText("Berjalan")).not.toBeInTheDocument();
+  });
+
+  describe("content history paging", () => {
+    const contents = Array.from({ length: 12 }, (_, index) => ({
+      ...creatorDetail.contents[0],
+      id: `content-${index + 1}`,
+      name: `Konten ${index + 1}`,
+    }));
+
+    function previous() {
+      return screen.getByRole("button", { name: "Riwayat konten sebelumnya" });
+    }
+
+    function next() {
+      return screen.getByRole("button", { name: "Riwayat konten berikutnya" });
+    }
+
+    beforeEach(() => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ ...creatorDetail, contents, drafts: [] })),
+      );
+    });
+
+    it("shows five contents at a time, starting on the first page", async () => {
+      open();
+
+      expect(await screen.findByText("Konten 1")).toBeInTheDocument();
+      expect(screen.getByText("Konten 5")).toBeInTheDocument();
+      expect(screen.queryByText("Konten 6")).not.toBeInTheDocument();
+      expect(screen.getByText("1–5 dari 12")).toBeInTheDocument();
+      expect(previous()).toBeDisabled();
+      expect(next()).toBeEnabled();
+    });
+
+    it("steps forward to the last page and back again", async () => {
+      open();
+      await screen.findByText("Konten 1");
+
+      fireEvent.click(next());
+      expect(screen.getByText("Konten 6")).toBeInTheDocument();
+      expect(screen.queryByText("Konten 1")).not.toBeInTheDocument();
+
+      fireEvent.click(next());
+      expect(screen.getByText("11–12 dari 12")).toBeInTheDocument();
+      expect(next()).toBeDisabled();
+
+      fireEvent.click(previous());
+      expect(screen.getByText("6–10 dari 12")).toBeInTheDocument();
+    });
+  });
+
+  it("shows no paging controls when every content fits on one page", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
+
+    open();
+
+    await screen.findByText("rangga@example.com");
+    expect(screen.queryByRole("button", { name: /riwayat konten/i })).not.toBeInTheDocument();
   });
 
   it("says so when there is no contract history", async () => {

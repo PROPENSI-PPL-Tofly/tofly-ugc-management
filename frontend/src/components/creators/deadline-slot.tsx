@@ -5,6 +5,8 @@ interface DeadlineSlotProps {
   day: number;
   isAutoDeadline: boolean;
   isBufferDate: boolean;
+  /** Before the contract starts or after it ends: no deadline can land here. */
+  isOutsideContract?: boolean;
   /** How many contents the admin placed on this day by hand. */
   manualCount?: number;
   /** Makes the day a button; the label says what a click does to this date. */
@@ -18,6 +20,7 @@ function SlotContent({
   day,
   isAutoDeadline,
   isBufferDate,
+  isOutsideContract = false,
   manualCount = 0,
 }: Omit<DeadlineSlotProps, "action">) {
   if (isAutoDeadline) {
@@ -41,6 +44,19 @@ function SlotContent({
       >
         {day}
         {manualCount > 1 ? <span className="ml-auto text-xs">×{manualCount}</span> : null}
+      </span>
+    );
+  }
+
+  if (isOutsideContract) {
+    return (
+      <span
+        className={`${CELL} bg-surface-2 text-muted line-through`}
+        data-testid={`calendar-date-${date}`}
+        data-date-status="outside"
+      >
+        {day}
+        <span className="sr-only"> di luar kontrak</span>
       </span>
     );
   }

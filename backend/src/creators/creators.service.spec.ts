@@ -27,6 +27,7 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
         start_date: day(-100),
         end_date: day(80),
         content_quota: 6,
+        contract_type: 'regular',
         contents: [
           {
             deadline: day(-30),
@@ -79,6 +80,7 @@ type DetailContractRow = {
   end_date: Date;
   days_between: number;
   content_quota: number;
+  contract_type: 'probation' | 'regular';
   contents: DetailContentRow[];
 };
 
@@ -127,6 +129,7 @@ function detailRow(): DetailCreatorRow {
         end_date: day(80),
         days_between: 180,
         content_quota: 6,
+        contract_type: 'regular',
         contents: [
           {
             id: 'content-1',
@@ -238,6 +241,7 @@ describe('CreatorsService', () => {
             daysRemaining: 80,
             periodNumber: 1,
             contentQuota: 6,
+            type: 'regular',
           },
           progress: {
             submitted: 2,
@@ -306,6 +310,7 @@ describe('CreatorsService', () => {
         daysRemaining: null,
         periodNumber: 0,
         contentQuota: 0,
+        type: null,
       },
       progress: {
         submitted: 0,
@@ -329,6 +334,7 @@ describe('CreatorsService', () => {
             start_date: day(-30),
             end_date: day(150),
             content_quota: 4,
+            contract_type: 'probation',
             contents: [],
           },
           {
@@ -336,6 +342,7 @@ describe('CreatorsService', () => {
             start_date: day(-400),
             end_date: day(-40),
             content_quota: 6,
+            contract_type: 'regular',
             contents: [],
           },
         ],
@@ -350,6 +357,8 @@ describe('CreatorsService', () => {
       status: 'active',
       periodNumber: 2,
       contentQuota: 4,
+      // The current period's type, not the first contract's.
+      type: 'probation',
     });
   });
 
@@ -394,7 +403,7 @@ describe('CreatorsService', () => {
       row({ id: 'creator-1' }),
       row({
         id: 'creator-2',
-        contracts: [{ id: 'c2', start_date: day(-400), end_date: day(-40), content_quota: 4, contents: [] }],
+        contracts: [{ id: 'c2', start_date: day(-400), end_date: day(-40), content_quota: 4, contract_type: 'regular', contents: [] }],
       }),
     ]);
     prisma.creators.count.mockResolvedValue(2);
@@ -416,6 +425,7 @@ describe('CreatorsService', () => {
             start_date: day(-100),
             end_date: day(80),
             content_quota: 1,
+            contract_type: 'regular',
             contents: [{ deadline: day(-30), video_submitted_at: null, is_proposal: false, _count: { submissions: 0 } }],
           },
         ],
@@ -427,6 +437,19 @@ describe('CreatorsService', () => {
 
     expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
     expect(result.total).toBe(1);
+  });
+
+  // A creator with nothing to judge yet is its own band, not a watch-listed one.
+  it('filters the roster to creators without data yet', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1' }),
+      row({ id: 'creator-2', contracts: [] }),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { productivity: 'no_data' });
+
+    expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
   });
 
   it('combines q, contractStatus and productivity with AND, not OR', async () => {
@@ -469,6 +492,7 @@ describe('CreatorsService', () => {
             start_date: day(-1),
             end_date: new Date('2999-01-01T00:00:00Z'),
             content_quota: 1,
+            contract_type: 'regular',
             contents: [],
           },
         ],
@@ -526,6 +550,7 @@ describe('CreatorsService', () => {
           id: 'contract-1',
           periodNumber: 1,
           contentQuota: 6,
+          type: 'regular',
           completed: 1,
           total: 2,
           isCurrent: true,

@@ -60,6 +60,21 @@ describe("CreatorFilters", () => {
     expect(values).toEqual(["all", "active", "expired", "upcoming", "none"]);
   });
 
+  it("offers every productivity band the API accepts, including no data yet", () => {
+    renderFilters();
+
+    const options = Array.from(
+      screen.getByRole("combobox", { name: /produktivitas/i }).querySelectorAll("option"),
+    ).map((option) => [option.value, option.textContent]);
+    expect(options).toEqual([
+      ["all", "Semua"],
+      ["good", "Baik"],
+      ["watch", "Perlu Perhatian"],
+      ["risk", "Berisiko"],
+      ["no_data", "Belum Ada Data"],
+    ]);
+  });
+
   it("reflects current filter values in inputs", () => {
     renderFilters({ q: "rangga", contractStatus: "active" });
 

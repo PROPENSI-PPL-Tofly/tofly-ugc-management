@@ -94,6 +94,7 @@ describe("parseFilters", () => {
 
   it("reads productivity filter", () => {
     expect(parseFilters({ productivity: "risk" })).toMatchObject({ productivity: "risk" });
+    expect(parseFilters({ productivity: "no_data" })).toMatchObject({ productivity: "no_data" });
   });
 
   it("falls back to 'all' for unknown values", () => {

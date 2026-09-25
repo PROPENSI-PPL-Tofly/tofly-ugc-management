@@ -9,6 +9,9 @@ import type {
   ProductivityLabel,
 } from '../creator-metrics.js';
 
+/** Probation or regular (PRD 3.4); informational only, no rule reads it. */
+export type ContractType = 'probation' | 'regular';
+
 export interface ContractSummary {
   status: 'active' | 'expired' | 'upcoming' | 'none';
 
@@ -24,6 +27,9 @@ export interface ContractSummary {
   periodNumber: number;
 
   contentQuota: number;
+
+  /** The current contract's type; null without a contract. */
+  type: ContractType | null;
 }
 
 export interface CreatorSummary {
@@ -67,17 +73,27 @@ export interface ContractHistoryEntry {
   endDate: string;
   daysBetween: number;
   contentQuota: number;
+  type: ContractType;
   completed: number;
   total: number;
   isCurrent: boolean;
 }
+
+/** Where a content is in the review workflow; mirrors the `content_status` enum. */
+export type ContentStatus =
+  | 'scheduled'
+  | 'draft_review'
+  | 'draft_revision'
+  | 'draft_revised'
+  | 'draft_approved'
+  | 'link_submitted';
 
 export interface ContentEntry {
   id: string;
   name: string;
   type: string;
   deadline: string;
-  status: string;
+  status: ContentStatus;
   outcome: ContentOutcome;
   videoLink: string | null;
 }
