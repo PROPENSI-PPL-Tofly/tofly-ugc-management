@@ -1,17 +1,22 @@
-import SubmissionsPage from "./page";
-import { fetchSubmissionQueue } from "@/lib/submissions";
 import { render, screen } from "@testing-library/react";
+import { fetchSubmissionQueue } from "@/lib/submissions";
+import SubmissionsPage from "./page";
 
-vi.mock("@/lib/submissions", () => ({
-  fetchSubmissionQueue: vi.fn(),
-  parseSubmissionPage: vi.fn((params: Record<string, string | string[] | undefined>) => {
-    const raw = Array.isArray(params.page) ? params.page[0] : params.page ?? "";
-    if (raw === "") return { page: 1, invalid: null };
-    return /^[1-9]\d*$/.test(raw)
-      ? { page: Number(raw), invalid: null }
-      : { page: 1, invalid: raw };
-  }),
+vi.mock("@/lib/submissions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/submissions")>();
+  return { ...actual, fetchSubmissionQueue: vi.fn() };
+});
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/admin/submissions",
+  useSearchParams: () => new URLSearchParams(),
 }));
+
+vi.mock("next/link", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/link")>();
+  return { ...actual, useLinkStatus: () => ({ pending: false }) };
+});
 
 const mockedFetch = vi.mocked(fetchSubmissionQueue);
 
