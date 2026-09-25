@@ -14,7 +14,7 @@ function invalidRevisionNotes(): UnprocessableEntityException {
 }
 
 export function checkRevisionRequest(input: unknown): RevisionRequest {
-  if (input === null) {
+  if (input === null || input === undefined) {
     throw invalidRevisionNotes();
   }
 
