@@ -6,6 +6,7 @@ describe('SubmissionRevisionService', () => {
       id: '550e8400-e29b-41d4-a716-446655440000',
       content_id: '550e8400-e29b-41d4-a716-446655440001',
       status: 'draft_review',
+      isLatest: true,
     };
 
     const findById = vi.fn().mockResolvedValue(submission);
@@ -64,10 +65,11 @@ describe('SubmissionRevisionService', () => {
 
   it('rejects a submission that is not in draft_review status', async () => {
     const submission = {
-      id: '550e8400-e29b-41d4-a716-446655440000',
-      content_id: '550e8400-e29b-41d4-a716-446655440001',
-      status: 'draft_approved',
-    };
+  id: '550e8400-e29b-41d4-a716-446655440000',
+  content_id: '550e8400-e29b-41d4-a716-446655440001',
+  status: 'draft_approved',
+  isLatest: true,
+};
 
     const findById = vi.fn().mockResolvedValue(submission);
     const saveRevision = vi.fn();
@@ -91,6 +93,7 @@ describe('SubmissionRevisionService', () => {
       id: '550e8400-e29b-41d4-a716-446655440000',
       content_id: '550e8400-e29b-41d4-a716-446655440001',
       status: 'draft_review',
+      isLatest: true,
     };
 
     const findById = vi.fn().mockResolvedValue(submission);
@@ -121,6 +124,7 @@ describe('SubmissionRevisionService', () => {
     id: '550e8400-e29b-41d4-a716-446655440000',
     content_id: '550e8400-e29b-41d4-a716-446655440001',
     status: 'draft_revised',
+    isLatest: true,
   };
 
   const findById = vi.fn().mockResolvedValue(submission);

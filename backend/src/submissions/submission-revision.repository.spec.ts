@@ -165,19 +165,26 @@ it('returns null when the submission does not exist', async () => {
   );
 
   expect(findUnique).toHaveBeenCalledExactlyOnceWith({
-    where: {
-      id: '550e8400-e29b-41d4-a716-446655440000',
-    },
-    select: {
-      id: true,
-      content_id: true,
-      contents: {
-        select: {
-          status: true,
+  where: {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+  },
+  select: {
+    id: true,
+    content_id: true,
+    contents: {
+      select: {
+        status: true,
+        submissions: {
+          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: {
+            id: true,
+          },
         },
       },
     },
-  });
+  },
+});
 
   expect(result).toBeNull();
 });

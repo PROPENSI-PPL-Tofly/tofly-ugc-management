@@ -8,6 +8,13 @@ interface SubmissionLookup {
         contents: {
           select: {
             status: true;
+            submissions: {
+              orderBy: [{ created_at: 'desc' }, { id: 'desc' }];
+              take: 1;
+              select: {
+                id: true;
+              };
+            };
           };
         };
       };
@@ -16,6 +23,9 @@ interface SubmissionLookup {
       content_id: string;
       contents: {
         status: string;
+        submissions: {
+          id: string;
+        }[];
       };
     } | null>;
   };
@@ -57,6 +67,7 @@ export class SubmissionRevisionRepository {
     id: string;
     content_id: string;
     status: string;
+    isLatest: boolean;
   } | null> {
     const submission = await this.prisma.submissions.findUnique({
       where: {
@@ -68,6 +79,13 @@ export class SubmissionRevisionRepository {
         contents: {
           select: {
             status: true,
+            submissions: {
+              orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+              take: 1,
+              select: {
+                id: true,
+              },
+            },
           },
         },
       },
@@ -81,6 +99,7 @@ export class SubmissionRevisionRepository {
       id: submission.id,
       content_id: submission.content_id,
       status: submission.contents.status,
+      isLatest: submission.contents.submissions[0]?.id === submission.id,
     };
   }
 
@@ -120,3 +139,5 @@ export class SubmissionRevisionRepository {
     });
   }
 }
+
+ 

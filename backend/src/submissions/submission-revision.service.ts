@@ -1,8 +1,12 @@
 import {
-  BadRequestException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 
+import {
+  checkReviewable,
+  type ReviewRejection,
+} from './draft-review.js';
 import type { RevisionRequest } from './revise-submission.js';
 
 export interface SubmissionRevisionRepository {
@@ -12,6 +16,7 @@ export interface SubmissionRevisionRepository {
     id: string;
     content_id: string;
     status: string;
+    isLatest: boolean;
   } | null>;
 
   saveRevision(
@@ -19,6 +24,18 @@ export interface SubmissionRevisionRepository {
     contentId: string,
     revisionNotes: string,
   ): Promise<unknown>;
+}
+
+const REJECTION_MESSAGES: Record<ReviewRejection, string> = {
+  DRAFT_NOT_REVIEWABLE: 'Draft ini sudah tidak menunggu keputusan',
+  SUBMISSION_SUPERSEDED: 'Creator sudah mengirim draft yang lebih baru',
+};
+
+function conflict(code: ReviewRejection): ConflictException {
+  return new ConflictException({
+    code,
+    message: REJECTION_MESSAGES[code],
+  });
 }
 
 export class SubmissionRevisionService {
@@ -36,13 +53,14 @@ export class SubmissionRevisionService {
       throw new NotFoundException('Submission tidak ditemukan');
     }
 
-    const reviewableStatuses = ['draft_review', 'draft_revised'];
+    const rejected = checkReviewable({
+      contentStatus: submission.status,
+      isLatest: submission.isLatest,
+    });
 
-    if (!reviewableStatuses.includes(submission.status)) {
-    throw new BadRequestException(
-    'Submission tidak sedang menunggu review',
-  );
-}
+    if (rejected) {
+      throw conflict(rejected);
+    }
 
     return this.repository.saveRevision(
       submissionId,
