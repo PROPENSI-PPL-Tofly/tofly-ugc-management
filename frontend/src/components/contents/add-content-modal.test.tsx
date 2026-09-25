@@ -25,7 +25,7 @@ vi.mock("@/lib/deadline-schedule", () => ({
 const mockedCreateContent = vi.mocked(createContent);
 
 const defaultProps = {
-    creatorId: "11111111-1111-4111-8111-111111111111",
+    contractId: "22222222-2222-4222-8222-222222222222",
     evergreenCount: 1,
     quota: 6,
     contractStart: "2026-06-10",
@@ -88,6 +88,23 @@ describe("AddContentModal", () => {
         expect(
             screen.getByLabelText("Brief"),
         ).toBeInTheDocument();
+    });
+
+    it("limits Name to 200 and Brief to 5000 characters, like the API", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+
+        expect(screen.getByLabelText("Nama Konten")).toHaveAttribute(
+            "maxlength",
+            "200",
+        );
+        expect(screen.getByLabelText("Brief")).toHaveAttribute(
+            "maxlength",
+            "5000",
+        );
     });
 
     it("hides Name and Brief again when Evergreen is selected", () => {
@@ -235,8 +252,8 @@ describe("AddContentModal", () => {
 
         await waitFor(() => {
             expect(mockedCreateContent).toHaveBeenCalledWith({
-                creatorId:
-                    "11111111-1111-4111-8111-111111111111",
+                contractId:
+                    "22222222-2222-4222-8222-222222222222",
                 type: "specific",
                 name: "Video Review",
                 brief: "Review brief",
@@ -276,8 +293,8 @@ describe("AddContentModal", () => {
 
         await waitFor(() => {
             expect(mockedCreateContent).toHaveBeenCalledWith({
-                creatorId:
-                    "11111111-1111-4111-8111-111111111111",
+                contractId:
+                    "22222222-2222-4222-8222-222222222222",
                 type: "evergreen",
                 name: undefined,
                 brief: undefined,
@@ -357,6 +374,26 @@ describe("AddContentModal", () => {
         ).toHaveTextContent(
             "Kuota content sudah penuh",
         );
+    });
+
+    it("shows a contract error from the server as an alert", async () => {
+        mockedCreateContent.mockResolvedValue({
+            ok: false,
+            message: "Data content tidak valid",
+            errors: {
+                contractId: "Kontrak wajib dipilih",
+            },
+        });
+
+        openModal();
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Simpan" }),
+        );
+
+        expect(
+            await screen.findByRole("alert"),
+        ).toHaveTextContent("Kontrak wajib dipilih");
     });
 
     it("shows the saving state while the request is pending", async () => {

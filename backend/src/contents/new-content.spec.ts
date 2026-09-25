@@ -1,5 +1,9 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { checkNewContent } from './new-content.js';
+import {
+  checkNewContent,
+  MAX_BRIEF_LENGTH,
+  MAX_CONTENT_NAME_LENGTH,
+} from './new-content.js';
 
 describe('checkNewContent', () => {
   const VALID_CONTRACT_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -64,6 +68,55 @@ describe('checkNewContent', () => {
           deadline: '2026-10-10',
         }),
       ).not.toThrow();
+    });
+
+    const specific = (name: string, brief: string) => ({
+      contractId: VALID_CONTRACT_ID,
+      type: 'specific',
+      deadline: '2026-10-10',
+      name,
+      brief,
+    });
+
+    it('accepts a name of exactly MAX_CONTENT_NAME_LENGTH and a brief of exactly MAX_BRIEF_LENGTH', () => {
+      expect(() =>
+        checkNewContent(
+          specific('n'.repeat(MAX_CONTENT_NAME_LENGTH), 'b'.repeat(MAX_BRIEF_LENGTH)),
+        ),
+      ).not.toThrow();
+    });
+
+    it('rejects a name or brief one character over its limit', () => {
+      expect(() =>
+        checkNewContent(
+          specific(
+            'n'.repeat(MAX_CONTENT_NAME_LENGTH + 1),
+            'b'.repeat(MAX_BRIEF_LENGTH + 1),
+          ),
+        ),
+      ).toThrow(
+        expect.objectContaining({
+          status: 422,
+          response: expect.objectContaining({
+            errors: {
+              name: `Nama konten maksimal ${MAX_CONTENT_NAME_LENGTH} karakter`,
+              brief: `Brief maksimal ${MAX_BRIEF_LENGTH} karakter`,
+            },
+          }),
+        }),
+      );
+    });
+
+    it('measures the limits after trimming the surrounding spaces', () => {
+      const padded = `  ${'n'.repeat(MAX_CONTENT_NAME_LENGTH)}  `;
+      expect(() => checkNewContent(specific(padded, ' brief '))).not.toThrow();
+    });
+
+    it('returns the name and brief trimmed', () => {
+      expect(checkNewContent(specific('  Promo 10.10  ', '\n Review fitur \n'))).toMatchObject({
+        name: 'Promo 10.10',
+        brief: 'Review fitur',
+      });
     });
   });
 

@@ -2,7 +2,6 @@ import {
     fireEvent,
     render,
     screen,
-    waitFor,
 } from "@testing-library/react";
 import { ContentPlanClient } from "./content-plan-client";
 import {
@@ -22,7 +21,7 @@ vi.mock("@/lib/creators", async (importOriginal) => {
 
 vi.mock("@/components/contents/add-content-modal", () => ({
     AddContentModal: ({
-                          creatorId,
+                          contractId,
                           evergreenCount,
                           quota,
                           contractStart,
@@ -30,7 +29,7 @@ vi.mock("@/components/contents/add-content-modal", () => ({
                           onClose,
                           onSaved,
                       }: {
-        creatorId: string;
+        contractId: string;
         evergreenCount: number;
         quota: number;
         contractStart: string;
@@ -39,8 +38,8 @@ vi.mock("@/components/contents/add-content-modal", () => ({
         onSaved: () => void;
     }) => (
         <div role="dialog" aria-label="Tambah Konten">
-            <span data-testid="modal-creator-id">
-                {creatorId}
+            <span data-testid="modal-contract-id">
+                {contractId}
             </span>
 
             <span data-testid="modal-evergreen-count">
@@ -164,7 +163,7 @@ describe("ContentPlanClient", () => {
 
         expect(
             screen.getByText(
-                "Rangga Pratama · 0/6 konten",
+                "Rangga Pratama · Evergreen 0/6 · 6 slot belum teralokasi",
             ),
         ).toBeInTheDocument();
     });
@@ -274,7 +273,7 @@ describe("ContentPlanClient", () => {
         ).toBeInTheDocument();
     });
 
-    it("opens Add Content with the current creator and contract values", async () => {
+    it("opens Add Content with the current contract id and values", async () => {
         mockedFetchCreatorDetail.mockResolvedValue(
             detail({
                 contents: [
@@ -319,8 +318,8 @@ describe("ContentPlanClient", () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByTestId("modal-creator-id"),
-        ).toHaveTextContent("creator-1");
+            screen.getByTestId("modal-contract-id"),
+        ).toHaveTextContent("contract-1");
 
         expect(
             screen.getByTestId("modal-evergreen-count"),
@@ -337,6 +336,43 @@ describe("ContentPlanClient", () => {
         expect(
             screen.getByTestId("modal-contract-end"),
         ).toHaveTextContent("2026-12-07");
+    });
+
+    it("counts only Evergreen content against the quota in the header", async () => {
+        mockedFetchCreatorDetail.mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-1",
+                        name: "Evg_1_Rangga Pratama_30092026",
+                        type: "evergreen",
+                        deadline: "2026-09-30",
+                        status: "scheduled",
+                        outcome: "open",
+                        videoLink: null,
+                    },
+                    {
+                        id: "content-2",
+                        name: "Promo 10.10",
+                        type: "specific",
+                        deadline: "2026-10-05",
+                        status: "scheduled",
+                        outcome: "open",
+                        videoLink: null,
+                    },
+                ],
+            }),
+        );
+
+        render(
+            <ContentPlanClient creatorId="creator-1" />,
+        );
+
+        expect(
+            await screen.findByText(
+                "Rangga Pratama · Evergreen 1/6 · 5 slot belum teralokasi",
+            ),
+        ).toBeInTheDocument();
     });
 
     it("closes the modal when its close callback runs", async () => {
@@ -510,7 +546,7 @@ describe("ContentPlanClient", () => {
 
         expect(
             await screen.findByText(
-                "Creator Dua · 0/6 konten",
+                "Creator Dua · Evergreen 0/6 · 6 slot belum teralokasi",
             ),
         ).toBeInTheDocument();
 

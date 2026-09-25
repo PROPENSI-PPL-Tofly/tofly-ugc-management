@@ -1,7 +1,7 @@
 export type ContentType = "evergreen" | "specific";
 
 export interface CreateContentRequest {
-    creatorId: string;
+    contractId: string;
     type: ContentType;
     name?: string;
     brief?: string;
@@ -13,7 +13,7 @@ export interface ContentFieldErrors {
     name?: string;
     brief?: string;
     deadline?: string;
-    creatorId?: string;
+    contractId?: string;
     quota?: string;
 }
 
@@ -36,7 +36,7 @@ export type CreateContentResult =
 };
 
 const ERROR_FIELDS: (keyof ContentFieldErrors)[] = [
-    "creatorId",
+    "contractId",
     "type",
     "name",
     "brief",

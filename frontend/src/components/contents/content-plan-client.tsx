@@ -149,7 +149,7 @@ export function ContentPlanClient({
             <Panel>
                 <PanelHead
                     title="Content Plan"
-                    hint={`${detail.name} · ${contents.length}/${currentContract.contentQuota} konten`}
+                    hint={`${detail.name} · Evergreen ${evergreenCount}/${currentContract.contentQuota} · ${Math.max(currentContract.contentQuota - evergreenCount, 0)} slot belum teralokasi`}
                     action={
                         <Button
                             variant="accent"
@@ -226,7 +226,7 @@ export function ContentPlanClient({
 
             {showModal ? (
                 <AddContentModal
-                    creatorId={creatorId}
+                    contractId={currentContract.id}
                     evergreenCount={evergreenCount}
                     quota={currentContract.contentQuota}
                     contractStart={currentContract.startDate}
