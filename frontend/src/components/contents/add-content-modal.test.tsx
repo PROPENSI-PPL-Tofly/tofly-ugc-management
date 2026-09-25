@@ -90,6 +90,21 @@ describe("AddContentModal", () => {
         ).toBeInTheDocument();
     });
 
+    it("marks every field as required and explains the marker", () => {
+        openModal();
+
+        expect(screen.getByLabelText("Jenis Konten")).toBeRequired();
+        expect(screen.getByLabelText("Deadline")).toBeRequired();
+        expect(screen.getByText("wajib diisi")).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+
+        expect(screen.getByLabelText("Nama Konten")).toBeRequired();
+        expect(screen.getByLabelText("Brief")).toBeRequired();
+    });
+
     it("stacks Name above Brief in the same single column as the other fields", () => {
         openModal();
 
