@@ -1,4 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+
 import type { RevisionRequest } from './revise-submission.js';
 
 export interface SubmissionRevisionRepository {
@@ -25,6 +29,12 @@ export class SubmissionRevisionService {
 
     if (!submission) {
       throw new NotFoundException('Submission tidak ditemukan');
+    }
+
+    if (submission.status !== 'review') {
+      throw new BadRequestException(
+        'Submission tidak sedang menunggu review',
+      );
     }
 
     return this.repository.saveRevision(
