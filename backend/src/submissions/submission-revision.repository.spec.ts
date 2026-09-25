@@ -64,6 +64,64 @@ describe('SubmissionRevisionRepository', () => {
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
   });
+  it('does not save the revision note when the content is no longer reviewable', async () => {
+  const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+  const contentId = '550e8400-e29b-41d4-a716-446655440001';
+
+  const updateSubmission = vi.fn().mockResolvedValue({
+    id: submissionId,
+    content_id: contentId,
+    revision_notes: 'Mohon perbaiki draft ini.',
+  });
+
+  const updateContent = vi.fn().mockResolvedValue({
+    id: contentId,
+    status: 'draft_revision',
+  });
+
+  const updateManyContent = vi.fn().mockResolvedValue({
+    count: 0,
+  });
+
+  const repository = new SubmissionRevisionRepository({
+    submissions: {
+      findUnique: vi.fn(),
+    },
+    $transaction: vi.fn(async (callback) =>
+      callback({
+        submissions: {
+          update: updateSubmission,
+        },
+        contents: {
+          update: updateContent,
+          updateMany: updateManyContent,
+        },
+      }),
+    ),
+  });
+
+  const result = await repository.saveRevision(
+    submissionId,
+    contentId,
+    'Mohon perbaiki draft ini.',
+  );
+
+  expect(updateManyContent).toHaveBeenCalledExactlyOnceWith({
+    where: {
+      id: contentId,
+      status: {
+        in: ['draft_review', 'draft_revised'],
+      },
+    },
+    data: {
+      status: 'draft_revision',
+    },
+  });
+
+  expect(updateSubmission).not.toHaveBeenCalled();
+
+  expect(result).toBeNull();
+});
   it('finds a submission with its content ID, current status, and latest state', async () => {
   const submissionId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '550e8400-e29b-41d4-a716-446655440001';
