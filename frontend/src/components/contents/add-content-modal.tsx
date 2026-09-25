@@ -134,7 +134,7 @@ export function AddContentModal({
         }
 
         if (type === "evergreen" && evergreenFull) {
-            clientErrors.type = "Kuota Evergreen sudah penuh";
+            clientErrors.type = "Kuota Evergreen sudah terpenuhi.";
         }
 
         if (deadline && (deadline < firstAllowed || deadline > contractEnd)) {
@@ -218,8 +218,8 @@ export function AddContentModal({
 
                 {evergreenFull ? (
                     <span className="text-xs text-red-ink">
-            Kuota Evergreen sudah penuh. Pilih Specific.
-          </span>
+                        Kuota Evergreen sudah terpenuhi.
+                    </span>
                 ) : null}
             </Field>
 
