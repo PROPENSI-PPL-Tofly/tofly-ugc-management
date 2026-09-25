@@ -90,6 +90,23 @@ describe("AddContentModal", () => {
         ).toBeInTheDocument();
     });
 
+    it("limits Name to 200 and Brief to 5000 characters, like the API", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+
+        expect(screen.getByLabelText("Nama Konten")).toHaveAttribute(
+            "maxlength",
+            "200",
+        );
+        expect(screen.getByLabelText("Brief")).toHaveAttribute(
+            "maxlength",
+            "5000",
+        );
+    });
+
     it("hides Name and Brief again when Evergreen is selected", () => {
         openModal();
 
