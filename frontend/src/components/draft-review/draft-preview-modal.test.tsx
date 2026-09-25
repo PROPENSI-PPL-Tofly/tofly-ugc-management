@@ -16,20 +16,8 @@ function preview(overrides: Partial<DraftPreview> = {}): DraftPreview {
     status: "draft_review",
     draftLink: "https://drive.google.com/file/d/draft-2",
     revisions: [
-      {
-        submissionId: "sub-1",
-        link: "https://drive.google.com/file/d/draft-1",
-        note: "Audio terlalu pelan.\nTambahkan subtitle.",
-        submittedAt: "2026-09-20T03:00:00.000Z",
-        isCurrent: false,
-      },
-      {
-        submissionId: "sub-2",
-        link: "https://drive.google.com/file/d/draft-2",
-        note: null,
-        submittedAt: "2026-09-23T03:00:00.000Z",
-        isCurrent: true,
-      },
+      { note: "Audio terlalu pelan.\nTambahkan subtitle.", date: "2026-09-20T03:00:00.000Z" },
+      { note: "Intro masih kepanjangan.", date: "2026-09-22T17:30:00.000Z" },
     ],
     ...overrides,
   };
@@ -171,27 +159,18 @@ describe("DraftPreviewModal", () => {
       expect(screen.getByText(/bukan link web yang valid/i)).toBeInTheDocument();
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
     });
-
-    it("does the same for a link inside the history", async () => {
-      const unsafe = preview();
-      unsafe.revisions[0] = { ...unsafe.revisions[0], link: "data:text/html,<b>x</b>" };
-      renderModal({ load: vi.fn().mockResolvedValue(unsafe) });
-
-      const [first] = await historyEntries();
-      expect(within(first).queryByRole("link")).not.toBeInTheDocument();
-      expect(within(first).getByText("data:text/html,<b>x</b>")).toBeInTheDocument();
-    });
   });
 
   describe("revision history", () => {
-    it("numbers each draft oldest first with the time it was sent in WIB", async () => {
+    it("numbers each revision oldest first with the time it was written in WIB", async () => {
       renderModal();
 
       const [first, second] = await historyEntries();
-      expect(first).toHaveTextContent("Draft ke-1");
+      expect(first).toHaveTextContent("Revisi ke-1");
       expect(first).toHaveTextContent("20 Sep 2026, 10.00 WIB");
-      expect(second).toHaveTextContent("Draft ke-2");
-      expect(second).toHaveTextContent("23 Sep 2026, 10.00 WIB");
+      expect(second).toHaveTextContent("Revisi ke-2");
+      // 17.30 UTC on the 22nd is already 00.30 on the 23rd in Jakarta.
+      expect(second).toHaveTextContent("23 Sep 2026, 00.30 WIB");
     });
 
     it("shows the admin's revision note with its line breaks kept", async () => {
@@ -203,37 +182,47 @@ describe("DraftPreviewModal", () => {
       expect(note).toHaveClass("whitespace-pre-line");
     });
 
-    it("marks the draft being previewed as waiting for review", async () => {
-      renderModal();
-
-      const [, second] = await historyEntries();
-      expect(second).toHaveTextContent("Menunggu review");
-    });
-
-    it("says so when an earlier draft was sent back without a note", async () => {
-      const noNote = preview();
-      noNote.revisions[0] = { ...noNote.revisions[0], note: null };
-      renderModal({ load: vi.fn().mockResolvedValue(noNote) });
-
-      const [first] = await historyEntries();
-      expect(first).toHaveTextContent("Tanpa catatan revisi");
-    });
-
-    it("links each earlier draft so the admin can compare versions", async () => {
-      renderModal();
-
-      const [first] = await historyEntries();
-      expect(within(first).getByRole("link", { name: "Lihat draft ke-1" })).toHaveAttribute(
-        "href",
-        "https://drive.google.com/file/d/draft-1",
-      );
-    });
-
     it("says so when there is no history to show", async () => {
       renderModal({ load: vi.fn().mockResolvedValue(preview({ revisions: [] })) });
 
       expect(await screen.findByText("Belum ada riwayat revisi.")).toBeInTheDocument();
       expect(screen.queryByRole("list", { name: "Riwayat revisi" })).not.toBeInTheDocument();
+    });
+  });
+
+  // #36 answers without contentName, creatorName, deadline, and type until they are added.
+  describe("while the API leaves out the header fields", () => {
+    const withoutHeader = preview({
+      contentName: null,
+      creatorName: null,
+      deadline: null,
+      type: null,
+    });
+
+    function valueOf(label: string) {
+      return screen.getByText(label).parentElement;
+    }
+
+    it("keeps the default title", async () => {
+      renderModal({ load: vi.fn().mockResolvedValue(withoutHeader) });
+
+      await screen.findByRole("link", { name: "Buka file draft" });
+      expect(screen.getByRole("dialog", { name: "Preview Draft" })).toBeInTheDocument();
+    });
+
+    it("shows dashes for the creator, deadline, and type", async () => {
+      renderModal({ load: vi.fn().mockResolvedValue(withoutHeader) });
+
+      await screen.findByRole("link", { name: "Buka file draft" });
+      expect(valueOf("Creator")).toHaveTextContent("—");
+      expect(valueOf("Deadline")).toHaveTextContent("—");
+      expect(valueOf("Tipe konten")).toHaveTextContent("—");
+    });
+
+    it("still shows the brief, since it cannot tell the content is Evergreen", async () => {
+      renderModal({ load: vi.fn().mockResolvedValue(withoutHeader) });
+
+      expect(await screen.findByText(/Tunjukkan fitur cashback\./)).toBeInTheDocument();
     });
   });
 
@@ -292,9 +281,20 @@ describe("DraftPreviewModal", () => {
   });
 
   it("fetches through the API proxy when no loader is given", async () => {
+    // What the API sends (#36 plus the header fields), not the modal's own shape.
+    const answer = {
+      brief: "Tunjukkan fitur cashback.",
+      link: "https://drive.google.com/file/d/draft-2",
+      status: "draft_review",
+      revisionHistory: [],
+      contentName: "Promo Lebaran",
+      creatorName: "Rangga Pratama",
+      deadline: "2026-10-05",
+      type: "specific",
+    };
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify(preview())));
+      .mockResolvedValue(new Response(JSON.stringify(answer)));
 
     render(<DraftPreviewModal submissionId="sub-2" onClose={vi.fn()} />);
 
