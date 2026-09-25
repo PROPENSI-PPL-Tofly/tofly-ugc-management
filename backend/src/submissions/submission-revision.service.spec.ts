@@ -116,4 +116,34 @@ describe('SubmissionRevisionService', () => {
       'Mohon perbaiki bagian pembuka.',
     );
   });
+  it('allows revision for a resubmitted draft', async () => {
+  const submission = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    content_id: '550e8400-e29b-41d4-a716-446655440001',
+    status: 'draft_revised',
+  };
+
+  const findById = vi.fn().mockResolvedValue(submission);
+
+  const saveRevision = vi.fn().mockResolvedValue({
+    id: submission.id,
+    status: 'draft_revision',
+    revisionNotes: 'Mohon perbaiki bagian akhir.',
+  });
+
+  const service = new SubmissionRevisionService({
+    findById,
+    saveRevision,
+  });
+
+  await service.revise(submission.id, {
+    revisionNotes: 'Mohon perbaiki bagian akhir.',
+  });
+
+  expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+    submission.id,
+    submission.content_id,
+    'Mohon perbaiki bagian akhir.',
+  );
+});
 });
