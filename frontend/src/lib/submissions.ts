@@ -1,6 +1,6 @@
 // Types and API client for the draft review queue (PRD 3.11).
-// The browser-side fetch goes through the same-origin /api proxy, keeping
-// BACKEND_URL out of the browser.
+// SSR pages call fetchSubmissionQueue with BACKEND_URL directly; the /api
+// proxy keeps the backend address out of the browser.
 
 export interface SubmissionQueueItem {
   submissionId: string;
@@ -19,10 +19,37 @@ export interface SubmissionQueueResponse {
   totalPages: number;
 }
 
+export interface SubmissionQueueFilters {
+  q?: string;
+  status?: string;
+  type?: string;
+  overdue?: boolean;
+}
+
 /** A search parameter can arrive repeated; the first value is the one the UI set. */
 function single(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";
+}
+
+function withoutTrailingSlash(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end -= 1;
+  return url.slice(0, end);
+}
+
+/** Builds the backend query string, omitting defaults. */
+export function buildSubmissionQuery(
+  filters: SubmissionQueueFilters & { page: number },
+): string {
+  const query = new URLSearchParams();
+  query.set("status", "review");
+  if (filters.q) query.set("q", filters.q);
+  if (filters.type && filters.type !== "all") query.set("type", filters.type);
+  if (filters.status && filters.status !== "all") query.set("filterStatus", filters.status);
+  if (filters.overdue) query.set("overdue", "true");
+  query.set("page", String(filters.page));
+  return query.toString();
 }
 
 /**
@@ -44,11 +71,23 @@ export function parseSubmissionPage(
     : { page: 1, invalid: raw };
 }
 
+/**
+ * Server-side only: talks to the backend directly so the address never reaches
+ * the browser. BACKEND_URL is read per call.
+ */
 export async function fetchSubmissionQueue(
   page: number,
+  filters: SubmissionQueueFilters = {},
 ): Promise<SubmissionQueueResponse> {
+  const backendUrl = process.env.BACKEND_URL;
+
+  if (!backendUrl) {
+    throw new Error("BACKEND_URL is not configured");
+  }
+
+  const query = buildSubmissionQuery({ page, ...filters });
   const response = await fetch(
-    `/api/submissions?status=review&page=${page}`,
+    `${withoutTrailingSlash(backendUrl)}/submissions?${query}`,
     { cache: "no-store" },
   );
 

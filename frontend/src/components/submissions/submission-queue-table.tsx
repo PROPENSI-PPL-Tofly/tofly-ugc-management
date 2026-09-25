@@ -6,6 +6,11 @@ const STATUS_LABELS: Record<string, string> = {
   draft_revised: "Draft Revised",
 };
 
+const TYPE_LABELS: Record<string, string> = {
+  evergreen: "Evergreen",
+  specific: "Specific",
+};
+
 export function SubmissionQueueTable({
   items,
 }: {
@@ -39,10 +44,11 @@ export function SubmissionQueueTable({
             <tr key={row.submissionId} className="border-b border-rule">
               <td className="px-5 py-3">{row.creatorName}</td>
               <td className="px-5 py-3">{row.contentName}</td>
-              <td className="px-5 py-3">{row.type}</td>
+              <td className="px-5 py-3">{TYPE_LABELS[row.type.toLowerCase()] ?? row.type}</td>
               <td className="px-5 py-3 whitespace-nowrap">{formatDate(row.deadline)}</td>
               <td className="px-5 py-3">{STATUS_LABELS[row.status] ?? row.status}</td>
               <td className="px-5 py-3">
+                `[TODO: Friend]`
                 <button
                   type="button"
                   className="cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 py-1 text-xs font-semibold text-ink hover:border-ink-2"

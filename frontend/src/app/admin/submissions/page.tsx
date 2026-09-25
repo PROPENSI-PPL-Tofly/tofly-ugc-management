@@ -6,6 +6,7 @@ import { Pagination } from "@/components/creators/pagination";
 import {
   fetchSubmissionQueue,
   parseSubmissionPage,
+  type SubmissionQueueFilters,
   type SubmissionQueueResponse,
 } from "@/lib/submissions";
 
@@ -38,18 +39,25 @@ export default async function SubmissionsPage({
   const params = await searchParams;
   const { page, invalid } = parseSubmissionPage(params);
 
+  const filters: SubmissionQueueFilters = {
+    q: typeof params.q === "string" ? params.q : undefined,
+    status:
+      params.status === "draft_review" || params.status === "draft_revised"
+        ? (params.status as string)
+        : "all",
+    type:
+      params.type === "evergreen" || params.type === "specific"
+        ? (params.type as string)
+        : "all",
+    overdue: params.overdue === "true",
+  };
+
   let result: SubmissionQueueResponse | null = null;
   try {
-    result = await fetchSubmissionQueue(page);
+    result = await fetchSubmissionQueue(page, filters);
   } catch {
     result = null;
   }
-
-  const q = typeof params.q === "string" ? params.q : "";
-  const status =
-    params.status === "draft_review" || params.status === "draft_revised"
-      ? (params.status as string)
-      : "all";
 
   return (
     <AppShell
@@ -67,7 +75,7 @@ export default async function SubmissionsPage({
 
       <Panel>
         <PanelHead title="Semua draft menunggu review" />
-        <SubmissionFilters q={q} status={status} />
+        <SubmissionFilters q={filters.q ?? ""} status={filters.status} type={filters.type} overdue={filters.overdue} />
         {result ? (
           <>
             <SubmissionQueueTable items={result.items} />
