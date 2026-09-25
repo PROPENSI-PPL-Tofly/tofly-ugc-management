@@ -1,10 +1,22 @@
 import { checkRevisionRequest } from './revise-submission.js';
 
-describe('checkRevisionRequest', () => {
+describe('checkRevisionRequest', () => { 
   it('accepts the revision note supplied by the admin', () => {
-    expect(
+    expect( 
       checkRevisionRequest({ revisionNotes: 'Please improve the introduction.' }),
-    ).toEqual({ revisionNotes: 'Please improve the introduction.' });
+    ).toEqual({ revisionNotes: 'Please improve the introduction.' }); 
   });
-
+  it('rejects a null request body with a field-specific 422 error', () => {
+    expect(() => checkRevisionRequest(null)).toThrow(
+      expect.objectContaining({
+        status: 422,
+        response: {
+          message: 'Data revisi tidak valid',
+          errors: {
+            revisionNotes: 'Catatan revisi harus berupa teks',
+          },
+        },
+      }),
+    );
+  });
 });
