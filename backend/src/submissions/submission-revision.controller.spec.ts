@@ -1,4 +1,6 @@
 import { SubmissionRevisionController } from './submission-revision.controller.js';
+import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
+import { RequestMethod } from '@nestjs/common';
 
 describe('SubmissionRevisionController', () => {
   it('forwards the submission ID and revision note and returns the service result', async () => {
@@ -12,4 +14,24 @@ describe('SubmissionRevisionController', () => {
 
     expect(revise).toHaveBeenCalledExactlyOnceWith(submissionId, body);
   });
+  it('exposes PATCH /submissions/:id/revise', () => {
+  const controllerPath = Reflect.getMetadata(
+    PATH_METADATA,
+    SubmissionRevisionController,
+  );
+
+  const methodPath = Reflect.getMetadata(
+    PATH_METADATA,
+    SubmissionRevisionController.prototype.revise,
+  );
+
+  const requestMethod = Reflect.getMetadata(
+    METHOD_METADATA,
+    SubmissionRevisionController.prototype.revise,
+  );
+
+  expect(controllerPath).toBe('submissions');
+  expect(methodPath).toBe(':id/revise');
+  expect(requestMethod).toBe(RequestMethod.PATCH);
+});
 });
