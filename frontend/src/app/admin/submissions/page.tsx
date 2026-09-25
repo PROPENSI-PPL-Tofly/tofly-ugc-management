@@ -75,7 +75,12 @@ export default async function SubmissionsPage({
 
       <Panel>
         <PanelHead title="Semua draft menunggu review" />
-        <SubmissionFilters q={filters.q ?? ""} status={filters.status} type={filters.type} overdue={filters.overdue} />
+        <SubmissionFilters
+          q={filters.q ?? ""}
+          status={filters.status ?? "all"}
+          type={filters.type ?? "all"}
+          overdue={filters.overdue ?? false}
+        />
         {result ? (
           <>
             <SubmissionQueueTable items={result.items} />
