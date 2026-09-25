@@ -8,10 +8,15 @@ import type { RevisionRequest } from './revise-submission.js';
 export interface SubmissionRevisionRepository {
   findById(
     submissionId: string,
-  ): Promise<{ id: string; status: string } | null>;
+  ): Promise<{
+    id: string;
+    content_id: string;
+    status: string;
+  } | null>;
 
   saveRevision(
     submissionId: string,
+    contentId: string,
     revisionNotes: string,
   ): Promise<unknown>;
 }
@@ -31,7 +36,7 @@ export class SubmissionRevisionService {
       throw new NotFoundException('Submission tidak ditemukan');
     }
 
-    if (submission.status !== 'review') {
+    if (submission.status !== 'draft_review') {
       throw new BadRequestException(
         'Submission tidak sedang menunggu review',
       );
@@ -39,6 +44,7 @@ export class SubmissionRevisionService {
 
     return this.repository.saveRevision(
       submissionId,
+      submission.content_id,
       input.revisionNotes,
     );
   }
