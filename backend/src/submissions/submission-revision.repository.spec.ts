@@ -106,4 +106,33 @@ describe('SubmissionRevisionRepository', () => {
     status: 'draft_review',
   });
 });
+it('returns null when the submission does not exist', async () => {
+  const findUnique = vi.fn().mockResolvedValue(null);
+
+  const repository = new SubmissionRevisionRepository({
+    submissions: { findUnique },
+    $transaction: vi.fn(),
+  });
+
+  const result = await repository.findById(
+    '550e8400-e29b-41d4-a716-446655440000',
+  );
+
+  expect(findUnique).toHaveBeenCalledExactlyOnceWith({
+    where: {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    select: {
+      id: true,
+      content_id: true,
+      contents: {
+        select: {
+          status: true,
+        },
+      },
+    },
+  });
+
+  expect(result).toBeNull();
+});
 });
