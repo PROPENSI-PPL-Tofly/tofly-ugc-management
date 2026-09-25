@@ -95,7 +95,10 @@ describe("AddContentModal", () => {
 
         expect(screen.getByLabelText("Jenis Konten")).toBeRequired();
         expect(screen.getByLabelText("Deadline")).toBeRequired();
-        expect(screen.getByText("wajib diisi")).toBeInTheDocument();
+        // Same wording as Tambah Creator.
+        expect(
+            screen.getByText("Kolom bertanda * wajib diisi."),
+        ).toBeInTheDocument();
 
         fireEvent.change(screen.getByLabelText("Jenis Konten"), {
             target: { value: "specific" },
