@@ -64,23 +64,6 @@ function CreatorLink({
   );
 }
 
-function RevisionNote({ revision }: Readonly<{ revision: DraftRevision }>) {
-  if (revision.note) {
-    return (
-      <>
-        <p className="mt-1.5 text-xs font-semibold">Catatan revisi</p>
-        <p className="whitespace-pre-line">{revision.note}</p>
-      </>
-    );
-  }
-
-  return (
-    <p className="mt-1.5 text-muted">
-      {revision.isCurrent ? "Menunggu review" : "Tanpa catatan revisi"}
-    </p>
-  );
-}
-
 function RevisionHistory({ revisions }: Readonly<{ revisions: DraftRevision[] }>) {
   if (revisions.length === 0) {
     return <p className="text-xs text-muted">Belum ada riwayat revisi.</p>;
@@ -88,25 +71,19 @@ function RevisionHistory({ revisions }: Readonly<{ revisions: DraftRevision[] }>
 
   return (
     <ol aria-label="Riwayat revisi" className="flex flex-col">
-      {revisions.map((revision, index) => {
-        const number = index + 1;
+      {revisions.map((revision, index) => (
+        <li
+          key={`${revision.date}|${revision.note}`}
+          className="border-b border-dashed border-rule-2 py-2 text-xs last:border-none"
+        >
+          <p className="flex flex-wrap justify-between gap-2">
+            <span className="font-semibold">Revisi ke-{index + 1}</span>
+            <span className="text-muted">{formatTimestamp(revision.date)}</span>
+          </p>
 
-        return (
-          <li
-            key={revision.submissionId}
-            className="border-b border-dashed border-rule-2 py-2 text-xs last:border-none"
-          >
-            <p className="flex flex-wrap justify-between gap-2">
-              <span className="font-semibold">Draft ke-{number}</span>
-              <span className="text-muted">{formatTimestamp(revision.submittedAt)}</span>
-            </p>
-
-            <CreatorLink link={revision.link} label={`Lihat draft ke-${number}`} />
-
-            <RevisionNote revision={revision} />
-          </li>
-        );
-      })}
+          <p className="mt-1.5 whitespace-pre-line">{revision.note}</p>
+        </li>
+      ))}
     </ol>
   );
 }
@@ -115,12 +92,16 @@ function PreviewBody({ preview }: Readonly<{ preview: DraftPreview }>) {
   return (
     <>
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <DetailField label="Creator">{preview.creatorName}</DetailField>
+        <DetailField label="Creator">{preview.creatorName ?? EMPTY}</DetailField>
 
         <DetailField label="Deadline">{formatDate(preview.deadline)}</DetailField>
 
         <DetailField label="Tipe konten">
-          <StatusDot tone="accent">{CONTENT_TYPE_LABELS[preview.type]}</StatusDot>
+          {preview.type ? (
+            <StatusDot tone="accent">{CONTENT_TYPE_LABELS[preview.type]}</StatusDot>
+          ) : (
+            EMPTY
+          )}
         </DetailField>
 
         <DetailField label="Status saat ini">
@@ -128,11 +109,12 @@ function PreviewBody({ preview }: Readonly<{ preview: DraftPreview }>) {
         </DetailField>
       </div>
 
-      {preview.type === "specific" ? (
+      {/* Evergreen content has no brief; while the type is unknown, the brief is shown. */}
+      {preview.type === "evergreen" ? null : (
         <DetailField label="Brief">
           <p className="whitespace-pre-line">{preview.brief || EMPTY}</p>
         </DetailField>
-      ) : null}
+      )}
 
       <DetailField label="File draft">
         <CreatorLink link={preview.draftLink} label="Buka file draft" showAddress />
@@ -202,7 +184,7 @@ export function DraftPreviewModal({
 
   return (
     <Modal
-      title={loaded ? state.preview.contentName : DEFAULT_TITLE}
+      title={(loaded && state.preview.contentName) || DEFAULT_TITLE}
       onClose={onClose}
       footer={
         <>

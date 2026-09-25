@@ -2,42 +2,47 @@
 // answers with, the shape the modal renders, and the one function that turns the first into
 // the second.
 //
-// The response shape is an assumption until SCRUM-123 settles it. Keeping it behind
-// toDraftPreview means a contract change is a change in this file, not in the modal.
+// The response is SCRUM-123's (#36): brief, link, status, and the revision history. The header
+// fields (contentName, creatorName, deadline, type) have been asked of it but are not sent yet,
+// so they are optional here and read as unknown until they are.
 
 import type { ContentType } from "./contents";
 import type { ContentStatus } from "./creators";
 
-/** One submission as the API sends it, oldest or newest first, unordered. */
-export interface RawDraftRevision {
-  submissionId: string;
-  link: string;
-  /** Admin's "Minta Revisi" note on this draft; null while it has not been revised. */
+/** One "Minta Revisi" as the API sends it. */
+export interface RawRevision {
   note: string | null;
-  /** submissions.created_at, a full ISO timestamp. */
-  submittedAt: string;
+  /** When the note was written (submissions.updated_at), a full ISO timestamp. */
+  date: string;
 }
 
 export interface RawDraftPreview {
-  submissionId: string;
-  contentName: string;
-  creatorName: string;
-  type: ContentType;
   brief: string | null;
+  /** The draft file of the submission asked for. */
+  link: string;
+  status: ContentStatus;
+  revisionHistory: RawRevision[];
+  contentName?: string | null;
+  creatorName?: string | null;
   /** Plain calendar day, "YYYY-MM-DD". */
-  deadline: string;
+  deadline?: string | null;
+  type?: ContentType | null;
+}
+
+export interface DraftRevision {
+  note: string;
+  date: string;
+}
+
+export interface DraftPreview {
+  submissionId: string;
+  contentName: string | null;
+  creatorName: string | null;
+  type: ContentType | null;
+  brief: string;
+  deadline: string | null;
   status: ContentStatus;
   draftLink: string;
-  revisions: RawDraftRevision[];
-}
-
-export interface DraftRevision extends RawDraftRevision {
-  /** True for the draft this preview was opened on, the one waiting for a decision. */
-  isCurrent: boolean;
-}
-
-export interface DraftPreview extends Omit<RawDraftPreview, "brief" | "revisions"> {
-  brief: string;
   /** Oldest first, so the history reads in the order it happened. */
   revisions: DraftRevision[];
 }
@@ -50,21 +55,28 @@ export class DraftPreviewError extends Error {
   }
 }
 
-/** A note of nothing but whitespace says nothing, so it reads as no note at all. */
-function readNote(note: string | null): string | null {
-  return note?.trim() ? note : null;
+/** The history is of notes: an entry whose note says nothing has nothing to show. */
+function hasNote(revision: RawRevision): revision is DraftRevision {
+  return Boolean(revision.note?.trim());
 }
 
-export function toDraftPreview(raw: RawDraftPreview): DraftPreview {
-  const revisions = raw.revisions
-    .toSorted((a, b) => Date.parse(a.submittedAt) - Date.parse(b.submittedAt))
-    .map((revision) => ({
-      ...revision,
-      note: readNote(revision.note),
-      isCurrent: revision.submissionId === raw.submissionId,
-    }));
+export function toDraftPreview(raw: RawDraftPreview, submissionId: string): DraftPreview {
+  const revisions = raw.revisionHistory
+    .filter(hasNote)
+    .toSorted((a, b) => Date.parse(a.date) - Date.parse(b.date))
+    .map(({ note, date }) => ({ note, date }));
 
-  return { ...raw, brief: raw.brief ?? "", revisions };
+  return {
+    submissionId,
+    contentName: raw.contentName ?? null,
+    creatorName: raw.creatorName ?? null,
+    type: raw.type ?? null,
+    brief: raw.brief ?? "",
+    deadline: raw.deadline ?? null,
+    status: raw.status,
+    draftLink: raw.link,
+    revisions,
+  };
 }
 
 /**
@@ -81,5 +93,5 @@ export async function fetchDraftPreview(submissionId: string): Promise<DraftPrev
     throw new DraftPreviewError(response.status);
   }
 
-  return toDraftPreview((await response.json()) as RawDraftPreview);
+  return toDraftPreview((await response.json()) as RawDraftPreview, submissionId);
 }
