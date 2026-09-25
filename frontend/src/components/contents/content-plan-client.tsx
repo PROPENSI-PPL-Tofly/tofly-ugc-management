@@ -226,7 +226,7 @@ export function ContentPlanClient({
 
             {showModal ? (
                 <AddContentModal
-                    creatorId={creatorId}
+                    contractId={currentContract.id}
                     evergreenCount={evergreenCount}
                     quota={currentContract.contentQuota}
                     contractStart={currentContract.startDate}

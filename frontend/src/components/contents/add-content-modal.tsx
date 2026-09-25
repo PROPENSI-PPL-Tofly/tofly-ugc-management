@@ -51,7 +51,7 @@ function firstAllowedDeadline(contractStart: string): string {
 }
 
 export function AddContentModal({
-                                    creatorId,
+                                    contractId,
                                     evergreenCount,
                                     quota,
                                     contractStart,
@@ -59,7 +59,7 @@ export function AddContentModal({
                                     onClose,
                                     onSaved,
                                 }: {
-    creatorId: string;
+    contractId: string;
     evergreenCount: number;
     quota: number;
     contractStart: string;
@@ -138,7 +138,7 @@ export function AddContentModal({
 
         void (async () => {
             const result = await createContent({
-                creatorId,
+                contractId,
                 type,
                 name: type === "specific" ? name : undefined,
                 brief: type === "specific" ? brief : undefined,
@@ -177,9 +177,9 @@ export function AddContentModal({
                 </>
             }
         >
-            {generalError || errors.quota ? (
+            {generalError || errors.quota || errors.contractId ? (
                 <div role="alert" className={ALERT}>
-                    {errors.quota ?? generalError}
+                    {errors.quota ?? errors.contractId ?? generalError}
                 </div>
             ) : null}
 
