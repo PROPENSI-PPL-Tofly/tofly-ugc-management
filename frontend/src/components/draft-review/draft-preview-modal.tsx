@@ -2,10 +2,10 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
-import type { ContentType } from "@/lib/contents";
-import type { ContentStatus } from "@/lib/creators";
+import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
   DraftPreviewError,
   fetchDraftPreview,
@@ -14,20 +14,6 @@ import {
 } from "@/lib/draft-preview";
 import { EMPTY, formatDate, formatTimestamp } from "@/lib/format";
 import { safeHref } from "@/lib/safe-href";
-
-const CONTENT_STATUS_LABELS: Record<ContentStatus, string> = {
-  scheduled: "Scheduled",
-  draft_review: "Draft Menunggu Review",
-  draft_revision: "Draft Perlu Revisi",
-  draft_revised: "Draft Revised",
-  draft_approved: "Draft Approved",
-  link_submitted: "Content Link Submitted",
-};
-
-const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
-  evergreen: "Evergreen",
-  specific: "Specific",
-};
 
 /** Shown in the header until there is a content name to show instead. */
 const DEFAULT_TITLE = "Preview Draft";
@@ -39,20 +25,16 @@ type LoadState =
   | { kind: "not_found" }
   | { kind: "failed" };
 
-function Field({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
-  return (
-    <div>
-      <p className="mb-1 text-[12.5px] font-semibold">{label}</p>
-      <div className="text-[13px]">{children}</div>
-    </div>
-  );
-}
-
 /**
  * A creator-typed link: clickable only when it is a web address. Anything else is shown as
  * text, so the admin can still see what was sent without a click being able to run it.
+ * `showAddress` also prints a safe link's address, so the admin sees where it leads first.
  */
-function CreatorLink({ link, label }: Readonly<{ link: string; label: string }>) {
+function CreatorLink({
+  link,
+  label,
+  showAddress = false,
+}: Readonly<{ link: string; label: string; showAddress?: boolean }>) {
   const href = safeHref(link);
 
   if (!href) {
@@ -67,14 +49,18 @@ function CreatorLink({ link, label }: Readonly<{ link: string; label: string }>)
   }
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="font-semibold text-accent-deep underline underline-offset-2"
-    >
-      {label}
-    </a>
+    <>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-accent-deep underline underline-offset-2"
+      >
+        {label}
+      </a>
+
+      {showAddress ? <p className="mt-1 break-all text-xs text-muted">{href}</p> : null}
+    </>
   );
 }
 
@@ -129,38 +115,32 @@ function PreviewBody({ preview }: Readonly<{ preview: DraftPreview }>) {
   return (
     <>
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Creator">{preview.creatorName}</Field>
+        <DetailField label="Creator">{preview.creatorName}</DetailField>
 
-        <Field label="Deadline">{formatDate(preview.deadline)}</Field>
+        <DetailField label="Deadline">{formatDate(preview.deadline)}</DetailField>
 
-        <Field label="Tipe konten">
+        <DetailField label="Tipe konten">
           <StatusDot tone="accent">{CONTENT_TYPE_LABELS[preview.type]}</StatusDot>
-        </Field>
+        </DetailField>
 
-        <Field label="Status saat ini">
+        <DetailField label="Status saat ini">
           <StatusDot>{CONTENT_STATUS_LABELS[preview.status]}</StatusDot>
-        </Field>
+        </DetailField>
       </div>
 
       {preview.type === "specific" ? (
-        <Field label="Brief">
+        <DetailField label="Brief">
           <p className="whitespace-pre-line">{preview.brief || EMPTY}</p>
-        </Field>
+        </DetailField>
       ) : null}
 
-      <Field label="File draft">
-        <CreatorLink link={preview.draftLink} label="Buka file draft" />
+      <DetailField label="File draft">
+        <CreatorLink link={preview.draftLink} label="Buka file draft" showAddress />
+      </DetailField>
 
-        {/* The address itself, so the admin sees where the link leads before opening it.
-            An unsafe link already shows as text inside CreatorLink. */}
-        {safeHref(preview.draftLink) ? (
-          <p className="mt-1 break-all text-xs text-muted">{preview.draftLink.trim()}</p>
-        ) : null}
-      </Field>
-
-      <Field label="Riwayat revisi">
+      <DetailField label="Riwayat revisi">
         <RevisionHistory revisions={preview.revisions} />
-      </Field>
+      </DetailField>
     </>
   );
 }
