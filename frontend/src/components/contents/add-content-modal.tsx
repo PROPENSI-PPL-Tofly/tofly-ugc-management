@@ -29,13 +29,13 @@ const ALERT =
 function Field({
                    label,
                    error,
-                   count,
+                   note,
                    children,
                }: {
     label: string;
     error?: string;
     /** Rendered outside the label so it stays out of the control's accessible name. */
-    count?: React.ReactNode;
+    note?: React.ReactNode;
     children: React.ReactNode;
 }) {
     return (
@@ -47,7 +47,7 @@ function Field({
                 {children}
             </label>
 
-            {count}
+            {note}
             {error ? <span className="text-xs text-red-ink">{error}</span> : null}
         </div>
     );
@@ -103,6 +103,7 @@ export function AddContentModal({
     const [saving, setSaving] = useState(false);
     const nameCountId = useId();
     const briefCountId = useId();
+    const quotaNoteId = useId();
 
     function clearFieldError(field: keyof ContentFieldErrors) {
         setErrors((current) => {
@@ -211,9 +212,20 @@ export function AddContentModal({
                 <span className="text-red-ink">*</span> <span>wajib diisi</span>
             </p>
 
-            <Field label="Jenis Konten" error={errors.type}>
+            <Field
+                label="Jenis Konten"
+                error={errors.type}
+                note={
+                    evergreenFull ? (
+                        <span id={quotaNoteId} className="text-xs text-red-ink">
+                            Kuota Evergreen sudah terpenuhi.
+                        </span>
+                    ) : null
+                }
+            >
                 <select
                     required
+                    aria-describedby={evergreenFull ? quotaNoteId : undefined}
                     className={FIELD}
                     value={type}
                     onChange={(event) =>
@@ -227,11 +239,6 @@ export function AddContentModal({
                     <option value="specific">Specific</option>
                 </select>
 
-                {evergreenFull ? (
-                    <span className="text-xs text-red-ink">
-                        Kuota Evergreen sudah terpenuhi.
-                    </span>
-                ) : null}
             </Field>
 
             {type === "specific" ? (
@@ -239,7 +246,7 @@ export function AddContentModal({
                     <Field
                         label="Nama Konten"
                         error={errors.name}
-                        count={<CharCount id={nameCountId} used={name.length} max={MAX_NAME_LENGTH} />}
+                        note={<CharCount id={nameCountId} used={name.length} max={MAX_NAME_LENGTH} />}
                     >
                         <input
                             type="text"
@@ -259,7 +266,7 @@ export function AddContentModal({
                     <Field
                         label="Brief"
                         error={errors.brief}
-                        count={<CharCount id={briefCountId} used={brief.length} max={MAX_BRIEF_LENGTH} />}
+                        note={<CharCount id={briefCountId} used={brief.length} max={MAX_BRIEF_LENGTH} />}
                     >
             <textarea
                 className={`${FIELD} min-h-24 resize-y`}
