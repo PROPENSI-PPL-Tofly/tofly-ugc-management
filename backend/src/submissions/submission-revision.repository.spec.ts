@@ -61,4 +61,46 @@ describe('SubmissionRevisionRepository', () => {
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
   });
+  it('finds a submission with its content ID and current status', async () => {
+  const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+  const contentId = '550e8400-e29b-41d4-a716-446655440001';
+
+  const findUnique = vi.fn().mockResolvedValue({
+    id: submissionId,
+    content_id: contentId,
+    contents: {
+      status: 'draft_review',
+    },
+  });
+
+  const repository = new SubmissionRevisionRepository({
+    submissions: {
+      findUnique,
+    },
+    $transaction: vi.fn(),
+  });
+
+  const result = await repository.findById(submissionId);
+
+  expect(findUnique).toHaveBeenCalledExactlyOnceWith({
+    where: {
+      id: submissionId,
+    },
+    select: {
+      id: true,
+      content_id: true,
+      contents: {
+        select: {
+          status: true,
+        },
+      },
+    },
+  });
+
+  expect(result).toEqual({
+    id: submissionId,
+    content_id: contentId,
+    status: 'draft_review',
+  });
+});
 });
