@@ -1,11 +1,12 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { AppModule } from '../app.module.js';
+import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
 import { SubmissionsController } from './submissions.controller.js';
 import { SubmissionsModule } from './submissions.module.js';
 
 describe('SubmissionsModule', () => {
-  it('registers the submissions controller and review service', () => {
+  it('registers the submissions controller and submission services', () => {
     const controllers = Reflect.getMetadata(
       MODULE_METADATA.CONTROLLERS,
       SubmissionsModule,
@@ -18,6 +19,7 @@ describe('SubmissionsModule', () => {
 
     expect(controllers).toContain(SubmissionsController);
     expect(providers).toContain(SubmissionReviewService);
+    expect(providers).toContain(SubmissionDetailService);
   });
 
   it('is part of the application', () => {
