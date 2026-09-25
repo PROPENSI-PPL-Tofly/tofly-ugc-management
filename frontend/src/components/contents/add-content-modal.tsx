@@ -12,6 +12,9 @@ import { localCalendarDay } from "@/lib/creator-form";
 import { getBufferWindow } from "@/lib/deadline-schedule";
 
 const BUFFER_DAYS = 5;
+// Same limits as the contents API (backend new-content.ts).
+const MAX_NAME_LENGTH = 200;
+const MAX_BRIEF_LENGTH = 5000;
 
 const FIELD =
     "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
@@ -210,6 +213,7 @@ export function AddContentModal({
                     <Field label="Nama Konten" error={errors.name}>
                         <input
                             type="text"
+                            maxLength={MAX_NAME_LENGTH}
                             className={FIELD}
                             value={name}
                             onChange={(event) => {
@@ -223,6 +227,7 @@ export function AddContentModal({
                     <Field label="Brief" error={errors.brief}>
             <textarea
                 className={`${FIELD} min-h-24 resize-y`}
+                maxLength={MAX_BRIEF_LENGTH}
                 value={brief}
                 onChange={(event) => {
                     setBrief(event.target.value);
