@@ -43,8 +43,8 @@ interface ExistingContent {
 interface ContentContract {
   start_date: Date;
   end_date: Date;
-
   content_quota: number;
+  creator_id?: string;
   creators: CreatorName;
   contents: ExistingContent[];
 }
@@ -66,6 +66,7 @@ interface SchedulingDependencies {
 
 export interface ContentsTransaction {
   $queryRaw: (query: Prisma.Sql) => Promise<unknown>;
+
   contracts: {
     findUnique: (args: {
       where: { id: string };
@@ -121,8 +122,12 @@ export class ContentCreationService {
         // Lock before reading: the next request must see the preceding insert
         // before checking quota and assigning an Evergreen sequence.
         await transaction.$queryRaw(Prisma.sql`
-      SELECT id FROM contracts WHERE id = ${input.contractId}::uuid FOR UPDATE
-    `);
+          SELECT id
+          FROM contracts
+          WHERE id = ${input.contractId}::uuid
+          FOR UPDATE
+        `);
+
         const contract = await this.requireContract(
           transaction,
           input.contractId,
@@ -131,6 +136,7 @@ export class ContentCreationService {
         const evergreenCount = contract.contents.filter(
           (content) => content.type === 'evergreen',
         ).length;
+
         await this.validateSlot(input, contract, evergreenCount);
 
         let name: string;
@@ -158,6 +164,14 @@ export class ContentCreationService {
             status: 'scheduled',
           },
         });
+
+        if (contract.creator_id) {
+          this.notifyCreatorMock({
+            creatorId: contract.creator_id,
+            contentName: saved.name,
+            deadline: toDay(saved.deadline),
+          });
+        }
 
         return {
           id: saved.id,
@@ -190,11 +204,13 @@ export class ContentCreationService {
       },
       jakartaDay(this.scheduling.today()),
     );
+
     // SCRUM-103 calls this field contentType; the HTTP request uses type.
     const errors = {
       ...(contentType ? { type: contentType } : {}),
       ...(deadline ? { deadline } : {}),
     };
+
     if (Object.keys(errors).length > 0) {
       throw new UnprocessableEntityException({
         message: 'Data konten tidak valid',
@@ -219,6 +235,14 @@ export class ContentCreationService {
       .join(' ');
 
     return evergreenName(fullName, deadline, evergreenCount + 1);
+  }
+
+  private notifyCreatorMock(input: {
+    creatorId: string;
+    contentName: string;
+    deadline: string;
+  }): void {
+    console.info('[MOCK EMAIL] Creator content notification', input);
   }
 
   private async requireContract(
