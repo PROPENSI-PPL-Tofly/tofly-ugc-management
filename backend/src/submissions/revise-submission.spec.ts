@@ -58,4 +58,21 @@ describe('checkRevisionRequest', () => {
       }),
     ).toEqual({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
   });
+  it('rejects a blank revision note with a field-specific 422 error', () => {
+  expect(() =>
+    checkRevisionRequest({
+      revisionNotes: '   ',
+    }),
+  ).toThrow(
+    expect.objectContaining({
+      status: 422,
+      response: {
+        message: 'Data revisi tidak valid',
+        errors: {
+          revisionNotes: 'Catatan revisi tidak boleh kosong',
+        },
+      },
+    }),
+  );
+});
 });
