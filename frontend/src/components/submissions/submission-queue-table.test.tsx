@@ -42,6 +42,12 @@ describe("SubmissionQueueTable", () => {
     expect(screen.getByText("15 Sep 2026")).toBeInTheDocument();
   });
 
+  it("shows 'Specific' for specific type", () => {
+    render(<SubmissionQueueTable items={[ITEMS[1]]} />);
+
+    expect(screen.getByText("Specific")).toBeInTheDocument();
+  });
+
   it("shows 'Draft Menunggu Review' for draft_review status", () => {
     render(<SubmissionQueueTable items={[ITEMS[0]]} />);
 

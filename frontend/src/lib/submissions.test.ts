@@ -1,4 +1,4 @@
-import { parseSubmissionPage, fetchSubmissionQueue, type SubmissionQueueResponse } from "./submissions";
+import { parseSubmissionPage, fetchSubmissionQueue, buildSubmissionQuery, type SubmissionQueueResponse } from "./submissions";
 
 describe("parseSubmissionPage", () => {
   it("defaults to the first page when nothing is given", () => {
@@ -26,16 +26,49 @@ describe("parseSubmissionPage", () => {
   });
 });
 
+describe("buildSubmissionQuery", () => {
+  it("includes status=review and page by default", () => {
+    expect(buildSubmissionQuery({ page: 1 })).toBe("status=review&page=1");
+  });
+
+  it("adds q when provided", () => {
+    expect(buildSubmissionQuery({ page: 1, q: "salsa" })).toContain("q=salsa");
+  });
+
+  it("adds type when not 'all'", () => {
+    expect(buildSubmissionQuery({ page: 1, type: "evergreen" })).toContain("type=evergreen");
+  });
+
+  it("omits type when 'all'", () => {
+    expect(buildSubmissionQuery({ page: 1, type: "all" })).not.toContain("type=");
+  });
+
+  it("adds filterStatus when not 'all'", () => {
+    expect(buildSubmissionQuery({ page: 1, status: "draft_revised" })).toContain("filterStatus=draft_revised");
+  });
+
+  it("adds overdue when true", () => {
+    expect(buildSubmissionQuery({ page: 1, overdue: true })).toContain("overdue=true");
+  });
+});
+
 describe("fetchSubmissionQueue", () => {
   beforeEach(() => {
+    vi.stubEnv("BACKEND_URL", "http://localhost:3001");
     vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("")));
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
-  it("calls the submissions API with status=review and the requested page", async () => {
+  it("throws when BACKEND_URL is missing", async () => {
+    vi.stubEnv("BACKEND_URL", undefined);
+    await expect(fetchSubmissionQueue(1)).rejects.toThrow("BACKEND_URL is not configured");
+  });
+
+  it("calls the backend with status=review and the requested page", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ items: [], page: 2, pageSize: 10, total: 0, totalPages: 1 })),
     );
@@ -43,12 +76,24 @@ describe("fetchSubmissionQueue", () => {
     await fetchSubmissionQueue(2);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/api/submissions?status=review&page=2",
+      "http://localhost:3001/submissions?status=review&page=2",
       { cache: "no-store" },
     );
   });
 
-  it("throws when the API responds with an error status", async () => {
+  it("forwards q and status in the query", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 })),
+    );
+
+    await fetchSubmissionQueue(1, { q: "salsa", status: "draft_revised" });
+
+    const url = vi.mocked(globalThis.fetch).mock.calls[0][0] as string;
+    expect(url).toContain("q=salsa");
+    expect(url).toContain("filterStatus=draft_revised");
+  });
+
+  it("throws when the backend responds with an error status", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response("", { status: 500 }));
 
     await expect(fetchSubmissionQueue(1)).rejects.toThrow("HTTP 500");

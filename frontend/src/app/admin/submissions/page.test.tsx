@@ -28,7 +28,7 @@ describe("Antrian Draft page", () => {
     mockedFetch.mockReset();
   });
 
-  it("fetches queue with page=1 when no params", async () => {
+  it("fetches queue with page=1 and default filters when no params", async () => {
     mockedFetch.mockResolvedValue({
       items: [],
       page: 1,
@@ -39,7 +39,12 @@ describe("Antrian Draft page", () => {
 
     await renderPage({});
 
-    expect(mockedFetch).toHaveBeenCalledWith(1);
+    expect(mockedFetch).toHaveBeenCalledWith(1, {
+      q: undefined,
+      status: "all",
+      type: "all",
+      overdue: false,
+    });
   });
 
   it("renders the queue table and pagination when items exist", async () => {

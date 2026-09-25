@@ -8,22 +8,27 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("SubmissionFilters", () => {
-  it("renders a search input and status filter dropdown", () => {
-    render(<SubmissionFilters q="" status="all" />);
+  it("renders search, status, type, and overdue controls", () => {
+    render(<SubmissionFilters q="" status="all" type="all" overdue={false} />);
 
     expect(screen.getByPlaceholderText(/cari kreator atau konten/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/status/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/tipe/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeInTheDocument();
   });
 
-  it("shows reset button when filters are active", () => {
-    render(<SubmissionFilters q="salsa" status="draft_review" />);
-
+  it("shows reset button when any filter is active", () => {
+    render(<SubmissionFilters q="salsa" status="all" type="all" overdue={false} />);
     expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
   });
 
-  it("does not show reset button when filters are all default", () => {
-    render(<SubmissionFilters q="" status="all" />);
+  it("shows reset when overdue is checked", () => {
+    render(<SubmissionFilters q="" status="all" type="all" overdue />);
+    expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
+  });
 
+  it("does not show reset button when all filters are default", () => {
+    render(<SubmissionFilters q="" status="all" type="all" overdue={false} />);
     expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
   });
 });
