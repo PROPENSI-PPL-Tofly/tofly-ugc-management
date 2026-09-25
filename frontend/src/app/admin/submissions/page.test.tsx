@@ -13,6 +13,8 @@ vi.mock("@/lib/submissions", () => ({
   }),
 }));
 
+const mockedFetch = vi.mocked(fetchSubmissionQueue);
+
 async function renderPage(searchParams: Record<string, string> = {}) {
   const result = await SubmissionsPage({
     searchParams: Promise.resolve(searchParams) as Promise<Record<string, string | string[] | undefined>>,
@@ -23,11 +25,11 @@ async function renderPage(searchParams: Record<string, string> = {}) {
 
 describe("Antrian Draft page", () => {
   beforeEach(() => {
-    (fetchSubmissionQueue as any).mockReset();
+    mockedFetch.mockReset();
   });
 
   it("fetches queue with page=1 when no params", async () => {
-    (fetchSubmissionQueue as any).mockResolvedValue({
+    mockedFetch.mockResolvedValue({
       items: [],
       page: 1,
       pageSize: 10,
@@ -37,11 +39,11 @@ describe("Antrian Draft page", () => {
 
     await renderPage({});
 
-    expect(fetchSubmissionQueue).toHaveBeenCalledWith(1);
+    expect(mockedFetch).toHaveBeenCalledWith(1);
   });
 
   it("renders the queue table and pagination when items exist", async () => {
-    (fetchSubmissionQueue as any).mockResolvedValue({
+    mockedFetch.mockResolvedValue({
       items: [
         {
           submissionId: "1",
@@ -66,7 +68,7 @@ describe("Antrian Draft page", () => {
   });
 
   it("shows load failed message when backend errors", async () => {
-    (fetchSubmissionQueue as any).mockRejectedValue(new Error("fail"));
+    mockedFetch.mockRejectedValue(new Error("fail"));
 
     await renderPage({});
 
@@ -74,7 +76,7 @@ describe("Antrian Draft page", () => {
   });
 
   it("shows invalid page message for bad page param", async () => {
-    (fetchSubmissionQueue as any).mockResolvedValue({
+    mockedFetch.mockResolvedValue({
       items: [],
       page: 1,
       pageSize: 10,

@@ -1,4 +1,4 @@
-import { parseSubmissionPage, fetchSubmissionQueue, type SubmissionQueueItem, type SubmissionQueueResponse } from "./submissions";
+import { parseSubmissionPage, fetchSubmissionQueue, type SubmissionQueueResponse } from "./submissions";
 
 describe("parseSubmissionPage", () => {
   it("defaults to the first page when nothing is given", () => {
@@ -28,28 +28,28 @@ describe("parseSubmissionPage", () => {
 
 describe("fetchSubmissionQueue", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("")));
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("calls the submissions API with status=review and the requested page", async () => {
-    (fetch as any).mockResolvedValue(
+    vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ items: [], page: 2, pageSize: 10, total: 0, totalPages: 1 })),
     );
 
     await fetchSubmissionQueue(2);
 
-    expect(fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       "/api/submissions?status=review&page=2",
       { cache: "no-store" },
     );
   });
 
   it("throws when the API responds with an error status", async () => {
-    (fetch as any).mockResolvedValue(new Response("", { status: 500 }));
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response("", { status: 500 }));
 
     await expect(fetchSubmissionQueue(1)).rejects.toThrow("HTTP 500");
   });
@@ -71,7 +71,7 @@ describe("fetchSubmissionQueue", () => {
       total: 1,
       totalPages: 1,
     };
-    (fetch as any).mockResolvedValue(new Response(JSON.stringify(expected)));
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(JSON.stringify(expected)));
 
     const result = await fetchSubmissionQueue(1);
 
