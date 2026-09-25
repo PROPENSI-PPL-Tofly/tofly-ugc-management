@@ -208,9 +208,7 @@ export function AddContentModal({
                 </div>
             ) : null}
 
-            <p aria-hidden="true" className="text-xs text-muted">
-                <span className="text-red-ink">*</span> <span>wajib diisi</span>
-            </p>
+            <p className="text-xs text-muted">Kolom bertanda * wajib diisi.</p>
 
             <Field
                 label="Jenis Konten"
