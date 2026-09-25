@@ -12,7 +12,7 @@ describe('PATCH /submissions/:id/revise', () => {
 
   const findUnique = vi.fn();
   const submissionUpdate = vi.fn();
-  const contentUpdate = vi.fn();
+  const contentUpdateMany = vi.fn();
 
   const prisma = {
     submissions: {
@@ -25,7 +25,7 @@ describe('PATCH /submissions/:id/revise', () => {
           update: submissionUpdate,
         },
         contents: {
-          update: contentUpdate,
+          updateMany: contentUpdateMany,
         },
       }),
     ),
@@ -39,6 +39,11 @@ describe('PATCH /submissions/:id/revise', () => {
       content_id: contentId,
       contents: {
         status: 'draft_review',
+        submissions: [
+          {
+            id: submissionId,
+          },
+        ],
       },
     });
 
@@ -48,9 +53,8 @@ describe('PATCH /submissions/:id/revise', () => {
       revision_notes: 'Mohon perbaiki bagian pembuka.',
     });
 
-    contentUpdate.mockResolvedValue({
-      id: contentId,
-      status: 'draft_revision',
+    contentUpdateMany.mockResolvedValue({
+      count: 1,
     });
 
     const moduleRef = await Test.createTestingModule({
@@ -83,21 +87,24 @@ describe('PATCH /submissions/:id/revise', () => {
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
 
+    expect(contentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: contentId,
+        status: {
+          in: ['draft_review', 'draft_revised'],
+        },
+      },
+      data: {
+        status: 'draft_revision',
+      },
+    });
+
     expect(submissionUpdate).toHaveBeenCalledWith({
       where: {
         id: submissionId,
       },
       data: {
         revision_notes: 'Mohon perbaiki bagian pembuka.',
-      },
-    });
-
-    expect(contentUpdate).toHaveBeenCalledWith({
-      where: {
-        id: contentId,
-      },
-      data: {
-        status: 'draft_revision',
       },
     });
   });
