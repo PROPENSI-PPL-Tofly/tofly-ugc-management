@@ -19,6 +19,14 @@ const ITEMS: SubmissionQueueItem[] = [
     deadline: "2026-09-20",
     status: "draft_revised",
   },
+  {
+    submissionId: "333",
+    creatorName: "Test Unknown",
+    contentName: "Unknown Type",
+    type: "unknown_type",
+    deadline: "2026-09-25",
+    status: "draft_review",
+  },
 ];
 
 describe("SubmissionQueueTable", () => {
@@ -60,11 +68,32 @@ describe("SubmissionQueueTable", () => {
     expect(screen.getByText("Draft Revised")).toBeInTheDocument();
   });
 
+  it("falls back to raw type string for unknown types", () => {
+    render(<SubmissionQueueTable items={[ITEMS[2]]} />);
+
+    expect(screen.getByText("unknown_type")).toBeInTheDocument();
+  });
+
+  it("falls back to the raw status string for unknown statuses", () => {
+    render(
+      <SubmissionQueueTable
+        items={[
+          {
+            ...ITEMS[0],
+            status: "custom_status" as SubmissionQueueItem["status"],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("custom_status")).toBeInTheDocument();
+  });
+
   it("renders a 'Lihat Detail' button for each row", () => {
     render(<SubmissionQueueTable items={ITEMS} />);
 
     const buttons = screen.getAllByRole("button", { name: /lihat detail/i });
-    expect(buttons).toHaveLength(2);
+    expect(buttons).toHaveLength(3);
   });
 
   it("shows a 'no submissions' message when items is empty", () => {

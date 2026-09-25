@@ -98,4 +98,75 @@ describe("Antrian Draft page", () => {
 
     expect(screen.getByText(/halaman.*abc.*tidak dikenal/i)).toBeInTheDocument();
   });
+
+  it("forwards valid status, type, q and overdue filters", async () => {
+    mockedFetch.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      totalPages: 0,
+    });
+
+    await renderPage({
+      q: "salsa",
+      status: "draft_revised",
+      type: "evergreen",
+      overdue: "true",
+    });
+
+    expect(mockedFetch).toHaveBeenCalledWith(1, {
+      q: "salsa",
+      status: "draft_revised",
+      type: "evergreen",
+      overdue: true,
+    });
+  });
+
+  it("falls back to defaults for unknown status and type values", async () => {
+    mockedFetch.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      totalPages: 0,
+    });
+
+    await renderPage({
+      status: "draft_approved",
+      type: "unknown",
+      overdue: "false",
+    });
+
+    expect(mockedFetch).toHaveBeenCalledWith(1, {
+      q: undefined,
+      status: "all",
+      type: "all",
+      overdue: false,
+    });
+  });
+
+  it("ignores a repeated q parameter", async () => {
+    mockedFetch.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      totalPages: 0,
+    });
+
+    const result = await SubmissionsPage({
+      searchParams: Promise.resolve({
+        q: ["first", "second"],
+      }) as Promise<Record<string, string | string[] | undefined>>,
+    });
+    render(<>{result}</>);
+
+    expect(mockedFetch).toHaveBeenCalledWith(1, {
+      q: undefined,
+      status: "all",
+      type: "all",
+      overdue: false,
+    });
+  });
 });

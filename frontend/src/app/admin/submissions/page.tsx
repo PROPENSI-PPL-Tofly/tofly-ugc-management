@@ -39,18 +39,18 @@ export default async function SubmissionsPage({
   const params = await searchParams;
   const { page, invalid } = parseSubmissionPage(params);
 
-  const filters: SubmissionQueueFilters = {
+  const filters = {
     q: typeof params.q === "string" ? params.q : undefined,
     status:
       params.status === "draft_review" || params.status === "draft_revised"
-        ? (params.status as string)
+        ? params.status
         : "all",
     type:
       params.type === "evergreen" || params.type === "specific"
-        ? (params.type as string)
+        ? params.type
         : "all",
     overdue: params.overdue === "true",
-  };
+  } satisfies SubmissionQueueFilters;
 
   let result: SubmissionQueueResponse | null = null;
   try {
@@ -77,9 +77,9 @@ export default async function SubmissionsPage({
         <PanelHead title="Semua draft menunggu review" />
         <SubmissionFilters
           q={filters.q ?? ""}
-          status={filters.status ?? "all"}
-          type={filters.type ?? "all"}
-          overdue={filters.overdue ?? false}
+          status={filters.status}
+          type={filters.type}
+          overdue={filters.overdue}
         />
         {result ? (
           <>

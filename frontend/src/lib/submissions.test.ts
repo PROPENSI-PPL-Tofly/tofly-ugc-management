@@ -1,4 +1,9 @@
-import { parseSubmissionPage, fetchSubmissionQueue, buildSubmissionQuery, type SubmissionQueueResponse } from "./submissions";
+import {
+  parseSubmissionPage,
+  fetchSubmissionQueue,
+  buildSubmissionQuery,
+  type SubmissionQueueResponse,
+} from "./submissions";
 
 describe("parseSubmissionPage", () => {
   it("defaults to the first page when nothing is given", () => {
@@ -50,6 +55,22 @@ describe("buildSubmissionQuery", () => {
   it("adds overdue when true", () => {
     expect(buildSubmissionQuery({ page: 1, overdue: true })).toContain("overdue=true");
   });
+
+  it("combines all filters together", () => {
+    const result = buildSubmissionQuery({
+      page: 2,
+      q: "test",
+      type: "specific",
+      status: "draft_review",
+      overdue: true,
+    });
+    expect(result).toContain("status=review");
+    expect(result).toContain("q=test");
+    expect(result).toContain("type=specific");
+    expect(result).toContain("filterStatus=draft_review");
+    expect(result).toContain("overdue=true");
+    expect(result).toContain("page=2");
+  });
 });
 
 describe("fetchSubmissionQueue", () => {
@@ -81,6 +102,18 @@ describe("fetchSubmissionQueue", () => {
     );
   });
 
+  it("strips trailing slash from BACKEND_URL", async () => {
+    vi.stubEnv("BACKEND_URL", "http://localhost:3001/");
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 })),
+    );
+
+    await fetchSubmissionQueue(1);
+
+    const url = vi.mocked(globalThis.fetch).mock.calls[0][0] as string;
+    expect(url).toBe("http://localhost:3001/submissions?status=review&page=1");
+  });
+
   it("forwards q and status in the query", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 })),
@@ -91,6 +124,18 @@ describe("fetchSubmissionQueue", () => {
     const url = vi.mocked(globalThis.fetch).mock.calls[0][0] as string;
     expect(url).toContain("q=salsa");
     expect(url).toContain("filterStatus=draft_revised");
+  });
+
+  it("forwards type and overdue filters", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 })),
+    );
+
+    await fetchSubmissionQueue(1, { type: "specific", overdue: true });
+
+    const url = vi.mocked(globalThis.fetch).mock.calls[0][0] as string;
+    expect(url).toContain("type=specific");
+    expect(url).toContain("overdue=true");
   });
 
   it("throws when the backend responds with an error status", async () => {
