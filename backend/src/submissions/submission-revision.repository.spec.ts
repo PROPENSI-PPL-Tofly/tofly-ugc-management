@@ -64,7 +64,7 @@ describe('SubmissionRevisionRepository', () => {
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
   });
-  it('finds a submission with its content ID and current status', async () => {
+  it('finds a submission with its content ID, current status, and latest state', async () => {
   const submissionId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '550e8400-e29b-41d4-a716-446655440001';
 
@@ -73,6 +73,11 @@ describe('SubmissionRevisionRepository', () => {
     content_id: contentId,
     contents: {
       status: 'draft_review',
+      submissions: [
+        {
+          id: submissionId,
+        },
+      ],
     },
   });
 
@@ -95,6 +100,13 @@ describe('SubmissionRevisionRepository', () => {
       contents: {
         select: {
           status: true,
+          submissions: {
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            take: 1,
+            select: {
+              id: true,
+            },
+          },
         },
       },
     },
@@ -104,6 +116,40 @@ describe('SubmissionRevisionRepository', () => {
     id: submissionId,
     content_id: contentId,
     status: 'draft_review',
+    isLatest: true,
+  });
+});
+it('marks an older submission as not latest', async () => {
+  const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+  const contentId = '550e8400-e29b-41d4-a716-446655440001';
+
+  const findUnique = vi.fn().mockResolvedValue({
+    id: submissionId,
+    content_id: contentId,
+    contents: {
+      status: 'draft_review',
+      submissions: [
+        {
+          id: '550e8400-e29b-41d4-a716-446655440099',
+        },
+      ],
+    },
+  });
+
+  const repository = new SubmissionRevisionRepository({
+    submissions: {
+      findUnique,
+    },
+    $transaction: vi.fn(),
+  });
+
+  const result = await repository.findById(submissionId);
+
+  expect(result).toEqual({
+    id: submissionId,
+    content_id: contentId,
+    status: 'draft_review',
+    isLatest: false,
   });
 });
 it('returns null when the submission does not exist', async () => {
