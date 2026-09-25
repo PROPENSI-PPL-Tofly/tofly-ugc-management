@@ -60,7 +60,7 @@ function deferred() {
 }
 
 async function historyEntries() {
-  const history = await screen.findByRole("list", { name: "Riwayat draft" });
+  const history = await screen.findByRole("list", { name: "Riwayat revisi" });
   return within(history).getAllByRole("listitem");
 }
 
@@ -134,6 +134,13 @@ describe("DraftPreviewModal", () => {
       expect(link).toHaveAttribute("href", "https://drive.google.com/file/d/draft-2");
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("shows where the draft link leads before the admin opens it", async () => {
+      renderModal();
+
+      await screen.findByRole("link", { name: "Buka file draft" });
+      expect(screen.getByText("https://drive.google.com/file/d/draft-2")).toBeInTheDocument();
     });
 
     it("shows the review actions it was given next to Tutup", async () => {
@@ -225,8 +232,8 @@ describe("DraftPreviewModal", () => {
     it("says so when there is no history to show", async () => {
       renderModal({ load: vi.fn().mockResolvedValue(preview({ revisions: [] })) });
 
-      expect(await screen.findByText("Belum ada riwayat draft.")).toBeInTheDocument();
-      expect(screen.queryByRole("list", { name: "Riwayat draft" })).not.toBeInTheDocument();
+      expect(await screen.findByText("Belum ada riwayat revisi.")).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Riwayat revisi" })).not.toBeInTheDocument();
     });
   });
 
