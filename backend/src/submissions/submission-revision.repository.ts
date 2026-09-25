@@ -1,3 +1,7 @@
+import { REVIEWABLE_STATUSES } from './draft-review.js';
+
+type ReviewableStatus = (typeof REVIEWABLE_STATUSES)[number];
+
 interface SubmissionLookup {
   submissions: {
     findUnique(args: {
@@ -44,12 +48,18 @@ interface RevisionTransaction {
   };
 
   contents: {
-    update(args: {
-      where: { id: string };
-      data: { status: 'draft_revision' };
+    updateMany(args: {
+      where: {
+        id: string;
+        status: {
+          in: ReviewableStatus[];
+        };
+      };
+      data: {
+        status: 'draft_revision';
+      };
     }): Promise<{
-      id: string;
-      status: string;
+      count: number;
     }>;
   };
 }
@@ -111,23 +121,30 @@ export class SubmissionRevisionRepository {
     id: string;
     status: string;
     revisionNotes: string | null;
-  }> {
+  } | null> {
     return this.prisma.$transaction(async (transaction) => {
+      const { count } = await transaction.contents.updateMany({
+        where: {
+          id: contentId,
+          status: {
+            in: [...REVIEWABLE_STATUSES],
+          },
+        },
+        data: {
+          status: 'draft_revision',
+        },
+      });
+
+      if (count === 0) {
+        return null;
+      }
+
       const submission = await transaction.submissions.update({
         where: {
           id: submissionId,
         },
         data: {
           revision_notes: revisionNotes,
-        },
-      });
-
-      await transaction.contents.update({
-        where: {
-          id: contentId,
-        },
-        data: {
-          status: 'draft_revision',
         },
       });
 
@@ -139,5 +156,3 @@ export class SubmissionRevisionRepository {
     });
   }
 }
-
- 

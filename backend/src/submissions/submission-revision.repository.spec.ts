@@ -2,68 +2,68 @@ import { SubmissionRevisionRepository } from './submission-revision.repository.j
 
 describe('SubmissionRevisionRepository', () => {
   it('stores the revision note and changes the content status to draft_revision', async () => {
-    const submissionId = '550e8400-e29b-41d4-a716-446655440000';
-    const contentId = '550e8400-e29b-41d4-a716-446655440001';
+  const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+  const contentId = '550e8400-e29b-41d4-a716-446655440001';
 
-    const submissionUpdate = vi.fn().mockResolvedValue({
-      id: submissionId,
-      content_id: contentId,
-      revision_notes: 'Mohon perbaiki bagian pembuka.',
-    });
+  const updateSubmission = vi.fn().mockResolvedValue({
+    id: submissionId,
+    content_id: contentId,
+    revision_notes: 'Mohon perbaiki bagian pembuka.',
+  });
 
-    const contentUpdate = vi.fn().mockResolvedValue({
-      id: contentId,
-      status: 'draft_revision',
-    });
+  const updateManyContent = vi.fn().mockResolvedValue({
+    count: 1,
+  });
 
-    const transaction = vi.fn(async (callback) =>
+  const repository = new SubmissionRevisionRepository({
+    submissions: {
+      findUnique: vi.fn(),
+    },
+    $transaction: vi.fn(async (callback) =>
       callback({
         submissions: {
-          update: submissionUpdate,
+          update: updateSubmission,
         },
         contents: {
-          update: contentUpdate,
+          updateMany: updateManyContent,
         },
       }),
-    );
-
-    const repository = new SubmissionRevisionRepository({
-  submissions: {
-    findUnique: vi.fn(),
-  },
-  $transaction: transaction,
-});
-
-    const result = await repository.saveRevision(
-      submissionId,
-      contentId,
-      'Mohon perbaiki bagian pembuka.',
-    );
-
-    expect(submissionUpdate).toHaveBeenCalledWith({
-      where: {
-        id: submissionId,
-      },
-      data: {
-        revision_notes: 'Mohon perbaiki bagian pembuka.',
-      },
-    });
-
-    expect(contentUpdate).toHaveBeenCalledWith({
-      where: {
-        id: contentId,
-      },
-      data: {
-        status: 'draft_revision',
-      },
-    });
-
-    expect(result).toEqual({
-      id: submissionId,
-      status: 'draft_revision',
-      revisionNotes: 'Mohon perbaiki bagian pembuka.',
-    });
+    ),
   });
+
+  const result = await repository.saveRevision(
+    submissionId,
+    contentId,
+    'Mohon perbaiki bagian pembuka.',
+  );
+
+  expect(updateManyContent).toHaveBeenCalledExactlyOnceWith({
+    where: {
+      id: contentId,
+      status: {
+        in: ['draft_review', 'draft_revised'],
+      },
+    },
+    data: {
+      status: 'draft_revision',
+    },
+  });
+
+  expect(updateSubmission).toHaveBeenCalledExactlyOnceWith({
+    where: {
+      id: submissionId,
+    },
+    data: {
+      revision_notes: 'Mohon perbaiki bagian pembuka.',
+    },
+  });
+
+  expect(result).toEqual({
+    id: submissionId,
+    status: 'draft_revision',
+    revisionNotes: 'Mohon perbaiki bagian pembuka.',
+  });
+});
   it('does not save the revision note when the content is no longer reviewable', async () => {
   const submissionId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '550e8400-e29b-41d4-a716-446655440001';

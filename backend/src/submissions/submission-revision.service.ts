@@ -9,6 +9,12 @@ import {
 } from './draft-review.js';
 import type { RevisionRequest } from './revise-submission.js';
 
+interface RevisionResult {
+  id: string;
+  status: string;
+  revisionNotes: string | null;
+}
+
 export interface SubmissionRevisionRepository {
   findById(
     submissionId: string,
@@ -23,7 +29,7 @@ export interface SubmissionRevisionRepository {
     submissionId: string,
     contentId: string,
     revisionNotes: string,
-  ): Promise<unknown>;
+  ): Promise<RevisionResult | null>;
 }
 
 const REJECTION_MESSAGES: Record<ReviewRejection, string> = {
@@ -46,7 +52,7 @@ export class SubmissionRevisionService {
   async revise(
     submissionId: string,
     input: RevisionRequest,
-  ): Promise<unknown> {
+  ): Promise<RevisionResult> {
     const submission = await this.repository.findById(submissionId);
 
     if (!submission) {
@@ -62,10 +68,16 @@ export class SubmissionRevisionService {
       throw conflict(rejected);
     }
 
-    return this.repository.saveRevision(
+    const result = await this.repository.saveRevision(
       submissionId,
       submission.content_id,
       input.revisionNotes,
     );
+
+    if (!result) {
+      throw conflict('DRAFT_NOT_REVIEWABLE');
+    }
+
+    return result;
   }
 }
