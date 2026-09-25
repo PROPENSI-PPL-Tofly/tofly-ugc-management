@@ -58,4 +58,26 @@ describe('SubmissionRevisionService', () => {
 
   expect(saveRevision).not.toHaveBeenCalled();
 });
+it('rejects a submission that is not in review status', async () => {
+  const submission = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    status: 'approved',
+  };
+
+  const findById = vi.fn().mockResolvedValue(submission);
+  const saveRevision = vi.fn();
+
+  const service = new SubmissionRevisionService({
+    findById,
+    saveRevision,
+  });
+
+  await expect(
+    service.revise(submission.id, {
+      revisionNotes: 'Please revise this draft.',
+    }),
+  ).rejects.toThrow();
+
+  expect(saveRevision).not.toHaveBeenCalled();
+});
 });
