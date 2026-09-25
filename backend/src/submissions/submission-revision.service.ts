@@ -36,11 +36,13 @@ export class SubmissionRevisionService {
       throw new NotFoundException('Submission tidak ditemukan');
     }
 
-    if (submission.status !== 'draft_review') {
-      throw new BadRequestException(
-        'Submission tidak sedang menunggu review',
-      );
-    }
+    const reviewableStatuses = ['draft_review', 'draft_revised'];
+
+    if (!reviewableStatuses.includes(submission.status)) {
+    throw new BadRequestException(
+    'Submission tidak sedang menunggu review',
+  );
+}
 
     return this.repository.saveRevision(
       submissionId,
