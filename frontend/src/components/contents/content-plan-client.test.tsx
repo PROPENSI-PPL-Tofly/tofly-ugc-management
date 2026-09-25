@@ -164,7 +164,7 @@ describe("ContentPlanClient", () => {
 
         expect(
             screen.getByText(
-                "Rangga Pratama · 0/6 konten",
+                "Rangga Pratama · Evergreen 0/6 · 6 slot belum teralokasi",
             ),
         ).toBeInTheDocument();
     });
@@ -339,6 +339,43 @@ describe("ContentPlanClient", () => {
         ).toHaveTextContent("2026-12-07");
     });
 
+    it("counts only Evergreen content against the quota in the header", async () => {
+        mockedFetchCreatorDetail.mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-1",
+                        name: "Evg_1_Rangga Pratama_30092026",
+                        type: "evergreen",
+                        deadline: "2026-09-30",
+                        status: "scheduled",
+                        outcome: "open",
+                        videoLink: null,
+                    },
+                    {
+                        id: "content-2",
+                        name: "Promo 10.10",
+                        type: "specific",
+                        deadline: "2026-10-05",
+                        status: "scheduled",
+                        outcome: "open",
+                        videoLink: null,
+                    },
+                ],
+            }),
+        );
+
+        render(
+            <ContentPlanClient creatorId="creator-1" />,
+        );
+
+        expect(
+            await screen.findByText(
+                "Rangga Pratama · Evergreen 1/6 · 5 slot belum teralokasi",
+            ),
+        ).toBeInTheDocument();
+    });
+
     it("closes the modal when its close callback runs", async () => {
         mockedFetchCreatorDetail.mockResolvedValue(
             detail(),
@@ -510,7 +547,7 @@ describe("ContentPlanClient", () => {
 
         expect(
             await screen.findByText(
-                "Creator Dua · 0/6 konten",
+                "Creator Dua · Evergreen 0/6 · 6 slot belum teralokasi",
             ),
         ).toBeInTheDocument();
 
