@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -13,11 +13,15 @@ import { getBufferWindow } from "@/lib/deadline-schedule";
 
 const BUFFER_DAYS = 5;
 // Same limits as the contents API (backend new-content.ts).
-const MAX_NAME_LENGTH = 200;
-const MAX_BRIEF_LENGTH = 5000;
+const MAX_NAME_LENGTH = 100;
+const MAX_BRIEF_LENGTH = 2000;
 
 const FIELD =
     "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
+
+// Every field in this form is required. Drawn by CSS so the asterisk stays out of the label text and the accessible name;
+// screen readers announce "required" from the control's own attribute instead.
+const REQUIRED_MARK = "after:ml-0.5 after:text-red-ink after:content-['*']";
 
 const ALERT =
     "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
@@ -25,21 +29,36 @@ const ALERT =
 function Field({
                    label,
                    error,
+                   note,
                    children,
                }: {
     label: string;
     error?: string;
+    /** Rendered outside the label so it stays out of the control's accessible name. */
+    note?: React.ReactNode;
     children: React.ReactNode;
 }) {
     return (
         <div className="flex flex-col gap-1 text-[13px]">
             <label className="flex flex-col gap-1">
-                <span className="font-semibold">{label}</span>
+                <span className={`font-semibold ${REQUIRED_MARK}`}>
+                    {label}
+                </span>
                 {children}
             </label>
 
+            {note}
             {error ? <span className="text-xs text-red-ink">{error}</span> : null}
         </div>
+    );
+}
+
+function CharCount({ id, used, max }: { id: string; used: number; max: number }) {
+    return (
+        <span id={id} className="self-end text-xs tabular-nums text-muted">
+            {`${used}/${max} `}
+            <span className="sr-only">karakter</span>
+        </span>
     );
 }
 
@@ -82,6 +101,9 @@ export function AddContentModal({
     const [errors, setErrors] = useState<ContentFieldErrors>({});
     const [generalError, setGeneralError] = useState("");
     const [saving, setSaving] = useState(false);
+    const nameCountId = useId();
+    const briefCountId = useId();
+    const quotaNoteId = useId();
 
     function clearFieldError(field: keyof ContentFieldErrors) {
         setErrors((current) => {
@@ -119,7 +141,7 @@ export function AddContentModal({
         }
 
         if (type === "evergreen" && evergreenFull) {
-            clientErrors.type = "Kuota Evergreen sudah penuh";
+            clientErrors.type = "Kuota Evergreen sudah terpenuhi.";
         }
 
         if (deadline && (deadline < firstAllowed || deadline > contractEnd)) {
@@ -186,8 +208,22 @@ export function AddContentModal({
                 </div>
             ) : null}
 
-            <Field label="Jenis Konten" error={errors.type}>
+            <p className="text-xs text-muted">Kolom bertanda * wajib diisi.</p>
+
+            <Field
+                label="Jenis Konten"
+                error={errors.type}
+                note={
+                    evergreenFull ? (
+                        <span id={quotaNoteId} className="text-xs text-red-ink">
+                            Kuota Evergreen sudah terpenuhi.
+                        </span>
+                    ) : null
+                }
+            >
                 <select
+                    required
+                    aria-describedby={evergreenFull ? quotaNoteId : undefined}
                     className={FIELD}
                     value={type}
                     onChange={(event) =>
@@ -201,19 +237,20 @@ export function AddContentModal({
                     <option value="specific">Specific</option>
                 </select>
 
-                {evergreenFull ? (
-                    <span className="text-xs text-red-ink">
-            Kuota Evergreen sudah penuh. Pilih Specific.
-          </span>
-                ) : null}
             </Field>
 
             {type === "specific" ? (
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                    <Field label="Nama Konten" error={errors.name}>
+                <>
+                    <Field
+                        label="Nama Konten"
+                        error={errors.name}
+                        note={<CharCount id={nameCountId} used={name.length} max={MAX_NAME_LENGTH} />}
+                    >
                         <input
                             type="text"
+                            required
                             maxLength={MAX_NAME_LENGTH}
+                            aria-describedby={nameCountId}
                             className={FIELD}
                             value={name}
                             onChange={(event) => {
@@ -224,10 +261,16 @@ export function AddContentModal({
                         />
                     </Field>
 
-                    <Field label="Brief" error={errors.brief}>
+                    <Field
+                        label="Brief"
+                        error={errors.brief}
+                        note={<CharCount id={briefCountId} used={brief.length} max={MAX_BRIEF_LENGTH} />}
+                    >
             <textarea
                 className={`${FIELD} min-h-24 resize-y`}
+                required
                 maxLength={MAX_BRIEF_LENGTH}
+                aria-describedby={briefCountId}
                 value={brief}
                 onChange={(event) => {
                     setBrief(event.target.value);
@@ -236,12 +279,13 @@ export function AddContentModal({
                 disabled={saving}
             />
                     </Field>
-                </div>
+                </>
             ) : null}
 
             <Field label="Deadline" error={errors.deadline}>
                 <input
                     type="date"
+                    required
                     className={FIELD}
                     min={firstAllowed}
                     max={contractEnd}

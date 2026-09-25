@@ -9,9 +9,9 @@ export interface NewContent {
 }
 
 /** Longer than any real title; keeps a hostile body from filling contents.name (text). */
-export const MAX_CONTENT_NAME_LENGTH = 200;
+export const MAX_CONTENT_NAME_LENGTH = 100;
 /** Room for a detailed brief; keeps a hostile body from filling contents.brief (text). */
-export const MAX_BRIEF_LENGTH = 5000;
+export const MAX_BRIEF_LENGTH = 2000;
 
 export function checkNewContent(input: unknown): NewContent {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {

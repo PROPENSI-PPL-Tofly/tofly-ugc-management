@@ -1,4 +1,5 @@
 import {
+    act,
     fireEvent,
     render,
     screen,
@@ -553,5 +554,109 @@ describe("ContentPlanClient", () => {
         expect(
             mockedFetchCreatorDetail,
         ).toHaveBeenCalledWith("creator-2");
+    });
+
+    it.each([
+        ["loads", (late: Promise<CreatorDetail>) => late],
+        ["fails", (late: Promise<CreatorDetail>) => late.then(() => Promise.reject(new Error("late")))],
+    ])("ignores a previous creator whose detail %s after the id changed", async (_, settle) => {
+        let resolveOld!: (value: CreatorDetail) => void;
+        const old = new Promise<CreatorDetail>((resolve) => (resolveOld = resolve));
+        mockedFetchCreatorDetail
+            .mockReturnValueOnce(settle(old))
+            .mockResolvedValueOnce(detail({ id: "creator-2", name: "Creator Dua" }));
+
+        const { rerender } = render(<ContentPlanClient creatorId="creator-1" />);
+        rerender(<ContentPlanClient creatorId="creator-2" />);
+        await screen.findByText(/Creator Dua/);
+
+        resolveOld(detail({ name: "Creator Lama" }));
+        await act(async () => {
+            await old;
+        });
+
+        expect(screen.queryByText(/Creator Lama/)).toBeNull();
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(screen.getByText(/Creator Dua/)).toBeInTheDocument();
+    });
+
+    describe("success toast", () => {
+        beforeEach(() => {
+            vi.useFakeTimers({ shouldAdvanceTime: true });
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        async function saveContent() {
+            fireEvent.click(
+                await screen.findByRole("button", { name: "+ Tambah Konten" }),
+            );
+            fireEvent.click(
+                screen.getByRole("button", { name: "Simulate Save" }),
+            );
+        }
+
+        it("stays on screen while the table reloads after a save", async () => {
+            mockedFetchCreatorDetail
+                .mockResolvedValueOnce(detail())
+                .mockReturnValueOnce(new Promise(() => undefined));
+
+            render(<ContentPlanClient creatorId="creator-1" />);
+            await saveContent();
+
+            expect(
+                await screen.findByText("Memuat jadwal konten..."),
+            ).toBeInTheDocument();
+            expect(screen.getByRole("status")).toHaveTextContent(
+                "Konten berhasil ditambahkan.",
+            );
+        });
+
+        it("closes itself four seconds after the save", async () => {
+            mockedFetchCreatorDetail.mockResolvedValue(detail());
+
+            render(<ContentPlanClient creatorId="creator-1" />);
+            await saveContent();
+            await screen.findByRole("status");
+
+            act(() => vi.advanceTimersByTime(4000));
+
+            expect(screen.queryByRole("status")).toBeNull();
+        });
+
+        it("closes from its close button", async () => {
+            mockedFetchCreatorDetail.mockResolvedValue(detail());
+
+            render(<ContentPlanClient creatorId="creator-1" />);
+            await saveContent();
+
+            fireEvent.click(
+                await screen.findByRole("button", { name: "Tutup notifikasi" }),
+            );
+
+            expect(screen.queryByRole("status")).toBeNull();
+        });
+
+        it("restarts the countdown when another content is saved", async () => {
+            mockedFetchCreatorDetail.mockResolvedValue(detail());
+
+            render(<ContentPlanClient creatorId="creator-1" />);
+            await saveContent();
+            await screen.findByRole("status");
+
+            act(() => vi.advanceTimersByTime(3000));
+            await saveContent();
+            act(() => vi.advanceTimersByTime(3000));
+
+            expect(screen.getByRole("status")).toHaveTextContent(
+                "Konten berhasil ditambahkan.",
+            );
+
+            act(() => vi.advanceTimersByTime(1000));
+
+            expect(screen.queryByRole("status")).toBeNull();
+        });
     });
 });

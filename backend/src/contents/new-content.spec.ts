@@ -107,6 +107,24 @@ describe('checkNewContent', () => {
       );
     });
 
+    it('caps the name at 100 and the brief at 2000 characters', () => {
+      expect(() =>
+        checkNewContent(specific('n'.repeat(100), 'b'.repeat(2000))),
+      ).not.toThrow();
+      expect(() =>
+        checkNewContent(specific('n'.repeat(101), 'b'.repeat(2001))),
+      ).toThrow(
+        expect.objectContaining({
+          response: expect.objectContaining({
+            errors: {
+              name: 'Nama konten maksimal 100 karakter',
+              brief: 'Brief maksimal 2000 karakter',
+            },
+          }),
+        }),
+      );
+    });
+
     it('measures the limits after trimming the surrounding spaces', () => {
       const padded = `  ${'n'.repeat(MAX_CONTENT_NAME_LENGTH)}  `;
       expect(() => checkNewContent(specific(padded, ' brief '))).not.toThrow();
