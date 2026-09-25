@@ -1,5 +1,6 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { AppModule } from '../app.module.js';
+import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
 import { SubmissionsController } from './submissions.controller.js';
@@ -20,6 +21,7 @@ describe('SubmissionsModule', () => {
     expect(controllers).toContain(SubmissionsController);
     expect(providers).toContain(SubmissionReviewService);
     expect(providers).toContain(SubmissionDetailService);
+    expect(providers).toContain(ReviewQueueService);
   });
 
   it('is part of the application', () => {
