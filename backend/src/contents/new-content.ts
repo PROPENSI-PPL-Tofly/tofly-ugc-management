@@ -8,6 +8,11 @@ export interface NewContent {
   brief?: string;
 }
 
+/** Longer than any real title; keeps a hostile body from filling contents.name (text). */
+export const MAX_CONTENT_NAME_LENGTH = 200;
+/** Room for a detailed brief; keeps a hostile body from filling contents.brief (text). */
+export const MAX_BRIEF_LENGTH = 5000;
+
 export function checkNewContent(input: unknown): NewContent {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new UnprocessableEntityException({
@@ -58,13 +63,20 @@ export function checkNewContent(input: unknown): NewContent {
     }
   }
 
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const brief = typeof body.brief === 'string' ? body.brief.trim() : '';
+
   if (body.type === 'specific') {
-    if (typeof body.name !== 'string' || body.name.trim() === '') {
+    if (name === '') {
       errors.name = 'Nama konten wajib diisi';
+    } else if (name.length > MAX_CONTENT_NAME_LENGTH) {
+      errors.name = `Nama konten maksimal ${MAX_CONTENT_NAME_LENGTH} karakter`;
     }
 
-    if (typeof body.brief !== 'string' || body.brief.trim() === '') {
+    if (brief === '') {
       errors.brief = 'Brief wajib diisi';
+    } else if (brief.length > MAX_BRIEF_LENGTH) {
+      errors.brief = `Brief maksimal ${MAX_BRIEF_LENGTH} karakter`;
     }
   }
 
@@ -78,11 +90,6 @@ export function checkNewContent(input: unknown): NewContent {
     contractId: body.contractId as string,
     type: body.type as NewContent['type'],
     deadline: body.deadline as string,
-    ...(body.type === 'specific'
-      ? {
-          name: body.name as string,
-          brief: body.brief as string,
-        }
-      : {}),
+    ...(body.type === 'specific' ? { name, brief } : {}),
   };
 }
