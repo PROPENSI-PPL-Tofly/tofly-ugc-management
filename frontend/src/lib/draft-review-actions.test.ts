@@ -71,6 +71,35 @@ describe("approveSubmission", () => {
       "Keputusan gagal dikirim. Coba lagi.",
     );
   });
+
+  it("ignores a failure body that is not JSON", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response("<html>bad gateway</html>", {
+        status: 502,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+
+    const error = await approveSubmission(UUID).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ status: 502 });
+    expect((error as DraftReviewActionError).message).toBe(
+      "Keputusan gagal dikirim. Coba lagi.",
+    );
+  });
+
+  it("ignores a JSON failure body that carries no message at all", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ statusCode: 500 }), { status: 500 }),
+    );
+
+    const error = await approveSubmission(UUID).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ status: 500 });
+    expect((error as DraftReviewActionError).message).toBe(
+      "Keputusan gagal dikirim. Coba lagi.",
+    );
+  });
 });
 
 describe("reviseSubmission", () => {

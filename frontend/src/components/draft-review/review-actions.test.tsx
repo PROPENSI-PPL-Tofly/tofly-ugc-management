@@ -162,6 +162,17 @@ describe("ReviewActions", () => {
     expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled();
   });
 
+  it("reports a generic message when the failure is not an Error", async () => {
+    approveSubmission.mockRejectedValue("backend exploded");
+    renderActions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Terjadi kesalahan. Coba lagi.",
+    );
+  });
+
   it("collapses the form and clears the error from Batal", async () => {
     approveSubmission.mockRejectedValue(new DraftReviewActionError(500, "Server error"));
     renderActions();
