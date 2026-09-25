@@ -160,8 +160,9 @@ describe("AddContentModal", () => {
         expect(evergreenOption).toBeDisabled();
 
         expect(
-            screen.getByText(/Kuota Evergreen sudah penuh/i),
+            screen.getByText("Kuota Evergreen sudah terpenuhi."),
         ).toBeInTheDocument();
+        expect(screen.queryByText(/Pilih Specific/)).toBeNull();
     });
 
     it("keeps Evergreen available when the quota is zero", () => {
