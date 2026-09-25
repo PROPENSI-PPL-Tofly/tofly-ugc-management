@@ -45,4 +45,17 @@ describe('checkRevisionRequest', () => {
       }),
     );
   });
+  it('excludes client-supplied protected fields from the validated request', () => {
+    expect(
+      checkRevisionRequest({
+        revisionNotes: 'Mohon perbaiki bagian pembuka.',
+        status: 'draft_approved',
+        is_admin: true,
+        reviewerId: 'forged-reviewer',
+        contentId: 'another-content',
+        revisionHistory: [],
+        createdAt: '2000-01-01',
+      }),
+    ).toEqual({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+  });
 });
