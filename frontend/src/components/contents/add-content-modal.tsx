@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -13,8 +13,8 @@ import { getBufferWindow } from "@/lib/deadline-schedule";
 
 const BUFFER_DAYS = 5;
 // Same limits as the contents API (backend new-content.ts).
-const MAX_NAME_LENGTH = 200;
-const MAX_BRIEF_LENGTH = 5000;
+const MAX_NAME_LENGTH = 100;
+const MAX_BRIEF_LENGTH = 2000;
 
 const FIELD =
     "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
@@ -25,10 +25,13 @@ const ALERT =
 function Field({
                    label,
                    error,
+                   count,
                    children,
                }: {
     label: string;
     error?: string;
+    /** Rendered outside the label so it stays out of the control's accessible name. */
+    count?: React.ReactNode;
     children: React.ReactNode;
 }) {
     return (
@@ -38,8 +41,18 @@ function Field({
                 {children}
             </label>
 
+            {count}
             {error ? <span className="text-xs text-red-ink">{error}</span> : null}
         </div>
+    );
+}
+
+function CharCount({ id, used, max }: { id: string; used: number; max: number }) {
+    return (
+        <span id={id} className="self-end text-xs tabular-nums text-muted">
+            {`${used}/${max} `}
+            <span className="sr-only">karakter</span>
+        </span>
     );
 }
 
@@ -82,6 +95,8 @@ export function AddContentModal({
     const [errors, setErrors] = useState<ContentFieldErrors>({});
     const [generalError, setGeneralError] = useState("");
     const [saving, setSaving] = useState(false);
+    const nameCountId = useId();
+    const briefCountId = useId();
 
     function clearFieldError(field: keyof ContentFieldErrors) {
         setErrors((current) => {
@@ -210,10 +225,15 @@ export function AddContentModal({
 
             {type === "specific" ? (
                 <div className="grid gap-3.5 sm:grid-cols-2">
-                    <Field label="Nama Konten" error={errors.name}>
+                    <Field
+                        label="Nama Konten"
+                        error={errors.name}
+                        count={<CharCount id={nameCountId} used={name.length} max={MAX_NAME_LENGTH} />}
+                    >
                         <input
                             type="text"
                             maxLength={MAX_NAME_LENGTH}
+                            aria-describedby={nameCountId}
                             className={FIELD}
                             value={name}
                             onChange={(event) => {
@@ -224,10 +244,15 @@ export function AddContentModal({
                         />
                     </Field>
 
-                    <Field label="Brief" error={errors.brief}>
+                    <Field
+                        label="Brief"
+                        error={errors.brief}
+                        count={<CharCount id={briefCountId} used={brief.length} max={MAX_BRIEF_LENGTH} />}
+                    >
             <textarea
                 className={`${FIELD} min-h-24 resize-y`}
                 maxLength={MAX_BRIEF_LENGTH}
+                aria-describedby={briefCountId}
                 value={brief}
                 onChange={(event) => {
                     setBrief(event.target.value);
