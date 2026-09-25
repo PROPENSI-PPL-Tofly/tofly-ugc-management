@@ -1,0 +1,89 @@
+import SubmissionsPage from "./page";
+import { fetchSubmissionQueue } from "@/lib/submissions";
+import { render, screen } from "@testing-library/react";
+
+vi.mock("@/lib/submissions", () => ({
+  fetchSubmissionQueue: vi.fn(),
+  parseSubmissionPage: vi.fn((params: Record<string, string | string[] | undefined>) => {
+    const raw = Array.isArray(params.page) ? params.page[0] : params.page ?? "";
+    if (raw === "") return { page: 1, invalid: null };
+    return /^[1-9]\d*$/.test(raw)
+      ? { page: Number(raw), invalid: null }
+      : { page: 1, invalid: raw };
+  }),
+}));
+
+async function renderPage(searchParams: Record<string, string> = {}) {
+  const result = await SubmissionsPage({
+    searchParams: Promise.resolve(searchParams) as Promise<Record<string, string | string[] | undefined>>,
+  });
+  const rendered = render(<>{result}</>);
+  return { ...rendered };
+}
+
+describe("Antrian Draft page", () => {
+  beforeEach(() => {
+    (fetchSubmissionQueue as any).mockReset();
+  });
+
+  it("fetches queue with page=1 when no params", async () => {
+    (fetchSubmissionQueue as any).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      totalPages: 0,
+    });
+
+    await renderPage({});
+
+    expect(fetchSubmissionQueue).toHaveBeenCalledWith(1);
+  });
+
+  it("renders the queue table and pagination when items exist", async () => {
+    (fetchSubmissionQueue as any).mockResolvedValue({
+      items: [
+        {
+          submissionId: "1",
+          creatorName: "Salsa",
+          contentName: "Evg_1",
+          type: "Evergreen",
+          deadline: "2026-09-15",
+          status: "draft_review",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      totalPages: 1,
+    });
+
+    await renderPage({});
+
+    expect(screen.getByText("Salsa")).toBeInTheDocument();
+    expect(screen.getByText("Evg_1")).toBeInTheDocument();
+    expect(screen.getByText("15 Sep 2026")).toBeInTheDocument();
+  });
+
+  it("shows load failed message when backend errors", async () => {
+    (fetchSubmissionQueue as any).mockRejectedValue(new Error("fail"));
+
+    await renderPage({});
+
+    expect(screen.getByText(/antrian tidak bisa dimuat/i)).toBeInTheDocument();
+  });
+
+  it("shows invalid page message for bad page param", async () => {
+    (fetchSubmissionQueue as any).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      totalPages: 0,
+    });
+
+    await renderPage({ page: "abc" });
+
+    expect(screen.getByText(/halaman.*abc.*tidak dikenal/i)).toBeInTheDocument();
+  });
+});
