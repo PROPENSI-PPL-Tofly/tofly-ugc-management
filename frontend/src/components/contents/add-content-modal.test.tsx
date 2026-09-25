@@ -90,6 +90,26 @@ describe("AddContentModal", () => {
         ).toBeInTheDocument();
     });
 
+    it("stacks Name above Brief in the same single column as the other fields", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+
+        const fieldOf = (label: string) =>
+            screen.getByLabelText(label).closest("label")!.parentElement!;
+        const name = fieldOf("Nama Konten");
+        const brief = fieldOf("Brief");
+
+        expect(name.parentElement).toBe(fieldOf("Deadline").parentElement);
+        expect(brief.parentElement).toBe(name.parentElement);
+        expect(
+            name.compareDocumentPosition(brief) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
     it("limits Name to 100 and Brief to 2000 characters, like the API", () => {
         openModal();
 
