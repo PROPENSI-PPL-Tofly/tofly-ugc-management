@@ -37,4 +37,25 @@ describe('SubmissionRevisionService', () => {
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
   });
+  it('rejects when the submission does not exist', async () => {
+  const findById = vi.fn().mockResolvedValue(null);
+  const saveRevision = vi.fn();
+
+  const service = new SubmissionRevisionService({
+    findById,
+    saveRevision,
+  });
+
+  await expect(
+    service.revise('missing-submission-id', {
+      revisionNotes: 'Please revise this draft.',
+    }),
+  ).rejects.toThrow();
+
+  expect(findById).toHaveBeenCalledExactlyOnceWith(
+    'missing-submission-id',
+  );
+
+  expect(saveRevision).not.toHaveBeenCalled();
+});
 });
