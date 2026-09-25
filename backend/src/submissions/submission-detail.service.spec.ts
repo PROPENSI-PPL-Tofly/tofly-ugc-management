@@ -29,7 +29,9 @@ function stubClient(
           contents: {
             brief: found.brief,
             status: found.status,
-            submissions: found.revisions,
+            submissions: found.revisions.filter(
+              (revision) => revision.revision_notes !== null,
+            ),
           },
         },
       ),

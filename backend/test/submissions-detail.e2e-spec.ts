@@ -119,7 +119,7 @@ describe('GET /submissions/:id (e2e)', () => {
     await app.close();
   });
 
-  it('returns the current submission detail and complete revision history', async () => {
+  it('returns the current submission detail and revision history with notes only', async () => {
     const { contentId, latestSubmission } = await createDraft();
 
     const response = await getDetail(latestSubmission.id);
@@ -131,12 +131,8 @@ describe('GET /submissions/:id (e2e)', () => {
       status: 'draft_revised',
       revisionHistory: [
         {
-          note: null,
-          date: '2026-09-01T00:00:00.000Z',
-        },
-        {
           note: 'Tolong ubah opening',
-          date: '2026-09-05T00:00:00.000Z',
+          date: '2026-09-21T00:00:00.000Z',
         },
       ],
     });
@@ -144,22 +140,27 @@ describe('GET /submissions/:id (e2e)', () => {
     const revisionRows = await prisma.submissions.findMany({
       where: {
         content_id: contentId,
+        revision_notes: {
+          not: null,
+        },
       },
       orderBy: {
-        created_at: 'asc',
+        updated_at: 'asc',
       },
       select: {
+        revision_notes: true,
         created_at: true,
         updated_at: true,
       },
     });
 
-    expect(revisionRows).toHaveLength(2);
+    expect(revisionRows).toHaveLength(1);
+    expect(revisionRows[0].revision_notes).toBe('Tolong ubah opening');
     expect(revisionRows[0].created_at.toISOString()).toBe(
-      '2026-09-01T00:00:00.000Z',
+      '2026-09-05T00:00:00.000Z',
     );
     expect(revisionRows[0].updated_at.toISOString()).toBe(
-      '2026-09-20T00:00:00.000Z',
+      '2026-09-21T00:00:00.000Z',
     );
   });
 

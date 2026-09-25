@@ -10,7 +10,7 @@ interface SubmissionDetailRow {
     status: string;
     submissions: {
       revision_notes: string | null;
-      created_at: Date;
+      updated_at: Date;
     }[];
   };
 }
@@ -38,10 +38,15 @@ export interface SubmissionDetailClient {
             brief: true;
             status: true;
             submissions: {
-              orderBy: [{ created_at: 'asc' }, { id: 'asc' }];
+              where: {
+                revision_notes: {
+                  not: null;
+                };
+              };
+              orderBy: [{ updated_at: 'asc' }, { id: 'asc' }];
               select: {
                 revision_notes: true;
-                created_at: true;
+                updated_at: true;
               };
             };
           };
@@ -70,10 +75,15 @@ export class SubmissionDetailService {
             brief: true,
             status: true,
             submissions: {
-              orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+              where: {
+                revision_notes: {
+                  not: null,
+                },
+              },
+              orderBy: [{ updated_at: 'asc' }, { id: 'asc' }],
               select: {
                 revision_notes: true,
-                created_at: true,
+                updated_at: true,
               },
             },
           },
@@ -94,7 +104,7 @@ export class SubmissionDetailService {
       status: submission.contents.status,
       revisionHistory: submission.contents.submissions.map((revision) => ({
         note: revision.revision_notes,
-        date: revision.created_at.toISOString(),
+        date: revision.updated_at.toISOString(),
       })),
     };
   }
