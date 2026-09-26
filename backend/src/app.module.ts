@@ -5,6 +5,7 @@ import { AppService } from './app.service.js';
 import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
 import { HealthController } from './health/health.controller.js';
+import { MeModule } from './me/me.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
 
@@ -29,6 +30,7 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
         CreatorsModule,
         ContentsModule,
         SubmissionsModule,
+        MeModule,
     ],
     controllers: [AppController, HealthController],
     providers: [AppService],
