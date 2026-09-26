@@ -101,4 +101,62 @@ describe("submitDraft", () => {
     submission: submittedDraft,
   });
 });
+it.each([
+  {
+    name: "validation error",
+    status: 422,
+    body: {
+      message: "Data draft tidak valid",
+      errors: {
+        link: "Link draft harus berupa URL http atau https",
+      },
+    },
+    expected: {
+      ok: false,
+      message: "Data draft tidak valid",
+      errors: {
+        link: "Link draft harus berupa URL http atau https",
+      },
+    },
+  },
+  {
+    name: "ineligible content",
+    status: 409,
+    body: {
+      code: "DRAFT_NOT_ELIGIBLE",
+      message: "Konten ini sedang tidak menerima draft",
+    },
+    expected: {
+      ok: false,
+      message: "Konten ini sedang tidak menerima draft",
+      code: "DRAFT_NOT_ELIGIBLE",
+    },
+  },
+])(
+  "preserves the $name response",
+  async ({ status, body, expected }) => {
+    // Replace the real API call with a controlled error response.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      ),
+    );
+
+    const result = await submitDraft(
+      "11111111-1111-4111-8111-111111111111",
+      {
+        link: "https://drive.google.com/file/d/example",
+        notes: null,
+      },
+    );
+
+    expect(result).toEqual(expected);
+  },
+);
 });
