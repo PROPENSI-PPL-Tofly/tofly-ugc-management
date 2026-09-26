@@ -125,6 +125,26 @@ describe("submitVideo", () => {
     });
   });
 
+  it("falls back when the parsed body carries no usable message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ errors: {} }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    const result = await submitVideo(CONTENT_ID, { link: submittedVideo.link });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Video gagal dikirim. Coba lagi.",
+      errors: {},
+    });
+  });
+
   it("ignores malformed field errors instead of leaking them", async () => {
     vi.stubGlobal(
       "fetch",
