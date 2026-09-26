@@ -7,7 +7,6 @@ import type {
   MyContentItem,
   MyContentsResponse,
 } from './dto/my-contents.dto.js';
-import { compareMyTasks } from './my-tasks.js';
 import { taskActions } from './task-actions.js';
 
 // Only what a row and its modals show. Selecting columns (rather than whole rows) keeps
@@ -20,6 +19,14 @@ const MY_CONTENT_SELECT = {
   deadline: true,
   status: true,
 } as const;
+
+// Nearest deadline first, then name and id so rows sharing a deadline keep their place from
+// one page to the next.
+const MY_CONTENT_ORDER = [
+  { deadline: 'asc' },
+  { name: 'asc' },
+  { id: 'asc' },
+] as const;
 
 export interface MyContentRow {
   id: string;
@@ -42,7 +49,11 @@ export interface MyContentsClient {
     findMany: (args: {
       where: MyContentsWhere;
       select: typeof MY_CONTENT_SELECT;
+      orderBy: typeof MY_CONTENT_ORDER;
+      skip: number;
+      take: number;
     }) => Promise<MyContentRow[]>;
+    count: (args: { where: MyContentsWhere }) => Promise<number>;
   };
 }
 
@@ -62,32 +73,38 @@ export class MyContentsService implements MyContentsLister {
     private readonly prisma: MyContentsClient,
   ) {}
 
-  // One creator holds a few dozen contents across their contracts, so the open-first order
-  // and the paging run in memory, in plain code that is tested directly.
+  // Sorting and paging run in the query, so a request reads only the rows of its page however
+  // many contents the creator holds.
   async list(
     creatorId: string,
     paging: Paging,
     now: Date,
   ): Promise<MyContentsResponse> {
-    const rows = await this.prisma.contents.findMany({
-      where: { is_proposal: false, contracts: { creator_id: creatorId } },
-      select: MY_CONTENT_SELECT,
-    });
+    const where: MyContentsWhere = {
+      is_proposal: false,
+      contracts: { creator_id: creatorId },
+    };
+    const { page, pageSize } = paging;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.contents.findMany({
+        where,
+        select: MY_CONTENT_SELECT,
+        orderBy: MY_CONTENT_ORDER,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.contents.count({ where }),
+    ]);
 
     const today = jakartaDay(now);
-    const items = rows
-      .map((row) => this.toItem(row, today))
-      .sort(compareMyTasks);
-
-    const { page, pageSize } = paging;
-    const start = (page - 1) * pageSize;
 
     return {
-      items: items.slice(start, start + pageSize),
+      items: rows.map((row) => this.toItem(row, today)),
       page,
       pageSize,
-      total: items.length,
-      totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
     };
   }
 
