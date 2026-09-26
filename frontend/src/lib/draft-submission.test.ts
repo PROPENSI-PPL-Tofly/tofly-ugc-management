@@ -228,4 +228,20 @@ it("uses a safe fallback for an unexpected API error response", async () => {
     message: "Draft gagal dikirim. Coba lagi.",
   });
 });
+it("returns a safe fallback when the request fails", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+  );
+
+  await expect(
+    submitDraft("11111111-1111-4111-8111-111111111111", {
+      link: "https://drive.google.com/file/d/test",
+      notes: null,
+    }),
+  ).resolves.toEqual({
+    ok: false,
+    message: "Draft gagal dikirim. Coba lagi.",
+  });
+});
 });
