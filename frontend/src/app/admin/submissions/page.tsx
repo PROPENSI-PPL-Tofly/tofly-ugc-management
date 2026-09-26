@@ -2,7 +2,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { SubmissionQueueTable } from "@/components/submissions/submission-queue-table";
 import { SubmissionFilters } from "@/components/submissions/submission-filters";
-import { Pagination } from "@/components/creators/pagination";
+import { Pagination } from "@/components/ui/pagination";
 import {
   fetchSubmissionQueue,
   parseSubmissionPage,
@@ -15,6 +15,16 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Antrian Draft — Tofly",
 };
+
+/** The filters as they appear in the URL, defaults left out, so page links keep them. */
+function filterQuery(filters: SubmissionQueueFilters): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (filters.q) query.q = filters.q;
+  if (filters.status && filters.status !== "all") query.status = filters.status;
+  if (filters.type && filters.type !== "all") query.type = filters.type;
+  if (filters.overdue) query.overdue = "true";
+  return query;
+}
 
 function LoadFailed() {
   return (
@@ -53,8 +63,15 @@ export default async function SubmissionsPage({
   } satisfies SubmissionQueueFilters;
 
   let result: SubmissionQueueResponse | null = null;
+  // A page past the end (an old link, or a queue that shrank as drafts were decided) shows
+  // the first page instead of an empty table that would claim there is nothing to review.
+  let pastEnd: number | null = null;
   try {
     result = await fetchSubmissionQueue(page, filters);
+    if (result.total > 0 && result.page > result.totalPages) {
+      pastEnd = result.page;
+      result = await fetchSubmissionQueue(1, filters);
+    }
   } catch {
     result = null;
   }
@@ -73,6 +90,15 @@ export default async function SubmissionsPage({
         </p>
       ) : null}
 
+      {pastEnd !== null ? (
+        <p
+          role="status"
+          className="mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink"
+        >
+          Halaman {pastEnd} tidak ada, menampilkan halaman pertama.
+        </p>
+      ) : null}
+
       <Panel>
         <PanelHead title="Semua draft menunggu review" />
         <SubmissionFilters
@@ -85,6 +111,9 @@ export default async function SubmissionsPage({
           <>
             <SubmissionQueueTable items={result.items} />
             <Pagination
+              basePath="/admin/submissions"
+              noun="draft"
+              query={filterQuery(filters)}
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}

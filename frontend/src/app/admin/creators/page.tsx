@@ -2,7 +2,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { AddCreatorTrigger } from "@/components/creators/add-creator-trigger";
 import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
-import { Pagination } from "@/components/creators/pagination";
+import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import {
   fetchCreators,
@@ -83,6 +83,8 @@ export default async function CreatorsPage({
           <>
             <CreatorTable creators={result.items} total={result.total} />
             <Pagination
+              basePath="/admin/creators"
+              noun="creator"
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}

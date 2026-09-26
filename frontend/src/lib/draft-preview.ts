@@ -2,9 +2,9 @@
 // answers with, the shape the modal renders, and the one function that turns the first into
 // the second.
 //
-// The response is SCRUM-123's (#36): brief, link, status, and the revision history. The header
-// fields (contentName, creatorName, deadline, type) have been asked of it but are not sent yet,
-// so they are optional here and read as unknown until they are.
+// The response carries brief, link, status and the revision history, plus the header fields
+// (contentName, creatorName, deadline, type). Those stay optional here so a response without
+// them still renders, with a dash in place of each missing value.
 
 import type { ContentType } from "./contents";
 import type { ContentStatus } from "./creators";

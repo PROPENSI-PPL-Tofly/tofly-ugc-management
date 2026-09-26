@@ -17,8 +17,16 @@ function PendingLabel({ children }: { children: string }) {
   );
 }
 
-function PageLink({ page, children }: { page: number | null; children: string }) {
-  if (page === null) {
+/** The list's own URL for a page: its filters first, page 1 without a page parameter. */
+function pageHref(basePath: string, query: Record<string, string>, page: number): string {
+  const params = new URLSearchParams(query);
+  if (page > 1) params.set("page", String(page));
+  const search = params.toString();
+  return search ? `${basePath}?${search}` : basePath;
+}
+
+function PageLink({ href, children }: { href: string | null; children: string }) {
+  if (href === null) {
     return (
       <span aria-disabled="true" className={DISABLED}>
         {children}
@@ -27,7 +35,7 @@ function PageLink({ page, children }: { page: number | null; children: string })
   }
 
   return (
-    <Link href={page === 1 ? "/admin/creators" : `/admin/creators?page=${page}`} className={ENABLED}>
+    <Link href={href} className={ENABLED}>
       <PendingLabel>{children}</PendingLabel>
     </Link>
   );
@@ -38,11 +46,20 @@ function PageLink({ page, children }: { page: number | null; children: string })
  * bookmarked, shared, and reloaded. Nothing to steer when everything fits on one page.
  */
 export function Pagination({
+  basePath,
+  noun,
+  query = {},
   page,
   pageSize,
   total,
   totalPages,
 }: {
+  /** The list this pagination belongs to, e.g. "/admin/submissions". */
+  basePath: string;
+  /** What the list counts, e.g. "creator" or "draft". */
+  noun: string;
+  /** Active filters, carried into every page link so paging never drops them. */
+  query?: Record<string, string>;
   page: number;
   pageSize: number;
   total: number;
@@ -56,14 +73,16 @@ export function Pagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
       <p className="text-xs text-muted tabular-nums">
-        Menampilkan {first}–{last} dari {total} creator
+        Menampilkan {first}–{last} dari {total} {noun}
       </p>
       <div className="flex items-center gap-2">
         <span className="mr-1 whitespace-nowrap text-xs text-muted tabular-nums">
           Halaman {page} dari {totalPages}
         </span>
-        <PageLink page={page > 1 ? page - 1 : null}>Sebelumnya</PageLink>
-        <PageLink page={page < totalPages ? page + 1 : null}>Berikutnya</PageLink>
+        <PageLink href={page > 1 ? pageHref(basePath, query, page - 1) : null}>Sebelumnya</PageLink>
+        <PageLink href={page < totalPages ? pageHref(basePath, query, page + 1) : null}>
+          Berikutnya
+        </PageLink>
       </div>
     </div>
   );
