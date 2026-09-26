@@ -47,6 +47,8 @@ describe('mockCreatorId', () => {
   it.each([
     ['no header', undefined],
     ['a repeated header', [ID, ID]],
+    // String([ID]) is ID, so the UUID pattern alone would let a one-item list through.
+    ['a one-item header list', [ID]],
     ['a non-UUID', 'creator-1'],
     ['a UUID with a trailing payload', `${ID}' OR '1'='1`],
     ['a UUID with a leading payload', `x${ID}`],
