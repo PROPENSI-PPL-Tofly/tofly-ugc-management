@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { submitDraft } from "@/lib/draft-submission";
 import { Modal } from "@/components/ui/modal";
 
 export interface SubmitDraftModalProps {
@@ -19,18 +20,34 @@ export function SubmitDraftModal({
   content,
   onClose,
 }: SubmitDraftModalProps) {
-  // Stores whatever the creator types into the draft link field.
+  // Stores the current value of the draft link field.
   const [draftLink, setDraftLink] = useState("");
 
-  // Stores the validation message for the draft link.
+  // Stores the optional note written for the admin.
+  const [adminNotes, setAdminNotes] = useState("");
+
+  // Stores a validation message for the draft link.
   const [draftLinkError, setDraftLinkError] = useState("");
 
-  function handleSubmit() {
-    // trim() makes both "" and "   " count as empty.
-    if (!draftLink.trim()) {
+  async function handleSubmit() {
+    const trimmedLink = draftLink.trim();
+
+    // Treat an empty or whitespace-only link as invalid.
+    if (!trimmedLink) {
       setDraftLinkError("Link file draft wajib diisi");
       return;
     }
+
+    // Remove an old validation message once the current value is valid.
+    setDraftLinkError("");
+
+    const trimmedNotes = adminNotes.trim();
+
+    // Keep the HTTP request outside this component by using the submission service.
+    await submitDraft(content.id, {
+      link: trimmedLink,
+      notes: trimmedNotes || null,
+    });
   }
 
   return (
@@ -87,7 +104,7 @@ export function SubmitDraftModal({
             className="rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
           />
 
-          {/* Only show the validation message after an invalid submit attempt. */}
+          {/* Only show the message when the link fails validation. */}
           {draftLinkError ? (
             <p className="text-sm text-red-600">
               {draftLinkError}
@@ -95,7 +112,6 @@ export function SubmitDraftModal({
           ) : null}
         </label>
 
-        {/* Notes stay optional and do not need state yet. */}
         <label className="flex flex-col gap-1.5">
           <span className="text-sm text-ink">
             Catatan untuk Admin
@@ -104,6 +120,10 @@ export function SubmitDraftModal({
           <textarea
             aria-label="Catatan untuk Admin"
             rows={3}
+            value={adminNotes}
+            onChange={(event) => {
+              setAdminNotes(event.target.value);
+            }}
             className="resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
           />
         </label>
