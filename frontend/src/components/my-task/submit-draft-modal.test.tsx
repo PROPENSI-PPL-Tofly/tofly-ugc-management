@@ -277,4 +277,87 @@ describe("SubmitDraftModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+it("shows a field error and keeps the modal open when submission validation fails", async () => {
+  const onSubmitted = vi.fn();
+  const onClose = vi.fn();
+
+  mockSubmitDraft.mockResolvedValue({
+    ok: false,
+    message: "Data draft tidak valid",
+    errors: {
+      link: "Link draft harus berupa URL http atau https",
+    },
+  });
+
+  renderModal({
+    onSubmitted,
+    onClose,
+  });
+
+  fireEvent.change(
+    screen.getByLabelText(/link file draft/i),
+    {
+      target: {
+        value: "not-a-valid-web-link",
+      },
+    },
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Kirim Draft",
+    }),
+  );
+
+  expect(
+    await screen.findByText(
+      "Link draft harus berupa URL http atau https",
+    ),
+  ).toBeInTheDocument();
+
+  // A failed submission must not notify the parent or close the modal.
+  expect(onSubmitted).not.toHaveBeenCalled();
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+it("shows an eligibility error and keeps the modal open", async () => {
+  const onSubmitted = vi.fn();
+  const onClose = vi.fn();
+
+  mockSubmitDraft.mockResolvedValue({
+    ok: false,
+    code: "DRAFT_NOT_ELIGIBLE",
+    message: "Konten ini sedang tidak menerima draft",
+  });
+
+  renderModal({
+    onSubmitted,
+    onClose,
+  });
+
+  fireEvent.change(
+    screen.getByLabelText(/link file draft/i),
+    {
+      target: {
+        value: "https://drive.google.com/file/d/example",
+      },
+    },
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Kirim Draft",
+    }),
+  );
+
+  expect(
+    await screen.findByRole("alert"),
+  ).toHaveTextContent(
+    "Konten ini sedang tidak menerima draft",
+  );
+
+  // Keep the form open so the creator can understand what happened.
+  expect(onSubmitted).not.toHaveBeenCalled();
+  expect(onClose).not.toHaveBeenCalled();
+});
 });
