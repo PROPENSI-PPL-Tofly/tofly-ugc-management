@@ -146,6 +146,7 @@ describe("Task Saya page", () => {
 
   it.each([
     ["a server error", new MyTasksError(500)],
+    ["an unusable answer", new MyTasksError(502)],
     ["an unreachable backend", new TypeError("fetch failed")],
   ])("offers a reload after %s", async (_label, failure) => {
     mockedFetch.mockRejectedValue(failure);
@@ -154,6 +155,9 @@ describe("Task Saya page", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Daftar tugas tidak bisa dimuat.");
+    // A 500 or a malformed answer is still an answer, so the hint must not blame silence.
+    expect(alert).toHaveTextContent("Coba muat ulang beberapa saat lagi.");
+    expect(alert).not.toHaveTextContent("Server tidak menjawab.");
     expect(within(alert).getByRole("link", { name: "Muat ulang" })).toHaveAttribute(
       "href",
       "/creator/tasks",
