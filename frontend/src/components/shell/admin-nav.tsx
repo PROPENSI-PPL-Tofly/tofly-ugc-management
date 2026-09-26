@@ -27,13 +27,16 @@ export function AdminNav() {
 
   return (
     <nav aria-label="Menu admin" className="min-w-0 flex-1">
-      <ul className="flex gap-1 md:flex-col">
+      {/* On a phone the menu is one row beside the logo; it scrolls sideways within that row
+          rather than clipping the last item or widening the page. The padding keeps the focus
+          ring, drawn outside each link, inside the scrolling row. */}
+      <ul className="flex gap-1 overflow-x-auto p-1 md:flex-col md:overflow-visible md:p-0">
         {PLACES.map((place) => {
           const current = [place.href, ...(place.covers ?? [])].some((href) =>
             isWithin(pathname, href),
           );
           return (
-            <li key={place.href}>
+            <li key={place.href} className="shrink-0">
               <Link
                 href={place.href}
                 aria-current={current ? "page" : undefined}
