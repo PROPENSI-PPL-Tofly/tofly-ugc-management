@@ -20,12 +20,12 @@ export function AppShell({
   title,
   subtitle,
   children,
-}: {
+}: Readonly<{
   role?: Role;
   title: string;
   subtitle?: string;
   children: ReactNode;
-}) {
+}>) {
   const frame = FRAMES[role];
 
   return (
