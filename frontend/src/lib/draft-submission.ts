@@ -12,6 +12,12 @@ export interface SubmittedDraft {
   submittedAt: string;
 }
 
+// Field-specific errors can later be displayed beside the related form field.
+export interface DraftSubmissionFieldErrors {
+  link?: string;
+  notes?: string;
+}
+
 export type DraftSubmissionResult =
   | {
       ok: true;
@@ -20,13 +26,15 @@ export type DraftSubmissionResult =
   | {
       ok: false;
       message: string;
+      code?: string;
+      errors?: DraftSubmissionFieldErrors;
     };
 
-  export async function submitDraft(
+export async function submitDraft(
   contentId: string,
   input: DraftSubmissionInput,
 ): Promise<DraftSubmissionResult> {
-  // Keep HTTP communication in this service instead of inside the UI component.
+  // Keep HTTP communication separate from the UI component.
   const response = await fetch(`/api/contents/${contentId}/draft`, {
     method: "POST",
     headers: {
@@ -35,7 +43,7 @@ export type DraftSubmissionResult =
     body: JSON.stringify(input),
   });
 
-  // A successful response contains the newly submitted draft.
+  // A successful response contains the submitted draft.
   if (response.ok) {
     const submission =
       (await response.json()) as SubmittedDraft;
@@ -46,9 +54,43 @@ export type DraftSubmissionResult =
     };
   }
 
-  // Error responses will be handled in the next TDD cycle.
-  return {
-    ok: false,
-    message: "Response handling not implemented",
+  // Read the structured error returned by the API.
+  const body = (await response.json()) as {
+    message?: unknown;
+    code?: unknown;
+    errors?: {
+      link?: unknown;
+      notes?: unknown;
+    };
   };
+
+  const result: DraftSubmissionResult = {
+    ok: false,
+    message:
+      typeof body.message === "string"
+        ? body.message
+        : "Draft gagal dikirim. Coba lagi.",
+  };
+
+  // Preserve a machine-readable error code when one is provided.
+  if (typeof body.code === "string") {
+    result.code = body.code;
+  }
+
+  // Preserve field-specific validation messages for the form.
+  if (body.errors) {
+    const errors: DraftSubmissionFieldErrors = {};
+
+    if (typeof body.errors.link === "string") {
+      errors.link = body.errors.link;
+    }
+
+    if (typeof body.errors.notes === "string") {
+      errors.notes = body.errors.notes;
+    }
+
+    result.errors = errors;
+  }
+
+  return result;
 }
