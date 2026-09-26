@@ -29,26 +29,41 @@ export function SubmitDraftModal({
   // Stores a validation message for the draft link.
   const [draftLinkError, setDraftLinkError] = useState("");
 
+  // Tracks whether a draft submission is currently in progress.
+   const [isSubmitting, setIsSubmitting] = useState(false);
+
   async function handleSubmit() {
-    const trimmedLink = draftLink.trim();
+  // Ignore another submit attempt while the current request is still running.
+  if (isSubmitting) {
+    return;
+  }
 
-    // Treat an empty or whitespace-only link as invalid.
-    if (!trimmedLink) {
-      setDraftLinkError("Link file draft wajib diisi");
-      return;
-    }
+  const trimmedLink = draftLink.trim();
 
-    // Remove an old validation message once the current value is valid.
-    setDraftLinkError("");
+  // Treat an empty or whitespace-only link as invalid.
+  if (!trimmedLink) {
+    setDraftLinkError("Link file draft wajib diisi");
+    return;
+  }
 
-    const trimmedNotes = adminNotes.trim();
+  // Remove an old validation message once the current value is valid.
+  setDraftLinkError("");
 
-    // Keep the HTTP request outside this component by using the submission service.
+  const trimmedNotes = adminNotes.trim();
+
+  // Lock the submit action until the request finishes.
+  setIsSubmitting(true);
+
+  try {
     await submitDraft(content.id, {
       link: trimmedLink,
       notes: trimmedNotes || null,
     });
+  } finally {
+    // Always unlock the form after the request finishes.
+    setIsSubmitting(false);
   }
+}
 
   return (
     <Modal
@@ -56,12 +71,13 @@ export function SubmitDraftModal({
       onClose={onClose}
       footer={
         <button
-          type="button"
-          onClick={handleSubmit}
-          className="cursor-pointer rounded-(--radius-control) px-4 py-2 text-sm"
-        >
-          Kirim Draft
-        </button>
+  type="button"
+  onClick={handleSubmit}
+  disabled={isSubmitting}
+  className="cursor-pointer rounded-(--radius-control) px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+>
+  {isSubmitting ? "Mengirim..." : "Kirim Draft"}
+</button>
       }
     >
       <div className="flex flex-col gap-4">
