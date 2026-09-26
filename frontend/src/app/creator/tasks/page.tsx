@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/shell/app-shell";
-import { MyTaskTable } from "@/components/tasks/my-task-table";
+import { MyTaskBoard } from "@/components/tasks/my-task-board";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
@@ -60,8 +60,8 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
 
 /**
  * Task Saya (PRD 3.16): every task assigned to the creator, nearest deadline first, five a
- * page, each with the action its status allows. The Submit Draft and Submit Link Video
- * modals (SCRUM-109, SCRUM-132) plug into the table's onAction once they exist.
+ * page, each with the action its status allows. MyTaskBoard opens the Submit/Resubmit Draft
+ * or Submit Link Video modal (SCRUM-109, SCRUM-132) for the pressed button.
  */
 export default async function TaskSayaPage({
   searchParams,
@@ -93,7 +93,7 @@ export default async function TaskSayaPage({
         <PanelHead title="Daftar Tugas Saya" />
         {loaded.kind === "ok" ? (
           <>
-            <MyTaskTable tasks={loaded.result.items} />
+            <MyTaskBoard tasks={loaded.result.items} />
             {loaded.result.total > 0 ? (
               <Pagination
                 basePath={BASE_PATH}
