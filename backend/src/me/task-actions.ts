@@ -9,11 +9,10 @@ export type TaskAction = 'submit_draft' | 'resubmit_draft' | 'submit_video';
 /** H-1: from the day before the deadline, a video link may skip the draft approval. */
 export const GRACE_DAYS = 1;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 function daysBefore(day: string, days: number): string {
-  const time = new Date(`${day}T00:00:00.000Z`).getTime() - days * DAY_MS;
-  return new Date(time).toISOString().slice(0, 10);
+  const date = new Date(`${day}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
 }
 
 /** Open from H-1 onward, including after the deadline: a late link is still a link. */

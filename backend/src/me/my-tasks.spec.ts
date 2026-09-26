@@ -62,6 +62,14 @@ describe('compareMyTasks', () => {
     ).toEqual(['a1', 'b1', 'b2']);
   });
 
+  it('answers each pair both ways, as sort expects of a comparator', () => {
+    const sooner = task({ id: 'a', deadline: '2026-10-12' });
+    const later = task({ id: 'b', deadline: '2026-10-13' });
+
+    expect(compareMyTasks(sooner, later)).toBe(-1);
+    expect(compareMyTasks(later, sooner)).toBe(1);
+  });
+
   it('treats identical tasks as equal', () => {
     expect(compareMyTasks(task({}), task({}))).toBe(0);
   });

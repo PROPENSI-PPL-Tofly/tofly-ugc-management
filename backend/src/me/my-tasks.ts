@@ -14,11 +14,9 @@ function rank(task: TaskOrder): number {
   return task.status === 'link_submitted' ? 1 : 0;
 }
 
+/** -1, 0 or 1 by code unit order, the same on every machine (unlike localeCompare). */
 function compareText(a: string, b: string): number {
-  if (a === b) {
-    return 0;
-  }
-  return a < b ? -1 : 1;
+  return Number(a > b) - Number(a < b);
 }
 
 /**
