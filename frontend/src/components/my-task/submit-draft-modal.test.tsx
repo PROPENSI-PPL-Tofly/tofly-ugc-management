@@ -35,6 +35,7 @@ function renderModal(
     <SubmitDraftModal
       content={defaultContent}
       onClose={vi.fn()}
+      onSubmitted={vi.fn()}
       submitDraftAction={mockSubmitDraft}
       {...overrides}
     />,
@@ -234,4 +235,46 @@ describe("SubmitDraftModal", () => {
       ).toBeEnabled();
     });
   });
+  it("notifies the parent and closes after a successful submission", async () => {
+  const onSubmitted = vi.fn();
+  const onClose = vi.fn();
+
+  mockSubmitDraft.mockResolvedValue({
+    ok: true,
+    submission: {
+      contentId: defaultContent.id,
+      submissionId: "submission-1",
+      status: "draft_review",
+      link: "https://drive.google.com/file/d/example",
+      notes: null,
+      submittedAt: "2026-09-26T10:00:00.000Z",
+    },
+  });
+
+  renderModal({
+    onSubmitted,
+    onClose,
+  });
+
+  fireEvent.change(
+    screen.getByLabelText(/link file draft/i),
+    {
+      target: {
+        value:
+          "https://drive.google.com/file/d/example",
+      },
+    },
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Kirim Draft",
+    }),
+  );
+
+  await waitFor(() => {
+    expect(onSubmitted).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
 });
