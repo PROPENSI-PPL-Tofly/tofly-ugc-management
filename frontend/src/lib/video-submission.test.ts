@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { submitVideo } from "./video-submission";
+import { isSupportedVideoLink, submitVideo } from "./video-submission";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -171,6 +171,31 @@ describe("submitVideo", () => {
       message: "Data link video tidak valid",
       errors: {},
     });
+  });
+});
+
+describe("isSupportedVideoLink", () => {
+  it.each([
+    ["instagram root", "https://www.instagram.com/reel/C8abc/"],
+    ["instagram without www", "https://instagram.com/tofly"],
+    ["instagram subdomain", "https://m.instagram.com/reel/C8abc/"],
+    ["tiktok root", "https://www.tiktok.com/@tofly/video/7400000000000000000"],
+    ["tiktok without www", "https://tiktok.com/@tofly/video/1"],
+    ["http is allowed", "http://tiktok.com/@tofly/video/1"],
+  ])("accepts %s", (_case, link) => {
+    expect(isSupportedVideoLink(link)).toBe(true);
+  });
+
+  it.each([
+    ["another platform", "https://youtube.com/watch?v=1"],
+    ["lookalike domain", "https://notinstagram.com/reel/C8abc/"],
+    ["suffixed lookalike", "https://instagram.com.evil.example/x"],
+    ["a non-web scheme", "javascript:alert(1)"],
+    ["a relative path", "/reel/C8abc"],
+    ["an empty string", ""],
+    ["unparseable garbage", "not a link"],
+  ])("rejects %s", (_case, link) => {
+    expect(isSupportedVideoLink(link)).toBe(false);
   });
 });
 
