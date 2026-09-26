@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  submitDraft,
-  type DraftSubmitter,
-} from "@/lib/draft-submission";
+import { submitDraft, type DraftSubmitter } from "@/lib/draft-submission";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
@@ -54,7 +51,6 @@ export function SubmitDraftModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
-
     const trimmedLink = draftLink.trim();
 
     // Treat empty and whitespace-only links as invalid.
@@ -87,12 +83,12 @@ export function SubmitDraftModal({
       }
 
       if (result.errors?.link || result.errors?.notes) {
-    setDraftLinkError(result.errors.link ?? "");
-    setAdminNotesError(result.errors.notes ?? "");
-    return;
-}
+        setDraftLinkError(result.errors.link ?? "");
+        setAdminNotesError(result.errors.notes ?? "");
+        return;
+      }
 
-setSubmissionError(result.message);
+      setSubmissionError(result.message);
     } finally {
       // Always unlock the action after the request finishes.
       setIsSubmitting(false);
@@ -104,55 +100,45 @@ setSubmissionError(result.message);
       title="Submit Draft"
       onClose={onClose}
       footer={
-  <>
-    <Button
-      type="button"
-      variant="ghost"
-      onClick={onClose}
-      disabled={isSubmitting}
-    >
-      Batal
-    </Button>
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            Batal
+          </Button>
 
-    <Button
-      type="button"
-      variant="accent"
-      onClick={handleSubmit}
-      disabled={isSubmitting}
-    >
-      {isSubmitting ? "Mengirim..." : "Kirim Draft"}
-    </Button>
-  </>
-}
+          <Button
+            type="button"
+            variant="accent"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Mengirim..." : "Kirim Draft"}
+          </Button>
+        </>
+      }
     >
       <div className="flex flex-col gap-4">
         {/* Display the selected content without allowing it to be edited. */}
         <div className="flex flex-col gap-3">
           <div>
-            <p className="text-sm text-muted">
-              Nama Konten
-            </p>
+            <p className="text-sm text-muted">Nama Konten</p>
 
-            <p className="text-sm text-ink">
-              {content.name}
-            </p>
+            <p className="text-sm text-ink">{content.name}</p>
           </div>
 
           <div>
-            <p className="text-sm text-muted">
-              Deadline
-            </p>
+            <p className="text-sm text-muted">Deadline</p>
 
-            <p className="text-sm text-ink">
-  {formatDate(content.deadline)}
-</p>
+            <p className="text-sm text-ink">{formatDate(content.deadline)}</p>
           </div>
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink">
-            Link File Draft 
-          </span>
+          <span className="text-sm text-ink">Link File Draft</span>
 
           <input
             type="url"
@@ -167,42 +153,35 @@ setSubmissionError(result.message);
 
           {/* Show a field-specific error directly below the draft link. */}
           {draftLinkError ? (
-            <p className="text-sm text-red-ink">
-              {draftLinkError}
-            </p>
+            <p className="text-sm text-red-ink">{draftLinkError}</p>
           ) : null}
         </label>
 
         <label className="flex flex-col gap-1.5">
-  <span className="text-sm text-ink">
-    Catatan untuk Admin (opsional)
-  </span>
+          <span className="text-sm text-ink">
+            Catatan untuk Admin (opsional)
+          </span>
 
-  <textarea
-    aria-label="Catatan untuk Admin"
-    rows={3}
-    maxLength={MAX_DRAFT_NOTES_LENGTH}
-    value={adminNotes}
-    onChange={(event) => {
-      setAdminNotes(event.target.value);
-      setAdminNotesError("");
-    }}
-    className="resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
-  />
+          <textarea
+            aria-label="Catatan untuk Admin"
+            rows={3}
+            maxLength={MAX_DRAFT_NOTES_LENGTH}
+            value={adminNotes}
+            onChange={(event) => {
+              setAdminNotes(event.target.value);
+              setAdminNotesError("");
+            }}
+            className="resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
+          />
 
-  {adminNotesError ? (
-    <p className="text-sm text-red-ink">
-      {adminNotesError}
-    </p>
-  ) : null}
-</label>
+          {adminNotesError ? (
+            <p className="text-sm text-red-ink">{adminNotesError}</p>
+          ) : null}
+        </label>
 
         {/* General failures are announced to assistive technology as an alert. */}
         {submissionError ? (
-          <p
-            role="alert"
-            className="text-sm text-red-600"
-          >
+          <p role="alert" className="text-sm text-red-600">
             {submissionError}
           </p>
         ) : null}

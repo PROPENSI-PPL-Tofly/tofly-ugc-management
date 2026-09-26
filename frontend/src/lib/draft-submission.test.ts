@@ -1,10 +1,4 @@
-import {
-  afterEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { submitDraft } from "./draft-submission";
 
 afterEach(() => {
@@ -18,15 +12,12 @@ describe("submitDraft", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          contentId:
-            "11111111-1111-4111-8111-111111111111",
+          contentId: "11111111-1111-4111-8111-111111111111",
           submissionId: "submission-1",
           status: "draft_review",
-          link:
-            "https://drive.google.com/file/d/example",
+          link: "https://drive.google.com/file/d/example",
           notes: "Please check the intro",
-          submittedAt:
-            "2026-09-26T10:00:00.000Z",
+          submittedAt: "2026-09-26T10:00:00.000Z",
         }),
         {
           status: 201,
@@ -39,14 +30,10 @@ describe("submitDraft", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await submitDraft(
-      "11111111-1111-4111-8111-111111111111",
-      {
-        link:
-          "https://drive.google.com/file/d/example",
-        notes: "Please check the intro",
-      },
-    );
+    await submitDraft("11111111-1111-4111-8111-111111111111", {
+      link: "https://drive.google.com/file/d/example",
+      notes: "Please check the intro",
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -58,83 +45,77 @@ describe("submitDraft", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          link:
-            "https://drive.google.com/file/d/example",
+          link: "https://drive.google.com/file/d/example",
           notes: "Please check the intro",
         }),
       },
     );
   });
   it("returns the submitted draft after a successful response", async () => {
-  const submittedDraft = {
-    contentId: "11111111-1111-4111-8111-111111111111",
-    submissionId: "submission-1",
-    status: "draft_review",
-    link: "https://drive.google.com/file/d/example",
-    notes: "Please check the intro",
-    submittedAt: "2026-09-26T10:00:00.000Z",
-  };
-
-  // Stub the backend response so this test stays isolated from the real API.
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(submittedDraft), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }),
-    ),
-  );
-
-  const result = await submitDraft(
-    "11111111-1111-4111-8111-111111111111",
-    {
+    const submittedDraft = {
+      contentId: "11111111-1111-4111-8111-111111111111",
+      submissionId: "submission-1",
+      status: "draft_review",
       link: "https://drive.google.com/file/d/example",
       notes: "Please check the intro",
-    },
-  );
+      submittedAt: "2026-09-26T10:00:00.000Z",
+    };
 
-  expect(result).toEqual({
-    ok: true,
-    submission: submittedDraft,
+    // Stub the backend response so this test stays isolated from the real API.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(submittedDraft), {
+          status: 201,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      ),
+    );
+
+    const result = await submitDraft("11111111-1111-4111-8111-111111111111", {
+      link: "https://drive.google.com/file/d/example",
+      notes: "Please check the intro",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      submission: submittedDraft,
+    });
   });
-});
-it.each([
-  {
-    name: "validation error",
-    status: 422,
-    body: {
-      message: "Data draft tidak valid",
-      errors: {
-        link: "Link draft harus berupa URL http atau https",
+  it.each([
+    {
+      name: "validation error",
+      status: 422,
+      body: {
+        message: "Data draft tidak valid",
+        errors: {
+          link: "Link draft harus berupa URL http atau https",
+        },
+      },
+      expected: {
+        ok: false,
+        message: "Data draft tidak valid",
+        errors: {
+          link: "Link draft harus berupa URL http atau https",
+        },
       },
     },
-    expected: {
-      ok: false,
-      message: "Data draft tidak valid",
-      errors: {
-        link: "Link draft harus berupa URL http atau https",
+    {
+      name: "ineligible content",
+      status: 409,
+      body: {
+        code: "DRAFT_NOT_ELIGIBLE",
+        message: "Konten ini sedang tidak menerima draft",
+      },
+      expected: {
+        ok: false,
+        message: "Konten ini sedang tidak menerima draft",
+        code: "DRAFT_NOT_ELIGIBLE",
       },
     },
-  },
-  {
-    name: "ineligible content",
-    status: 409,
-    body: {
-      code: "DRAFT_NOT_ELIGIBLE",
-      message: "Konten ini sedang tidak menerima draft",
-    },
-    expected: {
-      ok: false,
-      message: "Konten ini sedang tidak menerima draft",
-      code: "DRAFT_NOT_ELIGIBLE",
-    },
-  },
-])(
-  "preserves the $name response",
-  async ({ status, body, expected }) => {
+  ])("preserves the $name response", async ({ status, body, expected }) => {
     // Replace the real API call with a controlled error response.
     vi.stubGlobal(
       "fetch",
@@ -148,100 +129,90 @@ it.each([
       ),
     );
 
-    const result = await submitDraft(
-      "11111111-1111-4111-8111-111111111111",
-      {
-        link: "https://drive.google.com/file/d/example",
-        notes: null,
-      },
-    );
+    const result = await submitDraft("11111111-1111-4111-8111-111111111111", {
+      link: "https://drive.google.com/file/d/example",
+      notes: null,
+    });
 
     expect(result).toEqual(expected);
-  },
-);
-it("preserves a notes validation error", async () => {
-  // Simulate a field-specific validation failure for the optional notes field.
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          message: "Data draft tidak valid",
-          errors: {
-            notes: "Catatan maksimal 1000 karakter",
+  });
+  it("preserves a notes validation error", async () => {
+    // Simulate a field-specific validation failure for the optional notes field.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            message: "Data draft tidak valid",
+            errors: {
+              notes: "Catatan maksimal 1000 karakter",
+            },
+          }),
+          {
+            status: 422,
+            headers: {
+              "Content-Type": "application/json",
+            },
           },
-        }),
-        {
-          status: 422,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
+        ),
       ),
-    ),
-  );
+    );
 
-  const result = await submitDraft(
-    "11111111-1111-4111-8111-111111111111",
-    {
+    const result = await submitDraft("11111111-1111-4111-8111-111111111111", {
       link: "https://drive.google.com/file/d/example",
       notes: "A note",
-    },
-  );
+    });
 
-  expect(result).toEqual({
-    ok: false,
-    message: "Data draft tidak valid",
-    errors: {
-      notes: "Catatan maksimal 1000 karakter",
-    },
+    expect(result).toEqual({
+      ok: false,
+      message: "Data draft tidak valid",
+      errors: {
+        notes: "Catatan maksimal 1000 karakter",
+      },
+    });
   });
-});
-it("uses a safe fallback for an unexpected API error response", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          unexpected: true,
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
+  it("uses a safe fallback for an unexpected API error response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            unexpected: true,
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+            },
           },
-        },
+        ),
       ),
-    ),
-  );
+    );
 
-  const result = await submitDraft(
-    "11111111-1111-4111-8111-111111111111",
-    {
+    const result = await submitDraft("11111111-1111-4111-8111-111111111111", {
       link: "https://drive.google.com/file/d/example",
       notes: null,
-    },
-  );
+    });
 
-  expect(result).toEqual({
-    ok: false,
-    message: "Draft gagal dikirim. Coba lagi.",
+    expect(result).toEqual({
+      ok: false,
+      message: "Draft gagal dikirim. Coba lagi.",
+    });
   });
-});
-it("returns a safe fallback when the request fails", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockRejectedValue(new TypeError("fetch failed")),
-  );
+  it("returns a safe fallback when the request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+    );
 
-  await expect(
-    submitDraft("11111111-1111-4111-8111-111111111111", {
-      link: "https://drive.google.com/file/d/test",
-      notes: null,
-    }),
-  ).resolves.toEqual({
-    ok: false,
-    message: "Draft gagal dikirim. Coba lagi.",
+    await expect(
+      submitDraft("11111111-1111-4111-8111-111111111111", {
+        link: "https://drive.google.com/file/d/test",
+        notes: null,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      message: "Draft gagal dikirim. Coba lagi.",
+    });
   });
-});
 });

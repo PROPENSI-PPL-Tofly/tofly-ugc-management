@@ -37,8 +37,7 @@ export type DraftSubmitter = (
   input: DraftSubmissionInput,
 ) => Promise<DraftSubmissionResult>;
 
-const DRAFT_SUBMISSION_FALLBACK_MESSAGE =
-  "Draft gagal dikirim. Coba lagi.";
+const DRAFT_SUBMISSION_FALLBACK_MESSAGE = "Draft gagal dikirim. Coba lagi.";
 
 export async function submitDraft(
   contentId: string,

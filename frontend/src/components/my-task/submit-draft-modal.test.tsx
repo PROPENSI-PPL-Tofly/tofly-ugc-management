@@ -1,16 +1,5 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DraftSubmitter } from "@/lib/draft-submission";
 import {
   SubmitDraftModal,
@@ -28,9 +17,7 @@ const defaultContent = {
 
 // Keeps repeated setup in one place while still allowing individual tests
 // to replace a prop when they need a different scenario.
-function renderModal(
-  overrides: Partial<SubmitDraftModalProps> = {},
-) {
+function renderModal(overrides: Partial<SubmitDraftModalProps> = {}) {
   render(
     <SubmitDraftModal
       content={defaultContent}
@@ -57,13 +44,9 @@ describe("SubmitDraftModal", () => {
       }),
     ).toBeInTheDocument();
 
-    expect(
-      screen.getByText("Morning Routine"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Morning Routine")).toBeInTheDocument();
 
-    expect(
-  screen.getByText("5 Okt 2026"),
-).toBeInTheDocument();
+    expect(screen.getByText("5 Okt 2026")).toBeInTheDocument();
 
     // Content information is displayed as text rather than an editable field.
     expect(
@@ -76,13 +59,9 @@ describe("SubmitDraftModal", () => {
   it("shows a required draft link and optional admin notes", () => {
     renderModal();
 
-    expect(
-      screen.getByLabelText(/link file draft/i),
-    ).toBeRequired();
+    expect(screen.getByLabelText(/link file draft/i)).toBeRequired();
 
-    expect(
-      screen.getByLabelText(/catatan untuk admin/i),
-    ).not.toBeRequired();
+    expect(screen.getByLabelText(/catatan untuk admin/i)).not.toBeRequired();
   });
 
   it.each([
@@ -92,12 +71,9 @@ describe("SubmitDraftModal", () => {
     renderModal();
 
     // Try a representative value from the invalid blank-input group.
-    fireEvent.change(
-      screen.getByLabelText(/link file draft/i),
-      {
-        target: { value: link },
-      },
-    );
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: { value: link },
+    });
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -105,9 +81,7 @@ describe("SubmitDraftModal", () => {
       }),
     );
 
-    expect(
-      screen.getByText("Link file draft wajib diisi"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Link file draft wajib diisi")).toBeInTheDocument();
   });
 
   it("submits trimmed draft data for the selected content", async () => {
@@ -126,24 +100,17 @@ describe("SubmitDraftModal", () => {
     renderModal();
 
     // Add surrounding spaces to verify that values are normalized.
-    fireEvent.change(
-      screen.getByLabelText(/link file draft/i),
-      {
-        target: {
-          value:
-            "  https://drive.google.com/file/d/example  ",
-        },
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: {
+        value: "  https://drive.google.com/file/d/example  ",
       },
-    );
+    });
 
-    fireEvent.change(
-      screen.getByLabelText(/catatan untuk admin/i),
-      {
-        target: {
-          value: "  Please check the intro  ",
-        },
+    fireEvent.change(screen.getByLabelText(/catatan untuk admin/i), {
+      target: {
+        value: "  Please check the intro  ",
       },
-    );
+    });
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -152,25 +119,17 @@ describe("SubmitDraftModal", () => {
     );
 
     await waitFor(() => {
-      expect(mockSubmitDraft).toHaveBeenCalledWith(
-        defaultContent.id,
-        {
-          link: "https://drive.google.com/file/d/example",
-          notes: "Please check the intro",
-        },
-      );
+      expect(mockSubmitDraft).toHaveBeenCalledWith(defaultContent.id, {
+        link: "https://drive.google.com/file/d/example",
+        notes: "Please check the intro",
+      });
     });
   });
 
   it("prevents duplicate submission while the request is pending", async () => {
     // Keep the fake request pending until this test resolves it manually.
     let resolveSubmission:
-      | ((
-          value: Awaited<
-            ReturnType<DraftSubmitter>
-          >,
-        ) => void)
-      | undefined;
+      ((value: Awaited<ReturnType<DraftSubmitter>>) => void) | undefined;
 
     mockSubmitDraft.mockReturnValue(
       new Promise((resolve) => {
@@ -180,15 +139,11 @@ describe("SubmitDraftModal", () => {
 
     renderModal();
 
-    fireEvent.change(
-      screen.getByLabelText(/link file draft/i),
-      {
-        target: {
-          value:
-            "https://drive.google.com/file/d/example",
-        },
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: {
+        value: "https://drive.google.com/file/d/example",
       },
-    );
+    });
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -236,185 +191,172 @@ describe("SubmitDraftModal", () => {
     });
   });
   it("notifies the parent and closes after a successful submission", async () => {
-  const onSubmitted = vi.fn();
-  const onClose = vi.fn();
+    const onSubmitted = vi.fn();
+    const onClose = vi.fn();
 
-  mockSubmitDraft.mockResolvedValue({
-    ok: true,
-    submission: {
-      contentId: defaultContent.id,
-      submissionId: "submission-1",
-      status: "draft_review",
-      link: "https://drive.google.com/file/d/example",
-      notes: null,
-      submittedAt: "2026-09-26T10:00:00.000Z",
-    },
-  });
-
-  renderModal({
-    onSubmitted,
-    onClose,
-  });
-
-  fireEvent.change(
-    screen.getByLabelText(/link file draft/i),
-    {
-      target: {
-        value:
-          "https://drive.google.com/file/d/example",
+    mockSubmitDraft.mockResolvedValue({
+      ok: true,
+      submission: {
+        contentId: defaultContent.id,
+        submissionId: "submission-1",
+        status: "draft_review",
+        link: "https://drive.google.com/file/d/example",
+        notes: null,
+        submittedAt: "2026-09-26T10:00:00.000Z",
       },
-    },
-  );
+    });
 
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Kirim Draft",
-    }),
-  );
+    renderModal({
+      onSubmitted,
+      onClose,
+    });
 
-  await waitFor(() => {
-    expect(onSubmitted).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-});
-it("shows a field error and keeps the modal open when submission validation fails", async () => {
-  const onSubmitted = vi.fn();
-  const onClose = vi.fn();
-
-  mockSubmitDraft.mockResolvedValue({
-    ok: false,
-    message: "Data draft tidak valid",
-    errors: {
-      link: "Link draft harus berupa URL http atau https",
-    },
-  });
-
-  renderModal({
-    onSubmitted,
-    onClose,
-  });
-
-  fireEvent.change(
-    screen.getByLabelText(/link file draft/i),
-    {
-      target: {
-        value: "not-a-valid-web-link",
-      },
-    },
-  );
-
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Kirim Draft",
-    }),
-  );
-
-  expect(
-    await screen.findByText(
-      "Link draft harus berupa URL http atau https",
-    ),
-  ).toBeInTheDocument();
-
-  // A failed submission must not notify the parent or close the modal.
-  expect(onSubmitted).not.toHaveBeenCalled();
-  expect(onClose).not.toHaveBeenCalled();
-});
-
-it("shows an eligibility error and keeps the modal open", async () => {
-  const onSubmitted = vi.fn();
-  const onClose = vi.fn();
-
-  mockSubmitDraft.mockResolvedValue({
-    ok: false,
-    code: "DRAFT_NOT_ELIGIBLE",
-    message: "Konten ini sedang tidak menerima draft",
-  });
-
-  renderModal({
-    onSubmitted,
-    onClose,
-  });
-
-  fireEvent.change(
-    screen.getByLabelText(/link file draft/i),
-    {
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
       target: {
         value: "https://drive.google.com/file/d/example",
       },
-    },
-  );
+    });
 
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Kirim Draft",
-    }),
-  );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Kirim Draft",
+      }),
+    );
 
-  expect(
-    await screen.findByRole("alert"),
-  ).toHaveTextContent(
-    "Konten ini sedang tidak menerima draft",
-  );
+    await waitFor(() => {
+      expect(onSubmitted).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+  it("shows a field error and keeps the modal open when submission validation fails", async () => {
+    const onSubmitted = vi.fn();
+    const onClose = vi.fn();
 
-  // Keep the form open so the creator can understand what happened.
-  expect(onSubmitted).not.toHaveBeenCalled();
-  expect(onClose).not.toHaveBeenCalled();
-});
-it("shows a notes validation error without closing the modal", async () => {
-  const onClose = vi.fn();
+    mockSubmitDraft.mockResolvedValue({
+      ok: false,
+      message: "Data draft tidak valid",
+      errors: {
+        link: "Link draft harus berupa URL http atau https",
+      },
+    });
 
-  mockSubmitDraft.mockResolvedValue({
-    ok: false,
-    message: "Data draft tidak valid",
-    errors: {
-      notes: "Catatan maksimal 1000 karakter",
-    },
+    renderModal({
+      onSubmitted,
+      onClose,
+    });
+
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: {
+        value: "not-a-valid-web-link",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Kirim Draft",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Link draft harus berupa URL http atau https"),
+    ).toBeInTheDocument();
+
+    // A failed submission must not notify the parent or close the modal.
+    expect(onSubmitted).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
-  renderModal({ onClose });
+  it("shows an eligibility error and keeps the modal open", async () => {
+    const onSubmitted = vi.fn();
+    const onClose = vi.fn();
 
-  fireEvent.change(screen.getByLabelText("Link File Draft"), {
-    target: {
-      value: "https://drive.google.com/file/d/test",
-    },
+    mockSubmitDraft.mockResolvedValue({
+      ok: false,
+      code: "DRAFT_NOT_ELIGIBLE",
+      message: "Konten ini sedang tidak menerima draft",
+    });
+
+    renderModal({
+      onSubmitted,
+      onClose,
+    });
+
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: {
+        value: "https://drive.google.com/file/d/example",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Kirim Draft",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Konten ini sedang tidak menerima draft",
+    );
+
+    // Keep the form open so the creator can understand what happened.
+    expect(onSubmitted).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
+  it("shows a notes validation error without closing the modal", async () => {
+    const onClose = vi.fn();
 
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Kirim Draft",
-    }),
-  );
+    mockSubmitDraft.mockResolvedValue({
+      ok: false,
+      message: "Data draft tidak valid",
+      errors: {
+        notes: "Catatan maksimal 1000 karakter",
+      },
+    });
 
-  expect(
-    await screen.findByText("Catatan maksimal 1000 karakter"),
-  ).toBeInTheDocument();
+    renderModal({ onClose });
 
-  expect(onClose).not.toHaveBeenCalled();
-});
-it("limits admin notes to 1000 characters", () => {
-  renderModal();
+    fireEvent.change(screen.getByLabelText("Link File Draft"), {
+      target: {
+        value: "https://drive.google.com/file/d/test",
+      },
+    });
 
-  expect(
-    screen.getByLabelText("Catatan untuk Admin"),
-  ).toHaveAttribute("maxLength", "1000");
-});
-it("shows the deadline using the shared date format", () => {
-  renderModal();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Kirim Draft",
+      }),
+    );
 
-  expect(screen.getByText("5 Okt 2026")).toBeInTheDocument();
-  expect(screen.queryByText("2026-10-05")).not.toBeInTheDocument();
-});
-it("allows the creator to cancel the modal", () => {
-  const onClose = vi.fn();
+    expect(
+      await screen.findByText("Catatan maksimal 1000 karakter"),
+    ).toBeInTheDocument();
 
-  renderModal({ onClose });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+  it("limits admin notes to 1000 characters", () => {
+    renderModal();
 
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Batal",
-    }),
-  );
+    expect(screen.getByLabelText("Catatan untuk Admin")).toHaveAttribute(
+      "maxLength",
+      "1000",
+    );
+  });
+  it("shows the deadline using the shared date format", () => {
+    renderModal();
 
-  expect(onClose).toHaveBeenCalledTimes(1);
-});
+    expect(screen.getByText("5 Okt 2026")).toBeInTheDocument();
+    expect(screen.queryByText("2026-10-05")).not.toBeInTheDocument();
+  });
+  it("allows the creator to cancel the modal", () => {
+    const onClose = vi.fn();
+
+    renderModal({ onClose });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Batal",
+      }),
+    );
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
