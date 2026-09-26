@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import type { content_status } from '@prisma/client';
+import type { content_status, social_platform } from '@prisma/client';
 
 export interface VideoSubmission {
   videoLink: string;
@@ -8,6 +8,32 @@ export interface VideoSubmission {
 export const MAX_VIDEO_LINK_LENGTH = 2048;
 
 const WEB_PROTOCOLS = ['http:', 'https:'] as const;
+
+export function detectVideoPlatform(videoLink: string): social_platform | null {
+  const trimmedLink = videoLink.trim();
+
+  if (!URL.canParse(trimmedLink)) {
+    return null;
+  }
+
+  const url = new URL(trimmedLink);
+
+  if (!WEB_PROTOCOLS.includes(url.protocol as (typeof WEB_PROTOCOLS)[number])) {
+    return null;
+  }
+
+  const host = url.hostname.toLowerCase();
+
+  if (host === 'instagram.com' || host.endsWith('.instagram.com')) {
+    return 'instagram';
+  }
+
+  if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) {
+    return 'tiktok';
+  }
+
+  return null;
+}
 
 function isWebLink(link: string): boolean {
   if (!URL.canParse(link)) {

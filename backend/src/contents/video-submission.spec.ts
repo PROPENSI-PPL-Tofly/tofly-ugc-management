@@ -1,6 +1,33 @@
-import { canSubmitVideo, checkVideoSubmission } from './video-submission.js';
+import {
+  canSubmitVideo,
+  checkVideoSubmission,
+  detectVideoPlatform,
+} from './video-submission.js';
 
 const DEADLINE = '2026-10-20';
+
+describe('detectVideoPlatform', () => {
+  it.each([
+    ['https://instagram.com/reel/123', 'instagram'],
+    ['https://www.instagram.com/reel/123', 'instagram'],
+    ['https://cdn.instagram.com/reel/123', 'instagram'],
+    ['https://tiktok.com/@creator/video/123', 'tiktok'],
+    ['https://www.tiktok.com/@creator/video/123', 'tiktok'],
+    ['https://vm.tiktok.com/abc123', 'tiktok'],
+  ] as const)('detects %s as %s', (link, platform) => {
+    expect(detectVideoPlatform(link)).toBe(platform);
+  });
+
+  it.each([
+    'https://www.youtube.com/shorts/123',
+    'https://instagram.com.evil.example/reel/123',
+    'https://tiktok.com.evil.example/@creator/video/123',
+    'javascript:alert(1)',
+    'not-a-url',
+  ])('rejects unsupported or unsafe video platform %s', (link) => {
+    expect(detectVideoPlatform(link)).toBeNull();
+  });
+});
 
 describe('checkVideoSubmission', () => {
   it('accepts and trims a valid HTTP video link', () => {

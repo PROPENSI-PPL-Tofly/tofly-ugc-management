@@ -8,7 +8,11 @@ import {
 import type { content_status, social_platform } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { canSubmitVideo, type VideoSubmission } from './video-submission.js';
+import {
+  canSubmitVideo,
+  detectVideoPlatform,
+  type VideoSubmission,
+} from './video-submission.js';
 
 export interface SubmittedVideo {
   contentId: string;
@@ -67,32 +71,6 @@ export interface VideoSubmitter {
   ): Promise<SubmittedVideo>;
 }
 
-function detectPlatform(videoLink: string): social_platform | null {
-  let url: URL;
-
-  try {
-    url = new URL(videoLink);
-  } catch {
-    return null;
-  }
-
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return null;
-  }
-
-  const host = url.hostname.toLowerCase();
-
-  if (host === 'instagram.com' || host.endsWith('.instagram.com')) {
-    return 'instagram';
-  }
-
-  if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) {
-    return 'tiktok';
-  }
-
-  return null;
-}
-
 function isoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -124,7 +102,7 @@ export class VideoSubmissionService implements VideoSubmitter {
     input: VideoSubmission,
   ): Promise<SubmittedVideo> {
     const videoLink = input.videoLink.trim();
-    const platform = detectPlatform(videoLink);
+    const platform = detectVideoPlatform(videoLink);
 
     if (!platform) {
       throw new BadRequestException({
