@@ -60,6 +60,18 @@ describe("approveSubmission", () => {
     });
   });
 
+  it("shows its own message for a server failure instead of the server's wording", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ statusCode: 500, message: "Internal server error" }), {
+        status: 500,
+      }),
+    );
+
+    const error = await approveSubmission(UUID).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ status: 500, message: "Keputusan gagal dikirim. Coba lagi." });
+  });
+
   it("falls back to a generic message when the failure body says nothing useful", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response("", { status: 500 }));
 
@@ -163,5 +175,20 @@ describe("reviseSubmission", () => {
     expect((error as DraftReviewActionError).message).toBe(
       "Permintaan revisi gagal dikirim. Coba lagi.",
     );
+  });
+
+  it("does not pass a gateway's error text through to the admin", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ message: "upstream connect error: 10.0.3.7:3001" }), {
+        status: 502,
+      }),
+    );
+
+    const error = await reviseSubmission(UUID, "note").catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
+      status: 502,
+      message: "Permintaan revisi gagal dikirim. Coba lagi.",
+    });
   });
 });
