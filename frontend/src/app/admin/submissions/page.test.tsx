@@ -22,7 +22,9 @@ const mockedFetch = vi.mocked(fetchSubmissionQueue);
 
 async function renderPage(searchParams: Record<string, string> = {}) {
   const result = await SubmissionsPage({
-    searchParams: Promise.resolve(searchParams) as Promise<Record<string, string | string[] | undefined>>,
+    searchParams: Promise.resolve(searchParams) as Promise<
+      Record<string, string | string[] | undefined>
+    >,
   });
   const rendered = render(<>{result}</>);
   return { ...rendered };
@@ -96,7 +98,9 @@ describe("Antrian Draft page", () => {
 
     await renderPage({ page: "abc" });
 
-    expect(screen.getByText(/halaman.*abc.*tidak dikenal/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/halaman.*abc.*tidak dikenal/i),
+    ).toBeInTheDocument();
   });
 
   it("forwards valid status, type, q and overdue filters", async () => {
@@ -168,5 +172,72 @@ describe("Antrian Draft page", () => {
       type: "all",
       overdue: false,
     });
+  });
+
+  it("keeps the active filters in the pagination links and counts drafts", async () => {
+    mockedFetch.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 22,
+      totalPages: 3,
+    });
+
+    await renderPage({ q: "pw", type: "specific", overdue: "true" });
+
+    expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
+      "href",
+      "/admin/submissions?q=pw&type=specific&overdue=true&page=2",
+    );
+    expect(
+      screen.getByText("Menampilkan 1–10 dari 22 draft"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the first page with a notice when the page asked for is past the end", async () => {
+    const firstPage = {
+      items: [
+        {
+          submissionId: "1",
+          creatorName: "Salsa",
+          contentName: "Evg_1",
+          type: "evergreen",
+          deadline: "2026-09-15",
+          status: "draft_review" as const,
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      total: 22,
+      totalPages: 3,
+    };
+    mockedFetch
+      .mockResolvedValueOnce({ ...firstPage, items: [], page: 99 })
+      .mockResolvedValueOnce(firstPage);
+
+    await renderPage({ page: "99", q: "pw" });
+
+    expect(mockedFetch).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ q: "pw" }),
+    );
+    expect(screen.getByText(/halaman.*99.*tidak ada/i)).toBeInTheDocument();
+    expect(screen.getByText("Evg_1")).toBeInTheDocument();
+    expect(screen.queryByText(/tidak ada draft/i)).not.toBeInTheDocument();
+  });
+
+  it("does not refetch when an empty queue has no pages at all", async () => {
+    mockedFetch.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      totalPages: 0,
+    });
+
+    await renderPage({});
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/tidak ada draft/i)).toBeInTheDocument();
   });
 });
