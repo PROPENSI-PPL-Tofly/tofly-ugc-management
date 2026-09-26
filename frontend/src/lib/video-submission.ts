@@ -5,13 +5,15 @@ export interface VideoSubmissionInput {
 export interface SubmittedVideo {
   contentId: string;
   status: string;
-  link: string;
+  videoLink: string;
+  platform: "instagram" | "tiktok";
   submittedAt: string;
 }
 
 // Field-specific errors can later be displayed beside the related form field.
+// The backend names this field `videoLink` (422 from the video submission boundary).
 export interface VideoSubmissionFieldErrors {
-  link?: string;
+  videoLink?: string;
 }
 
 export type VideoSubmissionResult =
@@ -63,7 +65,7 @@ export async function submitVideo(
   let body: {
     message?: unknown;
     code?: unknown;
-    errors?: { link?: unknown };
+    errors?: { videoLink?: unknown };
   };
   try {
     body = (await response.json()) as typeof body;
@@ -91,8 +93,8 @@ export async function submitVideo(
   if (body.errors) {
     const errors: VideoSubmissionFieldErrors = {};
 
-    if (typeof body.errors.link === "string") {
-      errors.link = body.errors.link;
+    if (typeof body.errors.videoLink === "string") {
+      errors.videoLink = body.errors.videoLink;
     }
 
     result.errors = errors;
