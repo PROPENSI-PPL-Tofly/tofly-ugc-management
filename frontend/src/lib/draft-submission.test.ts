@@ -159,4 +159,73 @@ it.each([
     expect(result).toEqual(expected);
   },
 );
+it("preserves a notes validation error", async () => {
+  // Simulate a field-specific validation failure for the optional notes field.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: "Data draft tidak valid",
+          errors: {
+            notes: "Catatan maksimal 1000 karakter",
+          },
+        }),
+        {
+          status: 422,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      ),
+    ),
+  );
+
+  const result = await submitDraft(
+    "11111111-1111-4111-8111-111111111111",
+    {
+      link: "https://drive.google.com/file/d/example",
+      notes: "A note",
+    },
+  );
+
+  expect(result).toEqual({
+    ok: false,
+    message: "Data draft tidak valid",
+    errors: {
+      notes: "Catatan maksimal 1000 karakter",
+    },
+  });
+});
+it("uses a safe fallback for an unexpected API error response", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          unexpected: true,
+        }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      ),
+    ),
+  );
+
+  const result = await submitDraft(
+    "11111111-1111-4111-8111-111111111111",
+    {
+      link: "https://drive.google.com/file/d/example",
+      notes: null,
+    },
+  );
+
+  expect(result).toEqual({
+    ok: false,
+    message: "Draft gagal dikirim. Coba lagi.",
+  });
+});
 });
