@@ -4,32 +4,51 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { SubmitDraftModal } from "./submit-draft-modal";
-import { submitDraft } from "@/lib/draft-submission";
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import type { DraftSubmitter } from "@/lib/draft-submission";
+import {
+  SubmitDraftModal,
+  type SubmitDraftModalProps,
+} from "./submit-draft-modal";
 
-vi.mock("@/lib/draft-submission", () => ({
-  submitDraft: vi.fn(),
-}));
+// This mock follows the same contract as the real draft submission service.
+const mockSubmitDraft = vi.fn<DraftSubmitter>();
 
-const mockedSubmitDraft = vi.mocked(submitDraft);
+const defaultContent = {
+  id: "11111111-1111-4111-8111-111111111111",
+  name: "Morning Routine",
+  deadline: "2026-10-05",
+};
+
+// Keeps repeated setup in one place while still allowing individual tests
+// to replace a prop when they need a different scenario.
+function renderModal(
+  overrides: Partial<SubmitDraftModalProps> = {},
+) {
+  render(
+    <SubmitDraftModal
+      content={defaultContent}
+      onClose={vi.fn()}
+      submitDraftAction={mockSubmitDraft}
+      {...overrides}
+    />,
+  );
+}
 
 describe("SubmitDraftModal", () => {
-    beforeEach(() => {
-  // Prevent one test's mock calls or results from leaking into another test.
-  mockedSubmitDraft.mockReset();
-});
+  beforeEach(() => {
+    // Prevent mock calls and results from leaking between tests.
+    mockSubmitDraft.mockReset();
+  });
+
   it("shows the selected content as read-only information", () => {
-    render(
-      <SubmitDraftModal
-        content={{
-          id: "11111111-1111-4111-8111-111111111111",
-          name: "Morning Routine",
-          deadline: "2026-10-05",
-        }}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal();
 
     expect(
       screen.getByRole("dialog", {
@@ -45,196 +64,174 @@ describe("SubmitDraftModal", () => {
       screen.getByText(/2026-10-05/),
     ).toBeInTheDocument();
 
+    // Content information is displayed as text rather than an editable field.
     expect(
       screen.queryByRole("textbox", {
         name: /nama konten/i,
       }),
     ).toBeNull();
   });
+
   it("shows a required draft link and optional admin notes", () => {
-  render(
-    <SubmitDraftModal
-      content={{
-        id: "11111111-1111-4111-8111-111111111111",
-        name: "Morning Routine",
-        deadline: "2026-10-05",
-      }}
-      onClose={vi.fn()}
-    />,
-  );
+    renderModal();
 
-  // The draft link must be filled before submission.
-  expect(
-    screen.getByLabelText(/link file draft/i),
-  ).toBeRequired();
+    expect(
+      screen.getByLabelText(/link file draft/i),
+    ).toBeRequired();
 
-  // Notes are available but may be left empty.
-  expect(
-    screen.getByLabelText(/catatan untuk admin/i),
-  ).not.toBeRequired();
-});
-it.each([
-  ["empty", ""],
-  ["whitespace only", "   "],
-])("rejects a %s draft link", (_case, link) => {
-  render( 
-    <SubmitDraftModal
-      content={{
-        id: "11111111-1111-4111-8111-111111111111",
-        name: "Morning Routine",
-        deadline: "2026-10-05",
-      }}
-      onClose={vi.fn()}
-    />,
-  );
-
-  // Try an invalid value from the blank-input partition.
-  fireEvent.change(
-    screen.getByLabelText(/link file draft/i),
-    {
-      target: { value: link },
-    },
-  );
-
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Kirim Draft",
-    }),
-  );
-
-  // The creator should receive a clear validation message.
-  expect(
-    screen.getByText("Link file draft wajib diisi"),
-  ).toBeInTheDocument();
-});
-it("submits trimmed draft data for the selected content", async () => {
-  mockedSubmitDraft.mockResolvedValue({
-    ok: true,
-    submission: {
-      contentId: "11111111-1111-4111-8111-111111111111",
-      submissionId: "submission-1",
-      status: "draft_review",
-      link: "https://drive.google.com/file/d/example",
-      notes: "Please check the intro",
-      submittedAt: "2026-09-26T10:00:00.000Z",
-    },
+    expect(
+      screen.getByLabelText(/catatan untuk admin/i),
+    ).not.toBeRequired();
   });
 
-  render(
-    <SubmitDraftModal
-      content={{
-        id: "11111111-1111-4111-8111-111111111111",
-        name: "Morning Routine",
-        deadline: "2026-10-05",
-      }}
-      onClose={vi.fn()}
-    />,
-  );
+  it.each([
+    ["empty", ""],
+    ["whitespace only", "   "],
+  ])("rejects a %s draft link", (_case, link) => {
+    renderModal();
 
-  // Include surrounding spaces to verify that form values are normalized.
-  fireEvent.change(
-    screen.getByLabelText(/link file draft/i),
-    {
-      target: {
-        value:
-          "  https://drive.google.com/file/d/example  ",
-      },
-    },
-  );
-
-  fireEvent.change(
-    screen.getByLabelText(/catatan untuk admin/i),
-    {
-      target: {
-        value: "  Please check the intro  ",
-      },
-    },
-  );
-
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Kirim Draft",
-    }),
-  );
-
-  await waitFor(() => {
-    expect(mockedSubmitDraft).toHaveBeenCalledWith(
-      "11111111-1111-4111-8111-111111111111",
+    // Try a representative value from the invalid blank-input group.
+    fireEvent.change(
+      screen.getByLabelText(/link file draft/i),
       {
-        link: "https://drive.google.com/file/d/example",
-        notes: "Please check the intro",
+        target: { value: link },
       },
     );
-  });
-});
-it("prevents duplicate submission while the request is pending", async () => {
-  // Keep the mocked request pending until the test decides to resolve it.
-  let resolveSubmission:
-    | ((value: Awaited<ReturnType<typeof submitDraft>>) => void)
-    | undefined;
 
-  mockedSubmitDraft.mockReturnValue(
-    new Promise((resolve) => {
-      resolveSubmission = resolve;
-    }),
-  );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Kirim Draft",
+      }),
+    );
 
-  render(
-    <SubmitDraftModal
-      content={{
-        id: "11111111-1111-4111-8111-111111111111",
-        name: "Morning Routine",
-        deadline: "2026-10-05",
-      }}
-      onClose={vi.fn()}
-    />,
-  );
-
-  fireEvent.change(
-    screen.getByLabelText(/link file draft/i),
-    {
-      target: {
-        value: "https://drive.google.com/file/d/example",
-      },
-    },
-  );
-
-  const submitButton = screen.getByRole("button", {
-    name: "Kirim Draft",
-  });
-
-  // Start the first submission.
-  fireEvent.click(submitButton);
-
-  // While the request is pending, the button should no longer be usable.
-  await waitFor(() => {
     expect(
+      screen.getByText("Link file draft wajib diisi"),
+    ).toBeInTheDocument();
+  });
+
+  it("submits trimmed draft data for the selected content", async () => {
+    mockSubmitDraft.mockResolvedValue({
+      ok: true,
+      submission: {
+        contentId: defaultContent.id,
+        submissionId: "submission-1",
+        status: "draft_review",
+        link: "https://drive.google.com/file/d/example",
+        notes: "Please check the intro",
+        submittedAt: "2026-09-26T10:00:00.000Z",
+      },
+    });
+
+    renderModal();
+
+    // Add surrounding spaces to verify that values are normalized.
+    fireEvent.change(
+      screen.getByLabelText(/link file draft/i),
+      {
+        target: {
+          value:
+            "  https://drive.google.com/file/d/example  ",
+        },
+      },
+    );
+
+    fireEvent.change(
+      screen.getByLabelText(/catatan untuk admin/i),
+      {
+        target: {
+          value: "  Please check the intro  ",
+        },
+      },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Kirim Draft",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockSubmitDraft).toHaveBeenCalledWith(
+        defaultContent.id,
+        {
+          link: "https://drive.google.com/file/d/example",
+          notes: "Please check the intro",
+        },
+      );
+    });
+  });
+
+  it("prevents duplicate submission while the request is pending", async () => {
+    // Keep the fake request pending until this test resolves it manually.
+    let resolveSubmission:
+      | ((
+          value: Awaited<
+            ReturnType<DraftSubmitter>
+          >,
+        ) => void)
+      | undefined;
+
+    mockSubmitDraft.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSubmission = resolve;
+      }),
+    );
+
+    renderModal();
+
+    fireEvent.change(
+      screen.getByLabelText(/link file draft/i),
+      {
+        target: {
+          value:
+            "https://drive.google.com/file/d/example",
+        },
+      },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Kirim Draft",
+      }),
+    );
+
+    // The action becomes unavailable while the request is running.
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "Mengirim...",
+        }),
+      ).toBeDisabled();
+    });
+
+    // Attempting another click must not create a second request.
+    fireEvent.click(
       screen.getByRole("button", {
         name: "Mengirim...",
       }),
-    ).toBeDisabled();
+    );
+
+    expect(mockSubmitDraft).toHaveBeenCalledTimes(1);
+
+    // Finish the fake request so the component returns to its idle state.
+    resolveSubmission?.({
+      ok: true,
+      submission: {
+        contentId: defaultContent.id,
+        submissionId: "submission-1",
+        status: "draft_review",
+        link: "https://drive.google.com/file/d/example",
+        notes: null,
+        submittedAt: "2026-09-26T10:00:00.000Z",
+      },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "Kirim Draft",
+        }),
+      ).toBeEnabled();
+    });
   });
-
-  // A second click must not create another submission request.
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Mengirim...",
-    }),
-  );
-
-  expect(mockedSubmitDraft).toHaveBeenCalledTimes(1);
-
-  // Finish the pending request so the test can clean up normally.
-  resolveSubmission?.({
-    ok: true,
-    submission: {
-      contentId: "11111111-1111-4111-8111-111111111111",
-      submissionId: "submission-1",
-      status: "draft_review",
-      link: "https://drive.google.com/file/d/example",
-      notes: null,
-      submittedAt: "2026-09-26T10:00:00.000Z",
-    },
-  });
-});
 });

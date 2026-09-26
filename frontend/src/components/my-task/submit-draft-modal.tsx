@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { submitDraft } from "@/lib/draft-submission";
+import {
+  submitDraft,
+  type DraftSubmitter,
+} from "@/lib/draft-submission";
 import { Modal } from "@/components/ui/modal";
 
 export interface SubmitDraftModalProps {
@@ -14,11 +17,15 @@ export interface SubmitDraftModalProps {
 
   // Lets the parent component control when the modal closes.
   onClose: () => void;
+
+  // Allows the submission behavior to be replaced during testing.
+  submitDraftAction?: DraftSubmitter;
 }
 
 export function SubmitDraftModal({
   content,
   onClose,
+  submitDraftAction = submitDraft,
 }: SubmitDraftModalProps) {
   // Stores the current value of the draft link field.
   const [draftLink, setDraftLink] = useState("");
@@ -30,40 +37,40 @@ export function SubmitDraftModal({
   const [draftLinkError, setDraftLinkError] = useState("");
 
   // Tracks whether a draft submission is currently in progress.
-   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
-  // Ignore another submit attempt while the current request is still running.
-  if (isSubmitting) {
-    return;
+    // Ignore another submit attempt while the current request is running.
+    if (isSubmitting) {
+      return;
+    }
+
+    const trimmedLink = draftLink.trim();
+
+    // Treat empty and whitespace-only links as invalid.
+    if (!trimmedLink) {
+      setDraftLinkError("Link file draft wajib diisi");
+      return;
+    }
+
+    // Clear an old validation message once the value becomes valid.
+    setDraftLinkError("");
+
+    const trimmedNotes = adminNotes.trim();
+
+    // Lock the submit action until the request finishes.
+    setIsSubmitting(true);
+
+    try {
+      await submitDraftAction(content.id, {
+        link: trimmedLink,
+        notes: trimmedNotes || null,
+      });
+    } finally {
+      // Always unlock the action after the request finishes.
+      setIsSubmitting(false);
+    }
   }
-
-  const trimmedLink = draftLink.trim();
-
-  // Treat an empty or whitespace-only link as invalid.
-  if (!trimmedLink) {
-    setDraftLinkError("Link file draft wajib diisi");
-    return;
-  }
-
-  // Remove an old validation message once the current value is valid.
-  setDraftLinkError("");
-
-  const trimmedNotes = adminNotes.trim();
-
-  // Lock the submit action until the request finishes.
-  setIsSubmitting(true);
-
-  try {
-    await submitDraft(content.id, {
-      link: trimmedLink,
-      notes: trimmedNotes || null,
-    });
-  } finally {
-    // Always unlock the form after the request finishes.
-    setIsSubmitting(false);
-  }
-}
 
   return (
     <Modal
@@ -71,13 +78,13 @@ export function SubmitDraftModal({
       onClose={onClose}
       footer={
         <button
-  type="button"
-  onClick={handleSubmit}
-  disabled={isSubmitting}
-  className="cursor-pointer rounded-(--radius-control) px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
->
-  {isSubmitting ? "Mengirim..." : "Kirim Draft"}
-</button>
+          type="button"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className="cursor-pointer rounded-(--radius-control) px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? "Mengirim..." : "Kirim Draft"}
+        </button>
       }
     >
       <div className="flex flex-col gap-4">

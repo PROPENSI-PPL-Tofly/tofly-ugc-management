@@ -30,6 +30,13 @@ export type DraftSubmissionResult =
       errors?: DraftSubmissionFieldErrors;
     };
 
+// Describes any function that can submit a draft.
+// The UI can depend on this contract instead of a specific implementation.
+export type DraftSubmitter = (
+  contentId: string,
+  input: DraftSubmissionInput,
+) => Promise<DraftSubmissionResult>;
+
 export async function submitDraft(
   contentId: string,
   input: DraftSubmissionInput,
@@ -54,7 +61,7 @@ export async function submitDraft(
     };
   }
 
-  // Read the structured error returned by the API.
+  // Treat data from the API as unknown until its type is checked.
   const body = (await response.json()) as {
     message?: unknown;
     code?: unknown;
@@ -72,12 +79,12 @@ export async function submitDraft(
         : "Draft gagal dikirim. Coba lagi.",
   };
 
-  // Preserve a machine-readable error code when one is provided.
+  // Preserve a machine-readable error code when provided.
   if (typeof body.code === "string") {
     result.code = body.code;
   }
 
-  // Preserve field-specific validation messages for the form.
+  // Preserve valid field-specific error messages.
   if (body.errors) {
     const errors: DraftSubmissionFieldErrors = {};
 
