@@ -154,6 +154,17 @@ describe("MyTaskTable", () => {
       expect(onAction).toHaveBeenCalledWith(scheduled, "submit_draft");
     });
 
+    // What the Resubmit Draft modal (SCRUM-109) opens on, so it must reach the page as its own action.
+    it("hands a resubmit to the page as resubmit_draft", () => {
+      const onAction = vi.fn();
+      const revision = task({ status: "draft_revision", actions: ["resubmit_draft"] });
+      render(<MyTaskTable tasks={[revision]} onAction={onAction} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Resubmit Draft/ }));
+
+      expect(onAction).toHaveBeenCalledWith(revision, "resubmit_draft");
+    });
+
     it("tells apart two actions on the same row", () => {
       const onAction = vi.fn();
       const both = task({ actions: ["submit_draft", "submit_video"] });
