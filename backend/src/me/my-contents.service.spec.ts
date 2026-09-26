@@ -25,9 +25,12 @@ function row(
   };
 }
 
-function stub(rows: MyContentRow[]) {
+function stub(rows: MyContentRow[], total = rows.length) {
   const client = {
-    contents: { findMany: vi.fn().mockResolvedValue(rows) },
+    contents: {
+      findMany: vi.fn().mockResolvedValue(rows),
+      count: vi.fn().mockResolvedValue(total),
+    },
   } satisfies MyContentsClient;
   return { client, service: new MyContentsService(client) };
 }
@@ -37,7 +40,7 @@ describe('MyContentsService.list', () => {
     seq = 0;
   });
 
-  it("reads only the creator's own committed contents and only the columns a row shows", async () => {
+  it("reads one page of the creator's own committed contents, nearest deadline first, and only the columns a row shows", async () => {
     const { client, service } = stub([]);
 
     await service.list(CREATOR_ID, PAGE, NOW);
@@ -52,6 +55,12 @@ describe('MyContentsService.list', () => {
         deadline: true,
         status: true,
       },
+      orderBy: [{ deadline: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 5,
+    });
+    expect(client.contents.count).toHaveBeenCalledWith({
+      where: { is_proposal: false, contracts: { creator_id: CREATOR_ID } },
     });
   });
 
@@ -83,53 +92,39 @@ describe('MyContentsService.list', () => {
     ]);
   });
 
-  it('sorts open tasks by nearest deadline ahead of submitted links', async () => {
+  it('keeps the order the query returns, submitted links included', async () => {
     const { service } = stub([
       row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted' }),
-      row({ id: 'later', deadline: '2026-11-15' }),
       row({ id: 'sooner', deadline: '2026-10-20', status: 'draft_review' }),
+      row({ id: 'later', deadline: '2026-11-15' }),
     ]);
 
     const response = await service.list(CREATOR_ID, PAGE, NOW);
 
     expect(response.items.map((item) => item.id)).toEqual([
+      'done',
       'sooner',
       'later',
-      'done',
     ]);
-    expect(response.items[2].actions).toEqual([]);
+    expect(response.items[0].actions).toEqual([]);
   });
 
-  it('pages the sorted list and reports totals across every page', async () => {
-    const rows = Array.from({ length: 7 }, (_, i) =>
-      row({ deadline: `2026-11-${String(10 + i)}` }),
-    );
-    const { service } = stub([...rows].reverse());
+  it('asks the query for the requested page and reports totals across every page', async () => {
+    const rows = [row({}), row({})];
+    const { client, service } = stub(rows, 7);
 
-    const first = await service.list(CREATOR_ID, PAGE, NOW);
     const second = await service.list(
       CREATOR_ID,
       { page: 2, pageSize: 5 },
       NOW,
     );
 
-    expect(first.items.map((item) => item.deadline)).toEqual([
-      '2026-11-10',
-      '2026-11-11',
-      '2026-11-12',
-      '2026-11-13',
-      '2026-11-14',
-    ]);
-    expect(second.items.map((item) => item.deadline)).toEqual([
-      '2026-11-15',
-      '2026-11-16',
-    ]);
-    expect(first).toMatchObject({
-      page: 1,
-      pageSize: 5,
-      total: 7,
-      totalPages: 2,
-    });
+    expect(client.contents.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 5, take: 5 }),
+    );
+    expect(second.items.map((item) => item.id)).toEqual(
+      rows.map((r) => r.id),
+    );
     expect(second).toMatchObject({
       page: 2,
       pageSize: 5,
@@ -151,7 +146,7 @@ describe('MyContentsService.list', () => {
   });
 
   it('answers a page past the end with no rows rather than an error', async () => {
-    const { service } = stub([row({})]);
+    const { client, service } = stub([], 1);
 
     const response = await service.list(
       CREATOR_ID,
@@ -159,6 +154,9 @@ describe('MyContentsService.list', () => {
       NOW,
     );
 
+    expect(client.contents.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 10, take: 5 }),
+    );
     expect(response).toMatchObject({
       items: [],
       page: 3,

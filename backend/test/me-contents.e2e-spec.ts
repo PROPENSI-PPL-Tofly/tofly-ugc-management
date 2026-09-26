@@ -125,7 +125,7 @@ describe('GET /me/contents (e2e)', () => {
     vi.unstubAllEnvs();
   });
 
-  it('lists the first 5 open tasks by nearest deadline, each with its actions', async () => {
+  it('lists the first 5 tasks by nearest deadline, each with its actions', async () => {
     const response = await list(dina);
 
     expect(response.status).toBe(200);
@@ -144,25 +144,21 @@ describe('GET /me/contents (e2e)', () => {
         ],
       ),
     ).toEqual([
+      ['Submitted long ago', iso(-20), []],
       ['Overdue', iso(-2), ['submit_draft', 'submit_video']],
       ['Tomorrow', iso(1), ['submit_draft', 'submit_video']],
       ['Revision', iso(12), ['resubmit_draft']],
       ['In review', iso(20), []],
-      ['Approved', iso(30), ['submit_video']],
     ]);
   });
 
-  it('puts submitted links after every open task on the last page', async () => {
+  it('continues by deadline on the last page', async () => {
     const response = await list(dina, '?page=2');
 
     expect(response.status).toBe(200);
     expect(
       response.body.items.map((item: { name: string }) => item.name),
-    ).toEqual(['Far away', 'Submitted long ago']);
-    expect(response.body.items[1]).toMatchObject({
-      status: 'link_submitted',
-      actions: [],
-    });
+    ).toEqual(['Approved', 'Far away']);
   });
 
   it('returns only the fields a row needs', async () => {
