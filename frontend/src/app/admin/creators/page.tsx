@@ -83,6 +83,8 @@ export default async function CreatorsPage({
           <>
             <CreatorTable creators={result.items} total={result.total} />
             <Pagination
+              basePath="/admin/creators"
+              noun="creator"
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}
