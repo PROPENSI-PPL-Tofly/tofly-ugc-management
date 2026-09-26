@@ -15,11 +15,7 @@ export const MAX_DRAFT_NOTES_LENGTH = 1000;
 const WEB_PROTOCOLS = ['http:', 'https:'];
 
 function isWebLink(link: string): boolean {
-  try {
-    return WEB_PROTOCOLS.includes(new URL(link).protocol);
-  } catch {
-    return false;
-  }
+  return URL.canParse(link) && WEB_PROTOCOLS.includes(new URL(link).protocol);
 }
 
 function checkLink(value: unknown): string | { error: string } {
@@ -53,10 +49,8 @@ function checkNotes(value: unknown): string | null | { error: string } {
 
 /** The Submit/Resubmit Draft body (PRD 3.16), or a 422 naming every bad field. */
 export function checkDraftSubmission(input: unknown): DraftSubmission {
-  const body =
-    input !== null && typeof input === 'object' && !Array.isArray(input)
-      ? (input as Record<string, unknown>)
-      : {};
+  // A primitive or a list has no link or notes of its own, so it fails on those fields.
+  const body = (input ?? {}) as Record<string, unknown>;
 
   const link = checkLink(body.link);
   const notes = checkNotes(body.notes);
