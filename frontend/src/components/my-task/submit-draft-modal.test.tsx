@@ -360,4 +360,42 @@ it("shows an eligibility error and keeps the modal open", async () => {
   expect(onSubmitted).not.toHaveBeenCalled();
   expect(onClose).not.toHaveBeenCalled();
 });
+it("shows a notes validation error without closing the modal", async () => {
+  const onClose = vi.fn();
+
+  mockSubmitDraft.mockResolvedValue({
+    ok: false,
+    message: "Data draft tidak valid",
+    errors: {
+      notes: "Catatan maksimal 1000 karakter",
+    },
+  });
+
+  renderModal({ onClose });
+
+  fireEvent.change(screen.getByLabelText("Link File Draft"), {
+    target: {
+      value: "https://drive.google.com/file/d/test",
+    },
+  });
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Kirim Draft",
+    }),
+  );
+
+  expect(
+    await screen.findByText("Catatan maksimal 1000 karakter"),
+  ).toBeInTheDocument();
+
+  expect(onClose).not.toHaveBeenCalled();
+});
+it("limits admin notes to 1000 characters", () => {
+  renderModal();
+
+  expect(
+    screen.getByLabelText("Catatan untuk Admin"),
+  ).toHaveAttribute("maxLength", "1000");
+});
 });
