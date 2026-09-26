@@ -2,6 +2,7 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionRevisionController } from './submission-revision.controller.js';
 import { SubmissionRevisionService } from './submission-revision.service.js';
@@ -24,6 +25,7 @@ describe('SubmissionsModule', () => {
     expect(controllers).toContain(SubmissionsController);
     expect(providers).toContain(SubmissionReviewService);
     expect(providers).toContain(SubmissionDetailService);
+    expect(providers).toContain(ReviewQueueService);
   });
 
   it('provides the submission revision controller and service', async () => {
