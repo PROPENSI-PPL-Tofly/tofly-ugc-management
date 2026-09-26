@@ -7,18 +7,16 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import {
-  MockCreatorGuard,
-  MockCurrentCreator,
-} from './creator-identity.mock.js';
+import { CurrentCreator } from '../auth/current-creator.decorator.js';
+import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import {
   checkVideoSubmission,
   type VideoSubmission,
 } from './video-submission.js';
 import {
   VideoSubmissionService,
-  type VideoSubmitter,
   type SubmittedVideo,
+  type VideoSubmitter,
 } from './video-submission.service.js';
 
 function extractVideoLink(body: unknown): unknown {
@@ -30,6 +28,7 @@ function extractVideoLink(body: unknown): unknown {
 }
 
 @Controller('contents')
+@UseGuards(DevCreatorGuard)
 export class VideoSubmissionController {
   constructor(
     @Inject(VideoSubmissionService)
@@ -43,10 +42,9 @@ export class VideoSubmissionController {
    * uses `videoLink`.
    */
   @Post(':id/video')
-  @UseGuards(MockCreatorGuard)
   async submit(
     @Param('id', new ParseUUIDPipe()) contentId: string,
-    @MockCurrentCreator() creatorId: string,
+    @CurrentCreator() creatorId: string,
     @Body() body: unknown,
   ): Promise<SubmittedVideo> {
     const validated: VideoSubmission = checkVideoSubmission({

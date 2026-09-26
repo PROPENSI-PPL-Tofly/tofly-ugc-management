@@ -1,10 +1,7 @@
 import {
-  canSubmitVideo,
   checkVideoSubmission,
   detectVideoPlatform,
 } from './video-submission.js';
-
-const DEADLINE = '2026-10-20';
 
 describe('detectVideoPlatform', () => {
   it.each([
@@ -76,47 +73,5 @@ describe('checkVideoSubmission', () => {
 
   it('rejects an array instead of treating it as a request object', () => {
     expect(() => checkVideoSubmission([])).toThrow();
-  });
-});
-
-describe('canSubmitVideo', () => {
-  it('allows draft-approved content before the grace window', () => {
-    expect(canSubmitVideo('draft_approved', DEADLINE, '2026-10-10')).toBe(true);
-  });
-
-  it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-    'draft_revised',
-  ] as const)('allows %s on H-1', (status) => {
-    expect(canSubmitVideo(status, DEADLINE, '2026-10-19')).toBe(true);
-  });
-
-  it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-    'draft_revised',
-  ] as const)('rejects %s before H-1', (status) => {
-    expect(canSubmitVideo(status, DEADLINE, '2026-10-18')).toBe(false);
-  });
-
-  it('keeps the grace window open on the deadline date', () => {
-    expect(canSubmitVideo('draft_review', DEADLINE, '2026-10-20')).toBe(true);
-  });
-
-  it('keeps the grace window open after the deadline', () => {
-    expect(canSubmitVideo('draft_review', DEADLINE, '2026-11-02')).toBe(true);
-  });
-
-  it('never allows link_submitted content to submit another video', () => {
-    expect(canSubmitVideo('link_submitted', DEADLINE, '2026-10-19')).toBe(
-      false,
-    );
-
-    expect(canSubmitVideo('link_submitted', DEADLINE, '2026-11-02')).toBe(
-      false,
-    );
   });
 });

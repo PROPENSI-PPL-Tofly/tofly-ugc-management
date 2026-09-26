@@ -7,9 +7,9 @@ import {
 } from '@nestjs/common';
 import type { content_status, social_platform } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
+import { canSubmitVideo } from '../me/task-actions.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  canSubmitVideo,
   detectVideoPlatform,
   type VideoSubmission,
 } from './video-submission.js';

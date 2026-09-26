@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import type { content_status, social_platform } from '@prisma/client';
+import type { social_platform } from '@prisma/client';
 
 export interface VideoSubmission {
   videoLink: string;
@@ -89,29 +89,4 @@ export function checkVideoSubmission(input: unknown): VideoSubmission {
   return {
     videoLink,
   };
-}
-
-/**
- * A final video link may be submitted after draft approval, or from H-1 onward
- * for unfinished content. Content that already has a submitted link is terminal.
- */
-export function canSubmitVideo(
-  status: content_status,
-  deadline: string,
-  today: string,
-): boolean {
-  if (status === 'link_submitted') {
-    return false;
-  }
-
-  if (status === 'draft_approved') {
-    return true;
-  }
-
-  const deadlineDate = new Date(`${deadline}T00:00:00.000Z`);
-  deadlineDate.setUTCDate(deadlineDate.getUTCDate() - 1);
-
-  const graceStart = deadlineDate.toISOString().slice(0, 10);
-
-  return today >= graceStart;
 }

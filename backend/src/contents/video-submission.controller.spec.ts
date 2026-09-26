@@ -5,7 +5,11 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { MOCK_CREATOR_HEADER } from './creator-identity.mock.js';
+import {
+  DEV_CREATOR_HEADER,
+  DevCreatorGuard,
+} from '../auth/dev-creator.guard.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { VideoSubmissionController } from './video-submission.controller.js';
 import { VideoSubmissionService } from './video-submission.service.js';
 
@@ -18,12 +22,22 @@ describe('VideoSubmissionController', () => {
     submit: vi.fn(),
   };
 
+  const prisma = {
+    creators: {
+      findUnique: vi.fn(),
+    },
+  };
+
   let app: INestApplication;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [VideoSubmissionController],
-      providers: [{ provide: VideoSubmissionService, useValue: videos }],
+      providers: [
+        { provide: VideoSubmissionService, useValue: videos },
+        DevCreatorGuard,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
 
     app = module.createNestApplication();
@@ -36,6 +50,7 @@ describe('VideoSubmissionController', () => {
 
   beforeEach(() => {
     videos.submit.mockReset();
+    prisma.creators.findUnique.mockResolvedValue({ id: CREATOR_ID });
     vi.stubEnv('DEV_AUTH_ENABLED', 'true');
     vi.stubEnv('DEV_CREATOR_ID', CREATOR_ID);
   });
@@ -51,7 +66,7 @@ describe('VideoSubmissionController', () => {
   ) {
     const call = request(app.getHttpServer()).post(`/contents/${id}/video`);
 
-    return (creator ? call.set(MOCK_CREATOR_HEADER, creator) : call).send(
+    return (creator ? call.set(DEV_CREATOR_HEADER, creator) : call).send(
       body as object,
     );
   }
