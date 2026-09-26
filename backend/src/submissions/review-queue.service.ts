@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { joinName } from '../creators/evergreen.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { REVIEWABLE_STATUSES } from './draft-review.js';
@@ -88,12 +89,6 @@ function startOfDay(date: Date): Date {
   );
 }
 
-function creatorName(creator: QueueRow['contracts']['creators']): string {
-  return [creator.first_name, creator.middle_name, creator.last_name]
-    .filter(Boolean)
-    .join(' ');
-}
-
 /** A response row plus the values it is ordered by. */
 interface Queued {
   item: ReviewQueueItem;
@@ -163,7 +158,7 @@ export class ReviewQueueService implements ReviewQueueLister {
       {
         item: {
           submissionId: latest.id,
-          creatorName: creatorName(row.contracts.creators),
+          creatorName: joinName(row.contracts.creators),
           contentName: row.name,
           type: row.type,
           deadline: row.deadline.toISOString().slice(0, 10),

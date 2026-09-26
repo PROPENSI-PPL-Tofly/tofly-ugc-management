@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 interface SubmissionDetailRow {
@@ -141,13 +142,9 @@ export class SubmissionDetailService {
       });
     }
 
-    const { creators } = submission.contents.contracts;
-
     return {
       contentName: submission.contents.name,
-      creatorName: [creators.first_name, creators.middle_name, creators.last_name]
-        .filter(Boolean)
-        .join(' '),
+      creatorName: joinName(submission.contents.contracts.creators),
       deadline: submission.contents.deadline.toISOString().slice(0, 10),
       type: submission.contents.type,
       brief: submission.contents.brief,
