@@ -241,4 +241,30 @@ describe("submitDraft", () => {
       message: "Draft gagal dikirim. Coba lagi.",
     });
   });
+  it("uses the safe fallback when an error response has no valid message", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: 123,
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    ),
+  );
+
+  await expect(
+    submitDraft("11111111-1111-4111-8111-111111111111", {
+      link: "https://drive.google.com/file/d/test",
+      notes: null,
+    }),
+  ).resolves.toEqual({
+    ok: false,
+    message: "Draft gagal dikirim. Coba lagi.",
+  });
+});
 });
