@@ -44,9 +44,35 @@ export class MyTasksError extends Error {
   }
 }
 
+/** Sent when a 200 carries a body the page cannot use: the backend answered, but badly. */
+const UNUSABLE_ANSWER = 502;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Just what the table relies on to render without crashing: a list of tasks, each with an
+ * id for its row key and a list of actions, and numeric paging. Field values beyond that are
+ * the API contract's business, not re-validated here.
+ */
+function isMyTasksResponse(body: unknown): body is MyTasksResponse {
+  if (!isRecord(body) || !Array.isArray(body.items)) return false;
+
+  const paging = [body.page, body.pageSize, body.total, body.totalPages];
+  if (!paging.every((value) => typeof value === "number")) return false;
+
+  return body.items.every(
+    (item) => isRecord(item) && typeof item.id === "string" && Array.isArray(item.actions),
+  );
+}
+
 /**
  * Server-side only: talks to the backend directly so its address never reaches the browser.
  * The request names no creator; the backend resolves whose tasks these are (OWASP A01).
+ *
+ * TODO(PBI-9): once Google sign-in replaces DevCreatorGuard, forward the session cookie from
+ * next/headers here; until then the backend falls back to DEV_CREATOR_ID.
  */
 export async function fetchMyTasks(page: number): Promise<MyTasksResponse> {
   const backendUrl = process.env.BACKEND_URL;
@@ -65,5 +91,10 @@ export async function fetchMyTasks(page: number): Promise<MyTasksResponse> {
     throw new MyTasksError(response.status);
   }
 
-  return response.json() as Promise<MyTasksResponse>;
+  const body: unknown = await response.json();
+  if (!isMyTasksResponse(body)) {
+    throw new MyTasksError(UNUSABLE_ANSWER);
+  }
+
+  return body;
 }
