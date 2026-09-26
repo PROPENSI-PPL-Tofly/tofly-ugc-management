@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import {
+  isSupportedVideoLink,
   submitVideo,
   type VideoSubmitter,
 } from "@/lib/video-submission";
 import { Modal } from "@/components/ui/modal";
+
+// Wording matches the backend's INVALID_VIDEO_LINK message so both layers read
+// the same sentence.
+const PLATFORM_ERROR = "Link harus berupa URL Instagram atau TikTok";
 
 export interface SubmitVideoModalProps {
   // The content selected by the creator.
@@ -43,9 +48,18 @@ export function SubmitVideoModal({
   // Tracks whether a video submission is currently in progress.
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit() {
-    const trimmedLink = videoLink.trim();
+  const trimmedLink = videoLink.trim();
 
+  // Checked on every change so a wrong platform is flagged as it is typed.
+  // Empty input stays the required-message path on submit instead.
+  const hasPlatformError =
+    trimmedLink !== "" && !isSupportedVideoLink(trimmedLink);
+
+  const shownLinkError = hasPlatformError
+    ? PLATFORM_ERROR
+    : videoLinkError;
+
+  async function handleSubmit() {
     // Treat empty and whitespace-only links as invalid.
     if (!trimmedLink) {
       setVideoLinkError("Link video wajib diisi");
@@ -72,8 +86,8 @@ export function SubmitVideoModal({
       }
 
       // Show a field-specific error beside the video link when available.
-      if (result.errors?.link) {
-        setVideoLinkError(result.errors.link);
+      if (result.errors?.videoLink) {
+        setVideoLinkError(result.errors.videoLink);
         return;
       }
 
@@ -101,7 +115,7 @@ export function SubmitVideoModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || hasPlatformError}
             className="cursor-pointer rounded-(--radius-control) bg-ink px-4 py-2 text-sm text-surface disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Mengirim..." : "Kirim Link"}
@@ -145,14 +159,17 @@ export function SubmitVideoModal({
             value={videoLink}
             onChange={(event) => {
               setVideoLink(event.target.value);
+              // A stored message is stale once the value changes; the live
+              // platform check re-evaluates for the new value.
+              setVideoLinkError("");
             }}
             className="rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
           />
 
           {/* Show a field-specific error directly below the video link. */}
-          {videoLinkError ? (
+          {shownLinkError ? (
             <p className="text-sm text-red-600">
-              {videoLinkError}
+              {shownLinkError}
             </p>
           ) : null}
         </label>
