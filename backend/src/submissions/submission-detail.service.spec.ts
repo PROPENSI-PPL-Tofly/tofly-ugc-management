@@ -9,6 +9,14 @@ const CONTENT_ID = 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0';
 
 function stubClient(
   found: {
+    name?: string;
+    type?: 'evergreen' | 'specific';
+    deadline?: Date;
+    creator?: {
+      first_name: string;
+      middle_name: string | null;
+      last_name: string | null;
+    };
     brief: string;
     status: string;
     link: string;
@@ -27,6 +35,16 @@ function stubClient(
           content_id: CONTENT_ID,
           link: found.link,
           contents: {
+            name: found.name ?? 'Review produk',
+            type: found.type ?? 'specific',
+            deadline: found.deadline ?? new Date('2026-10-20T00:00:00.000Z'),
+            contracts: {
+              creators: found.creator ?? {
+                first_name: 'Dina',
+                middle_name: 'Ayu',
+                last_name: 'Lestari',
+              },
+            },
             brief: found.brief,
             status: found.status,
             submissions: found.revisions.filter(
@@ -49,7 +67,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('SubmissionDetailService.getDetail', () => {
-  it('returns brief, draft link, current status, and revision history with notes only', async () => {
+  it('returns the header, brief, draft link, current status, and revision history with notes only', async () => {
     const client = stubClient({
       brief: 'Create a short product review',
       status: 'draft_revised',
@@ -71,6 +89,10 @@ describe('SubmissionDetailService.getDetail', () => {
     await expect(
       new SubmissionDetailService(client).getDetail(SUBMISSION_ID),
     ).resolves.toEqual({
+      contentName: 'Review produk',
+      creatorName: 'Dina Ayu Lestari',
+      deadline: '2026-10-20',
+      type: 'specific',
       brief: 'Create a short product review',
       link: 'https://drive.example.com/draft-2',
       status: 'draft_revised',
@@ -112,6 +134,20 @@ describe('SubmissionDetailService.getDetail', () => {
         link: true,
         contents: {
           select: {
+            name: true,
+            type: true,
+            deadline: true,
+            contracts: {
+              select: {
+                creators: {
+                  select: {
+                    first_name: true,
+                    middle_name: true,
+                    last_name: true,
+                  },
+                },
+              },
+            },
             brief: true,
             status: true,
             submissions: {
@@ -130,6 +166,25 @@ describe('SubmissionDetailService.getDetail', () => {
         },
       },
     });
+  });
+
+  it('joins only the name parts a creator has, so a single name has no stray spaces', async () => {
+    const client = stubClient({
+      creator: { first_name: 'Dina', middle_name: null, last_name: null },
+      type: 'evergreen',
+      brief: '',
+      status: 'draft_review',
+      link: 'https://drive.example.com/draft-1',
+      revisions: [],
+    });
+
+    const detail = await new SubmissionDetailService(client).getDetail(
+      SUBMISSION_ID,
+    );
+
+    expect(detail.creatorName).toBe('Dina');
+    expect(detail.type).toBe('evergreen');
+    expect(detail.revisionHistory).toEqual([]);
   });
 
   it('answers 404 for an unknown submission', async () => {
