@@ -1,3 +1,5 @@
+import { safeHref } from "./safe-href";
+
 export interface VideoSubmissionInput {
   link: string;
 }
@@ -34,6 +36,26 @@ export type VideoSubmitter = (
   contentId: string,
   input: VideoSubmissionInput,
 ) => Promise<VideoSubmissionResult>;
+
+// The platforms the backend accepts (detectVideoPlatform): the exact host or a
+// subdomain of instagram.com / tiktok.com over http(s). Checked client-side so
+// a wrong link gets an error as soon as it is typed; the backend still decides.
+const SUPPORTED_VIDEO_HOSTS = ["instagram.com", "tiktok.com"];
+
+export function isSupportedVideoLink(link: string): boolean {
+  const href = safeHref(link);
+
+  if (href === null) {
+    return false;
+  }
+
+  // safeHref already proved the link parses over http(s).
+  const hostname = new URL(href).hostname.toLowerCase();
+
+  return SUPPORTED_VIDEO_HOSTS.some(
+    (host) => hostname === host || hostname.endsWith(`.${host}`),
+  );
+}
 
 export async function submitVideo(
   contentId: string,
