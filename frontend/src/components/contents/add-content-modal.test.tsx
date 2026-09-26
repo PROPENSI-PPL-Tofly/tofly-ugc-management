@@ -90,7 +90,45 @@ describe("AddContentModal", () => {
         ).toBeInTheDocument();
     });
 
-    it("limits Name to 200 and Brief to 5000 characters, like the API", () => {
+    it("marks every field as required and explains the marker", () => {
+        openModal();
+
+        expect(screen.getByLabelText("Jenis Konten")).toBeRequired();
+        expect(screen.getByLabelText("Deadline")).toBeRequired();
+        // Same wording as Tambah Creator.
+        expect(
+            screen.getByText("Kolom bertanda * wajib diisi."),
+        ).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+
+        expect(screen.getByLabelText("Nama Konten")).toBeRequired();
+        expect(screen.getByLabelText("Brief")).toBeRequired();
+    });
+
+    it("stacks Name above Brief in the same single column as the other fields", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+
+        const fieldOf = (label: string) =>
+            screen.getByLabelText(label).closest("label")!.parentElement!;
+        const name = fieldOf("Nama Konten");
+        const brief = fieldOf("Brief");
+
+        expect(name.parentElement).toBe(fieldOf("Deadline").parentElement);
+        expect(brief.parentElement).toBe(name.parentElement);
+        expect(
+            name.compareDocumentPosition(brief) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it("limits Name to 100 and Brief to 2000 characters, like the API", () => {
         openModal();
 
         fireEvent.change(screen.getByLabelText("Jenis Konten"), {
@@ -99,12 +137,34 @@ describe("AddContentModal", () => {
 
         expect(screen.getByLabelText("Nama Konten")).toHaveAttribute(
             "maxlength",
-            "200",
+            "100",
         );
         expect(screen.getByLabelText("Brief")).toHaveAttribute(
             "maxlength",
-            "5000",
+            "2000",
         );
+    });
+
+    it("counts the characters used against each limit", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+
+        const name = screen.getByLabelText("Nama Konten");
+        const brief = screen.getByLabelText("Brief");
+
+        expect(name).toHaveAccessibleDescription("0/100 karakter");
+        expect(brief).toHaveAccessibleDescription("0/2000 karakter");
+
+        fireEvent.change(name, { target: { value: "Promo" } });
+        expect(name).toHaveAccessibleDescription("5/100 karakter");
+
+        fireEvent.change(name, { target: { value: "n".repeat(100) } });
+        fireEvent.change(brief, { target: { value: "b".repeat(2000) } });
+        expect(name).toHaveAccessibleDescription("100/100 karakter");
+        expect(brief).toHaveAccessibleDescription("2000/2000 karakter");
     });
 
     it("hides Name and Brief again when Evergreen is selected", () => {
@@ -138,8 +198,60 @@ describe("AddContentModal", () => {
         expect(evergreenOption).toBeDisabled();
 
         expect(
-            screen.getByText(/Kuota Evergreen sudah penuh/i),
+            screen.getByText("Kuota Evergreen sudah terpenuhi."),
         ).toBeInTheDocument();
+        expect(screen.queryByText(/Pilih Specific/)).toBeNull();
+    });
+
+    it("refuses Evergreen on submit when the quota is full even if it is forced", () => {
+        openModal({ evergreenCount: 6, quota: 6 });
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "evergreen" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+        expect(
+            screen.getAllByText("Kuota Evergreen sudah terpenuhi."),
+        ).toHaveLength(2);
+        expect(mockedCreateContent).not.toHaveBeenCalled();
+    });
+
+    it("requires a deadline", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Deadline"), {
+            target: { value: "" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+        expect(screen.getByText("Deadline wajib diisi")).toBeInTheDocument();
+        expect(mockedCreateContent).not.toHaveBeenCalled();
+    });
+
+    it("clears only the error of the field being corrected", () => {
+        openModal();
+
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+        fireEvent.change(screen.getByLabelText("Nama Konten"), {
+            target: { value: "Promo" },
+        });
+
+        expect(screen.queryByText("Nama konten wajib diisi")).toBeNull();
+        expect(screen.getByText("Brief wajib diisi")).toBeInTheDocument();
+    });
+
+    it("ignores Escape while the content is being saved", () => {
+        mockedCreateContent.mockReturnValue(new Promise(() => undefined));
+        openModal();
+
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+        fireEvent.keyDown(document, { key: "Escape" });
+
+        expect(defaultProps.onClose).not.toHaveBeenCalled();
     });
 
     it("keeps Evergreen available when the quota is zero", () => {

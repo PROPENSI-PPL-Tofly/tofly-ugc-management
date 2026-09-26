@@ -3,14 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
-import {
-  fetchCreatorDetail,
-  type ContentOutcome,
-  type ContentStatus,
-  type CreatorDetail,
-} from "@/lib/creators";
+import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
+import { fetchCreatorDetail, type ContentOutcome, type CreatorDetail } from "@/lib/creators";
 import {
   formatContractWindow,
   formatDate,
@@ -37,26 +34,8 @@ const OUTCOME_TONES: Record<ResolvedOutcome, Tone> = {
   late: "red",
 };
 
-const CONTENT_STATUS_LABELS: Record<ContentStatus, string> = {
-  scheduled: "Scheduled",
-  draft_review: "Draft Menunggu Review",
-  draft_revision: "Draft Perlu Revisi",
-  draft_revised: "Draft Revised",
-  draft_approved: "Draft Approved",
-  link_submitted: "Content Link Submitted",
-};
-
 /** Content history rows per page; keeps the modal short for creators with long contracts. */
 const CONTENTS_PER_PAGE = 5;
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1 text-[12.5px] font-semibold">{label}</p>
-      <div className="text-[13px]">{children}</div>
-    </div>
-  );
-}
 
 export function CreatorDetailModal({
   creatorId,
@@ -135,11 +114,11 @@ export function CreatorDetailModal({
       {detail ? (
         <>
           <div className="grid gap-3.5 sm:grid-cols-2">
-            <Field label="Email">{detail.email}</Field>
+            <DetailField label="Email">{detail.email}</DetailField>
 
-            <Field label="Nomor telepon">{detail.phoneNumber ?? "—"}</Field>
+            <DetailField label="Nomor telepon">{detail.phoneNumber ?? "—"}</DetailField>
 
-            <Field label="Kontrak">
+            <DetailField label="Kontrak">
               {formatContractWindow(detail.contract.startDate, detail.contract.endDate)}
 
               <p className="mt-1 text-xs text-muted">
@@ -148,16 +127,16 @@ export function CreatorDetailModal({
                 {formatDaysRemaining(detail.contract.daysRemaining)} · kuota{" "}
                 {detail.contract.contentQuota} konten
               </p>
-            </Field>
+            </DetailField>
 
-            <Field label="Akun media sosial">
+            <DetailField label="Akun media sosial">
               {[
                 detail.socials.instagram && `IG @${detail.socials.instagram}`,
                 detail.socials.tiktok && `TikTok @${detail.socials.tiktok}`,
               ]
                 .filter(Boolean)
                 .join(" · ") || "—"}
-            </Field>
+            </DetailField>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -196,7 +175,7 @@ export function CreatorDetailModal({
             </div>
           </div>
 
-          <Field label="Riwayat kontrak">
+          <DetailField label="Riwayat kontrak">
             {detail.contractHistory.length === 0 ? (
               <p className="text-xs text-muted">Belum ada riwayat kontrak.</p>
             ) : (
@@ -220,9 +199,9 @@ export function CreatorDetailModal({
                 ))}
               </ul>
             )}
-          </Field>
+          </DetailField>
 
-          <Field label="Riwayat konten">
+          <DetailField label="Riwayat konten">
             {detail.contents.length === 0 ? (
               <p className="text-xs text-muted">Belum ada konten pada periode ini.</p>
             ) : (
@@ -273,9 +252,9 @@ export function CreatorDetailModal({
                 </Button>
               </div>
             ) : null}
-          </Field>
+          </DetailField>
 
-          <Field label="Riwayat draft">
+          <DetailField label="Riwayat draft">
             {detail.drafts.length === 0 ? (
               <p className="text-xs text-muted">Belum ada draft yang dikirim.</p>
             ) : (
@@ -295,7 +274,7 @@ export function CreatorDetailModal({
                 ))}
               </ul>
             )}
-          </Field>
+          </DetailField>
         </>
       ) : null}
     </Modal>

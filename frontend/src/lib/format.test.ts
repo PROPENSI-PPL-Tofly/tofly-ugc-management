@@ -5,6 +5,7 @@ import {
   formatDaysRemaining,
   formatPercent,
   formatRevisions,
+  formatTimestamp,
 } from "./format";
 
 describe("formatDate", () => {
@@ -20,6 +21,30 @@ describe("formatDate", () => {
 
   it("shows a dash for a missing date", () => {
     expect(formatDate(null)).toBe(EMPTY);
+  });
+});
+
+describe("formatTimestamp", () => {
+  it("writes a moment as its day and time in Jakarta", () => {
+    expect(formatTimestamp("2026-09-20T03:00:00.000Z")).toBe("20 Sep 2026, 10.00 WIB");
+  });
+
+  it("moves an evening in UTC onto the next day in Jakarta", () => {
+    // 18.30 UTC is already 01.30 the next morning in WIB; formatting in UTC would show
+    // the draft a day earlier than the creator sent it.
+    expect(formatTimestamp("2026-09-19T18:30:00Z")).toBe("20 Sep 2026, 01.30 WIB");
+  });
+
+  it("crosses into the new year when Jakarta has", () => {
+    expect(formatTimestamp("2025-12-31T17:00:00Z")).toBe("1 Jan 2026, 00.00 WIB");
+  });
+
+  it("reads a timestamp that carries its own offset", () => {
+    expect(formatTimestamp("2026-09-20T10:05:00+07:00")).toBe("20 Sep 2026, 10.05 WIB");
+  });
+
+  it.each([null, "", "not-a-date"])("shows a dash for %j", (value) => {
+    expect(formatTimestamp(value)).toBe(EMPTY);
   });
 });
 
