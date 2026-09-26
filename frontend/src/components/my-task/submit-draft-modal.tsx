@@ -181,7 +181,7 @@ export function SubmitDraftModal({
 
         {/* General failures are announced to assistive technology as an alert. */}
         {submissionError ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-ink">
             {submissionError}
           </p>
         ) : null}
