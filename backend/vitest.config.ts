@@ -23,7 +23,23 @@ export default defineConfig({
         'test/**',
         '**/*.config.{ts,mts,js}',
       ],
-      thresholds: { lines: 80 },
+      thresholds: {
+        lines: 80,
+        // The creator identity and Task Saya code is held to full coverage: a line or branch
+        // no test runs there is an access rule nobody has checked.
+        'src/auth/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        'src/me/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+      },
     },
   },
 });
