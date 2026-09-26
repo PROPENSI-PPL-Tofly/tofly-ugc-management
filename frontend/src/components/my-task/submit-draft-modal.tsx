@@ -7,6 +7,8 @@ import {
 } from "@/lib/draft-submission";
 import { Modal } from "@/components/ui/modal";
 
+const MAX_DRAFT_NOTES_LENGTH = 1000;
+
 export interface SubmitDraftModalProps {
   // The content selected by the creator.
   content: {
@@ -40,6 +42,9 @@ export function SubmitDraftModal({
   // Stores a validation message specifically for the draft link.
   const [draftLinkError, setDraftLinkError] = useState("");
 
+  // Stores a validation message specifically for the admin notes.
+  const [adminNotesError, setAdminNotesError] = useState("");
+
   // Stores an error that applies to the whole submission.
   const [submissionError, setSubmissionError] = useState("");
 
@@ -58,6 +63,7 @@ export function SubmitDraftModal({
 
     // Clear old errors before starting a new submission attempt.
     setDraftLinkError("");
+    setAdminNotesError("");
     setSubmissionError("");
 
     const trimmedNotes = adminNotes.trim();
@@ -78,14 +84,13 @@ export function SubmitDraftModal({
         return;
       }
 
-      // Show a field-specific error beside the draft link when available.
-      if (result.errors?.link) {
-        setDraftLinkError(result.errors.link);
-        return;
-      }
+      if (result.errors?.link || result.errors?.notes) {
+    setDraftLinkError(result.errors.link ?? "");
+    setAdminNotesError(result.errors.notes ?? "");
+    return;
+}
 
-      // Other failures are shown as a general submission error.
-      setSubmissionError(result.message);
+setSubmissionError(result.message);
     } finally {
       // Always unlock the action after the request finishes.
       setIsSubmitting(false);
@@ -133,7 +138,7 @@ export function SubmitDraftModal({
 
         <label className="flex flex-col gap-1.5">
           <span className="text-sm text-ink">
-            Link File Draft *
+            Link File Draft 
           </span>
 
           <input
@@ -156,20 +161,28 @@ export function SubmitDraftModal({
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink">
-            Catatan untuk Admin
-          </span>
+  <span className="text-sm text-ink">
+    Catatan untuk Admin (opsional)
+  </span>
 
-          <textarea
-            aria-label="Catatan untuk Admin"
-            rows={3}
-            value={adminNotes}
-            onChange={(event) => {
-              setAdminNotes(event.target.value);
-            }}
-            className="resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
-          />
-        </label>
+  <textarea
+    aria-label="Catatan untuk Admin"
+    rows={3}
+    maxLength={MAX_DRAFT_NOTES_LENGTH}
+    value={adminNotes}
+    onChange={(event) => {
+      setAdminNotes(event.target.value);
+      setAdminNotesError("");
+    }}
+    className="resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
+  />
+
+  {adminNotesError ? (
+    <p className="text-sm text-red-ink">
+      {adminNotesError}
+    </p>
+  ) : null}
+</label>
 
         {/* General failures are announced to assistive technology as an alert. */}
         {submissionError ? (
