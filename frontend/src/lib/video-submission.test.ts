@@ -10,7 +10,8 @@ const CONTENT_ID = "11111111-1111-4111-8111-111111111111";
 const submittedVideo = {
   contentId: CONTENT_ID,
   status: "link_submitted",
-  link: "https://www.tiktok.com/@tofly/video/7400000000000000000",
+  videoLink: "https://www.tiktok.com/@tofly/video/7400000000000000000",
+  platform: "tiktok",
   submittedAt: "2026-09-26T10:00:00.000Z",
 };
 
@@ -57,7 +58,7 @@ describe("submitVideo", () => {
     );
 
     const result = await submitVideo(CONTENT_ID, {
-      link: submittedVideo.link,
+      link: submittedVideo.videoLink,
     });
 
     expect(result).toEqual({ ok: true, submission: submittedVideo });
@@ -77,7 +78,7 @@ describe("submitVideo", () => {
       ),
     );
 
-    const result = await submitVideo(CONTENT_ID, { link: submittedVideo.link });
+    const result = await submitVideo(CONTENT_ID, { link: submittedVideo.videoLink });
 
     expect(result).toEqual({
       ok: false,
@@ -86,14 +87,16 @@ describe("submitVideo", () => {
     });
   });
 
-  it("keeps the field-specific error for the link", async () => {
+  it("keeps the backend's videoLink field error", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
-            message: "Validation failed",
-            errors: { link: "link must be a valid URL" },
+            message: "Data link video tidak valid",
+            errors: {
+              videoLink: "Link video harus berupa URL http atau https",
+            },
           }),
           { status: 422, headers: { "Content-Type": "application/json" } },
         ),
@@ -104,8 +107,10 @@ describe("submitVideo", () => {
 
     expect(result).toEqual({
       ok: false,
-      message: "Validation failed",
-      errors: { link: "link must be a valid URL" },
+      message: "Data link video tidak valid",
+      errors: {
+        videoLink: "Link video harus berupa URL http atau https",
+      },
     });
   });
 
@@ -117,7 +122,7 @@ describe("submitVideo", () => {
       ),
     );
 
-    const result = await submitVideo(CONTENT_ID, { link: submittedVideo.link });
+    const result = await submitVideo(CONTENT_ID, { link: submittedVideo.videoLink });
 
     expect(result).toEqual({
       ok: false,
@@ -136,7 +141,7 @@ describe("submitVideo", () => {
       ),
     );
 
-    const result = await submitVideo(CONTENT_ID, { link: submittedVideo.link });
+    const result = await submitVideo(CONTENT_ID, { link: submittedVideo.videoLink });
 
     expect(result).toEqual({
       ok: false,
@@ -151,8 +156,8 @@ describe("submitVideo", () => {
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
-            message: "Validation failed",
-            errors: { link: 42 },
+            message: "Data link video tidak valid",
+            errors: { videoLink: 42 },
           }),
           { status: 422, headers: { "Content-Type": "application/json" } },
         ),
@@ -163,8 +168,9 @@ describe("submitVideo", () => {
 
     expect(result).toEqual({
       ok: false,
-      message: "Validation failed",
+      message: "Data link video tidak valid",
       errors: {},
     });
   });
 });
+
