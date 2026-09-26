@@ -6,6 +6,8 @@ import {
   type DraftSubmitter,
 } from "@/lib/draft-submission";
 import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/format";
 
 const MAX_DRAFT_NOTES_LENGTH = 1000;
 
@@ -102,15 +104,26 @@ setSubmissionError(result.message);
       title="Submit Draft"
       onClose={onClose}
       footer={
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="cursor-pointer rounded-(--radius-control) px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting ? "Mengirim..." : "Kirim Draft"}
-        </button>
-      }
+  <>
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={onClose}
+      disabled={isSubmitting}
+    >
+      Batal
+    </Button>
+
+    <Button
+      type="button"
+      variant="accent"
+      onClick={handleSubmit}
+      disabled={isSubmitting}
+    >
+      {isSubmitting ? "Mengirim..." : "Kirim Draft"}
+    </Button>
+  </>
+}
     >
       <div className="flex flex-col gap-4">
         {/* Display the selected content without allowing it to be edited. */}
@@ -131,8 +144,8 @@ setSubmissionError(result.message);
             </p>
 
             <p className="text-sm text-ink">
-              {content.deadline}
-            </p>
+  {formatDate(content.deadline)}
+</p>
           </div>
         </div>
 
@@ -154,7 +167,7 @@ setSubmissionError(result.message);
 
           {/* Show a field-specific error directly below the draft link. */}
           {draftLinkError ? (
-            <p className="text-sm text-red-600">
+            <p className="text-sm text-red-ink">
               {draftLinkError}
             </p>
           ) : null}

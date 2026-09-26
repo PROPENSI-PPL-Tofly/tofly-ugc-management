@@ -62,8 +62,8 @@ describe("SubmitDraftModal", () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText(/2026-10-05/),
-    ).toBeInTheDocument();
+  screen.getByText("5 Okt 2026"),
+).toBeInTheDocument();
 
     // Content information is displayed as text rather than an editable field.
     expect(
@@ -397,5 +397,24 @@ it("limits admin notes to 1000 characters", () => {
   expect(
     screen.getByLabelText("Catatan untuk Admin"),
   ).toHaveAttribute("maxLength", "1000");
+});
+it("shows the deadline using the shared date format", () => {
+  renderModal();
+
+  expect(screen.getByText("5 Okt 2026")).toBeInTheDocument();
+  expect(screen.queryByText("2026-10-05")).not.toBeInTheDocument();
+});
+it("allows the creator to cancel the modal", () => {
+  const onClose = vi.fn();
+
+  renderModal({ onClose });
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Batal",
+    }),
+  );
+
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
 });
