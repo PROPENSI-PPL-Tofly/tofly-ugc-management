@@ -5,8 +5,18 @@ import { submitDraft, type DraftSubmitter } from "@/lib/draft-submission";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
+import type { MyTaskAction } from "@/lib/my-tasks";
 
 const MAX_DRAFT_NOTES_LENGTH = 1000;
+
+/** The two Task Saya actions this modal serves. */
+export type DraftAction = Extract<MyTaskAction, "submit_draft" | "resubmit_draft">;
+
+// One modal for both actions (PRD 3.16); only its wording follows the action picked.
+const WORDING: Record<DraftAction, { title: string; submit: string }> = {
+  submit_draft: { title: "Submit Draft", submit: "Kirim Draft" },
+  resubmit_draft: { title: "Resubmit Draft", submit: "Kirim Ulang Draft" },
+};
 
 export interface SubmitDraftModalProps {
   // The content selected by the creator.
@@ -24,6 +34,9 @@ export interface SubmitDraftModalProps {
 
   // Allows the submission behavior to be replaced during testing.
   submitDraftAction?: DraftSubmitter;
+
+  // Which Task Saya button opened the modal; decides its title and submit label.
+  action?: DraftAction;
 }
 
 export function SubmitDraftModal({
@@ -31,7 +44,10 @@ export function SubmitDraftModal({
   onClose,
   onSubmitted,
   submitDraftAction = submitDraft,
+  action = "submit_draft",
 }: SubmitDraftModalProps) {
+  const wording = WORDING[action];
+
   // Stores the current value of the draft link field.
   const [draftLink, setDraftLink] = useState("");
 
@@ -97,7 +113,7 @@ export function SubmitDraftModal({
 
   return (
     <Modal
-      title="Submit Draft"
+      title={wording.title}
       onClose={onClose}
       footer={
         <>
@@ -116,7 +132,7 @@ export function SubmitDraftModal({
             onClick={handleSubmit}
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Mengirim..." : "Kirim Draft"}
+            {isSubmitting ? "Mengirim..." : wording.submit}
           </Button>
         </>
       }
