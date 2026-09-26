@@ -65,4 +65,40 @@ describe("submitDraft", () => {
       },
     );
   });
+  it("returns the submitted draft after a successful response", async () => {
+  const submittedDraft = {
+    contentId: "11111111-1111-4111-8111-111111111111",
+    submissionId: "submission-1",
+    status: "draft_review",
+    link: "https://drive.google.com/file/d/example",
+    notes: "Please check the intro",
+    submittedAt: "2026-09-26T10:00:00.000Z",
+  };
+
+  // Stub the backend response so this test stays isolated from the real API.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(submittedDraft), {
+        status: 201,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+    ),
+  );
+
+  const result = await submitDraft(
+    "11111111-1111-4111-8111-111111111111",
+    {
+      link: "https://drive.google.com/file/d/example",
+      notes: "Please check the intro",
+    },
+  );
+
+  expect(result).toEqual({
+    ok: true,
+    submission: submittedDraft,
+  });
+});
 });
