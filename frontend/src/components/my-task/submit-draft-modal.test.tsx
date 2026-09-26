@@ -35,4 +35,26 @@ describe("SubmitDraftModal", () => {
       }),
     ).toBeNull();
   });
+  it("shows a required draft link and optional admin notes", () => {
+  render(
+    <SubmitDraftModal
+      content={{
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Morning Routine",
+        deadline: "2026-10-05",
+      }}
+      onClose={vi.fn()}
+    />,
+  );
+
+  // The draft link must be filled before submission.
+  expect(
+    screen.getByLabelText(/link file draft/i),
+  ).toBeRequired();
+
+  // Notes are available but may be left empty.
+  expect(
+    screen.getByLabelText(/catatan untuk admin/i),
+  ).not.toBeRequired();
+});
 });
