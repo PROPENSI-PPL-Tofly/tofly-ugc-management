@@ -47,7 +47,9 @@ describe('devCreatorId', () => {
     ['an empty header', ''],
     ['a non-UUID', 'creator-1'],
     ['a UUID with a trailing payload', `${HEADER_ID}' OR '1'='1`],
+    ['a UUID with a leading payload', `x${HEADER_ID}`],
     ['a repeated header', [HEADER_ID, ENV_ID]],
+    ['a header sent as a one-item list', [HEADER_ID]],
   ])('resolves nobody from %s', (_label, header) => {
     expect(devCreatorId(header, ON)).toBe(undefined);
   });
