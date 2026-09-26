@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 interface SubmissionDetailRow {
@@ -6,6 +7,16 @@ interface SubmissionDetailRow {
   content_id: string;
   link: string;
   contents: {
+    name: string;
+    type: 'evergreen' | 'specific';
+    deadline: Date;
+    contracts: {
+      creators: {
+        first_name: string;
+        middle_name: string | null;
+        last_name: string | null;
+      };
+    };
     brief: string;
     status: string;
     submissions: {
@@ -16,6 +27,11 @@ interface SubmissionDetailRow {
 }
 
 export interface SubmissionDetail {
+  contentName: string;
+  creatorName: string;
+  /** ISO calendar day. */
+  deadline: string;
+  type: 'evergreen' | 'specific';
   brief: string;
   link: string;
   status: string;
@@ -35,6 +51,20 @@ export interface SubmissionDetailClient {
         link: true;
         contents: {
           select: {
+            name: true;
+            type: true;
+            deadline: true;
+            contracts: {
+              select: {
+                creators: {
+                  select: {
+                    first_name: true;
+                    middle_name: true;
+                    last_name: true;
+                  };
+                };
+              };
+            };
             brief: true;
             status: true;
             submissions: {
@@ -72,6 +102,20 @@ export class SubmissionDetailService {
         link: true,
         contents: {
           select: {
+            name: true,
+            type: true,
+            deadline: true,
+            contracts: {
+              select: {
+                creators: {
+                  select: {
+                    first_name: true,
+                    middle_name: true,
+                    last_name: true,
+                  },
+                },
+              },
+            },
             brief: true,
             status: true,
             submissions: {
@@ -99,6 +143,10 @@ export class SubmissionDetailService {
     }
 
     return {
+      contentName: submission.contents.name,
+      creatorName: joinName(submission.contents.contracts.creators),
+      deadline: submission.contents.deadline.toISOString().slice(0, 10),
+      type: submission.contents.type,
       brief: submission.contents.brief,
       link: submission.link,
       status: submission.contents.status,

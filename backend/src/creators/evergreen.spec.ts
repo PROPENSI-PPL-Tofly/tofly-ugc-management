@@ -2,6 +2,7 @@ import {
   checkSchedule,
   evergreenName,
   jakartaDay,
+  joinName,
   splitName,
 } from './evergreen.js';
 
@@ -170,5 +171,19 @@ describe('checkSchedule', () => {
         TODAY,
       ),
     ).toEqual({ contractStart: 'Tanggal mulai tidak boleh sebelum hari ini' });
+  });
+});
+
+describe('joinName', () => {
+  it('reverses splitName for a long name', () => {
+    expect(joinName(splitName('Siti Nur Aisyah Putri'))).toBe(
+      'Siti Nur Aisyah Putri',
+    );
+  });
+
+  it('skips missing parts instead of leaving double spaces', () => {
+    expect(
+      joinName({ first_name: 'Bagas', middle_name: null, last_name: null }),
+    ).toBe('Bagas');
   });
 });

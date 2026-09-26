@@ -126,6 +126,10 @@ describe('GET /submissions/:id (e2e)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
+      contentName: `${MARKER} draft`,
+      creatorName: `${MARKER} Dina`,
+      deadline: '2026-10-20',
+      type: 'specific',
       brief: 'Create a short product review',
       link: `https://drive.example.com/${MARKER}/latest`,
       status: 'draft_revised',

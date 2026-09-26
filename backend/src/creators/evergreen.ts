@@ -39,6 +39,13 @@ export function splitName(fullName: string): NameParts {
   };
 }
 
+/** The inverse of splitName: the name shown for a creator, skipping the parts they lack. */
+export function joinName(parts: NameParts): string {
+  return [parts.first_name, parts.middle_name, parts.last_name]
+    .filter(Boolean)
+    .join(' ');
+}
+
 /** The part of a new creator that decides when their Evergreen contents fall due. */
 export interface Schedule {
   contractStart: string;
@@ -82,7 +89,8 @@ export function earliestDeadline(
 }
 
 /** Shared with evergreen-slot.ts, so both sides of a deadline's upper bound read identically. */
-export const DEADLINE_AFTER_CONTRACT_END = 'Deadline tidak boleh setelah akhir kontrak';
+export const DEADLINE_AFTER_CONTRACT_END =
+  'Deadline tidak boleh setelah akhir kontrak';
 
 /** Today's calendar day where the admins work (WIB), so "not before today" holds after midnight. */
 export function jakartaDay(now: Date): string {
