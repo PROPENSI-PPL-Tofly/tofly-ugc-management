@@ -11,7 +11,9 @@ const PAGE = { page: 1, pageSize: 5 };
 
 let seq = 0;
 
-function row(overrides: Partial<Omit<MyContentRow, 'deadline'>> & { deadline?: string }): MyContentRow {
+function row(
+  overrides: Partial<Omit<MyContentRow, 'deadline'>> & { deadline?: string },
+): MyContentRow {
   seq += 1;
   return {
     id: overrides.id ?? `content-${String(seq).padStart(2, '0')}`,
@@ -105,7 +107,11 @@ describe('MyContentsService.list', () => {
     const { service } = stub([...rows].reverse());
 
     const first = await service.list(CREATOR_ID, PAGE, NOW);
-    const second = await service.list(CREATOR_ID, { page: 2, pageSize: 5 }, NOW);
+    const second = await service.list(
+      CREATOR_ID,
+      { page: 2, pageSize: 5 },
+      NOW,
+    );
 
     expect(first.items.map((item) => item.deadline)).toEqual([
       '2026-11-10',
@@ -118,8 +124,18 @@ describe('MyContentsService.list', () => {
       '2026-11-15',
       '2026-11-16',
     ]);
-    expect(first).toMatchObject({ page: 1, pageSize: 5, total: 7, totalPages: 2 });
-    expect(second).toMatchObject({ page: 2, pageSize: 5, total: 7, totalPages: 2 });
+    expect(first).toMatchObject({
+      page: 1,
+      pageSize: 5,
+      total: 7,
+      totalPages: 2,
+    });
+    expect(second).toMatchObject({
+      page: 2,
+      pageSize: 5,
+      total: 7,
+      totalPages: 2,
+    });
   });
 
   it('answers an empty list with one empty page', async () => {
@@ -137,8 +153,17 @@ describe('MyContentsService.list', () => {
   it('answers a page past the end with no rows rather than an error', async () => {
     const { service } = stub([row({})]);
 
-    const response = await service.list(CREATOR_ID, { page: 3, pageSize: 5 }, NOW);
+    const response = await service.list(
+      CREATOR_ID,
+      { page: 3, pageSize: 5 },
+      NOW,
+    );
 
-    expect(response).toMatchObject({ items: [], page: 3, total: 1, totalPages: 1 });
+    expect(response).toMatchObject({
+      items: [],
+      page: 3,
+      total: 1,
+      totalPages: 1,
+    });
   });
 });

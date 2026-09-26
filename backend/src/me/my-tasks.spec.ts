@@ -28,10 +28,26 @@ describe('compareMyTasks', () => {
   it('keeps every open task ahead of submitted links, whatever their deadline', () => {
     expect(
       order([
-        task({ id: 'done-early', deadline: '2026-09-01', status: 'link_submitted' }),
-        task({ id: 'open-late', deadline: '2026-12-01', status: 'draft_review' }),
-        task({ id: 'open-soon', deadline: '2026-10-10', status: 'draft_approved' }),
-        task({ id: 'done-late', deadline: '2026-10-05', status: 'link_submitted' }),
+        task({
+          id: 'done-early',
+          deadline: '2026-09-01',
+          status: 'link_submitted',
+        }),
+        task({
+          id: 'open-late',
+          deadline: '2026-12-01',
+          status: 'draft_review',
+        }),
+        task({
+          id: 'open-soon',
+          deadline: '2026-10-10',
+          status: 'draft_approved',
+        }),
+        task({
+          id: 'done-late',
+          deadline: '2026-10-05',
+          status: 'link_submitted',
+        }),
       ]),
     ).toEqual(['open-soon', 'open-late', 'done-early', 'done-late']);
   });

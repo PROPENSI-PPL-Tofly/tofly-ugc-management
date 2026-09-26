@@ -35,7 +35,9 @@ describe('MyContentsController', () => {
     vi.stubEnv('DEV_AUTH_ENABLED', 'true');
     vi.stubEnv('NODE_ENV', 'test');
     contents.list.mockReset().mockResolvedValue(EMPTY);
-    prisma.creators.findUnique.mockReset().mockResolvedValue({ id: CREATOR_ID });
+    prisma.creators.findUnique
+      .mockReset()
+      .mockResolvedValue({ id: CREATOR_ID });
   });
 
   afterEach(() => {
@@ -48,7 +50,7 @@ describe('MyContentsController', () => {
       .set(DEV_CREATOR_HEADER, CREATOR_ID);
   }
 
-  it('lists the calling creator\'s contents, first page of 5 by default', async () => {
+  it("lists the calling creator's contents, first page of 5 by default", async () => {
     const before = Date.now();
 
     const response = await get();
@@ -74,7 +76,7 @@ describe('MyContentsController', () => {
   it.each([
     ['a non-numeric page', '?page=abc'],
     ['page 0', '?page=0'],
-    ['a SQL payload as page size', "?pageSize=5;DROP TABLE contents"],
+    ['a SQL payload as page size', '?pageSize=5;DROP TABLE contents'],
     ['a page size above the cap', '?pageSize=51'],
   ])('answers 400 for %s before reading anything', async (_label, query) => {
     const response = await get(query);

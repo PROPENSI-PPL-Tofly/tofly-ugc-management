@@ -136,11 +136,13 @@ describe('GET /me/contents (e2e)', () => {
       totalPages: 2,
     });
     expect(
-      response.body.items.map((item: { name: string; deadline: string; actions: string[] }) => [
-        item.name,
-        item.deadline,
-        item.actions,
-      ]),
+      response.body.items.map(
+        (item: { name: string; deadline: string; actions: string[] }) => [
+          item.name,
+          item.deadline,
+          item.actions,
+        ],
+      ),
     ).toEqual([
       ['Overdue', iso(-2), ['submit_draft', 'submit_video']],
       ['Tomorrow', iso(1), ['submit_draft', 'submit_video']],
@@ -154,10 +156,9 @@ describe('GET /me/contents (e2e)', () => {
     const response = await list(dina, '?page=2');
 
     expect(response.status).toBe(200);
-    expect(response.body.items.map((item: { name: string }) => item.name)).toEqual([
-      'Far away',
-      'Submitted long ago',
-    ]);
+    expect(
+      response.body.items.map((item: { name: string }) => item.name),
+    ).toEqual(['Far away', 'Submitted long ago']);
     expect(response.body.items[1]).toMatchObject({
       status: 'link_submitted',
       actions: [],
@@ -182,21 +183,28 @@ describe('GET /me/contents (e2e)', () => {
     const dinaAll = await list(dina, '?pageSize=50');
     const rakaAll = await list(raka, '?pageSize=50');
 
-    const dinaNames = dinaAll.body.items.map((item: { name: string }) => item.name);
+    const dinaNames = dinaAll.body.items.map(
+      (item: { name: string }) => item.name,
+    );
     expect(dinaNames).not.toContain('Raka only');
     expect(dinaNames).not.toContain('Pending proposal');
-    expect(rakaAll.body.items.map((item: { name: string }) => item.name)).toEqual([
-      'Raka only',
-    ]);
+    expect(
+      rakaAll.body.items.map((item: { name: string }) => item.name),
+    ).toEqual(['Raka only']);
   });
 
   it.each([
     ['no identity', undefined],
-    ['a creator id that does not exist', '00000000-0000-4000-8000-000000000000'],
+    [
+      'a creator id that does not exist',
+      '00000000-0000-4000-8000-000000000000',
+    ],
     ['a malformed id', `${MARKER}' OR '1'='1`],
   ])('answers 401 for %s', async (_label, header) => {
     const call = request(app.getHttpServer()).get('/me/contents');
-    const response = await (header ? call.set('X-Dev-Creator-Id', header) : call);
+    const response = await (header
+      ? call.set('X-Dev-Creator-Id', header)
+      : call);
 
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED' });
