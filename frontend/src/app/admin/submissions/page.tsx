@@ -2,7 +2,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { SubmissionQueueTable } from "@/components/submissions/submission-queue-table";
 import { SubmissionFilters } from "@/components/submissions/submission-filters";
-import { Pagination } from "@/components/creators/pagination";
+import { Pagination } from "@/components/ui/pagination";
 import {
   fetchSubmissionQueue,
   parseSubmissionPage,

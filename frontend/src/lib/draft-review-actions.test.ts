@@ -86,15 +86,15 @@ describe("approveSubmission", () => {
 
   it("ignores a failure body that is not JSON", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response("<html>bad gateway</html>", {
-        status: 502,
+      new Response("<html>not found</html>", {
+        status: 404,
         headers: { "Content-Type": "text/html" },
       }),
     );
 
     const error = await approveSubmission(UUID).catch((e: unknown) => e);
 
-    expect(error).toMatchObject({ status: 502 });
+    expect(error).toMatchObject({ status: 404 });
     expect((error as DraftReviewActionError).message).toBe(
       "Keputusan gagal dikirim. Coba lagi.",
     );
