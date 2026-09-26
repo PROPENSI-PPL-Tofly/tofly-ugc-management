@@ -76,7 +76,7 @@ describe("SubmitVideoModal", () => {
     renderModal();
 
     expect(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
     ).toBeRequired();
   });
 
@@ -87,7 +87,7 @@ describe("SubmitVideoModal", () => {
     renderModal();
 
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       {
         target: { value: link },
       },
@@ -121,7 +121,7 @@ describe("SubmitVideoModal", () => {
 
     // Add surrounding spaces to verify that the value is normalized.
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       {
         target: { value: `  ${VIDEO_LINK}  ` },
       },
@@ -158,7 +158,7 @@ describe("SubmitVideoModal", () => {
     renderModal({ onSubmitted, onClose });
 
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       { target: { value: VIDEO_LINK } },
     );
 
@@ -188,7 +188,7 @@ describe("SubmitVideoModal", () => {
     renderModal();
 
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       { target: { value: VIDEO_LINK } },
     );
 
@@ -248,7 +248,7 @@ describe("SubmitVideoModal", () => {
     renderModal({ onSubmitted, onClose });
 
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       { target: { value: "not-a-valid-web-link" } },
     );
 
@@ -281,7 +281,7 @@ describe("SubmitVideoModal", () => {
     renderModal({ onSubmitted, onClose });
 
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       { target: { value: VIDEO_LINK } },
     );
 
@@ -310,7 +310,7 @@ describe("SubmitVideoModal", () => {
     renderModal();
 
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       { target: { value: VIDEO_LINK } },
     );
 
@@ -325,7 +325,7 @@ describe("SubmitVideoModal", () => {
     ).toHaveTextContent("Server sedang sibuk. Coba lagi.");
 
     expect(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
     ).toHaveValue(VIDEO_LINK);
   });
 
@@ -336,7 +336,7 @@ describe("SubmitVideoModal", () => {
     renderModal({ onClose, onSubmitted });
 
     fireEvent.change(
-      screen.getByLabelText(/link video/i),
+      screen.getByLabelText("Link Video"),
       { target: { value: VIDEO_LINK } },
     );
 
@@ -349,3 +349,4 @@ describe("SubmitVideoModal", () => {
     expect(mockSubmitVideo).not.toHaveBeenCalled();
   });
 });
+
