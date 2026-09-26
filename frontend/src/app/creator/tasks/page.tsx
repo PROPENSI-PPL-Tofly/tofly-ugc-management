@@ -47,7 +47,7 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
         {signedOut ? "Kamu belum masuk sebagai creator." : "Daftar tugas tidak bisa dimuat."}
       </p>
       <p className="mt-1 text-[13px] text-muted">
-        {signedOut ? "Masuk dulu untuk melihat tugasmu." : "Server tidak menjawab."}
+        {signedOut ? "Masuk dulu untuk melihat tugasmu." : "Coba muat ulang beberapa saat lagi."}
       </p>
       {signedOut ? null : (
         <a href={BASE_PATH} className={`mt-4 inline-block ${buttonClasses()}`}>
