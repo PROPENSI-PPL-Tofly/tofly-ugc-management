@@ -47,10 +47,6 @@ export function SubmitDraftModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
-    // Ignore another submit attempt while the current request is running.
-    if (isSubmitting) {
-      return;
-    }
 
     const trimmedLink = draftLink.trim();
 
