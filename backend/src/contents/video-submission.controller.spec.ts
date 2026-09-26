@@ -37,13 +37,18 @@ describe('VideoSubmissionController', () => {
   beforeEach(() => {
     videos.submit.mockReset();
     vi.stubEnv('DEV_AUTH_ENABLED', 'true');
+    vi.stubEnv('DEV_CREATOR_ID', CREATOR_ID);
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  function submit(body: unknown, id = CONTENT_ID, creator = CREATOR_ID) {
+  function submit(
+    body: unknown,
+    id = CONTENT_ID,
+    creator: string | null = CREATOR_ID,
+  ) {
     const call = request(app.getHttpServer()).post(`/contents/${id}/video`);
 
     return (creator ? call.set(MOCK_CREATOR_HEADER, creator) : call).send(
@@ -73,7 +78,29 @@ describe('VideoSubmissionController', () => {
     });
   });
 
+  it('answers 201 when the creator is resolved from DEV_CREATOR_ID without a request header', async () => {
+    const submitted = {
+      contentId: CONTENT_ID,
+      status: 'link_submitted',
+      videoLink: LINK,
+      platform: 'instagram',
+      submittedAt: '2026-10-19T00:00:00.000Z',
+    };
+
+    videos.submit.mockResolvedValue(submitted);
+
+    const response = await submit({ link: LINK }, CONTENT_ID, null);
+
+    expect(response.status).toBe(201);
+    expect(response.body).toEqual(submitted);
+    expect(videos.submit).toHaveBeenCalledWith(CONTENT_ID, CREATOR_ID, {
+      videoLink: LINK,
+    });
+  });
+
   it('answers 401 when no creator identity is supplied', async () => {
+    vi.stubEnv('DEV_CREATOR_ID', '');
+
     const response = await submit({ link: LINK }, CONTENT_ID, '');
 
     expect(response.status).toBe(401);
