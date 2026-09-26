@@ -61,11 +61,11 @@ export async function submitDraft(
       };
     }
     if (response.status >= 500) {
-  return {
-    ok: false,
-    message: DRAFT_SUBMISSION_FALLBACK_MESSAGE,
-  };
-}
+      return {
+        ok: false,
+        message: DRAFT_SUBMISSION_FALLBACK_MESSAGE,
+      };
+    }
 
     const body = (await response.json()) as {
       message?: unknown;

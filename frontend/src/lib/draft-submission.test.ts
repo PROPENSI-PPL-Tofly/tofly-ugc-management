@@ -216,29 +216,29 @@ describe("submitDraft", () => {
     });
   });
   it("uses the safe fallback for a server error instead of exposing its message", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          message: "Database connection failed",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        },
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            message: "Database connection failed",
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       ),
-    ),
-  );
+    );
 
-  await expect(
-    submitDraft("11111111-1111-4111-8111-111111111111", {
-      link: "https://drive.google.com/file/d/test",
-      notes: null,
-    }),
-  ).resolves.toEqual({
-    ok: false,
-    message: "Draft gagal dikirim. Coba lagi.",
+    await expect(
+      submitDraft("11111111-1111-4111-8111-111111111111", {
+        link: "https://drive.google.com/file/d/test",
+        notes: null,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      message: "Draft gagal dikirim. Coba lagi.",
+    });
   });
-});
 });
