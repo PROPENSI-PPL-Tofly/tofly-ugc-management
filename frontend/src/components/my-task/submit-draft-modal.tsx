@@ -37,50 +37,64 @@ export function SubmitDraftModal({
   // Stores the optional note written for the admin.
   const [adminNotes, setAdminNotes] = useState("");
 
-  // Stores a validation message for the draft link.
+  // Stores a validation message specifically for the draft link.
   const [draftLinkError, setDraftLinkError] = useState("");
+
+  // Stores an error that applies to the whole submission.
+  const [submissionError, setSubmissionError] = useState("");
 
   // Tracks whether a draft submission is currently in progress.
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
-  // Ignore another submit attempt while the current request is running.
-  if (isSubmitting) {
-    return;
-  }
-
-  const trimmedLink = draftLink.trim();
-
-  // Treat empty and whitespace-only links as invalid.
-  if (!trimmedLink) {
-    setDraftLinkError("Link file draft wajib diisi");
-    return;
-  }
-
-  // Clear an old validation message once the value becomes valid.
-  setDraftLinkError("");
-
-  const trimmedNotes = adminNotes.trim();
-
-  // Lock the submit action while waiting for the request.
-  setIsSubmitting(true);
-
-  try {
-    const result = await submitDraftAction(content.id, {
-      link: trimmedLink,
-      notes: trimmedNotes || null,
-    });
-
-    // Only notify the parent and close after a successful submission.
-    if (result.ok) {
-      onSubmitted();
-      onClose();
+    // Ignore another submit attempt while the current request is running.
+    if (isSubmitting) {
+      return;
     }
-  } finally {
-    // Always return the submission state to idle when the request finishes.
-    setIsSubmitting(false);
+
+    const trimmedLink = draftLink.trim();
+
+    // Treat empty and whitespace-only links as invalid.
+    if (!trimmedLink) {
+      setDraftLinkError("Link file draft wajib diisi");
+      return;
+    }
+
+    // Clear old errors before starting a new submission attempt.
+    setDraftLinkError("");
+    setSubmissionError("");
+
+    const trimmedNotes = adminNotes.trim();
+
+    // Lock the submit action while waiting for the request.
+    setIsSubmitting(true);
+
+    try {
+      const result = await submitDraftAction(content.id, {
+        link: trimmedLink,
+        notes: trimmedNotes || null,
+      });
+
+      // Notify the parent and close only after a successful submission.
+      if (result.ok) {
+        onSubmitted();
+        onClose();
+        return;
+      }
+
+      // Show a field-specific error beside the draft link when available.
+      if (result.errors?.link) {
+        setDraftLinkError(result.errors.link);
+        return;
+      }
+
+      // Other failures are shown as a general submission error.
+      setSubmissionError(result.message);
+    } finally {
+      // Always unlock the action after the request finishes.
+      setIsSubmitting(false);
+    }
   }
-}
 
   return (
     <Modal
@@ -137,7 +151,7 @@ export function SubmitDraftModal({
             className="rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
           />
 
-          {/* Only show the message when the link fails validation. */}
+          {/* Show a field-specific error directly below the draft link. */}
           {draftLinkError ? (
             <p className="text-sm text-red-600">
               {draftLinkError}
@@ -160,6 +174,16 @@ export function SubmitDraftModal({
             className="resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
           />
         </label>
+
+        {/* General failures are announced to assistive technology as an alert. */}
+        {submissionError ? (
+          <p
+            role="alert"
+            className="text-sm text-red-600"
+          >
+            {submissionError}
+          </p>
+        ) : null}
       </div>
     </Modal>
   );
