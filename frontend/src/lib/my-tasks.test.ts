@@ -90,6 +90,34 @@ describe("fetchMyTasks", () => {
     },
   );
 
+  // A 200 whose body is not a task list would otherwise reach the table and crash it on
+  // `tasks.map`; it fails here instead, like any other answer the page cannot use.
+  it.each([
+    ["an empty object", {}],
+    ["a list instead of a page", [response.items[0]]],
+    ["items that are not a list", { ...response, items: "nope" }],
+    ["a task without an id", { ...response, items: [{ ...response.items[0], id: undefined }] }],
+    ["a task without actions", { ...response, items: [{ ...response.items[0], actions: null }] }],
+    ["paging that is not a number", { ...response, totalPages: "2" }],
+    ["no body at all", null],
+  ])("refuses %s as an unusable answer", async (_label, body) => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    respond(200, body);
+
+    const failure = fetchMyTasks(1);
+
+    await expect(failure).rejects.toBeInstanceOf(MyTasksError);
+    await expect(failure).rejects.toMatchObject({ status: 502 });
+  });
+
+  it("accepts a page with no tasks", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    const empty = { ...response, items: [], total: 0, totalPages: 0 };
+    respond(200, empty);
+
+    await expect(fetchMyTasks(1)).resolves.toEqual(empty);
+  });
+
   it("lets a network failure through as a rejection", async () => {
     vi.stubEnv("BACKEND_URL", "http://backend:3001");
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
