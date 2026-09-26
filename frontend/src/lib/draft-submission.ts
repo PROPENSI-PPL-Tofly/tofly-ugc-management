@@ -22,13 +22,22 @@ export type DraftSubmissionResult =
       message: string;
     };
 
-    
 export async function submitDraft(
-  _contentId: string,
-  _input: DraftSubmissionInput,
+  contentId: string,
+  input: DraftSubmissionInput,
 ): Promise<DraftSubmissionResult> {
+  // Keep HTTP communication in this service instead of inside the UI component.
+  await fetch(`/api/contents/${contentId}/draft`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  // Response handling will be added in a later TDD cycle.
   return {
     ok: false,
-    message: "Not implemented",
+    message: "Response handling not implemented",
   };
 }
