@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/shell/app-shell";
-import { buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button-classes";
 import { StatusDot } from "@/components/ui/pill";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { fetchSubmissionQueue } from "@/lib/submissions";
