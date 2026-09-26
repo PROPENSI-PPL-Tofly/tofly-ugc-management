@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { fetchMyTasks, MyTasksError, type MyTasksResponse } from "@/lib/my-tasks";
 import TaskSayaPage from "./page";
 
@@ -7,7 +7,10 @@ vi.mock("@/lib/my-tasks", async (importOriginal) => {
   return { ...actual, fetchMyTasks: vi.fn() };
 });
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/creator/tasks" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/creator/tasks",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
@@ -90,13 +93,13 @@ describe("Task Saya page", () => {
     );
   });
 
-  // The Submit Draft / Submit Link Video modals (SCRUM-109, SCRUM-132) are not wired in yet.
-  it("shows the actions but keeps them unpressable until their modals exist", async () => {
+  it("opens the Submit Draft modal from a task's button", async () => {
     mockedFetch.mockResolvedValue(answer());
 
     await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
 
-    expect(screen.getByRole("button", { name: /Submit Draft/ })).toBeDisabled();
+    expect(screen.getByRole("dialog", { name: "Submit Draft" })).toBeInTheDocument();
   });
 
   it("falls back to the first page, and says so, for a page that is not a number", async () => {
