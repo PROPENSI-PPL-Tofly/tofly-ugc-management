@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 
 export interface SubmitDraftModalProps {
@@ -18,10 +19,33 @@ export function SubmitDraftModal({
   content,
   onClose,
 }: SubmitDraftModalProps) {
+  // Stores whatever the creator types into the draft link field.
+  const [draftLink, setDraftLink] = useState("");
+
+  // Stores the validation message for the draft link.
+  const [draftLinkError, setDraftLinkError] = useState("");
+
+  function handleSubmit() {
+    // trim() makes both "" and "   " count as empty.
+    if (!draftLink.trim()) {
+      setDraftLinkError("Link file draft wajib diisi");
+      return;
+    }
+  }
+
   return (
     <Modal
       title="Submit Draft"
       onClose={onClose}
+      footer={
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="cursor-pointer rounded-(--radius-control) px-4 py-2 text-sm"
+        >
+          Kirim Draft
+        </button>
+      }
     >
       <div className="flex flex-col gap-4">
         {/* Display the selected content without allowing it to be edited. */}
@@ -47,7 +71,6 @@ export function SubmitDraftModal({
           </div>
         </div>
 
-        {/* The creator must provide a link to the draft file. */}
         <label className="flex flex-col gap-1.5">
           <span className="text-sm text-ink">
             Link File Draft *
@@ -57,11 +80,22 @@ export function SubmitDraftModal({
             type="url"
             required
             aria-label="Link File Draft"
+            value={draftLink}
+            onChange={(event) => {
+              setDraftLink(event.target.value);
+            }}
             className="rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
           />
+
+          {/* Only show the validation message after an invalid submit attempt. */}
+          {draftLinkError ? (
+            <p className="text-sm text-red-600">
+              {draftLinkError}
+            </p>
+          ) : null}
         </label>
 
-        {/* This field is intentionally optional. */}
+        {/* Notes stay optional and do not need state yet. */}
         <label className="flex flex-col gap-1.5">
           <span className="text-sm text-ink">
             Catatan untuk Admin
