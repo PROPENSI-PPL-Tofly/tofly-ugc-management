@@ -167,4 +167,74 @@ it("submits trimmed draft data for the selected content", async () => {
     );
   });
 });
+it("prevents duplicate submission while the request is pending", async () => {
+  // Keep the mocked request pending until the test decides to resolve it.
+  let resolveSubmission:
+    | ((value: Awaited<ReturnType<typeof submitDraft>>) => void)
+    | undefined;
+
+  mockedSubmitDraft.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSubmission = resolve;
+    }),
+  );
+
+  render(
+    <SubmitDraftModal
+      content={{
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Morning Routine",
+        deadline: "2026-10-05",
+      }}
+      onClose={vi.fn()}
+    />,
+  );
+
+  fireEvent.change(
+    screen.getByLabelText(/link file draft/i),
+    {
+      target: {
+        value: "https://drive.google.com/file/d/example",
+      },
+    },
+  );
+
+  const submitButton = screen.getByRole("button", {
+    name: "Kirim Draft",
+  });
+
+  // Start the first submission.
+  fireEvent.click(submitButton);
+
+  // While the request is pending, the button should no longer be usable.
+  await waitFor(() => {
+    expect(
+      screen.getByRole("button", {
+        name: "Mengirim...",
+      }),
+    ).toBeDisabled();
+  });
+
+  // A second click must not create another submission request.
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Mengirim...",
+    }),
+  );
+
+  expect(mockedSubmitDraft).toHaveBeenCalledTimes(1);
+
+  // Finish the pending request so the test can clean up normally.
+  resolveSubmission?.({
+    ok: true,
+    submission: {
+      contentId: "11111111-1111-4111-8111-111111111111",
+      submissionId: "submission-1",
+      status: "draft_review",
+      link: "https://drive.google.com/file/d/example",
+      notes: null,
+      submittedAt: "2026-09-26T10:00:00.000Z",
+    },
+  });
+});
 });
