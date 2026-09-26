@@ -42,10 +42,10 @@ async function patch(
   });
 
   if (!response.ok) {
-    throw new DraftReviewActionError(
-      response.status,
-      (await readMessage(response)) ?? fallbackMessage,
-    );
+    // Only a 4xx carries a message written for the admin; a 5xx body is the server's or a
+    // gateway's own wording and may describe internals, so it is never shown.
+    const message = response.status < 500 ? await readMessage(response) : null;
+    throw new DraftReviewActionError(response.status, message ?? fallbackMessage);
   }
 }
 
