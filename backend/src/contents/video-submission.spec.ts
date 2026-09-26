@@ -57,6 +57,7 @@ describe('checkVideoSubmission', () => {
     ['non-string value', { videoLink: 123 }],
     ['javascript URL', { videoLink: 'javascript:alert(1)' }],
     ['data URL', { videoLink: 'data:text/html,test' }],
+    ['malformed URL', { videoLink: 'not-a-url' }],
   ])('rejects %s', (_label, body) => {
     expect(() => checkVideoSubmission(body)).toThrow();
   });
@@ -69,7 +70,7 @@ describe('checkVideoSubmission', () => {
     ).toThrow();
   });
 
-  it('rejects null instead of treating it as a valid request', () => {
+  it('rejects null instead of treating it as a valid request object', () => {
     expect(() => checkVideoSubmission(null)).toThrow();
   });
 

@@ -119,6 +119,19 @@ describe('VideoSubmissionController', () => {
     expect(videos.submit).not.toHaveBeenCalled();
   });
 
+  it('answers 422 for a non-object request body before reaching the service', async () => {
+    const response = await submit([]);
+
+    expect(response.status).toBe(422);
+    expect(response.body).toEqual({
+      message: 'Data link video tidak valid',
+      errors: {
+        videoLink: 'Link video wajib diisi',
+      },
+    });
+    expect(videos.submit).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       404,
