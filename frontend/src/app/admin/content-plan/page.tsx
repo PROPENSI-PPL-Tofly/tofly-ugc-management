@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/shell/app-shell";
+import { buttonClasses } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/pill";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { fetchSubmissionQueue } from "@/lib/submissions";
@@ -9,10 +10,6 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Content Plan (All) — Tofly",
 };
-
-// Same look as the accent Button, as a link: opening the queue is this page's primary action.
-const PRIMARY_LINK =
-  "inline-flex items-center rounded-(--radius-control) border border-accent-deep bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-accent-ink transition-colors hover:bg-accent-deep";
 
 interface DraftCounts {
   waiting: number;
@@ -84,7 +81,8 @@ export default async function ContentPlanAllPage() {
             </p>
             <DraftQueueSummary counts={counts} />
           </div>
-          <Link href="/admin/submissions" className={PRIMARY_LINK}>
+          {/* Opening the queue is this page's primary action, so it takes the accent look. */}
+          <Link href="/admin/submissions" className={`inline-block ${buttonClasses("accent")}`}>
             Buka Antrian Draft
           </Link>
         </section>

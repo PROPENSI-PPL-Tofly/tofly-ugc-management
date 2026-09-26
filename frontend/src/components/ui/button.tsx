@@ -16,11 +16,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
 }
 
+/** The button look on its own, for a link that should read as a button (e.g. a page's main way in). */
+export function buttonClasses(variant: Variant = "default"): string {
+  return `cursor-pointer rounded-(--radius-control) border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${VARIANTS[variant]}`;
+}
+
 export function Button({ variant = "default", className = "", ...props }: ButtonProps) {
-  return (
-    <button
-      {...props}
-      className={`cursor-pointer rounded-(--radius-control) border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${VARIANTS[variant]} ${className}`}
-    />
-  );
+  return <button {...props} className={`${buttonClasses(variant)} ${className}`} />;
 }

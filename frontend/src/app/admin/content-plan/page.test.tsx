@@ -95,4 +95,13 @@ describe("Content Plan (All) page", () => {
       within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
     ).toHaveAttribute("href", "/admin/submissions");
   });
+
+  it("leaves out the resubmitted line when drafts wait but none were resubmitted", async () => {
+    queueCounts(3, 0);
+
+    await renderPage();
+
+    expect(within(draftQueueEntry()).getByText("3 draft menunggu review")).toBeInTheDocument();
+    expect(within(draftQueueEntry()).queryByText(/dikirim ulang/)).not.toBeInTheDocument();
+  });
 });
