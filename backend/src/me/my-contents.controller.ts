@@ -35,9 +35,8 @@ export class MyContentsController {
   ) {}
 
   /**
-   * The creator's Task Saya list: open tasks by nearest deadline, then submitted links, each
-   * row with the actions it allows today. The pipes turn a non-integer page into a 400 and
-   * checkPaging bounds it.
+   * The creator's Task Saya list by nearest deadline, each row with the actions it allows
+   * today. The pipes turn a non-integer page into a 400 and checkPaging bounds it.
    */
   @Get('contents')
   async list(

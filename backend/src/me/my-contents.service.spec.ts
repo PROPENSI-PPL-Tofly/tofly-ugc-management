@@ -122,9 +122,7 @@ describe('MyContentsService.list', () => {
     expect(client.contents.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ skip: 5, take: 5 }),
     );
-    expect(second.items.map((item) => item.id)).toEqual(
-      rows.map((r) => r.id),
-    );
+    expect(second.items.map((item) => item.id)).toEqual(rows.map((r) => r.id));
     expect(second).toMatchObject({
       page: 2,
       pageSize: 5,
