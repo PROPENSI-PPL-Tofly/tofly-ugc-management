@@ -11,6 +11,15 @@ import {
 const EMPTY_NOTE_ERROR = "Catatan revisi tidak boleh kosong.";
 
 /**
+ * The note form opens from a click on Minta Revisi, so focus follows the admin into it.
+ * Module-level so its identity is stable: React calls it once when the field mounts rather
+ * than on every render, which would pull focus back from the form's own buttons.
+ */
+function focusOnMount(element: HTMLTextAreaElement | null) {
+  element?.focus();
+}
+
+/**
  * The decision half of the Draft Preview (SCRUM-129): Approve sends the draft on,
  * Minta Revisi sends it back with a note. This is what the modal's `actions` slot
  * is for, so it only ever appears once a draft has loaded.
@@ -88,8 +97,7 @@ export function ReviewActions({
         <label className="flex flex-col gap-1 text-[13px]">
           <span className="text-muted">Catatan revisi untuk creator</span>
           <textarea
-            // The form opens from a click on Minta Revisi, so focus follows the admin into it.
-            autoFocus
+            ref={focusOnMount}
             value={note}
             onChange={(event) => setNote(event.target.value)}
             placeholder="mis. Warna kurang kontras, mohon perbaiki bagian intro..."
