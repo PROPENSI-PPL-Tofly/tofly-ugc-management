@@ -194,4 +194,21 @@ describe("ReviewActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
     expect(screen.getByLabelText(/catatan revisi/i)).toHaveValue("");
   });
+
+  it("moves keyboard focus into the note field when the form opens", () => {
+    renderActions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
+
+    expect(screen.getByLabelText(/catatan revisi/i)).toHaveFocus();
+  });
+
+  it("returns keyboard focus to Minta Revisi when the form is cancelled", () => {
+    renderActions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+    expect(screen.getByRole("button", { name: "Minta Revisi" })).toHaveFocus();
+  });
 });
