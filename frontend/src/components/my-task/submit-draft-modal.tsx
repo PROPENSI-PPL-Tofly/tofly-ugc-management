@@ -18,6 +18,9 @@ export interface SubmitDraftModalProps {
   // Lets the parent component control when the modal closes.
   onClose: () => void;
 
+  // Lets the parent refresh its data after a successful submission.
+  onSubmitted: () => void;
+
   // Allows the submission behavior to be replaced during testing.
   submitDraftAction?: DraftSubmitter;
 }
@@ -25,6 +28,7 @@ export interface SubmitDraftModalProps {
 export function SubmitDraftModal({
   content,
   onClose,
+  onSubmitted,
   submitDraftAction = submitDraft,
 }: SubmitDraftModalProps) {
   // Stores the current value of the draft link field.
@@ -40,37 +44,43 @@ export function SubmitDraftModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
-    // Ignore another submit attempt while the current request is running.
-    if (isSubmitting) {
-      return;
-    }
-
-    const trimmedLink = draftLink.trim();
-
-    // Treat empty and whitespace-only links as invalid.
-    if (!trimmedLink) {
-      setDraftLinkError("Link file draft wajib diisi");
-      return;
-    }
-
-    // Clear an old validation message once the value becomes valid.
-    setDraftLinkError("");
-
-    const trimmedNotes = adminNotes.trim();
-
-    // Lock the submit action until the request finishes.
-    setIsSubmitting(true);
-
-    try {
-      await submitDraftAction(content.id, {
-        link: trimmedLink,
-        notes: trimmedNotes || null,
-      });
-    } finally {
-      // Always unlock the action after the request finishes.
-      setIsSubmitting(false);
-    }
+  // Ignore another submit attempt while the current request is running.
+  if (isSubmitting) {
+    return;
   }
+
+  const trimmedLink = draftLink.trim();
+
+  // Treat empty and whitespace-only links as invalid.
+  if (!trimmedLink) {
+    setDraftLinkError("Link file draft wajib diisi");
+    return;
+  }
+
+  // Clear an old validation message once the value becomes valid.
+  setDraftLinkError("");
+
+  const trimmedNotes = adminNotes.trim();
+
+  // Lock the submit action while waiting for the request.
+  setIsSubmitting(true);
+
+  try {
+    const result = await submitDraftAction(content.id, {
+      link: trimmedLink,
+      notes: trimmedNotes || null,
+    });
+
+    // Only notify the parent and close after a successful submission.
+    if (result.ok) {
+      onSubmitted();
+      onClose();
+    }
+  } finally {
+    // Always return the submission state to idle when the request finishes.
+    setIsSubmitting(false);
+  }
+}
 
   return (
     <Modal
