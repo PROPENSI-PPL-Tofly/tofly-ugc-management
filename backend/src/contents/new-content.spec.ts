@@ -81,7 +81,10 @@ describe('checkNewContent', () => {
     it('accepts a name of exactly MAX_CONTENT_NAME_LENGTH and a brief of exactly MAX_BRIEF_LENGTH', () => {
       expect(() =>
         checkNewContent(
-          specific('n'.repeat(MAX_CONTENT_NAME_LENGTH), 'b'.repeat(MAX_BRIEF_LENGTH)),
+          specific(
+            'n'.repeat(MAX_CONTENT_NAME_LENGTH),
+            'b'.repeat(MAX_BRIEF_LENGTH),
+          ),
         ),
       ).not.toThrow();
     });
@@ -131,7 +134,9 @@ describe('checkNewContent', () => {
     });
 
     it('returns the name and brief trimmed', () => {
-      expect(checkNewContent(specific('  Promo 10.10  ', '\n Review fitur \n'))).toMatchObject({
+      expect(
+        checkNewContent(specific('  Promo 10.10  ', '\n Review fitur \n')),
+      ).toMatchObject({
         name: 'Promo 10.10',
         brief: 'Review fitur',
       });
