@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { IdTokenError } from './google-id-token.js';
 import {
   TokenExchangeError,
   type CodeExchanger,
@@ -17,12 +18,12 @@ export interface WarningLog {
 }
 
 /**
- * A reason for the server log that cannot carry tokens or personal data: exchange errors are
- * written to be log-safe; anything else (a verifier or database error may quote the token or
- * the email) is reduced to its class name.
+ * A reason for the server log that cannot carry tokens or personal data: exchange and ID token
+ * errors are written to be log-safe; anything else (a database error may quote the email) is
+ * reduced to its class name.
  */
 function safeReason(error: unknown): string {
-  if (error instanceof TokenExchangeError) {
+  if (error instanceof TokenExchangeError || error instanceof IdTokenError) {
     return error.message;
   }
   return error instanceof Error ? error.name : 'unknown error';
