@@ -95,8 +95,8 @@ if (!hasActiveContract) {
 
 return {
   userId: user.id,
-  email: user.email,
-  role: 'CREATOR',
+  role: 'creator' as const,
+  creatorId: creator.id,
 };
   }
 }
