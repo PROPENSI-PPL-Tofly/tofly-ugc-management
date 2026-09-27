@@ -1,6 +1,9 @@
 import { Logger, Module } from '@nestjs/common';
 import type { GoogleOAuthConfig } from './authorization.js';
 import { flowCookie } from './flow-cookie.js';
+import { PrismaModule } from '../../prisma/prisma.module.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { PrismaWhitelistResolver } from './prisma-whitelist-resolver.js';
 import {
   AUTH_LOG,
   FLOW_COOKIE,
@@ -30,10 +33,10 @@ import {
   unconfiguredExchanger,
   unreadySession,
   unreadyVerifier,
-  unreadyWhitelist,
 } from './unready-ports.js';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [GoogleAuthController],
   providers: [
     {
@@ -48,10 +51,18 @@ import {
         config ? new GoogleTokenClient(config) : unconfiguredExchanger,
       inject: [GOOGLE_OAUTH_CONFIG],
     },
-    // Replace each default with the real implementation as it lands.
+
     { provide: ID_TOKEN_VERIFIER, useValue: unreadyVerifier },
-    { provide: WHITELIST_RESOLVER, useValue: unreadyWhitelist },
+
+    {
+      provide: WHITELIST_RESOLVER,
+      useFactory: (prisma: PrismaService): WhitelistResolver =>
+        new PrismaWhitelistResolver(prisma),
+      inject: [PrismaService],
+    },
+
     { provide: SESSION_STARTER, useValue: unreadySession },
+
     {
       provide: SIGN_IN,
       useFactory: (
