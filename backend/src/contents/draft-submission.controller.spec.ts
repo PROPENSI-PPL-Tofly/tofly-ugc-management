@@ -5,7 +5,11 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { MOCK_CREATOR_HEADER } from './creator-identity.mock.js';
+import {
+  DEV_CREATOR_HEADER,
+  DevCreatorGuard,
+} from '../auth/dev-creator.guard.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { DraftSubmissionService } from './draft-submission.service.js';
 
@@ -15,12 +19,17 @@ const LINK = 'https://drive.google.com/d/1';
 
 describe('DraftSubmissionController', () => {
   const drafts = { submit: vi.fn() };
+  const prisma = { creators: { findUnique: vi.fn() } };
   let app: INestApplication;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [DraftSubmissionController],
-      providers: [{ provide: DraftSubmissionService, useValue: drafts }],
+      providers: [
+        { provide: DraftSubmissionService, useValue: drafts },
+        DevCreatorGuard,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
 
     app = module.createNestApplication();
@@ -33,6 +42,8 @@ describe('DraftSubmissionController', () => {
 
   beforeEach(() => {
     drafts.submit.mockReset();
+    prisma.creators.findUnique.mockReset();
+    prisma.creators.findUnique.mockResolvedValue({ id: CREATOR_ID });
     vi.stubEnv('DEV_AUTH_ENABLED', 'true');
   });
 
@@ -42,7 +53,7 @@ describe('DraftSubmissionController', () => {
 
   function handIn(body: unknown, id = CONTENT_ID, creator = CREATOR_ID) {
     const call = request(app.getHttpServer()).post(`/contents/${id}/draft`);
-    return (creator ? call.set(MOCK_CREATOR_HEADER, creator) : call).send(
+    return (creator ? call.set(DEV_CREATOR_HEADER, creator) : call).send(
       body as object,
     );
   }
@@ -76,6 +87,15 @@ describe('DraftSubmissionController', () => {
       code: 'UNAUTHENTICATED',
       message: 'Silakan masuk terlebih dahulu',
     });
+    expect(drafts.submit).not.toHaveBeenCalled();
+  });
+
+  it('answers 401 to a caller naming a creator who does not exist (OWASP A07)', async () => {
+    prisma.creators.findUnique.mockResolvedValue(null);
+
+    const response = await handIn({ link: LINK });
+
+    expect(response.status).toBe(401);
     expect(drafts.submit).not.toHaveBeenCalled();
   });
 
