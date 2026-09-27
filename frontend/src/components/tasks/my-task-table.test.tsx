@@ -69,6 +69,25 @@ describe("MyTaskTable", () => {
     });
   });
 
+  describe("creator wording", () => {
+    it("shows a revised hand-in as waiting for review, like a first one", () => {
+      render(
+        <MyTaskTable tasks={[task({ status: "draft_revised", actions: [] })]} onAction={vi.fn()} />,
+      );
+
+      expect(within(rows()[0]).getByText("Draft Menunggu Review")).toBeInTheDocument();
+      expect(screen.queryByText("Draft Revised")).not.toBeInTheDocument();
+    });
+
+    it("says what the empty list means when it is given a message", () => {
+      render(
+        <MyTaskTable tasks={[]} emptyMessage="Tidak ada tugas berstatus Draft Approved." />,
+      );
+
+      expect(screen.getByText("Tidak ada tugas berstatus Draft Approved.")).toBeInTheDocument();
+    });
+  });
+
   // Below the lg breakpoint each row stacks into a card: the header row is visually hidden, so
   // each cell names its own column, and explicit roles keep the table semantics that some
   // browsers drop once a table's display changes.

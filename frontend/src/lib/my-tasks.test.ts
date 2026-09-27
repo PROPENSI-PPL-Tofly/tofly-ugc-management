@@ -1,4 +1,12 @@
-import { fetchMyTasks, MY_TASKS_PAGE_SIZE, MyTasksError, type MyTasksResponse } from "./my-tasks";
+import {
+  fetchMyTasks,
+  MY_TASKS_PAGE_SIZE,
+  MyTasksError,
+  parseTaskStatus,
+  TASK_STATUS_FILTERS,
+  taskStatusLabel,
+  type MyTasksResponse,
+} from "./my-tasks";
 
 // GET /me/contents as SCRUM-102 answers it: rows already in display order, each with the
 // buttons it allows today, so the table never re-derives the submission rules.
@@ -124,5 +132,67 @@ describe("fetchMyTasks", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
 
     await expect(fetchMyTasks(1)).rejects.toThrow("fetch failed");
+  });
+});
+
+describe("fetchMyTasks with a status filter", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("asks the backend for that status alone", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
+
+    await fetchMyTasks(2, "draft_review");
+
+    expect(fetchSpy.mock.calls[0][0]).toBe(
+      "http://backend:3001/me/contents?page=2&pageSize=5&status=draft_review",
+    );
+  });
+});
+
+describe("parseTaskStatus", () => {
+  it("reads no filter when the URL names none", () => {
+    expect(parseTaskStatus({})).toEqual({ status: null, invalid: null });
+    expect(parseTaskStatus({ status: "" })).toEqual({ status: null, invalid: null });
+  });
+
+  it.each(TASK_STATUS_FILTERS)("reads the Task Saya status %s", (status) => {
+    expect(parseTaskStatus({ status })).toEqual({ status, invalid: null });
+  });
+
+  it.each([
+    ["an unknown status", "done"],
+    ["the admin-side draft_revised", "draft_revised"],
+  ])("drops %s and reports it", (_label, status) => {
+    expect(parseTaskStatus({ status })).toEqual({ status: null, invalid: status });
+  });
+
+  it("reads the first of a repeated parameter", () => {
+    expect(parseTaskStatus({ status: ["draft_approved", "scheduled"] })).toEqual({
+      status: "draft_approved",
+      invalid: null,
+    });
+  });
+});
+
+describe("taskStatusLabel", () => {
+  // A creator does not tell a first hand-in from a revised one: both wait for the admin.
+  it("reads a revised hand-in as waiting for review", () => {
+    expect(taskStatusLabel("draft_revised")).toBe("Draft Menunggu Review");
+  });
+
+  it.each([
+    ["scheduled", "Scheduled"],
+    ["draft_review", "Draft Menunggu Review"],
+    ["draft_revision", "Draft Perlu Revisi"],
+    ["draft_approved", "Draft Approved"],
+    ["link_submitted", "Content Link Submitted"],
+  ] as const)("reads %s as %s", (status, label) => {
+    expect(taskStatusLabel(status)).toBe(label);
   });
 });

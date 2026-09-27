@@ -9,7 +9,7 @@ vi.mock("@/lib/my-tasks", async (importOriginal) => {
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/creator/tasks",
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
 
 vi.mock("next/link", async (importOriginal) => {
@@ -69,7 +69,7 @@ describe("Task Saya page", () => {
 
     await renderPage();
 
-    expect(mockedFetch).toHaveBeenCalledWith(1);
+    expect(mockedFetch).toHaveBeenCalledWith(1, null);
   });
 
   it("asks for the page the URL names", async () => {
@@ -77,7 +77,7 @@ describe("Task Saya page", () => {
 
     await renderPage({ page: "2" });
 
-    expect(mockedFetch).toHaveBeenCalledWith(2);
+    expect(mockedFetch).toHaveBeenCalledWith(2, null);
   });
 
   it("lists the tasks with their actions and pages through them five at a time", async () => {
@@ -108,7 +108,7 @@ describe("Task Saya page", () => {
 
     await renderPage({ page: "abc" });
 
-    expect(mockedFetch).toHaveBeenCalledWith(1);
+    expect(mockedFetch).toHaveBeenCalledWith(1, null);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Halaman “abc” tidak dikenal, menampilkan halaman pertama.",
     );
@@ -121,11 +121,64 @@ describe("Task Saya page", () => {
 
     await renderPage({ page: "9" });
 
-    expect(mockedFetch).toHaveBeenNthCalledWith(2, 1);
+    expect(mockedFetch).toHaveBeenNthCalledWith(2, 1, null);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Halaman 9 tidak ada, menampilkan halaman pertama.",
     );
     expect(screen.getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
+  });
+
+  describe("status filter", () => {
+    it("asks for the status the URL filters by and shows it in the filter", async () => {
+      mockedFetch.mockResolvedValue(answer());
+
+      await renderPage({ status: "draft_revision", page: "2" });
+
+      expect(mockedFetch).toHaveBeenCalledWith(2, "draft_revision");
+      expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue("draft_revision");
+    });
+
+    it("keeps the filter when paging", async () => {
+      mockedFetch.mockResolvedValue(answer());
+
+      await renderPage({ status: "scheduled" });
+
+      expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
+        "href",
+        "/creator/tasks?status=scheduled&page=2",
+      );
+    });
+
+    it("keeps the filter when a page past the end falls back to the first", async () => {
+      mockedFetch
+        .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
+        .mockResolvedValueOnce(answer());
+
+      await renderPage({ status: "scheduled", page: "9" });
+
+      expect(mockedFetch).toHaveBeenNthCalledWith(2, 1, "scheduled");
+    });
+
+    it("lists every task, and says so, for a status it does not know", async () => {
+      mockedFetch.mockResolvedValue(answer());
+
+      await renderPage({ status: "done" });
+
+      expect(mockedFetch).toHaveBeenCalledWith(1, null);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Status “done” tidak dikenal, menampilkan semua tugas.",
+      );
+    });
+
+    it("says which status found nothing, keeping the filter to change it", async () => {
+      mockedFetch.mockResolvedValue(answer({ items: [], total: 0, totalPages: 1 }));
+
+      await renderPage({ status: "draft_approved" });
+
+      expect(screen.getByText("Tidak ada tugas berstatus Draft Approved.")).toBeInTheDocument();
+      expect(screen.queryByText("Belum ada tugas untuk kamu.")).not.toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Status" })).toBeInTheDocument();
+    });
   });
 
   it("says there are no tasks yet without a pager", async () => {
