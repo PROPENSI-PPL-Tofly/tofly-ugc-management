@@ -2,12 +2,18 @@ import {
   BadRequestException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
+import { AdminGuard } from '../auth/admin.guard.js';
 import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import { CreatorsController } from './creators.controller.js';
 import { CreatorsService } from './creators.service.js';
 
 describe('CreatorsController', () => {
+  it('is open to signed-in admins only', () => {
+    expect(Reflect.getMetadata(GUARDS_METADATA, CreatorsController)).toEqual([AdminGuard]);
+  });
+
   let controller: CreatorsController;
 
   const service = {

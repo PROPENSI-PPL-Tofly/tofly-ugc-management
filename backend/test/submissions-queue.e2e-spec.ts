@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { as, signInAsAdmin } from './sessions.js';
+import { jakartaMidnight } from '../src/creators/evergreen.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, and every request searches for it so seeded drafts stay out of the assertions.
@@ -12,11 +14,8 @@ const DAY = 24 * 60 * 60 * 1000;
 
 /** A calendar day relative to today, as Postgres `date` columns store it. */
 function daysFromToday(days: number): Date {
-  const now = new Date();
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) +
-      days * DAY,
-  );
+  // Today in Jakarta, the day the app counts from.
+  return new Date(jakartaMidnight(new Date()).getTime() + days * DAY);
 }
 
 type Status =
@@ -29,6 +28,8 @@ type Status =
 describe('GET /submissions?status=review (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  /** Requests signed in as a whitelisted admin. */
+  let admin: ReturnType<typeof as>;
   let creatorId: string;
   let contractId: string;
 
@@ -65,7 +66,7 @@ describe('GET /submissions?status=review (e2e)', () => {
   }
 
   function queue(query = '') {
-    return request(app.getHttpServer()).get(
+    return admin.get(
       `/submissions?status=review&q=${MARKER}${query}`,
     );
   }
@@ -79,8 +80,10 @@ describe('GET /submissions?status=review (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     await app.init();
     prisma = app.get(PrismaService);
+    admin = as(app, await signInAsAdmin(app, prisma, MARKER));
 
     const user = await prisma.users.create({
       data: {
@@ -197,13 +200,13 @@ describe('GET /submissions?status=review (e2e)', () => {
   });
 
   it('answers 400 when the queue is not named', async () => {
-    const response = await request(app.getHttpServer()).get('/submissions');
+    const response = await admin.get('/submissions');
 
     expect(response.status).toBe(400);
   });
 
   it('hands out a submission id that approve accepts, after which the draft leaves the queue', async () => {
-    const approved = await request(app.getHttpServer()).patch(
+    const approved = await admin.patch(
       `/submissions/${resubmitLate[1].id}/approve`,
     );
     expect(approved.status).toBe(200);

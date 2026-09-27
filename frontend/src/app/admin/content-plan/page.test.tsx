@@ -9,6 +9,10 @@ vi.mock("@/lib/submissions", async (importOriginal) => {
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/content-plan",
+  useRouter: () => ({
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
 }));
 
 const mockedFetch = vi.mocked(fetchSubmissionQueue);
@@ -20,7 +24,7 @@ function queueOf(total: number): SubmissionQueueResponse {
 /** Answers the whole queue with `waiting` and the resubmitted slice with `resubmitted`. */
 function queueCounts(waiting: number, resubmitted: number) {
   mockedFetch.mockImplementation(async (_page, filters) =>
-    queueOf(filters?.status === "draft_revised" ? resubmitted : waiting),
+      queueOf(filters?.status === "draft_revised" ? resubmitted : waiting),
   );
 }
 
@@ -55,7 +59,7 @@ describe("Content Plan (All) page", () => {
     expect(mockedFetch).toHaveBeenCalledWith(1, { status: "draft_revised" });
     expect(within(draftQueueEntry()).getByText("22 draft menunggu review")).toBeInTheDocument();
     expect(
-      within(draftQueueEntry()).getByRole("link", { name: "2 dikirim ulang" }),
+        within(draftQueueEntry()).getByRole("link", { name: "2 dikirim ulang" }),
     ).toHaveAttribute("href", "/admin/submissions?status=draft_revised");
   });
 
@@ -65,7 +69,7 @@ describe("Content Plan (All) page", () => {
     await renderPage();
 
     expect(
-      within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
+        within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
     ).toHaveAttribute("href", "/admin/submissions");
   });
 
@@ -75,11 +79,11 @@ describe("Content Plan (All) page", () => {
     await renderPage();
 
     expect(
-      within(draftQueueEntry()).getByText("Tidak ada draft yang menunggu review"),
+        within(draftQueueEntry()).getByText("Tidak ada draft yang menunggu review"),
     ).toBeInTheDocument();
     expect(within(draftQueueEntry()).queryByText(/dikirim ulang/)).not.toBeInTheDocument();
     expect(
-      within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
+        within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
     ).toBeInTheDocument();
   });
 
@@ -89,10 +93,10 @@ describe("Content Plan (All) page", () => {
     await renderPage();
 
     expect(
-      within(draftQueueEntry()).getByText("Jumlah draft belum bisa dimuat."),
+        within(draftQueueEntry()).getByText("Jumlah draft belum bisa dimuat."),
     ).toBeInTheDocument();
     expect(
-      within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
+        within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
     ).toHaveAttribute("href", "/admin/submissions");
   });
 

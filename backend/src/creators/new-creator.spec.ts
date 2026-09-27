@@ -260,14 +260,29 @@ describe('checkNewCreator', () => {
       ).toEqual(day('2026-09-23'));
     });
 
-    // "Today" is the UTC calendar day, the same one the modal's date check uses; the time of
-    // day the request arrives must not turn today's date into "before today".
-    it('still accepts today late in the UTC day', () => {
-      const lateToday = new Date('2026-09-23T23:59:59Z');
+    // "Today" is the calendar day in Jakarta, the one the admin's browser shows: the time of
+    // day the request arrives must not turn today into "before today", nor yesterday into today.
+    it('still accepts today at 23:59 WIB', () => {
+      const lateToday = new Date('2026-09-23T16:59:59Z');
 
       expect(() =>
         checkNewCreator(body({ contractStart: '2026-09-23' }), lateToday),
       ).not.toThrow();
+    });
+
+    it('rejects yesterday once it is past midnight in Jakarta, while UTC is still on it', () => {
+      const earlyNextDay = new Date('2026-09-23T21:00:00Z'); // 24 Sep, 04:00 WIB
+
+      let errors: unknown;
+      try {
+        checkNewCreator(body({ contractStart: '2026-09-23' }), earlyNextDay);
+      } catch (error) {
+        errors = (error as { getResponse(): { errors: unknown } }).getResponse()
+          .errors;
+      }
+      expect(errors).toMatchObject({
+        contractStart: 'Tanggal mulai tidak boleh sebelum hari ini',
+      });
     });
 
     it('rejects a start before today', () => {
@@ -462,7 +477,7 @@ describe('checkNewCreator', () => {
       ).not.toThrow();
       expect(
         errorsFor(body(three('2026-10-05', '2026-10-13', '2026-10-20'))),
-      ).toEqual({ deadlines: 'Deadline paling cepat 2026-10-06' });
+      ).toEqual({ deadlines: 'Deadline paling cepat 6 Okt 2026' });
     });
 
     it('measures the buffer from today when the contract starts today', () => {
@@ -484,7 +499,7 @@ describe('checkNewCreator', () => {
             ...three('2026-09-27', '2026-10-05', '2026-10-12'),
           }),
         ),
-      ).toEqual({ deadlines: 'Deadline paling cepat 2026-09-28' });
+      ).toEqual({ deadlines: 'Deadline paling cepat 28 Sep 2026' });
     });
 
     it('accepts the contract end date and rejects the day after it', () => {

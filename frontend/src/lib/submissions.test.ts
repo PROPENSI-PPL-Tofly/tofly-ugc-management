@@ -4,6 +4,11 @@ import {
   buildSubmissionQuery,
   type SubmissionQueueResponse,
 } from "./submissions";
+import { cookies } from "next/headers";
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ getAll: () => [] })),
+}));
 
 describe("parseSubmissionPage", () => {
   it("defaults to the first page when nothing is given", () => {
@@ -19,10 +24,10 @@ describe("parseSubmissionPage", () => {
   });
 
   it.each(["abc", "0", "-1", "1.5", "2e1"])(
-    "falls back to the first page and reports %s as invalid",
-    (raw) => {
-      expect(parseSubmissionPage({ page: raw })).toEqual({ page: 1, invalid: raw });
-    },
+      "falls back to the first page and reports %s as invalid",
+      (raw) => {
+        expect(parseSubmissionPage({ page: raw })).toEqual({ page: 1, invalid: raw });
+      },
   );
 
   it("treats an empty value as absent rather than invalid", () => {
@@ -49,7 +54,9 @@ describe("buildSubmissionQuery", () => {
   });
 
   it("adds filterStatus when not 'all'", () => {
-    expect(buildSubmissionQuery({ page: 1, status: "draft_revised" })).toContain("filterStatus=draft_revised");
+    expect(buildSubmissionQuery({ page: 1, status: "draft_revised" })).toContain(
+        "filterStatus=draft_revised",
+    );
   });
 
   it("adds overdue when true", () => {
@@ -64,6 +71,7 @@ describe("buildSubmissionQuery", () => {
       status: "draft_review",
       overdue: true,
     });
+
     expect(result).toContain("status=review");
     expect(result).toContain("q=test");
     expect(result).toContain("type=specific");
@@ -76,7 +84,9 @@ describe("buildSubmissionQuery", () => {
 describe("fetchSubmissionQueue", () => {
   beforeEach(() => {
     vi.stubEnv("BACKEND_URL", "http://localhost:3001");
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("")));
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+        () => Promise.resolve(new Response("")),
+    );
   });
 
   afterEach(() => {
@@ -91,21 +101,37 @@ describe("fetchSubmissionQueue", () => {
 
   it("calls the backend with status=review and the requested page", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ items: [], page: 2, pageSize: 10, total: 0, totalPages: 1 })),
+        new Response(
+            JSON.stringify({
+              items: [],
+              page: 2,
+              pageSize: 10,
+              total: 0,
+              totalPages: 1,
+            }),
+        ),
     );
 
     await fetchSubmissionQueue(2);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "http://localhost:3001/submissions?status=review&page=2",
-      { cache: "no-store" },
+        "http://localhost:3001/submissions?status=review&page=2",
+        { cache: "no-store" },
     );
   });
 
   it("strips trailing slash from BACKEND_URL", async () => {
     vi.stubEnv("BACKEND_URL", "http://localhost:3001/");
     vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 })),
+        new Response(
+            JSON.stringify({
+              items: [],
+              page: 1,
+              pageSize: 10,
+              total: 0,
+              totalPages: 0,
+            }),
+        ),
     );
 
     await fetchSubmissionQueue(1);
@@ -116,10 +142,21 @@ describe("fetchSubmissionQueue", () => {
 
   it("forwards q and status in the query", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 })),
+        new Response(
+            JSON.stringify({
+              items: [],
+              page: 1,
+              pageSize: 10,
+              total: 0,
+              totalPages: 0,
+            }),
+        ),
     );
 
-    await fetchSubmissionQueue(1, { q: "salsa", status: "draft_revised" });
+    await fetchSubmissionQueue(1, {
+      q: "salsa",
+      status: "draft_revised",
+    });
 
     const url = vi.mocked(globalThis.fetch).mock.calls[0][0] as string;
     expect(url).toContain("q=salsa");
@@ -128,10 +165,21 @@ describe("fetchSubmissionQueue", () => {
 
   it("forwards type and overdue filters", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 })),
+        new Response(
+            JSON.stringify({
+              items: [],
+              page: 1,
+              pageSize: 10,
+              total: 0,
+              totalPages: 0,
+            }),
+        ),
     );
 
-    await fetchSubmissionQueue(1, { type: "specific", overdue: true });
+    await fetchSubmissionQueue(1, {
+      type: "specific",
+      overdue: true,
+    });
 
     const url = vi.mocked(globalThis.fetch).mock.calls[0][0] as string;
     expect(url).toContain("type=specific");
@@ -139,7 +187,9 @@ describe("fetchSubmissionQueue", () => {
   });
 
   it("throws when the backend responds with an error status", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response("", { status: 500 }));
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response("", { status: 500 }),
+    );
 
     await expect(fetchSubmissionQueue(1)).rejects.toThrow("HTTP 500");
   });
@@ -161,10 +211,44 @@ describe("fetchSubmissionQueue", () => {
       total: 1,
       totalPages: 1,
     };
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(JSON.stringify(expected)));
+
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response(JSON.stringify(expected)),
+    );
 
     const result = await fetchSubmissionQueue(1);
 
     expect(result).toEqual(expected);
+  });
+
+  it("forwards the browser session cookie to the protected backend request", async () => {
+    vi.mocked(cookies).mockResolvedValue({
+      getAll: () => [
+        {
+          name: "__Host-tofly_session",
+          value: "opaque-session-id",
+        },
+      ],
+    } as Awaited<ReturnType<typeof cookies>>);
+
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response(
+            JSON.stringify({
+              items: [],
+              page: 1,
+              pageSize: 10,
+              total: 0,
+              totalPages: 0,
+            }),
+        ),
+    );
+
+    await fetchSubmissionQueue(1);
+
+    const init = vi.mocked(globalThis.fetch).mock.calls[0][1];
+
+    expect(new Headers(init?.headers).get("cookie")).toBe(
+        "__Host-tofly_session=opaque-session-id",
+    );
   });
 });

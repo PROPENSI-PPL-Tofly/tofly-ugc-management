@@ -190,6 +190,19 @@ describe('ReviewQueueService.list', () => {
       });
     });
 
+    // Overdue means before today in Jakarta; at 04:00 WIB UTC is still on the previous day.
+    it('counts overdue from the Jakarta date, not the UTC one', async () => {
+      const { client, service } = stub([]);
+
+      await service.list(PAGE, new Date('2026-10-09T21:00:00Z'), {
+        overdue: true,
+      });
+
+      expect(client.contents.findMany.mock.calls[0][0].where.deadline).toEqual({
+        lt: new Date('2026-10-10T00:00:00.000Z'),
+      });
+    });
+
     it('adds no type or deadline condition when those filters are off', async () => {
       const { client, service } = stub([]);
 

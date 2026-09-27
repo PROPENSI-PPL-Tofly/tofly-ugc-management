@@ -4,6 +4,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { DEV_CREATOR_HEADER } from '../src/auth/dev-creator.guard.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { jakartaMidnight } from '../src/creators/evergreen.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else, and the
 // review queue check searches for it so seeded drafts stay out of the assertions.
@@ -12,11 +13,8 @@ const MARKER = 'e2e-draft';
 const DAY = 24 * 60 * 60 * 1000;
 
 function daysFromToday(days: number): Date {
-  const now = new Date();
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) +
-      days * DAY,
-  );
+  // Today in Jakarta, the day the app counts from.
+  return new Date(jakartaMidnight(new Date()).getTime() + days * DAY);
 }
 
 type Status =

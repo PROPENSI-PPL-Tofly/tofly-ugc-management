@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { creator, listResponse } from "@/components/creators/creator.fixture";
-import { fetchCreators } from "@/lib/creators";
+import { fetchCreators } from "@/lib/creators.server";
 import CreatorsPage from "./page";
 
-vi.mock("@/lib/creators", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/creators")>();
+vi.mock("@/lib/creators.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/creators.server")>();
   return { ...actual, fetchCreators: vi.fn() };
 });
 

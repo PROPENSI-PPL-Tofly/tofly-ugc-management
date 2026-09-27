@@ -4,7 +4,12 @@
 // judges a single new slot against the quota that batch already used up. The buffer formula,
 // the calendar-day check and the "after contract end" message are shared with evergreen.ts
 // rather than re-derived here, so onboarding and Tambah Konten can never quietly disagree.
-import { DEADLINE_AFTER_CONTRACT_END, earliestDeadline, isCalendarDay } from './evergreen.js';
+import {
+  DEADLINE_AFTER_CONTRACT_END,
+  earliestDeadline,
+  isCalendarDay,
+  readableDay,
+} from './evergreen.js';
 
 export type ContentType = 'evergreen' | 'specific';
 
@@ -59,7 +64,7 @@ export function checkEvergreenSlot(
   const earliest = earliestDeadline(context.contractStart, today, context.bufferDays);
 
   if (deadline < earliest) {
-    errors.deadline = `Deadline paling cepat ${earliest}`;
+    errors.deadline = `Deadline paling cepat ${readableDay(earliest)}`;
   } else if (deadline > context.contractEnd) {
     errors.deadline = DEADLINE_AFTER_CONTRACT_END;
   }

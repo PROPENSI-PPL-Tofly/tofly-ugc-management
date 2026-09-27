@@ -1,8 +1,9 @@
 import { ConflictException, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { as, signInAsAdmin } from './sessions.js';
 import {
   SubmissionReviewService,
   type SubmissionReviewClient,
@@ -18,6 +19,8 @@ type Status =
 describe('PATCH /submissions/:id/approve (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  /** Requests signed in as a whitelisted admin. */
+  let admin: ReturnType<typeof as>;
   let creatorId: string;
   let contractId: string;
 
@@ -55,7 +58,7 @@ describe('PATCH /submissions/:id/approve (e2e)', () => {
   }
 
   function approve(id: string) {
-    return request(app.getHttpServer()).patch(`/submissions/${id}/approve`);
+    return admin.patch(`/submissions/${id}/approve`);
   }
 
   beforeAll(async () => {
@@ -63,8 +66,10 @@ describe('PATCH /submissions/:id/approve (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     await app.init();
     prisma = app.get(PrismaService);
+    admin = as(app, await signInAsAdmin(app, prisma, MARKER));
 
     const user = await prisma.users.create({
       data: {
@@ -192,7 +197,7 @@ describe('PATCH /submissions/:id/approve (e2e)', () => {
   });
 
   it('answers 400 for an id that is not a UUID', async () => {
-    const response = await request(app.getHttpServer()).patch(
+    const response = await admin.patch(
       `/submissions/${encodeURIComponent("' OR 1=1--")}/approve`,
     );
 
