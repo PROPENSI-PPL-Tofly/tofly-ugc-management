@@ -1,4 +1,5 @@
 import type { Principal, WhitelistResolver } from './ports.js';
+
 type WhitelistUserRecord = {
   id: string;
   email: string;
@@ -23,7 +24,6 @@ type WhitelistPrismaClient = {
       };
     }): Promise<WhitelistUserRecord | null>;
   };
-
   creators: {
     findUnique(args: {
       where: {
@@ -49,11 +49,11 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
     }
 
     if (user.is_admin) {
-  return {
-  userId: user.id,
-  role: 'admin',
-};
-}
+      return {
+        userId: user.id,
+        role: 'admin',
+      };
+    }
 
     // Non-admin users must have a creator profile before receiving creator access.
     const creator = await this.prisma.creators.findUnique({
@@ -69,33 +69,36 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       return null;
     }
 
-    // A recorded revoke date means the creator no longer has access.
-    if (creator.access_revoke_date !== null) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Access remains valid until the scheduled revoke date is reached.
+    if (
+      creator.access_revoke_date !== null &&
+      creator.access_revoke_date <= today
+    ) {
       return null;
     }
 
     // Access requires at least one contract that is active today.
-const today = new Date();
-today.setUTCHours(0, 0, 0, 0);
+    const hasActiveContract = creator.contracts.some((contract) => {
+      const startDate = new Date(contract.start_date);
+      const endDate = new Date(contract.end_date);
 
-const hasActiveContract = creator.contracts.some((contract) => {
-  const startDate = new Date(contract.start_date);
-  const endDate = new Date(contract.end_date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate.setUTCHours(0, 0, 0, 0);
 
-  startDate.setUTCHours(0, 0, 0, 0);
-  endDate.setUTCHours(0, 0, 0, 0);
+      return startDate <= today && today <= endDate;
+    });
 
-  return startDate <= today && today <= endDate;
-});
+    if (!hasActiveContract) {
+      return null;
+    }
 
-if (!hasActiveContract) {
-  return null;
-}
-
-return {
-  userId: user.id,
-  role: 'creator',
-  creatorId: creator.id,
-};
+    return {
+      userId: user.id,
+      role: 'creator',
+      creatorId: creator.id,
+    };
   }
 }
