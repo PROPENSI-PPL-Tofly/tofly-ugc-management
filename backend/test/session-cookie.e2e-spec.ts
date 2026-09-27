@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { AppSessionService } from '../src/auth/session/session.service.js';
+import { jakartaDay } from '../src/creators/evergreen.js';
 import type { Principal } from '../src/auth/google/ports.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
@@ -22,7 +23,9 @@ describe('application session cookie (e2e)', () => {
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('DEV_AUTH_ENABLED', '');
     vi.stubEnv('FRONTEND_URL', 'http://localhost:3000');
-    const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const module = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = module.createNestApplication();
     app.use(cookieParser());
     await app.init();
@@ -50,7 +53,9 @@ describe('application session cookie (e2e)', () => {
 
   afterAll(async () => {
     await prisma.creators.deleteMany({ where: { first_name: MARKER } });
-    await prisma.users.deleteMany({ where: { email: `${MARKER}@example.com` } });
+    await prisma.users.deleteMany({
+      where: { email: `${MARKER}@example.com` },
+    });
     await app.close();
     vi.unstubAllEnvs();
   });
@@ -78,6 +83,29 @@ describe('application session cookie (e2e)', () => {
       expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED' });
     },
   );
+
+  // PRD 3.1: the session persists until sign-out or until access is revoked.
+  it('refuses a live session on the request after the creator access is revoked', async () => {
+    const creatorId = principal.role === 'creator' ? principal.creatorId : '';
+    const { id } = await sessions.start(
+      { cookie: vi.fn() } as unknown as Response,
+      principal,
+    );
+    expect((await taskList(`${cookieName}=${id}`)).status).toBe(200);
+
+    await prisma.creators.update({
+      where: { id: creatorId },
+      data: { access_revoke_date: new Date(`${jakartaDay(new Date())}Z`) },
+    });
+    try {
+      expect((await taskList(`${cookieName}=${id}`)).status).toBe(401);
+    } finally {
+      await prisma.creators.update({
+        where: { id: creatorId },
+        data: { access_revoke_date: null },
+      });
+    }
+  });
 
   it('revokes the server session at logout and refuses its old cookie', async () => {
     const logout = await request(app.getHttpServer())
