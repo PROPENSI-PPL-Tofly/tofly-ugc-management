@@ -26,7 +26,10 @@ const SUBMITTED: Record<MyTaskAction, string> = {
  * confirms it. Focus then goes to the list: the button that opened the modal usually disappears
  * with the new status, which would otherwise drop focus to the page body.
  */
-export function MyTaskBoard({ tasks }: Readonly<{ tasks: MyTask[] }>) {
+export function MyTaskBoard({
+  tasks,
+  emptyMessage,
+}: Readonly<{ tasks: MyTask[]; emptyMessage?: string }>) {
   const router = useRouter();
   const [opened, setOpened] = useState<Opened | null>(null);
   // The id is the Toast key: a second hand-in remounts it, restarting its countdown.
@@ -85,7 +88,11 @@ export function MyTaskBoard({ tasks }: Readonly<{ tasks: MyTask[] }>) {
         tabIndex={-1}
         className="outline-none"
       >
-        <MyTaskTable tasks={tasks} onAction={(task, action) => setOpened({ task, action })} />
+        <MyTaskTable
+          tasks={tasks}
+          emptyMessage={emptyMessage}
+          onAction={(task, action) => setOpened({ task, action })}
+        />
       </section>
       {opened ? renderModal(opened) : null}
       {toast ? (

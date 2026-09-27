@@ -8,6 +8,7 @@ import type {
   MyContentsResponse,
 } from './dto/my-contents.dto.js';
 import { taskActions } from './task-actions.js';
+import { statusesFor, type TaskStatusFilter } from './task-status-filter.js';
 
 // Only what a row and its modals show. Selecting columns (rather than whole rows) keeps
 // performance numbers, video links and anything added later out of the response by construction.
@@ -51,6 +52,12 @@ interface MyContentsWhere {
   // A pending proposal is not assigned work yet; it belongs to the proposal flow.
   is_proposal: false;
   contracts: { creator_id: string };
+  status?: { in: content_status[] };
+}
+
+/** One page of the list, optionally narrowed to a Task Saya status. */
+export interface MyContentsQuery extends Paging {
+  status?: TaskStatusFilter;
 }
 
 /** The slice of Prisma this service touches, so tests can stub exactly that. */
@@ -71,7 +78,7 @@ export interface MyContentsClient {
 export interface MyContentsLister {
   list(
     creatorId: string,
-    paging: Paging,
+    query: MyContentsQuery,
     now: Date,
   ): Promise<MyContentsResponse>;
 }
@@ -87,14 +94,15 @@ export class MyContentsService implements MyContentsLister {
   // many contents the creator holds.
   async list(
     creatorId: string,
-    paging: Paging,
+    query: MyContentsQuery,
     now: Date,
   ): Promise<MyContentsResponse> {
+    const { page, pageSize, status } = query;
     const where: MyContentsWhere = {
       is_proposal: false,
       contracts: { creator_id: creatorId },
+      ...(status && { status: { in: statusesFor(status) } }),
     };
-    const { page, pageSize } = paging;
 
     const [rows, total] = await Promise.all([
       this.prisma.contents.findMany({

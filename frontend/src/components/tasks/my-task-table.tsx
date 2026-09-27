@@ -3,9 +3,8 @@
 import { Button } from "@/components/ui/button";
 import type { Variant } from "@/components/ui/button-classes";
 import { StatusDot } from "@/components/ui/pill";
-import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
 import { EMPTY, formatDate } from "@/lib/format";
-import type { MyTask, MyTaskAction } from "@/lib/my-tasks";
+import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
 
 const ACTION_LABELS: Record<MyTaskAction, string> = {
   submit_draft: "Submit Draft",
@@ -76,14 +75,17 @@ function ActionCell({
 export function MyTaskTable({
   tasks,
   onAction,
+  emptyMessage = "Belum ada tugas untuk kamu.",
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
+  /** What an empty list means, e.g. that a status filter matched nothing. */
+  emptyMessage?: string;
 }>) {
   if (tasks.length === 0) {
     return (
       <div className="px-5 py-14 text-center">
-        <p className="text-[15px] font-semibold text-muted">Belum ada tugas untuk kamu.</p>
+        <p className="text-[15px] font-semibold text-muted">{emptyMessage}</p>
       </div>
     );
   }
@@ -123,7 +125,7 @@ export function MyTaskTable({
                 {formatDate(task.deadline)}
               </td>
               <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} lg:whitespace-nowrap`}>
-                <StatusDot>{CONTENT_STATUS_LABELS[task.status]}</StatusDot>
+                <StatusDot>{taskStatusLabel(task.status)}</StatusDot>
               </td>
               <td role="cell" className={`${CELL} max-lg:pt-2`}>
                 <ActionCell task={task} onAction={onAction} />
