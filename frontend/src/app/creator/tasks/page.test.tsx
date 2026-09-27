@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { fetchMyTasks, MyTasksError, type MyTasksResponse } from "@/lib/my-tasks";
+import { MyTasksError, type MyTasksResponse } from "@/lib/my-tasks";
+import { fetchMyTasks } from "@/lib/my-tasks.server";
 import TaskSayaPage from "./page";
 
-vi.mock("@/lib/my-tasks", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/my-tasks")>();
-  return { ...actual, fetchMyTasks: vi.fn() };
-});
+vi.mock("@/lib/my-tasks.server", () => ({
+  fetchMyTasks: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/creator/tasks",
@@ -44,7 +44,7 @@ function answer(overrides: Partial<MyTasksResponse> = {}): MyTasksResponse {
 async function renderPage(searchParams: Record<string, string> = {}) {
   const page = await TaskSayaPage({
     searchParams: Promise.resolve(searchParams) as Promise<
-      Record<string, string | string[] | undefined>
+        Record<string, string | string[] | undefined>
     >,
   });
   return render(<>{page}</>);
@@ -89,8 +89,8 @@ describe("Task Saya page", () => {
     expect(within(table).getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
     expect(screen.getByText("Menampilkan 1–5 dari 6 tugas")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
-      "href",
-      "/creator/tasks?page=2",
+        "href",
+        "/creator/tasks?page=2",
     );
   });
 
@@ -110,20 +110,20 @@ describe("Task Saya page", () => {
 
     expect(mockedFetch).toHaveBeenCalledWith(1, null);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Halaman “abc” tidak dikenal, menampilkan halaman pertama.",
+        "Halaman “abc” tidak dikenal, menampilkan halaman pertama.",
     );
   });
 
   it("shows the first page, and says so, for a page past the end", async () => {
     mockedFetch
-      .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
-      .mockResolvedValueOnce(answer());
+        .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
+        .mockResolvedValueOnce(answer());
 
     await renderPage({ page: "9" });
 
     expect(mockedFetch).toHaveBeenNthCalledWith(2, 1, null);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Halaman 9 tidak ada, menampilkan halaman pertama.",
+        "Halaman 9 tidak ada, menampilkan halaman pertama.",
     );
     expect(screen.getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
   });
@@ -144,15 +144,15 @@ describe("Task Saya page", () => {
       await renderPage({ status: "scheduled" });
 
       expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
-        "href",
-        "/creator/tasks?status=scheduled&page=2",
+          "href",
+          "/creator/tasks?status=scheduled&page=2",
       );
     });
 
     it("keeps the filter when a page past the end falls back to the first", async () => {
       mockedFetch
-        .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
-        .mockResolvedValueOnce(answer());
+          .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
+          .mockResolvedValueOnce(answer());
 
       await renderPage({ status: "scheduled", page: "9" });
 
@@ -166,7 +166,7 @@ describe("Task Saya page", () => {
 
       expect(mockedFetch).toHaveBeenCalledWith(1, null);
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Status “done” tidak dikenal, menampilkan semua tugas.",
+          "Status “done” tidak dikenal, menampilkan semua tugas.",
       );
     });
 
@@ -196,7 +196,7 @@ describe("Task Saya page", () => {
     await renderPage();
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Kamu belum masuk sebagai creator.",
+        "Kamu belum masuk sebagai creator.",
     );
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
@@ -212,12 +212,11 @@ describe("Task Saya page", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Daftar tugas tidak bisa dimuat.");
-    // A 500 or a malformed answer is still an answer, so the hint must not blame silence.
     expect(alert).toHaveTextContent("Coba muat ulang beberapa saat lagi.");
     expect(alert).not.toHaveTextContent("Server tidak menjawab.");
     expect(within(alert).getByRole("link", { name: "Muat ulang" })).toHaveAttribute(
-      "href",
-      "/creator/tasks",
+        "href",
+        "/creator/tasks",
     );
   });
 });
