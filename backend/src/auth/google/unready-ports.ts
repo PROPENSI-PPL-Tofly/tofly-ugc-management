@@ -12,14 +12,14 @@ function notReady(what: string): Promise<never> {
 
 // Bound until the real pieces replace them in GoogleAuthModule. Each one refuses, so until then
 // every callback ends on the login page instead of signing anyone in.
-export const unreadyVerifier: IdTokenVerifier = {
-  verify: () => notReady('ID token verification is not implemented yet'),
-};
-
 export const unreadySession: SessionStarter = {
   start: () => notReady('the session cookie is not implemented yet'),
 };
 
 export const unconfiguredExchanger: CodeExchanger = {
   exchange: () => notReady('Google sign-in is not configured'),
+};
+
+export const unconfiguredVerifier: IdTokenVerifier = {
+  verify: () => notReady('Google sign-in is not configured'),
 };

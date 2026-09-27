@@ -12,6 +12,7 @@ import {
   SIGN_IN,
 } from './google-auth.controller.js';
 import { googleOAuthConfig } from './google-config.js';
+import { GoogleIdTokenVerifier } from './google-id-token.js';
 import {
   GoogleSignInService,
   type WarningLog,
@@ -31,8 +32,8 @@ import {
 } from './ports.js';
 import {
   unconfiguredExchanger,
+  unconfiguredVerifier,
   unreadySession,
-  unreadyVerifier,
 } from './unready-ports.js';
 
 @Module({
@@ -51,14 +52,21 @@ import {
         config ? new GoogleTokenClient(config) : unconfiguredExchanger,
       inject: [GOOGLE_OAUTH_CONFIG],
     },
-    // Replace each default with the real implementation as it lands.
-    { provide: ID_TOKEN_VERIFIER, useValue: unreadyVerifier },
+    {
+      provide: ID_TOKEN_VERIFIER,
+      useFactory: (config: GoogleOAuthConfig | undefined): IdTokenVerifier =>
+        config
+          ? new GoogleIdTokenVerifier(config.clientId)
+          : unconfiguredVerifier,
+      inject: [GOOGLE_OAUTH_CONFIG],
+    },
     {
       provide: WHITELIST_RESOLVER,
       useFactory: (prisma: PrismaService): WhitelistResolver =>
         new PrismaWhitelistResolver(prisma),
       inject: [PrismaService],
     },
+    // Replace the default with the real implementation as it lands.
     { provide: SESSION_STARTER, useValue: unreadySession },
     {
       provide: SIGN_IN,
