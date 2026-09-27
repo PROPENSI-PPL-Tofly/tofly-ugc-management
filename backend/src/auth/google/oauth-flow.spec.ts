@@ -65,8 +65,14 @@ describe('serializeFlow / parseFlow', () => {
     ['two parts', `${'a'.repeat(43)}.${'b'.repeat(43)}`],
     ['four parts', Array(4).fill('a'.repeat(43)).join('.')],
     ['a short part', `${'a'.repeat(42)}.${'b'.repeat(43)}.${'c'.repeat(43)}`],
-    ['a part outside base64url', `${'a'.repeat(42)}+.${'b'.repeat(43)}.${'c'.repeat(43)}`],
-    ['a trailing payload', `${'a'.repeat(43)}.${'b'.repeat(43)}.${'c'.repeat(43)}x`],
+    [
+      'a part outside base64url',
+      `${'a'.repeat(42)}+.${'b'.repeat(43)}.${'c'.repeat(43)}`,
+    ],
+    [
+      'a trailing payload',
+      `${'a'.repeat(43)}.${'b'.repeat(43)}.${'c'.repeat(43)}x`,
+    ],
   ])('rejects %s', (_label, value) => {
     expect(parseFlow(value)).toBeUndefined();
   });
