@@ -116,4 +116,60 @@ describe('PrismaWhitelistResolver', () => {
       vi.useRealTimers();
     }
   });
+  it('denies a creator whose access has been revoked', async () => {
+  // Keep the contract active so revocation is the only reason access is denied.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-27T12:00:00.000Z'));
+
+  try {
+    const user = {
+      id: '44444444-4444-4444-4444-444444444444',
+      email: 'revoked.creator@example.com',
+      is_admin: false,
+    };
+
+    const creator = {
+      id: '55555555-5555-5555-5555-555555555555',
+      user_id: user.id,
+      access_revoke_date: new Date('2026-09-20T00:00:00.000Z'),
+      contracts: [
+        {
+          start_date: new Date('2026-09-01T00:00:00.000Z'),
+          end_date: new Date('2026-10-31T00:00:00.000Z'),
+        },
+      ],
+    };
+
+    const prisma = {
+      users: {
+        findUnique: vi.fn().mockResolvedValue(user),
+        create: vi.fn(),
+        upsert: vi.fn(),
+      },
+      creators: {
+        findUnique: vi.fn().mockResolvedValue(creator),
+      },
+    };
+
+    const resolver = new PrismaWhitelistResolver(prisma);
+
+    const principal = await resolver.resolve(user.email);
+
+    expect(principal).toBeNull();
+
+    expect(prisma.creators.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        user_id: user.id,
+      },
+      include: {
+        contracts: true,
+      },
+    });
+
+    expect(prisma.users.create).not.toHaveBeenCalled();
+    expect(prisma.users.upsert).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
 });
