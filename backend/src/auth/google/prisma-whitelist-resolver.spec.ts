@@ -172,4 +172,51 @@ describe('PrismaWhitelistResolver', () => {
     vi.useRealTimers();
   }
 });
+it('denies a creator whose contract has expired', async () => {
+  // Keep access unrevoked so contract expiration is the only denial condition.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-27T12:00:00.000Z'));
+
+  try {
+    const user = {
+      id: '66666666-6666-6666-6666-666666666666',
+      email: 'expired.creator@example.com',
+      is_admin: false,
+    };
+
+    const creator = {
+      id: '77777777-7777-7777-7777-777777777777',
+      user_id: user.id,
+      access_revoke_date: null,
+      contracts: [
+        {
+          start_date: new Date('2026-08-01T00:00:00.000Z'),
+          end_date: new Date('2026-09-20T00:00:00.000Z'),
+        },
+      ],
+    };
+
+    const prisma = {
+      users: {
+        findUnique: vi.fn().mockResolvedValue(user),
+        create: vi.fn(),
+        upsert: vi.fn(),
+      },
+      creators: {
+        findUnique: vi.fn().mockResolvedValue(creator),
+      },
+    };
+
+    const resolver = new PrismaWhitelistResolver(prisma);
+
+    const principal = await resolver.resolve(user.email);
+
+    expect(principal).toBeNull();
+
+    expect(prisma.users.create).not.toHaveBeenCalled();
+    expect(prisma.users.upsert).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
 });
