@@ -359,4 +359,42 @@ describe("SubmitDraftModal", () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  // The same modal serves Submit Draft and Resubmit Draft (PRD 3.16); the action the creator
+  // picked in Task Saya decides which one it reads as.
+  describe("submit or resubmit", () => {
+    it("reads as Submit Draft when no action is given", () => {
+      renderModal();
+
+      expect(screen.getByRole("dialog", { name: "Submit Draft" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Kirim Draft" })).toBeInTheDocument();
+    });
+
+    it("reads as Submit Draft for a first draft", () => {
+      renderModal({ action: "submit_draft" });
+
+      expect(screen.getByRole("dialog", { name: "Submit Draft" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Kirim Draft" })).toBeInTheDocument();
+    });
+
+    it("reads as Resubmit Draft after a revision request", () => {
+      renderModal({ action: "resubmit_draft" });
+
+      expect(screen.getByRole("dialog", { name: "Resubmit Draft" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Kirim Ulang Draft" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Kirim Draft" })).not.toBeInTheDocument();
+    });
+
+    it("still says it is sending while a resubmit is pending", async () => {
+      mockSubmitDraft.mockReturnValue(new Promise(() => {}));
+      renderModal({ action: "resubmit_draft" });
+
+      fireEvent.change(screen.getByLabelText(/link file draft/i), {
+        target: { value: "https://drive.google.com/file/d/draft-2" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Kirim Ulang Draft" }));
+
+      expect(await screen.findByRole("button", { name: "Mengirim..." })).toBeDisabled();
+    });
+  });
 });
