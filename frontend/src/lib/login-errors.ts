@@ -4,10 +4,8 @@
 
 export type LoginError = "not_authorized" | "sign_in_failed" | "cancelled";
 
-const SIGN_IN_FAILED = "Gagal masuk dengan Google. Silakan coba lagi.";
-
 export const LOGIN_ERROR_MESSAGES: Record<LoginError, string> = {
-  sign_in_failed: SIGN_IN_FAILED,
+  sign_in_failed: "Gagal masuk dengan Google. Silakan coba lagi.",
   cancelled: "Masuk dibatalkan. Pilih akun Google Anda untuk melanjutkan.",
   // PRD 3.1: not a failure to retry, since the same account would be refused again. Worded to
   // fit both an email never added and a creator whose access was revoked (flow 4.10). The Google
