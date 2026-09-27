@@ -1,14 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import { AppShell } from "./app-shell";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/admin/creators" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/creators",
+  useRouter: () => ({
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 
 describe("AppShell", () => {
   it("names the page and puts the content in main", () => {
     render(
-      <AppShell title="Creator Database" subtitle="Semua creator dalam satu tabel">
-        <p>konten</p>
-      </AppShell>,
+        <AppShell title="Creator Database" subtitle="Semua creator dalam satu tabel">
+          <p>konten</p>
+        </AppShell>,
     );
 
     expect(screen.getByRole("heading", { level: 1, name: "Creator Database" })).toBeInTheDocument();
@@ -18,9 +24,9 @@ describe("AppShell", () => {
 
   it("marks the creator database as the current place in the navigation", () => {
     render(
-      <AppShell title="Creator Database">
-        <p>konten</p>
-      </AppShell>,
+        <AppShell title="Creator Database">
+          <p>konten</p>
+        </AppShell>,
     );
 
     const link = screen.getByRole("link", { name: "Creator Database" });
@@ -31,9 +37,9 @@ describe("AppShell", () => {
 
   it("stays the admin frame when no role is given", () => {
     render(
-      <AppShell title="Creator Database">
-        <p>konten</p>
-      </AppShell>,
+        <AppShell title="Creator Database">
+          <p>konten</p>
+        </AppShell>,
     );
 
     expect(screen.getByRole("link", { name: "tofly" })).toHaveAttribute("href", "/admin/creators");
@@ -43,9 +49,9 @@ describe("AppShell", () => {
   describe("for a creator", () => {
     it("shows the creator menu and none of the admin's places", () => {
       render(
-        <AppShell role="creator" title="Task Saya">
-          <p>konten</p>
-        </AppShell>,
+          <AppShell role="creator" title="Task Saya">
+            <p>konten</p>
+          </AppShell>,
       );
 
       expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
@@ -55,9 +61,9 @@ describe("AppShell", () => {
 
     it("sends the wordmark home to Task Saya and says whose frame it is", () => {
       render(
-        <AppShell role="creator" title="Task Saya">
-          <p>konten</p>
-        </AppShell>,
+          <AppShell role="creator" title="Task Saya">
+            <p>konten</p>
+          </AppShell>,
       );
 
       expect(screen.getByRole("link", { name: "tofly" })).toHaveAttribute("href", "/creator/tasks");
