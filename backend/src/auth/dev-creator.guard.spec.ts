@@ -1,4 +1,5 @@
 import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
+import type { Principal } from './google/ports.js';
 import type { CreatorRequest } from './creator-request.js';
 import type { AppSessionService } from './session/session.service.js';
 import {
@@ -74,8 +75,13 @@ describe('DevCreatorGuard', () => {
     return { client, guard: new DevCreatorGuard(client) };
   }
 
+  /**
+   * A guard whose session resolves to `principal` and whose whitelist, asked again on each
+   * request, answers `current` (by default the same principal, still admitted).
+   */
   function sessionGuard(
     principal: Awaited<ReturnType<AppSessionService['authenticate']>>,
+    current: Principal | null = principal,
   ) {
     const sessions = {
       cookieName: vi.fn(() => '__Host-tofly_session'),
@@ -86,10 +92,13 @@ describe('DevCreatorGuard', () => {
       creators: { findUnique: vi.fn() },
     } satisfies CreatorLookup;
 
+    const access = { resolveUser: vi.fn().mockResolvedValue(current) };
+
     return {
       client,
       sessions,
-      guard: new DevCreatorGuard(client, sessions),
+      access,
+      guard: new DevCreatorGuard(client, sessions, access),
     };
   }
 
@@ -182,6 +191,59 @@ describe('DevCreatorGuard', () => {
     expect(sessions.authenticate).toHaveBeenCalledWith('opaque-id', response);
 
     expect(client.creators.findUnique).not.toHaveBeenCalled();
+  });
+
+  // PRD 3.1: a session lasts until sign-out or until access is revoked.
+  it.each([
+    ['no longer whitelisted (access revoked)', null],
+    [
+      'whitelisted as an admin now',
+      { userId: 'user-1', role: 'admin' as const },
+    ],
+    [
+      'whitelisted with another creator profile',
+      { userId: 'user-1', role: 'creator' as const, creatorId: ENV_ID },
+    ],
+  ])('refuses a live session whose user is %s', async (_label, current) => {
+    vi.stubEnv('NODE_ENV', 'test');
+    const principal = {
+      userId: 'user-1',
+      role: 'creator' as const,
+      creatorId: HEADER_ID,
+    };
+    const { access, guard: subject } = sessionGuard(principal, current);
+    const request: CreatorRequest = {
+      headers: {},
+      cookies: { '__Host-tofly_session': 'opaque-id' },
+      method: 'GET',
+    };
+
+    await expect(subject.canActivate(context(request))).rejects.toMatchObject({
+      response: { code: 'UNAUTHENTICATED' },
+    });
+    expect(access.resolveUser).toHaveBeenCalledWith('user-1');
+    expect(request.creatorId).toBeUndefined();
+  });
+
+  it('fails closed when a session is supplied but the whitelist check is unavailable', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+    const principal = {
+      userId: 'user-1',
+      role: 'creator' as const,
+      creatorId: HEADER_ID,
+    };
+    const { sessions, client } = sessionGuard(principal);
+    const subject = new DevCreatorGuard(client, sessions);
+
+    await expect(
+      subject.canActivate(
+        context({
+          headers: {},
+          cookies: { '__Host-tofly_session': 'opaque-id' },
+          method: 'GET',
+        }),
+      ),
+    ).rejects.toMatchObject({ response: { code: 'UNAUTHENTICATED' } });
   });
 
   it('uses the development identity when the configured session provider has no cookie', async () => {

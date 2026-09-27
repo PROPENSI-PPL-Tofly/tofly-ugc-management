@@ -1,4 +1,5 @@
-import { Body, Controller, Inject, Post } from '@nestjs/common';
+import { Body, Controller, Inject, Post, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../auth/admin.guard.js';
 import { ContentCreationService } from './contents.service.js';
 import { checkNewContent, type NewContent } from './new-content.js';
 
@@ -7,6 +8,7 @@ export interface ContentCreator {
 }
 
 @Controller('contents')
+@UseGuards(AdminGuard)
 export class ContentsController {
   constructor(
     @Inject(ContentCreationService)

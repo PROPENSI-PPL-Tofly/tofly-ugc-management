@@ -13,9 +13,7 @@ type WhitelistUserRecord = {
 type WhitelistPrismaClient = {
   users: {
     findUnique(args: {
-      where: {
-        email: string;
-      };
+      where: { email: string } | { id: string };
       select: {
         id: true;
         is_admin: true;
@@ -33,9 +31,20 @@ type WhitelistPrismaClient = {
 export class PrismaWhitelistResolver implements WhitelistResolver {
   constructor(private readonly prisma: WhitelistPrismaClient) {}
 
-  async resolve(email: string): Promise<Principal | null> {
+  resolve(email: string): Promise<Principal | null> {
+    return this.lookup({ email });
+  }
+
+  /** The same answer for a signed-in user, asked again on every request their session makes. */
+  resolveUser(userId: string): Promise<Principal | null> {
+    return this.lookup({ id: userId });
+  }
+
+  private async lookup(
+    where: { email: string } | { id: string },
+  ): Promise<Principal | null> {
     const user = await this.prisma.users.findUnique({
-      where: { email },
+      where,
       select: {
         id: true,
         is_admin: true,

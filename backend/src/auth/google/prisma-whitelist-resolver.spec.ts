@@ -392,3 +392,61 @@ describe('PrismaWhitelistResolver', () => {
     }
   });
 });
+
+// A session outlives its sign-in, so each request asks the whitelist again by the session's
+// user id: revoking a creator ends their access on the next request (PRD 3.1).
+describe('PrismaWhitelistResolver.resolveUser', () => {
+  const SELECT = {
+    id: true,
+    is_admin: true,
+    creators: { select: { id: true, access_revoke_date: true } },
+  };
+
+  function resolverFor(user: unknown) {
+    const prisma = { users: { findUnique: vi.fn().mockResolvedValue(user) } };
+    return { prisma, resolver: new PrismaWhitelistResolver(prisma) };
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('looks the user up by id and applies the same rules as sign-in', async () => {
+    const { prisma, resolver } = resolverFor({
+      id: 'user-1',
+      is_admin: false,
+      creators: { id: 'creator-1', access_revoke_date: null },
+    });
+
+    await expect(resolver.resolveUser('user-1')).resolves.toEqual({
+      userId: 'user-1',
+      role: 'creator',
+      creatorId: 'creator-1',
+    });
+    expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { id: 'user-1' },
+      select: SELECT,
+    });
+  });
+
+  it('refuses a creator whose revoke date has been reached since sign-in', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-28T03:00:00.000Z'));
+    const { resolver } = resolverFor({
+      id: 'user-1',
+      is_admin: false,
+      creators: {
+        id: 'creator-1',
+        access_revoke_date: new Date('2026-09-28T00:00:00.000Z'),
+      },
+    });
+
+    await expect(resolver.resolveUser('user-1')).resolves.toBeNull();
+  });
+
+  it('refuses a user who no longer exists', async () => {
+    const { resolver } = resolverFor(null);
+
+    await expect(resolver.resolveUser('user-gone')).resolves.toBeNull();
+  });
+});

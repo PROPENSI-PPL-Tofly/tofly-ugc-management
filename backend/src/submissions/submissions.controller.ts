@@ -8,7 +8,9 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../auth/admin.guard.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from '../creators/paging.js';
 import type { ApprovedSubmission } from './dto/approved-submission.dto.js';
 import type { ReviewQueueResponse } from './dto/review-queue.dto.js';
@@ -32,6 +34,7 @@ export interface SubmissionDetailReader {
 }
 
 @Controller('submissions')
+@UseGuards(AdminGuard)
 export class SubmissionsController {
   constructor(
     @Inject(SubmissionReviewService)
@@ -47,9 +50,6 @@ export class SubmissionsController {
    * 10 rows per page. The pipes turn a non-integer page into a 400, checkPaging bounds it, and
    * checkQueueQuery answers 400 for any status/filter value the queue cannot hold, so only
    * checked values reach the database.
-   *
-   * No guard yet: the backend has no authentication, so for now anyone who can reach the API
-   * can read the queue. Admin-only access belongs with the Google sign-in work (PRD 3.1).
    */
   @Get()
   async listQueue(
@@ -86,9 +86,6 @@ export class SubmissionsController {
    * Approve a draft from the review queue (PRD 3.11): the content becomes Draft Approved,
    * which takes it out of the queue. ParseUUIDPipe answers a malformed id with 400 before
    * anything reaches the database; the service answers 404/409 for the rest.
-   *
-   * No guard yet: the backend has no authentication, so for now anyone who can reach the API
-   * can approve a draft. Admin-only access belongs with the Google sign-in work (PRD 3.1).
    */
   @Patch(':id/approve')
   async approve(

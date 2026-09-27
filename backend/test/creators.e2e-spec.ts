@@ -1,9 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { as, signInAsAdmin } from './sessions.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, seeded or not.
@@ -23,14 +24,18 @@ function day(offset: number): Date {
 describe('GET /creators (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
+  /** Requests signed in as a whitelisted admin. */
+  let admin: ReturnType<typeof as>;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     await app.init();
     prisma = app.get(PrismaService);
+    admin = as(app, await signInAsAdmin(app, prisma, MARKER));
 
     const aulia = await prisma.users.create({
       data: { email: `${MARKER}-aulia@example.com` },
@@ -100,7 +105,7 @@ describe('GET /creators (e2e)', () => {
   });
 
   it('lists creators with their contract, progress and performance', async () => {
-    const { body } = await request(app.getHttpServer())
+    const { body } = await admin
       .get('/creators')
       .query({ pageSize: 50 })
       .expect(200);
@@ -142,7 +147,7 @@ describe('GET /creators (e2e)', () => {
   });
 
   it('orders by name and pages through the roster', async () => {
-    const all = await request(app.getHttpServer())
+    const all = await admin
       .get('/creators?pageSize=50')
       .expect(200);
     const ours = all.body.items
@@ -154,7 +159,7 @@ describe('GET /creators (e2e)', () => {
       `${MARKER} Citra Lestari`,
     ]);
 
-    const second = await request(app.getHttpServer())
+    const second = await admin
       .get('/creators?page=2&pageSize=1')
       .expect(200);
     expect(second.body).toMatchObject({
@@ -167,7 +172,7 @@ describe('GET /creators (e2e)', () => {
   });
 
   it('defaults to the first page of ten', async () => {
-    const { body } = await request(app.getHttpServer())
+    const { body } = await admin
       .get('/creators')
       .expect(200);
     expect(body).toMatchObject({ page: 1, pageSize: 10 });
@@ -175,16 +180,16 @@ describe('GET /creators (e2e)', () => {
   });
 
   it('rejects paging values that are not positive integers', async () => {
-    await request(app.getHttpServer()).get('/creators?page=abc').expect(400);
-    await request(app.getHttpServer()).get('/creators?page=0').expect(400);
-    await request(app.getHttpServer()).get('/creators?pageSize=51').expect(400);
-    await request(app.getHttpServer())
+    await admin.get('/creators?page=abc').expect(400);
+    await admin.get('/creators?page=0').expect(400);
+    await admin.get('/creators?pageSize=51').expect(400);
+    await admin
       .get('/creators?pageSize=1.5')
       .expect(400);
   });
 
   it('searches by name across the whole roster, not just the current page', async () => {
-    const { body } = await request(app.getHttpServer())
+    const { body } = await admin
       .get('/creators')
       .query({ q: `${MARKER} Aulia`, pageSize: 50 })
       .expect(200);
@@ -195,7 +200,7 @@ describe('GET /creators (e2e)', () => {
   });
 
   it('filters by contract status', async () => {
-    const { body } = await request(app.getHttpServer())
+    const { body } = await admin
       .get('/creators')
       .query({ q: MARKER, contractStatus: 'none', pageSize: 50 })
       .expect(200);
@@ -211,7 +216,7 @@ describe('GET /creators (e2e)', () => {
   });
 
   it('filters by productivity band', async () => {
-    const { body } = await request(app.getHttpServer())
+    const { body } = await admin
       .get('/creators')
       .query({ q: MARKER, productivity: 'good', pageSize: 50 })
       .expect(200);
@@ -222,13 +227,13 @@ describe('GET /creators (e2e)', () => {
   });
 
   it('rejects filter values outside what the metrics module produces', async () => {
-    await request(app.getHttpServer())
+    await admin
       .get('/creators?contractStatus=cancelled')
       .expect(400);
-    await request(app.getHttpServer())
+    await admin
       .get('/creators?productivity=excellent')
       .expect(400);
-    await request(app.getHttpServer())
+    await admin
       .get(`/creators?q=${'a'.repeat(101)}`)
       .expect(400);
   });
