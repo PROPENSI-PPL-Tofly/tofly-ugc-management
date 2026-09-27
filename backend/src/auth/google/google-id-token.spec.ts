@@ -132,6 +132,17 @@ describe('GoogleIdTokenVerifier.verify', () => {
       () => idToken({ sub: undefined }),
       'ID token rejected: ERR_JWT_CLAIM_VALIDATION_FAILED (sub)',
     ],
+    // jose only checks that sub is present, not that it is a usable id.
+    [
+      'with a subject that is not a string',
+      () => idToken({ sub: 42 }),
+      'ID token has no subject',
+    ],
+    [
+      'with an empty subject',
+      () => idToken({ sub: '' }),
+      'ID token has no subject',
+    ],
     [
       'unsigned (alg none)',
       () =>
