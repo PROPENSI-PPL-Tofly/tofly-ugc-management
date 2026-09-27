@@ -1,4 +1,10 @@
+import { cookies } from "next/headers";
 import { fetchCreators, PAGE_SIZE, parsePage, parseFilters, buildCreatorsQuery } from "./creators";
+
+vi.mock("next/headers", () => ({
+  // No session unless a test says otherwise.
+  cookies: vi.fn(async () => ({ getAll: () => [] })),
+}));
 
 describe("parsePage", () => {
   it("defaults to the first page when nothing is given", () => {
@@ -32,6 +38,28 @@ describe("fetchCreators", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+  });
+
+  // The Creator Database is admin-only, so the server-rendered request must carry the
+  // browser's session; only the session cookie is forwarded.
+  it("forwards the browser session cookie to the protected backend request", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      getAll: () => [
+        { name: "__Host-tofly_session", value: "opaque-session-id" },
+        { name: "_ga", value: "tracker" },
+      ],
+    } as unknown as Awaited<ReturnType<typeof cookies>>);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
+
+    await fetchCreators(1);
+
+    expect(fetchSpy.mock.calls[0][1]).toEqual({
+      cache: "no-store",
+      headers: { cookie: "__Host-tofly_session=opaque-session-id" },
+    });
   });
 
   it("asks the backend for the requested page without caching", async () => {
