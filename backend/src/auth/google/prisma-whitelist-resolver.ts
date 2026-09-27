@@ -80,21 +80,6 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       return null;
     }
 
-    // Access requires at least one contract that is active today.
-    const hasActiveContract = creator.contracts.some((contract) => {
-      const startDate = new Date(contract.start_date);
-      const endDate = new Date(contract.end_date);
-
-      startDate.setUTCHours(0, 0, 0, 0);
-      endDate.setUTCHours(0, 0, 0, 0);
-
-      return startDate <= today && today <= endDate;
-    });
-
-    if (!hasActiveContract) {
-      return null;
-    }
-
     return {
       userId: user.id,
       role: 'creator',
