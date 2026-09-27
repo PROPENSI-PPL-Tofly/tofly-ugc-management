@@ -11,6 +11,7 @@ import {
 } from "@/lib/contents";
 import { localCalendarDay } from "@/lib/creator-form";
 import { getBufferWindow } from "@/lib/deadline-schedule";
+import { formatDate } from "@/lib/format";
 
 const BUFFER_DAYS = 5;
 // Same limits as the contents API (backend new-content.ts).
@@ -145,7 +146,7 @@ export function AddContentModal({
         if (deadline && (deadline < firstAllowed || deadline > contractEnd)) {
             clientErrors.deadline =
                 deadline < firstAllowed
-                    ? `Deadline paling cepat ${firstAllowed}`
+                    ? `Deadline paling cepat ${formatDate(firstAllowed)}`
                     : "Deadline tidak boleh setelah akhir kontrak";
         }
 

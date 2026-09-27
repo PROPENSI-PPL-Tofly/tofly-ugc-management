@@ -218,13 +218,18 @@ describe("ContentPlanClient", () => {
             screen.getByText("Specific"),
         ).toBeInTheDocument();
 
+        // Statuses read the same here as everywhere else, never as their raw codes.
         expect(
-            screen.getByText("Dijadwalkan"),
+            screen.getByText("Scheduled"),
         ).toBeInTheDocument();
 
         expect(
-            screen.getByText("link_submitted"),
+            screen.getByText("Content Link Submitted"),
         ).toBeInTheDocument();
+
+        expect(
+            screen.queryByText("link_submitted"),
+        ).not.toBeInTheDocument();
     });
 
     it("shows an error when loading the creator fails", async () => {

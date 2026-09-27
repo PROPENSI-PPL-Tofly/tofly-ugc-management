@@ -9,6 +9,7 @@ import {
     fetchCreatorDetail,
     type CreatorDetail,
 } from "@/lib/creators";
+import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
 import { formatDate } from "@/lib/format";
 
 const TABLE_HEAD =
@@ -21,13 +22,6 @@ function contentTypeLabel(type: string): string {
     return type === "evergreen" ? "Evergreen" : "Specific";
 }
 
-function statusLabel(status: string): string {
-    if (status === "scheduled") {
-        return "Dijadwalkan";
-    }
-
-    return status;
-}
 
 export function ContentPlanClient({
                                       creatorId,
@@ -210,7 +204,7 @@ export function ContentPlanClient({
                                         </td>
 
                                         <td className={TABLE_CELL}>
-                                            {statusLabel(content.status)}
+                                            {CONTENT_STATUS_LABELS[content.status]}
                                         </td>
                                     </tr>
                                 ))}

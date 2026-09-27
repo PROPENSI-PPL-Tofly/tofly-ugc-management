@@ -5,19 +5,20 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signInAsAdmin } from './sessions.js';
+import { jakartaMidnight } from '../src/creators/evergreen.js';
 
 // Every email created here starts with this marker so the cleanup never touches anything
 // else in the database, seeded or not.
 const MARKER = 'e2e-create';
 
-/** YYYY-MM-DD for `offset` days from today (UTC), as the date picker sends it. */
+/** YYYY-MM-DD for `offset` days from today in Jakarta, as the admin's date picker sends it. */
 function iso(offset: number): string {
-  const now = new Date();
+  const today = jakartaMidnight(new Date());
   return new Date(
     Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + offset,
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate() + offset,
     ),
   )
     .toISOString()
