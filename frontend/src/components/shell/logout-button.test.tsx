@@ -26,6 +26,15 @@ describe("LogoutButton", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("shows a sign-out icon that screen readers skip, so the button is named just Keluar", () => {
+    render(<LogoutButton />);
+
+    const button = screen.getByRole('button', { name: 'Keluar' });
+    const icon = button.querySelector('svg');
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute('aria-hidden', 'true');
+  });
+
   it("keeps the user on the page and reports a failed logout", async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 503 }));
     render(<LogoutButton />);

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { AppShell } from "./app-shell";
 
 vi.mock("next/navigation", () => ({
@@ -44,6 +44,21 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("link", { name: "tofly" })).toHaveAttribute("href", "/admin/creators");
     expect(screen.getByText("Admin")).toBeInTheDocument();
+  });
+
+  // The role and the way out sit together in one account block, not as two stray lines.
+  it("groups who is signed in with the Keluar button", () => {
+    render(
+        <AppShell title="Creator Database">
+          <p>konten</p>
+        </AppShell>,
+    );
+
+    const account = screen.getByRole("group", { name: "Akun" });
+    expect(account).toHaveTextContent("Masuk sebagai");
+    expect(account).toHaveTextContent("Admin");
+    expect(within(account).getByRole("button", { name: "Keluar" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Menu admin" })).not.toContainElement(account);
   });
 
   describe("for a creator", () => {
