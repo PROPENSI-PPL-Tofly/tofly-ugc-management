@@ -35,16 +35,12 @@ type WhitelistPrismaClient = {
   };
 };
 
-export type WhitelistPrincipal = {
-  userId: string;
-  email: string;
-  role: 'ADMIN' | 'CREATOR';
-};
+
 
 export class PrismaWhitelistResolver {
   constructor(private readonly prisma: WhitelistPrismaClient) {}
 
-  async resolve(email: string): Promise<WhitelistPrincipal | null> {
+  async resolve(email: string) {
     const user = await this.prisma.users.findUnique({
       where: { email },
     });
@@ -54,12 +50,11 @@ export class PrismaWhitelistResolver {
     }
 
     if (user.is_admin) {
-      return {
-        userId: user.id,
-        email: user.email,
-        role: 'ADMIN',
-      };
-    }
+  return {
+    userId: user.id,
+    role: 'admin' as const,
+  };
+}
 
     // Non-admin users must have a creator profile before receiving creator access.
     const creator = await this.prisma.creators.findUnique({
