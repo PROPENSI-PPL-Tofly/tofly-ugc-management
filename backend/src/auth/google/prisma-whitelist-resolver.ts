@@ -3,18 +3,11 @@ import type { Principal, WhitelistResolver } from './ports.js';
 
 type WhitelistUserRecord = {
   id: string;
-  email: string;
   is_admin: boolean;
-};
-
-type CreatorRecord = {
-  id: string;
-  user_id: string;
-  access_revoke_date: Date | null;
-  contracts: {
-    start_date: Date;
-    end_date: Date;
-  }[];
+  creators: {
+    id: string;
+    access_revoke_date: Date | null;
+  } | null;
 };
 
 type WhitelistPrismaClient = {
@@ -23,17 +16,17 @@ type WhitelistPrismaClient = {
       where: {
         email: string;
       };
+      select: {
+        id: true;
+        is_admin: true;
+        creators: {
+          select: {
+            id: true;
+            access_revoke_date: true;
+          };
+        };
+      };
     }): Promise<WhitelistUserRecord | null>;
-  };
-  creators: {
-    findUnique(args: {
-      where: {
-        user_id: string;
-      };
-      include: {
-        contracts: true;
-      };
-    }): Promise<CreatorRecord | null>;
   };
 };
 
@@ -43,6 +36,16 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
   async resolve(email: string): Promise<Principal | null> {
     const user = await this.prisma.users.findUnique({
       where: { email },
+      select: {
+        id: true,
+        is_admin: true,
+        creators: {
+          select: {
+            id: true,
+            access_revoke_date: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -57,14 +60,7 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
     }
 
     // Non-admin users must have a creator profile before receiving creator access.
-    const creator = await this.prisma.creators.findUnique({
-      where: {
-        user_id: user.id,
-      },
-      include: {
-        contracts: true,
-      },
-    });
+    const creator = user.creators;
 
     if (!creator) {
       return null;

@@ -12,9 +12,6 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
-      creators: {
-        findUnique: vi.fn(),
-      },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
@@ -22,11 +19,21 @@ describe('PrismaWhitelistResolver', () => {
     const principal = await resolver.resolve(email);
 
     expect(principal).toBeNull();
-    expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        where: { email },
-      }),
-    );
+
+    expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { email },
+      select: {
+        id: true,
+        is_admin: true,
+        creators: {
+          select: {
+            id: true,
+            access_revoke_date: true,
+          },
+        },
+      },
+    });
+
     expect(prisma.users.create).not.toHaveBeenCalled();
     expect(prisma.users.upsert).not.toHaveBeenCalled();
   });
@@ -34,8 +41,8 @@ describe('PrismaWhitelistResolver', () => {
   it('resolves a whitelisted admin email to the admin principal', async () => {
     const user = {
       id: '11111111-1111-1111-1111-111111111111',
-      email: 'admin@tofly.id',
       is_admin: true,
+      creators: null,
     };
 
     const prisma = {
@@ -44,14 +51,11 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
-      creators: {
-        findUnique: vi.fn(),
-      },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
 
-    const principal = await resolver.resolve(user.email);
+    const principal = await resolver.resolve('admin@tofly.id');
 
     const expected: Principal = {
       userId: user.id,
@@ -61,8 +65,19 @@ describe('PrismaWhitelistResolver', () => {
     expect(principal).toEqual(expected);
 
     expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
-      where: { email: user.email },
+      where: { email: 'admin@tofly.id' },
+      select: {
+        id: true,
+        is_admin: true,
+        creators: {
+          select: {
+            id: true,
+            access_revoke_date: true,
+          },
+        },
+      },
     });
+
     expect(prisma.users.create).not.toHaveBeenCalled();
     expect(prisma.users.upsert).not.toHaveBeenCalled();
   });
@@ -70,8 +85,8 @@ describe('PrismaWhitelistResolver', () => {
   it('denies a non-admin user without a creator profile', async () => {
     const user = {
       id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-      email: 'noncreator@example.com',
       is_admin: false,
+      creators: null,
     };
 
     const prisma = {
@@ -80,23 +95,25 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
-      creators: {
-        findUnique: vi.fn().mockResolvedValue(null),
-      },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
 
-    const principal = await resolver.resolve(user.email);
+    const principal = await resolver.resolve('noncreator@example.com');
 
     expect(principal).toBeNull();
 
-    expect(prisma.creators.findUnique).toHaveBeenCalledExactlyOnceWith({
-      where: {
-        user_id: user.id,
-      },
-      include: {
-        contracts: true,
+    expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { email: 'noncreator@example.com' },
+      select: {
+        id: true,
+        is_admin: true,
+        creators: {
+          select: {
+            id: true,
+            access_revoke_date: true,
+          },
+        },
       },
     });
 
@@ -104,82 +121,70 @@ describe('PrismaWhitelistResolver', () => {
     expect(prisma.users.upsert).not.toHaveBeenCalled();
   });
 
-  it('resolves an active whitelisted creator email to the creator principal', async () => {
-    // Freeze time so contract validation stays deterministic.
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-27T12:00:00.000Z'));
+  it('resolves a whitelisted creator email to the creator principal', async () => {
+    const creator = {
+      id: '33333333-3333-3333-3333-333333333333',
+      access_revoke_date: null,
+    };
 
-    try {
-      const user = {
-        id: '22222222-2222-2222-2222-222222222222',
-        email: 'creator@example.com',
-        is_admin: false,
-      };
+    const user = {
+      id: '22222222-2222-2222-2222-222222222222',
+      is_admin: false,
+      creators: creator,
+    };
 
-      const creator = {
-        id: '33333333-3333-3333-3333-333333333333',
-        user_id: user.id,
-        access_revoke_date: null,
-        contracts: [
-          {
-            start_date: new Date('2026-09-01T00:00:00.000Z'),
-            end_date: new Date('2026-10-31T00:00:00.000Z'),
-          },
-        ],
-      };
+    const prisma = {
+      users: {
+        findUnique: vi.fn().mockResolvedValue(user),
+        create: vi.fn(),
+        upsert: vi.fn(),
+      },
+    };
 
-      const prisma = {
-        users: {
-          findUnique: vi.fn().mockResolvedValue(user),
-          create: vi.fn(),
-          upsert: vi.fn(),
-        },
+    const resolver = new PrismaWhitelistResolver(prisma);
+
+    const principal = await resolver.resolve('creator@example.com');
+
+    const expected: Principal = {
+      userId: user.id,
+      role: 'creator',
+      creatorId: creator.id,
+    };
+
+    expect(principal).toEqual(expected);
+
+    expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { email: 'creator@example.com' },
+      select: {
+        id: true,
+        is_admin: true,
         creators: {
-          findUnique: vi.fn().mockResolvedValue(creator),
+          select: {
+            id: true,
+            access_revoke_date: true,
+          },
         },
-      };
+      },
+    });
 
-      const resolver = new PrismaWhitelistResolver(prisma);
-
-      const principal = await resolver.resolve(user.email);
-
-      const expected: Principal = {
-        userId: user.id,
-        role: 'creator',
-        creatorId: creator.id,
-      };
-
-      expect(principal).toEqual(expected);
-
-      expect(prisma.users.create).not.toHaveBeenCalled();
-      expect(prisma.users.upsert).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(prisma.users.create).not.toHaveBeenCalled();
+    expect(prisma.users.upsert).not.toHaveBeenCalled();
   });
 
-  it('denies a creator whose access has been revoked', async () => {
-    // Keep the contract active so revocation is the only reason access is denied.
+  it('denies a creator whose scheduled revoke date has been reached', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-27T12:00:00.000Z'));
 
     try {
-      const user = {
-        id: '44444444-4444-4444-4444-444444444444',
-        email: 'revoked.creator@example.com',
-        is_admin: false,
-      };
-
       const creator = {
         id: '55555555-5555-5555-5555-555555555555',
-        user_id: user.id,
         access_revoke_date: new Date('2026-09-20T00:00:00.000Z'),
-        contracts: [
-          {
-            start_date: new Date('2026-09-01T00:00:00.000Z'),
-            end_date: new Date('2026-10-31T00:00:00.000Z'),
-          },
-        ],
+      };
+
+      const user = {
+        id: '44444444-4444-4444-4444-444444444444',
+        is_admin: false,
+        creators: creator,
       };
 
       const prisma = {
@@ -188,25 +193,13 @@ describe('PrismaWhitelistResolver', () => {
           create: vi.fn(),
           upsert: vi.fn(),
         },
-        creators: {
-          findUnique: vi.fn().mockResolvedValue(creator),
-        },
       };
 
       const resolver = new PrismaWhitelistResolver(prisma);
 
-      const principal = await resolver.resolve(user.email);
+      const principal = await resolver.resolve('revoked.creator@example.com');
 
       expect(principal).toBeNull();
-
-      expect(prisma.creators.findUnique).toHaveBeenCalledExactlyOnceWith({
-        where: {
-          user_id: user.id,
-        },
-        include: {
-          contracts: true,
-        },
-      });
 
       expect(prisma.users.create).not.toHaveBeenCalled();
       expect(prisma.users.upsert).not.toHaveBeenCalled();
@@ -221,22 +214,15 @@ describe('PrismaWhitelistResolver', () => {
     vi.setSystemTime(new Date('2026-09-27T12:00:00.000Z'));
 
     try {
-      const user = {
-        id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        email: 'scheduled.revoke@example.com',
-        is_admin: false,
-      };
-
       const creator = {
         id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
-        user_id: user.id,
         access_revoke_date: new Date('2026-09-28T00:00:00.000Z'),
-        contracts: [
-          {
-            start_date: new Date('2026-09-01T00:00:00.000Z'),
-            end_date: new Date('2026-10-31T00:00:00.000Z'),
-          },
-        ],
+      };
+
+      const user = {
+        id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        is_admin: false,
+        creators: creator,
       };
 
       const prisma = {
@@ -245,14 +231,11 @@ describe('PrismaWhitelistResolver', () => {
           create: vi.fn(),
           upsert: vi.fn(),
         },
-        creators: {
-          findUnique: vi.fn().mockResolvedValue(creator),
-        },
       };
 
       const resolver = new PrismaWhitelistResolver(prisma);
 
-      const principal = await resolver.resolve(user.email);
+      const principal = await resolver.resolve('scheduled.revoke@example.com');
 
       const expected: Principal = {
         userId: user.id,
@@ -269,27 +252,17 @@ describe('PrismaWhitelistResolver', () => {
     }
   });
 
-  it('allows a creator after their contract has expired while access is not revoked', async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-27T12:00:00.000Z'));
-
-  try {
-    const user = {
-      id: '66666666-6666-6666-6666-666666666666',
-      email: 'expired.creator@example.com',
-      is_admin: false,
-    };
-
+  it('allows a creator after their contract period while access is not revoked', async () => {
+    // Contract dates do not control login access; revocation does.
     const creator = {
       id: '77777777-7777-7777-7777-777777777777',
-      user_id: user.id,
       access_revoke_date: null,
-      contracts: [
-        {
-          start_date: new Date('2026-08-01T00:00:00.000Z'),
-          end_date: new Date('2026-09-20T00:00:00.000Z'),
-        },
-      ],
+    };
+
+    const user = {
+      id: '66666666-6666-6666-6666-666666666666',
+      is_admin: false,
+      creators: creator,
     };
 
     const prisma = {
@@ -298,14 +271,11 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
-      creators: {
-        findUnique: vi.fn().mockResolvedValue(creator),
-      },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
 
-    const principal = await resolver.resolve(user.email);
+    const principal = await resolver.resolve('expired.creator@example.com');
 
     const expected: Principal = {
       userId: user.id,
@@ -315,34 +285,35 @@ describe('PrismaWhitelistResolver', () => {
 
     expect(principal).toEqual(expected);
 
+    expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { email: 'expired.creator@example.com' },
+      select: {
+        id: true,
+        is_admin: true,
+        creators: {
+          select: {
+            id: true,
+            access_revoke_date: true,
+          },
+        },
+      },
+    });
+
     expect(prisma.users.create).not.toHaveBeenCalled();
     expect(prisma.users.upsert).not.toHaveBeenCalled();
-  } finally {
-    vi.useRealTimers();
-  }
-});
+  });
 
-it('allows a creator before their contract has started while access is not revoked', async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-27T12:00:00.000Z'));
-
-  try {
-    const user = {
-      id: '88888888-8888-8888-8888-888888888888',
-      email: 'future.creator@example.com',
-      is_admin: false,
-    };
-
+  it('allows a creator before their contract period while access is not revoked', async () => {
+    // Whitelisting enables login immediately; contract dates do not gate authentication.
     const creator = {
       id: '99999999-9999-9999-9999-999999999999',
-      user_id: user.id,
       access_revoke_date: null,
-      contracts: [
-        {
-          start_date: new Date('2026-10-01T00:00:00.000Z'),
-          end_date: new Date('2026-11-30T00:00:00.000Z'),
-        },
-      ],
+    };
+
+    const user = {
+      id: '88888888-8888-8888-8888-888888888888',
+      is_admin: false,
+      creators: creator,
     };
 
     const prisma = {
@@ -351,14 +322,11 @@ it('allows a creator before their contract has started while access is not revok
         create: vi.fn(),
         upsert: vi.fn(),
       },
-      creators: {
-        findUnique: vi.fn().mockResolvedValue(creator),
-      },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
 
-    const principal = await resolver.resolve(user.email);
+    const principal = await resolver.resolve('future.creator@example.com');
 
     const expected: Principal = {
       userId: user.id,
@@ -368,52 +336,59 @@ it('allows a creator before their contract has started while access is not revok
 
     expect(principal).toEqual(expected);
 
-    expect(prisma.users.create).not.toHaveBeenCalled();
-    expect(prisma.users.upsert).not.toHaveBeenCalled();
-  } finally {
-    vi.useRealTimers();
-  }
-});
-it('revokes creator access based on the Jakarta calendar day', async () => {
-  // 27 Sep 17:30 UTC = 28 Sep 00:30 WIB.
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-27T17:30:00.000Z'));
-
-  try {
-    const user = {
-      id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
-      email: 'jakarta.revoke@example.com',
-      is_admin: false,
-    };
-
-    const creator = {
-      id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-      user_id: user.id,
-      access_revoke_date: new Date('2026-09-28T00:00:00.000Z'),
-      contracts: [],
-    };
-
-    const prisma = {
-      users: {
-        findUnique: vi.fn().mockResolvedValue(user),
-        create: vi.fn(),
-        upsert: vi.fn(),
+    expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { email: 'future.creator@example.com' },
+      select: {
+        id: true,
+        is_admin: true,
+        creators: {
+          select: {
+            id: true,
+            access_revoke_date: true,
+          },
+        },
       },
-      creators: {
-        findUnique: vi.fn().mockResolvedValue(creator),
-      },
-    };
-
-    const resolver = new PrismaWhitelistResolver(prisma);
-
-    const principal = await resolver.resolve(user.email);
-
-    expect(principal).toBeNull();
+    });
 
     expect(prisma.users.create).not.toHaveBeenCalled();
     expect(prisma.users.upsert).not.toHaveBeenCalled();
-  } finally {
-    vi.useRealTimers();
-  }
-});
+  });
+
+  it('revokes creator access based on the Jakarta calendar day', async () => {
+    // 27 Sep 17:30 UTC = 28 Sep 00:30 WIB.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-27T17:30:00.000Z'));
+
+    try {
+      const creator = {
+        id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        access_revoke_date: new Date('2026-09-28T00:00:00.000Z'),
+      };
+
+      const user = {
+        id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        is_admin: false,
+        creators: creator,
+      };
+
+      const prisma = {
+        users: {
+          findUnique: vi.fn().mockResolvedValue(user),
+          create: vi.fn(),
+          upsert: vi.fn(),
+        },
+      };
+
+      const resolver = new PrismaWhitelistResolver(prisma);
+
+      const principal = await resolver.resolve('jakarta.revoke@example.com');
+
+      expect(principal).toBeNull();
+
+      expect(prisma.users.create).not.toHaveBeenCalled();
+      expect(prisma.users.upsert).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
