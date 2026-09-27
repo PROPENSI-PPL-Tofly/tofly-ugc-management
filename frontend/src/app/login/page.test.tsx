@@ -34,6 +34,15 @@ describe("Login page", () => {
     expect(mark).toHaveAttribute("focusable", "false");
   });
 
+  it("links to the privacy policy Google shows on its consent screen", async () => {
+    await renderLogin();
+
+    expect(screen.getByRole("link", { name: "Kebijakan Privasi" })).toHaveAttribute(
+      "href",
+      "/privasi",
+    );
+  });
+
   it("shows no alert on a normal visit", async () => {
     await renderLogin();
 
