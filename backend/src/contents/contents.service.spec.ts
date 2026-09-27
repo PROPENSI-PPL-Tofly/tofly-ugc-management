@@ -599,7 +599,7 @@ describe('atomic Evergreen allocation', () => {
       response: {
         errors: {
           type: 'Slot Evergreen sudah penuh',
-          deadline: 'Deadline paling cepat 2026-09-29',
+          deadline: 'Deadline paling cepat 29 Sep 2026',
         },
       },
     });
@@ -625,7 +625,7 @@ describe('atomic Evergreen allocation', () => {
     ).rejects.toMatchObject({
       response: {
         errors: {
-          deadline: 'Deadline paling cepat 2026-10-14',
+          deadline: 'Deadline paling cepat 14 Okt 2026',
         },
       },
     });

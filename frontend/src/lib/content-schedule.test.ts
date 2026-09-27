@@ -50,7 +50,7 @@ describe("validateEvergreenSlot", () => {
       // One day before the buffer's first allowed day (2026-10-06).
       const errors = validateEvergreenSlot({ ...VALID_INPUT, deadline: "2026-10-05" });
 
-      expect(errors.deadline).toBe("Deadline paling cepat 2026-10-06");
+      expect(errors.deadline).toBe("Deadline paling cepat 6 Okt 2026");
     });
 
     it("accepts the first day the buffer allows", () => {
@@ -68,7 +68,7 @@ describe("validateEvergreenSlot", () => {
         deadline: "2026-09-28",
       });
 
-      expect(errors.deadline).toBe("Deadline paling cepat 2026-09-29");
+      expect(errors.deadline).toBe("Deadline paling cepat 29 Sep 2026");
     });
 
     it("rejects a deadline after the contract ends", () => {

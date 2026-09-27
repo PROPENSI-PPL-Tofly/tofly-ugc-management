@@ -477,7 +477,7 @@ describe('checkNewCreator', () => {
       ).not.toThrow();
       expect(
         errorsFor(body(three('2026-10-05', '2026-10-13', '2026-10-20'))),
-      ).toEqual({ deadlines: 'Deadline paling cepat 2026-10-06' });
+      ).toEqual({ deadlines: 'Deadline paling cepat 6 Okt 2026' });
     });
 
     it('measures the buffer from today when the contract starts today', () => {
@@ -499,7 +499,7 @@ describe('checkNewCreator', () => {
             ...three('2026-09-27', '2026-10-05', '2026-10-12'),
           }),
         ),
-      ).toEqual({ deadlines: 'Deadline paling cepat 2026-09-28' });
+      ).toEqual({ deadlines: 'Deadline paling cepat 28 Sep 2026' });
     });
 
     it('accepts the contract end date and rejects the day after it', () => {
