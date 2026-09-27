@@ -1,6 +1,5 @@
-// What the Google redirect flow needs from the rest of sign-in. Each port is owned by its own
-// piece of work and bound in AuthModule; until an implementation lands, AuthModule binds a
-// fail-closed default, so a sign-in can never succeed by accident.
+// What the Google redirect flow needs from the rest of sign-in. Token verification and
+// whitelist resolution remain separate work items; the session port is bound by SessionModule.
 
 import type { Response } from 'express';
 

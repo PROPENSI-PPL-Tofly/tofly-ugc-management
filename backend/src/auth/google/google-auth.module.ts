@@ -1,5 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import type { GoogleOAuthConfig } from './authorization.js';
+import { SessionModule } from '../session/session.module.js';
 import { flowCookie } from './flow-cookie.js';
 import { PrismaModule } from '../../prisma/prisma.module.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -33,11 +34,11 @@ import {
 import {
   unconfiguredExchanger,
   unconfiguredVerifier,
-  unreadySession,
 } from './unready-ports.js';
 
 @Module({
-  imports: [PrismaModule],
+  // SessionModule provides SESSION_STARTER.
+  imports: [PrismaModule, SessionModule],
   controllers: [GoogleAuthController],
   providers: [
     {
@@ -66,8 +67,6 @@ import {
         new PrismaWhitelistResolver(prisma),
       inject: [PrismaService],
     },
-    // Replace the default with the real implementation as it lands.
-    { provide: SESSION_STARTER, useValue: unreadySession },
     {
       provide: SIGN_IN,
       useFactory: (

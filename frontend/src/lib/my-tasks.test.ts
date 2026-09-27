@@ -1,5 +1,4 @@
 import {
-  fetchMyTasks,
   MY_TASKS_PAGE_SIZE,
   MyTasksError,
   parseTaskStatus,
@@ -7,6 +6,12 @@ import {
   taskStatusLabel,
   type MyTasksResponse,
 } from "./my-tasks";
+import { fetchMyTasks } from "./my-tasks.server";
+import { cookies } from "next/headers";
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ getAll: () => [] })),
+}));
 
 // GET /me/contents as SCRUM-102 answers it: rows already in display order, each with the
 // buttons it allows today, so the table never re-derives the submission rules.
@@ -43,8 +48,8 @@ describe("fetchMyTasks", () => {
 
   function respond(status: number, body: unknown) {
     return vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify(body), { status }));
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response(JSON.stringify(body), { status }));
   }
 
   it("asks the backend for the requested page of five without caching", async () => {
@@ -53,13 +58,14 @@ describe("fetchMyTasks", () => {
 
     await expect(fetchMyTasks(2)).resolves.toEqual(response);
 
-    expect(fetchSpy).toHaveBeenCalledWith("http://backend:3001/me/contents?page=2&pageSize=5", {
-      cache: "no-store",
-    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+        "http://backend:3001/me/contents?page=2&pageSize=5",
+        {
+          cache: "no-store",
+        },
+    );
   });
 
-  // The backend decides whose tasks these are; the request never names a creator, so no
-  // value from the browser can widen it to someone else's work (OWASP A01).
   it("sends no creator identity of its own", async () => {
     vi.stubEnv("BACKEND_URL", "http://backend:3001");
     const fetchSpy = respond(200, response);
@@ -68,7 +74,9 @@ describe("fetchMyTasks", () => {
 
     const [url, init] = fetchSpy.mock.calls[0];
     expect(String(url)).not.toMatch(/creator/i);
-    expect(init).toEqual({ cache: "no-store" });
+    expect(init).toEqual({
+      cache: "no-store",
+    });
   });
 
   it("keeps a trailing slash on BACKEND_URL from doubling up", async () => {
@@ -77,36 +85,44 @@ describe("fetchMyTasks", () => {
 
     await fetchMyTasks(1);
 
-    expect(fetchSpy.mock.calls[0][0]).toBe("http://backend:3001/me/contents?page=1&pageSize=5");
+    expect(fetchSpy.mock.calls[0][0]).toBe(
+        "http://backend:3001/me/contents?page=1&pageSize=5",
+    );
   });
 
   it("refuses to guess the backend address", async () => {
     vi.stubEnv("BACKEND_URL", "");
 
-    await expect(fetchMyTasks(1)).rejects.toThrow("BACKEND_URL is not configured");
+    await expect(fetchMyTasks(1)).rejects.toThrow(
+        "BACKEND_URL is not configured",
+    );
   });
 
   it.each([401, 404, 500, 503])(
-    "turns HTTP %i into an error carrying that status",
-    async (status) => {
-      vi.stubEnv("BACKEND_URL", "http://backend:3001");
-      respond(status, { message: "nope" });
+      "turns HTTP %i into an error carrying that status",
+      async (status) => {
+        vi.stubEnv("BACKEND_URL", "http://backend:3001");
+        respond(status, { message: "nope" });
 
-      const failure = fetchMyTasks(1);
+        const failure = fetchMyTasks(1);
 
-      await expect(failure).rejects.toBeInstanceOf(MyTasksError);
-      await expect(failure).rejects.toMatchObject({ status });
-    },
+        await expect(failure).rejects.toBeInstanceOf(MyTasksError);
+        await expect(failure).rejects.toMatchObject({ status });
+      },
   );
 
-  // A 200 whose body is not a task list would otherwise reach the table and crash it on
-  // `tasks.map`; it fails here instead, like any other answer the page cannot use.
   it.each([
     ["an empty object", {}],
     ["a list instead of a page", [response.items[0]]],
     ["items that are not a list", { ...response, items: "nope" }],
-    ["a task without an id", { ...response, items: [{ ...response.items[0], id: undefined }] }],
-    ["a task without actions", { ...response, items: [{ ...response.items[0], actions: null }] }],
+    [
+      "a task without an id",
+      { ...response, items: [{ ...response.items[0], id: undefined }] },
+    ],
+    [
+      "a task without actions",
+      { ...response, items: [{ ...response.items[0], actions: null }] },
+    ],
     ["paging that is not a number", { ...response, totalPages: "2" }],
     ["no body at all", null],
   ])("refuses %s as an unusable answer", async (_label, body) => {
@@ -121,7 +137,13 @@ describe("fetchMyTasks", () => {
 
   it("accepts a page with no tasks", async () => {
     vi.stubEnv("BACKEND_URL", "http://backend:3001");
-    const empty = { ...response, items: [], total: 0, totalPages: 0 };
+    const empty = {
+      ...response,
+      items: [],
+      total: 0,
+      totalPages: 0,
+    };
+
     respond(200, empty);
 
     await expect(fetchMyTasks(1)).resolves.toEqual(empty);
@@ -129,9 +151,34 @@ describe("fetchMyTasks", () => {
 
   it("lets a network failure through as a rejection", async () => {
     vi.stubEnv("BACKEND_URL", "http://backend:3001");
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+        new TypeError("fetch failed"),
+    );
 
     await expect(fetchMyTasks(1)).rejects.toThrow("fetch failed");
+  });
+
+  it("forwards the browser session cookie to the protected backend request", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+
+    vi.mocked(cookies).mockResolvedValue({
+      getAll: () => [
+        {
+          name: "__Host-tofly_session",
+          value: "opaque-session-id",
+        },
+      ],
+    } as Awaited<ReturnType<typeof cookies>>);
+
+    const fetchSpy = respond(200, response);
+
+    await fetchMyTasks(1);
+
+    const [, init] = fetchSpy.mock.calls[0];
+
+    expect(new Headers(init?.headers).get("cookie")).toBe(
+        "__Host-tofly_session=opaque-session-id",
+    );
   });
 });
 
@@ -143,37 +190,60 @@ describe("fetchMyTasks with a status filter", () => {
 
   it("asks the backend for that status alone", async () => {
     vi.stubEnv("BACKEND_URL", "http://backend:3001");
+
     const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(
+            new Response(JSON.stringify(response), { status: 200 }),
+        );
 
     await fetchMyTasks(2, "draft_review");
 
     expect(fetchSpy.mock.calls[0][0]).toBe(
-      "http://backend:3001/me/contents?page=2&pageSize=5&status=draft_review",
+        "http://backend:3001/me/contents?page=2&pageSize=5&status=draft_review",
     );
   });
 });
 
 describe("parseTaskStatus", () => {
   it("reads no filter when the URL names none", () => {
-    expect(parseTaskStatus({})).toEqual({ status: null, invalid: null });
-    expect(parseTaskStatus({ status: "" })).toEqual({ status: null, invalid: null });
+    expect(parseTaskStatus({})).toEqual({
+      status: null,
+      invalid: null,
+    });
+
+    expect(parseTaskStatus({ status: "" })).toEqual({
+      status: null,
+      invalid: null,
+    });
   });
 
-  it.each(TASK_STATUS_FILTERS)("reads the Task Saya status %s", (status) => {
-    expect(parseTaskStatus({ status })).toEqual({ status, invalid: null });
-  });
+  it.each(TASK_STATUS_FILTERS)(
+      "reads the Task Saya status %s",
+      (status) => {
+        expect(parseTaskStatus({ status })).toEqual({
+          status,
+          invalid: null,
+        });
+      },
+  );
 
   it.each([
     ["an unknown status", "done"],
     ["the admin-side draft_revised", "draft_revised"],
   ])("drops %s and reports it", (_label, status) => {
-    expect(parseTaskStatus({ status })).toEqual({ status: null, invalid: status });
+    expect(parseTaskStatus({ status })).toEqual({
+      status: null,
+      invalid: status,
+    });
   });
 
   it("reads the first of a repeated parameter", () => {
-    expect(parseTaskStatus({ status: ["draft_approved", "scheduled"] })).toEqual({
+    expect(
+        parseTaskStatus({
+          status: ["draft_approved", "scheduled"],
+        }),
+    ).toEqual({
       status: "draft_approved",
       invalid: null,
     });
@@ -181,9 +251,10 @@ describe("parseTaskStatus", () => {
 });
 
 describe("taskStatusLabel", () => {
-  // A creator does not tell a first hand-in from a revised one: both wait for the admin.
   it("reads a revised hand-in as waiting for review", () => {
-    expect(taskStatusLabel("draft_revised")).toBe("Draft Menunggu Review");
+    expect(taskStatusLabel("draft_revised")).toBe(
+        "Draft Menunggu Review",
+    );
   });
 
   it.each([

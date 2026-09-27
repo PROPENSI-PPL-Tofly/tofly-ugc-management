@@ -24,8 +24,8 @@ export const MY_CONTENTS_PAGE_SIZE = 5;
  * Routes about the calling creator. Every query is scoped by the creator the guard resolved,
  * never by an id from the URL, so one creator cannot ask for another's work.
  *
- * DevCreatorGuard is a development stand-in and answers 401 in production; Google sign-in
- * (PRD 3.1) replaces it without changing these routes.
+ * The guard resolves the creator from the server-backed app session in production. Its
+ * development-only header fallback does not establish a production identity.
  */
 @Controller('me')
 @UseGuards(DevCreatorGuard)

@@ -4,6 +4,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
 import { GoogleAuthModule } from './auth/google/google-auth.module.js';
+import { SessionModule } from './auth/session/session.module.js';
 import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -34,6 +35,7 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
         ContentsModule,
         SubmissionsModule,
         MeModule,
+        SessionModule,
         GoogleAuthModule,
     ],
     controllers: [AppController, HealthController],

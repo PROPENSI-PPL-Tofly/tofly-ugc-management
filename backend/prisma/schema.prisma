@@ -65,6 +65,7 @@ model creators {
   users              users             @relation(fields: [user_id], references: [id], onUpdate: NoAction)
   social_accounts    social_accounts[]
   submissions        submissions[]
+  app_sessions       app_sessions[]
 }
 
 model social_accounts {
@@ -99,12 +100,28 @@ model submissions {
 }
 
 model users {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email      String    @unique @db.Citext
-  is_admin   Boolean   @default(false)
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at DateTime  @default(now()) @db.Timestamptz(6)
-  creators   creators?
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String         @unique @db.Citext
+  is_admin     Boolean        @default(false)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
+  creators     creators?
+  app_sessions app_sessions[]
+}
+
+model app_sessions {
+  idHash              String   @id @map("id_hash") @db.Char(64)
+  userId              String   @map("user_id") @db.Uuid
+  role                String
+  creatorId           String?  @map("creator_id") @db.Uuid
+  idleExpiresAt       DateTime @map("idle_expires_at") @db.Timestamptz(6)
+  absoluteExpiresAt   DateTime @map("absolute_expires_at") @db.Timestamptz(6)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  users               users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creators            creators? @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([idleExpiresAt], map: "app_sessions_idle_expires_at_idx")
+  @@index([absoluteExpiresAt], map: "app_sessions_absolute_expires_at_idx")
 }
 
 enum content_status {
