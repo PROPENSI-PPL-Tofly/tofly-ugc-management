@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import {
     createContent,
@@ -19,10 +20,7 @@ const MAX_BRIEF_LENGTH = 2000;
 const FIELD =
     "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
 
-// Every field in this form is required. Drawn by CSS so the asterisk stays out of the label text and the accessible name;
-// screen readers announce "required" from the control's own attribute instead.
-const REQUIRED_MARK = "after:ml-0.5 after:text-red-ink after:content-['*']";
-
+// Every field in this form is required; REQUIRED_MARK draws the asterisk.
 const ALERT =
     "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
 
