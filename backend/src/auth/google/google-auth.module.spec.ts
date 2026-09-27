@@ -12,6 +12,7 @@ import {
   SIGN_IN,
 } from './google-auth.controller.js';
 import { GoogleAuthModule } from './google-auth.module.js';
+import { GoogleIdTokenVerifier } from './google-id-token.js';
 import { GoogleSignInService } from './google-sign-in.service.js';
 import { GoogleTokenClient } from './google-token-client.js';
 import {
@@ -70,13 +71,34 @@ describe('GoogleAuthModule', () => {
     ).rejects.toThrow('Google sign-in is not configured');
   });
 
+  it("checks ID tokens against Google's keys for the configured client", async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', 'client-123.apps.googleusercontent.com');
+    vi.stubEnv('GOOGLE_CLIENT_SECRET', 'secret-xyz');
+    vi.stubEnv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/cb');
+    const module = await compile();
+
+    const verifier = module.get<IdTokenVerifier>(ID_TOKEN_VERIFIER);
+    expect(verifier).toBeInstanceOf(GoogleIdTokenVerifier);
+    expect(verifier).toMatchObject({
+      clientId: 'client-123.apps.googleusercontent.com',
+    });
+  });
+
+  // Without a client id there is no audience to check a token against.
+  it('refuses every ID token while the client is not configured', async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', '');
+    const module = await compile();
+
+    await expect(
+      module.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
+    ).rejects.toMatchObject({
+      name: 'PortNotReady',
+      message: 'Google sign-in is not configured',
+    });
+  });
+
   // Authentication pieces that are not implemented yet must still fail closed.
   it.each([
-    [
-      'ID token verification is not implemented yet',
-      (m: Awaited<ReturnType<typeof compile>>) =>
-        m.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
-    ],
     [
       'the session cookie is not implemented yet',
       (m: Awaited<ReturnType<typeof compile>>) =>
