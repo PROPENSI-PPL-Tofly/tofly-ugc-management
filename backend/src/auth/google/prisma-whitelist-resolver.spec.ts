@@ -1,4 +1,5 @@
 import { PrismaWhitelistResolver } from './prisma-whitelist-resolver.js';
+import type { Principal } from './ports.js';
 
 describe('PrismaWhitelistResolver', () => {
   it('denies an unregistered email without creating a user', async () => {
@@ -30,7 +31,7 @@ describe('PrismaWhitelistResolver', () => {
     expect(prisma.users.upsert).not.toHaveBeenCalled();
   });
 
-  it('resolves a whitelisted admin email to the ADMIN role', async () => {
+  it('resolves a whitelisted admin email to the admin principal', async () => {
     const user = {
       id: '11111111-1111-1111-1111-111111111111',
       email: 'admin@tofly.id',
@@ -52,11 +53,12 @@ describe('PrismaWhitelistResolver', () => {
 
     const principal = await resolver.resolve(user.email);
 
-    expect(principal).toEqual({
-      userId: user.id,
-      email: user.email,
-      role: 'ADMIN',
-    });
+    const expected: Principal = {
+  userId: user.id,
+  role: 'admin',
+};
+
+expect(principal).toEqual(expected);
 
     expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
       where: { email: user.email },
