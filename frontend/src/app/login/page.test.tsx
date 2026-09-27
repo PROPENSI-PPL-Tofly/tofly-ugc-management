@@ -93,4 +93,16 @@ describe("Login page", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("pwned");
   });
+
+  // A repeated ?error= arrives as a list; the page must not pick one or print them, so a change
+  // to how it reads searchParams cannot slip a crafted value past the helper.
+  it.each([
+    ["two known codes", ["not_authorized", "not_authorized"]],
+    ["a known code followed by crafted text", ["not_authorized", "Hubungi 0812"]],
+  ])("shows no alert for a repeated error parameter (%s)", async (_label, error) => {
+    await renderLogin({ error });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("0812");
+  });
 });
