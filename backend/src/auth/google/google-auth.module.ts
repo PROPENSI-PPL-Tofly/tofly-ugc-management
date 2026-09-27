@@ -51,18 +51,15 @@ import {
         config ? new GoogleTokenClient(config) : unconfiguredExchanger,
       inject: [GOOGLE_OAUTH_CONFIG],
     },
-
+    // Replace each default with the real implementation as it lands.
     { provide: ID_TOKEN_VERIFIER, useValue: unreadyVerifier },
-
     {
       provide: WHITELIST_RESOLVER,
       useFactory: (prisma: PrismaService): WhitelistResolver =>
         new PrismaWhitelistResolver(prisma),
       inject: [PrismaService],
     },
-
     { provide: SESSION_STARTER, useValue: unreadySession },
-
     {
       provide: SIGN_IN,
       useFactory: (

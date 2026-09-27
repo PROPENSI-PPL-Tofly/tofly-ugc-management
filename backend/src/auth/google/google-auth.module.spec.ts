@@ -71,20 +71,20 @@ describe('GoogleAuthModule', () => {
   });
 
   // Authentication pieces that are not implemented yet must still fail closed.
-it.each([
-  [
-    'ID token verification is not implemented yet',
-    (m: Awaited<ReturnType<typeof compile>>) =>
-      m.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
-  ],
-  [
-    'the session cookie is not implemented yet',
-    (m: Awaited<ReturnType<typeof compile>>) =>
-      m
-        .get<SessionStarter>(SESSION_STARTER)
-        .start({} as Response, { userId: 'u', role: 'admin' }),
-  ],
-])('fails closed by default: %s', async (message, call) => {
+  it.each([
+    [
+      'ID token verification is not implemented yet',
+      (m: Awaited<ReturnType<typeof compile>>) =>
+        m.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
+    ],
+    [
+      'the session cookie is not implemented yet',
+      (m: Awaited<ReturnType<typeof compile>>) =>
+        m
+          .get<SessionStarter>(SESSION_STARTER)
+          .start({} as Response, { userId: 'u', role: 'admin' }),
+    ],
+  ])('fails closed by default: %s', async (message, call) => {
     const module = await compile();
 
     await expect(call(module)).rejects.toMatchObject({
@@ -93,12 +93,12 @@ it.each([
     });
   });
   it('uses the Prisma-backed whitelist resolver', async () => {
-  const module = await compile();
+    const module = await compile();
 
-  expect(module.get<WhitelistResolver>(WHITELIST_RESOLVER)).toBeInstanceOf(
-    PrismaWhitelistResolver,
-  );
-});
+    expect(module.get<WhitelistResolver>(WHITELIST_RESOLVER)).toBeInstanceOf(
+      PrismaWhitelistResolver,
+    );
+  });
 
   it('is part of the application', () => {
     const imports = Reflect.getMetadata(
