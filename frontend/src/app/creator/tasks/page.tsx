@@ -1,10 +1,18 @@
 import { AppShell } from "@/components/shell/app-shell";
 import { MyTaskBoard } from "@/components/tasks/my-task-board";
+import { MyTaskFilters } from "@/components/tasks/my-task-filters";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { parsePage } from "@/lib/creators";
-import { fetchMyTasks, MyTasksError, type MyTasksResponse } from "@/lib/my-tasks";
+import {
+  fetchMyTasks,
+  MyTasksError,
+  parseTaskStatus,
+  taskStatusLabel,
+  type MyTasksResponse,
+  type TaskStatusFilter,
+} from "@/lib/my-tasks";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +34,11 @@ type Loaded =
  * A page past the end (an old link, or a list that shrank) shows the first page instead of an
  * empty table that would claim the creator has nothing to do.
  */
-async function load(page: number): Promise<Loaded> {
+async function load(page: number, status: TaskStatusFilter | null): Promise<Loaded> {
   try {
-    const result = await fetchMyTasks(page);
+    const result = await fetchMyTasks(page, status);
     if (result.total > 0 && result.page > result.totalPages) {
-      return { kind: "ok", result: await fetchMyTasks(1), pastEnd: result.page };
+      return { kind: "ok", result: await fetchMyTasks(1, status), pastEnd: result.page };
     }
     return { kind: "ok", result, pastEnd: null };
   } catch (error) {
@@ -60,7 +68,7 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
 
 /**
  * Task Saya (PRD 3.16): every task assigned to the creator, nearest deadline first, five a
- * page, each with the action its status allows. MyTaskBoard opens the Submit/Resubmit Draft
+ * page, filterable by status, each with the action its status allows. MyTaskBoard opens the Submit/Resubmit Draft
  * or Submit Link Video modal (SCRUM-109, SCRUM-132) for the pressed button.
  */
 export default async function TaskSayaPage({
@@ -68,8 +76,10 @@ export default async function TaskSayaPage({
 }: Readonly<{
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }>) {
-  const { page, invalid } = parsePage(await searchParams);
-  const loaded = await load(page);
+  const params = await searchParams;
+  const { page, invalid } = parsePage(params);
+  const { status, invalid: invalidStatus } = parseTaskStatus(params);
+  const loaded = await load(page, status);
 
   return (
     <AppShell
@@ -83,6 +93,12 @@ export default async function TaskSayaPage({
         </p>
       )}
 
+      {invalidStatus === null ? null : (
+        <p role="status" className={NOTICE}>
+          Status &#8220;{invalidStatus}&#8221; tidak dikenal, menampilkan semua tugas.
+        </p>
+      )}
+
       {loaded.kind === "ok" && loaded.pastEnd !== null ? (
         <p role="status" className={NOTICE}>
           Halaman {loaded.pastEnd} tidak ada, menampilkan halaman pertama.
@@ -93,10 +109,17 @@ export default async function TaskSayaPage({
         <PanelHead title="Daftar Tugas Saya" />
         {loaded.kind === "ok" ? (
           <>
-            <MyTaskBoard tasks={loaded.result.items} />
+            <MyTaskFilters status={status} />
+            <MyTaskBoard
+              tasks={loaded.result.items}
+              emptyMessage={
+                status ? `Tidak ada tugas berstatus ${taskStatusLabel(status)}.` : undefined
+              }
+            />
             {loaded.result.total > 0 ? (
               <Pagination
                 basePath={BASE_PATH}
+                query={status ? { status } : {}}
                 noun="tugas"
                 page={loaded.result.page}
                 pageSize={loaded.result.pageSize}
