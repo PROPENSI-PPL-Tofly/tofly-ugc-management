@@ -75,6 +75,11 @@ export class PrismaWhitelistResolver {
       return null;
     }
 
+    // A recorded revoke date means the creator no longer has access.
+    if (creator.access_revoke_date !== null) {
+      return null;
+    }
+
     return {
       userId: user.id,
       email: user.email,
