@@ -11,6 +11,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     deadline: "2026-10-12",
     status: "scheduled",
     actions: ["submit_draft"],
+    revisionNotes: null,
     ...overrides,
   };
 }
@@ -64,6 +65,38 @@ describe("MyTaskTable", () => {
         "Paling dekat",
         "Berikutnya",
         "Sudah dikirim",
+      ]);
+    });
+  });
+
+  // Below the lg breakpoint each row stacks into a card: the header row is visually hidden, so
+  // each cell names its own column, and explicit roles keep the table semantics that some
+  // browsers drop once a table's display changes.
+  describe("narrow screens", () => {
+    it("keeps table semantics explicit on every part of the table", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+      expect(screen.getByRole("table")).toHaveAttribute("role", "table");
+      for (const row of screen.getAllByRole("row")) {
+        expect(row).toHaveAttribute("role", "row");
+      }
+      for (const cell of screen.getAllByRole("cell")) {
+        expect(cell).toHaveAttribute("role", "cell");
+      }
+      for (const header of screen.getAllByRole("columnheader")) {
+        expect(header).toHaveAttribute("role", "columnheader");
+      }
+    });
+
+    it("labels the deadline and status cells with their column", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+      const cells = within(rows()[0]).getAllByRole("cell");
+      expect(cells.map((cell) => cell.dataset.label)).toEqual([
+        undefined,
+        "Deadline",
+        "Status",
+        undefined,
       ]);
     });
   });

@@ -67,7 +67,7 @@ describe("SubmitVideoModal", () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText(/2026-10-05/),
+      screen.getByText("5 Okt 2026"),
     ).toBeInTheDocument();
 
     // Content information is displayed as text rather than an editable field.
@@ -423,5 +423,45 @@ describe("SubmitVideoModal", () => {
     expect(onSubmitted).not.toHaveBeenCalled();
     expect(mockSubmitVideo).not.toHaveBeenCalled();
   });
-});
 
+  it("shows the brief the creator works from", () => {
+    renderModal({ content: { ...defaultContent, brief: "Tunjukkan kemasan" } });
+
+    expect(screen.getByText("Tunjukkan kemasan")).toBeInTheDocument();
+  });
+
+  it("keeps the required mark out of the field's accessible name", () => {
+    renderModal();
+
+    expect(screen.getByText("Link Video")).toBeInTheDocument();
+    expect(screen.queryByText("Link Video *")).not.toBeInTheDocument();
+  });
+
+  it("ties a live platform error to the link field", () => {
+    renderModal();
+    const input = screen.getByLabelText("Link Video");
+
+    fireEvent.change(input, { target: { value: UNSUPPORTED_LINK } });
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(PLATFORM_ERROR);
+  });
+
+  it("moves focus to the link field when it is submitted empty", () => {
+    renderModal();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Link" }));
+
+    expect(screen.getByLabelText("Link Video")).toHaveFocus();
+  });
+
+  it("marks a valid link as not invalid", () => {
+    renderModal();
+    const input = screen.getByLabelText("Link Video");
+
+    fireEvent.change(input, { target: { value: VIDEO_LINK } });
+
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
+});

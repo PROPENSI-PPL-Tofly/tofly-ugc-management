@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { submitDraft, type DraftSubmitter } from "@/lib/draft-submission";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/format";
+import { FIELD, FIELD_ERROR, REQUIRED_MARK } from "@/components/ui/form-classes";
 import type { MyTaskAction } from "@/lib/my-tasks";
+import { TaskSummary, type TaskContent } from "./task-summary";
 
 const MAX_DRAFT_NOTES_LENGTH = 1000;
 
@@ -20,11 +21,7 @@ const WORDING: Record<DraftAction, { title: string; submit: string }> = {
 
 export interface SubmitDraftModalProps {
   // The content selected by the creator.
-  content: {
-    id: string;
-    name: string;
-    deadline: string;
-  };
+  content: TaskContent;
 
   // Lets the parent component control when the modal closes.
   onClose: () => void;
@@ -47,6 +44,9 @@ export function SubmitDraftModal({
   action = "submit_draft",
 }: SubmitDraftModalProps) {
   const wording = WORDING[action];
+  const linkErrorId = useId();
+  const notesErrorId = useId();
+  const linkRef = useRef<HTMLInputElement>(null);
 
   // Stores the current value of the draft link field.
   const [draftLink, setDraftLink] = useState("");
@@ -72,6 +72,7 @@ export function SubmitDraftModal({
     // Treat empty and whitespace-only links as invalid.
     if (!trimmedLink) {
       setDraftLinkError("Link file draft wajib diisi");
+      linkRef.current?.focus();
       return;
     }
 
@@ -138,38 +139,32 @@ export function SubmitDraftModal({
       }
     >
       <div className="flex flex-col gap-4">
-        {/* Display the selected content without allowing it to be edited. */}
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="text-sm text-muted">Nama Konten</p>
-
-            <p className="text-sm text-ink">{content.name}</p>
-          </div>
-
-          <div>
-            <p className="text-sm text-muted">Deadline</p>
-
-            <p className="text-sm text-ink">{formatDate(content.deadline)}</p>
-          </div>
-        </div>
+        <TaskSummary content={content} />
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink">Link File Draft</span>
+          <span className={`text-sm text-ink ${REQUIRED_MARK}`}>Link File Draft</span>
 
           <input
+            ref={linkRef}
             type="url"
             required
             aria-label="Link File Draft"
+            aria-invalid={draftLinkError ? true : undefined}
+            aria-describedby={draftLinkError ? linkErrorId : undefined}
             value={draftLink}
             onChange={(event) => {
               setDraftLink(event.target.value);
+              // The message described the old value; a new one is checked again on submit.
+              setDraftLinkError("");
             }}
-            className="rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
+            className={FIELD}
           />
 
           {/* Show a field-specific error directly below the draft link. */}
           {draftLinkError ? (
-            <p className="text-sm text-red-ink">{draftLinkError}</p>
+            <p id={linkErrorId} className={FIELD_ERROR}>
+              {draftLinkError}
+            </p>
           ) : null}
         </label>
 
@@ -180,6 +175,8 @@ export function SubmitDraftModal({
 
           <textarea
             aria-label="Catatan untuk Admin"
+            aria-invalid={adminNotesError ? true : undefined}
+            aria-describedby={adminNotesError ? notesErrorId : undefined}
             rows={3}
             maxLength={MAX_DRAFT_NOTES_LENGTH}
             value={adminNotes}
@@ -187,17 +184,19 @@ export function SubmitDraftModal({
               setAdminNotes(event.target.value);
               setAdminNotesError("");
             }}
-            className="resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
+            className={`resize-y ${FIELD}`}
           />
 
           {adminNotesError ? (
-            <p className="text-sm text-red-ink">{adminNotesError}</p>
+            <p id={notesErrorId} className={FIELD_ERROR}>
+              {adminNotesError}
+            </p>
           ) : null}
         </label>
 
         {/* General failures are announced to assistive technology as an alert. */}
         {submissionError ? (
-          <p role="alert" className="text-sm text-red-ink">
+          <p role="alert" className={FIELD_ERROR}>
             {submissionError}
           </p>
         ) : null}

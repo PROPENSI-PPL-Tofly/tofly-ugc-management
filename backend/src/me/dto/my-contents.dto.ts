@@ -16,6 +16,8 @@ export interface MyContentItem {
   status: content_status;
   /** The buttons this row shows today, in display order; empty means none. */
   actions: TaskAction[];
+  /** What the admin asked to change; set only while the row awaits a resubmit. */
+  revisionNotes: string | null;
 }
 
 export interface MyContentsResponse {

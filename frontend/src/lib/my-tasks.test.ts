@@ -12,6 +12,7 @@ const response: MyTasksResponse = {
       deadline: "2026-10-12",
       status: "scheduled",
       actions: ["submit_draft"],
+      revisionNotes: null,
     },
   ],
   page: 2,

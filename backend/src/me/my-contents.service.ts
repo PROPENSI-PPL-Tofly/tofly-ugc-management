@@ -18,11 +18,20 @@ const MY_CONTENT_SELECT = {
   brief: true,
   deadline: true,
   status: true,
+  // Only the latest hand-in: its revision_notes are what the admin asked to change.
+  submissions: {
+    select: { revision_notes: true },
+    orderBy: { created_at: 'desc' },
+    take: 1,
+  },
 } as const;
 
-// Nearest deadline first, then name and id so rows sharing a deadline keep their place from
-// one page to the next.
+// Open work first, nearest deadline first, then name and id so rows sharing a deadline keep
+// their place from one page to the next. Only a submitted link has video_submitted_at (the
+// video endpoint sets both with link_submitted), so nulls-first puts every open task ahead of
+// the finished ones, which follow most recently finished first.
 const MY_CONTENT_ORDER = [
+  { video_submitted_at: { sort: 'desc', nulls: 'first' } },
   { deadline: 'asc' },
   { name: 'asc' },
   { id: 'asc' },
@@ -35,6 +44,7 @@ export interface MyContentRow {
   brief: string;
   deadline: Date;
   status: content_status;
+  submissions: { revision_notes: string | null }[];
 }
 
 interface MyContentsWhere {
@@ -119,6 +129,11 @@ export class MyContentsService implements MyContentsLister {
       deadline,
       status: row.status,
       actions: taskActions(row.status, deadline, today),
+      // Stale once the revision is handed in, so only a row awaiting a resubmit carries them.
+      revisionNotes:
+        row.status === 'draft_revision'
+          ? (row.submissions[0]?.revision_notes ?? null)
+          : null,
     };
   }
 }
