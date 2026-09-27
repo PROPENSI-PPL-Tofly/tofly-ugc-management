@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
+import { currentRole } from "@/lib/session.server";
 
-// The admin area is the only thing this app serves today, so the root goes straight there.
-export default function Home() {
-  redirect("/admin/creators");
+export const dynamic = "force-dynamic";
+
+// Tofly's address has no page of its own: it sends each visitor to where they belong.
+export default async function Home() {
+  const role = await currentRole();
+  if (role === "admin") redirect("/admin/creators");
+  if (role === "creator") redirect("/creator/tasks");
+  redirect("/login");
 }
