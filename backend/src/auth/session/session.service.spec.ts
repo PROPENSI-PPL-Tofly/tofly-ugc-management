@@ -15,6 +15,17 @@ const NOW = new Date('2026-09-27T00:00:00.000Z');
 const IDLE_MS = 30 * 60 * 1000;
 const ABSOLUTE_MS = 12 * 60 * 60 * 1000;
 
+const CORRUPTED_SESSIONS: Array<
+  [string, (row: Record<string, unknown>) => void]
+> = [
+  ['missing hash', (row) => { row.idHash = undefined; }],
+  ['missing user id', (row) => { row.userId = undefined; }],
+  ['admin with creator id', (row) => { row.role = 'admin'; row.creatorId = 'creator-1'; }],
+  ['creator without creator id', (row) => { row.creatorId = null; }],
+  ['invalid idle expiration', (row) => { row.idleExpiresAt = 'later'; }],
+  ['invalid absolute expiration', (row) => { row.absoluteExpiresAt = 'later'; }],
+];
+
 function repository(): SessionRepository & {
   records: Map<string, Record<string, unknown>>;
 } {
@@ -22,33 +33,40 @@ function repository(): SessionRepository & {
 
   return {
     records,
-    create: vi.fn(async ({ data }) => {
-      records.set(data.idHash, data);
-      return data;
+    create: vi.fn(async (args: Parameters<SessionRepository['create']>[0]) => {
+      records.set(args.data.idHash, args.data as unknown as Record<string, unknown>);
+      return args.data;
     }),
-    findUnique: vi.fn(async ({ where }) => records.get(where.idHash) ?? null),
-    update: vi.fn(async ({ where, data }) => {
-      const current = records.get(where.idHash);
+    findUnique: vi.fn(async (args: Parameters<SessionRepository['findUnique']>[0]) => records.get(args.where.idHash) ?? null),
+    update: vi.fn(async (args: Parameters<SessionRepository['update']>[0]) => {
+      const current = records.get(args.where.idHash);
 
       if (!current) {
         throw new Error('session not found');
       }
 
-      const updated = { ...current, ...data };
-      records.set(where.idHash, updated);
+      const updated = { ...current, ...args.data };
+      records.set(args.where.idHash, updated);
 
       return updated;
     }),
-    deleteMany: vi.fn(async ({ where }) => ({
-      count: Number(records.delete(where.idHash)),
+    deleteMany: vi.fn(async (args: Parameters<SessionRepository['deleteMany']>[0]) => ({
+      count: Number(records.delete(args.where.idHash)),
     })),
   };
 }
 
-function response(): Response & { cookie: ReturnType<typeof vi.fn> } {
+function response(): Response & {
+  cookie: ReturnType<typeof vi.fn>;
+  clearCookie: ReturnType<typeof vi.fn>;
+} {
   return {
     cookie: vi.fn(),
-  } as unknown as Response & { cookie: ReturnType<typeof vi.fn> };
+    clearCookie: vi.fn(),
+  } as unknown as Response & {
+    cookie: ReturnType<typeof vi.fn>;
+    clearCookie: ReturnType<typeof vi.fn>;
+  };
 }
 
 describe('AppSessionService', () => {
@@ -83,6 +101,18 @@ describe('AppSessionService', () => {
         idleExpiresAt: new Date(NOW.getTime() + IDLE_MS),
         absoluteExpiresAt: new Date(NOW.getTime() + ABSOLUTE_MS),
       }),
+    });
+  });
+
+  it('stores and resolves an admin principal without a creator identity', async () => {
+    const admin: Principal = { userId: 'admin-1', role: 'admin' };
+    const { id } = await sessions.start(response(), admin);
+
+    await expect(sessions.authenticate(id)).resolves.toEqual(admin);
+    expect([...store.records.values()][0]).toMatchObject({
+      userId: 'admin-1',
+      role: 'admin',
+      creatorId: null,
     });
   });
 
@@ -132,14 +162,41 @@ describe('AppSessionService', () => {
     );
   });
 
+  it('can authenticate without a response when cookie renewal is not requested', async () => {
+    const { id } = await sessions.start(response(), CREATOR);
+
+    await expect(sessions.authenticate(id)).resolves.toEqual(CREATOR);
+  });
+
   it.each([
     ['a missing session', undefined],
     ['a malformed session', 'not-a-session-id'],
     ['an empty session', ''],
+    ['a non-canonical base64url session', 'B'.repeat(43)],
   ])('rejects %s', async (_label, id) => {
     await expect(sessions.authenticate(id)).resolves.toBeNull();
 
     expect(store.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects a well-formed ID that has no server-side session', async () => {
+    await expect(sessions.authenticate('A'.repeat(43))).resolves.toBeNull();
+    expect(store.findUnique).toHaveBeenCalledWith({ where: { idHash: expect.any(String) } });
+  });
+
+  it('does not trust an invalid persisted principal', async () => {
+    const { id } = await sessions.start(response(), CREATOR);
+    const record = [...store.records.values()][0];
+    record.role = 'unknown';
+
+    await expect(sessions.authenticate(id)).resolves.toBeNull();
+  });
+
+  it.each(CORRUPTED_SESSIONS)('rejects a persisted session with %s', async (_label, corrupt) => {
+    const { id } = await sessions.start(response(), CREATOR);
+    corrupt([...store.records.values()][0]);
+
+    await expect(sessions.authenticate(id)).resolves.toBeNull();
   });
 
   it('rejects and deletes an expired idle session', async () => {
@@ -231,10 +288,36 @@ describe('AppSessionService', () => {
     );
   });
 
+  it('clears the cookie without querying storage for a malformed ID', async () => {
+    const reply = response() as Response & {
+      clearCookie: ReturnType<typeof vi.fn>;
+    };
+    reply.clearCookie = vi.fn();
+
+    await sessions.logout('malformed', reply);
+
+    expect(store.deleteMany).not.toHaveBeenCalled();
+    expect(reply.clearCookie).toHaveBeenCalledWith(
+      '__Host-tofly_session',
+      expect.objectContaining({ path: '/', httpOnly: true }),
+    );
+  });
+
+  it('uses the system clock when no test clock is supplied', async () => {
+    const realClock = new AppSessionService(store, {
+      idleTimeoutMs: IDLE_MS,
+      absoluteLifetimeMs: ABSOLUTE_MS,
+    });
+
+    await expect(realClock.start(response(), CREATOR)).resolves.toMatchObject({
+      id: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+    });
+  });
+
   it('fails closed when session storage is unavailable', async () => {
     store.findUnique = vi.fn().mockRejectedValue(new Error('database offline'));
 
-    const result = await sessions.authenticate('c'.repeat(43)).then(
+    const result = await sessions.authenticate('A'.repeat(43)).then(
       (principal) => ({
         kind: 'principal' as const,
         principal,

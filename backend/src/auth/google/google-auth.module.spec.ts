@@ -3,6 +3,7 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import type { Response } from 'express';
 import { AppModule } from '../../app.module.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   AUTH_LOG,
   FLOW_COOKIE,
@@ -11,6 +12,8 @@ import {
   SIGN_IN,
 } from './google-auth.controller.js';
 import { GoogleAuthModule } from './google-auth.module.js';
+import { newFlow } from './oauth-flow.js';
+import { AppSessionService } from '../session/session.service.js';
 import { GoogleSignInService } from './google-sign-in.service.js';
 import { GoogleTokenClient } from './google-token-client.js';
 import {
@@ -69,7 +72,7 @@ describe('GoogleAuthModule', () => {
     ).rejects.toThrow('Google sign-in is not configured');
   });
 
-  // Until the token check, the whitelist and the session land, no sign-in can succeed.
+  // Until the token check and whitelist land, no Google sign-in can succeed.
   it.each([
     [
       'ID token verification is not implemented yet',
@@ -81,13 +84,6 @@ describe('GoogleAuthModule', () => {
       (m: Awaited<ReturnType<typeof compile>>) =>
         m.get<WhitelistResolver>(WHITELIST_RESOLVER).resolve('a@b.co'),
     ],
-    [
-      'the session cookie is not implemented yet',
-      (m: Awaited<ReturnType<typeof compile>>) =>
-        m
-          .get<SessionStarter>(SESSION_STARTER)
-          .start({} as Response, { userId: 'u', role: 'admin' }),
-    ],
   ])('fails closed by default: %s', async (message, call) => {
     const module = await compile();
 
@@ -95,6 +91,57 @@ describe('GoogleAuthModule', () => {
       name: 'PortNotReady',
       message,
     });
+  });
+
+  it('uses the persistent application session starter', async () => {
+    const createSession = vi.fn().mockResolvedValue({});
+    const principal = {
+      userId: 'user-123',
+      role: 'creator' as const,
+      creatorId: 'creator-456',
+    };
+    const response = { cookie: vi.fn() };
+    const module = await Test.createTestingModule({
+      imports: [GoogleAuthModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({ app_sessions: { create: createSession } })
+      .overrideProvider(CODE_EXCHANGER)
+      .useValue({ exchange: vi.fn().mockResolvedValue('id-token') })
+      .overrideProvider(ID_TOKEN_VERIFIER)
+      .useValue({
+        verify: vi.fn().mockResolvedValue({ sub: 'google-123', email: 'creator@example.com' }),
+      })
+      .overrideProvider(WHITELIST_RESOLVER)
+      .useValue({ resolve: vi.fn().mockResolvedValue(principal) })
+      .compile();
+
+    expect(module.get(AppSessionService)).toBeInstanceOf(AppSessionService);
+    expect(module.get<SessionStarter>(SESSION_STARTER).start).toBeTypeOf('function');
+
+    await expect(
+      module
+        .get<GoogleSignInService>(SIGN_IN)
+        .complete(
+          'authorization-code',
+          newFlow(),
+          response as unknown as Response,
+        ),
+    ).resolves.toBe('/creator/tasks');
+
+    expect(createSession).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: principal.userId,
+        role: principal.role,
+        creatorId: principal.creatorId,
+        idHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    });
+    expect(response.cookie).toHaveBeenCalledWith(
+      '__Host-tofly_session',
+      expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
   });
 
   it('is part of the application', () => {

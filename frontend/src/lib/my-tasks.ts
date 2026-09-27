@@ -7,6 +7,7 @@
 // the draft/video endpoints would refuse.
 
 import { CONTENT_STATUS_LABELS } from "./content-labels";
+import { appSessionCookieHeader } from "./session-cookie";
 import type { ContentType } from "./contents";
 import type { ContentStatus } from "./creators";
 
@@ -110,8 +111,7 @@ function isMyTasksResponse(body: unknown): body is MyTasksResponse {
  * Server-side only: talks to the backend directly so its address never reaches the browser.
  * The request names no creator; the backend resolves whose tasks these are (OWASP A01).
  *
- * TODO(PBI-9): once Google sign-in replaces DevCreatorGuard, forward the session cookie from
- * next/headers here; until then the backend falls back to DEV_CREATOR_ID.
+ * The backend resolves the creator only from the forwarded, server-backed app session.
  */
 export async function fetchMyTasks(
   page: number,
@@ -126,7 +126,12 @@ export async function fetchMyTasks(
   const base = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
   const query = new URLSearchParams({ page: String(page), pageSize: String(MY_TASKS_PAGE_SIZE) });
   if (status) query.set("status", status);
-  const response = await fetch(`${base}/me/contents?${query}`, { cache: "no-store" });
+  const cookie = await appSessionCookieHeader();
+  const headers = cookie ? { cookie } : undefined;
+  const response = await fetch(`${base}/me/contents?${query}`, {
+    cache: "no-store",
+    ...(headers && { headers }),
+  });
 
   if (!response.ok) {
     throw new MyTasksError(response.status);

@@ -1,5 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import type { GoogleOAuthConfig } from './authorization.js';
+import { SessionModule } from '../session/session.module.js';
 import { flowCookie } from './flow-cookie.js';
 import {
   AUTH_LOG,
@@ -28,12 +29,12 @@ import {
 } from './ports.js';
 import {
   unconfiguredExchanger,
-  unreadySession,
   unreadyVerifier,
   unreadyWhitelist,
 } from './unready-ports.js';
 
 @Module({
+  imports: [SessionModule],
   controllers: [GoogleAuthController],
   providers: [
     {
@@ -48,10 +49,9 @@ import {
         config ? new GoogleTokenClient(config) : unconfiguredExchanger,
       inject: [GOOGLE_OAUTH_CONFIG],
     },
-    // Replace each default with the real implementation as it lands.
+    // Token verification and whitelist resolution are owned by their respective work items.
     { provide: ID_TOKEN_VERIFIER, useValue: unreadyVerifier },
     { provide: WHITELIST_RESOLVER, useValue: unreadyWhitelist },
-    { provide: SESSION_STARTER, useValue: unreadySession },
     {
       provide: SIGN_IN,
       useFactory: (

@@ -9,7 +9,9 @@ import {
 } from "./my-tasks";
 import { cookies } from "next/headers";
 
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ getAll: () => [] })),
+}));
 
 // GET /me/contents as SCRUM-102 answers it: rows already in display order, each with the
 // buttons it allows today, so the table never re-derives the submission rules.
