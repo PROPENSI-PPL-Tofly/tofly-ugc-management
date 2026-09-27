@@ -59,11 +59,11 @@ describe("Login page", () => {
   });
 
   describe("a refused email (not_authorized)", () => {
-    it("says the email is not registered and points to the Admin", async () => {
+    it("says the email has no access and points to the Admin", async () => {
       await renderLogin({ error: "not_authorized" });
 
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent("Email ini belum didaftarkan oleh Admin.");
+      expect(alert).toHaveTextContent("Email ini tidak punya akses ke Tofly.");
       expect(alert).toHaveTextContent("Hubungi Admin untuk meminta akses");
       expect(alert).not.toHaveTextContent("Gagal masuk dengan Google");
     });

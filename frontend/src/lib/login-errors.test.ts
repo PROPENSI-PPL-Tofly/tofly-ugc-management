@@ -12,12 +12,18 @@ describe("loginErrorMessage", () => {
     );
   });
 
-  // PRD 3.1: a Google account that is not on the whitelist is told to contact the Admin. The
+  // PRD 3.1: an email the whitelist refuses is told to contact the Admin. That covers one never
+  // added and a creator whose access was revoked (flow 4.10), so it must not claim either. The
   // Google screen always offers the account chooser, so trying another account is a real way out.
   it("tells a refused email to ask the Admin for access or use another Google account", () => {
     expect(loginErrorMessage("not_authorized")).toBe(
-      "Email ini belum didaftarkan oleh Admin. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
+      "Email ini tidak punya akses ke Tofly. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
     );
+  });
+
+  // A revoked creator was registered once, so "not registered" would be untrue for them.
+  it("does not say the email was never registered", () => {
+    expect(LOGIN_ERROR_MESSAGES.not_authorized).not.toMatch(/belum didaftarkan/i);
   });
 
   // Not a failure to retry: the same account would be refused again, so it must not read as one.
