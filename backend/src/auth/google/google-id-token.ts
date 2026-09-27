@@ -82,6 +82,10 @@ export class GoogleIdTokenVerifier implements IdTokenVerifier {
     if (typeof claims.email !== 'string' || claims.email === '') {
       throw new IdTokenError('ID token has no email');
     }
-    return { sub: claims.sub!, email: claims.email.toLowerCase() };
+    // requiredClaims only checks that sub is present; Google's is a non-empty string.
+    if (typeof claims.sub !== 'string' || claims.sub === '') {
+      throw new IdTokenError('ID token has no subject');
+    }
+    return { sub: claims.sub, email: claims.email.toLowerCase() };
   }
 }
