@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { joinName } from '../creators/evergreen.js';
+import { jakartaMidnight, joinName } from '../creators/evergreen.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { REVIEWABLE_STATUSES } from './draft-review.js';
@@ -82,12 +82,8 @@ export interface ReviewQueueLister {
   ): Promise<ReviewQueueResponse>;
 }
 
-/** Midnight UTC, matching how Postgres `date` columns arrive, so comparisons are day-wise. */
-function startOfDay(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  );
-}
+/** Today in Jakarta, where the admins work, as midnight UTC like Postgres `date` columns. */
+const startOfDay = jakartaMidnight;
 
 /** A response row plus the values it is ordered by. */
 interface Queued {

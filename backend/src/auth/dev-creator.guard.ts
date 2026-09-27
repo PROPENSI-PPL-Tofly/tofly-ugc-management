@@ -1,14 +1,19 @@
 import {
   Inject,
   Injectable,
+  Optional,
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { assertSameOrigin } from './same-origin.js';
+import { ACCESS_CHECK, type AccessCheck } from './session/access-check.js';
 import { unauthenticated, type CreatorRequest } from './creator-request.js';
+import { AppSessionService } from './session/session.service.js';
 
-// Development stand-in for Google sign-in, which replaces this guard. Until then a local
-// stack can act as a creator by naming them; nothing here is identity proof.
+// Creator identity uses the application session; a strictly local header remains available
+// for the existing development workflow.
 
 /** Node lower-cases incoming header names. */
 export const DEV_CREATOR_HEADER = 'x-dev-creator-id';
@@ -47,16 +52,48 @@ export interface CreatorLookup {
   };
 }
 
-/** Denies by default: every path that does not end in a known creator is a 401. */
+/** Resolves creator requests from a session, with a development-only fallback. */
 @Injectable()
 export class DevCreatorGuard implements CanActivate {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: CreatorLookup,
+    @Optional()
+    @Inject(AppSessionService)
+    private readonly sessions?: AppSessionService,
+    @Optional()
+    @Inject(ACCESS_CHECK)
+    private readonly access?: AccessCheck,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<CreatorRequest>();
+    const cookieId = request.cookies?.[this.sessions?.cookieName() ?? ''];
+    if (cookieId !== undefined || process.env.NODE_ENV === 'production') {
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method ?? '')) {
+        assertSameOrigin(request);
+      }
+      const principal = await this.sessions?.authenticate(
+        cookieId,
+        context.switchToHttp().getResponse<Response>(),
+      );
+      if (!principal || principal.role !== 'creator') {
+        throw unauthenticated();
+      }
+      // PRD 3.1: a session lasts until sign-out or until access is revoked, so the whitelist
+      // is asked again rather than trusting the role recorded at sign-in.
+      const current = await this.access?.resolveUser(principal.userId);
+      if (
+        current?.role !== 'creator' ||
+        current.creatorId !== principal.creatorId
+      ) {
+        throw unauthenticated();
+      }
+      request.principal = principal;
+      request.creatorId = principal.creatorId;
+      return true;
+    }
+
     const creatorId = devCreatorId(
       request.headers[DEV_CREATOR_HEADER],
       process.env,

@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { AdminGuard } from '../src/auth/admin.guard.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { SubmissionsModule } from '../src/submissions/submissions.module.js';
 
@@ -62,6 +63,10 @@ describe('PATCH /submissions/:id/revise', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      // Prisma is stubbed here, so there is no session table to sign in against; the admin
+      // guard is proven by admin-routes.e2e-spec.ts on the real database.
+      .overrideGuard(AdminGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleRef.createNestApplication();

@@ -1,8 +1,19 @@
 import { SubmissionRevisionController } from './submission-revision.controller.js';
-import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
+import {
+  GUARDS_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
+import { AdminGuard } from '../auth/admin.guard.js';
 import { RequestMethod } from '@nestjs/common';
 
 describe('SubmissionRevisionController', () => {
+  it('is open to signed-in admins only', () => {
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, SubmissionRevisionController),
+    ).toEqual([AdminGuard]);
+  });
+
   it('forwards the submission ID and revision note and returns the service result', async () => {
     const submissionId = '550e8400-e29b-41d4-a716-446655440000';
     const body = { revisionNotes: 'Mohon perbaiki bagian pembuka.' };

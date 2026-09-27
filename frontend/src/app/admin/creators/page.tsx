@@ -5,12 +5,12 @@ import { CreatorTable } from "@/components/creators/creator-table";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import {
-  fetchCreators,
   hasActiveFilters,
   parseFilters,
   parsePage,
   type CreatorListResponse,
 } from "@/lib/creators";
+import { fetchCreators } from "@/lib/creators.server";
 
 export const dynamic = "force-dynamic";
 

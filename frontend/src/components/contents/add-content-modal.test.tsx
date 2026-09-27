@@ -301,7 +301,7 @@ describe("AddContentModal", () => {
         );
 
         expect(
-            screen.getByText("Deadline paling cepat 2026-09-30"),
+            screen.getByText("Deadline paling cepat 30 Sep 2026"),
         ).toBeInTheDocument();
 
         expect(mockedCreateContent).not.toHaveBeenCalled();
@@ -424,7 +424,7 @@ describe("AddContentModal", () => {
             message: "Data content tidak valid",
             errors: {
                 name: "Nama konten sudah digunakan",
-                deadline: "Deadline paling cepat 2026-10-10",
+                deadline: "Deadline paling cepat 10 Okt 2026",
             },
         });
 
@@ -458,7 +458,7 @@ describe("AddContentModal", () => {
 
         expect(
             screen.getByText(
-                "Deadline paling cepat 2026-10-10",
+                "Deadline paling cepat 10 Okt 2026",
             ),
         ).toBeInTheDocument();
 

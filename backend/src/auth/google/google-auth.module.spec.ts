@@ -1,0 +1,177 @@
+import { Logger } from '@nestjs/common';
+import { MODULE_METADATA } from '@nestjs/common/constants';
+import { Test } from '@nestjs/testing';
+import type { Response } from 'express';
+import { AppModule } from '../../app.module.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { PrismaWhitelistResolver } from './prisma-whitelist-resolver.js';
+import {
+  AUTH_LOG,
+  FLOW_COOKIE,
+  GOOGLE_OAUTH_CONFIG,
+  GoogleAuthController,
+  SIGN_IN,
+} from './google-auth.controller.js';
+import { GoogleAuthModule } from './google-auth.module.js';
+import { GoogleIdTokenVerifier } from './google-id-token.js';
+import { newFlow } from './oauth-flow.js';
+import { AppSessionService } from '../session/session.service.js';
+import { GoogleSignInService } from './google-sign-in.service.js';
+import { GoogleTokenClient } from './google-token-client.js';
+import {
+  CODE_EXCHANGER,
+  ID_TOKEN_VERIFIER,
+  SESSION_STARTER,
+  WHITELIST_RESOLVER,
+  type IdTokenVerifier,
+  type SessionStarter,
+  type WhitelistResolver,
+} from './ports.js';
+import type { CodeExchanger } from './google-token-client.js';
+
+async function compile() {
+  return Test.createTestingModule({ imports: [GoogleAuthModule] }).compile();
+}
+
+describe('GoogleAuthModule', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('wires the controller, the sign-in, the flow cookie and a logger', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const module = await compile();
+
+    expect(module.get(GoogleAuthController)).toBeInstanceOf(
+      GoogleAuthController,
+    );
+    expect(module.get(SIGN_IN)).toBeInstanceOf(GoogleSignInService);
+    expect(module.get(FLOW_COOKIE).name).toBe('__Host-tofly_oauth');
+    expect(module.get(AUTH_LOG)).toBeInstanceOf(Logger);
+  });
+
+  it('exchanges codes with Google once the client is configured', async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', 'client-123.apps.googleusercontent.com');
+    vi.stubEnv('GOOGLE_CLIENT_SECRET', 'secret-xyz');
+    vi.stubEnv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/cb');
+    const module = await compile();
+
+    expect(module.get(GOOGLE_OAUTH_CONFIG)).toEqual({
+      clientId: 'client-123.apps.googleusercontent.com',
+      clientSecret: 'secret-xyz',
+      redirectUri: 'http://localhost:3000/cb',
+    });
+    expect(module.get(CODE_EXCHANGER)).toBeInstanceOf(GoogleTokenClient);
+  });
+
+  it('refuses every exchange while the client is not configured', async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', '');
+    const module = await compile();
+
+    expect(module.get(GOOGLE_OAUTH_CONFIG)).toBeUndefined();
+    await expect(
+      module.get<CodeExchanger>(CODE_EXCHANGER).exchange('code', 'verifier'),
+    ).rejects.toThrow('Google sign-in is not configured');
+  });
+
+  it("checks ID tokens against Google's keys for the configured client", async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', 'client-123.apps.googleusercontent.com');
+    vi.stubEnv('GOOGLE_CLIENT_SECRET', 'secret-xyz');
+    vi.stubEnv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/cb');
+    const module = await compile();
+
+    const verifier = module.get<IdTokenVerifier>(ID_TOKEN_VERIFIER);
+    expect(verifier).toBeInstanceOf(GoogleIdTokenVerifier);
+    expect(verifier).toMatchObject({
+      clientId: 'client-123.apps.googleusercontent.com',
+    });
+  });
+
+  // Without a client id there is no audience to check a token against.
+  it('refuses every ID token while the client is not configured', async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', '');
+    const module = await compile();
+
+    await expect(
+      module.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
+    ).rejects.toMatchObject({
+      name: 'PortNotReady',
+      message: 'Google sign-in is not configured',
+    });
+  });
+
+  it('uses the Prisma-backed whitelist resolver', async () => {
+    const module = await compile();
+
+    expect(module.get<WhitelistResolver>(WHITELIST_RESOLVER)).toBeInstanceOf(
+      PrismaWhitelistResolver,
+    );
+  });
+
+  it('uses the persistent application session starter', async () => {
+    const createSession = vi.fn().mockResolvedValue({});
+    const principal = {
+      userId: 'user-123',
+      role: 'creator' as const,
+      creatorId: 'creator-456',
+    };
+    const response = { cookie: vi.fn() };
+    const module = await Test.createTestingModule({
+      imports: [GoogleAuthModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({ app_sessions: { create: createSession } })
+      .overrideProvider(CODE_EXCHANGER)
+      .useValue({ exchange: vi.fn().mockResolvedValue('id-token') })
+      .overrideProvider(ID_TOKEN_VERIFIER)
+      .useValue({
+        verify: vi
+          .fn()
+          .mockResolvedValue({
+            sub: 'google-123',
+            email: 'creator@example.com',
+          }),
+      })
+      .overrideProvider(WHITELIST_RESOLVER)
+      .useValue({ resolve: vi.fn().mockResolvedValue(principal) })
+      .compile();
+
+    expect(module.get(AppSessionService)).toBeInstanceOf(AppSessionService);
+    expect(module.get<SessionStarter>(SESSION_STARTER).start).toBeTypeOf(
+      'function',
+    );
+
+    await expect(
+      module
+        .get<GoogleSignInService>(SIGN_IN)
+        .complete(
+          'authorization-code',
+          newFlow(),
+          response as unknown as Response,
+        ),
+    ).resolves.toBe('/creator/tasks');
+
+    expect(createSession).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: principal.userId,
+        role: principal.role,
+        creatorId: principal.creatorId,
+        idHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    });
+    expect(response.cookie).toHaveBeenCalledWith(
+      '__Host-tofly_session',
+      expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
+  });
+
+  it('is part of the application', () => {
+    const imports = Reflect.getMetadata(
+      MODULE_METADATA.IMPORTS,
+      AppModule,
+    ) as unknown[];
+
+    expect(imports).toContain(GoogleAuthModule);
+  });
+});

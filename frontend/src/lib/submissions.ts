@@ -1,6 +1,7 @@
 // Types and API client for the draft review queue (PRD 3.11).
 // SSR pages call fetchSubmissionQueue with BACKEND_URL directly; the /api
 // proxy keeps the backend address out of the browser.
+import { appSessionCookieHeader } from "./session-cookie";
 
 export interface SubmissionQueueItem {
   submissionId: string;
@@ -86,9 +87,10 @@ export async function fetchSubmissionQueue(
   }
 
   const query = buildSubmissionQuery({ page, ...filters });
+  const cookie = await appSessionCookieHeader();
   const response = await fetch(
     `${withoutTrailingSlash(backendUrl)}/submissions?${query}`,
-    { cache: "no-store" },
+    { cache: "no-store", ...(cookie && { headers: { cookie } }) },
   );
 
   if (!response.ok) {

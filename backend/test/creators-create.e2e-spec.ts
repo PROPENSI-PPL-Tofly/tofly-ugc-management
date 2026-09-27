@@ -1,22 +1,24 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { as, signInAsAdmin } from './sessions.js';
+import { jakartaMidnight } from '../src/creators/evergreen.js';
 
 // Every email created here starts with this marker so the cleanup never touches anything
 // else in the database, seeded or not.
 const MARKER = 'e2e-create';
 
-/** YYYY-MM-DD for `offset` days from today (UTC), as the date picker sends it. */
+/** YYYY-MM-DD for `offset` days from today in Jakarta, as the admin's date picker sends it. */
 function iso(offset: number): string {
-  const now = new Date();
+  const today = jakartaMidnight(new Date());
   return new Date(
     Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + offset,
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate() + offset,
     ),
   )
     .toISOString()
@@ -50,14 +52,18 @@ function body(email: string, overrides: Record<string, unknown> = {}) {
 describe('POST /creators (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
+  /** Requests signed in as a whitelisted admin. */
+  let admin: ReturnType<typeof as>;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     await app.init();
     prisma = app.get(PrismaService);
+    admin = as(app, await signInAsAdmin(app, prisma, MARKER));
   });
 
   // creators.user_id is ON DELETE RESTRICT, so creators go first; their social accounts,
@@ -73,7 +79,7 @@ describe('POST /creators (e2e)', () => {
   it('whitelists the email and saves the creator, contract and titled schedule', async () => {
     const email = `${MARKER}-salsa@example.com`;
 
-    const { body: created } = await request(app.getHttpServer())
+    const { body: created } = await admin
       .post('/creators')
       .send(body(email))
       .expect(201);
@@ -122,12 +128,12 @@ describe('POST /creators (e2e)', () => {
 
   it('shows the new creator in the Creator Database listing', async () => {
     const email = `${MARKER}-listed@example.com`;
-    await request(app.getHttpServer())
+    await admin
       .post('/creators')
       .send(body(email))
       .expect(201);
 
-    const { body: listing } = await request(app.getHttpServer())
+    const { body: listing } = await admin
       .get('/creators')
       .query({ q: email })
       .expect(200);
@@ -142,7 +148,7 @@ describe('POST /creators (e2e)', () => {
   it('answers an invalid body with 422 and a message per field, saving nothing', async () => {
     const email = `${MARKER}-invalid@example.com`;
 
-    const { body: rejected } = await request(app.getHttpServer())
+    const { body: rejected } = await admin
       .post('/creators')
       .send(body(email, { contractStart: iso(-1), quota: 0 }))
       .expect(422);
@@ -159,13 +165,13 @@ describe('POST /creators (e2e)', () => {
 
   it('answers an email already on the whitelist with 422 on the email field', async () => {
     const email = `${MARKER}-twice@example.com`;
-    await request(app.getHttpServer())
+    await admin
       .post('/creators')
       .send(body(email))
       .expect(201);
 
     // users.email is citext, so a different case is the same login.
-    const { body: rejected } = await request(app.getHttpServer())
+    const { body: rejected } = await admin
       .post('/creators')
       .send(body(email.toUpperCase()))
       .expect(422);
@@ -179,7 +185,7 @@ describe('POST /creators (e2e)', () => {
   it('never makes the new login an admin, whatever the body says', async () => {
     const email = `${MARKER}-admin@example.com`;
 
-    await request(app.getHttpServer())
+    await admin
       .post('/creators')
       .send({ ...body(email), is_admin: true, isAdmin: true })
       .expect(201);

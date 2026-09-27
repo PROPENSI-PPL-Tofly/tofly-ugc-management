@@ -7,7 +7,10 @@ import { UnauthorizedException } from '@nestjs/common';
  */
 export interface CreatorRequest {
   headers: Record<string, string | string[] | undefined>;
+  method?: string;
+  cookies?: Record<string, unknown>;
   creatorId?: string;
+  principal?: { userId: string; role: 'creator'; creatorId: string };
 }
 
 /** One answer for every identity failure, so a caller cannot tell which check refused them. */

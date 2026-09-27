@@ -5,7 +5,9 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../auth/admin.guard.js';
 
 import type { RevisionRequest } from './revise-submission.js';
 import { checkRevisionRequest } from './revise-submission.js';
@@ -18,6 +20,7 @@ export interface SubmissionReviser {
 }
 
 @Controller('submissions')
+@UseGuards(AdminGuard)
 export class SubmissionRevisionController {
   constructor(
     @Inject('SubmissionRevisionService')

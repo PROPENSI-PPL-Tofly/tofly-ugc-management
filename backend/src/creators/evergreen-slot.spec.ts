@@ -82,7 +82,7 @@ describe('checkEvergreenSlot', () => {
       // First allowed day is 2026-10-06 (contract starts 1 Okt, 5-day buffer).
       const errors = checkEvergreenSlot('evergreen', '2026-10-05', CONTEXT, TODAY);
 
-      expect(errors.deadline).toBe('Deadline paling cepat 2026-10-06');
+      expect(errors.deadline).toBe('Deadline paling cepat 6 Okt 2026');
     });
 
     it('accepts the first day the buffer allows', () => {
@@ -97,7 +97,7 @@ describe('checkEvergreenSlot', () => {
 
       const errors = checkEvergreenSlot('evergreen', '2026-09-28', context, TODAY);
 
-      expect(errors.deadline).toBe('Deadline paling cepat 2026-09-29');
+      expect(errors.deadline).toBe('Deadline paling cepat 29 Sep 2026');
     });
 
     it('rejects a deadline after the contract ends', () => {
@@ -120,7 +120,7 @@ describe('checkEvergreenSlot', () => {
 
       const errors = checkEvergreenSlot('evergreen', '2026-10-10', context, TODAY);
 
-      expect(errors.deadline).toBe('Deadline paling cepat 2026-10-11');
+      expect(errors.deadline).toBe('Deadline paling cepat 11 Okt 2026');
     });
   });
 

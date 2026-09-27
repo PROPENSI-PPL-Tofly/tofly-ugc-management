@@ -68,6 +68,24 @@ describe("/api/* proxy", () => {
     expect((init.headers as Headers).has("host")).toBe(false);
   });
 
+  it("forwards the application session cookie to the backend", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+
+    await GET(
+      new Request("http://localhost:3000/api/me/contents", {
+        headers: { cookie: "__Host-tofly_session=opaque-id" },
+      }),
+      params("me", "contents"),
+    );
+
+    const init = fetchMock.mock.calls[0][1]!;
+    expect((init.headers as Headers).get("cookie")).toBe(
+      "__Host-tofly_session=opaque-id",
+    );
+  });
+
   it("sends no body on GET, which fetch would reject", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

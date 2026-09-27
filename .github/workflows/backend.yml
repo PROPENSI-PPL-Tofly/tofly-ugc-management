@@ -255,6 +255,22 @@ jobs:
       # before a real migration depends on them.
       - run: npx supabase db push --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}" --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
 
+      # The team's admin accounts on the deployed app, so they can sign in with Google. The
+      # addresses live only in a repo secret (the repo is public); the SQL file holds none and
+      # receives them as a psql variable, never spliced into the query. Idempotent: it only
+      # adds or promotes. SUPABASE_DB_URL is the session pooler URL, since runners lack IPv6.
+      - name: Seed admin accounts
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          STAGING_ADMIN_EMAILS: ${{ secrets.STAGING_ADMIN_EMAILS }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$STAGING_ADMIN_EMAILS" ]; then
+            echo "admin seed skipped: SUPABASE_DB_URL or STAGING_ADMIN_EMAILS is not set"
+            exit 0
+          fi
+          psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -v emails="$STAGING_ADMIN_EMAILS" \
+            -f supabase/staging/seed-admins.sql
+
   # Rolls the already-pushed image out to Cloud Run. needs migrate, so a failed
   # migration blocks the rollout.
   deploy:
@@ -277,6 +293,9 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
       - uses: google-github-actions/setup-gcloud@v2
 
+      # The Google client id and redirect URI are not secret, so they travel as plain env from
+      # repo variables; the client secret comes from Secret Manager like the DB URLs. The
+      # backend refuses to boot in production without all three (Google is the only way in).
       # DB URLs come from Secret Manager, never --set-env-vars: env vars are
       # readable in the Cloud Run console and in deploy logs.
       # Deployed with no traffic behind a `candidate` tag: the new revision gets
@@ -295,7 +314,8 @@ jobs:
             --image "$IMAGE:${{ github.sha }}" \
             --region "${{ vars.GCP_REGION }}" \
             --service-account "run-backend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3

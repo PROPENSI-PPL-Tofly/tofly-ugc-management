@@ -1,3 +1,5 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { AdminGuard } from '../auth/admin.guard.js';
 import { ContentsController } from './contents.controller.js';
 import { checkNewContent, type NewContent } from './new-content.js';
 
@@ -6,6 +8,10 @@ vi.mock('./new-content.js', () => ({
 }));
 
 describe('ContentsController', () => {
+  it('is open to signed-in admins only', () => {
+    expect(Reflect.getMetadata(GUARDS_METADATA, ContentsController)).toEqual([AdminGuard]);
+  });
+
   const body: NewContent = {
     contractId: '550e8400-e29b-41d4-a716-446655440000',
     type: 'specific',
