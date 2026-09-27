@@ -12,8 +12,17 @@ describe("loginErrorMessage", () => {
     );
   });
 
-  it("falls back to the failed-sign-in text for a refused email until its own wording lands", () => {
-    expect(loginErrorMessage("not_authorized")).toBe(LOGIN_ERROR_MESSAGES.sign_in_failed);
+  // PRD 3.1: a Google account that is not on the whitelist is told to contact the Admin. The
+  // Google screen always offers the account chooser, so trying another account is a real way out.
+  it("tells a refused email to ask the Admin for access or use another Google account", () => {
+    expect(loginErrorMessage("not_authorized")).toBe(
+      "Email ini belum didaftarkan oleh Admin. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
+    );
+  });
+
+  // Not a failure to retry: the same account would be refused again, so it must not read as one.
+  it("does not read a refused email as a failed sign-in", () => {
+    expect(LOGIN_ERROR_MESSAGES.not_authorized).not.toBe(LOGIN_ERROR_MESSAGES.sign_in_failed);
   });
 
   it.each([

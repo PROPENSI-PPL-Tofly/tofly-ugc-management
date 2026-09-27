@@ -58,6 +58,35 @@ describe("Login page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(message);
   });
 
+  describe("a refused email (not_authorized)", () => {
+    it("says the email is not registered and points to the Admin", async () => {
+      await renderLogin({ error: "not_authorized" });
+
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("Email ini belum didaftarkan oleh Admin.");
+      expect(alert).toHaveTextContent("Hubungi Admin untuk meminta akses");
+      expect(alert).not.toHaveTextContent("Gagal masuk dengan Google");
+    });
+
+    it("keeps the Google button so another account can be picked", async () => {
+      await renderLogin({ error: "not_authorized" });
+
+      expect(screen.getByRole("link", { name: "Masuk dengan Google" })).toHaveAttribute(
+        "href",
+        "/api/auth/google",
+      );
+    });
+
+    // The page is told why, never who: an email in the link would sit in browser history and
+    // server logs, and anything written there could be made to read as the app's own words.
+    it("never shows an email or other text carried in the link", async () => {
+      await renderLogin({ error: "not_authorized", email: "orang@luar.com", message: "Hubungi 0812" });
+
+      expect(document.body).not.toHaveTextContent("orang@luar.com");
+      expect(document.body).not.toHaveTextContent("0812");
+    });
+  });
+
   it("never echoes an unknown error code", async () => {
     await renderLogin({ error: "<b>pwned</b>" });
 
