@@ -3,6 +3,7 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import type { Response } from 'express';
 import { AppModule } from '../../app.module.js';
+import { PrismaWhitelistResolver } from './prisma-whitelist-resolver.js';
 import {
   AUTH_LOG,
   FLOW_COOKIE,
@@ -69,26 +70,21 @@ describe('GoogleAuthModule', () => {
     ).rejects.toThrow('Google sign-in is not configured');
   });
 
-  // Until the token check, the whitelist and the session land, no sign-in can succeed.
-  it.each([
-    [
-      'ID token verification is not implemented yet',
-      (m: Awaited<ReturnType<typeof compile>>) =>
-        m.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
-    ],
-    [
-      'the whitelist lookup is not implemented yet',
-      (m: Awaited<ReturnType<typeof compile>>) =>
-        m.get<WhitelistResolver>(WHITELIST_RESOLVER).resolve('a@b.co'),
-    ],
-    [
-      'the session cookie is not implemented yet',
-      (m: Awaited<ReturnType<typeof compile>>) =>
-        m
-          .get<SessionStarter>(SESSION_STARTER)
-          .start({} as Response, { userId: 'u', role: 'admin' }),
-    ],
-  ])('fails closed by default: %s', async (message, call) => {
+  // Authentication pieces that are not implemented yet must still fail closed.
+it.each([
+  [
+    'ID token verification is not implemented yet',
+    (m: Awaited<ReturnType<typeof compile>>) =>
+      m.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
+  ],
+  [
+    'the session cookie is not implemented yet',
+    (m: Awaited<ReturnType<typeof compile>>) =>
+      m
+        .get<SessionStarter>(SESSION_STARTER)
+        .start({} as Response, { userId: 'u', role: 'admin' }),
+  ],
+])('fails closed by default: %s', async (message, call) => {
     const module = await compile();
 
     await expect(call(module)).rejects.toMatchObject({
@@ -96,6 +92,13 @@ describe('GoogleAuthModule', () => {
       message,
     });
   });
+  it('uses the Prisma-backed whitelist resolver', async () => {
+  const module = await compile();
+
+  expect(module.get<WhitelistResolver>(WHITELIST_RESOLVER)).toBeInstanceOf(
+    PrismaWhitelistResolver,
+  );
+});
 
   it('is part of the application', () => {
     const imports = Reflect.getMetadata(
