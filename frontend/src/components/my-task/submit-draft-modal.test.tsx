@@ -397,4 +397,65 @@ describe("SubmitDraftModal", () => {
       expect(await screen.findByRole("button", { name: "Mengirim..." })).toBeDisabled();
     });
   });
+
+  describe("brief, revision notes and field errors", () => {
+    it("shows the brief the creator works from", () => {
+      renderModal({ content: { ...defaultContent, brief: "Tunjukkan kemasan" } });
+
+      expect(screen.getByText("Tunjukkan kemasan")).toBeInTheDocument();
+    });
+
+    it("shows the admin's revision notes on a resubmit", () => {
+      renderModal({
+        action: "resubmit_draft",
+        content: { ...defaultContent, revisionNotes: "Perjelas intro" },
+      });
+
+      expect(screen.getByText("Catatan Revisi dari Admin")).toBeInTheDocument();
+      expect(screen.getByText("Perjelas intro")).toBeInTheDocument();
+    });
+
+    it("ties the link error to its field and moves focus there", () => {
+      renderModal();
+
+      fireEvent.click(screen.getByRole("button", { name: "Kirim Draft" }));
+
+      const input = screen.getByLabelText(/link file draft/i);
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(input).toHaveAccessibleDescription("Link file draft wajib diisi");
+      expect(input).toHaveFocus();
+    });
+
+    it("clears the link error once the creator edits the link", () => {
+      renderModal();
+      fireEvent.click(screen.getByRole("button", { name: "Kirim Draft" }));
+
+      const input = screen.getByLabelText(/link file draft/i);
+      fireEvent.change(input, { target: { value: "https://drive.google.com/x" } });
+
+      expect(screen.queryByText("Link file draft wajib diisi")).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute("aria-invalid");
+    });
+
+    it("ties a notes error from the server to the notes field", async () => {
+      mockSubmitDraft.mockResolvedValue({
+        ok: false,
+        message: "Data draft tidak valid",
+        errors: { notes: "Catatan maksimal 1000 karakter" },
+      });
+      renderModal();
+      fireEvent.change(screen.getByLabelText(/link file draft/i), {
+        target: { value: "https://drive.google.com/x" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Kirim Draft" }));
+
+      await waitFor(() =>
+        expect(screen.getByLabelText(/catatan untuk admin/i)).toHaveAccessibleDescription(
+          "Catatan maksimal 1000 karakter",
+        ),
+      );
+      expect(screen.getByLabelText(/catatan untuk admin/i)).toHaveAttribute("aria-invalid", "true");
+    });
+  });
 });

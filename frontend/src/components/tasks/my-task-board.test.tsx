@@ -9,7 +9,13 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 // The modals are stubbed: what they do inside is their own tests' business. These stand-ins
 // show what the board handed them and expose the two ways a modal hands control back.
 interface StubProps {
-  content: { id: string; name: string; deadline: string };
+  content: {
+    id: string;
+    name: string;
+    deadline: string;
+    brief?: string;
+    revisionNotes?: string | null;
+  };
   onClose: () => void;
   onSubmitted: () => void;
   action?: string;
@@ -20,6 +26,7 @@ function StubModal({ label, props }: Readonly<{ label: string; props: StubProps 
     <div role="dialog" aria-label={label}>
       <p>{`${props.content.id}|${props.content.name}|${props.content.deadline}`}</p>
       <p>{`action:${props.action ?? "-"}`}</p>
+      <p>{`brief:${props.content.brief ?? "-"}|notes:${props.content.revisionNotes ?? "-"}`}</p>
       <button
         type="button"
         onClick={() => {
@@ -53,6 +60,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     deadline: "2026-10-12",
     status: "scheduled",
     actions: ["submit_draft"],
+    revisionNotes: null,
     ...overrides,
   };
 }
@@ -131,6 +139,76 @@ describe("MyTaskBoard", () => {
 
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("hands the modals the brief and the admin's revision notes", () => {
+    render(
+      <MyTaskBoard
+        tasks={[
+          task({
+            status: "draft_revision",
+            actions: ["resubmit_draft"],
+            brief: "Tunjukkan kemasan",
+            revisionNotes: "Perjelas intro",
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Resubmit Draft/ }));
+
+    expect(screen.getByRole("dialog", { name: "draft-modal" })).toHaveTextContent(
+      "brief:Tunjukkan kemasan|notes:Perjelas intro",
+    );
+  });
+
+  it.each<[string, Partial<MyTask>, string]>([
+    ["Submit Draft", {}, "Draft terkirim. Admin akan meninjaunya."],
+    [
+      "Resubmit Draft",
+      { status: "draft_revision", actions: ["resubmit_draft"] },
+      "Draft terkirim. Admin akan meninjaunya.",
+    ],
+    [
+      "Submit Link Video",
+      { status: "draft_approved", actions: ["submit_video"] },
+      "Link video terkirim. Konten ini selesai.",
+    ],
+  ])("confirms a %s hand-in with a toast", (label, overrides, message) => {
+    render(<MyTaskBoard tasks={[task(overrides)]} />);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }));
+
+    fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(message);
+  });
+
+  it("puts focus on the task list after a hand-in, since the pressed button may be gone", () => {
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
+
+    expect(screen.getByRole("region", { name: "Daftar Tugas Saya" })).toHaveFocus();
+  });
+
+  it("shows no toast when the creator cancels", () => {
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "stub-cancel" }));
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("lets the creator dismiss the toast", () => {
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
+    fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup notifikasi" }));
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("closes without refreshing when the creator cancels", () => {
