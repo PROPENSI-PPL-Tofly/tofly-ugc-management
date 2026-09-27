@@ -374,4 +374,46 @@ it('allows a creator before their contract has started while access is not revok
     vi.useRealTimers();
   }
 });
+it('revokes creator access based on the Jakarta calendar day', async () => {
+  // 27 Sep 17:30 UTC = 28 Sep 00:30 WIB.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-27T17:30:00.000Z'));
+
+  try {
+    const user = {
+      id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+      email: 'jakarta.revoke@example.com',
+      is_admin: false,
+    };
+
+    const creator = {
+      id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+      user_id: user.id,
+      access_revoke_date: new Date('2026-09-28T00:00:00.000Z'),
+      contracts: [],
+    };
+
+    const prisma = {
+      users: {
+        findUnique: vi.fn().mockResolvedValue(user),
+        create: vi.fn(),
+        upsert: vi.fn(),
+      },
+      creators: {
+        findUnique: vi.fn().mockResolvedValue(creator),
+      },
+    };
+
+    const resolver = new PrismaWhitelistResolver(prisma);
+
+    const principal = await resolver.resolve(user.email);
+
+    expect(principal).toBeNull();
+
+    expect(prisma.users.create).not.toHaveBeenCalled();
+    expect(prisma.users.upsert).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
 });
