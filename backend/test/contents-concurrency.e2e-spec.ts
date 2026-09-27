@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { AdminGuard } from '../src/auth/admin.guard.js';
 import { ContentsController } from '../src/contents/contents.controller.js';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
@@ -26,7 +27,12 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
     const module = await Test.createTestingModule({
       controllers: [ContentsController],
       providers: [{ provide: ContentCreationService, useValue: service }],
-    }).compile();
+    })
+      // This suite is about transactions on a disposable database; the admin guard is proven
+      // by admin-routes.e2e-spec.ts.
+      .overrideGuard(AdminGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
     app = module.createNestApplication();
     await app.init();
     const user = await prisma.users.create({

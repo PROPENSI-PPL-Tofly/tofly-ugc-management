@@ -1,14 +1,17 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { as, signInAsAdmin } from './sessions.js';
 
 const MARKER = 'e2e-detail';
 
 describe('GET /submissions/:id (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  /** Requests signed in as a whitelisted admin. */
+  let admin: ReturnType<typeof as>;
   let creatorId: string;
   let contractId: string;
 
@@ -54,7 +57,7 @@ describe('GET /submissions/:id (e2e)', () => {
   }
 
   function getDetail(id: string) {
-    return request(app.getHttpServer()).get(`/submissions/${id}`);
+    return admin.get(`/submissions/${id}`);
   }
 
   beforeAll(async () => {
@@ -63,9 +66,11 @@ describe('GET /submissions/:id (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     await app.init();
 
     prisma = app.get(PrismaService);
+    admin = as(app, await signInAsAdmin(app, prisma, MARKER));
 
     const user = await prisma.users.create({
       data: {

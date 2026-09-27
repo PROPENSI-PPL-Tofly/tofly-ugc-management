@@ -136,6 +136,22 @@ describe('AdminGuard', () => {
     expect(sessions.authenticate).not.toHaveBeenCalled();
   });
 
+  it('treats a request without a method as a change, so the origin is checked', async () => {
+    const { sessions, guard } = setup(ADMIN);
+    const request: AdminRequest = {
+      headers: {
+        origin: 'https://evil.example',
+        'sec-fetch-site': 'cross-site',
+      },
+      cookies: { [COOKIE]: 'opaque-id' },
+    };
+
+    await expect(guard.canActivate(context(request))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(sessions.authenticate).not.toHaveBeenCalled();
+  });
+
   it('admits a same-origin change from the app', async () => {
     const { guard } = setup(ADMIN);
     const request = {

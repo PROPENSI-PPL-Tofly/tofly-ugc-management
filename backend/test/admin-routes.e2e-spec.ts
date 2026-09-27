@@ -66,12 +66,28 @@ describe('admin routes (e2e)', () => {
   });
 
   it.each(ADMIN_ROUTES)(
-    '%s %s answers 401 without a session',
+    '%s %s answers 401 to the app when signed out',
     async (method, url) => {
-      const response = await request(app.getHttpServer())[method](url);
+      // What a signed-out browser sends from the app itself.
+      const response = await request(app.getHttpServer())
+        [method](url)
+        .set('Origin', process.env.FRONTEND_URL ?? 'http://localhost:3000')
+        .set('Sec-Fetch-Site', 'same-origin');
 
       expect(response.status).toBe(401);
       expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED' });
+    },
+  );
+
+  it.each(ADMIN_ROUTES.filter(([method]) => method !== 'get'))(
+    '%s %s answers 403 to another site, before any session is looked at',
+    async (method, url) => {
+      const response = await request(app.getHttpServer())
+        [method](url)
+        .set('Origin', 'https://evil.example')
+        .set('Sec-Fetch-Site', 'cross-site');
+
+      expect(response.status).toBe(403);
     },
   );
 
