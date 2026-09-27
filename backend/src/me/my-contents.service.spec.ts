@@ -81,6 +81,22 @@ describe('MyContentsService.list', () => {
     });
   });
 
+  it('narrows the list and its total to the statuses a filter stands for', async () => {
+    const { client, service } = stub([]);
+
+    await service.list(CREATOR_ID, { ...PAGE, status: 'draft_review' }, NOW);
+
+    const where = {
+      is_proposal: false,
+      contracts: { creator_id: CREATOR_ID },
+      status: { in: ['draft_review', 'draft_revised'] },
+    };
+    expect(client.contents.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where }),
+    );
+    expect(client.contents.count).toHaveBeenCalledWith({ where });
+  });
+
   it('maps a row into API vocabulary with its actions for today in WIB', async () => {
     const { service } = stub([
       row({

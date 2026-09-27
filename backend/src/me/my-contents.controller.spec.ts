@@ -73,8 +73,20 @@ describe('MyContentsController', () => {
     );
   });
 
+  it('passes a status filter through with the page', async () => {
+    await get('?status=draft_review&page=2');
+
+    expect(contents.list).toHaveBeenCalledWith(
+      CREATOR_ID,
+      { page: 2, pageSize: 5, status: 'draft_review' },
+      expect.any(Date),
+    );
+  });
+
   it.each([
     ['a non-numeric page', '?page=abc'],
+    ['an unknown status', '?status=done'],
+    ['a repeated status', '?status=scheduled&status=draft_review'],
     ['page 0', '?page=0'],
     ['a SQL payload as page size', '?pageSize=5;DROP TABLE contents'],
     ['a page size above the cap', '?pageSize=51'],

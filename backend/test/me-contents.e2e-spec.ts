@@ -179,6 +179,22 @@ describe('GET /me/contents (e2e)', () => {
     ).toEqual(['Far away', 'Submitted long ago']);
   });
 
+  it('filters by status and counts only the matching tasks', async () => {
+    const response = await list(dina, '?status=draft_revision');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ total: 1, totalPages: 1 });
+    expect(
+      response.body.items.map((item: { name: string }) => item.name),
+    ).toEqual(['Revision']);
+  });
+
+  it('answers 400 for a status Task Saya does not know', async () => {
+    const response = await list(dina, '?status=draft_revised');
+
+    expect(response.status).toBe(400);
+  });
+
   it('returns only the fields a row needs', async () => {
     const response = await list(dina, '?pageSize=1');
 
