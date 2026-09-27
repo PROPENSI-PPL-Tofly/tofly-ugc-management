@@ -190,49 +190,11 @@ export function buildCreatorsQuery(filters: CreatorFilterState & { page: number 
   return query.toString();
 }
 
-function withoutTrailingSlash(url: string): string {
-  let end = url.length;
-
-  while (end > 0 && url[end - 1] === "/") {
-    end -= 1;
-  }
-
-  return url.slice(0, end);
-}
-
-/**
- * Server-side only: this app talks to the backend directly, so the address never reaches
- * the browser. BACKEND_URL is read per call because it is a plain runtime variable on the
- * deployed service; a module-scope read would freeze whatever it was at build time.
- */
 export const NO_FILTERS: CreatorFilterState = {
   q: "",
   contractStatus: "all",
   productivity: "all",
 };
-
-export async function fetchCreators(
-  page: number,
-  filters: CreatorFilterState = NO_FILTERS,
-): Promise<CreatorListResponse> {
-  const backendUrl = process.env.BACKEND_URL;
-
-  if (!backendUrl) {
-    throw new Error("BACKEND_URL is not configured");
-  }
-
-  const query = buildCreatorsQuery({ ...filters, page });
-
-  const response = await fetch(`${withoutTrailingSlash(backendUrl)}/creators?${query}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Loading creators failed with HTTP ${response.status}`);
-  }
-
-  return (await response.json()) as CreatorListResponse;
-}
 
 /**
  * Browser-side: the same-origin Next.js API proxy forwards this request to the backend.

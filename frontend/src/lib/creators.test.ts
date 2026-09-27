@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { fetchCreators, PAGE_SIZE, parsePage, parseFilters, buildCreatorsQuery } from "./creators";
+import { PAGE_SIZE, parsePage, parseFilters, buildCreatorsQuery } from "./creators";
+import { fetchCreators } from "./creators.server";
 
 vi.mock("next/headers", () => ({
   // No session unless a test says otherwise.
