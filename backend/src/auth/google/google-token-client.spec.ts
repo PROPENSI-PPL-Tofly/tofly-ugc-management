@@ -120,6 +120,9 @@ describe('GoogleTokenClient.exchange', () => {
     const attempt = subject.exchange(CODE, VERIFIER);
 
     await expect(attempt).rejects.toBeInstanceOf(TokenExchangeError);
+    await expect(attempt).rejects.toMatchObject({
+      name: 'TokenExchangeError',
+    });
     await expect(attempt).rejects.toThrow(message);
   });
 

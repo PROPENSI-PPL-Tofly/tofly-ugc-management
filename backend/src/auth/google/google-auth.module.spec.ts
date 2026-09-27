@@ -72,26 +72,29 @@ describe('GoogleAuthModule', () => {
   // Until the token check, the whitelist and the session land, no sign-in can succeed.
   it.each([
     [
-      'verifier',
+      'ID token verification is not implemented yet',
       (m: Awaited<ReturnType<typeof compile>>) =>
         m.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
     ],
     [
-      'whitelist',
+      'the whitelist lookup is not implemented yet',
       (m: Awaited<ReturnType<typeof compile>>) =>
         m.get<WhitelistResolver>(WHITELIST_RESOLVER).resolve('a@b.co'),
     ],
     [
-      'session',
+      'the session cookie is not implemented yet',
       (m: Awaited<ReturnType<typeof compile>>) =>
         m
           .get<SessionStarter>(SESSION_STARTER)
           .start({} as Response, { userId: 'u', role: 'admin' }),
     ],
-  ])('binds a %s that fails closed by default', async (_label, call) => {
+  ])('fails closed by default: %s', async (message, call) => {
     const module = await compile();
 
-    await expect(call(module)).rejects.toMatchObject({ name: 'PortNotReady' });
+    await expect(call(module)).rejects.toMatchObject({
+      name: 'PortNotReady',
+      message,
+    });
   });
 
   it('is part of the application', () => {

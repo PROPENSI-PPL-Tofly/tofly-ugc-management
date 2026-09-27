@@ -59,7 +59,11 @@ describe('GoogleAuthController', () => {
   const log = { warn: vi.fn() };
   let app: INestApplication;
 
-  async function start(config: typeof CONFIG | undefined, cookie: FlowCookie) {
+  async function start(
+    config: typeof CONFIG | undefined,
+    cookie: FlowCookie,
+    parseCookies = true,
+  ) {
     const module = await Test.createTestingModule({
       controllers: [GoogleAuthController],
       providers: [
@@ -70,7 +74,9 @@ describe('GoogleAuthController', () => {
       ],
     }).compile();
     app = module.createNestApplication();
-    app.use(cookieParser());
+    if (parseCookies) {
+      app.use(cookieParser());
+    }
     await app.init();
   }
 
@@ -135,6 +141,17 @@ describe('GoogleAuthController', () => {
     expect(log.warn).toHaveBeenCalledWith(
       'Google sign-in is not configured: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI',
     );
+  });
+
+  it('fails the sign-in instead of crashing when cookies are not parsed', async () => {
+    await start(CONFIG, DEV_COOKIE, false);
+
+    const response = await request(app.getHttpServer())
+      .get(`/auth/google/callback?code=${CODE}&state=${FLOW.state}`)
+      .set('Cookie', `tofly_oauth=${serializeFlow(FLOW)}`);
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/login?error=sign_in_failed');
   });
 
   describe('GET /auth/google/callback', () => {

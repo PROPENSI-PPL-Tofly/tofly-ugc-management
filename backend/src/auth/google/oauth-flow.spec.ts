@@ -76,4 +76,8 @@ describe('serializeFlow / parseFlow', () => {
   ])('rejects %s', (_label, value) => {
     expect(parseFlow(value)).toBeUndefined();
   });
+
+  it('rejects a valid flow wrapped in a list, which a regex alone would accept', () => {
+    expect(parseFlow([serializeFlow(newFlow())])).toBeUndefined();
+  });
 });
