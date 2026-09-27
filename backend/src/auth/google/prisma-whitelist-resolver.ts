@@ -80,6 +80,21 @@ export class PrismaWhitelistResolver {
       return null;
     }
 
+    // Access requires at least one contract that has not ended.
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const hasUnexpiredContract = creator.contracts.some((contract) => {
+      const endDate = new Date(contract.end_date);
+      endDate.setUTCHours(0, 0, 0, 0);
+
+      return today <= endDate;
+    });
+
+    if (!hasUnexpiredContract) {
+      return null;
+    }
+
     return {
       userId: user.id,
       email: user.email,
