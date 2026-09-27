@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Panel } from "@/components/ui/panel";
 import { loginErrorMessage } from "@/lib/login-errors";
@@ -73,6 +74,14 @@ export default async function LoginPage({
             </a>
           </div>
         </Panel>
+        <p className="mt-4 text-center text-[12.5px]">
+          <Link
+            href="/privasi"
+            className="text-muted underline underline-offset-2 hover:text-ink"
+          >
+            Kebijakan Privasi
+          </Link>
+        </p>
       </div>
     </main>
   );
