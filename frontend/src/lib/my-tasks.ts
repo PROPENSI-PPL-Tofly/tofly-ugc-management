@@ -1,7 +1,7 @@
 // Everything the Task Saya page knows about GET /me/contents (SCRUM-102): the shape it
 // answers with and how to ask for a page of it.
 //
-// The backend already orders the rows (nearest deadline first, submitted links last) and
+// The backend already orders the rows (open tasks by nearest deadline, then finished ones) and
 // decides which buttons each row allows today, H-1 grace window included. The table renders
 // `actions` as given instead of re-deriving the rules, so the list can never offer a submit
 // the draft/video endpoints would refuse.
@@ -25,6 +25,8 @@ export interface MyTask {
   status: ContentStatus;
   /** The buttons this row shows today, in display order; empty means none. */
   actions: MyTaskAction[];
+  /** What the admin asked to change; set only while the row awaits a resubmit. */
+  revisionNotes: string | null;
 }
 
 export interface MyTasksResponse {

@@ -13,8 +13,14 @@ const ACTION_LABELS: Record<MyTaskAction, string> = {
   submit_video: "Submit Link Video",
 };
 
+// From lg up this is a plain table. Below it (where the sidebar leaves too little width for four
+// columns) each row stacks into a card so the deadline, status and action stay on screen instead
+// of behind a sideways scroll: the header row is visually hidden, and the deadline and status
+// cells print their column name from data-label.
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 align-top";
+const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+const LABELLED =
+  "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
 /**
  * Submitting a draft is always the main step. The video link is the main step only once the
@@ -47,6 +53,7 @@ function ActionCell({
         <Button
           key={action}
           variant={actionVariant(task, action)}
+          className="whitespace-nowrap"
           // Every row repeats the same labels, so each button names its task for a screen
           // reader, keeping the visible label at the front.
           aria-label={`${ACTION_LABELS[action]}: ${task.name}`}
@@ -83,33 +90,42 @@ export function MyTaskTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px]">
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
+      <table role="table" className="w-full text-[13px] max-lg:block">
         <caption className="sr-only">Daftar Tugas Saya</caption>
-        <thead>
-          <tr className="border-b border-rule text-left text-muted">
-            <th scope="col" className={HEAD}>
+        <thead role="rowgroup" className="max-lg:sr-only">
+          <tr role="row" className="border-b border-rule text-left text-muted">
+            <th role="columnheader" scope="col" className={HEAD}>
               Nama Konten
             </th>
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               Deadline
             </th>
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               Status
             </th>
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               Aksi
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup" className="max-lg:block">
           {tasks.map((task) => (
-            <tr key={task.id} className="border-b border-rule last:border-none">
-              <td className={`${CELL} break-words`}>{task.name}</td>
-              <td className={`${CELL} whitespace-nowrap`}>{formatDate(task.deadline)}</td>
-              <td className={CELL}>
+            <tr
+              key={task.id}
+              role="row"
+              className="border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3"
+            >
+              <td role="cell" className={`${CELL} min-w-48 wrap-anywhere max-lg:min-w-0 max-lg:font-semibold`}>
+                {task.name}
+              </td>
+              <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
+                {formatDate(task.deadline)}
+              </td>
+              <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} lg:whitespace-nowrap`}>
                 <StatusDot>{CONTENT_STATUS_LABELS[task.status]}</StatusDot>
               </td>
-              <td className={CELL}>
+              <td role="cell" className={`${CELL} max-lg:pt-2`}>
                 <ActionCell task={task} onAction={onAction} />
               </td>
             </tr>

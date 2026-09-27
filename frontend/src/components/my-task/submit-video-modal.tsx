@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   isSupportedVideoLink,
   submitVideo,
   type VideoSubmitter,
 } from "@/lib/video-submission";
+import { Button } from "@/components/ui/button";
+import { FIELD, FIELD_ERROR, REQUIRED_MARK } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
+import { TaskSummary, type TaskContent } from "./task-summary";
 
 // Wording matches the backend's INVALID_VIDEO_LINK message so both layers read
 // the same sentence.
@@ -14,11 +17,7 @@ const PLATFORM_ERROR = "Link harus berupa URL Instagram atau TikTok";
 
 export interface SubmitVideoModalProps {
   // The content selected by the creator.
-  content: {
-    id: string;
-    name: string;
-    deadline: string;
-  };
+  content: TaskContent;
 
   // Lets the parent component control when the modal closes.
   onClose: () => void;
@@ -36,6 +35,9 @@ export function SubmitVideoModal({
   onSubmitted,
   submitVideoAction = submitVideo,
 }: SubmitVideoModalProps) {
+  const linkErrorId = useId();
+  const linkRef = useRef<HTMLInputElement>(null);
+
   // Stores the current value of the video link field.
   const [videoLink, setVideoLink] = useState("");
 
@@ -63,6 +65,7 @@ export function SubmitVideoModal({
     // Treat empty and whitespace-only links as invalid.
     if (!trimmedLink) {
       setVideoLinkError("Link video wajib diisi");
+      linkRef.current?.focus();
       return;
     }
 
@@ -105,57 +108,40 @@ export function SubmitVideoModal({
       onClose={onClose}
       footer={
         <>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={onClose}
-            className="cursor-pointer rounded-(--radius-control) px-4 py-2 text-sm text-muted hover:text-ink"
+            disabled={isSubmitting}
           >
             Batal
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="accent"
             onClick={handleSubmit}
             disabled={isSubmitting || hasPlatformError}
-            className="cursor-pointer rounded-(--radius-control) bg-ink px-4 py-2 text-sm text-surface disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Mengirim..." : "Kirim Link"}
-          </button>
+          </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
-        {/* Display the selected content without allowing it to be edited. */}
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="text-sm text-muted">
-              Nama Konten
-            </p>
-
-            <p className="text-sm text-ink">
-              {content.name}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-sm text-muted">
-              Deadline
-            </p>
-
-            <p className="text-sm text-ink">
-              {content.deadline}
-            </p>
-          </div>
-        </div>
+        <TaskSummary content={content} />
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink">
-            Link Video *
+          <span className={`text-sm text-ink ${REQUIRED_MARK}`}>
+            Link Video
           </span>
 
           <input
+            ref={linkRef}
             type="url"
             required
             aria-label="Link Video"
+            aria-invalid={shownLinkError ? true : undefined}
+            aria-describedby={shownLinkError ? linkErrorId : undefined}
             value={videoLink}
             onChange={(event) => {
               setVideoLink(event.target.value);
@@ -163,12 +149,12 @@ export function SubmitVideoModal({
               // platform check re-evaluates for the new value.
               setVideoLinkError("");
             }}
-            className="rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-sm text-ink"
+            className={FIELD}
           />
 
           {/* Show a field-specific error directly below the video link. */}
           {shownLinkError ? (
-            <p className="text-sm text-red-600">
+            <p id={linkErrorId} className={FIELD_ERROR}>
               {shownLinkError}
             </p>
           ) : null}
@@ -176,10 +162,7 @@ export function SubmitVideoModal({
 
         {/* General failures are announced to assistive technology as an alert. */}
         {submissionError ? (
-          <p
-            role="alert"
-            className="text-sm text-red-600"
-          >
+          <p role="alert" className={FIELD_ERROR}>
             {submissionError}
           </p>
         ) : null}

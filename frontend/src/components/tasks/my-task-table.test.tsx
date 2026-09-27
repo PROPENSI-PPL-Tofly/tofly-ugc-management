@@ -69,7 +69,7 @@ describe("MyTaskTable", () => {
     });
   });
 
-  // Below the sm breakpoint each row stacks into a card: the header row is visually hidden, so
+  // Below the lg breakpoint each row stacks into a card: the header row is visually hidden, so
   // each cell names its own column, and explicit roles keep the table semantics that some
   // browsers drop once a table's display changes.
   describe("narrow screens", () => {
