@@ -1,3 +1,4 @@
+import { jakartaDay } from '../../creators/evergreen.js';
 import type { Principal, WhitelistResolver } from './ports.js';
 
 type WhitelistUserRecord = {
@@ -69,14 +70,14 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       return null;
     }
 
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = jakartaDay(new Date());
+
+    // Postgres date values represent calendar days, so compare them as ISO dates.
+    const revokeDay =
+      creator.access_revoke_date?.toISOString().slice(0, 10) ?? null;
 
     // Access remains valid until the scheduled revoke date is reached.
-    if (
-      creator.access_revoke_date !== null &&
-      creator.access_revoke_date <= today
-    ) {
+    if (revokeDay !== null && revokeDay <= today) {
       return null;
     }
 
