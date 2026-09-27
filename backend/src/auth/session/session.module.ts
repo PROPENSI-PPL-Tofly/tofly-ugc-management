@@ -2,10 +2,15 @@ import { Global, Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { SESSION_STARTER } from '../google/ports.js';
+import { PrismaWhitelistResolver } from '../google/prisma-whitelist-resolver.js';
+import { ACCESS_CHECK } from './access-check.js';
 import { sessionConfig } from './session-config.js';
 import { SESSION_COOKIE, sessionCookie } from './session-cookie.js';
 import { SessionController } from './session.controller.js';
-import { AppSessionService, type SessionRepository } from './session.service.js';
+import {
+  AppSessionService,
+  type SessionRepository,
+} from './session.service.js';
 
 export const SESSION_CONFIG = 'SESSION_CONFIG';
 
@@ -16,6 +21,12 @@ export const SESSION_CONFIG = 'SESSION_CONFIG';
   providers: [
     { provide: SESSION_CONFIG, useFactory: () => sessionConfig(process.env) },
     { provide: SESSION_COOKIE, useFactory: () => sessionCookie(process.env) },
+    {
+      provide: ACCESS_CHECK,
+      useFactory: (prisma: PrismaService) =>
+        new PrismaWhitelistResolver(prisma),
+      inject: [PrismaService],
+    },
     {
       provide: AppSessionService,
       useFactory: (
@@ -43,6 +54,6 @@ export const SESSION_CONFIG = 'SESSION_CONFIG';
       inject: [AppSessionService],
     },
   ],
-  exports: [AppSessionService, SESSION_STARTER],
+  exports: [AppSessionService, SESSION_STARTER, ACCESS_CHECK],
 })
 export class SessionModule {}
