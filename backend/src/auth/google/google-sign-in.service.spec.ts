@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { IdTokenError } from './google-id-token.js';
 import { TokenExchangeError } from './google-token-client.js';
 import { GoogleSignInService } from './google-sign-in.service.js';
 import type { OAuthFlow } from './oauth-flow.js';
@@ -119,6 +120,16 @@ describe('GoogleSignInService.complete', () => {
     ],
     [
       'the ID token is rejected',
+      {
+        verify: () =>
+          Promise.reject(
+            new IdTokenError('ID token nonce does not match this sign-in'),
+          ),
+      },
+      'Google sign-in failed: ID token nonce does not match this sign-in',
+    ],
+    [
+      'the verifier throws some other error',
       { verify: () => Promise.reject(new Error(`bad token for ${EMAIL}`)) },
       'Google sign-in failed: Error',
     ],

@@ -2,9 +2,17 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import type { Response as ExpressResponse } from 'express';
+import {
+  createLocalJWKSet,
+  exportJWK,
+  generateKeyPair,
+  SignJWT,
+  type JWTVerifyGetKey,
+} from 'jose';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { GOOGLE_OAUTH_CONFIG } from '../src/auth/google/google-auth.controller.js';
+import { GoogleIdTokenVerifier } from '../src/auth/google/google-id-token.js';
 import { GoogleTokenClient } from '../src/auth/google/google-token-client.js';
 import { pkceChallenge } from '../src/auth/google/oauth-flow.js';
 import {
@@ -31,27 +39,78 @@ const PEOPLE: Record<string, Principal> = {
   },
 };
 
+type Signer = Awaited<ReturnType<typeof generateKeyPair>>['privateKey'];
+
+/** How the ID token for a code departs from a genuine one. */
+interface Tampering {
+  /** Claims that override Google's, e.g. another audience. */
+  claims?: Record<string, unknown>;
+  /** Signed by someone who is not Google, with a key Google does not publish. */
+  forged?: boolean;
+}
+
+interface Grant extends Tampering {
+  challenge: string;
+  nonce: string;
+  email: string;
+}
+
 /**
  * Stands in for Google: remembers the PKCE challenge each code was issued for, and like Google
- * redeems a code once, only with the verifier behind that challenge.
+ * redeems a code once, only with the verifier behind that challenge. Its ID tokens are real
+ * RS256 JWTs signed with the key it publishes, so the app's own verifier checks them.
  */
 class FakeGoogle {
-  private issued = new Map<
-    string,
-    { challenge: string; nonce: string; email: string }
-  >();
+  private issued = new Map<string, Grant>();
   private seq = 0;
 
+  private constructor(
+    private readonly googleKey: Signer,
+    private readonly forgerKey: Signer,
+    /** Google's published signing keys, as the app reads them. */
+    readonly keys: JWTVerifyGetKey,
+  ) {}
+
+  static async start(): Promise<FakeGoogle> {
+    const google = await generateKeyPair('RS256', { extractable: true });
+    const forger = await generateKeyPair('RS256');
+    const jwk = { ...(await exportJWK(google.publicKey)), kid: 'fake-google' };
+    return new FakeGoogle(
+      google.privateKey,
+      forger.privateKey,
+      createLocalJWKSet({ keys: [jwk] }),
+    );
+  }
+
   /** The user picks an account on the consent screen; Google redirects back with a code. */
-  consent(authorizeUrl: string, email: string): string {
+  consent(authorizeUrl: string, email: string, tampering: Tampering = {}) {
     const params = new URL(authorizeUrl).searchParams;
     const code = `code-${++this.seq}`;
     this.issued.set(code, {
       challenge: params.get('code_challenge')!,
       nonce: params.get('nonce')!,
       email,
+      ...tampering,
     });
     return code;
+  }
+
+  /** Who signed in, for this client, bound to the nonce the code was issued for. */
+  private idToken(grant: Grant): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    return new SignJWT({
+      iss: 'https://accounts.google.com',
+      aud: CONFIG.clientId,
+      sub: `g-${grant.email}`,
+      email: grant.email,
+      email_verified: true,
+      nonce: grant.nonce,
+      iat: now,
+      exp: now + 3600,
+      ...grant.claims,
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: 'fake-google' })
+      .sign(grant.forged ? this.forgerKey : this.googleKey);
   }
 
   readonly fetch = (async (
@@ -70,8 +129,7 @@ class FakeGoogle {
         status: 400,
       });
     }
-    // The "ID token" carries what a real one would: who, and the nonce it was issued for.
-    const idToken = `${grant.email}|${grant.nonce}`;
+    const idToken = await this.idToken(grant);
     return new Response(JSON.stringify({ id_token: idToken }), { status: 200 });
   }) as typeof fetch;
 }
@@ -81,7 +139,7 @@ describe('Google sign-in (e2e)', () => {
   let google: FakeGoogle;
 
   beforeAll(async () => {
-    google = new FakeGoogle();
+    google = await FakeGoogle.start();
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -90,14 +148,7 @@ describe('Google sign-in (e2e)', () => {
       .overrideProvider(CODE_EXCHANGER)
       .useValue(new GoogleTokenClient(CONFIG, google.fetch))
       .overrideProvider(ID_TOKEN_VERIFIER)
-      .useValue({
-        verify: (idToken: string, nonce: string) => {
-          const [email, tokenNonce] = idToken.split('|');
-          return tokenNonce === nonce
-            ? Promise.resolve({ sub: `g-${email}`, email })
-            : Promise.reject(new Error('nonce mismatch'));
-        },
-      })
+      .useValue(new GoogleIdTokenVerifier(CONFIG.clientId, google.keys))
       .overrideProvider(WHITELIST_RESOLVER)
       .useValue({
         resolve: (email: string) => Promise.resolve(PEOPLE[email] ?? null),
@@ -175,6 +226,43 @@ describe('Google sign-in (e2e)', () => {
     expect(response.headers.location).toBe('/login?error=not_authorized');
     expect(cookies(response).join()).not.toContain('tofly_session=');
   });
+
+  it('matches the whitelist whatever case Google sends the email in', async () => {
+    const { location, cookie } = await begin();
+    const state = new URL(location).searchParams.get('state')!;
+    const code = google.consent(location, 'Admin@Example.COM');
+
+    const response = await callback({ code, state }, cookie);
+
+    expect(response.headers.location).toBe('/admin/creators');
+  });
+
+  it.each([
+    ['signed by someone other than Google', { forged: true }],
+    [
+      'issued to another app',
+      { claims: { aud: 'other-app.apps.googleusercontent.com' } },
+    ],
+    ['issued by another provider', { claims: { iss: 'https://evil.example' } }],
+    ['issued for another sign-in', { claims: { nonce: 'n'.repeat(43) } }],
+    ['expired', { claims: { exp: Math.floor(Date.now() / 1000) - 60 } }],
+    [
+      'for an email Google has not verified',
+      { claims: { email_verified: false } },
+    ],
+  ])(
+    'refuses a whitelisted email whose ID token is %s',
+    async (_label, tampering) => {
+      const { location, cookie } = await begin();
+      const state = new URL(location).searchParams.get('state')!;
+      const code = google.consent(location, 'admin@example.com', tampering);
+
+      const response = await callback({ code, state }, cookie);
+
+      expect(response.headers.location).toBe('/login?error=sign_in_failed');
+      expect(cookies(response).join()).not.toContain('tofly_session=');
+    },
+  );
 
   it('refuses a replayed callback once the flow cookie is spent', async () => {
     const { location, cookie } = await begin();

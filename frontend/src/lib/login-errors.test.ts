@@ -12,8 +12,23 @@ describe("loginErrorMessage", () => {
     );
   });
 
-  it("falls back to the failed-sign-in text for a refused email until its own wording lands", () => {
-    expect(loginErrorMessage("not_authorized")).toBe(LOGIN_ERROR_MESSAGES.sign_in_failed);
+  // PRD 3.1: an email the whitelist refuses is told to contact the Admin. That covers one never
+  // added and a creator whose access was revoked (flow 4.10), so it must not claim either. The
+  // Google screen always offers the account chooser, so trying another account is a real way out.
+  it("tells a refused email to ask the Admin for access or use another Google account", () => {
+    expect(loginErrorMessage("not_authorized")).toBe(
+      "Email ini tidak punya akses ke Tofly. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
+    );
+  });
+
+  // A revoked creator was registered once, so "not registered" would be untrue for them.
+  it("does not say the email was never registered", () => {
+    expect(LOGIN_ERROR_MESSAGES.not_authorized).not.toMatch(/belum didaftarkan/i);
+  });
+
+  // Not a failure to retry: the same account would be refused again, so it must not read as one.
+  it("does not read a refused email as a failed sign-in", () => {
+    expect(LOGIN_ERROR_MESSAGES.not_authorized).not.toBe(LOGIN_ERROR_MESSAGES.sign_in_failed);
   });
 
   it.each([

@@ -2,6 +2,9 @@ import { Logger, Module } from '@nestjs/common';
 import type { GoogleOAuthConfig } from './authorization.js';
 import { SessionModule } from '../session/session.module.js';
 import { flowCookie } from './flow-cookie.js';
+import { PrismaModule } from '../../prisma/prisma.module.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { PrismaWhitelistResolver } from './prisma-whitelist-resolver.js';
 import {
   AUTH_LOG,
   FLOW_COOKIE,
@@ -10,6 +13,7 @@ import {
   SIGN_IN,
 } from './google-auth.controller.js';
 import { googleOAuthConfig } from './google-config.js';
+import { GoogleIdTokenVerifier } from './google-id-token.js';
 import {
   GoogleSignInService,
   type WarningLog,
@@ -29,12 +33,12 @@ import {
 } from './ports.js';
 import {
   unconfiguredExchanger,
-  unreadyVerifier,
-  unreadyWhitelist,
+  unconfiguredVerifier,
 } from './unready-ports.js';
 
 @Module({
-  imports: [SessionModule],
+  // SessionModule provides SESSION_STARTER.
+  imports: [PrismaModule, SessionModule],
   controllers: [GoogleAuthController],
   providers: [
     {
@@ -49,9 +53,20 @@ import {
         config ? new GoogleTokenClient(config) : unconfiguredExchanger,
       inject: [GOOGLE_OAUTH_CONFIG],
     },
-    // Token verification and whitelist resolution are owned by their respective work items.
-    { provide: ID_TOKEN_VERIFIER, useValue: unreadyVerifier },
-    { provide: WHITELIST_RESOLVER, useValue: unreadyWhitelist },
+    {
+      provide: ID_TOKEN_VERIFIER,
+      useFactory: (config: GoogleOAuthConfig | undefined): IdTokenVerifier =>
+        config
+          ? new GoogleIdTokenVerifier(config.clientId)
+          : unconfiguredVerifier,
+      inject: [GOOGLE_OAUTH_CONFIG],
+    },
+    {
+      provide: WHITELIST_RESOLVER,
+      useFactory: (prisma: PrismaService): WhitelistResolver =>
+        new PrismaWhitelistResolver(prisma),
+      inject: [PrismaService],
+    },
     {
       provide: SIGN_IN,
       useFactory: (

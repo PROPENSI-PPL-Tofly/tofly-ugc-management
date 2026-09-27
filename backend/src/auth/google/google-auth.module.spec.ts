@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import type { Response } from 'express';
 import { AppModule } from '../../app.module.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { PrismaWhitelistResolver } from './prisma-whitelist-resolver.js';
 import {
   AUTH_LOG,
   FLOW_COOKIE,
@@ -12,6 +13,7 @@ import {
   SIGN_IN,
 } from './google-auth.controller.js';
 import { GoogleAuthModule } from './google-auth.module.js';
+import { GoogleIdTokenVerifier } from './google-id-token.js';
 import { newFlow } from './oauth-flow.js';
 import { AppSessionService } from '../session/session.service.js';
 import { GoogleSignInService } from './google-sign-in.service.js';
@@ -72,25 +74,38 @@ describe('GoogleAuthModule', () => {
     ).rejects.toThrow('Google sign-in is not configured');
   });
 
-  // Until the token check and whitelist land, no Google sign-in can succeed.
-  it.each([
-    [
-      'ID token verification is not implemented yet',
-      (m: Awaited<ReturnType<typeof compile>>) =>
-        m.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
-    ],
-    [
-      'the whitelist lookup is not implemented yet',
-      (m: Awaited<ReturnType<typeof compile>>) =>
-        m.get<WhitelistResolver>(WHITELIST_RESOLVER).resolve('a@b.co'),
-    ],
-  ])('fails closed by default: %s', async (message, call) => {
+  it("checks ID tokens against Google's keys for the configured client", async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', 'client-123.apps.googleusercontent.com');
+    vi.stubEnv('GOOGLE_CLIENT_SECRET', 'secret-xyz');
+    vi.stubEnv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/cb');
     const module = await compile();
 
-    await expect(call(module)).rejects.toMatchObject({
-      name: 'PortNotReady',
-      message,
+    const verifier = module.get<IdTokenVerifier>(ID_TOKEN_VERIFIER);
+    expect(verifier).toBeInstanceOf(GoogleIdTokenVerifier);
+    expect(verifier).toMatchObject({
+      clientId: 'client-123.apps.googleusercontent.com',
     });
+  });
+
+  // Without a client id there is no audience to check a token against.
+  it('refuses every ID token while the client is not configured', async () => {
+    vi.stubEnv('GOOGLE_CLIENT_ID', '');
+    const module = await compile();
+
+    await expect(
+      module.get<IdTokenVerifier>(ID_TOKEN_VERIFIER).verify('token', 'nonce'),
+    ).rejects.toMatchObject({
+      name: 'PortNotReady',
+      message: 'Google sign-in is not configured',
+    });
+  });
+
+  it('uses the Prisma-backed whitelist resolver', async () => {
+    const module = await compile();
+
+    expect(module.get<WhitelistResolver>(WHITELIST_RESOLVER)).toBeInstanceOf(
+      PrismaWhitelistResolver,
+    );
   });
 
   it('uses the persistent application session starter', async () => {
@@ -110,14 +125,21 @@ describe('GoogleAuthModule', () => {
       .useValue({ exchange: vi.fn().mockResolvedValue('id-token') })
       .overrideProvider(ID_TOKEN_VERIFIER)
       .useValue({
-        verify: vi.fn().mockResolvedValue({ sub: 'google-123', email: 'creator@example.com' }),
+        verify: vi
+          .fn()
+          .mockResolvedValue({
+            sub: 'google-123',
+            email: 'creator@example.com',
+          }),
       })
       .overrideProvider(WHITELIST_RESOLVER)
       .useValue({ resolve: vi.fn().mockResolvedValue(principal) })
       .compile();
 
     expect(module.get(AppSessionService)).toBeInstanceOf(AppSessionService);
-    expect(module.get<SessionStarter>(SESSION_STARTER).start).toBeTypeOf('function');
+    expect(module.get<SessionStarter>(SESSION_STARTER).start).toBeTypeOf(
+      'function',
+    );
 
     await expect(
       module
