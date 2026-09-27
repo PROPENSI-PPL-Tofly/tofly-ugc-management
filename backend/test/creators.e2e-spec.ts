@@ -5,18 +5,20 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signInAsAdmin } from './sessions.js';
+import { jakartaMidnight } from '../src/creators/evergreen.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, seeded or not.
 const MARKER = 'e2e-creators';
 
+/** A calendar day relative to today in Jakarta, the day the app counts from. */
 function day(offset: number): Date {
-  const date = new Date();
+  const today = jakartaMidnight(new Date());
   return new Date(
     Date.UTC(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate() + offset,
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate() + offset,
     ),
   );
 }

@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signInAsAdmin } from './sessions.js';
+import { jakartaMidnight } from '../src/creators/evergreen.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, and every request searches for it so seeded drafts stay out of the assertions.
@@ -13,11 +14,8 @@ const DAY = 24 * 60 * 60 * 1000;
 
 /** A calendar day relative to today, as Postgres `date` columns store it. */
 function daysFromToday(days: number): Date {
-  const now = new Date();
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) +
-      days * DAY,
-  );
+  // Today in Jakarta, the day the app counts from.
+  return new Date(jakartaMidnight(new Date()).getTime() + days * DAY);
 }
 
 type Status =
