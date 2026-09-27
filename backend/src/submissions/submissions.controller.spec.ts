@@ -1,6 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { AdminGuard } from '../auth/admin.guard.js';
 import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
@@ -22,7 +24,11 @@ describe('SubmissionsController', () => {
         { provide: SubmissionDetailService, useValue: detail },
         { provide: ReviewQueueService, useValue: queue },
       ],
-    }).compile();
+    })
+      // AdminGuard has its own spec; these tests are about the routes behind it.
+      .overrideGuard(AdminGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = module.createNestApplication();
     await app.init();
@@ -30,6 +36,10 @@ describe('SubmissionsController', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('is open to signed-in admins only', () => {
+    expect(Reflect.getMetadata(GUARDS_METADATA, SubmissionsController)).toEqual([AdminGuard]);
   });
 
   beforeEach(() => {
