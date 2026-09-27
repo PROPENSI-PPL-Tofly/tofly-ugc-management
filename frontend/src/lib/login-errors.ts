@@ -9,9 +9,10 @@ const SIGN_IN_FAILED = "Gagal masuk dengan Google. Silakan coba lagi.";
 export const LOGIN_ERROR_MESSAGES: Record<LoginError, string> = {
   sign_in_failed: SIGN_IN_FAILED,
   cancelled: "Masuk dibatalkan. Pilih akun Google Anda untuk melanjutkan.",
-  // The "email not registered, contact your Admin" wording is its own piece of work; until it
-  // lands, a refused email reads as a failed sign-in rather than as nothing at all.
-  not_authorized: SIGN_IN_FAILED,
+  // PRD 3.1: not a failure to retry, since the same account would be refused again. The Google
+  // screen always offers the account chooser, so another account is a real way out.
+  not_authorized:
+    "Email ini belum didaftarkan oleh Admin. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
 };
 
 function isLoginError(value: string): value is LoginError {
