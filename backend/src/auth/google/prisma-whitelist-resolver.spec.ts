@@ -66,6 +66,42 @@ expect(principal).toEqual(expected);
     expect(prisma.users.create).not.toHaveBeenCalled();
     expect(prisma.users.upsert).not.toHaveBeenCalled();
   });
+  it('denies a non-admin user without a creator profile', async () => {
+  const user = {
+    id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    email: 'noncreator@example.com',
+    is_admin: false,
+  };
+
+  const prisma = {
+    users: {
+      findUnique: vi.fn().mockResolvedValue(user),
+      create: vi.fn(),
+      upsert: vi.fn(),
+    },
+    creators: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+  };
+
+  const resolver = new PrismaWhitelistResolver(prisma);
+
+  const principal = await resolver.resolve(user.email);
+
+  expect(principal).toBeNull();
+
+  expect(prisma.creators.findUnique).toHaveBeenCalledExactlyOnceWith({
+    where: {
+      user_id: user.id,
+    },
+    include: {
+      contracts: true,
+    },
+  });
+
+  expect(prisma.users.create).not.toHaveBeenCalled();
+  expect(prisma.users.upsert).not.toHaveBeenCalled();
+});
 
   it('resolves an active whitelisted creator email to the creator principal', async () => {
   // Freeze time so contract validation stays deterministic.
