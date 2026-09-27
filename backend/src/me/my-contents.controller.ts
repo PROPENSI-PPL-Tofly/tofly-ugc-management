@@ -15,6 +15,7 @@ import {
   MyContentsService,
   type MyContentsLister,
 } from './my-contents.service.js';
+import { checkTaskStatus } from './task-status-filter.js';
 
 /** The Task Saya table shows 5 rows per page (PRD 3.16). */
 export const MY_CONTENTS_PAGE_SIZE = 5;
@@ -36,7 +37,8 @@ export class MyContentsController {
 
   /**
    * The creator's Task Saya list by nearest deadline, each row with the actions it allows
-   * today. The pipes turn a non-integer page into a 400 and checkPaging bounds it.
+   * today. The pipes turn a non-integer page into a 400, checkPaging bounds it and
+   * checkTaskStatus accepts only a Task Saya status.
    */
   @Get('contents')
   async list(
@@ -48,10 +50,11 @@ export class MyContentsController {
       ParseIntPipe,
     )
     pageSize: number,
+    @Query('status') status: unknown,
   ): Promise<MyContentsResponse> {
     return this.contents.list(
       creatorId,
-      checkPaging(page, pageSize),
+      { ...checkPaging(page, pageSize), status: checkTaskStatus(status) },
       new Date(),
     );
   }
