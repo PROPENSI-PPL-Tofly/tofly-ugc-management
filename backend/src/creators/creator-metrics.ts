@@ -5,6 +5,8 @@
 // as "Berisiko" stay readable and testable on their own, and the service is left with nothing
 // but loading rows and handing them over.
 
+import { jakartaMidnight } from './evergreen.js';
+
 export type ContractStatus = 'active' | 'expired' | 'upcoming' | 'none';
 
 export type ContentOutcome = 'on_time' | 'submitted_late' | 'late' | 'open';
@@ -66,7 +68,7 @@ export function contractStatus(
 ): ContractStatus {
   if (!contract) return 'none';
 
-  const now = atMidnight(today);
+  const now = jakartaMidnight(today).getTime();
   if (now < atMidnight(contract.startDate)) return 'upcoming';
   if (now > atMidnight(contract.endDate)) return 'expired';
   return 'active';
@@ -124,7 +126,8 @@ export function periodNumber(
 /** Days left before the contract ends; zero on the final day, negative once it has ended. */
 export function daysRemaining(contract: MetricsContract, today: Date): number {
   return Math.round(
-    (atMidnight(contract.endDate) - atMidnight(today)) / MS_PER_DAY,
+    (atMidnight(contract.endDate) - jakartaMidnight(today).getTime()) /
+      MS_PER_DAY,
   );
 }
 
@@ -141,7 +144,7 @@ export function contentOutcome(
   }
 
   // The deadline day itself is still open; it only counts as missed once it is behind us.
-  return deadline < atMidnight(today) ? 'late' : 'open';
+  return deadline < jakartaMidnight(today).getTime() ? 'late' : 'open';
 }
 
 function committed(contents: MetricsContent[]): MetricsContent[] {

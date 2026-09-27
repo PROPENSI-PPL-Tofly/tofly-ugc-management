@@ -1,6 +1,10 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { contract_type, social_platform } from '@prisma/client';
-import { DEADLINE_AFTER_CONTRACT_END, earliestDeadline } from './evergreen.js';
+import {
+  DEADLINE_AFTER_CONTRACT_END,
+  earliestDeadline,
+  jakartaMidnight,
+} from './evergreen.js';
 
 /** Longer than any real name; keeps a hostile body from filling the table. */
 export const MAX_NAME_LENGTH = 100;
@@ -135,12 +139,8 @@ function toDay(value: unknown): Date | null {
     : null;
 }
 
-/** `now` as the UTC calendar day, the same "today" the modal's date check uses. */
-function startOfDay(now: Date): Date {
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  );
-}
+/** Today in Jakarta, the same "today" the admin's browser shows in the modal's date check. */
+const startOfDay = jakartaMidnight;
 
 const DATE_LABELS = {
   contractStart: 'Tanggal mulai',

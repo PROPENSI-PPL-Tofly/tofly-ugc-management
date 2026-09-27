@@ -99,6 +99,11 @@ export function jakartaDay(now: Date): string {
   );
 }
 
+/** Today in Jakarta as midnight UTC, the form Postgres `date` columns arrive in, for day-wise comparisons. */
+export function jakartaMidnight(now: Date): Date {
+  return new Date(`${jakartaDay(now)}T00:00:00Z`);
+}
+
 function deadlineProblem(schedule: Schedule): string | undefined {
   const { contractStart, contractEnd, quota, deadlines } = schedule;
   if (!deadlines.every(isCalendarDay)) {
