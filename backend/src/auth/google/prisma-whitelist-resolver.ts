@@ -80,25 +80,28 @@ export class PrismaWhitelistResolver {
       return null;
     }
 
-    // Access requires at least one contract that has not ended.
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    // Access requires at least one contract that is active today.
+const today = new Date();
+today.setUTCHours(0, 0, 0, 0);
 
-    const hasUnexpiredContract = creator.contracts.some((contract) => {
-      const endDate = new Date(contract.end_date);
-      endDate.setUTCHours(0, 0, 0, 0);
+const hasActiveContract = creator.contracts.some((contract) => {
+  const startDate = new Date(contract.start_date);
+  const endDate = new Date(contract.end_date);
 
-      return today <= endDate;
-    });
+  startDate.setUTCHours(0, 0, 0, 0);
+  endDate.setUTCHours(0, 0, 0, 0);
 
-    if (!hasUnexpiredContract) {
-      return null;
-    }
+  return startDate <= today && today <= endDate;
+});
 
-    return {
-      userId: user.id,
-      email: user.email,
-      role: 'CREATOR',
-    };
+if (!hasActiveContract) {
+  return null;
+}
+
+return {
+  userId: user.id,
+  email: user.email,
+  role: 'CREATOR',
+};
   }
 }
