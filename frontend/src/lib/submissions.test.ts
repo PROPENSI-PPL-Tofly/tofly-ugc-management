@@ -4,6 +4,9 @@ import {
   buildSubmissionQuery,
   type SubmissionQueueResponse,
 } from "./submissions";
+import { cookies } from "next/headers";
+
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
 describe("parseSubmissionPage", () => {
   it("defaults to the first page when nothing is given", () => {
@@ -166,5 +169,18 @@ describe("fetchSubmissionQueue", () => {
     const result = await fetchSubmissionQueue(1);
 
     expect(result).toEqual(expected);
+  });
+
+  it("forwards the browser session cookie to the protected backend request", async () => {
+    vi.mocked(cookies).mockResolvedValue({
+      getAll: () => [{ name: "__Host-tofly_session", value: "opaque-session-id" }],
+    } as Awaited<ReturnType<typeof cookies>>);
+
+    await fetchSubmissionQueue(1);
+
+    const init = vi.mocked(globalThis.fetch).mock.calls[0][1];
+    expect(new Headers(init?.headers).get("cookie")).toBe(
+      "__Host-tofly_session=opaque-session-id",
+    );
   });
 });

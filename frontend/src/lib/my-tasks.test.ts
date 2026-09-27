@@ -7,6 +7,9 @@ import {
   taskStatusLabel,
   type MyTasksResponse,
 } from "./my-tasks";
+import { cookies } from "next/headers";
+
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
 // GET /me/contents as SCRUM-102 answers it: rows already in display order, each with the
 // buttons it allows today, so the table never re-derives the submission rules.
@@ -132,6 +135,21 @@ describe("fetchMyTasks", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
 
     await expect(fetchMyTasks(1)).rejects.toThrow("fetch failed");
+  });
+
+  it("forwards the browser session cookie to the protected backend request", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    vi.mocked(cookies).mockResolvedValue({
+      getAll: () => [{ name: "__Host-tofly_session", value: "opaque-session-id" }],
+    } as Awaited<ReturnType<typeof cookies>>);
+    const fetchSpy = respond(200, response);
+
+    await fetchMyTasks(1);
+
+    const [, init] = fetchSpy.mock.calls[0];
+    expect(new Headers(init?.headers).get("cookie")).toBe(
+      "__Host-tofly_session=opaque-session-id",
+    );
   });
 });
 
