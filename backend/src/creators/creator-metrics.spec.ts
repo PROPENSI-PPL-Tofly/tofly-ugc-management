@@ -56,7 +56,7 @@ describe('contractStatus', () => {
   });
 
   it('ignores the time of day on the reference date', () => {
-    const lateEvening = new Date('2026-09-18T23:59:59Z');
+    const lateEvening = new Date('2026-09-18T16:59:59Z'); // 23:59 WIB
     expect(contractStatus(contract('a', -30, 0), lateEvening)).toBe('active');
   });
 });
@@ -356,5 +356,45 @@ describe('computePerformance', () => {
       avgRevisions: 0,
       productivity: 'good',
     });
+  });
+});
+
+// "Today" is the calendar day in Jakarta, where the admins work. Between 00:00 and 07:00 WIB
+// the UTC date is still yesterday, which must not decide a contract's status or a deadline.
+describe('today in Jakarta', () => {
+  const EARLY_MORNING_WIB = new Date('2026-09-27T21:00:00Z'); // 28 Sep, 04:00 WIB
+  const contract = {
+    startDate: new Date('2026-09-28T00:00:00Z'),
+    endDate: new Date('2026-11-27T00:00:00Z'),
+  };
+
+  it('counts a contract that starts today as active', () => {
+    expect(contractStatus(contract, EARLY_MORNING_WIB)).toBe('active');
+  });
+
+  it('counts a contract that ended yesterday as expired', () => {
+    expect(
+      contractStatus(
+        { ...contract, endDate: new Date('2026-09-27T00:00:00Z') },
+        EARLY_MORNING_WIB,
+      ),
+    ).toBe('expired');
+  });
+
+  it('counts the days left from the Jakarta date', () => {
+    expect(daysRemaining(contract, EARLY_MORNING_WIB)).toBe(60);
+  });
+
+  it("counts yesterday's unmet deadline as late", () => {
+    expect(
+      contentOutcome(
+        {
+          deadline: new Date('2026-09-27T00:00:00Z'),
+          videoSubmittedAt: null,
+          isProposal: false,
+        } as MetricsContent,
+        EARLY_MORNING_WIB,
+      ),
+    ).toBe('late');
   });
 });
