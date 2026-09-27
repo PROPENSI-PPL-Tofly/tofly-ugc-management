@@ -18,12 +18,43 @@ const ABSOLUTE_MS = 12 * 60 * 60 * 1000;
 const CORRUPTED_SESSIONS: Array<
   [string, (row: Record<string, unknown>) => void]
 > = [
-  ['missing hash', (row) => { row.idHash = undefined; }],
-  ['missing user id', (row) => { row.userId = undefined; }],
-  ['admin with creator id', (row) => { row.role = 'admin'; row.creatorId = 'creator-1'; }],
-  ['creator without creator id', (row) => { row.creatorId = null; }],
-  ['invalid idle expiration', (row) => { row.idleExpiresAt = 'later'; }],
-  ['invalid absolute expiration', (row) => { row.absoluteExpiresAt = 'later'; }],
+  [
+    'missing hash',
+    (row) => {
+      row.idHash = undefined;
+    },
+  ],
+  [
+    'missing user id',
+    (row) => {
+      row.userId = undefined;
+    },
+  ],
+  [
+    'admin with creator id',
+    (row) => {
+      row.role = 'admin';
+      row.creatorId = 'creator-1';
+    },
+  ],
+  [
+    'creator without creator id',
+    (row) => {
+      row.creatorId = null;
+    },
+  ],
+  [
+    'invalid idle expiration',
+    (row) => {
+      row.idleExpiresAt = 'later';
+    },
+  ],
+  [
+    'invalid absolute expiration',
+    (row) => {
+      row.absoluteExpiresAt = 'later';
+    },
+  ],
 ];
 
 function repository(): SessionRepository & {
@@ -34,10 +65,16 @@ function repository(): SessionRepository & {
   return {
     records,
     create: vi.fn(async (args: Parameters<SessionRepository['create']>[0]) => {
-      records.set(args.data.idHash, args.data as unknown as Record<string, unknown>);
+      records.set(
+        args.data.idHash,
+        args.data as unknown as Record<string, unknown>,
+      );
       return args.data;
     }),
-    findUnique: vi.fn(async (args: Parameters<SessionRepository['findUnique']>[0]) => records.get(args.where.idHash) ?? null),
+    findUnique: vi.fn(
+      async (args: Parameters<SessionRepository['findUnique']>[0]) =>
+        records.get(args.where.idHash) ?? null,
+    ),
     update: vi.fn(async (args: Parameters<SessionRepository['update']>[0]) => {
       const current = records.get(args.where.idHash);
 
@@ -50,9 +87,11 @@ function repository(): SessionRepository & {
 
       return updated;
     }),
-    deleteMany: vi.fn(async (args: Parameters<SessionRepository['deleteMany']>[0]) => ({
-      count: Number(records.delete(args.where.idHash)),
-    })),
+    deleteMany: vi.fn(
+      async (args: Parameters<SessionRepository['deleteMany']>[0]) => ({
+        count: Number(records.delete(args.where.idHash)),
+      }),
+    ),
   };
 }
 
@@ -168,20 +207,27 @@ describe('AppSessionService', () => {
     await expect(sessions.authenticate(id)).resolves.toEqual(CREATOR);
   });
 
-  it.each([
-    ['a missing session', undefined],
-    ['a malformed session', 'not-a-session-id'],
-    ['an empty session', ''],
-    ['a non-canonical base64url session', 'B'.repeat(43)],
-  ])('rejects %s', async (_label, id) => {
-    await expect(sessions.authenticate(id)).resolves.toBeNull();
+  it('rejects a missing, malformed, empty, or non-canonical session before storage lookup', async () => {
+    const cases: Array<[string, unknown]> = [
+      ['a missing session', undefined],
+      ['a malformed session', 'not-a-session-id'],
+      ['an empty session', ''],
+      ['a non-canonical base64url session', 'B'.repeat(43)],
+    ];
+
+    for (const [_label, id] of cases) {
+      await expect(sessions.authenticate(id)).resolves.toBeNull();
+    }
 
     expect(store.findUnique).not.toHaveBeenCalled();
   });
 
   it('rejects a well-formed ID that has no server-side session', async () => {
     await expect(sessions.authenticate('A'.repeat(43))).resolves.toBeNull();
-    expect(store.findUnique).toHaveBeenCalledWith({ where: { idHash: expect.any(String) } });
+
+    expect(store.findUnique).toHaveBeenCalledWith({
+      where: { idHash: expect.any(String) },
+    });
   });
 
   it('does not trust an invalid persisted principal', async () => {
@@ -192,12 +238,15 @@ describe('AppSessionService', () => {
     await expect(sessions.authenticate(id)).resolves.toBeNull();
   });
 
-  it.each(CORRUPTED_SESSIONS)('rejects a persisted session with %s', async (_label, corrupt) => {
-    const { id } = await sessions.start(response(), CREATOR);
-    corrupt([...store.records.values()][0]);
+  it.each(CORRUPTED_SESSIONS)(
+    'rejects a persisted session with %s',
+    async (_label, corrupt) => {
+      const { id } = await sessions.start(response(), CREATOR);
+      corrupt([...store.records.values()][0]);
 
-    await expect(sessions.authenticate(id)).resolves.toBeNull();
-  });
+      await expect(sessions.authenticate(id)).resolves.toBeNull();
+    },
+  );
 
   it('rejects and deletes an expired idle session', async () => {
     const { id } = await sessions.start(response(), CREATOR);
@@ -292,6 +341,7 @@ describe('AppSessionService', () => {
     const reply = response() as Response & {
       clearCookie: ReturnType<typeof vi.fn>;
     };
+
     reply.clearCookie = vi.fn();
 
     await sessions.logout('malformed', reply);
@@ -299,7 +349,10 @@ describe('AppSessionService', () => {
     expect(store.deleteMany).not.toHaveBeenCalled();
     expect(reply.clearCookie).toHaveBeenCalledWith(
       '__Host-tofly_session',
-      expect.objectContaining({ path: '/', httpOnly: true }),
+      expect.objectContaining({
+        path: '/',
+        httpOnly: true,
+      }),
     );
   });
 
@@ -312,6 +365,10 @@ describe('AppSessionService', () => {
     await expect(realClock.start(response(), CREATOR)).resolves.toMatchObject({
       id: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
     });
+  });
+
+  it('returns the configured session cookie name', () => {
+    expect(sessions.cookieName()).toBe('__Host-tofly_session');
   });
 
   it('fails closed when session storage is unavailable', async () => {

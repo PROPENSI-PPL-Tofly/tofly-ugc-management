@@ -9,6 +9,7 @@ import {
   DEV_CREATOR_HEADER,
   DevCreatorGuard,
 } from '../auth/dev-creator.guard.js';
+import { AppSessionService } from '../auth/session/session.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VideoSubmissionController } from './video-submission.controller.js';
 import { VideoSubmissionService } from './video-submission.service.js';
@@ -16,6 +17,7 @@ import { VideoSubmissionService } from './video-submission.service.js';
 const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
 const CREATOR_ID = '0b5e2c9a-6f3d-4e1b-8a7c-9d2f4e6a8b1c';
 const LINK = 'https://www.instagram.com/reel/C8abc/';
+const FRONTEND_ORIGIN = 'http://localhost:3000';
 
 describe('VideoSubmissionController', () => {
   const videos = {
@@ -28,6 +30,11 @@ describe('VideoSubmissionController', () => {
     },
   };
 
+  const sessions = {
+    cookieName: vi.fn(() => '__Host-tofly_session'),
+    authenticate: vi.fn().mockResolvedValue(undefined),
+  };
+
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -37,6 +44,7 @@ describe('VideoSubmissionController', () => {
         { provide: VideoSubmissionService, useValue: videos },
         DevCreatorGuard,
         { provide: PrismaService, useValue: prisma },
+        { provide: AppSessionService, useValue: sessions },
       ],
     }).compile();
 
@@ -50,6 +58,7 @@ describe('VideoSubmissionController', () => {
 
   beforeEach(() => {
     videos.submit.mockReset();
+    sessions.authenticate.mockResolvedValue(undefined);
     prisma.creators.findUnique.mockResolvedValue({ id: CREATOR_ID });
     vi.stubEnv('DEV_AUTH_ENABLED', 'true');
     vi.stubEnv('DEV_CREATOR_ID', CREATOR_ID);
@@ -146,7 +155,7 @@ describe('VideoSubmissionController', () => {
     expect(videos.submit).not.toHaveBeenCalled();
   });
 
-  it('answers 422 for an invalid video link before reaching the service', async () => {
+  it('answers 422 for an invalid video link', async () => {
     const response = await submit({
       link: 'javascript:alert(1)',
     });
@@ -204,10 +213,19 @@ describe('VideoSubmissionController', () => {
 
   it('rejects production use of the development identity header', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('FRONTEND_URL', FRONTEND_ORIGIN);
 
-    const response = await submit({ link: LINK });
+    const response = await submit({ link: LINK }).set(
+      'Origin',
+      FRONTEND_ORIGIN,
+    );
 
     expect(response.status).toBe(401);
+    expect(response.body).toEqual({
+      code: 'UNAUTHENTICATED',
+      message: 'Silakan masuk terlebih dahulu',
+    });
     expect(videos.submit).not.toHaveBeenCalled();
+    expect(sessions.authenticate).toHaveBeenCalled();
   });
 });
