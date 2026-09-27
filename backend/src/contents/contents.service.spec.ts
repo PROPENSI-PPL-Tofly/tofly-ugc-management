@@ -518,9 +518,8 @@ describe('atomic Evergreen allocation', () => {
     };
 
     const client = {
-      $transaction: async <T>(
-        work: (tx: ContentsTransaction) => Promise<T>,
-      ) => work(transaction),
+      $transaction: async <T>(work: (tx: ContentsTransaction) => Promise<T>) =>
+        work(transaction),
     };
 
     vi.spyOn(client, '$transaction');
@@ -582,12 +581,9 @@ describe('atomic Evergreen allocation', () => {
       transaction.contracts.findUnique.mock.invocationCallOrder[0],
     ).toBeLessThan(transaction.contents.create.mock.invocationCallOrder[0]);
 
-    expect(client.$transaction).toHaveBeenCalledWith(
-      expect.any(Function),
-      {
-        isolationLevel: 'ReadCommitted',
-      },
-    );
+    expect(client.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'ReadCommitted',
+    });
   });
 
   it('returns both quota and deadline errors from SCRUM-103 before inserting', async () => {

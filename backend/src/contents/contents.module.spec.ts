@@ -2,6 +2,8 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { ContentsController } from './contents.controller.js';
 import { ContentsModule } from './contents.module.js';
 import { ContentCreationService } from './contents.service.js';
+import { DraftSubmissionController } from './draft-submission.controller.js';
+import { DraftSubmissionService } from './draft-submission.service.js';
 
 describe('ContentsModule', () => {
   it('registers the contents controller and creation service', () => {
@@ -17,5 +19,20 @@ describe('ContentsModule', () => {
 
     expect(controllers).toContain(ContentsController);
     expect(providers).toContain(ContentCreationService);
+  });
+
+  it('registers the draft hand-in controller and service', () => {
+    const controllers = Reflect.getMetadata(
+      MODULE_METADATA.CONTROLLERS,
+      ContentsModule,
+    ) as unknown[];
+
+    const providers = Reflect.getMetadata(
+      MODULE_METADATA.PROVIDERS,
+      ContentsModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(DraftSubmissionController);
+    expect(providers).toContain(DraftSubmissionService);
   });
 });
