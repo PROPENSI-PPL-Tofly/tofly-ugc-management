@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
-import { MOCK_CREATOR_HEADER } from '../src/contents/creator-identity.mock.js';
+import { DEV_CREATOR_HEADER } from '../src/auth/dev-creator.guard.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else, and the
@@ -84,7 +84,7 @@ describe('POST /contents/:id/draft (e2e)', () => {
     const call = request(app.getHttpServer()).post(
       `/contents/${contentId}/draft`,
     );
-    return (as ? call.set(MOCK_CREATOR_HEADER, as) : call).send(body);
+    return (as ? call.set(DEV_CREATOR_HEADER, as) : call).send(body);
   }
 
   async function stateOf(contentId: string) {

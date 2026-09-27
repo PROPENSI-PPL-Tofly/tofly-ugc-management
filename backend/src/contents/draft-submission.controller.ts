@@ -7,10 +7,8 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import {
-  MockCreatorGuard,
-  MockCurrentCreator,
-} from './creator-identity.mock.js';
+import { CurrentCreator } from '../auth/current-creator.decorator.js';
+import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { checkDraftSubmission } from './draft-submission.js';
 import {
   DraftSubmissionService,
@@ -31,10 +29,10 @@ export class DraftSubmissionController {
    * the service 404 (not the caller's content) or 409 (no draft expected now).
    */
   @Post(':id/draft')
-  @UseGuards(MockCreatorGuard)
+  @UseGuards(DevCreatorGuard)
   async submit(
     @Param('id', new ParseUUIDPipe()) contentId: string,
-    @MockCurrentCreator() creatorId: string,
+    @CurrentCreator() creatorId: string,
     @Body() body: unknown,
   ): Promise<SubmittedDraft> {
     return this.drafts.submit(contentId, creatorId, checkDraftSubmission(body));
