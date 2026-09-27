@@ -99,6 +99,18 @@ export function jakartaDay(now: Date): string {
   );
 }
 
+const READABLE_DAY = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+/** A YYYY-MM-DD day as admins read it in a message, e.g. "3 Okt 2026". */
+export function readableDay(day: string): string {
+  return READABLE_DAY.format(new Date(`${day}T00:00:00Z`));
+}
+
 /** Today in Jakarta as midnight UTC, the form Postgres `date` columns arrive in, for day-wise comparisons. */
 export function jakartaMidnight(now: Date): Date {
   return new Date(`${jakartaDay(now)}T00:00:00Z`);

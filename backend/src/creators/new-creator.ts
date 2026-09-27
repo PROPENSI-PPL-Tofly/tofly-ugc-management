@@ -4,6 +4,7 @@ import {
   DEADLINE_AFTER_CONTRACT_END,
   earliestDeadline,
   jakartaMidnight,
+  readableDay,
 } from './evergreen.js';
 
 /** Longer than any real name; keeps a hostile body from filling the table. */
@@ -306,7 +307,7 @@ function checkDeadlines(
   if (deadlines.length !== quota) {
     errors.deadlines = `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
   } else if (isoDay(deadlines[0]) < earliest) {
-    errors.deadlines = `Deadline paling cepat ${earliest}`;
+    errors.deadlines = `Deadline paling cepat ${readableDay(earliest)}`;
   } else if (deadlines[deadlines.length - 1] > contractEnd) {
     errors.deadlines = DEADLINE_AFTER_CONTRACT_END;
   }

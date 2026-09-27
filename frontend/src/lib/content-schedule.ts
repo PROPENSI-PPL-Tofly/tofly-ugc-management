@@ -3,6 +3,7 @@
 // testable without rendering anything, same pattern as creator-form.ts.
 
 import { getBufferWindow } from "./deadline-schedule";
+import { formatDate } from "./format";
 
 export type ContentType = "evergreen" | "specific";
 
@@ -51,7 +52,7 @@ export function validateEvergreenSlot(input: EvergreenSlotInput): EvergreenSlotE
   const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`);
 
   if (deadline < firstAllowedDate) {
-    errors.deadline = `Deadline paling cepat ${firstAllowedDate.toISOString().slice(0, 10)}`;
+    errors.deadline = `Deadline paling cepat ${formatDate(firstAllowedDate.toISOString().slice(0, 10))}`;
   } else if (deadline > contractEnd) {
     errors.deadline = "Deadline tidak boleh setelah akhir kontrak";
   }
