@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';
 import { applySecurityHeaders } from './security-headers.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   applySecurityHeaders(app);
+  // Populates request.cookies: the Google sign-in flow cookie and the session cookie.
+  app.use(cookieParser());
   // Only enable CORS when a frontend origin is named. In production the browser
   // talks solely to the frontend's own origin, which proxies /api/* to us, so
   // nothing calls this API cross-origin and a permissive default would be
