@@ -13,16 +13,14 @@ export class TokenExchangeError extends Error {
   override readonly name = 'TokenExchangeError';
 }
 
-/** Swaps an authorization code for the ID token SCRUM-80's verifier checks. */
+/** Swaps an authorization code for the ID token the verifier then checks. */
 export interface CodeExchanger {
   exchange(code: string, verifier: string): Promise<string>;
 }
 
 function idTokenOf(body: unknown): string {
-  const idToken =
-    typeof body === 'object' && body !== null
-      ? (body as { id_token?: unknown }).id_token
-      : undefined;
+  // Reading a property off any other JSON value (number, string, array) gives undefined.
+  const idToken = (body as { id_token?: unknown } | null)?.id_token;
   if (typeof idToken !== 'string' || idToken === '') {
     throw new TokenExchangeError('token endpoint sent no ID token');
   }
