@@ -1,3 +1,4 @@
+import type { Principal, WhitelistResolver } from './ports.js';
 type WhitelistUserRecord = {
   id: string;
   email: string;
@@ -35,12 +36,10 @@ type WhitelistPrismaClient = {
   };
 };
 
-
-
-export class PrismaWhitelistResolver {
+export class PrismaWhitelistResolver implements WhitelistResolver {
   constructor(private readonly prisma: WhitelistPrismaClient) {}
 
-  async resolve(email: string) {
+  async resolve(email: string): Promise<Principal | null> {
     const user = await this.prisma.users.findUnique({
       where: { email },
     });
@@ -51,9 +50,9 @@ export class PrismaWhitelistResolver {
 
     if (user.is_admin) {
   return {
-    userId: user.id,
-    role: 'admin' as const,
-  };
+  userId: user.id,
+  role: 'admin',
+};
 }
 
     // Non-admin users must have a creator profile before receiving creator access.
@@ -95,7 +94,7 @@ if (!hasActiveContract) {
 
 return {
   userId: user.id,
-  role: 'creator' as const,
+  role: 'creator',
   creatorId: creator.id,
 };
   }
