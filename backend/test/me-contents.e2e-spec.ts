@@ -79,6 +79,11 @@ describe('GET /me/contents (e2e)', () => {
         deadline: day(offset),
         status,
         is_proposal: isProposal,
+        // A submitted link always carries its link and day, as POST /contents/:id/video sets them.
+        ...(status === 'link_submitted' && {
+          video_link: 'https://www.instagram.com/reel/e2e/',
+          video_submitted_at: day(offset - 1),
+        }),
       },
     });
   }
@@ -106,7 +111,15 @@ describe('GET /me/contents (e2e)', () => {
     raka = b.creatorId;
 
     await content(a.contractId, 'Submitted long ago', 'link_submitted', -20);
-    await content(a.contractId, 'Revision', 'draft_revision', 12);
+    const revision = await content(a.contractId, 'Revision', 'draft_revision', 12);
+    await prisma.submissions.create({
+      data: {
+        content_id: revision.id,
+        creator_id: dina,
+        link: 'https://drive.google.com/e2e',
+        revision_notes: 'Perjelas intro',
+      },
+    });
     await content(a.contractId, 'Approved', 'draft_approved', 30);
     await content(a.contractId, 'Tomorrow', 'scheduled', 1);
     await content(a.contractId, 'In review', 'draft_review', 20);
@@ -125,7 +138,7 @@ describe('GET /me/contents (e2e)', () => {
     vi.unstubAllEnvs();
   });
 
-  it('lists the first 5 tasks by nearest deadline, each with its actions', async () => {
+  it('lists the first 5 open tasks by nearest deadline, each with its actions', async () => {
     const response = await list(dina);
 
     expect(response.status).toBe(200);
@@ -144,21 +157,26 @@ describe('GET /me/contents (e2e)', () => {
         ],
       ),
     ).toEqual([
-      ['Submitted long ago', iso(-20), []],
       ['Overdue', iso(-2), ['submit_draft', 'submit_video']],
       ['Tomorrow', iso(1), ['submit_draft', 'submit_video']],
       ['Revision', iso(12), ['resubmit_draft']],
       ['In review', iso(20), []],
+      ['Approved', iso(30), ['submit_video']],
     ]);
+    expect(
+      response.body.items.map(
+        (item: { revisionNotes: string | null }) => item.revisionNotes,
+      ),
+    ).toEqual([null, null, 'Perjelas intro', null, null]);
   });
 
-  it('continues by deadline on the last page', async () => {
+  it('puts finished tasks after every open one', async () => {
     const response = await list(dina, '?page=2');
 
     expect(response.status).toBe(200);
     expect(
       response.body.items.map((item: { name: string }) => item.name),
-    ).toEqual(['Approved', 'Far away']);
+    ).toEqual(['Far away', 'Submitted long ago']);
   });
 
   it('returns only the fields a row needs', async () => {
@@ -170,6 +188,7 @@ describe('GET /me/contents (e2e)', () => {
       'deadline',
       'id',
       'name',
+      'revisionNotes',
       'status',
       'type',
     ]);

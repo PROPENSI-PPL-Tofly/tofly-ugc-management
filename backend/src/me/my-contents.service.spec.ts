@@ -12,7 +12,10 @@ const PAGE = { page: 1, pageSize: 5 };
 let seq = 0;
 
 function row(
-  overrides: Partial<Omit<MyContentRow, 'deadline'>> & { deadline?: string },
+  overrides: Partial<Omit<MyContentRow, 'deadline' | 'submissions'>> & {
+    deadline?: string;
+    revisionNotes?: string | null;
+  },
 ): MyContentRow {
   seq += 1;
   return {
@@ -22,6 +25,10 @@ function row(
     brief: overrides.brief ?? 'Review produk',
     deadline: new Date(`${overrides.deadline ?? '2026-10-30'}T00:00:00.000Z`),
     status: overrides.status ?? 'scheduled',
+    submissions:
+      overrides.revisionNotes === undefined
+        ? []
+        : [{ revision_notes: overrides.revisionNotes }],
   };
 }
 
@@ -40,7 +47,7 @@ describe('MyContentsService.list', () => {
     seq = 0;
   });
 
-  it("reads one page of the creator's own committed contents, nearest deadline first, and only the columns a row shows", async () => {
+  it("reads one page of the creator's own committed contents, open work by nearest deadline before finished work, and only the columns a row shows", async () => {
     const { client, service } = stub([]);
 
     await service.list(CREATOR_ID, PAGE, NOW);
@@ -54,8 +61,18 @@ describe('MyContentsService.list', () => {
         brief: true,
         deadline: true,
         status: true,
+        submissions: {
+          select: { revision_notes: true },
+          orderBy: { created_at: 'desc' },
+          take: 1,
+        },
       },
-      orderBy: [{ deadline: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      orderBy: [
+        { video_submitted_at: { sort: 'desc', nulls: 'first' } },
+        { deadline: 'asc' },
+        { name: 'asc' },
+        { id: 'asc' },
+      ],
       skip: 0,
       take: 5,
     });
@@ -88,8 +105,41 @@ describe('MyContentsService.list', () => {
         deadline: '2026-10-11',
         status: 'scheduled',
         actions: ['submit_draft', 'submit_video'],
+        revisionNotes: null,
       },
     ]);
+  });
+
+  it("carries the admin's latest revision notes on a row waiting for a resubmit", async () => {
+    const { service } = stub([
+      row({ id: 'c1', status: 'draft_revision', revisionNotes: 'Perjelas intro' }),
+    ]);
+
+    const [item] = (await service.list(CREATOR_ID, PAGE, NOW)).items;
+
+    expect(item.revisionNotes).toBe('Perjelas intro');
+  });
+
+  it('leaves out revision notes once the revision has been handed in or approved', async () => {
+    const { service } = stub([
+      row({ id: 'c1', status: 'draft_revised', revisionNotes: 'Perjelas intro' }),
+      row({ id: 'c2', status: 'draft_approved', revisionNotes: 'Perjelas intro' }),
+    ]);
+
+    const { items } = await service.list(CREATOR_ID, PAGE, NOW);
+
+    expect(items.map((item) => item.revisionNotes)).toEqual([null, null]);
+  });
+
+  it('answers null revision notes when the revision request left none', async () => {
+    const { service } = stub([
+      row({ id: 'c1', status: 'draft_revision', revisionNotes: null }),
+      row({ id: 'c2', status: 'draft_revision' }),
+    ]);
+
+    const { items } = await service.list(CREATOR_ID, PAGE, NOW);
+
+    expect(items.map((item) => item.revisionNotes)).toEqual([null, null]);
   });
 
   it('keeps the order the query returns, submitted links included', async () => {
