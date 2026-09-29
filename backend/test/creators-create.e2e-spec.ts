@@ -1,11 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
-import { App } from 'supertest/types';
+import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signInAsAdmin } from './sessions.js';
-import { jakartaMidnight } from '../src/creators/evergreen.js';
+import { jakartaMidnight, readableDay } from '../src/creators/evergreen.js';
 
 // Every email created here starts with this marker so the cleanup never touches anything
 // else in the database, seeded or not.
@@ -160,6 +160,47 @@ describe('POST /creators (e2e)', () => {
         quota: 'Jumlah konten harus lebih dari 0',
       },
     });
+    await expect(prisma.users.count({ where: { email } })).resolves.toBe(0);
+  });
+
+  // A contract that ends inside the buffer has no day any content could be due on.
+  it('refuses a contract that ends inside the 5-day buffer, saving nothing', async () => {
+    const email = `${MARKER}-short@example.com`;
+
+    const { body: rejected } = await admin
+      .post('/creators')
+      .send(body(email, { contractEnd: iso(3), quota: 1, deadlines: [iso(3)] }))
+      .expect(422);
+
+    expect(rejected.errors).toMatchObject({
+      contractEnd: `Akhir kontrak paling cepat ${readableDay(iso(6))} (masa buffer 5 hari)`,
+    });
+    await expect(prisma.users.count({ where: { email } })).resolves.toBe(0);
+  });
+
+  it('accepts a contract that ends exactly when the buffer does', async () => {
+    const email = `${MARKER}-edge@example.com`;
+
+    await admin
+      .post('/creators')
+      .send(body(email, { contractEnd: iso(6), quota: 1, deadlines: [iso(6)] }))
+      .expect(201);
+  });
+
+  it('accepts 100 contents and refuses 101', async () => {
+    const hundred = Array.from({ length: 100 }, () => iso(6));
+    await admin
+      .post('/creators')
+      .send(body(`${MARKER}-hundred@example.com`, { quota: 100, deadlines: hundred }))
+      .expect(201);
+
+    const email = `${MARKER}-too-many@example.com`;
+    const { body: rejected } = await admin
+      .post('/creators')
+      .send(body(email, { quota: 101, deadlines: [...hundred, iso(6)] }))
+      .expect(422);
+
+    expect(rejected.errors).toEqual({ quota: 'Jumlah konten maksimal 100' });
     await expect(prisma.users.count({ where: { email } })).resolves.toBe(0);
   });
 

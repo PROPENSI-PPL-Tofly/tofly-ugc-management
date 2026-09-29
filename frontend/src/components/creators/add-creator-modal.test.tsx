@@ -142,7 +142,7 @@ describe("AddCreatorModal", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
     const fixedRateInput = screen.getByLabelText(/fixed rate/i);
-    expect(fixedRateInput).toHaveValue(null);
+    expect(fixedRateInput).toHaveValue("");
     expect(fixedRateInput).toHaveAttribute("placeholder", "mis. 500000");
   });
 
@@ -150,7 +150,7 @@ describe("AddCreatorModal", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
     const quotaInput = screen.getByLabelText(/jumlah konten/i);
-    expect(quotaInput).toHaveValue(null);
+    expect(quotaInput).toHaveValue("");
     expect(quotaInput).toHaveAttribute("placeholder", "mis. 6");
   });
 
@@ -161,17 +161,125 @@ describe("AddCreatorModal", () => {
     expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
   });
 
-  it("closes without submitting when Batal is clicked", () => {
+  it("closes straight away on Batal when nothing has been typed", () => {
     const onClose = vi.fn();
-    const onSubmit = vi.fn();
+    render(<AddCreatorModal onClose={onClose} onSubmit={() => {}} />);
 
-    render(<AddCreatorModal onClose={onClose} onSubmit={onSubmit} />);
-
-    fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
     fireEvent.click(screen.getByRole("button", { name: /batal/i }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  describe("leaving a half-filled form", () => {
+    function renderTyped() {
+      const onClose = vi.fn();
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={onClose} onSubmit={onSubmit} />);
+      fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
+      return { onClose, onSubmit };
+    }
+
+    it("asks before throwing away what was typed on Batal", () => {
+      const { onClose, onSubmit } = renderTyped();
+
+      fireEvent.click(screen.getByRole("button", { name: /batal/i }));
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("alertdialog", { name: "Batalkan penambahan creator?" }),
+      ).toHaveTextContent("Data yang sudah diisi akan hilang.");
+
+      fireEvent.click(screen.getByRole("button", { name: "Buang" }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["Escape", () => fireEvent.keyDown(document, { key: "Escape" })],
+      ["a press outside the dialog", () => fireEvent.mouseDown(screen.getAllByTestId("modal-backdrop")[0])],
+      ["the close button", () => fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }))],
+    ])("asks on %s too", (_label, leave) => {
+      const { onClose } = renderTyped();
+
+      leave();
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+
+    it("goes back to the form with everything still filled in on Lanjut mengisi", () => {
+      const { onClose } = renderTyped();
+
+      fireEvent.click(screen.getByRole("button", { name: /batal/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Lanjut mengisi" }));
+
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByLabelText(/nama creator/i)).toHaveValue("Bagas");
+    });
+
+    it("closes only the question on Escape, keeping the form open", () => {
+      const { onClose } = renderTyped();
+
+      fireEvent.click(screen.getByRole("button", { name: /batal/i }));
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(screen.getByRole("dialog", { name: "Tambah Creator" })).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("field limits", () => {
+    it("stops the name at 100 characters and says so once it is full", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const name = screen.getByLabelText(/nama creator/i);
+
+      expect(name).toHaveAttribute("maxLength", "100");
+      fireEvent.change(name, { target: { value: "a".repeat(99) } });
+      expect(screen.queryByText("Maksimal 100 karakter")).toBeNull();
+
+      fireEvent.change(name, { target: { value: "a".repeat(100) } });
+      expect(screen.getByRole("alert")).toHaveTextContent("Maksimal 100 karakter");
+    });
+
+    it("limits the username and the email to what the API stores", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      expect(screen.getByLabelText(/username/i)).toHaveAttribute("maxLength", "100");
+      expect(screen.getByLabelText(/^email/i)).toHaveAttribute("maxLength", "254");
+    });
+
+    // UAT: a number field changed its value when the modal was scrolled with the wheel over it.
+    it("uses plain numeric text fields, so scrolling over them never changes a value", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      for (const label of [/jumlah konten/i, /jarak antar-deadline/i, /fixed rate/i]) {
+        const input = screen.getByLabelText(label);
+        expect(input).toHaveAttribute("type", "text");
+        expect(input).toHaveAttribute("inputMode", "numeric");
+      }
+    });
+
+    it("keeps only digits in a numeric field", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const quota = screen.getByLabelText(/jumlah konten/i);
+
+      fireEvent.change(quota, { target: { value: "1a2-" } });
+
+      expect(quota).toHaveValue("12");
+    });
+
+    it("refuses more than 100 contents", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const quota = screen.getByLabelText(/jumlah konten/i);
+
+      fireEvent.change(quota, { target: { value: "101" } });
+      fireEvent.blur(quota);
+
+      expect(screen.getByText("Jumlah konten maksimal 100")).toBeInTheDocument();
+    });
   });
 
   describe("Simpan disabled state", () => {
@@ -361,12 +469,44 @@ describe("AddCreatorModal", () => {
 
       expect(start).toHaveAttribute("min", "2026-09-24");
       expect(start).not.toHaveAttribute("max");
-      expect(end).toHaveAttribute("min", "2026-09-24");
+      // Before a start is chosen, the end still has to leave room for the buffer after today.
+      expect(end).toHaveAttribute("min", "2026-09-29");
 
       fillContract("2026-10-01", "2026-12-31", "3");
 
       expect(start).toHaveAttribute("max", "2026-12-31");
-      expect(end).toHaveAttribute("min", "2026-10-01");
+      expect(end).toHaveAttribute("min", "2026-10-06");
+    });
+
+    // UAT: the calendar stayed on screen while the dates were still wrong.
+    it("hides the calendar while the dates are wrong and says what to fix", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-10-01", "2026-10-03", "3");
+
+      expect(screen.queryByRole("table")).toBeNull();
+      expect(screen.queryByText(/teralokasi/i)).toBeNull();
+      expect(
+        screen.getByText("Lengkapi tanggal kontrak yang valid untuk melihat jadwal deadline."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Akhir kontrak paling cepat 6 Okt 2026 (masa buffer 5 hari)"),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the calendar while the start is in the past", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-09-01", "2026-12-31", "3");
+
+      expect(screen.queryByRole("table")).toBeNull();
+      expect(screen.getByText("Tanggal mulai tidak boleh sebelum hari ini")).toBeInTheDocument();
+    });
+
+    it("shows the calendar for a contract that ends exactly when the buffer does", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-10-01", "2026-10-06", "1");
+
+      expect(screen.getByTestId("deadline-2026-10-06")).toBeInTheDocument();
+      expect(screen.getByText(/1 \/ 1 teralokasi/i)).toBeInTheDocument();
     });
 
     it("shows no deadline preview until the contract is complete", () => {
@@ -533,7 +673,7 @@ describe("AddCreatorModal", () => {
       "Platform wajib dipilih",
       "Username wajib diisi",
       "Jenis kontrak wajib dipilih",
-      "Tanggal mulai tidak boleh sebelum hari ini",
+      "Tanggal mulai wajib diisi",
       "Jarak antar-deadline minimal 1 hari",
       "Fixed rate harus lebih dari 0",
       "Jumlah konten harus lebih dari 0",
