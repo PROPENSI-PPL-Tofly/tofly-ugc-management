@@ -179,6 +179,32 @@ describe('GET /me/contents (e2e)', () => {
     ).toEqual(['Far away', 'Submitted long ago']);
   });
 
+  // Finished in the opposite order to their deadlines: the list still follows the deadline.
+  it('orders finished tasks by deadline, not by when their link was sent', async () => {
+    const sari = await creator('sari');
+    const finished = (name: string, deadline: number, sent: number) =>
+      prisma.contents.create({
+        data: {
+          contract_id: sari.contractId,
+          name,
+          type: 'evergreen',
+          deadline: day(deadline),
+          status: 'link_submitted',
+          video_link: 'https://www.instagram.com/reel/e2e/',
+          video_submitted_at: day(sent),
+        },
+      });
+    await finished('Sent recently', -10, -2);
+    await finished('Sent long ago', -30, -25);
+    await content(sari.contractId, 'Still open', 'scheduled', 7);
+
+    const response = await list(sari.creatorId);
+
+    expect(
+      response.body.items.map((item: { name: string }) => item.name),
+    ).toEqual(['Still open', 'Sent long ago', 'Sent recently']);
+  });
+
   it('filters by status and counts only the matching tasks', async () => {
     const response = await list(dina, '?status=draft_revision');
 
