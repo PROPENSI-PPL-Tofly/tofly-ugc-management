@@ -75,10 +75,13 @@ describe('application session cookie (e2e)', () => {
     expect(response.headers['set-cookie'][0]).toContain('SameSite=Lax');
   });
 
-  it.each([undefined, `${cookieName}=malformed`])(
-    'rejects a missing or malformed session cookie (%s)',
-    async (cookie) => {
-      const response = await taskList(cookie);
+  it.each([
+    ['missing', () => undefined],
+    ['malformed', () => `${cookieName}=malformed`],
+  ])(
+    'rejects a %s session cookie',
+    async (_case, cookie) => {
+      const response = await taskList(cookie());
       expect(response.status).toBe(401);
       expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED' });
     },

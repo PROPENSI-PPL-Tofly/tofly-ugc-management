@@ -318,11 +318,7 @@ describe('AppSessionService', () => {
 
   it('clears the browser cookie on logout', async () => {
     const { id } = await sessions.start(response(), CREATOR);
-    const reply = response() as Response & {
-      clearCookie: ReturnType<typeof vi.fn>;
-    };
-
-    reply.clearCookie = vi.fn();
+    const reply = response();
 
     await sessions.logout(id, reply);
 
@@ -338,11 +334,7 @@ describe('AppSessionService', () => {
   });
 
   it('clears the cookie without querying storage for a malformed ID', async () => {
-    const reply = response() as Response & {
-      clearCookie: ReturnType<typeof vi.fn>;
-    };
-
-    reply.clearCookie = vi.fn();
+    const reply = response();
 
     await sessions.logout('malformed', reply);
 
