@@ -6,6 +6,7 @@
 // (contentName, creatorName, deadline, type). Those stay optional here so a response without
 // them still renders, with a dash in place of each missing value.
 
+import { apiFetch } from "./api-client";
 import type { ContentType } from "./contents";
 import type { ContentStatus } from "./creators";
 
@@ -85,7 +86,7 @@ export function toDraftPreview(raw: RawDraftPreview, submissionId: string): Draf
  * /submissions/ into another endpoint (OWASP A01).
  */
 export async function fetchDraftPreview(submissionId: string): Promise<DraftPreview> {
-  const response = await fetch(`/api/submissions/${encodeURIComponent(submissionId)}`, {
+  const response = await apiFetch(`/api/submissions/${encodeURIComponent(submissionId)}`, {
     cache: "no-store",
   });
 

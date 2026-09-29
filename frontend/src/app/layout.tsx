@@ -11,7 +11,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Tofly",
+  title: "Tofly Creator Management System",
   description: "Manajemen konten UGC Tofly",
 };
 

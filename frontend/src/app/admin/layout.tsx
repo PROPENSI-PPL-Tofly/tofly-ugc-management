@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { AccessDenied } from "@/components/shell/access-denied";
 import { currentRole } from "@/lib/session.server";
 
@@ -6,12 +5,21 @@ import { currentRole } from "@/lib/session.server";
 export const dynamic = "force-dynamic";
 
 /**
- * The admin area: signed out goes to /login, a creator is told the page is not theirs. The
+ * The admin area: signed out is asked to sign in first, a creator is told the page is not theirs. The
  * backend guards every admin endpoint as well; this decides what the browser is shown.
  */
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const role = await currentRole();
-  if (role === null) redirect("/login");
+  if (role === null) {
+    return (
+      <AccessDenied
+        title="Perlu masuk"
+        reason="Masuk dulu untuk membuka halaman ini."
+        home="/login"
+        homeLabel="Masuk"
+      />
+    );
+  }
   if (role !== "admin") {
     return (
       <AccessDenied

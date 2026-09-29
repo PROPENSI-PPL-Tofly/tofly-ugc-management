@@ -1,3 +1,4 @@
+import { apiFetch } from "./api-client";
 import { safeHref } from "./safe-href";
 
 export interface VideoSubmissionInput {
@@ -62,7 +63,7 @@ export async function submitVideo(
   input: VideoSubmissionInput,
 ): Promise<VideoSubmissionResult> {
   // Keep HTTP communication separate from the UI component.
-  const response = await fetch(
+  const response = await apiFetch(
     `/api/contents/${encodeURIComponent(contentId)}/video`,
     {
       method: "POST",

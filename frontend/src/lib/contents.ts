@@ -1,3 +1,4 @@
+import { apiFetch } from "./api-client";
 export type ContentType = "evergreen" | "specific";
 
 export interface CreateContentRequest {
@@ -65,7 +66,7 @@ export async function createContent(
     request: CreateContentRequest,
 ): Promise<CreateContentResult> {
     try {
-        const response = await fetch("/api/contents", {
+        const response = await apiFetch("/api/contents", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(request),
