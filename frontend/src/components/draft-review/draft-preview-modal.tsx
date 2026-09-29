@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
-import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
+import {
+  CONTENT_STATUS_LABELS,
+  CONTENT_STATUS_TONES,
+  CONTENT_TYPE_LABELS,
+} from "@/lib/content-labels";
 import {
   DraftPreviewError,
   fetchDraftPreview,
@@ -101,7 +105,9 @@ function PreviewBody({ preview }: Readonly<{ preview: DraftPreview }>) {
         </DetailField>
 
         <DetailField label="Status saat ini">
-          <StatusDot>{CONTENT_STATUS_LABELS[preview.status]}</StatusDot>
+          <StatusDot tone={CONTENT_STATUS_TONES[preview.status]}>
+            {CONTENT_STATUS_LABELS[preview.status]}
+          </StatusDot>
         </DetailField>
       </div>
 

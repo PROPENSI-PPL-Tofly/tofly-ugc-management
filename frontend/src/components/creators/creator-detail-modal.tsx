@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
-import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
+import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import { fetchCreatorDetail, type ContentOutcome, type CreatorDetail } from "@/lib/creators";
 import {
   formatContractWindow,
@@ -183,7 +183,7 @@ export function CreatorDetailModal({
                 {detail.contractHistory.map((period) => (
                   <li
                     key={period.id}
-                    className="flex flex-wrap justify-between gap-2 border-b border-dashed border-rule-2 py-1.5 text-xs last:border-none"
+                    className="flex flex-wrap justify-between gap-2 border-b border-rule-2 py-1.5 text-xs last:border-none"
                   >
                     <span>
                       Periode {period.periodNumber} ({CONTRACT_TYPE_LABELS[period.type]}):{" "}
@@ -205,28 +205,50 @@ export function CreatorDetailModal({
             {detail.contents.length === 0 ? (
               <p className="text-xs text-muted">Belum ada konten pada periode ini.</p>
             ) : (
-              <ul className="flex flex-col gap-1">
-                {visibleContents.map((content) => (
-                  <li
-                    key={content.id}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-rule-2 py-1.5 text-xs last:border-none"
-                  >
-                    <span>{content.name}</span>
-
-                    <span className="flex items-center gap-2 text-muted">
-                      {formatDate(content.deadline)}
-
-                      {content.outcome === "open" ? (
-                        <StatusDot>{CONTENT_STATUS_LABELS[content.status]}</StatusDot>
-                      ) : (
-                        <Pill tone={OUTCOME_TONES[content.outcome]}>
-                          {OUTCOME_LABELS[content.outcome]}
-                        </Pill>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              // Columns so deadline and status line up row to row; long Evg_ names are cut
+              // with the full name on hover. Scrolls on its own below the table's width.
+              <div className="overflow-x-auto">
+                <table aria-label="Riwayat konten" className="w-full min-w-[420px] table-fixed text-xs">
+                  <thead>
+                    <tr className="border-b border-rule text-left text-muted">
+                      <th scope="col" className="py-1.5 pr-3 font-semibold">
+                        Konten
+                      </th>
+                      <th scope="col" className="w-24 py-1.5 pr-3 font-semibold">
+                        Deadline
+                      </th>
+                      <th scope="col" className="w-40 py-1.5 font-semibold">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleContents.map((content) => (
+                      <tr key={content.id} className="border-b border-rule-2 last:border-none">
+                        <td className="py-2 pr-3">
+                          <span title={content.name} className="block truncate text-ink">
+                            {content.name}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap py-2 pr-3 tabular-nums text-ink-2">
+                          {formatDate(content.deadline)}
+                        </td>
+                        <td className="py-2">
+                          {content.outcome === "open" ? (
+                            <StatusDot tone={CONTENT_STATUS_TONES[content.status]}>
+                              {CONTENT_STATUS_LABELS[content.status]}
+                            </StatusDot>
+                          ) : (
+                            <Pill tone={OUTCOME_TONES[content.outcome]}>
+                              {OUTCOME_LABELS[content.outcome]}
+                            </Pill>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {contentTotal > CONTENTS_PER_PAGE ? (
@@ -236,7 +258,6 @@ export function CreatorDetailModal({
                 </span>
                 <Button
                   aria-label="Riwayat konten sebelumnya"
-                  className="px-2! py-0.5!"
                   disabled={contentPage === 0}
                   onClick={() => setContentPage((page) => page - 1)}
                 >
@@ -244,7 +265,6 @@ export function CreatorDetailModal({
                 </Button>
                 <Button
                   aria-label="Riwayat konten berikutnya"
-                  className="px-2! py-0.5!"
                   disabled={contentLast >= contentTotal}
                   onClick={() => setContentPage((page) => page + 1)}
                 >
@@ -262,7 +282,7 @@ export function CreatorDetailModal({
                 {detail.drafts.map((draft) => (
                   <li
                     key={draft.contentId}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-rule-2 py-1.5 text-xs last:border-none"
+                    className="flex flex-wrap items-center justify-between gap-2 border-b border-rule-2 py-1.5 text-xs last:border-none"
                   >
                     <span>{draft.contentName}</span>
 

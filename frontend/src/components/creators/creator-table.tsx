@@ -5,6 +5,8 @@ import { useState } from "react";
 import { CreatorDetailModal } from "./creator-detail-modal";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
+import { buttonClasses } from "@/components/ui/button-classes";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
@@ -62,34 +64,41 @@ function contractNote(creator: CreatorSummary): string {
   return `${contractTypePrefix(creator.contract.type)}${note}`;
 }
 
-function EmptyState({ total }: { total: number }) {
-  if (total === 0) {
-    return (
-      <div className="px-5 py-14 text-center">
-        <p className="text-[15px] font-semibold">Belum ada creator yang terdaftar.</p>
+const LINK_BUTTON = buttonClasses();
 
-        <p className="mt-1 text-[13px] text-muted">
-          Creator muncul di sini begitu akunnya dibuat dan kontraknya dicatat.
-        </p>
-      </div>
+/**
+ * Why the table is empty. Three different situations, three different next steps: nobody has
+ * been added yet, the search or filters matched nobody, or the page number is past the end.
+ */
+function EmptyRoster({ total, filtered }: { total: number; filtered: boolean }) {
+  if (total > 0) {
+    return (
+      <EmptyState
+        title="Tidak ada creator di halaman ini."
+        hint="Daftar creator lebih pendek dari nomor halaman yang diminta."
+        action={
+          <Link href="/admin/creators" className={LINK_BUTTON}>
+            Ke halaman pertama
+          </Link>
+        }
+      />
+    );
+  }
+
+  if (filtered) {
+    return (
+      <EmptyState
+        title="Tidak ada creator yang cocok dengan pencarian atau filter."
+        hint="Periksa ejaan nama atau email, atau longgarkan filternya."
+      />
     );
   }
 
   return (
-    <div className="px-5 py-14 text-center">
-      <p className="text-[15px] font-semibold">Tidak ada creator di halaman ini.</p>
-
-      <p className="mt-1 text-[13px] text-muted">
-        Daftar creator lebih pendek dari nomor halaman yang diminta.
-      </p>
-
-      <Link
-        href="/admin/creators"
-        className="mt-4 inline-block rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 active:bg-surface-2"
-      >
-        Ke halaman pertama
-      </Link>
-    </div>
+    <EmptyState
+      title="Belum ada creator yang terdaftar."
+      hint="Creator muncul di sini begitu akunnya dibuat dan kontraknya dicatat. Mulai dengan Tambah Creator."
+    />
   );
 }
 
@@ -97,11 +106,20 @@ function EmptyState({ total }: { total: number }) {
  * One row per creator, the columns the admin scans for renewal
  * and allocation decisions.
  */
-export function CreatorTable({ creators, total }: { creators: CreatorSummary[]; total: number }) {
+export function CreatorTable({
+  creators,
+  total,
+  filtered = false,
+}: {
+  creators: CreatorSummary[];
+  total: number;
+  /** Whether a search or filter narrowed the list, which changes what an empty list means. */
+  filtered?: boolean;
+}) {
   const [selectedCreator, setSelectedCreator] = useState<CreatorSummary | null>(null);
 
   if (creators.length === 0) {
-    return <EmptyState total={total} />;
+    return <EmptyRoster total={total} filtered={filtered} />;
   }
 
   return (
