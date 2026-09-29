@@ -10,6 +10,11 @@ import {
     type CreatorDetail,
 } from "@/lib/creators";
 
+vi.mock("next/link", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("next/link")>();
+    return { ...actual, useLinkStatus: () => ({ pending: false }) };
+});
+
 vi.mock("@/lib/creators", async (importOriginal) => {
     const actual =
         await importOriginal<typeof import("@/lib/creators")>();
@@ -244,8 +249,100 @@ describe("ContentPlanClient", () => {
         expect(
             await screen.findByRole("alert"),
         ).toHaveTextContent(
-            "Content Plan gagal dimuat. Coba lagi.",
+            "Content Plan gagal dimuat.",
         );
+    });
+
+    it("loads the plan again from Muat ulang after a failure", async () => {
+        mockedFetchCreatorDetail
+            .mockRejectedValueOnce(new Error("backend unavailable"))
+            .mockResolvedValueOnce(detail());
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Muat ulang" }));
+
+        expect(
+            await screen.findByText("Belum ada konten pada periode kontrak ini."),
+        ).toBeInTheDocument();
+        expect(mockedFetchCreatorDetail).toHaveBeenCalledTimes(2);
+    });
+
+    describe("paging", () => {
+        const many = Array.from({ length: 12 }, (_, index) => ({
+            id: `content-${index + 1}`,
+            name: `Konten ${index + 1}`,
+            type: "evergreen" as const,
+            deadline: `2026-10-${String(index + 1).padStart(2, "0")}`,
+            status: "scheduled" as const,
+            outcome: "open" as const,
+            videoLink: null,
+        }));
+
+        it("shows ten contents per page with a way to the next page", async () => {
+            mockedFetchCreatorDetail.mockResolvedValue(detail({ contents: many }));
+
+            render(<ContentPlanClient creatorId="creator-1" />);
+
+            expect(await screen.findByText("Konten 10")).toBeInTheDocument();
+            expect(screen.queryByText("Konten 11")).toBeNull();
+            expect(screen.getByText("Menampilkan 1–10 dari 12 konten")).toBeInTheDocument();
+            expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
+                "href",
+                "/admin/creators/creator-1/content-plan?page=2",
+            );
+        });
+
+        it("shows the page the URL asks for", async () => {
+            mockedFetchCreatorDetail.mockResolvedValue(detail({ contents: many }));
+
+            render(<ContentPlanClient creatorId="creator-1" page={2} />);
+
+            expect(await screen.findByText("Konten 11")).toBeInTheDocument();
+            expect(screen.queryByText("Konten 1")).toBeNull();
+            expect(screen.getByText("Halaman 2 dari 2")).toBeInTheDocument();
+        });
+
+        it("falls back to the last page when the URL asks for one past the end", async () => {
+            mockedFetchCreatorDetail.mockResolvedValue(detail({ contents: many }));
+
+            render(<ContentPlanClient creatorId="creator-1" page={9} />);
+
+            expect(await screen.findByText("Konten 12")).toBeInTheDocument();
+            expect(screen.getByText("Halaman 2 dari 2")).toBeInTheDocument();
+        });
+
+        it("shows no paging controls when everything fits on one page", async () => {
+            mockedFetchCreatorDetail.mockResolvedValue(detail({ contents: many.slice(0, 3) }));
+
+            render(<ContentPlanClient creatorId="creator-1" />);
+
+            expect(await screen.findByText("Konten 3")).toBeInTheDocument();
+            expect(screen.queryByRole("link", { name: "Berikutnya" })).toBeNull();
+        });
+    });
+
+    it("shows each status beside a dot coloured by the workflow", async () => {
+        mockedFetchCreatorDetail.mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-1",
+                        name: "Perlu revisi",
+                        type: "evergreen",
+                        deadline: "2026-09-30",
+                        status: "draft_revision",
+                        outcome: "open",
+                        videoLink: null,
+                    },
+                ],
+            }),
+        );
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        const label = await screen.findByText("Draft Perlu Revisi");
+        expect(label.querySelector(".bg-amber")).not.toBeNull();
     });
 
     it("shows the no-active-contract state", async () => {
