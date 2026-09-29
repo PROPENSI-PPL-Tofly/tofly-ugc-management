@@ -245,9 +245,10 @@ describe("SubmitDraftModal", () => {
       onClose,
     });
 
+    // A Drive link the server still refuses: its message wins over the live check.
     fireEvent.change(screen.getByLabelText(/link file draft/i), {
       target: {
-        value: "not-a-valid-web-link",
+        value: "https://drive.google.com/file/d/abc",
       },
     });
 
@@ -452,10 +453,98 @@ describe("SubmitDraftModal", () => {
 
       await waitFor(() =>
         expect(screen.getByLabelText(/catatan untuk admin/i)).toHaveAccessibleDescription(
-          "Catatan maksimal 1000 karakter",
+          /^Catatan maksimal 1000 karakter/,
         ),
       );
       expect(screen.getByLabelText(/catatan untuk admin/i)).toHaveAttribute("aria-invalid", "true");
+    });
+  });
+
+  describe("Google Drive links only", () => {
+    it("flags a link from anywhere else as it is typed, and will not send it", () => {
+      const submitDraftAction = vi.fn();
+      renderModal({ submitDraftAction });
+
+      fireEvent.change(screen.getByRole("textbox", { name: "Link File Draft" }), {
+        target: { value: "https://dropbox.com/s/abc" },
+      });
+
+      expect(
+        screen.getByText("Link draft harus dari Google Drive (drive.google.com)"),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Link File Draft" })).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      expect(screen.getByRole("button", { name: "Kirim Draft" })).toBeDisabled();
+      expect(submitDraftAction).not.toHaveBeenCalled();
+    });
+
+    it("accepts a Google Drive link", () => {
+      renderModal();
+
+      fireEvent.change(screen.getByRole("textbox", { name: "Link File Draft" }), {
+        target: { value: "https://drive.google.com/file/d/abc/view" },
+      });
+
+      expect(screen.queryByText(/harus dari Google Drive/)).toBeNull();
+      expect(screen.getByRole("button", { name: "Kirim Draft" })).toBeEnabled();
+    });
+
+    it("refuses a Google Docs link, since drafts are shared from Drive", () => {
+      renderModal();
+
+      fireEvent.change(screen.getByRole("textbox", { name: "Link File Draft" }), {
+        target: { value: "https://docs.google.com/document/d/abc/edit" },
+      });
+
+      expect(screen.getByText(/harus dari Google Drive/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Kirim Draft" })).toBeDisabled();
+    });
+
+    it("says where the link should come from before anything is typed", () => {
+      renderModal();
+
+      expect(screen.getByRole("textbox", { name: "Link File Draft" })).toHaveAccessibleDescription(
+        "Tempel link Google Drive yang bisa dibuka admin.",
+      );
+    });
+
+    it("stops the link at the length the API accepts", () => {
+      renderModal();
+
+      expect(screen.getByRole("textbox", { name: "Link File Draft" })).toHaveAttribute(
+        "maxLength",
+        "2048",
+      );
+    });
+  });
+
+  describe("leaving with something typed", () => {
+    it("asks before dropping a typed link", () => {
+      const onClose = vi.fn();
+      renderModal({ onClose });
+
+      fireEvent.change(screen.getByRole("textbox", { name: "Link File Draft" }), {
+        target: { value: "https://drive.google.com/file/d/abc" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("alertdialog", { name: "Batalkan pengiriman draft?" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Buang" }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("counts the notes against their limit", () => {
+      renderModal();
+
+      fireEvent.change(screen.getByRole("textbox", { name: "Catatan untuk Admin" }), {
+        target: { value: "a".repeat(1000) },
+      });
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Maksimal 1000 karakter");
     });
   });
 });

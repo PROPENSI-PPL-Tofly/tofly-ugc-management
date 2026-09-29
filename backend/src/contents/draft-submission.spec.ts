@@ -48,8 +48,34 @@ describe('checkDraftSubmission', () => {
       });
     });
 
+    it.each([
+      ['another host', 'https://dropbox.com/s/abc'],
+      ['a look-alike host', 'https://drive.google.com.evil.example/file'],
+      ['credentials in front of another host', 'https://drive.google.com@evil.example/'],
+      ['another Google service', 'https://mail.google.com/'],
+      ['a Google Docs link', 'https://docs.google.com/document/d/abc/edit'],
+      ['plain http, even on Drive', 'http://drive.google.com/file/d/abc'],
+    ])('refuses %s: drafts come from Google Drive only', (_case, link) => {
+      expect(rejection({ link })).toEqual({
+        message: 'Data draft tidak valid',
+        errors: {
+          link: 'Link draft harus dari Google Drive (drive.google.com)',
+        },
+      });
+    });
+
+    it('accepts Google Drive links, whatever the case of the host', () => {
+      for (const link of [
+        'https://drive.google.com/drive/folders/xyz',
+        'https://drive.google.com/file/d/abc/view',
+        'https://DRIVE.google.com/file/d/abc',
+      ]) {
+        expect(checkDraftSubmission({ link }).link).toBe(link);
+      }
+    });
+
     it('refuses a link longer than the cap', () => {
-      const link = `https://x.com/${'a'.repeat(MAX_DRAFT_LINK_LENGTH)}`;
+      const link = `https://drive.google.com/${'a'.repeat(MAX_DRAFT_LINK_LENGTH)}`;
 
       expect(rejection({ link })).toEqual({
         message: 'Data draft tidak valid',
@@ -60,20 +86,17 @@ describe('checkDraftSubmission', () => {
     });
 
     it('accepts a link exactly at the cap', () => {
-      const prefix = 'https://x.com/';
+      const prefix = 'https://drive.google.com/';
       const link = prefix + 'a'.repeat(MAX_DRAFT_LINK_LENGTH - prefix.length);
 
       expect(checkDraftSubmission({ link }).link).toBe(link);
     });
 
-    it('accepts http and https links, trimmed', () => {
+    it('accepts a Drive link, trimmed', () => {
       expect(checkDraftSubmission({ link: `  ${LINK}  ` })).toEqual({
         link: LINK,
         notes: null,
       });
-      expect(checkDraftSubmission({ link: 'http://example.com/d' }).link).toBe(
-        'http://example.com/d',
-      );
     });
   });
 
