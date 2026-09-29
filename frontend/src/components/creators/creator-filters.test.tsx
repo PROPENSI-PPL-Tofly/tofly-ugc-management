@@ -51,13 +51,15 @@ describe("CreatorFilters", () => {
     expect(screen.getByRole("combobox", { name: /produktivitas/i })).toBeInTheDocument();
   });
 
-  it("offers every contract status the API accepts", () => {
+  // No creator can exist without a contract, so "Belum ada kontrak" is not offered.
+  it("offers the contract statuses a creator can actually be in", () => {
     renderFilters();
 
     const values = Array.from(contractStatus().querySelectorAll("option")).map(
       (option) => option.value,
     );
-    expect(values).toEqual(["all", "active", "expired", "upcoming", "none"]);
+    expect(values).toEqual(["all", "active", "expired", "upcoming"]);
+    expect(screen.queryByRole("option", { name: "Belum ada kontrak" })).toBeNull();
   });
 
   it("offers every productivity band the API accepts, including no data yet", () => {
@@ -135,6 +137,24 @@ describe("CreatorFilters", () => {
     fireEvent.click(screen.getByRole("button", { name: /reset/i }));
 
     expect(replace).toHaveBeenCalledWith("/admin/creators", { scroll: false });
+  });
+
+  // UAT: the search cleared but the filters came back, because the debounce still saw the old
+  // search in the URL and re-sent the filters with it.
+  it("keeps the filters cleared after Reset once the search debounce would have fired", () => {
+    renderFilters({ q: "rangga", contractStatus: "active", productivity: "risk" });
+
+    fireEvent.click(screen.getByRole("button", { name: /reset/i }));
+    settle();
+
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenLastCalledWith("/admin/creators", { scroll: false });
+    expect(search()).toHaveValue("");
+  });
+
+  it("stops the search box at the length the API accepts", () => {
+    renderFilters();
+    expect(search()).toHaveAttribute("maxLength", "100");
   });
 
   it("filters by productivity band", () => {

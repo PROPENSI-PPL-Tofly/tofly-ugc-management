@@ -91,6 +91,8 @@ describe("DraftPreviewModal", () => {
       expect(screen.getByText("5 Okt 2026")).toBeInTheDocument();
       expect(screen.getByText("Specific")).toBeInTheDocument();
       expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
+      // Same colour as the queue row: a draft waiting on the admin is brand blue.
+      expect(screen.getByText("Draft Menunggu Review").querySelector(".bg-accent")).not.toBeNull();
     });
 
     it("shows a Specific content's brief with its line breaks kept", async () => {

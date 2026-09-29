@@ -87,6 +87,17 @@ describe("Antrian Draft page", () => {
     expect(screen.getByText(/antrian tidak bisa dimuat/i)).toBeInTheDocument();
   });
 
+  it("retries the same filters after a failed load", async () => {
+    mockedFetch.mockRejectedValue(new Error("fail"));
+
+    await renderPage({ q: "salsa", overdue: "true" });
+
+    expect(screen.getByRole("link", { name: "Muat ulang" })).toHaveAttribute(
+      "href",
+      "/admin/submissions?q=salsa&overdue=true",
+    );
+  });
+
   it("shows invalid page message for bad page param", async () => {
     mockedFetch.mockResolvedValue({
       items: [],
