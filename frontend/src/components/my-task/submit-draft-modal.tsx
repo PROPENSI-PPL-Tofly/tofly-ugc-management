@@ -1,8 +1,15 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import {
+  DRAFT_LINK_NOT_DRIVE,
+  isGoogleDriveLink,
+  MAX_DRAFT_LINK_LENGTH,
+} from "@/lib/draft-link";
 import { submitDraft, type DraftSubmitter } from "@/lib/draft-submission";
+import { CharLimit } from "@/components/ui/char-limit";
 import { Modal } from "@/components/ui/modal";
+import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import { Button } from "@/components/ui/button";
 import { FIELD, FIELD_ERROR, REQUIRED_MARK } from "@/components/ui/form-classes";
 import type { MyTaskAction } from "@/lib/my-tasks";
@@ -45,7 +52,9 @@ export function SubmitDraftModal({
 }: SubmitDraftModalProps) {
   const wording = WORDING[action];
   const linkErrorId = useId();
+  const linkHintId = useId();
   const notesErrorId = useId();
+  const notesCountId = useId();
   const linkRef = useRef<HTMLInputElement>(null);
 
   // Stores the current value of the draft link field.
@@ -65,6 +74,18 @@ export function SubmitDraftModal({
 
   // Tracks whether a draft submission is currently in progress.
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Checked on every change so a link from the wrong place is flagged as it is typed; an
+  // empty field stays the required-message path on submit instead.
+  const trimmedDraftLink = draftLink.trim();
+  const notDrive = trimmedDraftLink !== "" && !isGoogleDriveLink(trimmedDraftLink);
+  const shownLinkError = notDrive ? DRAFT_LINK_NOT_DRIVE : draftLinkError;
+
+  const { requestClose, confirmDialog } = useDiscardGuard({
+    isDirty: draftLink !== "" || adminNotes !== "",
+    onDiscard: onClose,
+    title: "Batalkan pengiriman draft?",
+  });
 
   async function handleSubmit() {
     const trimmedLink = draftLink.trim();
@@ -113,15 +134,16 @@ export function SubmitDraftModal({
   }
 
   return (
+    <>
     <Modal
       title={wording.title}
-      onClose={onClose}
+      onClose={isSubmitting ? () => undefined : requestClose}
       footer={
         <>
           <Button
             type="button"
             variant="ghost"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSubmitting}
           >
             Batal
@@ -131,7 +153,7 @@ export function SubmitDraftModal({
             type="button"
             variant="accent"
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || notDrive}
           >
             {isSubmitting ? "Mengirim..." : wording.submit}
           </Button>
@@ -149,8 +171,10 @@ export function SubmitDraftModal({
             type="url"
             required
             aria-label="Link File Draft"
-            aria-invalid={draftLinkError ? true : undefined}
-            aria-describedby={draftLinkError ? linkErrorId : undefined}
+            maxLength={MAX_DRAFT_LINK_LENGTH}
+            placeholder="https://drive.google.com/file/d/…"
+            aria-invalid={shownLinkError ? true : undefined}
+            aria-describedby={shownLinkError ? linkErrorId : linkHintId}
             value={draftLink}
             onChange={(event) => {
               setDraftLink(event.target.value);
@@ -161,11 +185,15 @@ export function SubmitDraftModal({
           />
 
           {/* Show a field-specific error directly below the draft link. */}
-          {draftLinkError ? (
+          {shownLinkError ? (
             <p id={linkErrorId} className={FIELD_ERROR}>
-              {draftLinkError}
+              {shownLinkError}
             </p>
-          ) : null}
+          ) : (
+            <p id={linkHintId} className="text-xs text-muted">
+              Tempel link Google Drive yang bisa dibuka admin.
+            </p>
+          )}
         </label>
 
         <label className="flex flex-col gap-1.5">
@@ -176,7 +204,7 @@ export function SubmitDraftModal({
           <textarea
             aria-label="Catatan untuk Admin"
             aria-invalid={adminNotesError ? true : undefined}
-            aria-describedby={adminNotesError ? notesErrorId : undefined}
+            aria-describedby={adminNotesError ? `${notesErrorId} ${notesCountId}` : notesCountId}
             rows={3}
             maxLength={MAX_DRAFT_NOTES_LENGTH}
             value={adminNotes}
@@ -186,6 +214,8 @@ export function SubmitDraftModal({
             }}
             className={`resize-y ${FIELD}`}
           />
+
+          <CharLimit id={notesCountId} length={adminNotes.length} max={MAX_DRAFT_NOTES_LENGTH} />
 
           {adminNotesError ? (
             <p id={notesErrorId} className={FIELD_ERROR}>
@@ -202,5 +232,7 @@ export function SubmitDraftModal({
         ) : null}
       </div>
     </Modal>
+    {confirmDialog}
+    </>
   );
 }
