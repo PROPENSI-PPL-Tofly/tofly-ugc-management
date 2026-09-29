@@ -1,9 +1,10 @@
 "use client";
 
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentPropsWithRef } from "react";
 import { buttonClasses, type Variant } from "./button-classes";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+// With ref, so a dialog can start focus on a particular button (React 19 passes ref as a prop).
+interface ButtonProps extends ComponentPropsWithRef<"button"> {
   variant?: Variant;
 }
 
