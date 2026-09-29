@@ -1,4 +1,7 @@
-import { checkRevisionRequest } from './revise-submission.js';
+import {
+  checkRevisionRequest,
+  MAX_REVISION_NOTES_LENGTH,
+} from './revise-submission.js';
 
 describe('checkRevisionRequest', () => { 
   it('accepts the revision note supplied by the admin', () => {
@@ -75,4 +78,30 @@ describe('checkRevisionRequest', () => {
     }),
   );
 });
+
+  it('stores the note trimmed', () => {
+    expect(checkRevisionRequest({ revisionNotes: '  Perbaiki intro.  ' })).toEqual({
+      revisionNotes: 'Perbaiki intro.',
+    });
+  });
+
+  it('accepts a note of exactly the maximum length', () => {
+    const revisionNotes = 'a'.repeat(MAX_REVISION_NOTES_LENGTH);
+    expect(checkRevisionRequest({ revisionNotes })).toEqual({ revisionNotes });
+  });
+
+  it('refuses a note longer than the maximum, naming the limit', () => {
+    expect(MAX_REVISION_NOTES_LENGTH).toBe(1000);
+    expect(() =>
+      checkRevisionRequest({ revisionNotes: 'a'.repeat(MAX_REVISION_NOTES_LENGTH + 1) }),
+    ).toThrow(
+      expect.objectContaining({
+        status: 422,
+        response: {
+          message: 'Data revisi tidak valid',
+          errors: { revisionNotes: 'Catatan revisi maksimal 1000 karakter' },
+        },
+      }),
+    );
+  });
 });
