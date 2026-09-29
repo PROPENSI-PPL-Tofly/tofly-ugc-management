@@ -21,6 +21,8 @@ export const MAX_USERNAME_LENGTH = 100;
 
 /** Postgres `integer`, the type of contracts.days_between and contracts.content_quota. */
 export const MAX_INTEGER = 2 ** 31 - 1;
+/** More contents than this in one contract is a typo, not a deal; the form holds the same cap. */
+export const MAX_CONTENT_QUOTA = 100;
 /** contracts.fixed_rate is numeric(14, 2): twelve digits before the point, two after. */
 export const MAX_FIXED_RATE = 999_999_999_999.99;
 
@@ -176,7 +178,13 @@ type NumberField = 'interval' | 'quota' | 'fixedRate';
 
 const NUMBER_RULES: Record<
   NumberField,
-  { label: string; tooSmall: string; whole: boolean; max: number }
+  {
+    label: string;
+    tooSmall: string;
+    whole: boolean;
+    max: number;
+    tooLarge?: string;
+  }
 > = {
   interval: {
     label: 'Jarak antar-deadline',
@@ -188,7 +196,8 @@ const NUMBER_RULES: Record<
     label: 'Jumlah konten',
     tooSmall: 'Jumlah konten harus lebih dari 0',
     whole: true,
-    max: MAX_INTEGER,
+    max: MAX_CONTENT_QUOTA,
+    tooLarge: `Jumlah konten maksimal ${MAX_CONTENT_QUOTA}`,
   },
   fixedRate: {
     label: 'Fixed rate',
@@ -212,7 +221,7 @@ function readNumber(
   value: unknown,
   errors: NewCreatorErrors,
 ): number {
-  const { label, tooSmall, whole, max } = NUMBER_RULES[field];
+  const { label, tooSmall, whole, max, tooLarge } = NUMBER_RULES[field];
 
   // Number.isFinite is false for anything that is not a number, so this also rejects "7".
   if (!Number.isFinite(value)) {
@@ -224,7 +233,7 @@ function readNumber(
   } else if (!whole && !hasCents(value as number)) {
     errors[field] = `${label} maksimal 2 angka desimal`;
   } else if ((value as number) > max) {
-    errors[field] = `${label} terlalu besar`;
+    errors[field] = tooLarge ?? `${label} terlalu besar`;
   }
   return value as number;
 }
@@ -248,6 +257,21 @@ function checkContract(
     contractStart > contractEnd
   ) {
     errors.contractStart = 'Tanggal mulai tidak boleh setelah tanggal berakhir';
+  } else if (
+    contractStart &&
+    contractEnd &&
+    !errors.contractStart &&
+    !errors.contractEnd
+  ) {
+    // A contract that ends inside the buffer has no day any content could be due on.
+    const earliestEnd = earliestDeadline(
+      isoDay(contractStart),
+      isoDay(today),
+      DEFAULT_BUFFER_DAYS,
+    );
+    if (isoDay(contractEnd) < earliestEnd) {
+      errors.contractEnd = `Akhir kontrak paling cepat ${readableDay(earliestEnd)} (masa buffer ${DEFAULT_BUFFER_DAYS} hari)`;
+    }
   }
 
   return {

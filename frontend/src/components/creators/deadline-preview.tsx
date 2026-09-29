@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { getBufferWindow } from '@/lib/deadline-schedule';
 import { formatDate } from '@/lib/format';
-import { DeadlineSlot } from './deadline-slot';
+import { DeadlineSlot, SLOT_STYLES } from './deadline-slot';
 
 interface DeadlinePreviewProps {
   contractStart?: string;
@@ -20,6 +20,38 @@ interface DeadlinePreviewProps {
   /** Without the handlers the calendar is read-only. */
   onToggleAuto?: (day: string) => void;
   onAddManual?: (day: string) => void;
+}
+
+const WEEKDAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+const MONTH_TITLE = new Intl.DateTimeFormat('id-ID', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+const NAV =
+  'grid size-8 cursor-pointer place-items-center rounded-(--radius-control) border border-rule bg-surface text-base text-ink-2 transition-colors hover:border-ink-2 hover:text-ink';
+
+/** What each colour on the calendar means, drawn with the same styles as the days themselves. */
+const KEY: { label: string; style: string }[] = [
+  { label: 'Deadline otomatis', style: SLOT_STYLES.auto },
+  { label: 'Deadline manual', style: SLOT_STYLES.manual },
+  { label: 'Masa buffer', style: SLOT_STYLES.buffer },
+  { label: 'Di luar kontrak', style: SLOT_STYLES.outside },
+];
+
+function CalendarKey() {
+  return (
+    <ul aria-label="Keterangan kalender" className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-2">
+      {KEY.map(({ label, style }) => (
+        <li key={label} className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className={`inline-block size-3.5 rounded-[3px] p-0 ${style}`} />
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function DeadlinePreview({
@@ -60,14 +92,8 @@ export default function DeadlinePreview({
   const year = calendarDate?.getUTCFullYear();
   const month = calendarDate?.getUTCMonth();
 
-  // Format the calendar heading, for example "September 2026".
-  const monthTitle = calendarDate
-    ? calendarDate.toLocaleDateString('en-US', {
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'UTC',
-      })
-    : null;
+  // The calendar heading as admins read it, e.g. "Oktober 2026".
+  const monthTitle = calendarDate ? MONTH_TITLE.format(calendarDate) : null;
 
   // Get the total number of days in the displayed month.
   const daysInMonth =
@@ -81,7 +107,8 @@ export default function DeadlinePreview({
       ? new Date(Date.UTC(year, month, 1)).getUTCDay()
       : 0;
 
-  const weekCount = Math.ceil((firstDayOfWeek + daysInMonth) / 7); // Calculate the number of weeks needed to display the month, accounting for the first day offset and total days in the month.
+  // The number of weeks needed to display the month, first-day offset included.
+  const weekCount = Math.ceil((firstDayOfWeek + daysInMonth) / 7);
 
   // Makes checking whether a date is an auto deadline easier.
   const autoDeadlineSet = new Set(autoDeadlines);
@@ -90,173 +117,147 @@ export default function DeadlinePreview({
     contractStart && today && bufferDays !== undefined
       ? getBufferWindow({ contractStart, today, bufferDays })
       : null;
+  const firstAllowed = bufferWindow?.firstAllowedDate.toISOString().slice(0, 10);
 
   return (
-  <section className="w-full rounded-2xl border border-zinc-200 bg-white p-6">
-    <h3 className="mb-5 text-lg font-bold text-zinc-900">
-      Preview Jadwal Deadline
-    </h3>
+    <section aria-labelledby="deadline-preview-title" className="border-t border-rule pt-3">
+      <h3 id="deadline-preview-title" className="text-[13px] font-bold text-ink">
+        Preview Jadwal Deadline
+      </h3>
 
-    {calendarDate && year !== undefined && month !== undefined && (
-      <div>
-        {/* Calendar month and navigation */}
-        <div className="mb-4 flex items-center justify-between">
-          <h4 className="text-lg font-bold text-zinc-900">
-            {monthTitle}
-          </h4>
+      {firstAllowed ? (
+        <p className="mt-1 text-xs text-muted">
+          Deadline baru paling cepat {formatDate(firstAllowed)}, setelah masa buffer {bufferDays} hari.
+        </p>
+      ) : null}
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              aria-label="Previous month"
-              onClick={() =>
-                setMonthOffset((current) => current - 1)
-              }
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-xl text-zinc-600 hover:bg-zinc-50"
-            >
-              ‹
-            </button>
+      {calendarDate && year !== undefined && month !== undefined && (
+        <div className="mt-3">
+          {/* Calendar month and navigation */}
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-ink">{monthTitle}</h4>
 
-            <button
-              type="button"
-              aria-label="Next month"
-              onClick={() =>
-                setMonthOffset((current) => current + 1)
-              }
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-xl text-zinc-600 hover:bg-zinc-50"
-            >
-              ›
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                aria-label="Bulan sebelumnya"
+                onClick={() => setMonthOffset((current) => current - 1)}
+                className={NAV}
+              >
+                <span aria-hidden="true">‹</span>
+              </button>
+
+              <button
+                type="button"
+                aria-label="Bulan berikutnya"
+                onClick={() => setMonthOffset((current) => current + 1)}
+                className={NAV}
+              >
+                <span aria-hidden="true">›</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Monthly deadline calendar */}
-        <table
-          aria-label={`Deadline calendar ${monthTitle}`}
-          className="w-full table-fixed border-separate border-spacing-1 text-center"
-        >
-          <thead>
-            <tr>
-              {[
-                'Min',
-                'Sen',
-                'Sel',
-                'Rab',
-                'Kam',
-                'Jum',
-                'Sab',
-              ].map((weekday) => (
-                <th
-                  key={weekday}
-                  scope="col"
-                  className="py-2 text-sm font-semibold text-zinc-500"
-                >
-                  {weekday}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          {/* Monthly deadline calendar */}
+          <table
+            aria-label={`Kalender deadline ${monthTitle}`}
+            className="w-full table-fixed border-separate border-spacing-1 text-center"
+          >
+            <thead>
+              <tr>
+                {WEEKDAYS.map((weekday) => (
+                  <th key={weekday} scope="col" className="py-1 text-xs font-semibold text-muted">
+                    {weekday}
+                  </th>
+                ))}
+              </tr>
+            </thead>
 
-          <tbody>
-            {Array.from({ length: weekCount }, (_, week) => (
-              <tr key={week}>
-                {Array.from({ length: 7 }, (_, weekday) => {
-                  const day =
-                    week * 7 +
-                    weekday -
-                    firstDayOfWeek +
-                    1;
+            <tbody>
+              {Array.from({ length: weekCount }, (_, week) => (
+                <tr key={week}>
+                  {Array.from({ length: 7 }, (_, weekday) => {
+                    const day = week * 7 + weekday - firstDayOfWeek + 1;
 
-                  if (day < 1 || day > daysInMonth) {
+                    if (day < 1 || day > daysInMonth) {
+                      return <td key={weekday} className="h-11" />;
+                    }
+
+                    const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                    const isAutoDeadline = autoDeadlineSet.has(date);
+
+                    const currentDate = new Date(`${date}T00:00:00Z`);
+
+                    const isBufferDate =
+                      bufferWindow !== null &&
+                      currentDate.getTime() >= bufferWindow.bufferStartDate.getTime() &&
+                      currentDate.getTime() < bufferWindow.firstAllowedDate.getTime();
+
+                    const isOutsideContract =
+                      (contractStart !== undefined && date < contractStart) ||
+                      (contractEnd !== undefined && date > contractEnd);
+
+                    const manualCount = manualDeadlines.filter((picked) => picked === date).length;
+
+                    // A manual pick has to land after the buffer and on or before the contract end.
+                    const isPickable =
+                      bufferWindow !== null &&
+                      contractEnd !== undefined &&
+                      currentDate.getTime() >= bufferWindow.firstAllowedDate.getTime() &&
+                      date <= contractEnd;
+
+                    const label = formatDate(date);
+                    let action: { label: string; onClick: () => void } | undefined;
+                    if (onToggleAuto && isAutoDeadline) {
+                      action = {
+                        label: `${label}: lepas deadline otomatis`,
+                        onClick: () => onToggleAuto(date),
+                      };
+                    } else if (onAddManual && isPickable && remainingCount > 0) {
+                      action = {
+                        label: `${label}: tambah deadline manual`,
+                        onClick: () => onAddManual(date),
+                      };
+                    }
+
                     return (
-                      <td
+                      <DeadlineSlot
                         key={weekday}
-                        className="h-14"
+                        date={date}
+                        day={day}
+                        isAutoDeadline={isAutoDeadline}
+                        isBufferDate={isBufferDate}
+                        isOutsideContract={isOutsideContract}
+                        manualCount={manualCount}
+                        action={action}
                       />
                     );
-                  }
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-                  const date = `${year}-${String(
-                    month + 1,
-                  ).padStart(2, '0')}-${String(day).padStart(
-                    2,
-                    '0',
-                  )}`;
+          <CalendarKey />
+        </div>
+      )}
 
-                  const isAutoDeadline =
-                    autoDeadlineSet.has(date);
-
-                  const currentDate = new Date(
-                    `${date}T00:00:00Z`,
-                  );
-
-                  const isBufferDate =
-                    bufferWindow !== null &&
-                    currentDate.getTime() >=
-                      bufferWindow.bufferStartDate.getTime() &&
-                    currentDate.getTime() <
-                      bufferWindow.firstAllowedDate.getTime();
-
-                  const isOutsideContract =
-                    (contractStart !== undefined && date < contractStart) ||
-                    (contractEnd !== undefined && date > contractEnd);
-
-                  const manualCount = manualDeadlines.filter(
-                    (picked) => picked === date,
-                  ).length;
-
-                  // A manual pick has to land after the buffer and on or before the contract end.
-                  const isPickable =
-                    bufferWindow !== null &&
-                    contractEnd !== undefined &&
-                    currentDate.getTime() >=
-                      bufferWindow.firstAllowedDate.getTime() &&
-                    date <= contractEnd;
-
-                  const label = formatDate(date);
-                  let action: { label: string; onClick: () => void } | undefined;
-                  if (onToggleAuto && isAutoDeadline) {
-                    action = {
-                      label: `${label}: lepas deadline otomatis`,
-                      onClick: () => onToggleAuto(date),
-                    };
-                  } else if (onAddManual && isPickable && remainingCount > 0) {
-                    action = {
-                      label: `${label}: tambah deadline manual`,
-                      onClick: () => onAddManual(date),
-                    };
-                  }
-
-                  return (
-                    <DeadlineSlot
-                      key={weekday}
-                      date={date}
-                      day={day}
-                      isAutoDeadline={isAutoDeadline}
-                      isBufferDate={isBufferDate}
-                      isOutsideContract={isOutsideContract}
-                      manualCount={manualCount}
-                      action={action}
-                    />
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Required allocation progress */}
+      <div className="mt-4 flex items-center gap-3">
+        <span id="deadline-allocation-label" className="text-xs text-muted">
+          Alokasi konten
+        </span>
+        <progress
+          aria-labelledby="deadline-allocation-label"
+          value={allocatedCount}
+          max={Math.max(quota, 1)}
+          className="progress h-1.5 min-w-0 flex-1"
+        />
+        <span className="text-[13px] font-semibold tabular-nums text-ink">
+          {allocatedCount} / {quota} teralokasi
+        </span>
       </div>
-    )}
-
-    {/* Required allocation progress */}
-    <div className="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-      <p className="text-xs text-zinc-500">
-        Alokasi konten
-      </p>
-
-      <p className="mt-1 font-semibold text-zinc-900">
-        {allocatedCount} / {quota} teralokasi
-      </p>
-    </div>
-  </section>
-);
+    </section>
+  );
 }

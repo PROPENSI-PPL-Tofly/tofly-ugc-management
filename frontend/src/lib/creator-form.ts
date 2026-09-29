@@ -1,10 +1,19 @@
 // Pure validation for the Add Creator form. Kept apart from the modal component so each
 // rule is testable without rendering anything, one RED/GREEN cycle at a time.
 
-import { getDeadlinePreview, type DeadlinePreview } from "./deadline-schedule";
+import { getBufferWindow, getDeadlinePreview, type DeadlinePreview } from "./deadline-schedule";
+import { formatDate } from "./format";
 
 /** Days between max(today, contract start) and the first deadline; the API's default buffer. */
 export const BUFFER_DAYS = 5;
+
+// The same limits the API enforces (backend new-creator.ts), so the form never lets through
+// what the server would refuse, and says so while the admin is still typing.
+export const MAX_NAME_LENGTH = 100;
+export const MAX_EMAIL_LENGTH = 254;
+export const MAX_USERNAME_LENGTH = 100;
+/** More contents than this in one contract is a typo, not a deal. */
+export const MAX_CONTENT_QUOTA = 100;
 
 // Matches the database's `social_platform` enum (supabase/migrations/..._creator_database.sql)
 // exactly — "" stands for "not chosen yet", the empty state of the select in the modal.
@@ -50,7 +59,10 @@ export interface CreatorFormErrors {
   deadlines?: string;
 }
 
-const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// The API's pattern (backend new-creator.ts): dot-separated runs of allowed characters on both
+// sides of one "@", and at least one dot in the domain.
+const EMAIL_FORMAT =
+  /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 /**
  * `today` as the admin sees it on their own calendar, in the `YYYY-MM-DD` format the API and
@@ -64,12 +76,22 @@ export function localCalendarDay(today: Date): string {
 
 type ContractPeriod = Pick<CreatorFormInput, "contractStart" | "contractEnd">;
 
+/**
+ * The first day a contract may end on: the buffer after max(today, start), which is also the
+ * first day a deadline may fall on. Ending earlier leaves a contract no content can fit in.
+ */
+export function earliestContractEnd(contractStart: string, today: string): string {
+  return getBufferWindow({ contractStart: contractStart || today, today, bufferDays: BUFFER_DAYS })
+    .firstAllowedDate.toISOString()
+    .slice(0, 10);
+}
+
 /** The `min`/`max` of the date pickers, so an impossible contract cannot even be picked. */
 export function contractDateLimits({ contractStart, contractEnd }: ContractPeriod, today: string) {
   return {
     startMin: today,
     startMax: contractEnd || undefined,
-    endMin: contractStart || today,
+    endMin: earliestContractEnd(contractStart, today),
   };
 }
 
@@ -93,6 +115,52 @@ export function scheduleDeadlines(
   });
 }
 
+/** A required text field's problem: empty (spaces count as empty) or longer than the API takes. */
+function textProblem(value: string, max: number, empty: string, label: string): string | undefined {
+  if (value.trim() === "") return empty;
+  if (value.length > max) return `${label} maksimal ${max} karakter`;
+  return undefined;
+}
+
+/** Start and end, each named when missing, then checked against today and each other. */
+function checkContractDates(
+  { contractStart, contractEnd }: ContractPeriod,
+  todayDay: string,
+  errors: CreatorFormErrors,
+) {
+  if (contractStart === "") {
+    errors.contractStart = "Tanggal mulai wajib diisi";
+  } else if (contractStart < todayDay) {
+    errors.contractStart = "Tanggal mulai tidak boleh sebelum hari ini";
+  }
+
+  if (contractEnd === "") {
+    errors.contractEnd = "Tanggal berakhir wajib diisi";
+  } else if (contractEnd < todayDay) {
+    errors.contractEnd = "Tanggal berakhir tidak boleh sebelum hari ini";
+  }
+
+  if (errors.contractStart || errors.contractEnd) return;
+
+  if (contractStart > contractEnd) {
+    errors.contractStart = "Tanggal mulai tidak boleh setelah tanggal berakhir";
+    return;
+  }
+
+  const earliestEnd = earliestContractEnd(contractStart, todayDay);
+  if (contractEnd < earliestEnd) {
+    errors.contractEnd = `Akhir kontrak paling cepat ${formatDate(earliestEnd)} (masa buffer ${BUFFER_DAYS} hari)`;
+  }
+}
+
+/**
+ * Whether the schedule preview has what it needs: dates, interval and quota all without a
+ * problem. Until then the calendar would draw a contract that cannot be saved anyway.
+ */
+export function scheduleReady(errors: CreatorFormErrors): boolean {
+  return !errors.contractStart && !errors.contractEnd && !errors.interval && !errors.quota;
+}
+
 export function validateCreatorForm(
   input: CreatorFormInput,
   today: Date = new Date(),
@@ -101,23 +169,18 @@ export function validateCreatorForm(
   const errors: CreatorFormErrors = {};
   const todayDay = localCalendarDay(today);
 
-  if (input.name === "") {
-    errors.name = "Nama wajib diisi";
-  }
+  const name = textProblem(input.name, MAX_NAME_LENGTH, "Nama wajib diisi", "Nama");
+  if (name) errors.name = name;
 
-  if (!EMAIL_FORMAT.test(input.email)) {
+  if (input.email.length > MAX_EMAIL_LENGTH) {
+    errors.email = `Email maksimal ${MAX_EMAIL_LENGTH} karakter`;
+  } else if (!EMAIL_FORMAT.test(input.email)) {
     errors.email = "Format email tidak valid";
   } else if (existingEmails.includes(input.email)) {
     errors.email = "Email sudah terdaftar";
   }
 
-  if (input.contractStart > input.contractEnd) {
-    errors.contractStart = "Tanggal mulai tidak boleh setelah tanggal berakhir";
-  }
-
-  if (input.contractStart < todayDay) {
-    errors.contractStart = "Tanggal mulai tidak boleh sebelum hari ini";
-  }
+  checkContractDates(input, todayDay, errors);
 
   if (input.interval <= 0) {
     errors.interval = "Jarak antar-deadline minimal 1 hari";
@@ -125,6 +188,8 @@ export function validateCreatorForm(
 
   if (input.quota <= 0) {
     errors.quota = "Jumlah konten harus lebih dari 0";
+  } else if (input.quota > MAX_CONTENT_QUOTA) {
+    errors.quota = `Jumlah konten maksimal ${MAX_CONTENT_QUOTA}`;
   }
 
   if (input.fixedRate <= 0) {
@@ -135,9 +200,13 @@ export function validateCreatorForm(
     errors.socialPlatform = "Platform wajib dipilih";
   }
 
-  if (input.socialUsername === "") {
-    errors.socialUsername = "Username wajib diisi";
-  }
+  const username = textProblem(
+    input.socialUsername,
+    MAX_USERNAME_LENGTH,
+    "Username wajib diisi",
+    "Username",
+  );
+  if (username) errors.socialUsername = username;
 
   if (input.contractType === "") {
     errors.contractType = "Jenis kontrak wajib dipilih";
