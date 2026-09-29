@@ -129,4 +129,99 @@ describe("Modal", () => {
     expect(screen.getByText("isi")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tutup" })).toBeNull();
   });
+
+  it("keeps focus where it is when the parent re-renders with a fresh onClose", () => {
+    const { rerender } = render(
+      <Modal title="Judul" onClose={() => {}}>
+        <input aria-label="Nama" />
+      </Modal>,
+    );
+    const input = screen.getByRole("textbox", { name: "Nama" });
+    input.focus();
+
+    rerender(
+      <Modal title="Judul" onClose={() => {}}>
+        <input aria-label="Nama" />
+      </Modal>,
+    );
+
+    expect(input).toHaveFocus();
+  });
+});
+
+describe("Modal stacked over another modal", () => {
+  function Stacked({
+    onOuterClose,
+    onInnerClose,
+  }: {
+    onOuterClose: () => void;
+    onInnerClose: () => void;
+  }) {
+    return (
+      <Modal title="Luar" onClose={onOuterClose}>
+        <p>isi luar</p>
+        <Modal title="Dalam" onClose={onInnerClose} size="compact" role="alertdialog">
+          <p>isi dalam</p>
+        </Modal>
+      </Modal>
+    );
+  }
+
+  it("lets only the top dialog answer Escape", () => {
+    const outer = vi.fn();
+    const inner = vi.fn();
+    render(<Stacked onOuterClose={outer} onInnerClose={inner} />);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it("closes neither dialog when the press lands on the top one", () => {
+    const outer = vi.fn();
+    const inner = vi.fn();
+    render(<Stacked onOuterClose={outer} onInnerClose={inner} />);
+
+    fireEvent.mouseDown(screen.getByText("isi dalam"));
+
+    expect(outer).not.toHaveBeenCalled();
+    expect(inner).not.toHaveBeenCalled();
+  });
+
+  it("closes only the top dialog on a press outside both", () => {
+    const outer = vi.fn();
+    const inner = vi.fn();
+    render(<Stacked onOuterClose={outer} onInnerClose={inner} />);
+
+    fireEvent.mouseDown(document.body);
+
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it("hands Escape back to the dialog underneath once the top one is gone", () => {
+    const outer = vi.fn();
+    const { rerender } = render(
+      <Modal title="Luar" onClose={outer}>
+        <Modal title="Dalam" onClose={() => {}}>
+          <p>isi dalam</p>
+        </Modal>
+      </Modal>,
+    );
+
+    rerender(
+      <Modal title="Luar" onClose={outer}>
+        <p>isi luar</p>
+      </Modal>,
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(outer).toHaveBeenCalledTimes(1);
+  });
+
+  it("announces a confirmation as an alertdialog", () => {
+    render(<Stacked onOuterClose={() => {}} onInnerClose={() => {}} />);
+    expect(screen.getByRole("alertdialog")).toHaveAccessibleName("Dalam");
+  });
 });
