@@ -2,14 +2,18 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
+import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
+import { StatusDot } from "@/components/ui/pill";
 import { Toast } from "@/components/ui/toast";
 import { AddContentModal } from "@/components/contents/add-content-modal";
 import {
     fetchCreatorDetail,
     type CreatorDetail,
 } from "@/lib/creators";
-import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
+import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import { formatDate } from "@/lib/format";
 
 const TABLE_HEAD =
@@ -22,11 +26,16 @@ function contentTypeLabel(type: string): string {
     return type === "evergreen" ? "Evergreen" : "Specific";
 }
 
+/** Contents per page: a contract rarely has more, and the page stays scannable when it does. */
+export const CONTENT_PLAN_PAGE_SIZE = 10;
 
 export function ContentPlanClient({
                                       creatorId,
+                                      page = 1,
                                   }: {
     creatorId: string;
+    /** From the URL (?page=), so a page can be linked and reloaded; past the end shows the last. */
+    page?: number;
 }) {
     const [detail, setDetail] = useState<CreatorDetail | null>(null);
     const [error, setError] = useState("");
@@ -54,7 +63,7 @@ export function ContentPlanClient({
                 }
 
                 setDetail(null);
-                setError("Content Plan gagal dimuat. Coba lagi.");
+                setError("Content Plan gagal dimuat.");
             }
         })();
 
@@ -67,6 +76,20 @@ export function ContentPlanClient({
         detail?.contractHistory.find((contract) => contract.isCurrent) ?? null;
 
     const contents = detail?.contents ?? [];
+
+    // The whole contract arrives in one response; paging only slices what is shown.
+    const totalPages = Math.max(1, Math.ceil(contents.length / CONTENT_PLAN_PAGE_SIZE));
+    const currentPage = Math.min(Math.max(page, 1), totalPages);
+    const pageContents = contents.slice(
+        (currentPage - 1) * CONTENT_PLAN_PAGE_SIZE,
+        currentPage * CONTENT_PLAN_PAGE_SIZE,
+    );
+    const basePath = `/admin/creators/${encodeURIComponent(creatorId)}/content-plan`;
+
+    function reload() {
+        setError("");
+        setRefreshKey((current) => current + 1);
+    }
 
     const evergreenCount = contents.filter(
         (content) => content.type === "evergreen",
@@ -91,11 +114,7 @@ export function ContentPlanClient({
                         hint="Jadwal konten creator"
                     />
 
-                    <div className="px-5 pb-5">
-                        <p role="alert" className="text-[13px] text-red-ink">
-                            {error}
-                        </p>
-                    </div>
+                    <LoadError title={error} onRetry={reload} />
                 </Panel>
             );
         }
@@ -125,11 +144,10 @@ export function ContentPlanClient({
                         hint="Jadwal konten creator"
                     />
 
-                    <div className="px-5 pb-5">
-                        <p className="text-[13px] text-muted">
-                            Creator ini belum memiliki kontrak aktif.
-                        </p>
-                    </div>
+                    <EmptyState
+                        title="Creator ini belum memiliki kontrak aktif."
+                        hint="Konten hanya bisa dijadwalkan di dalam periode kontrak yang sedang berjalan."
+                    />
                 </Panel>
             );
         }
@@ -151,11 +169,10 @@ export function ContentPlanClient({
                     />
 
                     {contents.length === 0 ? (
-                        <div className="px-5 pb-8 pt-4">
-                            <p className="text-[13px] text-muted">
-                                Belum ada konten pada periode kontrak ini.
-                            </p>
-                        </div>
+                        <EmptyState
+                            title="Belum ada konten pada periode kontrak ini."
+                            hint="Tambahkan konten untuk mengisi slot yang belum teralokasi."
+                        />
                     ) : (
                         <div className="relative overflow-x-auto">
                             <table className="w-full border-collapse">
@@ -184,7 +201,7 @@ export function ContentPlanClient({
                                 </thead>
 
                                 <tbody>
-                                {contents.map((content) => (
+                                {pageContents.map((content) => (
                                     <tr
                                         key={content.id}
                                         className="transition-colors hover:bg-surface-2"
@@ -203,8 +220,10 @@ export function ContentPlanClient({
                                             {formatDate(content.deadline)}
                                         </td>
 
-                                        <td className={TABLE_CELL}>
-                                            {CONTENT_STATUS_LABELS[content.status]}
+                                        <td className={`${TABLE_CELL} whitespace-nowrap`}>
+                                            <StatusDot tone={CONTENT_STATUS_TONES[content.status]}>
+                                                {CONTENT_STATUS_LABELS[content.status]}
+                                            </StatusDot>
                                         </td>
                                     </tr>
                                 ))}
@@ -212,6 +231,15 @@ export function ContentPlanClient({
                             </table>
                         </div>
                     )}
+
+                    <Pagination
+                        basePath={basePath}
+                        noun="konten"
+                        page={currentPage}
+                        pageSize={CONTENT_PLAN_PAGE_SIZE}
+                        total={contents.length}
+                        totalPages={totalPages}
+                    />
                 </Panel>
 
                 {showModal ? (
