@@ -1,16 +1,28 @@
 import { render, screen } from "@testing-library/react";
+import { redirect } from "next/navigation";
+import { currentRole } from "@/lib/session.server";
 import LoginPage, { metadata } from "./page";
+
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
 
 async function renderLogin(params: Record<string, string | string[] | undefined> = {}) {
   render(await LoginPage({ searchParams: Promise.resolve(params) }));
 }
 
 describe("Login page", () => {
-  it("names the page and explains who can sign in", async () => {
+  beforeEach(() => {
+    vi.mocked(redirect).mockClear();
+    vi.mocked(currentRole).mockResolvedValue(null);
+  });
+
+  // "Tofly" alone reads like the company's public site; the product name says which Tofly this is.
+  it("names the product in full and explains who can sign in", async () => {
     await renderLogin();
 
-    expect(metadata.title).toBe("Masuk — Tofly");
-    expect(screen.getByRole("heading", { level: 1, name: "Masuk ke Tofly" })).toBeInTheDocument();
+    expect(metadata.title).toBe("Masuk — Tofly Creator Management System");
+    expect(screen.getByText("Tofly Creator Management System")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Masuk" })).toBeInTheDocument();
     expect(
       screen.getByText("Gunakan akun Google yang sudah didaftarkan oleh Admin."),
     ).toBeInTheDocument();
@@ -104,5 +116,33 @@ describe("Login page", () => {
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("0812");
+  });
+
+  it.each([
+    ["an admin", "admin", "/admin/creators"],
+    ["a creator", "creator", "/creator/tasks"],
+  ] as const)("sends %s who is already signed in to their own page", async (_label, role, path) => {
+    vi.mocked(currentRole).mockResolvedValue(role);
+
+    await LoginPage({ searchParams: Promise.resolve({}) });
+
+    expect(redirect).toHaveBeenCalledWith(path);
+  });
+
+  it("still offers sign-in when the session cannot be checked", async () => {
+    vi.mocked(currentRole).mockRejectedValue(new Error("backend down"));
+
+    await renderLogin();
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Masuk dengan Google" })).toBeInTheDocument();
+  });
+
+  it("says the session ended when an action was refused for it", async () => {
+    await renderLogin({ error: "session_expired" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Sesi Anda sudah berakhir. Silakan masuk lagi untuk melanjutkan.",
+    );
   });
 });

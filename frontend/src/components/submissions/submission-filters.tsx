@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { MAX_SEARCH_LENGTH, useUrlFilters } from "@/lib/use-url-filters";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "Semua" },
@@ -15,49 +14,22 @@ const TYPE_OPTIONS = [
   { value: "specific", label: "Specific" },
 ] as const;
 
+/**
+ * The review queue's filter bar. The server parses the URL and hands the validated values in;
+ * the search box and the URL updates come from the shared filter hook, so Reset clears
+ * everything the same way the Creator Database does.
+ */
 export function SubmissionFilters({
-  q,
   status,
   type,
   overdue,
 }: {
-  q: string;
   status: string;
   type: string;
   overdue: boolean;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const [draft, setDraft] = useState(q);
-  const isFiltered =
-    draft !== "" || status !== "all" || type !== "all" || overdue;
-
-  const push = useCallback(
-    (next: URLSearchParams) => {
-      next.delete("page");
-      router.replace(next.toString() ? `${pathname}?${next}` : pathname, { scroll: false });
-    },
-    [pathname, router],
-  );
-
-  const reset = useCallback(() => {
-    setDraft("");
-    router.replace(pathname, { scroll: false });
-  }, [pathname, router]);
-
-  useEffect(() => {
-    if (draft === q) return;
-
-    const timer = setTimeout(() => {
-      const next = new URLSearchParams(params.toString());
-      if (draft) next.set("q", draft);
-      else next.delete("q");
-      push(next);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [draft, q, params, push]);
+  const { search, setSearch, setParam, reset, pending } = useUrlFilters();
+  const isFiltered = search !== "" || status !== "all" || type !== "all" || overdue;
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
@@ -66,8 +38,10 @@ export function SubmissionFilters({
         <input
           type="search"
           placeholder="Cari kreator atau konten…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          aria-label="Cari draft"
+          maxLength={MAX_SEARCH_LENGTH}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink w-48"
         />
       </label>
@@ -77,12 +51,7 @@ export function SubmissionFilters({
         <select
           aria-label="Status"
           value={status}
-          onChange={(e) => {
-            const next = new URLSearchParams(params.toString());
-            if (e.target.value === "all") next.delete("status");
-            else next.set("status", e.target.value);
-            push(next);
-          }}
+          onChange={(e) => setParam("status", e.target.value)}
           className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
         >
           {STATUS_OPTIONS.map((o) => (
@@ -98,12 +67,7 @@ export function SubmissionFilters({
         <select
           aria-label="Tipe"
           value={type}
-          onChange={(e) => {
-            const next = new URLSearchParams(params.toString());
-            if (e.target.value === "all") next.delete("type");
-            else next.set("type", e.target.value);
-            push(next);
-          }}
+          onChange={(e) => setParam("type", e.target.value)}
           className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
         >
           {TYPE_OPTIONS.map((o) => (
@@ -118,12 +82,7 @@ export function SubmissionFilters({
         <input
           type="checkbox"
           checked={overdue}
-          onChange={(e) => {
-            const next = new URLSearchParams(params.toString());
-            if (e.target.checked) next.set("overdue", "true");
-            else next.delete("overdue");
-            push(next);
-          }}
+          onChange={(e) => setParam("overdue", e.target.checked ? "true" : "")}
         />
         <span className="text-muted">Overdue</span>
       </label>
@@ -132,6 +91,7 @@ export function SubmissionFilters({
         <button
           type="button"
           onClick={reset}
+          disabled={pending}
           className="cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink"
         >
           Reset

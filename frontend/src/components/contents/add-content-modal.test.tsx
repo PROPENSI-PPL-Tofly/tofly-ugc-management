@@ -163,8 +163,37 @@ describe("AddContentModal", () => {
 
         fireEvent.change(name, { target: { value: "n".repeat(100) } });
         fireEvent.change(brief, { target: { value: "b".repeat(2000) } });
-        expect(name).toHaveAccessibleDescription("100/100 karakter");
-        expect(brief).toHaveAccessibleDescription("2000/2000 karakter");
+        // Full: the counter now also says why the next key press does nothing.
+        expect(name).toHaveAccessibleDescription("Maksimal 100 karakter 100/100 karakter");
+        expect(brief).toHaveAccessibleDescription("Maksimal 2000 karakter 2000/2000 karakter");
+    });
+
+    it("closes straight away on Batal when nothing was changed", () => {
+        openModal();
+
+        fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+        expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks before throwing away a half-written content", () => {
+        openModal();
+        fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+            target: { value: "specific" },
+        });
+        fireEvent.change(screen.getByLabelText("Nama Konten"), {
+            target: { value: "Promo" },
+        });
+
+        fireEvent.keyDown(document, { key: "Escape" });
+
+        expect(defaultProps.onClose).not.toHaveBeenCalled();
+        expect(
+            screen.getByRole("alertdialog", { name: "Batalkan penambahan konten?" }),
+        ).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Buang" }));
+        expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
     });
 
     it("hides Name and Brief again when Evergreen is selected", () => {

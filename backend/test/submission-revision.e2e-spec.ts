@@ -113,4 +113,30 @@ describe('PATCH /submissions/:id/revise', () => {
       },
     });
   });
+
+  it('stores the note without the spaces around it', async () => {
+    await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: '  Mohon perbaiki bagian pembuka.  ' })
+      .expect(200);
+
+    expect(submissionUpdate).toHaveBeenCalledWith({
+      where: { id: submissionId },
+      data: { revision_notes: 'Mohon perbaiki bagian pembuka.' },
+    });
+  });
+
+  it('refuses a note over 1000 characters with 422, changing nothing', async () => {
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: 'a'.repeat(1001) });
+
+    expect(response.status).toBe(422);
+    expect(response.body).toEqual({
+      message: 'Data revisi tidak valid',
+      errors: { revisionNotes: 'Catatan revisi maksimal 1000 karakter' },
+    });
+    expect(submissionUpdate).not.toHaveBeenCalled();
+    expect(contentUpdateMany).not.toHaveBeenCalled();
+  });
 });

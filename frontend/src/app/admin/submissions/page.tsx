@@ -2,6 +2,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { SubmissionQueueTable } from "@/components/submissions/submission-queue-table";
 import { SubmissionFilters } from "@/components/submissions/submission-filters";
+import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
 import {
   fetchSubmissionQueue,
@@ -24,21 +25,6 @@ function filterQuery(filters: SubmissionQueueFilters): Record<string, string> {
   if (filters.type && filters.type !== "all") query.type = filters.type;
   if (filters.overdue) query.overdue = "true";
   return query;
-}
-
-function LoadFailed() {
-  return (
-    <div role="alert" className="px-5 py-14 text-center">
-      <p className="text-[15px] font-semibold">Antrian tidak bisa dimuat.</p>
-      <p className="mt-1 text-[13px] text-muted">Server tidak menjawab.</p>
-      <a
-        href="/admin/submissions"
-        className="mt-4 inline-block rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 active:bg-surface-2"
-      >
-        Muat ulang
-      </a>
-    </div>
-  );
 }
 
 export default async function SubmissionsPage({
@@ -76,6 +62,12 @@ export default async function SubmissionsPage({
     result = null;
   }
 
+  const query = filterQuery(filters);
+  const retryParams = new URLSearchParams(query);
+  if (page > 1) retryParams.set("page", String(page));
+  const retryHref =
+    retryParams.size > 0 ? `/admin/submissions?${retryParams}` : "/admin/submissions";
+
   return (
     <AppShell
       title="Antrian Draft"
@@ -102,18 +94,20 @@ export default async function SubmissionsPage({
       <Panel>
         <PanelHead title="Semua draft menunggu review" />
         <SubmissionFilters
-          q={filters.q ?? ""}
           status={filters.status}
           type={filters.type}
           overdue={filters.overdue}
         />
         {result ? (
           <>
-            <SubmissionQueueTable items={result.items} />
+            <SubmissionQueueTable
+              items={result.items}
+              filtered={Object.keys(query).length > 0}
+            />
             <Pagination
               basePath="/admin/submissions"
               noun="draft"
-              query={filterQuery(filters)}
+              query={query}
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}
@@ -121,7 +115,7 @@ export default async function SubmissionsPage({
             />
           </>
         ) : (
-          <LoadFailed />
+          <LoadError title="Antrian tidak bisa dimuat." retryHref={retryHref} />
         )}
       </Panel>
     </AppShell>

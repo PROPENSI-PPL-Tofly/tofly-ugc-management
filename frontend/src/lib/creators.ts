@@ -6,6 +6,7 @@
 // fetched in the browser through this app's own /api proxy, which keeps BACKEND_URL out of
 // the browser either way.
 
+import { apiFetch } from "./api-client";
 import type { ContractType, CreatorFormErrors, CreatorFormInput } from "./creator-form";
 
 export const PAGE_SIZE = 10;
@@ -26,7 +27,9 @@ export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
 // "all" plus every value the API accepts, spelled the way the API spells them: these go
 // straight into the query string, so a name that drifts from the backend is a filter that
 // silently stops filtering.
-export const CONTRACT_STATUS_FILTERS = ["all", "active", "expired", "upcoming", "none"] as const;
+// Every creator is added together with a contract, so "no contract" is not a state an admin can
+// meet; the backend still accepts it, the filter just does not offer it.
+export const CONTRACT_STATUS_FILTERS = ["all", "active", "expired", "upcoming"] as const;
 export const PRODUCTIVITY_FILTERS = ["all", "good", "watch", "risk", "no_data"] as const;
 
 export type ContractStatusFilter = (typeof CONTRACT_STATUS_FILTERS)[number];
@@ -201,7 +204,7 @@ export const NO_FILTERS: CreatorFilterState = {
  * Keeping the backend address out of the browser avoids exposing BACKEND_URL.
  */
 export async function fetchCreatorDetail(id: string): Promise<CreatorDetail> {
-  const response = await fetch(`/api/creators/${encodeURIComponent(id)}`, {
+  const response = await apiFetch(`/api/creators/${encodeURIComponent(id)}`, {
     cache: "no-store",
   });
 
@@ -261,7 +264,7 @@ export async function createCreator(request: NewCreatorRequest): Promise<CreateC
 
   let response: Response;
   try {
-    response = await fetch("/api/creators", {
+    response = await apiFetch("/api/creators", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),

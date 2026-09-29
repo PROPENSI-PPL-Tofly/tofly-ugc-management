@@ -175,12 +175,12 @@ describe('DeadlinePreview', () => {
 
   // Move to the next month.
   fireEvent.click(
-    screen.getByRole('button', { name: /next month/i }),
+    screen.getByRole('button', { name: 'Bulan berikutnya' }),
   );
 
   // The October deadline should now be visible in the calendar.
   expect(
-    screen.getByText('October 2026'),
+    screen.getByText('Oktober 2026'),
   ).toBeInTheDocument();
 
   expect(
@@ -258,15 +258,15 @@ describe('DeadlinePreview', () => {
 
     expect(screen.getByRole('heading', { name: 'September 2026' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /next month/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Bulan berikutnya' }));
 
-    expect(screen.getByRole('heading', { name: 'October 2026' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Oktober 2026' })).toBeInTheDocument();
     expect(screen.getByTestId('deadline-2026-10-02')).toHaveTextContent('2');
 
-    fireEvent.click(screen.getByRole('button', { name: /previous month/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Bulan sebelumnya' }));
 
     expect(screen.getByRole('heading', { name: 'September 2026' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'October 2026' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Oktober 2026' })).not.toBeInTheDocument();
     expect(screen.getByTestId('deadline-2026-09-25')).toHaveTextContent('25');
     expect(screen.getByTestId('deadline-2026-09-25')).toHaveAttribute('data-deadline-type', 'auto');
     expect(screen.queryByTestId('deadline-2026-10-02')).not.toBeInTheDocument();
@@ -287,7 +287,7 @@ describe('DeadlinePreview', () => {
     );
 
     const calendar = screen.getByRole('table', { // Get the calendar table element by its role and name
-      name: 'Deadline calendar September 2026',
+      name: 'Kalender deadline September 2026',
     });
     const headers = within(calendar).getAllByRole('columnheader'); // Get all the column header elements within the calendar table
     expect(headers.map((header) => header.textContent)).toEqual([
@@ -392,5 +392,57 @@ describe('DeadlinePreview', () => {
 
       expect(screen.queryByRole('button', { name: /deadline/ })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('DeadlinePreview key and buffer', () => {
+  function renderContract() {
+    render(
+      <DeadlinePreview
+        contractStart="2026-10-03"
+        contractEnd="2026-10-31"
+        today="2026-09-24"
+        bufferDays={5}
+        autoDeadlines={['2026-10-08']}
+        allocatedCount={1}
+        remainingCount={0}
+        quota={1}
+      />,
+    );
+  }
+
+  it('explains every kind of day it colours', () => {
+    renderContract();
+
+    const legend = screen.getByRole('list', { name: 'Keterangan kalender' });
+    expect(legend).toHaveTextContent('Deadline otomatis');
+    expect(legend).toHaveTextContent('Deadline manual');
+    expect(legend).toHaveTextContent('Masa buffer');
+    expect(legend).toHaveTextContent('Di luar kontrak');
+  });
+
+  // UAT: greyed-out buffer days looked the same as days outside the contract.
+  it('says in words why a buffer day cannot take a deadline, and from when it can', () => {
+    renderContract();
+
+    expect(screen.getByTestId('calendar-date-2026-10-03')).toHaveTextContent('masa buffer');
+    expect(
+      screen.getByText('Deadline baru paling cepat 8 Okt 2026, setelah masa buffer 5 hari.'),
+    ).toBeInTheDocument();
+  });
+
+  it('draws buffer days apart from days outside the contract', () => {
+    renderContract();
+
+    const buffer = screen.getByTestId('calendar-date-2026-10-03');
+    const outside = screen.getByTestId('calendar-date-2026-10-01');
+    expect(buffer.className).not.toBe(outside.className);
+    expect(outside).toHaveTextContent('di luar kontrak');
+  });
+
+  it('counts the allocation with a progress bar', () => {
+    renderContract();
+
+    expect(screen.getByRole('progressbar', { name: 'Alokasi konten' })).toHaveAttribute('value', '1');
   });
 });

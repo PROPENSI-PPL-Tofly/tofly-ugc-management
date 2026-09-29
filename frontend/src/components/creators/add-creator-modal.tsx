@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { CharLimit } from "@/components/ui/char-limit";
+import { NUMERIC_INPUT, digitsOnly } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
+import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import DeadlinePreview from "./deadline-preview";
 import {
   BUFFER_DAYS,
   CONTRACT_TYPE_LABELS,
   contractDateLimits,
   localCalendarDay,
+  MAX_EMAIL_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_USERNAME_LENGTH,
   scheduleDeadlines,
+  scheduleReady,
   validateCreatorForm,
   type CreatorFormErrors,
   type ContractType,
@@ -39,10 +46,13 @@ const FIELD =
 function Field({
   label,
   error,
+  note,
   children,
 }: {
   label: string;
   error?: string;
+  /** Rendered outside the label so it stays out of the control's accessible name. */
+  note?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -57,6 +67,7 @@ function Field({
         </span>
         {children}
       </label>
+      {note}
       {error ? <span className="text-xs text-red-ink">{error}</span> : null}
     </div>
   );
@@ -67,6 +78,12 @@ function Field({
 // field produced "01" (manual UI review finding).
 function emptyIfZero(value: number): number | "" {
   return value === 0 ? "" : value;
+}
+
+/** Reads a digits-only field back into the number the form holds; empty is 0. */
+function wholeNumber(value: string): number {
+  const digits = digitsOnly(value);
+  return digits === "" ? 0 : Number(digits);
 }
 
 const NO_ERRORS: CreatorFormErrors = {};
@@ -105,6 +122,9 @@ export function AddCreatorModal({
   existingEmails?: string[];
 }) {
   const [form, setForm] = useState<CreatorFormInput>(INITIAL_FORM);
+  const nameCountId = useId();
+  const emailCountId = useId();
+  const usernameCountId = useId();
   // Which fields the admin has already blurred at least once. Simpan's disabled state tracks
   // liveErrors directly regardless of this, but a field only *shows* its error once touched —
   // otherwise every field would flash red the instant the modal opens.
@@ -147,6 +167,20 @@ export function AddCreatorModal({
   // and the per-field error messages below, so there is only one place validation ever runs.
   const liveErrors = validateCreatorForm(form, undefined, existingEmails);
   const isFormValid = Object.keys(liveErrors).length === 0;
+  // The calendar only once the dates it draws are ones that could be saved.
+  const showSchedule = allocation !== null && scheduleReady(liveErrors);
+
+  // Every way out (Batal, ✕, Escape, a press outside) asks first once anything was typed.
+  const isDirty =
+    picks !== NO_PICKS ||
+    (Object.keys(INITIAL_FORM) as (keyof CreatorFormInput)[]).some(
+      (field) => form[field] !== INITIAL_FORM[field],
+    );
+  const { requestClose, confirmDialog } = useDiscardGuard({
+    isDirty,
+    onDiscard: onClose,
+    title: "Batalkan penambahan creator?",
+  });
 
   function markTouched(field: keyof CreatorFormInput) {
     setTouched((prev) => ({ ...prev, [field]: true }));
@@ -155,6 +189,12 @@ export function AddCreatorModal({
   function change<K extends keyof CreatorFormInput>(field: K, value: CreatorFormInput[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setEdited((prev) => ({ ...prev, [field]: true }));
+  }
+
+  // A date is picked, not typed: its verdict is due as soon as it changes, not on blur.
+  function changeDate(field: "contractStart" | "contractEnd", value: string) {
+    change(field, value);
+    markTouched(field);
   }
 
   function fieldError(field: keyof CreatorFormInput): string | undefined {
@@ -173,12 +213,13 @@ export function AddCreatorModal({
   }
 
   return (
+    <>
     <Modal
       title="Tambah Creator"
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={requestClose}>
             Batal
           </Button>
 
@@ -199,22 +240,38 @@ export function AddCreatorModal({
       <fieldset className="mb-4 border-t border-rule pt-3">
         <legend className="pr-2 text-[13px] font-bold text-ink">Data Creator</legend>
         <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field label="Nama Creator" error={fieldError("name")}>
+          <Field
+            label="Nama Creator"
+            error={fieldError("name")}
+            note={<CharLimit id={nameCountId} length={form.name.length} max={MAX_NAME_LENGTH} />}
+          >
             <input
               type="text"
               className={FIELD}
               required
+              maxLength={MAX_NAME_LENGTH}
+              aria-describedby={nameCountId}
               value={form.name}
               onChange={(event) => change("name", event.target.value)}
               onBlur={() => markTouched("name")}
             />
           </Field>
 
-          <Field label="Email" error={fieldError("email")}>
+          <Field
+            label="Email"
+            error={fieldError("email")}
+            note={
+              form.email.length >= MAX_EMAIL_LENGTH ? (
+                <CharLimit id={emailCountId} length={form.email.length} max={MAX_EMAIL_LENGTH} />
+              ) : null
+            }
+          >
             <input
               type="email"
               className={FIELD}
               required
+              maxLength={MAX_EMAIL_LENGTH}
+              aria-describedby={form.email.length >= MAX_EMAIL_LENGTH ? emailCountId : undefined}
               value={form.email}
               onChange={(event) => change("email", event.target.value)}
               onBlur={() => markTouched("email")}
@@ -237,11 +294,23 @@ export function AddCreatorModal({
             </select>
           </Field>
 
-          <Field label="Username Social Media" error={fieldError("socialUsername")}>
+          <Field
+            label="Username Social Media"
+            error={fieldError("socialUsername")}
+            note={
+              <CharLimit
+                id={usernameCountId}
+                length={form.socialUsername.length}
+                max={MAX_USERNAME_LENGTH}
+              />
+            }
+          >
             <input
               type="text"
               className={FIELD}
               required
+              maxLength={MAX_USERNAME_LENGTH}
+              aria-describedby={usernameCountId}
               placeholder="mis. salsa.amelia"
               value={form.socialUsername}
               onChange={(event) => change("socialUsername", event.target.value)}
@@ -273,12 +342,12 @@ export function AddCreatorModal({
 
           <Field label="Contract Fixed Rate (Rp)" error={fieldError("fixedRate")}>
             <input
-              type="number"
+              {...NUMERIC_INPUT}
               className={FIELD}
               required
               placeholder="mis. 500000"
               value={emptyIfZero(form.fixedRate)}
-              onChange={(event) => change("fixedRate", Number(event.target.value))}
+              onChange={(event) => change("fixedRate", wholeNumber(event.target.value))}
               onBlur={() => markTouched("fixedRate")}
             />
           </Field>
@@ -291,7 +360,7 @@ export function AddCreatorModal({
               min={limits.startMin}
               max={limits.startMax}
               value={form.contractStart}
-              onChange={(event) => change("contractStart", event.target.value)}
+              onChange={(event) => changeDate("contractStart", event.target.value)}
               onBlur={() => markTouched("contractStart")}
             />
           </Field>
@@ -303,37 +372,44 @@ export function AddCreatorModal({
               required
               min={limits.endMin}
               value={form.contractEnd}
-              onChange={(event) => change("contractEnd", event.target.value)}
+              onChange={(event) => changeDate("contractEnd", event.target.value)}
+              onBlur={() => markTouched("contractEnd")}
             />
           </Field>
 
           <Field label="Jumlah konten yang disepakati" error={fieldError("quota")}>
             <input
-              type="number"
+              {...NUMERIC_INPUT}
               className={FIELD}
               required
               placeholder="mis. 6"
               value={emptyIfZero(form.quota)}
-              onChange={(event) => change("quota", Number(event.target.value))}
+              onChange={(event) => change("quota", wholeNumber(event.target.value))}
               onBlur={() => markTouched("quota")}
             />
           </Field>
 
           <Field label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
             <input
-              type="number"
+              {...NUMERIC_INPUT}
               className={FIELD}
               required
-              value={form.interval}
-              onChange={(event) => change("interval", Number(event.target.value))}
+              value={emptyIfZero(form.interval)}
+              onChange={(event) => change("interval", wholeNumber(event.target.value))}
               onBlur={() => markTouched("interval")}
             />
           </Field>
         </div>
       </fieldset>
 
-      {allocation !== null ? (
-        <div className="mt-4">
+      {!showSchedule ? (
+        <p className="rounded-(--radius-control) border border-dashed border-rule bg-surface-2 px-3 py-2.5 text-[13px] text-muted">
+          Lengkapi tanggal kontrak yang valid untuk melihat jadwal deadline.
+        </p>
+      ) : null}
+
+      {showSchedule && allocation !== null ? (
+        <div className="mt-1">
           <DeadlinePreview
             contractStart={form.contractStart}
             contractEnd={form.contractEnd}
@@ -393,5 +469,7 @@ export function AddCreatorModal({
         </p>
       ) : null}
     </Modal>
+    {confirmDialog}
+    </>
   );
 }

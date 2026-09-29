@@ -1,3 +1,5 @@
+import { apiFetch } from "./api-client";
+
 export interface DraftSubmissionInput {
   link: string;
   notes: string | null;
@@ -44,7 +46,7 @@ export async function submitDraft(
   input: DraftSubmissionInput,
 ): Promise<DraftSubmissionResult> {
   try {
-    const response = await fetch(`/api/contents/${contentId}/draft`, {
+    const response = await apiFetch(`/api/contents/${contentId}/draft`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

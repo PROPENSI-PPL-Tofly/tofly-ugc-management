@@ -41,6 +41,29 @@ describe("Creator database page", () => {
     expect(screen.getByText("Halaman 2 dari 2")).toBeInTheDocument();
   });
 
+  it("keeps the search and filters when moving to another page", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(
+      listResponse({ items: [creator()], page: 1, total: 12, totalPages: 2 }),
+    );
+
+    await renderPage({ q: "ra", productivity: "risk" });
+
+    expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
+      "href",
+      "/admin/creators?q=ra&productivity=risk&page=2",
+    );
+  });
+
+  it("says when a search matched nobody instead of calling the roster empty", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(listResponse({ items: [], total: 0, totalPages: 0 }));
+
+    await renderPage({ q: "zzz" });
+
+    expect(
+      screen.getByText("Tidak ada creator yang cocok dengan pencarian atau filter."),
+    ).toBeInTheDocument();
+  });
+
   it("starts on the first page without a query", async () => {
     vi.mocked(fetchCreators).mockResolvedValue(listResponse());
 
@@ -83,6 +106,17 @@ describe("Creator database page", () => {
       "/admin/creators",
     );
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("retries the same search, filters and page after a failed load", async () => {
+    vi.mocked(fetchCreators).mockRejectedValue(new Error("fetch failed"));
+
+    await renderPage({ q: "ra", contractStatus: "active", page: "2" });
+
+    expect(screen.getByRole("link", { name: "Muat ulang" })).toHaveAttribute(
+      "href",
+      "/admin/creators?q=ra&contractStatus=active&page=2",
+    );
   });
 
   it("passes filter params from URL to fetchCreators", async () => {

@@ -419,6 +419,10 @@ describe("SubmitVideoModal", () => {
       screen.getByRole("button", { name: "Batal" }),
     );
 
+    // A typed link is not dropped silently: the creator confirms first.
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Buang" }));
+
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onSubmitted).not.toHaveBeenCalled();
     expect(mockSubmitVideo).not.toHaveBeenCalled();

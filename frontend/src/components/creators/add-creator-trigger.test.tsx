@@ -68,6 +68,16 @@ describe("AddCreatorTrigger", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("confirms the new creator with a toast once saved", async () => {
+    createCreator.mockResolvedValue({ ok: true });
+    render(<AddCreatorTrigger />);
+    openAndFill();
+
+    await save();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Creator Bagas berhasil ditambahkan.");
+  });
+
   it("disables Simpan while the save is in flight", async () => {
     let finish: (result: CreateCreatorResult) => void = () => {};
     createCreator.mockReturnValue(new Promise((resolve) => (finish = resolve)));
@@ -123,19 +133,23 @@ describe("AddCreatorTrigger", () => {
     await save();
 
     fireEvent.click(screen.getByRole("button", { name: /batal/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buang" }));
     fireEvent.click(screen.getByRole("button", { name: /tambah creator/i }));
 
     expect(screen.queryByText("Email sudah terdaftar")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("closes on Batal without saving anything", () => {
+  it("closes on Batal without saving anything, once the discard is confirmed", () => {
     render(<AddCreatorTrigger />);
     openAndFill();
 
     fireEvent.click(screen.getByRole("button", { name: /batal/i }));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Buang" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(createCreator).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });

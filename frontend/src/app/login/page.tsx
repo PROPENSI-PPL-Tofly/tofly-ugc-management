@@ -1,11 +1,26 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Panel } from "@/components/ui/panel";
 import { loginErrorMessage } from "@/lib/login-errors";
+import { APP_NAME, homeFor, type Role } from "@/lib/session";
+import { currentRole } from "@/lib/session.server";
+
+// Reads the session cookie on every visit, so it is never served from a static build.
+export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Masuk — Tofly",
+  title: `Masuk — ${APP_NAME}`,
 };
+
+/** The signed-in role, or null; a backend that cannot answer must not block signing in. */
+async function signedInRole(): Promise<Role | null> {
+  try {
+    return await currentRole();
+  } catch {
+    return null;
+  }
+}
 
 const ALERT =
   "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
@@ -37,13 +52,18 @@ function GoogleMark() {
 /**
  * The one way into Tofly (PRD 3.1): Google identifies the person, then the admin's whitelist
  * decides whether and as whom they get in. The backend owns the whole OAuth flow, so this page
- * is a link plus the reason the last attempt came back here.
+ * is a link plus the reason the last attempt came back here. Someone already signed in has
+ * nothing to do here and goes straight to their own page.
  */
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const role = await signedInRole();
+  // Outside the try above: redirect() works by throwing, which the catch would swallow.
+  if (role !== null) redirect(homeFor(role));
+
   const error = loginErrorMessage((await searchParams).error);
 
   return (
@@ -51,8 +71,8 @@ export default async function LoginPage({
       <div className="w-full max-w-[360px]">
         <Panel>
           <div className="px-6 py-7">
-            <p className="text-[12.5px] font-semibold text-accent">Tofly</p>
-            <h1 className="mt-1 text-[20px]">Masuk ke Tofly</h1>
+            <p className="text-[12.5px] font-semibold text-accent">{APP_NAME}</p>
+            <h1 className="mt-1 text-[20px]">Masuk</h1>
             <p className="mt-2 text-[13px] text-muted">
               Gunakan akun Google yang sudah didaftarkan oleh Admin.
             </p>

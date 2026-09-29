@@ -133,7 +133,23 @@ describe("SubmissionQueueTable", () => {
   it("shows a 'no submissions' message when items is empty", () => {
     render(<SubmissionQueueTable items={[]} />);
 
-    expect(screen.getByText(/tidak ada draft/i)).toBeInTheDocument();
+    expect(screen.getByText("Tidak ada draft yang menunggu review.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /hapus/i })).toBeNull();
+  });
+
+  it("tells a search or filter that matched nothing apart from an empty queue", () => {
+    render(<SubmissionQueueTable items={[]} filtered />);
+
+    expect(
+      screen.getByText("Tidak ada draft yang cocok dengan pencarian atau filter."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows each status beside a coloured dot", () => {
+    render(<SubmissionQueueTable items={[ITEMS[0]]} />);
+
+    const label = screen.getByText("Draft Menunggu Review");
+    expect(label.querySelector(".bg-accent")).not.toBeNull();
   });
 
   it("has no placeholder text left in the action column", () => {

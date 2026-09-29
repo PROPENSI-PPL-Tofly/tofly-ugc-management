@@ -12,3 +12,15 @@ export const FIELD =
 
 /** The message under a field, tied to it through aria-describedby. */
 export const FIELD_ERROR = "text-sm text-red-ink";
+
+/**
+ * Props for a whole-number field. A text input with a numeric keyboard rather than
+ * type="number": the browser's number field changes its value when the page is scrolled with
+ * the mouse over it, and adds spinner arrows nobody uses for a quota or a fee.
+ */
+export const NUMERIC_INPUT = { type: "text", inputMode: "numeric", pattern: "[0-9]*" } as const;
+
+/** What is left of a typed value once everything but the digits is dropped. */
+export function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}

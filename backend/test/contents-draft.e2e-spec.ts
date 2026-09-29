@@ -207,6 +207,26 @@ describe('POST /contents/:id/draft (e2e)', () => {
     });
   });
 
+  it.each([
+    ['another host', 'https://www.dropbox.com/s/abc/draft.mp4'],
+    ['a Google Docs link', 'https://docs.google.com/document/d/abc/edit'],
+    ['a look-alike Drive host', 'https://drive.google.com.evil.example/file/d/abc'],
+  ])('refuses %s with 422, storing nothing', async (_case, link) => {
+    const scheduled = await content(`not drive ${_case}`, 'scheduled');
+
+    const response = await handIn(scheduled.id, { link });
+
+    expect(response.status).toBe(422);
+    expect(response.body).toEqual({
+      message: 'Data draft tidak valid',
+      errors: { link: 'Link draft harus dari Google Drive (drive.google.com)' },
+    });
+    expect(await stateOf(scheduled.id)).toEqual({
+      status: 'scheduled',
+      submissions: [],
+    });
+  });
+
   it('answers 404 for a proposal the admin has not approved', async () => {
     const proposal = await content('proposal', 'scheduled', {
       isProposal: true,

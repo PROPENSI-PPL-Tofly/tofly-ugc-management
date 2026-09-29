@@ -177,6 +177,10 @@ describe("Task Saya page", () => {
 
       expect(screen.getByText("Tidak ada tugas berstatus Draft Approved.")).toBeInTheDocument();
       expect(screen.queryByText("Belum ada tugas untuk kamu.")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Tampilkan semua tugas" })).toHaveAttribute(
+        "href",
+        "/creator/tasks",
+      );
       expect(screen.getByRole("combobox", { name: "Status" })).toBeInTheDocument();
     });
   });
@@ -188,6 +192,7 @@ describe("Task Saya page", () => {
 
     expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Berikutnya" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Tampilkan semua tugas" })).not.toBeInTheDocument();
   });
 
   it("tells a visitor who is not signed in as a creator, instead of a broken table", async () => {
@@ -199,6 +204,7 @@ describe("Task Saya page", () => {
         "Kamu belum masuk sebagai creator.",
     );
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Masuk" })).toHaveAttribute("href", "/login");
   });
 
   it.each([

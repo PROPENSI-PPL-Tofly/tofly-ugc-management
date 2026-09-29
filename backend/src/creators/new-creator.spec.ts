@@ -301,13 +301,35 @@ describe('checkNewCreator', () => {
       });
     });
 
-    it('allows a contract that starts and ends on the same day', () => {
-      const errors = fieldErrors(
-        body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' }),
-      );
+    // A contract that ends inside the buffer leaves no day any content could be due on.
+    it('rejects a contract that ends inside the buffer, naming the earliest end', () => {
+      expect(
+        errorsFor(body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' })),
+      ).toMatchObject({
+        contractEnd: 'Akhir kontrak paling cepat 6 Okt 2026 (masa buffer 5 hari)',
+      });
+    });
 
-      expect(errors).not.toHaveProperty('contractStart');
-      expect(errors).not.toHaveProperty('contractEnd');
+    it('accepts an end exactly on the first day after the buffer, and rejects the day before', () => {
+      const lastDay = body({
+        contractStart: '2026-10-01',
+        contractEnd: '2026-10-06',
+        quota: 1,
+        deadlines: ['2026-10-06'],
+      });
+      expect(fieldErrors(lastDay)).toEqual({});
+
+      expect(
+        errorsFor({ ...lastDay, contractEnd: '2026-10-05' }),
+      ).toHaveProperty('contractEnd');
+    });
+
+    it('counts the buffer from today when the contract has already started', () => {
+      expect(
+        errorsFor(body({ contractStart: '2026-09-23', contractEnd: '2026-09-27' })),
+      ).toMatchObject({
+        contractEnd: 'Akhir kontrak paling cepat 28 Sep 2026 (masa buffer 5 hari)',
+      });
     });
 
     it('rejects an end before today', () => {
@@ -398,14 +420,20 @@ describe('checkNewCreator', () => {
     });
 
     // Postgres `integer` stops at 2^31 - 1; anything above would fail inside the insert.
-    it.each(['interval', 'quota'])(
-      '%s is capped at the largest Postgres integer',
-      (field) => {
-        expect(errorsFor(body({ [field]: 2 ** 31 }))).toMatchObject({
-          [field]: expect.stringContaining('terlalu besar'),
-        });
-      },
-    );
+    it('caps the interval at the largest Postgres integer', () => {
+      expect(errorsFor(body({ interval: 2 ** 31 }))).toMatchObject({
+        interval: 'Jarak antar-deadline terlalu besar',
+      });
+    });
+
+    it('accepts up to 100 contents and refuses 101, naming the limit', () => {
+      const deadlines = Array.from({ length: 100 }, () => '2026-10-06');
+      expect(fieldErrors(body({ quota: 100, deadlines }))).toEqual({});
+
+      expect(errorsFor(body({ quota: 101 }))).toMatchObject({
+        quota: 'Jumlah konten maksimal 100',
+      });
+    });
 
     it('accepts an interval of 1 day, the PRD minimum', () => {
       expect(checkNewCreator(body({ interval: 1 }), TODAY).interval).toBe(1);

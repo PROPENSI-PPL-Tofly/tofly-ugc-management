@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
 import { Toast } from "@/components/ui/toast";
@@ -29,7 +29,8 @@ const SUBMITTED: Record<MyTaskAction, string> = {
 export function MyTaskBoard({
   tasks,
   emptyMessage,
-}: Readonly<{ tasks: MyTask[]; emptyMessage?: string }>) {
+  emptyAction,
+}: Readonly<{ tasks: MyTask[]; emptyMessage?: string; emptyAction?: ReactNode }>) {
   const router = useRouter();
   const [opened, setOpened] = useState<Opened | null>(null);
   // The id is the Toast key: a second hand-in remounts it, restarting its countdown.
@@ -91,6 +92,7 @@ export function MyTaskBoard({
         <MyTaskTable
           tasks={tasks}
           emptyMessage={emptyMessage}
+          emptyAction={emptyAction}
           onAction={(task, action) => setOpened({ task, action })}
         />
       </section>

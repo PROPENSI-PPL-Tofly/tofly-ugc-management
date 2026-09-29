@@ -1,8 +1,11 @@
 import {
   contractDateLimits,
   contractTypePrefix,
+  earliestContractEnd,
   localCalendarDay,
+  MAX_CONTENT_QUOTA,
   scheduleDeadlines,
+  scheduleReady,
   validateCreatorForm,
 } from "./creator-form";
 
@@ -183,17 +186,146 @@ describe("contractDateLimits", () => {
     expect(contractDateLimits({ contractStart: "", contractEnd: "2026-12-31" }, "2026-09-24")).toEqual({
       startMin: "2026-09-24",
       startMax: "2026-12-31",
-      endMin: "2026-09-24",
+      endMin: "2026-09-29",
     });
   });
 
-  it("keeps the end on or after the chosen start", () => {
+  // The picker itself already refuses an end inside the buffer, not only the validation.
+  it("keeps the end at least the buffer after the chosen start", () => {
     expect(contractDateLimits({ contractStart: "2026-10-01", contractEnd: "" }, "2026-09-24")).toEqual({
       startMin: "2026-09-24",
       startMax: undefined,
-      endMin: "2026-10-01",
+      endMin: "2026-10-06",
     });
   });
+});
+
+describe("earliestContractEnd", () => {
+  it("is the buffer after the start when the start is still ahead", () => {
+    expect(earliestContractEnd("2026-10-01", "2026-09-24")).toBe("2026-10-06");
+  });
+
+  it("counts from today when the start is today or already past", () => {
+    expect(earliestContractEnd("2026-09-24", "2026-09-24")).toBe("2026-09-29");
+    expect(earliestContractEnd("", "2026-09-24")).toBe("2026-09-29");
+  });
+
+  it("crosses a month end", () => {
+    expect(earliestContractEnd("2026-10-29", "2026-09-24")).toBe("2026-11-03");
+  });
+});
+
+describe("validateCreatorForm contract end and limits", () => {
+  const TODAY = new Date("2026-09-24T05:00:00Z");
+  const INPUT = {
+    name: "Bagas",
+    email: "bagas@example.com",
+    contractStart: "2026-10-01",
+    contractEnd: "2026-12-31",
+    interval: 14,
+    quota: 3,
+    fixedRate: 500000,
+    socialPlatform: "instagram" as const,
+    socialUsername: "bagas",
+    contractType: "regular" as const,
+  };
+
+  // UAT: a contract of 1–3 days is all buffer, so no deadline could ever fit in it.
+  it("rejects a contract that ends inside the buffer, naming the earliest end", () => {
+    const errors = validateCreatorForm({ ...INPUT, contractEnd: "2026-10-03" }, TODAY);
+
+    expect(errors.contractEnd).toBe(
+      "Akhir kontrak paling cepat 6 Okt 2026 (masa buffer 5 hari)",
+    );
+  });
+
+  it("accepts a contract that ends exactly when the buffer does", () => {
+    expect(validateCreatorForm({ ...INPUT, contractEnd: "2026-10-06" }, TODAY).contractEnd).toBeUndefined();
+  });
+
+  it("rejects the day before the buffer ends", () => {
+    expect(validateCreatorForm({ ...INPUT, contractEnd: "2026-10-05" }, TODAY).contractEnd).toBeDefined();
+  });
+
+  it("asks for both dates by name instead of blaming the other one", () => {
+    const errors = validateCreatorForm({ ...INPUT, contractStart: "", contractEnd: "" }, TODAY);
+
+    expect(errors.contractStart).toBe("Tanggal mulai wajib diisi");
+    expect(errors.contractEnd).toBe("Tanggal berakhir wajib diisi");
+  });
+
+  it("rejects an end before today", () => {
+    const errors = validateCreatorForm(
+      { ...INPUT, contractStart: "2026-09-24", contractEnd: "2026-09-20" },
+      TODAY,
+    );
+
+    expect(errors.contractEnd).toBe("Tanggal berakhir tidak boleh sebelum hari ini");
+  });
+
+  it(`accepts up to ${MAX_CONTENT_QUOTA} contents and refuses one more`, () => {
+    expect(MAX_CONTENT_QUOTA).toBe(100);
+    expect(validateCreatorForm({ ...INPUT, quota: 100 }, TODAY).quota).toBeUndefined();
+    expect(validateCreatorForm({ ...INPUT, quota: 101 }, TODAY).quota).toBe(
+      "Jumlah konten maksimal 100",
+    );
+  });
+
+  it("treats a name or username of only spaces as empty", () => {
+    const errors = validateCreatorForm({ ...INPUT, name: "   ", socialUsername: "  " }, TODAY);
+
+    expect(errors.name).toBe("Nama wajib diisi");
+    expect(errors.socialUsername).toBe("Username wajib diisi");
+  });
+
+  it("holds names, usernames and emails to the API's lengths", () => {
+    const long = "a".repeat(101);
+    const errors = validateCreatorForm(
+      {
+        ...INPUT,
+        name: long,
+        socialUsername: long,
+        email: `${"a".repeat(250)}@x.co`,
+      },
+      TODAY,
+    );
+
+    expect(errors.name).toBe("Nama maksimal 100 karakter");
+    expect(errors.socialUsername).toBe("Username maksimal 100 karakter");
+    expect(errors.email).toBe("Email maksimal 254 karakter");
+  });
+
+  it("accepts a name of exactly 100 characters", () => {
+    expect(validateCreatorForm({ ...INPUT, name: "a".repeat(100) }, TODAY).name).toBeUndefined();
+  });
+
+  // Same pattern as the API, so an address never passes here only to bounce off the server.
+  it.each(["a!b@example.com", "a..b@example.com", ".a@example.com", "a@example..com"])(
+    "rejects %s like the API does",
+    (email) => {
+      expect(validateCreatorForm({ ...INPUT, email }, TODAY).email).toBe("Format email tidak valid");
+    },
+  );
+
+  it.each(["salsa.amelia+ugc@example.co.id", "a_b%c@sub-domain.example.com"])(
+    "accepts %s",
+    (email) => {
+      expect(validateCreatorForm({ ...INPUT, email }, TODAY).email).toBeUndefined();
+    },
+  );
+});
+
+describe("scheduleReady", () => {
+  it("is true once the dates, interval and quota have nothing wrong with them", () => {
+    expect(scheduleReady({ name: "Nama wajib diisi" })).toBe(true);
+  });
+
+  it.each(["contractStart", "contractEnd", "interval", "quota"] as const)(
+    "waits while %s has a problem",
+    (field) => {
+      expect(scheduleReady({ [field]: "salah" })).toBe(false);
+    },
+  );
 });
 
 describe("scheduleDeadlines", () => {

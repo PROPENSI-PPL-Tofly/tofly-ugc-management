@@ -1,8 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { Variant } from "@/components/ui/button-classes";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
+import { CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import { EMPTY, formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
 
@@ -22,13 +25,15 @@ const LABELLED =
   "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
 /**
- * Submitting a draft is always the main step. The video link is the main step only once the
- * draft is approved; inside the H-1 window it may skip the approval, but that is the fallback,
- * so it stays secondary there.
+ * Each button takes the tone of the state it answers, the same colours as the status dots:
+ * a first draft is the plain primary step (blue), a resubmit answers a revision request
+ * (amber), and the video link follows an approval (green). Inside the H-1 window the link may
+ * skip the approval, but that is the fallback, so there it stays neutral.
  */
 function actionVariant(task: MyTask, action: MyTaskAction): Variant {
-  if (action !== "submit_video") return "accent";
-  return task.status === "draft_approved" ? "accent" : "default";
+  if (action === "submit_draft") return "accent";
+  if (action === "resubmit_draft") return "attention";
+  return task.status === "draft_approved" ? "positive" : "default";
 }
 
 /** What an action-less row says instead of a button. */
@@ -76,17 +81,22 @@ export function MyTaskTable({
   tasks,
   onAction,
   emptyMessage = "Belum ada tugas untuk kamu.",
+  emptyAction,
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
   /** What an empty list means, e.g. that a status filter matched nothing. */
   emptyMessage?: string;
+  /** The way out of an empty list, e.g. clearing the filter that emptied it. */
+  emptyAction?: ReactNode;
 }>) {
   if (tasks.length === 0) {
     return (
-      <div className="px-5 py-14 text-center">
-        <p className="text-[15px] font-semibold text-muted">{emptyMessage}</p>
-      </div>
+      <EmptyState
+        title={emptyMessage}
+        hint={emptyAction ? undefined : "Tugas baru muncul di sini begitu admin menjadwalkannya."}
+        action={emptyAction}
+      />
     );
   }
 
@@ -125,7 +135,9 @@ export function MyTaskTable({
                 {formatDate(task.deadline)}
               </td>
               <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} lg:whitespace-nowrap`}>
-                <StatusDot>{taskStatusLabel(task.status)}</StatusDot>
+                <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
+                  {taskStatusLabel(task.status)}
+                </StatusDot>
               </td>
               <td role="cell" className={`${CELL} max-lg:pt-2`}>
                 <ActionCell task={task} onAction={onAction} />

@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { CharLimit } from "@/components/ui/char-limit";
+import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import {
   approveSubmission,
   reviseSubmission,
 } from "@/lib/draft-review-actions";
 
-const EMPTY_NOTE_ERROR = "Catatan revisi tidak boleh kosong.";
+/** The API's limit on a revision note (backend revise-submission.ts). */
+export const MAX_REVISION_NOTE_LENGTH = 1000;
 
 /**
  * The note form opens from a click on Minta Revisi, so focus follows the admin into it.
@@ -45,6 +48,9 @@ export function ReviewActions({
   // Batal unmounts the textarea that held focus; Minta Revisi takes it back when it remounts,
   // so a keyboard user is not dropped to the top of the page.
   const [cancelled, setCancelled] = useState(false);
+  const countId = useId();
+  // A note of only spaces says nothing to the creator, so it does not count as written.
+  const noteWritten = note.trim() !== "";
 
   async function decide(kind: "approve" | "revise", run: () => Promise<void>) {
     setError(null);
@@ -66,11 +72,7 @@ export function ReviewActions({
   }
 
   function submitNote() {
-    if (!note.trim()) {
-      setError(EMPTY_NOTE_ERROR);
-      return;
-    }
-    return decide("revise", () => reviseSubmission(submissionId, note));
+    return decide("revise", () => reviseSubmission(submissionId, note.trim()));
   }
 
   function openForm() {
@@ -95,9 +97,14 @@ export function ReviewActions({
         ) : null}
 
         <label className="flex flex-col gap-1 text-[13px]">
-          <span className="text-muted">Catatan revisi untuk creator</span>
+          <span className={`font-semibold text-ink ${REQUIRED_MARK}`}>
+            Catatan revisi untuk creator
+          </span>
           <textarea
             ref={focusOnMount}
+            required
+            maxLength={MAX_REVISION_NOTE_LENGTH}
+            aria-describedby={countId}
             value={note}
             onChange={(event) => setNote(event.target.value)}
             placeholder="mis. Warna kurang kontras, mohon perbaiki bagian intro..."
@@ -106,6 +113,7 @@ export function ReviewActions({
             className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
           />
         </label>
+        <CharLimit id={countId} length={note.length} max={MAX_REVISION_NOTE_LENGTH} />
 
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={cancelForm} disabled={busy}>
@@ -114,7 +122,7 @@ export function ReviewActions({
           <Button
             variant="accent"
             onClick={submitNote}
-            disabled={busy}
+            disabled={busy || !noteWritten}
             aria-busy={busy}
           >
             Kirim Revisi

@@ -14,8 +14,24 @@ export const MAX_DRAFT_NOTES_LENGTH = 1000;
 
 const WEB_PROTOCOLS = ['http:', 'https:'];
 
+/** Where drafts are handed in: the one place the admin opens them from. */
+const DRAFT_HOST = 'drive.google.com';
+
+export const DRAFT_LINK_NOT_DRIVE =
+  'Link draft harus dari Google Drive (drive.google.com)';
+
 function isWebLink(link: string): boolean {
   return URL.canParse(link) && WEB_PROTOCOLS.includes(new URL(link).protocol);
+}
+
+/**
+ * An https link whose host is exactly Google Drive. The URL parser finds the
+ * host, so "drive.google.com@evil.example" or "drive.google.com.evil.example" never pass as
+ * Drive (OWASP A10: the admin's browser opens whatever is stored here).
+ */
+function isDriveLink(link: string): boolean {
+  const url = new URL(link);
+  return url.protocol === 'https:' && url.hostname === DRAFT_HOST;
 }
 
 function checkLink(value: unknown): string | { error: string } {
@@ -29,6 +45,9 @@ function checkLink(value: unknown): string | { error: string } {
   // The admin's Draft Preview opens this link, so only web links are kept (OWASP A03).
   if (!isWebLink(link)) {
     return { error: 'Link draft harus berupa URL http atau https' };
+  }
+  if (!isDriveLink(link)) {
+    return { error: DRAFT_LINK_NOT_DRIVE };
   }
   return link;
 }

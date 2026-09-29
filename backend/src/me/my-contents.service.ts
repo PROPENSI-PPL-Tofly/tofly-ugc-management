@@ -7,6 +7,7 @@ import type {
   MyContentItem,
   MyContentsResponse,
 } from './dto/my-contents.dto.js';
+import { pageAcrossSegments, type Slice } from './page-segments.js';
 import { taskActions } from './task-actions.js';
 import { statusesFor, type TaskStatusFilter } from './task-status-filter.js';
 
@@ -27,12 +28,10 @@ const MY_CONTENT_SELECT = {
   },
 } as const;
 
-// Open work first, nearest deadline first, then name and id so rows sharing a deadline keep
-// their place from one page to the next. Only a submitted link has video_submitted_at (the
-// video endpoint sets both with link_submitted), so nulls-first puts every open task ahead of
-// the finished ones, which follow most recently finished first.
+// Nearest deadline first, then name and id so rows sharing a deadline keep their place from one
+// page to the next. Open and finished work are read as two segments with this same order, so
+// the finished tasks sit after every open one and are themselves in deadline order too.
 const MY_CONTENT_ORDER = [
-  { video_submitted_at: { sort: 'desc', nulls: 'first' } },
   { deadline: 'asc' },
   { name: 'asc' },
   { id: 'asc' },
@@ -53,6 +52,9 @@ interface MyContentsWhere {
   is_proposal: false;
   contracts: { creator_id: string };
   status?: { in: content_status[] };
+  // Only a submitted link has video_submitted_at (the video endpoint sets both together with
+  // link_submitted), so this is what tells finished work from open work.
+  video_submitted_at?: null | { not: null };
 }
 
 /** One page of the list, optionally narrowed to a Task Saya status. */
@@ -91,7 +93,8 @@ export class MyContentsService implements MyContentsLister {
   ) {}
 
   // Sorting and paging run in the query, so a request reads only the rows of its page however
-  // many contents the creator holds.
+  // many contents the creator holds. Open work comes first, then finished work, each by nearest
+  // deadline: two ordered segments, with the page cut across them.
   async list(
     creatorId: string,
     query: MyContentsQuery,
@@ -103,27 +106,57 @@ export class MyContentsService implements MyContentsLister {
       contracts: { creator_id: creatorId },
       ...(status && { status: { in: statusesFor(status) } }),
     };
+    const open: MyContentsWhere = { ...where, video_submitted_at: null };
+    const finished: MyContentsWhere = {
+      ...where,
+      video_submitted_at: { not: null },
+    };
 
-    const [rows, total] = await Promise.all([
-      this.prisma.contents.findMany({
-        where,
-        select: MY_CONTENT_SELECT,
-        orderBy: MY_CONTENT_ORDER,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.contents.count({ where }),
+    const [openTotal, finishedTotal] = await Promise.all([
+      this.prisma.contents.count({ where: open }),
+      this.prisma.contents.count({ where: finished }),
+    ]);
+    const slices = pageAcrossSegments(
+      (page - 1) * pageSize,
+      pageSize,
+      openTotal,
+    );
+
+    const [openRows, finishedRows] = await Promise.all([
+      this.read(open, slices.first),
+      this.read(finished, slices.second, finishedTotal),
     ]);
 
     const today = jakartaDay(now);
+    const total = openTotal + finishedTotal;
 
     return {
-      items: rows.map((row) => this.toItem(row, today)),
+      items: [...openRows, ...finishedRows].map((row) =>
+        this.toItem(row, today),
+      ),
       page,
       pageSize,
       total,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
     };
+  }
+
+  /** One segment's share of the page; no query when it has none, or nothing is left there. */
+  private async read(
+    where: MyContentsWhere,
+    slice: Slice | null,
+    available = Number.POSITIVE_INFINITY,
+  ): Promise<MyContentRow[]> {
+    if (slice === null || slice.skip >= available) {
+      return [];
+    }
+    return this.prisma.contents.findMany({
+      where,
+      select: MY_CONTENT_SELECT,
+      orderBy: MY_CONTENT_ORDER,
+      skip: slice.skip,
+      take: slice.take,
+    });
   }
 
   private toItem(row: MyContentRow, today: string): MyContentItem {

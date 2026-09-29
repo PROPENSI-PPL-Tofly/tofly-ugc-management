@@ -1,9 +1,10 @@
 // Server-side only: who the browser is signed in as, for routing before a page renders. It reads
 // the session cookie through next/headers, so it stays apart from modules client code imports.
 
+import type { Role } from "./session";
 import { appSessionCookieHeader } from "./session-cookie";
 
-export type Role = "admin" | "creator";
+export type { Role };
 
 function withoutTrailingSlash(url: string): string {
   return url.replace(/\/+$/, "");

@@ -167,7 +167,9 @@ describe("MyTaskTable", () => {
       expect(within(row).getAllByRole("cell")[3]).toHaveTextContent("—");
     });
 
-    it("marks Submit Link Video as the next step once the draft is approved", () => {
+    // UAT: every status and every button looked the same. Each action now takes the tone of
+    // the state it answers, so a revision request stands out from a fresh draft.
+    it("marks Submit Link Video green, as the step after an approval", () => {
       render(
         <MyTaskTable
           tasks={[task({ status: "draft_approved", actions: ["submit_video"] })]}
@@ -175,7 +177,33 @@ describe("MyTaskTable", () => {
         />,
       );
 
-      expect(screen.getByRole("button", { name: /Submit Link Video/ })).toHaveClass("bg-accent");
+      expect(screen.getByRole("button", { name: /Submit Link Video/ })).toHaveClass("bg-green-wash");
+    });
+
+    it("marks Resubmit Draft amber, as work that came back", () => {
+      render(
+        <MyTaskTable
+          tasks={[task({ status: "draft_revision", actions: ["resubmit_draft"] })]}
+          onAction={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /Resubmit Draft/ })).toHaveClass("bg-amber-wash");
+    });
+
+    it.each([
+      ["scheduled", "bg-rule"],
+      ["draft_review", "bg-accent"],
+      ["draft_revised", "bg-accent"],
+      ["draft_revision", "bg-amber"],
+      ["draft_approved", "bg-green"],
+      ["link_submitted", "bg-green"],
+    ] as const)("colours the %s status dot %s, beside its label", (status, dot) => {
+      render(<MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} />);
+
+      const cell = within(rows()[0]).getAllByRole("cell")[2];
+      expect(cell.querySelector(`.${dot}`)).not.toBeNull();
+      expect(cell.textContent).not.toBe("");
     });
 
     // Inside H-1 without an approved draft the link skips the approval: allowed, but not the
@@ -191,6 +219,9 @@ describe("MyTaskTable", () => {
       expect(screen.getByRole("button", { name: /Submit Draft/ })).toHaveClass("bg-accent");
       expect(screen.getByRole("button", { name: /Submit Link Video/ })).not.toHaveClass(
         "bg-accent",
+      );
+      expect(screen.getByRole("button", { name: /Submit Link Video/ })).not.toHaveClass(
+        "bg-green-wash",
       );
     });
   });

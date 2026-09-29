@@ -364,8 +364,10 @@ describe('computePerformance', () => {
 describe('today in Jakarta', () => {
   const EARLY_MORNING_WIB = new Date('2026-09-27T21:00:00Z'); // 28 Sep, 04:00 WIB
   const contract = {
+    id: 'contract-jakarta',
     startDate: new Date('2026-09-28T00:00:00Z'),
     endDate: new Date('2026-11-27T00:00:00Z'),
+    contents: [],
   };
 
   it('counts a contract that starts today as active', () => {

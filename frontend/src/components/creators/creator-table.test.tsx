@@ -224,6 +224,17 @@ describe("CreatorTable", () => {
     expect(screen.queryByRole("table")).toBeNull();
 
     expect(screen.getByText("Belum ada creator yang terdaftar.")).toBeInTheDocument();
+    expect(screen.queryByText(/cocok/)).toBeNull();
+  });
+
+  // A search that finds nothing is not an empty roster: say so, and offer the way back.
+  it("tells a search or filter that matched nobody apart from an empty roster", () => {
+    render(<CreatorTable creators={[]} total={0} filtered />);
+
+    expect(
+      screen.getByText("Tidak ada creator yang cocok dengan pencarian atau filter."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada creator yang terdaftar.")).toBeNull();
   });
 
   it("points back to the first page when the page is past the end", () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import {
   isSupportedVideoLink,
   submitVideo,
@@ -61,6 +62,12 @@ export function SubmitVideoModal({
     ? PLATFORM_ERROR
     : videoLinkError;
 
+  const { requestClose, confirmDialog } = useDiscardGuard({
+    isDirty: videoLink !== "",
+    onDiscard: onClose,
+    title: "Batalkan pengiriman link video?",
+  });
+
   async function handleSubmit() {
     // Treat empty and whitespace-only links as invalid.
     if (!trimmedLink) {
@@ -103,15 +110,16 @@ export function SubmitVideoModal({
   }
 
   return (
+    <>
     <Modal
       title="Submit Link Video"
-      onClose={onClose}
+      onClose={isSubmitting ? () => undefined : requestClose}
       footer={
         <>
           <Button
             type="button"
             variant="ghost"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSubmitting}
           >
             Batal
@@ -168,5 +176,7 @@ export function SubmitVideoModal({
         ) : null}
       </div>
     </Modal>
+    {confirmDialog}
+    </>
   );
 }

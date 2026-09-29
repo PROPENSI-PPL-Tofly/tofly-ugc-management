@@ -2,8 +2,10 @@
 
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { CharLimit } from "@/components/ui/char-limit";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
+import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import {
     createContent,
     type ContentFieldErrors,
@@ -52,15 +54,6 @@ function Field({
     );
 }
 
-function CharCount({ id, used, max }: { id: string; used: number; max: number }) {
-    return (
-        <span id={id} className="self-end text-xs tabular-nums text-muted">
-            {`${used}/${max} `}
-            <span className="sr-only">karakter</span>
-        </span>
-    );
-}
-
 function firstAllowedDeadline(contractStart: string): string {
     const today = localCalendarDay(new Date());
 
@@ -103,6 +96,17 @@ export function AddContentModal({
     const nameCountId = useId();
     const briefCountId = useId();
     const quotaNoteId = useId();
+
+    const isDirty =
+        name !== "" ||
+        brief !== "" ||
+        deadline !== firstAllowed ||
+        type !== (evergreenFull ? "specific" : "evergreen");
+    const { requestClose, confirmDialog } = useDiscardGuard({
+        isDirty,
+        onDiscard: onClose,
+        title: "Batalkan penambahan konten?",
+    });
 
     function clearFieldError(field: keyof ContentFieldErrors) {
         setErrors((current) => {
@@ -182,12 +186,13 @@ export function AddContentModal({
     }
 
     return (
+        <>
         <Modal
             title="Tambah Konten"
-            onClose={saving ? () => undefined : onClose}
+            onClose={saving ? () => undefined : requestClose}
             footer={
                 <>
-                    <Button variant="ghost" onClick={onClose} disabled={saving}>
+                    <Button variant="ghost" onClick={requestClose} disabled={saving}>
                         Batal
                     </Button>
 
@@ -243,7 +248,7 @@ export function AddContentModal({
                     <Field
                         label="Nama Konten"
                         error={errors.name}
-                        note={<CharCount id={nameCountId} used={name.length} max={MAX_NAME_LENGTH} />}
+                        note={<CharLimit id={nameCountId} length={name.length} max={MAX_NAME_LENGTH} />}
                     >
                         <input
                             type="text"
@@ -263,7 +268,7 @@ export function AddContentModal({
                     <Field
                         label="Brief"
                         error={errors.brief}
-                        note={<CharCount id={briefCountId} used={brief.length} max={MAX_BRIEF_LENGTH} />}
+                        note={<CharLimit id={briefCountId} length={brief.length} max={MAX_BRIEF_LENGTH} />}
                     >
             <textarea
                 className={`${FIELD} min-h-24 resize-y`}
@@ -302,5 +307,7 @@ export function AddContentModal({
                 mulai kontrak, mana yang lebih akhir.
             </p>
         </Modal>
+        {confirmDialog}
+        </>
     );
 }

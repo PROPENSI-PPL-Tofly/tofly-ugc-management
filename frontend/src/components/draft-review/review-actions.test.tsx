@@ -114,17 +114,39 @@ describe("ReviewActions", () => {
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
   });
 
-  it("refuses a blank note without calling the backend", () => {
+  // UAT: the note had no asterisk and Kirim Revisi could be pressed with nothing written.
+  it("marks the note as required and keeps Kirim Revisi off until something is written", () => {
     reviseSubmission.mockResolvedValue(undefined);
     renderActions();
 
     fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
-    fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
+    const note = screen.getByLabelText(/catatan revisi/i);
+    const send = screen.getByRole("button", { name: "Kirim Revisi" });
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Catatan revisi tidak boleh kosong.",
-    );
-    expect(reviseSubmission).not.toHaveBeenCalled();
+    expect(note).toBeRequired();
+    expect(screen.getByText("Catatan revisi untuk creator").className).toContain("after:content-['*']");
+    expect(send).toBeDisabled();
+
+    fireEvent.change(note, { target: { value: "   " } });
+    expect(send).toBeDisabled();
+
+    fireEvent.change(note, { target: { value: "Audio terlalu pelan." } });
+    expect(send).toBeEnabled();
+
+    fireEvent.click(send);
+    expect(reviseSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the note at 1000 characters and says so once it is full", () => {
+    renderActions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
+    const note = screen.getByLabelText(/catatan revisi/i);
+
+    expect(note).toHaveAttribute("maxLength", "1000");
+    fireEvent.change(note, { target: { value: "a".repeat(1000) } });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Maksimal 1000 karakter");
   });
 
   it("sends the note, refreshes the queue, and reports the decision", async () => {

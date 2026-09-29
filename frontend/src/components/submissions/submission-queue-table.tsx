@@ -3,13 +3,16 @@
 import { useState } from "react";
 import { DraftPreviewModal } from "@/components/draft-review/draft-preview-modal";
 import { ReviewActions } from "@/components/draft-review/review-actions";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusDot } from "@/components/ui/pill";
+import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
+import type { ContentStatus } from "@/lib/creators";
 import { formatDate } from "@/lib/format";
 import type { SubmissionQueueItem } from "@/lib/submissions";
 
-const STATUS_LABELS: Record<string, string> = {
-  draft_review: "Draft Menunggu Review",
-  draft_revised: "Draft Revised",
-};
+function isContentStatus(status: string): status is ContentStatus {
+  return Object.hasOwn(CONTENT_STATUS_LABELS, status);
+}
 
 const TYPE_LABELS: Record<string, string> = {
   evergreen: "Evergreen",
@@ -18,18 +21,25 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function SubmissionQueueTable({
   items,
+  filtered = false,
 }: {
   items: SubmissionQueueItem[];
+  /** Whether a search or filter narrowed the queue, which changes what an empty queue means. */
+  filtered?: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (items.length === 0) {
-    return (
-      <div className="px-5 py-14 text-center">
-        <p className="text-[15px] font-semibold text-muted">
-          Tidak ada draft untuk direview.
-        </p>
-      </div>
+    return filtered ? (
+      <EmptyState
+        title="Tidak ada draft yang cocok dengan pencarian atau filter."
+        hint="Periksa ejaan nama creator atau konten, atau longgarkan filternya."
+      />
+    ) : (
+      <EmptyState
+        title="Tidak ada draft yang menunggu review."
+        hint="Draft baru muncul di sini begitu creator mengirimkannya."
+      />
     );
   }
 
@@ -58,8 +68,14 @@ export function SubmissionQueueTable({
                 <td className="px-5 py-3 whitespace-nowrap">
                   {formatDate(row.deadline)}
                 </td>
-                <td className="px-5 py-3">
-                  {STATUS_LABELS[row.status] ?? row.status}
+                <td className="px-5 py-3 whitespace-nowrap">
+                  {isContentStatus(row.status) ? (
+                    <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
+                      {CONTENT_STATUS_LABELS[row.status]}
+                    </StatusDot>
+                  ) : (
+                    row.status
+                  )}
                 </td>
                 <td className="px-5 py-3">
                   <button

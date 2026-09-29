@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { vi } from "vitest";
 import { CreatorDetailModal } from "./creator-detail-modal";
@@ -246,6 +246,41 @@ describe("CreatorDetailModal", () => {
     open();
 
     expect(await screen.findByText(label)).toHaveClass(tone);
+  });
+
+  // UAT: the rows did not line up; each value now sits in its own column under a header.
+  it("lays the content history out in columns: content, deadline, status", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
+
+    open();
+
+    const table = await screen.findByRole("table", { name: "Riwayat konten" });
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent);
+    expect(headers).toEqual(["Konten", "Deadline", "Status"]);
+
+    const firstRow = within(table).getAllByRole("row")[1];
+    const cells = within(firstRow).getAllByRole("cell");
+    expect(cells[0]).toHaveTextContent("Evergreen - Tips Belajar Cepat");
+    expect(cells[0].firstElementChild).toHaveAttribute("title", "Evergreen - Tips Belajar Cepat");
+    expect(cells[2]).toHaveTextContent("Tepat waktu");
+  });
+
+  it("colours an open content's status dot by where it is in the workflow", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...creatorDetail,
+          contents: [{ ...creatorDetail.contents[0], status: "draft_revision", outcome: "open" }],
+        }),
+      ),
+    );
+
+    open();
+
+    const label = await screen.findByText("Draft Perlu Revisi");
+    expect(label.querySelector(".bg-amber")).not.toBeNull();
   });
 
   // Content still in progress shows where it is in the workflow, starting at Scheduled.

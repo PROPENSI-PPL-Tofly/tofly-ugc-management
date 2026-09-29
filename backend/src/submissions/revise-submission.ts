@@ -4,6 +4,9 @@ export interface RevisionRequest {
   revisionNotes: string;
 }
 
+/** Room for a clear request; keeps a hostile body from filling submissions.revision_notes. */
+export const MAX_REVISION_NOTES_LENGTH = 1000;
+
 function invalidRevisionNotes(
   message = 'Catatan revisi harus berupa teks',
 ): UnprocessableEntityException {
@@ -26,11 +29,17 @@ export function checkRevisionRequest(input: unknown): RevisionRequest {
     throw invalidRevisionNotes();
   }
 
-  if (body.revisionNotes.trim().length === 0) {
+  const revisionNotes = body.revisionNotes.trim();
+
+  if (revisionNotes.length === 0) {
     throw invalidRevisionNotes('Catatan revisi tidak boleh kosong');
   }
 
-  return {
-    revisionNotes: body.revisionNotes,
-  };
+  if (revisionNotes.length > MAX_REVISION_NOTES_LENGTH) {
+    throw invalidRevisionNotes(
+      `Catatan revisi maksimal ${MAX_REVISION_NOTES_LENGTH} karakter`,
+    );
+  }
+
+  return { revisionNotes };
 }

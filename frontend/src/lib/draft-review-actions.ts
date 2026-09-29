@@ -2,6 +2,8 @@
 // creator, revise sends it back with a note. Fetched in the browser through this app's /api
 // proxy, like fetchDraftPreview, so BACKEND_URL never reaches the browser.
 
+import { apiFetch } from "./api-client";
+
 /** A failed decision, keeping the HTTP status so 404 and 409 can read differently. */
 export class DraftReviewActionError extends Error {
   constructor(
@@ -34,7 +36,7 @@ async function patch(
   fallbackMessage: string,
   body?: { revisionNotes: string },
 ): Promise<void> {
-  const response = await fetch(`/api/submissions/${path}`, {
+  const response = await apiFetch(`/api/submissions/${path}`, {
     method: "PATCH",
     ...(body
       ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
