@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppShell } from "@/components/shell/app-shell";
 import { MyTaskBoard } from "@/components/tasks/my-task-board";
 import { MyTaskFilters } from "@/components/tasks/my-task-filters";
@@ -65,7 +66,11 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
           {signedOut ? "Masuk dulu untuk melihat tugasmu." : "Coba muat ulang beberapa saat lagi."}
         </p>
 
-        {signedOut ? null : (
+        {signedOut ? (
+            <a href="/login" className={`mt-4 inline-block ${buttonClasses("accent")}`}>
+              Masuk
+            </a>
+        ) : (
             <a href={BASE_PATH} className={`mt-4 inline-block ${buttonClasses()}`}>
               Muat ulang
             </a>
@@ -124,6 +129,13 @@ export default async function TaskSayaPage({
                     tasks={loaded.result.items}
                     emptyMessage={
                       status ? `Tidak ada tugas berstatus ${taskStatusLabel(status)}.` : undefined
+                    }
+                    emptyAction={
+                      status ? (
+                          <Link href={BASE_PATH} className={buttonClasses()}>
+                            Tampilkan semua tugas
+                          </Link>
+                      ) : undefined
                     }
                 />
 
