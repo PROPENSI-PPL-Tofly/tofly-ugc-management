@@ -28,6 +28,13 @@ export function SubmissionQueueTable({
   filtered?: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  // Whether the open draft's revision note form is showing; each draft starts without it.
+  const [revising, setRevising] = useState(false);
+
+  function openDraft(submissionId: string) {
+    setRevising(false);
+    setOpenId(submissionId);
+  }
 
   if (items.length === 0) {
     return filtered ? (
@@ -80,7 +87,7 @@ export function SubmissionQueueTable({
                 <td className="px-5 py-3">
                   <button
                     type="button"
-                    onClick={() => setOpenId(row.submissionId)}
+                    onClick={() => openDraft(row.submissionId)}
                     className="cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 py-1 text-xs font-semibold text-ink hover:border-ink-2"
                   >
                     Lihat Detail
@@ -100,10 +107,12 @@ export function SubmissionQueueTable({
           key={openId}
           submissionId={openId}
           onClose={() => setOpenId(null)}
+          showClose={!revising}
           actions={
             <ReviewActions
               submissionId={openId}
               onDecided={() => setOpenId(null)}
+              onFormToggle={setRevising}
             />
           }
         />
