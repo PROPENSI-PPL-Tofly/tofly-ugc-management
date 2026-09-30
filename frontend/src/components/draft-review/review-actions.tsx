@@ -34,10 +34,13 @@ function focusOnMount(element: HTMLTextAreaElement | null) {
 export function ReviewActions({
   submissionId,
   onDecided,
+  onFormToggle,
 }: Readonly<{
   submissionId: string;
   /** Called after a successful decision, so the caller can close the modal. */
   onDecided: () => void;
+  /** Called when the revision note form opens or closes, so the modal can drop Tutup meanwhile. */
+  onFormToggle?: (open: boolean) => void;
 }>) {
   const router = useRouter();
   const [pending, setPending] = useState<"approve" | "revise" | null>(null);
@@ -78,10 +81,12 @@ export function ReviewActions({
   function openForm() {
     setError(null);
     setFormOpen(true);
+    onFormToggle?.(true);
   }
 
   function cancelForm() {
     setFormOpen(false);
+    onFormToggle?.(false);
     setError(null);
     setNote("");
     setCancelled(true);

@@ -152,11 +152,17 @@ export function DraftPreviewModal({
   submissionId,
   onClose,
   actions,
+  showClose = true,
   load = fetchDraftPreview,
 }: Readonly<{
   submissionId: string;
   onClose: () => void;
   actions?: ReactNode;
+  /**
+   * False while the actions offer their own way back (the revision note's Batal), so Tutup
+   * does not wrap under them; the header's close button still closes the dialog.
+   */
+  showClose?: boolean;
   /** Where the preview comes from; the API by default, a stub in tests. */
   load?: (submissionId: string) => Promise<DraftPreview>;
 }>) {
@@ -192,9 +198,11 @@ export function DraftPreviewModal({
         <>
           {loaded ? actions : null}
 
-          <Button variant="ghost" onClick={onClose}>
-            Tutup
-          </Button>
+          {showClose ? (
+            <Button variant="ghost" onClick={onClose}>
+              Tutup
+            </Button>
+          ) : null}
         </>
       }
     >

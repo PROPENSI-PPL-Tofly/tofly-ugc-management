@@ -217,6 +217,17 @@ describe("ReviewActions", () => {
     expect(screen.getByLabelText(/catatan revisi/i)).toHaveValue("");
   });
 
+  it("reports when the note form opens and closes", () => {
+    const onFormToggle = vi.fn();
+    renderActions({ onFormToggle });
+
+    fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
+    expect(onFormToggle).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+    expect(onFormToggle).toHaveBeenLastCalledWith(false);
+  });
+
   it("moves keyboard focus into the note field when the form opens", () => {
     renderActions();
 
