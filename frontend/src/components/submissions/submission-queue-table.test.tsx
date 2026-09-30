@@ -182,6 +182,33 @@ describe("SubmissionQueueTable", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  // UAT: with the note form open, Tutup wrapped onto its own line under Batal and Kirim Revisi.
+  it("drops Tutup while the revision note is open and brings it back on Batal", async () => {
+    fetchDraftPreview.mockResolvedValue(previewOf("111", "Evg_1_Salsa_15Sep2026"));
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+
+    expect(screen.queryByRole("button", { name: "Tutup" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tutup dialog" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+    expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
+  });
+
+  it("opens the next draft with Tutup even if the last one was closed mid-revision", async () => {
+    fetchDraftPreview.mockResolvedValue(previewOf("111", "Evg_1_Salsa_15Sep2026"));
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+
+    fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[1]);
+    expect(await screen.findByRole("button", { name: "Tutup" })).toBeInTheDocument();
+  });
+
   it("closes the Draft Preview and refreshes the queue once the draft is approved", async () => {
     fetchDraftPreview.mockResolvedValue(previewOf("111", "Evg_1_Salsa_15Sep2026"));
     approveSubmission.mockResolvedValue(undefined);

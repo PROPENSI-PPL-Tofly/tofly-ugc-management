@@ -140,6 +140,13 @@ describe("DraftPreviewModal", () => {
       expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
     });
 
+    it("leaves Tutup out when the actions have their own way back", async () => {
+      renderModal({ actions: <button type="button">Batal</button>, showClose: false });
+
+      expect(await screen.findByRole("button", { name: "Batal" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Tutup" })).not.toBeInTheDocument();
+    });
+
     it("closes from the Tutup button", async () => {
       const { onClose } = renderModal();
 
