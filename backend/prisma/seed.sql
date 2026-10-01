@@ -1,5 +1,5 @@
--- Local development data. Applied by `supabase start` and `supabase db reset` only; deployments
--- run `supabase db push`, which never reads this file.
+-- Local development data. Applied by `npm run db:seed` and `npm run db:reset` only; deployments
+-- run `prisma migrate deploy`, which never reads this file.
 --
 -- Every date is an offset from current_date so the data keeps its meaning whenever it is
 -- replayed: running contracts stay running, past deadlines stay past, and the derived on-time

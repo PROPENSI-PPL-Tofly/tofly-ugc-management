@@ -20,7 +20,11 @@
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "test:mutation": "stryker run"
+    "test:mutation": "stryker run",
+    "db:up": "docker compose -f ../compose.yaml up -d --wait db",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -54,5 +58,8 @@
     "typescript": "^6.0.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.2"
+  },
+  "prisma": {
+    "seed": "prisma db execute --file prisma/seed.sql --schema prisma/schema.prisma"
   }
 }
