@@ -24,7 +24,10 @@ begin
     raise exception 'app role % does not exist', app_role;
   end if;
 
-  execute format('grant usage on schema public to %I', app_role);
+  -- A non-superuser (`postgres` on Cloud SQL) may only give an object to a role that can create in
+  -- its schema. That right is lent for the hand-off and taken back at the end: once it owns its
+  -- tables, the app has no need to create new ones.
+  execute format('grant usage, create on schema public to %I', app_role);
 
   for item in
     select c.relname, c.relkind
@@ -77,6 +80,8 @@ begin
   loop
     execute format('alter routine %s owner to %I', item.signature, app_role);
   end loop;
+
+  execute format('revoke create on schema public from %I', app_role);
 end
 $$;
 
