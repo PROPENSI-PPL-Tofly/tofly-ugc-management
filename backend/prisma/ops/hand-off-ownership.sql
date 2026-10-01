@@ -26,12 +26,6 @@ begin
 
   execute format('grant usage on schema public to %I', app_role);
 
-  -- Every public table keeps row level security on, Prisma's history included; its owner,
-  -- `postgres`, is not held back by it.
-  if to_regclass('public._prisma_migrations') is not null then
-    alter table public._prisma_migrations enable row level security;
-  end if;
-
   for item in
     select c.relname, c.relkind
     from pg_class c

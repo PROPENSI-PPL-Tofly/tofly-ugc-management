@@ -68,10 +68,13 @@ describe('Tofly tables from the API roles (e2e)', () => {
     expect(open).toEqual([]);
   });
 
-  it('keeps row-level security on for every table, so a stray grant still sees no rows', async () => {
+  // Prisma's own migration history is not app data: `postgres` owns it, nothing is granted on it,
+  // and the privilege check above already covers it.
+  it('keeps row-level security on for every app table, so a stray grant still sees no rows', async () => {
     const withoutRls = await prisma.$queryRaw<{ relname: string }[]>`
       select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-      where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`;
+      where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity
+        and c.relname <> '_prisma_migrations'`;
 
     expect(withoutRls).toEqual([]);
   });
