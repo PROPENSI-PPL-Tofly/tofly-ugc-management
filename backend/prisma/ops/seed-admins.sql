@@ -1,6 +1,6 @@
 -- Makes the team's accounts admins on the deployed database, so they can sign in with Google.
--- Run by the backend workflow after `supabase db push`:
---   psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -v emails="a@x.com,b@y.com" -f supabase/staging/seed-admins.sql
+-- Run by the backend workflow's migrate job after `prisma migrate deploy`:
+--   psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -v emails="a@x.com,b@y.com" -f prisma/ops/seed-admins.sql
 -- The addresses arrive only as the psql variable `emails` (a comma-separated repo secret); this
 -- file holds none, because the repository is public. It only adds or promotes: removing an
 -- address from the list does not demote anyone. Nothing it prints contains an address.

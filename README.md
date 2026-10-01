@@ -10,54 +10,52 @@ User-generated content management for Tofly. Monorepo with a Next.js frontend an
 ## Structure
 
 ```
-frontend/   Next.js (TypeScript, App Router, Tailwind)
-backend/    Nest.js (TypeScript, ESM) — Postgres via Prisma
-supabase/   Local Supabase stack config (run by the Supabase CLI)
+frontend/      Next.js (TypeScript, App Router, Tailwind)
+backend/       Nest.js (TypeScript, ESM) — Postgres via Prisma
+  prisma/migrations/   the database schema, as SQL migrations (source of truth)
+  prisma/seed.sql      local development data
+  prisma/ops/          SQL the deploy pipeline runs around migrations
+compose.yaml   local Postgres 17 for development
 ```
 
 Apps are independent folders (not a workspace); each has its own `package.json` and lockfile.
-The repo-root `package.json` only holds the Supabase CLI dev dependency.
 
 ## Prerequisites
 
 - Node.js 24
 - npm
-- Docker Desktop, running — the local Supabase stack runs in Docker
+- Docker Desktop, running — the local Postgres runs in Docker
 
 ## First-time setup
 
-1. Install dependencies (repo root and each app):
+1. Install dependencies in each app:
 
 ```
-npm install
 cd backend
 npm install
 cd ../frontend
 npm install
 ```
 
-2. Start the local Supabase stack (from the repo root). This also applies every migration and
-   seed to the fresh database:
+2. Create the backend env file, then start the local Postgres, apply every migration and load the
+   seed (from `backend/`):
 
 ```
-npx supabase start
-```
-
-3. Create the backend env file:
-
-```
-cd backend
+cd ../backend
 cp .env.example .env
+npm run db:up
+npm run db:migrate
+npm run db:seed
 ```
 
-4. Create the frontend env file:
+3. Create the frontend env file:
 
 ```
 cd ../frontend
 cp .env.example .env.local
 ```
 
-5. Generate the Prisma client:
+4. Generate the Prisma client:
 
 ```
 cd ../backend
@@ -76,7 +74,8 @@ cd backend
 npm run start:dev
 ```
 
-Ports: frontend `3000`, backend `3001`, Supabase API `54321`, Postgres `54322`, Studio `54323`.
+Ports: frontend `3000`, backend `3001`, Postgres `54322`. Browse the local database with
+`npx prisma studio` (from `backend/`).
 
 The frontend proxies `/api/*` to the backend, so in the browser you only ever visit port 3000.
 Open <http://localhost:3000/health> — it should read `ok`, which means the browser reached the
@@ -88,31 +87,32 @@ To check the backend alone, open <http://localhost:3001/health> — it should re
 ## After you pull
 
 ```
-npx supabase db reset          # repo root — replay all migrations onto your local DB
 cd backend
+npm run db:up        # if the database is not running
+npm run db:migrate   # apply new migrations, keeping your data
 npx prisma generate
 ```
 
-`db reset` wipes your local data. To keep it, use `npx supabase migration up` instead, and put
-anything that should survive a reset into `supabase/seed.sql`.
+To start over, `npm run db:reset` drops the local database, replays every migration and reloads
+`prisma/seed.sql`. Put anything that should survive a reset into that file.
 
 Run `npm install` in an app folder whenever its `package.json` changed in the diff.
 
 ## Changing the database schema
 
-Supabase migrations own the schema; Prisma reads it.
+Migrations own the schema; Prisma reads it. Write the SQL yourself (from `backend/`):
 
 ```
-npx supabase migration new <name>     # creates supabase/migrations/<timestamp>_<name>.sql
+npx prisma migrate dev --create-only --name <name>   # creates prisma/migrations/<timestamp>_<name>/migration.sql
 # write the SQL
-npx supabase db reset                 # apply locally and confirm it replays cleanly
-cd backend
+npm run db:migrate                                   # apply locally
 npx prisma db pull
 npx prisma generate
 ```
 
-Commit the migration file and the updated `schema.prisma` together. Never edit a migration that
-is already merged — add a new one instead.
+Commit the migration and the updated `schema.prisma` together. Never edit a migration that is
+already merged — add a new one instead. A new table needs row level security turned on in its
+migration, as the existing ones do.
 
 ## Testing & Coverage
 
@@ -136,4 +136,13 @@ Every PR is also analysed on [SonarCloud](https://sonarcloud.io/organizations/pr
 
 ## Deployment
 
-Both apps deploy to Google Cloud Run automatically on merge to `main`.
+Both apps run on Google Cloud Run with Postgres on Cloud SQL, in two environments:
+
+| Environment | Deploys from | Frontend | Backend | Database |
+| --- | --- | --- | --- | --- |
+| staging | `staging` | `frontend` | `backend` | Cloud SQL `tofly_staging` |
+| production | `main` | `frontend-prod` | `backend-prod` | Cloud SQL `tofly` |
+
+Work flows `feat/pbi-*` → `staging` → `main`: subtask PRs go into the PBI branch, the PBI branch
+into `staging`, and `staging` into `main`. A merge deploys to that branch's environment after the
+tests (and, for production, the SonarCloud gate) pass. See `.github/ci-cd.md`.

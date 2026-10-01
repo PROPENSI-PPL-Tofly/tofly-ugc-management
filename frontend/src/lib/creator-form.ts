@@ -15,7 +15,7 @@ export const MAX_USERNAME_LENGTH = 100;
 /** More contents than this in one contract is a typo, not a deal. */
 export const MAX_CONTENT_QUOTA = 100;
 
-// Matches the database's `social_platform` enum (supabase/migrations/..._creator_database.sql)
+// Matches the database's `social_platform` enum (backend/prisma/migrations/..._creator_database/migration.sql)
 // exactly — "" stands for "not chosen yet", the empty state of the select in the modal.
 export type SocialPlatform = "instagram" | "tiktok";
 

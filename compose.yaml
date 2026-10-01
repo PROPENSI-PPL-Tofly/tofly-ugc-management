@@ -1,0 +1,23 @@
+# Local Postgres for development, the same major version as Cloud SQL in staging and production.
+# Port 54322 so backend/.env.example works unchanged. On a fresh volume the init script creates the
+# roles the early migrations name; then, from backend/: npm run db:migrate && npm run db:seed
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:54322:5432"
+    volumes:
+      - tofly-db:/var/lib/postgresql/data
+      - ./backend/prisma/ops/bootstrap-roles.sql:/docker-entrypoint-initdb.d/01-bootstrap-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  tofly-db:

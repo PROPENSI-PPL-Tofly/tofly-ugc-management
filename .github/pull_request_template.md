@@ -7,7 +7,7 @@ Start the description with a verb.
 Examples:
   feat(auth): add Google sign-in with email whitelist
   fix(frontend): redirect creator away from admin routes
-  ci(backend): push migrations by project ref
+  ci(backend): apply migrations before the deploy
 -->
 
 ## Summary

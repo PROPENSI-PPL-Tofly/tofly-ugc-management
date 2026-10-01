@@ -51,7 +51,7 @@ export default function PrivacyPage() {
             <h2 className={SECTION}>Siapa yang dapat melihat data</h2>
             <p className={BODY}>
               Admin dapat melihat data semua creator. Creator hanya dapat melihat data miliknya sendiri.
-              Data disimpan di layanan cloud yang digunakan Tofly (Google Cloud dan Supabase).
+              Data disimpan di layanan cloud yang digunakan Tofly (Google Cloud).
             </p>
 
             <h2 className={SECTION}>Pertanyaan dan penghapusan data</h2>

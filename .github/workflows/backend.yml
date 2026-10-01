@@ -3,20 +3,20 @@ name: Backend CI
 on:
   push:
     # feat/pbi-* are the per-PBI integration branches: subtask PRs land on one
-    # of them before the whole PBI goes into main as a single PR. The deploy
-    # jobs below stay gated to main specifically, so this only widens test
-    # coverage, never what gets deployed. `*` does not cross `/`, so a branch
+    # of them, the PBI goes into staging, and staging goes into main. Only
+    # staging and main deploy (to the staging and production environments);
+    # feat/pbi-* only widens test coverage. `*` does not cross `/`, so a branch
     # that nests another segment would need `feat/pbi-**`.
-    branches: [main, "feat/pbi-*"]
+    branches: [main, staging, "feat/pbi-*"]
     paths:
       - "backend/**"
-      - "supabase/**"
+      - "compose.yaml"
       - ".github/workflows/backend.yml"
   pull_request:
-    branches: [main, "feat/pbi-*"]
+    branches: [main, staging, "feat/pbi-*"]
     paths:
       - "backend/**"
-      - "supabase/**"
+      - "compose.yaml"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
 
@@ -33,10 +33,10 @@ jobs:
       contents: write
     services:
       postgres:
-        # The exact image `npx supabase start` runs locally, so CI has the same
-        # Postgres major, extensions, roles and schemas as dev and production.
-        # Keep in step with supabase/config.toml major_version.
-        image: supabase/postgres:17.6.1.166
+        # The same major as Cloud SQL (staging, production) and compose.yaml
+        # (local dev). Plain Postgres on purpose: it has none of the roles a
+        # managed platform adds, so a migration that leans on one fails here.
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -47,8 +47,12 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      # The app connects as its own role, which owns the tables after the
+      # hand-off below, exactly as in staging and production. Migrations run as
+      # postgres (MIGRATOR_DB_URL), as they do there.
+      DATABASE_URL: postgresql://tofly_app:tofly_app@localhost:5432/postgres
+      DIRECT_URL: postgresql://tofly_app:tofly_app@localhost:5432/postgres
+      MIGRATOR_DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
     defaults:
       run:
         working-directory: backend
@@ -63,13 +67,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
-      # Root lockfile holds the Supabase CLI, pinned to the same release as
-      # local dev.
-      - run: npm ci
-        working-directory: ${{ github.workspace }}
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma validate
@@ -83,15 +81,19 @@ jobs:
           name: backend-coverage
           path: backend/coverage/lcov.info
           retention-days: 1
-      # Apply the real Supabase migrations to the CI database — the same files,
-      # the same tool, and the same command production gets in the migrate job.
-      # A migration that fails does so here, not during a production deploy.
-      # No-op while supabase/migrations/ is empty.
-      # Host is 127.0.0.1, not localhost: the CLI treats 127.0.0.1 as a local
-      # database and connects over plain TCP; any other host is "remote" and
-      # forced over TLS, which the CI service container does not speak.
-      - run: npx supabase db push --skip-vault --db-url "postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
-        working-directory: ${{ github.workspace }}
+      # The same SQL, tool and order the migrate job runs against Cloud SQL, so a
+      # migration that fails does so here, not during a deploy. tofly_app gets
+      # anon and authenticated only so the e2e suites can `set role` to them and
+      # prove those roles still reach nothing.
+      - name: Prepare the CI database
+        run: |
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -f prisma/ops/bootstrap-roles.sql
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 \
+            -c "create role tofly_app login password 'tofly_app'" \
+            -c "grant anon, authenticated to tofly_app"
+          DATABASE_URL="$MIGRATOR_DB_URL" DIRECT_URL="$MIGRATOR_DB_URL" npx prisma migrate deploy
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -v app_role=tofly_app \
+            -f prisma/ops/hand-off-ownership.sql
       - run: npm run test:e2e
       - run: npm run build
 
@@ -134,13 +136,14 @@ jobs:
     # PR analysis and main branch analysis only. A push to any other branch asks
     # SonarCloud for a branch analysis it refuses ("Not authorized or project not
     # found"), which would turn every merge into an integration branch red for a
-    # reason no change here can fix. Fork PRs stay excluded: SONAR_TOKEN is not
-    # exposed to them.
+    # reason no change here can fix. That includes staging: its code already
+    # passed the gate in the PR that brought it there. Fork PRs stay excluded:
+    # SONAR_TOKEN is not exposed to them.
     if: >
       (github.event_name == 'pull_request' &&
        github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      github.event_name == 'workflow_dispatch'
+      (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/staging')
     runs-on: ubuntu-latest
     concurrency:
       group: backend-sonar-${{ github.ref }}
@@ -189,11 +192,24 @@ jobs:
   # that cannot be undone by re-running the pipeline, so nothing irreversible
   # happens until a deployable image already exists in Artifact Registry. A
   # broken Dockerfile then fails before the database is touched, instead of
-  # leaving production migrated but still serving the old revision.
+  # leaving an environment migrated but still serving the old revision.
+  #
+  # main deploys production, staging deploys staging. Which services, service
+  # accounts, database and secrets that means comes from the GitHub Environment
+  # (migrate, deploy); build only pushes an image, the same for both. A push or a
+  # manual run (workflow_dispatch) deploys; the manual run covers a branch whose
+  # latest push changed no watched path.
   build:
     name: Build and push image
     needs: [test, sonar]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # always(): sonar is skipped on staging (see above), and a skipped need would
+    # otherwise skip this job too. Production still requires a passed gate.
+    if: >
+      always() && needs.test.result == 'success' &&
+      (needs.sonar.result == 'success' ||
+       (needs.sonar.result == 'skipped' && github.ref == 'refs/heads/staging')) &&
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -201,7 +217,7 @@ jobs:
       # credentials. Without it, auth fails with a confusing 403.
       id-token: write
     concurrency:
-      group: backend-build-main
+      group: backend-build-${{ github.ref_name }}
       cancel-in-progress: false
     env:
       IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/backend
@@ -214,78 +230,110 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
 
-      # Tagged with both the SHA and latest: the SHA tag is what makes a
-      # rollback a one-liner against a known revision.
+      # Tagged with the SHA (what makes a rollback a one-liner against a known
+      # revision) and with the branch, so `:main` is what production last built.
       - name: Build and push
         working-directory: backend
         run: |
-          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:${{ github.ref_name }}" .
           docker push "$IMAGE:${{ github.sha }}"
-          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.ref_name }}"
 
-  # Applies Supabase migrations to the hosted database before the new revision
-  # serves. backend/Dockerfile bakes the generated Prisma client into the image,
-  # so code must never reach production ahead of the schema it expects.
+  # Applies backend/prisma/migrations to the environment's Cloud SQL database
+  # before the new revision serves. backend/Dockerfile bakes the generated Prisma
+  # client into the image, so code must never reach an environment ahead of the
+  # schema it expects.
   migrate:
-    name: Apply Supabase migrations
-    needs: [test, build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Apply migrations
+    needs: [build]
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    permissions:
+      contents: read
+      id-token: write
     concurrency:
-      group: backend-migrate-main
+      group: backend-migrate-${{ github.ref_name }}
       cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: backend
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # postgres on the environment's database, through the Auth Proxy below:
+      # postgresql://postgres:<pw>@127.0.0.1:5432/<db>?sslmode=disable. The proxy
+      # encrypts and authenticates the hop to Cloud SQL itself, which accepts no
+      # other connection (no authorized networks).
+      MIGRATOR_DB_URL: ${{ secrets.MIGRATOR_DB_URL }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: package-lock.json
-      # Supabase CLI from the root lockfile: the same pinned release local dev
-      # and the test job use, never a floating `latest` against production.
+          cache-dependency-path: backend/package-lock.json
+      # The Prisma CLI from the backend lockfile: the same release local dev and
+      # the test job use, never a floating `latest` against a real database.
       - run: npm ci
-      # Target the project directly instead of `supabase link` first: link
-      # fetches the project's legacy API keys and the platform 403s that call
-      # even for owners (supabase/cli#6392). db push does not need those keys.
-      # A no-op while supabase/migrations/ is empty ("Remote database is up to
-      # date"), which is exactly the point: it proves the credentials work
-      # before a real migration depends on them.
-      - run: npx supabase db push --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}" --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Start the Cloud SQL Auth Proxy
+        env:
+          PROXY_VERSION: v2.26.0
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/cloud-sql-proxy" \
+            "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/$PROXY_VERSION/cloud-sql-proxy.linux.amd64"
+          chmod +x "$RUNNER_TEMP/cloud-sql-proxy"
+          "$RUNNER_TEMP/cloud-sql-proxy" --address 127.0.0.1 --port 5432 "${{ vars.CLOUDSQL_INSTANCE }}" \
+            > "$RUNNER_TEMP/proxy.log" 2>&1 &
+          for i in $(seq 1 30); do
+            pg_isready -q -h 127.0.0.1 -p 5432 && exit 0
+            sleep 1
+          done
+          echo "the proxy did not come up:"; cat "$RUNNER_TEMP/proxy.log"; exit 1
+
+      # Roles first (idempotent), then the migrations, then the tables go to the
+      # environment's app role: row level security lets only the owner through.
+      - name: Apply migrations
+        run: |
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -f prisma/ops/bootstrap-roles.sql
+          DATABASE_URL="$MIGRATOR_DB_URL" DIRECT_URL="$MIGRATOR_DB_URL" npx prisma migrate deploy
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -v app_role="${{ vars.APP_DB_ROLE }}" \
+            -f prisma/ops/hand-off-ownership.sql
 
       # The team's admin accounts on the deployed app, so they can sign in with Google. The
-      # addresses live only in a repo secret (the repo is public); the SQL file holds none and
-      # receives them as a psql variable, never spliced into the query. Idempotent: it only
-      # adds or promotes. SUPABASE_DB_URL is the session pooler URL, since runners lack IPv6.
+      # addresses live only in an environment secret (the repo is public); the SQL file holds none
+      # and receives them as a psql variable, never spliced into the query. Idempotent: it only
+      # adds or promotes.
       - name: Seed admin accounts
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          STAGING_ADMIN_EMAILS: ${{ secrets.STAGING_ADMIN_EMAILS }}
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
         run: |
-          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$STAGING_ADMIN_EMAILS" ]; then
-            echo "admin seed skipped: SUPABASE_DB_URL or STAGING_ADMIN_EMAILS is not set"
+          if [ -z "$ADMIN_EMAILS" ]; then
+            echo "admin seed skipped: ADMIN_EMAILS is not set"
             exit 0
           fi
-          psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -v emails="$STAGING_ADMIN_EMAILS" \
-            -f supabase/staging/seed-admins.sql
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -v emails="$ADMIN_EMAILS" \
+            -f prisma/ops/seed-admins.sql
 
-  # Rolls the already-pushed image out to Cloud Run. needs migrate, so a failed
-  # migration blocks the rollout.
+  # Rolls the already-pushed image out to the environment's Cloud Run service.
+  # needs migrate, so a failed migration blocks the rollout.
   deploy:
     name: Deploy to Cloud Run
     needs: [build, migrate]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     permissions:
       contents: read
       id-token: write
     concurrency:
-      group: backend-deploy-main
+      group: backend-deploy-${{ github.ref_name }}
       cancel-in-progress: false
     env:
       IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/backend
+      SERVICE: ${{ vars.BACKEND_SERVICE }}
+      REGION: ${{ vars.GCP_REGION }}
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -294,27 +342,30 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
 
       # The Google client id and redirect URI are not secret, so they travel as plain env from
-      # repo variables; the client secret comes from Secret Manager like the DB URLs. The
+      # environment variables; the client secret comes from Secret Manager like the DB URL. The
       # backend refuses to boot in production without all three (Google is the only way in).
-      # DB URLs come from Secret Manager, never --set-env-vars: env vars are
-      # readable in the Cloud Run console and in deploy logs.
+      # The DB URL comes from Secret Manager, never --set-env-vars: env vars are readable in the
+      # Cloud Run console and in deploy logs. It reaches Cloud SQL over the unix socket that
+      # --add-cloudsql-instances mounts; DATABASE_URL and DIRECT_URL are the same URL, since
+      # nothing pools in between.
       # Deployed with no traffic behind a `candidate` tag: the new revision gets
       # its own URL to be tested at while the previous revision keeps serving.
       # A brand-new service has no previous revision to protect, so its first
       # deploy takes traffic directly — the smoke test still gates the run.
       - name: Deploy candidate revision
         run: |
-          if gcloud run services describe backend --region "${{ vars.GCP_REGION }}" >/dev/null 2>&1; then
+          if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; then
             TRAFFIC="--no-traffic"
           else
-            echo "first deploy of backend: no previous revision to keep serving"
+            echo "first deploy of $SERVICE: no previous revision to keep serving"
             TRAFFIC=""
           fi
-          gcloud run deploy backend $TRAFFIC --tag candidate \
+          gcloud run deploy "$SERVICE" $TRAFFIC --tag candidate \
             --image "$IMAGE:${{ github.sha }}" \
-            --region "${{ vars.GCP_REGION }}" \
-            --service-account "run-backend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
+            --region "$REGION" \
+            --service-account "${{ vars.RUN_BACKEND_SA }}" \
+            --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
+            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
             --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
@@ -324,7 +375,7 @@ jobs:
       # it has zero traffic. Retried because the candidate starts cold.
       - name: Smoke test the candidate
         run: |
-          URL="$(gcloud run services describe backend --region "${{ vars.GCP_REGION }}" --format=json \
+          URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format=json \
             | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
           test -n "$URL" || { echo "no candidate URL found"; exit 1; }
           echo "checking $URL/health"
@@ -346,6 +397,5 @@ jobs:
       # failure, so a bad revision is never promoted and nothing needs rolling back.
       - name: Promote candidate to 100% traffic
         run: |
-          gcloud run services update-traffic backend \
-            --region "${{ vars.GCP_REGION }}" --to-latest
-          echo "serving: $(gcloud run services describe backend --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          gcloud run services update-traffic "$SERVICE" --region "$REGION" --to-latest
+          echo "serving: $(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"

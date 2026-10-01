@@ -73,7 +73,7 @@ describe("validateCreatorForm", () => {
   });
 
   // Boundary at 0 mirrors the database's `days_between > 0` check constraint
-  // (supabase/migrations/..._creator_database.sql).
+  // (backend/prisma/migrations/..._creator_database/migration.sql).
   it("rejects an interval of zero days", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, interval: 0 });
 

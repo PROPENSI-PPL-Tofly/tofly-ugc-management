@@ -30,6 +30,15 @@ describe("Privacy page", () => {
     expect(screen.getByText(/tidak pernah menerima kata sandi/)).toBeInTheDocument();
   });
 
+  it("names Google Cloud as the only place the data is stored", () => {
+    render(<PrivacyPage />);
+
+    expect(
+      screen.getByText(/Data disimpan di layanan cloud yang digunakan Tofly \(Google Cloud\)\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Supabase/)).not.toBeInTheDocument();
+  });
+
   it("links back to the login page", () => {
     render(<PrivacyPage />);
 

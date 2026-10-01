@@ -7,11 +7,12 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 const MARKER = 'e2e-session-access';
 
 /**
- * Supabase's Data API reaches the database as `anon` (anyone holding the project's public
- * key) or `authenticated`. Only the backend may touch sessions: a session row someone else
- * could write, with a hash of an id they chose, would be a signed-in session for any user.
+ * `anon` and `authenticated` are the Data API roles of the hosted Postgres the schema started
+ * on, and the early migrations still name them. Only the backend may touch sessions: a session
+ * row someone else could write, with a hash of an id they chose, would be a signed-in session
+ * for any user.
  */
-describe('app_sessions from the Supabase API roles (e2e)', () => {
+describe('app_sessions from the API roles (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let userId: string;
