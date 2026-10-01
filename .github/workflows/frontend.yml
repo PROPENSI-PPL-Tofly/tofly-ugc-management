@@ -3,16 +3,16 @@ name: Frontend CI
 on:
   push:
     # feat/pbi-* are the per-PBI integration branches: subtask PRs land on one
-    # of them before the whole PBI goes into main as a single PR. The deploy
-    # job below stays gated to main specifically, so this only widens test
-    # coverage, never what gets deployed. `*` does not cross `/`, so a branch
+    # of them, the PBI goes into staging, and staging goes into main. Only
+    # staging and main deploy (to the staging and production environments);
+    # feat/pbi-* only widens test coverage. `*` does not cross `/`, so a branch
     # that nests another segment would need `feat/pbi-**`.
-    branches: [main, "feat/pbi-*"]
+    branches: [main, staging, "feat/pbi-*"]
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
   pull_request:
-    branches: [main, "feat/pbi-*"]
+    branches: [main, staging, "feat/pbi-*"]
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
@@ -96,13 +96,14 @@ jobs:
     # PR analysis and main branch analysis only. A push to any other branch asks
     # SonarCloud for a branch analysis it refuses ("Not authorized or project not
     # found"), which would turn every merge into an integration branch red for a
-    # reason no change here can fix. Fork PRs stay excluded: SONAR_TOKEN is not
-    # exposed to them.
+    # reason no change here can fix. That includes staging: its code already
+    # passed the gate in the PR that brought it there. Fork PRs stay excluded:
+    # SONAR_TOKEN is not exposed to them.
     if: >
       (github.event_name == 'pull_request' &&
        github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      github.event_name == 'workflow_dispatch'
+      (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/staging')
     runs-on: ubuntu-latest
     concurrency:
       group: frontend-sonar-${{ github.ref }}
@@ -145,23 +146,37 @@ jobs:
             -Dsonar.qualitygate.wait=true
             -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
 
-  # Runs only on push/merge to main (after test and sonar pass). Builds the
-  # image, pushes it to Artifact Registry, and rolls it out to Cloud Run.
+  # Runs on a push (or manual run) to main, deploying production, or to staging,
+  # deploying staging, after test and sonar pass. Builds the image, pushes it to
+  # Artifact Registry, and rolls it out to the environment's Cloud Run service;
+  # which service, service account and backend URL come from the GitHub
+  # Environment. The manual run covers a branch whose latest push changed no
+  # watched path.
   deploy:
     name: Deploy to Cloud Run
     needs: [test, sonar]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # always(): sonar is skipped on staging (see above), and a skipped need would
+    # otherwise skip this job too. Production still requires a passed gate.
+    if: >
+      always() && needs.test.result == 'success' &&
+      (needs.sonar.result == 'success' ||
+       (needs.sonar.result == 'skipped' && github.ref == 'refs/heads/staging')) &&
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     permissions:
       contents: read
       # Mints the OIDC token that Workload Identity Federation exchanges for GCP
       # credentials. Without it, auth fails with a confusing 403.
       id-token: write
     concurrency:
-      group: frontend-deploy-main
+      group: frontend-deploy-${{ github.ref_name }}
       cancel-in-progress: false
     env:
       IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/frontend
+      SERVICE: ${{ vars.FRONTEND_SERVICE }}
+      REGION: ${{ vars.GCP_REGION }}
     steps:
       - uses: actions/checkout@v5
       - uses: google-github-actions/auth@v2
@@ -171,14 +186,14 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
 
-      # Tagged with both the SHA and latest: the SHA tag is what makes a
-      # rollback a one-liner against a known revision.
+      # Tagged with the SHA (what makes a rollback a one-liner against a known
+      # revision) and with the branch, so `:main` is what production last built.
       - name: Build and push
         working-directory: frontend
         run: |
-          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:${{ github.ref_name }}" .
           docker push "$IMAGE:${{ github.sha }}"
-          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.ref_name }}"
 
       # BACKEND_URL is a runtime env var, not NEXT_PUBLIC_*, so the proxy route
       # reads it per request and the URL can change without a rebuild.
@@ -188,16 +203,16 @@ jobs:
       # deploy takes traffic directly — the smoke test still gates the run.
       - name: Deploy candidate revision
         run: |
-          if gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" >/dev/null 2>&1; then
+          if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; then
             TRAFFIC="--no-traffic"
           else
-            echo "first deploy of frontend: no previous revision to keep serving"
+            echo "first deploy of $SERVICE: no previous revision to keep serving"
             TRAFFIC=""
           fi
-          gcloud run deploy frontend $TRAFFIC --tag candidate \
+          gcloud run deploy "$SERVICE" $TRAFFIC --tag candidate \
             --image "$IMAGE:${{ github.sha }}" \
-            --region "${{ vars.GCP_REGION }}" \
-            --service-account "run-frontend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --region "$REGION" \
+            --service-account "${{ vars.RUN_FRONTEND_SA }}" \
             --set-env-vars "BACKEND_URL=${{ vars.BACKEND_URL }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
@@ -207,7 +222,7 @@ jobs:
       # it has zero traffic. Retried because the candidate starts cold.
       - name: Smoke test the candidate
         run: |
-          URL="$(gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" --format=json \
+          URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format=json \
             | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
           test -n "$URL" || { echo "no candidate URL found"; exit 1; }
           echo "checking $URL/api/health"
@@ -229,6 +244,5 @@ jobs:
       # failure, so a bad revision is never promoted and nothing needs rolling back.
       - name: Promote candidate to 100% traffic
         run: |
-          gcloud run services update-traffic frontend \
-            --region "${{ vars.GCP_REGION }}" --to-latest
-          echo "serving: $(gcloud run services describe frontend --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          gcloud run services update-traffic "$SERVICE" --region "$REGION" --to-latest
+          echo "serving: $(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
