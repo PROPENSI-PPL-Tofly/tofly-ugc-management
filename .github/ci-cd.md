@@ -114,8 +114,9 @@ CD jobs run on a `push` or `workflow_dispatch` to `main` (environment `productio
 is never interrupted — with one concurrency group per branch, so staging and production deploy
 independently.
 
-`build` (backend) and `deploy` (frontend) carry `always()` in their `if`: `sonar` is skipped on
-`staging`, and a skipped need would otherwise skip them too. They still require `test` to pass,
+Every backend CD job and the frontend `deploy` carry `always()` in their `if`: `sonar` is skipped
+on `staging`, and a skipped job anywhere up the chain would otherwise skip every job after it.
+`migrate` and `deploy` therefore check `build`'s and `migrate`'s results explicitly. They still require `test` to pass,
 and production still requires a passed `sonar` gate.
 
 Which service, service account, database and secrets a job uses comes from the GitHub Environment
