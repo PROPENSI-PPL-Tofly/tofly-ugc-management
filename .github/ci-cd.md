@@ -314,6 +314,26 @@ Cloud Run terminates TLS and provisions certificates automatically for every `*.
 There is no reverse proxy, no Certbot, and nothing to renew. HTTP requests are redirected to
 HTTPS by the platform.
 
+### Custom domain
+
+`creator.tofly.id` serves `frontend-prod` through Firebase Hosting in the same project, because
+Cloud Run domain mapping is not offered in `asia-southeast2`. The Hosting config, kept outside
+the repository, is a single rewrite:
+
+```json
+{ "hosting": { "public": "public",
+    "rewrites": [ { "source": "**", "run": { "serviceId": "frontend-prod", "region": "asia-southeast2" } } ] } }
+```
+
+with an empty `public/` (a static file there would shadow the rewrite). Deploy it with
+`firebase deploy --only hosting --project <PROJECT_ID>`. Firebase issues the certificate once
+the domain's DNS records (CNAME + `_acme-challenge` TXT, shown in the Firebase console) exist.
+
+Firebase Hosting forwards only the cookie named `__session` to Cloud Run, so the session and the
+sign-in flow both use that name. Do not add another cookie the backend has to read. Production
+sign-in on the domain also needs `https://creator.tofly.id/api/auth/google/callback` on the OAuth
+client and as the `production` environment's `GOOGLE_REDIRECT_URI`.
+
 ### Workload Identity Federation
 
 How CI gets permission to deploy without a stored key. Four pieces:

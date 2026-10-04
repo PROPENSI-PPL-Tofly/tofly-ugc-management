@@ -7,7 +7,7 @@ import { AdminGuard, type AdminRequest } from './admin.guard.js';
 import type { Principal } from './google/ports.js';
 import type { AppSessionService } from './session/session.service.js';
 
-const COOKIE = '__Host-tofly_session';
+const COOKIE = '__session';
 const ADMIN: Principal = { userId: 'user-admin', role: 'admin' };
 const CREATOR: Principal = {
   userId: 'user-creator',

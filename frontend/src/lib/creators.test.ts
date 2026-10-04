@@ -47,7 +47,7 @@ describe("fetchCreators", () => {
     vi.stubEnv("BACKEND_URL", "http://backend:3001");
     vi.mocked(cookies).mockResolvedValueOnce({
       getAll: () => [
-        { name: "__Host-tofly_session", value: "opaque-session-id" },
+        { name: "__session", value: "opaque-session-id" },
         { name: "_ga", value: "tracker" },
       ],
     } as unknown as Awaited<ReturnType<typeof cookies>>);
@@ -59,7 +59,7 @@ describe("fetchCreators", () => {
 
     expect(fetchSpy.mock.calls[0][1]).toEqual({
       cache: "no-store",
-      headers: { cookie: "__Host-tofly_session=opaque-session-id" },
+      headers: { cookie: "__session=opaque-session-id" },
     });
   });
 

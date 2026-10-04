@@ -161,7 +161,7 @@ describe('AppSessionService', () => {
     await sessions.start(reply, CREATOR);
 
     expect(reply.cookie).toHaveBeenCalledWith(
-      '__Host-tofly_session',
+      '__session',
       expect.any(String),
       expect.objectContaining({
         httpOnly: true,
@@ -193,7 +193,7 @@ describe('AppSessionService', () => {
     });
 
     expect(reply.cookie).toHaveBeenCalledWith(
-      '__Host-tofly_session',
+      '__session',
       id,
       expect.objectContaining({
         maxAge: IDLE_MS,
@@ -323,7 +323,7 @@ describe('AppSessionService', () => {
     await sessions.logout(id, reply);
 
     expect(reply.clearCookie).toHaveBeenCalledWith(
-      '__Host-tofly_session',
+      '__session',
       expect.objectContaining({
         httpOnly: true,
         secure: true,
@@ -340,7 +340,7 @@ describe('AppSessionService', () => {
 
     expect(store.deleteMany).not.toHaveBeenCalled();
     expect(reply.clearCookie).toHaveBeenCalledWith(
-      '__Host-tofly_session',
+      '__session',
       expect.objectContaining({
         path: '/',
         httpOnly: true,
@@ -360,7 +360,7 @@ describe('AppSessionService', () => {
   });
 
   it('returns the configured session cookie name', () => {
-    expect(sessions.cookieName()).toBe('__Host-tofly_session');
+    expect(sessions.cookieName()).toBe('__session');
   });
 
   it('fails closed when session storage is unavailable', async () => {

@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
+import type { Response } from 'express';
 import { GOOGLE_AUTHORIZE_URL } from './authorization.js';
 import { flowCookie, type FlowCookie } from './flow-cookie.js';
 import {
@@ -27,9 +28,9 @@ const FLOW: OAuthFlow = {
 const CODE = '4/0AVG7fiQ-example-code';
 
 describe('flowCookie', () => {
-  it('uses a host-only, secure cookie in production', () => {
+  it('shares the __session name and is Secure in production', () => {
     expect(flowCookie({ NODE_ENV: 'production' })).toEqual({
-      name: '__Host-tofly_oauth',
+      name: '__session',
       options: {
         httpOnly: true,
         secure: true,
@@ -40,9 +41,9 @@ describe('flowCookie', () => {
     });
   });
 
-  it('drops Secure and the __Host- prefix on plain-http local development', () => {
+  it('drops Secure on plain-http local development', () => {
     expect(DEV_COOKIE).toEqual({
-      name: 'tofly_oauth',
+      name: '__session',
       options: {
         httpOnly: true,
         secure: false,
@@ -107,7 +108,7 @@ describe('GoogleAuthController', () => {
       );
 
       const [cookie] = setCookies(response);
-      expect(cookie).toMatch(/^tofly_oauth=/);
+      expect(cookie).toMatch(/^__session=/);
       expect(cookie).toContain('HttpOnly');
       expect(cookie).toContain('SameSite=Lax');
       expect(cookie).toContain('Path=/');
@@ -148,7 +149,7 @@ describe('GoogleAuthController', () => {
 
     const response = await request(app.getHttpServer())
       .get(`/auth/google/callback?code=${CODE}&state=${FLOW.state}`)
-      .set('Cookie', `tofly_oauth=${serializeFlow(FLOW)}`);
+      .set('Cookie', `__session=${serializeFlow(FLOW)}`);
 
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe('/login?error=sign_in_failed');
@@ -166,7 +167,7 @@ describe('GoogleAuthController', () => {
       );
       return cookie === null
         ? call
-        : call.set('Cookie', `tofly_oauth=${cookie}`);
+        : call.set('Cookie', `__session=${cookie}`);
     }
 
     it('hands a matching callback to the sign-in and follows where it lands', async () => {
@@ -186,9 +187,24 @@ describe('GoogleAuthController', () => {
       const response = await callback(`?code=${CODE}&state=${FLOW.state}`);
 
       const [cleared] = setCookies(response);
-      expect(cleared).toMatch(/^tofly_oauth=;/);
+      expect(cleared).toMatch(/^__session=;/);
       expect(cleared).toContain('Expires=Thu, 01 Jan 1970');
       expect(cleared).toContain('Path=/');
+    });
+
+    it('clears the flow before the session takes over the shared cookie name', async () => {
+      signIn.complete.mockImplementation(
+        (_code: string, _flow: OAuthFlow, response: Response) => {
+          response.cookie('__session', 'session-id', DEV_COOKIE.options);
+          return Promise.resolve('/admin/creators');
+        },
+      );
+
+      const response = await callback(`?code=${CODE}&state=${FLOW.state}`);
+
+      const [cleared, session] = setCookies(response);
+      expect(cleared).toMatch(/^__session=;/);
+      expect(session).toMatch(/^__session=session-id;/);
     });
 
     it.each([
@@ -216,7 +232,7 @@ describe('GoogleAuthController', () => {
         expect(response.status).toBe(302);
         expect(response.headers.location).toBe('/login?error=sign_in_failed');
         expect(signIn.complete).not.toHaveBeenCalled();
-        expect(setCookies(response)[0]).toMatch(/^tofly_oauth=;/);
+        expect(setCookies(response)[0]).toMatch(/^__session=;/);
         expect(log.warn).toHaveBeenCalledWith(
           expect.stringMatching(/^Google sign-in callback rejected: /),
         );

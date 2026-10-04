@@ -84,7 +84,7 @@ describe('DevCreatorGuard', () => {
     current: Principal | null = principal,
   ) {
     const sessions = {
-      cookieName: vi.fn(() => '__Host-tofly_session'),
+      cookieName: vi.fn(() => '__session'),
       authenticate: vi.fn().mockResolvedValue(principal),
     } as unknown as AppSessionService;
 
@@ -177,7 +177,7 @@ describe('DevCreatorGuard', () => {
 
     const request: CreatorRequest = {
       headers: {},
-      cookies: { '__Host-tofly_session': 'opaque-id' },
+      cookies: { '__session': 'opaque-id' },
       method: 'GET',
     };
 
@@ -214,7 +214,7 @@ describe('DevCreatorGuard', () => {
     const { access, guard: subject } = sessionGuard(principal, current);
     const request: CreatorRequest = {
       headers: {},
-      cookies: { '__Host-tofly_session': 'opaque-id' },
+      cookies: { '__session': 'opaque-id' },
       method: 'GET',
     };
 
@@ -239,7 +239,7 @@ describe('DevCreatorGuard', () => {
       subject.canActivate(
         context({
           headers: {},
-          cookies: { '__Host-tofly_session': 'opaque-id' },
+          cookies: { '__session': 'opaque-id' },
           method: 'GET',
         }),
       ),
@@ -279,7 +279,7 @@ describe('DevCreatorGuard', () => {
 
     const request: CreatorRequest = {
       headers: { [DEV_CREATOR_HEADER]: HEADER_ID },
-      cookies: { '__Host-tofly_session': 'malformed' },
+      cookies: { '__session': 'malformed' },
       method: 'GET',
     };
 
@@ -307,7 +307,7 @@ describe('DevCreatorGuard', () => {
       subject.canActivate(
         context({
           headers: {},
-          cookies: { '__Host-tofly_session': 'opaque-id' },
+          cookies: { '__session': 'opaque-id' },
           method: 'GET',
         }),
       ),
@@ -327,7 +327,7 @@ describe('DevCreatorGuard', () => {
 
     const request: CreatorRequest = {
       headers: {},
-      cookies: { '__Host-tofly_session': 'opaque-id' },
+      cookies: { '__session': 'opaque-id' },
       method: 'GET',
     };
 
@@ -356,7 +356,7 @@ describe('DevCreatorGuard', () => {
         origin: 'https://tofly.example',
         'sec-fetch-site': 'same-origin',
       },
-      cookies: { '__Host-tofly_session': 'opaque-id' },
+      cookies: { '__session': 'opaque-id' },
       method: 'POST',
     };
 
@@ -388,7 +388,7 @@ describe('DevCreatorGuard', () => {
         origin: 'https://tofly.example',
         'sec-fetch-site': 'same-origin',
       },
-      cookies: { '__Host-tofly_session': 'opaque-id' },
+      cookies: { '__session': 'opaque-id' },
     };
 
     await expect(subject.canActivate(context(request))).resolves.toBe(true);
@@ -419,7 +419,7 @@ describe('DevCreatorGuard', () => {
         origin: 'https://attacker.example',
         'sec-fetch-site': 'cross-site',
       },
-      cookies: { '__Host-tofly_session': 'opaque-id' },
+      cookies: { '__session': 'opaque-id' },
       method: 'POST',
     };
 
