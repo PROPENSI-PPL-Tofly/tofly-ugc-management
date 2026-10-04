@@ -31,7 +31,7 @@ describe('VideoSubmissionController', () => {
   };
 
   const sessions = {
-    cookieName: vi.fn(() => '__Host-tofly_session'),
+    cookieName: vi.fn(() => '__session'),
     authenticate: vi.fn().mockResolvedValue(undefined),
   };
 
