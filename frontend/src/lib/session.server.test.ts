@@ -8,7 +8,7 @@ vi.mock("next/headers", () => ({
 
 function browserHasSession() {
   vi.mocked(cookies).mockResolvedValueOnce({
-    getAll: () => [{ name: "__Host-tofly_session", value: "opaque-session-id" }],
+    getAll: () => [{ name: "__session", value: "opaque-session-id" }],
   } as unknown as Awaited<ReturnType<typeof cookies>>);
 }
 
@@ -38,7 +38,7 @@ describe("currentRole", () => {
 
       expect(fetchSpy).toHaveBeenCalledWith("http://backend:3001/auth/session", {
         cache: "no-store",
-        headers: { cookie: "__Host-tofly_session=opaque-session-id" },
+        headers: { cookie: "__session=opaque-session-id" },
       });
     },
   );

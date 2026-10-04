@@ -75,14 +75,14 @@ describe("/api/* proxy", () => {
 
     await GET(
       new Request("http://localhost:3000/api/me/contents", {
-        headers: { cookie: "__Host-tofly_session=opaque-id" },
+        headers: { cookie: "__session=opaque-id" },
       }),
       params("me", "contents"),
     );
 
     const init = fetchMock.mock.calls[0][1]!;
     expect((init.headers as Headers).get("cookie")).toBe(
-      "__Host-tofly_session=opaque-id",
+      "__session=opaque-id",
     );
   });
 
