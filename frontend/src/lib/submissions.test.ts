@@ -225,7 +225,7 @@ describe("fetchSubmissionQueue", () => {
     vi.mocked(cookies).mockResolvedValue({
       getAll: () => [
         {
-          name: "__Host-tofly_session",
+          name: "__session",
           value: "opaque-session-id",
         },
       ],
@@ -248,7 +248,7 @@ describe("fetchSubmissionQueue", () => {
     const init = vi.mocked(globalThis.fetch).mock.calls[0][1];
 
     expect(new Headers(init?.headers).get("cookie")).toBe(
-        "__Host-tofly_session=opaque-session-id",
+        "__session=opaque-session-id",
     );
   });
 });

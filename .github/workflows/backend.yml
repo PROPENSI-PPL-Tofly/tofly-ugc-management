@@ -246,6 +246,9 @@ jobs:
   migrate:
     name: Apply migrations
     needs: [build]
+    # A skipped job anywhere up the chain (sonar, on staging) skips everything after it unless
+    # the condition is spelled out, so build's own result is checked directly.
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     permissions:
@@ -322,6 +325,7 @@ jobs:
   deploy:
     name: Deploy to Cloud Run
     needs: [build, migrate]
+    if: always() && needs.build.result == 'success' && needs.migrate.result == 'success'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     permissions:

@@ -114,8 +114,9 @@ CD jobs run on a `push` or `workflow_dispatch` to `main` (environment `productio
 is never interrupted — with one concurrency group per branch, so staging and production deploy
 independently.
 
-`build` (backend) and `deploy` (frontend) carry `always()` in their `if`: `sonar` is skipped on
-`staging`, and a skipped need would otherwise skip them too. They still require `test` to pass,
+Every backend CD job and the frontend `deploy` carry `always()` in their `if`: `sonar` is skipped
+on `staging`, and a skipped job anywhere up the chain would otherwise skip every job after it.
+`migrate` and `deploy` therefore check `build`'s and `migrate`'s results explicitly. They still require `test` to pass,
 and production still requires a passed `sonar` gate.
 
 Which service, service account, database and secrets a job uses comes from the GitHub Environment
@@ -312,6 +313,26 @@ repository.
 Cloud Run terminates TLS and provisions certificates automatically for every `*.run.app` URL.
 There is no reverse proxy, no Certbot, and nothing to renew. HTTP requests are redirected to
 HTTPS by the platform.
+
+### Custom domain
+
+`creator.tofly.id` serves `frontend-prod` through Firebase Hosting in the same project, because
+Cloud Run domain mapping is not offered in `asia-southeast2`. The Hosting config, kept outside
+the repository, is a single rewrite:
+
+```json
+{ "hosting": { "public": "public",
+    "rewrites": [ { "source": "**", "run": { "serviceId": "frontend-prod", "region": "asia-southeast2" } } ] } }
+```
+
+with an empty `public/` (a static file there would shadow the rewrite). Deploy it with
+`firebase deploy --only hosting --project <PROJECT_ID>`. Firebase issues the certificate once
+the domain's DNS records (CNAME + `_acme-challenge` TXT, shown in the Firebase console) exist.
+
+Firebase Hosting forwards only the cookie named `__session` to Cloud Run, so the session and the
+sign-in flow both use that name. Do not add another cookie the backend has to read. Production
+sign-in on the domain also needs `https://creator.tofly.id/api/auth/google/callback` on the OAuth
+client and as the `production` environment's `GOOGLE_REDIRECT_URI`.
 
 ### Workload Identity Federation
 

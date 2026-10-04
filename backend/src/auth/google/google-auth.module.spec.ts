@@ -46,7 +46,7 @@ describe('GoogleAuthModule', () => {
       GoogleAuthController,
     );
     expect(module.get(SIGN_IN)).toBeInstanceOf(GoogleSignInService);
-    expect(module.get(FLOW_COOKIE).name).toBe('__Host-tofly_oauth');
+    expect(module.get(FLOW_COOKIE).name).toBe('__session');
     expect(module.get(AUTH_LOG)).toBeInstanceOf(Logger);
   });
 
@@ -160,7 +160,7 @@ describe('GoogleAuthModule', () => {
       }),
     });
     expect(response.cookie).toHaveBeenCalledWith(
-      '__Host-tofly_session',
+      '__session',
       expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
       expect.objectContaining({ httpOnly: true, secure: true }),
     );

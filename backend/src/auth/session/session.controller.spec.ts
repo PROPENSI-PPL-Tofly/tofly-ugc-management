@@ -12,12 +12,12 @@ describe('SessionController', () => {
 
   async function setup() {
     const service = {
-      cookieName: vi.fn(() => '__Host-tofly_session'),
+      cookieName: vi.fn(() => '__session'),
       logout: vi.fn().mockResolvedValue(undefined),
       authenticate: vi
         .fn<(_id: unknown, response: Response) => Promise<Principal | null>>()
         .mockImplementation((_id, response) => {
-          response.cookie('__Host-tofly_session', 'opaque-id', {
+          response.cookie('__session', 'opaque-id', {
             httpOnly: true,
             secure: true,
             sameSite: 'lax',
@@ -49,7 +49,7 @@ describe('SessionController', () => {
         .post('/auth/logout')
         .set('Origin', 'http://localhost:3000')
         .set('Sec-Fetch-Site', 'same-origin')
-        .set('Cookie', '__Host-tofly_session=session-value');
+        .set('Cookie', '__session=session-value');
 
       expect(result.status).toBe(204);
       expect(service.logout).toHaveBeenCalledWith(
@@ -69,7 +69,7 @@ describe('SessionController', () => {
         .post('/auth/logout')
         .set('Origin', 'https://attacker.example')
         .set('Sec-Fetch-Site', 'cross-site')
-        .set('Cookie', '__Host-tofly_session=session-value');
+        .set('Cookie', '__session=session-value');
 
       expect(result.status).toBe(403);
       expect(service.logout).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe('SessionController', () => {
         .post('/auth/session/activity')
         .set('Origin', 'http://localhost:3000')
         .set('Sec-Fetch-Site', 'same-origin')
-        .set('Cookie', '__Host-tofly_session=opaque-id');
+        .set('Cookie', '__session=opaque-id');
 
       expect(result.status).toBe(204);
       expect(service.authenticate).toHaveBeenCalledWith(
@@ -108,7 +108,7 @@ describe('SessionController', () => {
         .post('/auth/session/activity')
         .set('Origin', 'http://localhost:3000')
         .set('Sec-Fetch-Site', 'same-origin')
-        .set('Cookie', '__Host-tofly_session=expired');
+        .set('Cookie', '__session=expired');
 
       expect(result.status).toBe(401);
     } finally {
@@ -129,7 +129,7 @@ describe('GET /auth/session', () => {
 
   async function setup(session: Principal | null, current: Principal | null) {
     const sessions = {
-      cookieName: vi.fn(() => 'tofly_session'),
+      cookieName: vi.fn(() => '__session'),
       logout: vi.fn(),
       authenticate: vi.fn().mockResolvedValue(session),
     };
@@ -157,7 +157,7 @@ describe('GET /auth/session', () => {
       try {
         const response = await request(app.getHttpServer())
           .get('/auth/session')
-          .set('Cookie', 'tofly_session=opaque-id');
+          .set('Cookie', '__session=opaque-id');
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ role });
@@ -187,7 +187,7 @@ describe('GET /auth/session', () => {
     try {
       const response = await request(app.getHttpServer())
         .get('/auth/session')
-        .set('Cookie', 'tofly_session=opaque-id');
+        .set('Cookie', '__session=opaque-id');
 
       expect(response.status).toBe(401);
       expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED' });

@@ -156,7 +156,7 @@ describe('Google sign-in (e2e)', () => {
       .overrideProvider(SESSION_STARTER)
       .useValue({
         start: (response: ExpressResponse, principal: Principal) => {
-          response.cookie('tofly_session', principal.userId, {
+          response.cookie('__session', principal.userId, {
             httpOnly: true,
           });
           return Promise.resolve();
@@ -207,12 +207,11 @@ describe('Google sign-in (e2e)', () => {
 
       expect(response.status).toBe(302);
       expect(response.headers.location).toBe(landing);
-      expect(cookies(response)).toEqual(
-        expect.arrayContaining([
-          expect.stringMatching(/^tofly_oauth=;/),
-          expect.stringMatching(new RegExp(`^tofly_session=${userId};`)),
-        ]),
-      );
+      // One cookie name carries the flow and then the session, so the order is the outcome.
+      expect(cookies(response)).toEqual([
+        expect.stringMatching(/^__session=;/),
+        expect.stringMatching(new RegExp(`^__session=${userId};`)),
+      ]);
     },
   );
 
@@ -224,7 +223,7 @@ describe('Google sign-in (e2e)', () => {
     const response = await callback({ code, state }, cookie);
 
     expect(response.headers.location).toBe('/login?error=not_authorized');
-    expect(cookies(response).join()).not.toContain('tofly_session=');
+    expect(cookies(response).join()).not.toMatch(/__session=[^;]/);
   });
 
   it('matches the whitelist whatever case Google sends the email in', async () => {
@@ -260,7 +259,7 @@ describe('Google sign-in (e2e)', () => {
       const response = await callback({ code, state }, cookie);
 
       expect(response.headers.location).toBe('/login?error=sign_in_failed');
-      expect(cookies(response).join()).not.toContain('tofly_session=');
+      expect(cookies(response).join()).not.toMatch(/__session=[^;]/);
     },
   );
 
@@ -291,7 +290,7 @@ describe('Google sign-in (e2e)', () => {
     );
 
     expect(response.headers.location).toBe('/login?error=sign_in_failed');
-    expect(cookies(response).join()).not.toContain('tofly_session=');
+    expect(cookies(response).join()).not.toMatch(/__session=[^;]/);
   });
 
   it('refuses a genuine code whose state is not the one in the flow cookie', async () => {
@@ -305,7 +304,7 @@ describe('Google sign-in (e2e)', () => {
     const response = await callback({ code, state: otherState }, mine.cookie);
 
     expect(response.headers.location).toBe('/login?error=sign_in_failed');
-    expect(cookies(response).join()).not.toContain('tofly_session=');
+    expect(cookies(response).join()).not.toMatch(/__session=[^;]/);
   });
 
   it('refuses an intercepted code redeemed with a different PKCE verifier', async () => {

@@ -164,7 +164,7 @@ describe("fetchMyTasks", () => {
     vi.mocked(cookies).mockResolvedValue({
       getAll: () => [
         {
-          name: "__Host-tofly_session",
+          name: "__session",
           value: "opaque-session-id",
         },
       ],
@@ -177,7 +177,7 @@ describe("fetchMyTasks", () => {
     const [, init] = fetchSpy.mock.calls[0];
 
     expect(new Headers(init?.headers).get("cookie")).toBe(
-        "__Host-tofly_session=opaque-session-id",
+        "__session=opaque-session-id",
     );
   });
 });
