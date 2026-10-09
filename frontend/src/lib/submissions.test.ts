@@ -199,6 +199,7 @@ describe("fetchSubmissionQueue", () => {
       items: [
         {
           submissionId: "111",
+          contentId: "content-111",
           creatorName: "Salsa Wijaya",
           contentName: "Evg_1_Salsa_15Sep2026",
           type: "Evergreen",
