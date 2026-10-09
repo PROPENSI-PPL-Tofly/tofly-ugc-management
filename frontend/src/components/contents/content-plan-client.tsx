@@ -9,6 +9,7 @@ import { Panel, PanelHead } from "@/components/ui/panel";
 import { StatusDot } from "@/components/ui/pill";
 import { Toast } from "@/components/ui/toast";
 import { AddContentModal } from "@/components/contents/add-content-modal";
+import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import {
     fetchCreatorDetail,
     type CreatorDetail,
@@ -40,6 +41,8 @@ export function ContentPlanClient({
     const [detail, setDetail] = useState<CreatorDetail | null>(null);
     const [error, setError] = useState("");
     const [showModal, setShowModal] = useState(false);
+    // The content whose detail panel is open, so a row opens its own journey.
+    const [openContentId, setOpenContentId] = useState<string | null>(null);
     // The id is the Toast key: a second save remounts it, restarting its countdown.
     const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -197,7 +200,10 @@ export function ContentPlanClient({
                                     <th scope="col" className={TABLE_HEAD}>
                                         Status
                                     </th>
-                                </tr>
+
+                                    <th scope="col" className={TABLE_HEAD}>
+                                        Aksi
+                                    </th>
                                 </thead>
 
                                 <tbody>
@@ -225,6 +231,15 @@ export function ContentPlanClient({
                                                 {CONTENT_STATUS_LABELS[content.status]}
                                             </StatusDot>
                                         </td>
+
+                                        <td className={TABLE_CELL}>
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() => setOpenContentId(content.id)}
+                                            >
+                                                Detail
+                                            </Button>
+                                        </td>
                                     </tr>
                                 ))}
                                 </tbody>
@@ -251,6 +266,15 @@ export function ContentPlanClient({
                         contractEnd={currentContract.endDate}
                         onClose={() => setShowModal(false)}
                         onSaved={handleSaved}
+                    />
+                ) : null}
+
+                {openContentId ? (
+                    <ContentDetailPanel
+                        key={openContentId}
+                        contentId={openContentId}
+                        role="admin"
+                        onClose={() => setOpenContentId(null)}
                     />
                 ) : null}
             </>

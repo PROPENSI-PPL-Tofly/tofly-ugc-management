@@ -46,9 +46,32 @@ function idleText(task: MyTask): string {
 function ActionCell({
   task,
   onAction,
-}: Readonly<{ task: MyTask; onAction?: (task: MyTask, action: MyTaskAction) => void }>) {
+  onDetail,
+}: Readonly<{
+  task: MyTask;
+  onAction?: (task: MyTask, action: MyTaskAction) => void;
+  onDetail?: (task: MyTask) => void;
+}>) {
+  const detailButton = (
+    <Button
+      key="detail"
+      variant="ghost"
+      className="whitespace-nowrap"
+      aria-label={`Detail: ${task.name}`}
+      disabled={!onDetail}
+      onClick={() => onDetail?.(task)}
+    >
+      Detail
+    </Button>
+  );
+
   if (task.actions.length === 0) {
-    return <span className="text-xs text-muted">{idleText(task)}</span>;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted">{idleText(task)}</span>
+        {detailButton}
+      </div>
+    );
   }
 
   return (
@@ -67,6 +90,7 @@ function ActionCell({
           {ACTION_LABELS[action]}
         </Button>
       ))}
+      {detailButton}
     </div>
   );
 }
@@ -80,11 +104,14 @@ function ActionCell({
 export function MyTaskTable({
   tasks,
   onAction,
+  onDetail,
   emptyMessage = "Belum ada tugas untuk kamu.",
   emptyAction,
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
+  /** Opens the row's content detail panel; every row can show its journey. */
+  onDetail?: (task: MyTask) => void;
   /** What an empty list means, e.g. that a status filter matched nothing. */
   emptyMessage?: string;
   /** The way out of an empty list, e.g. clearing the filter that emptied it. */
@@ -140,7 +167,7 @@ export function MyTaskTable({
                 </StatusDot>
               </td>
               <td role="cell" className={`${CELL} max-lg:pt-2`}>
-                <ActionCell task={task} onAction={onAction} />
+                <ActionCell task={task} onAction={onAction} onDetail={onDetail} />
               </td>
             </tr>
           ))}

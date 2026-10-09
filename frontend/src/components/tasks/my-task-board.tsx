@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
 import { Toast } from "@/components/ui/toast";
@@ -33,10 +34,22 @@ export function MyTaskBoard({
 }: Readonly<{ tasks: MyTask[]; emptyMessage?: string; emptyAction?: ReactNode }>) {
   const router = useRouter();
   const [opened, setOpened] = useState<Opened | null>(null);
+  // The content whose detail panel is open; keyed by content so a ?content= link can
+  // deep-link into it the way a notification would.
+  const [detailContentId, setDetailContentId] = useState<string | null>(null);
   // The id is the Toast key: a second hand-in remounts it, restarting its countdown.
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const listRef = useRef<HTMLElement>(null);
   const focusListOnClose = useRef(false);
+
+  // A notification (or a bookmarked link) opens the panel straight from the URL; read on
+  // the client because the search string is only reliable there after hydration.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("content");
+    if (id) {
+      setDetailContentId(id);
+    }
+  }, []);
 
   // Runs after the modal's own cleanup has handed focus back to its opener, so this wins.
   useEffect(() => {
@@ -47,6 +60,15 @@ export function MyTaskBoard({
   }, [opened]);
 
   const close = () => setOpened(null);
+
+  /** A command inside the panel hands its action back here: the row's submit modal owns it. */
+  function openSubmitFromPanel(contentId: string, action: MyTaskAction) {
+    const task = tasks.find((candidate) => candidate.id === contentId);
+    setDetailContentId(null);
+    if (task) {
+      setOpened({ task, action });
+    }
+  }
 
   function renderModal(current: Opened) {
     const { id, name, deadline, brief, revisionNotes } = current.task;
@@ -94,9 +116,21 @@ export function MyTaskBoard({
           emptyMessage={emptyMessage}
           emptyAction={emptyAction}
           onAction={(task, action) => setOpened({ task, action })}
+          onDetail={(task) => setDetailContentId(task.id)}
         />
       </section>
       {opened ? renderModal(opened) : null}
+      {detailContentId ? (
+        <ContentDetailPanel
+          key={detailContentId}
+          contentId={detailContentId}
+          role="creator"
+          onClose={() => setDetailContentId(null)}
+          ports={{
+            onCreatorAction: (action) => openSubmitFromPanel(detailContentId, action),
+          }}
+        />
+      ) : null}
       {toast ? (
         <Toast key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />
       ) : null}

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import { fetchCreatorDetail, type ContentOutcome, type CreatorDetail } from "@/lib/creators";
 import {
@@ -51,6 +52,8 @@ export function CreatorDetailModal({
   const [detail, setDetail] = useState<CreatorDetail | null>(null);
   const [failed, setFailed] = useState(false);
   const [contentPage, setContentPage] = useState(0);
+  // The content whose detail panel is open; it stacks over this modal.
+  const [openContentId, setOpenContentId] = useState<string | null>(null);
 
   // No reset on creatorId here: the caller keys this component by creator, so a
   // different creator is a different mount that starts from the initial state.
@@ -81,6 +84,7 @@ export function CreatorDetailModal({
   const visibleContents = detail?.contents.slice(contentFirst, contentLast) ?? [];
 
   return (
+    <>
     <Modal
       title={name}
       onClose={onClose}
@@ -220,6 +224,9 @@ export function CreatorDetailModal({
                       <th scope="col" className="w-40 py-1.5 font-semibold">
                         Status
                       </th>
+                      <th scope="col" className="w-16 py-1.5 font-semibold">
+                        Aksi
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -243,6 +250,14 @@ export function CreatorDetailModal({
                               {OUTCOME_LABELS[content.outcome]}
                             </Pill>
                           )}
+                        </td>
+                        <td className="py-2">
+                          <Button
+                            variant="ghost"
+                            onClick={() => setOpenContentId(content.id)}
+                          >
+                            Detail
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -298,5 +313,15 @@ export function CreatorDetailModal({
         </>
       ) : null}
     </Modal>
+
+    {openContentId ? (
+      <ContentDetailPanel
+        key={openContentId}
+        contentId={openContentId}
+        role="admin"
+        onClose={() => setOpenContentId(null)}
+      />
+    ) : null}
+    </>
   );
 }
