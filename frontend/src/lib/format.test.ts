@@ -1,5 +1,6 @@
 import {
   EMPTY,
+  daysUntil,
   formatContractWindow,
   formatDate,
   formatDaysRemaining,
@@ -23,6 +24,13 @@ describe("formatDate", () => {
   it("shows a dash for a missing date", () => {
     expect(formatDate(null)).toBe(EMPTY);
   });
+
+  it.each(["segera", "2026-13-45", ""])(
+    "shows a dash for %j, which is not a calendar day, instead of throwing",
+    (date) => {
+      expect(formatDate(date)).toBe(EMPTY);
+    },
+  );
 });
 
 describe("formatTimestamp", () => {
@@ -154,5 +162,39 @@ describe("formatDue", () => {
     ["a malformed", "12 Oktober"],
   ])("shows a dash for %s deadline", (_label, deadline) => {
     expect(formatDue(deadline, NOON)).toBe(EMPTY);
+  });
+});
+
+describe("daysUntil", () => {
+  const NOON = new Date("2026-10-09T05:00:00Z");
+
+  it("is positive before the deadline, zero on it and negative after", () => {
+    expect(daysUntil("2026-10-12", NOON)).toBe(3);
+    expect(daysUntil("2026-10-09", NOON)).toBe(0);
+    expect(daysUntil("2026-10-07", NOON)).toBe(-2);
+  });
+
+  it("turns over at midnight in Jakarta", () => {
+    expect(daysUntil("2026-10-10", new Date("2026-10-09T16:59:59Z"))).toBe(1);
+    expect(daysUntil("2026-10-10", new Date("2026-10-09T17:00:00Z"))).toBe(0);
+  });
+
+  it.each([
+    ["a missing", null],
+    ["an empty", ""],
+    ["a malformed", "12 Oktober"],
+  ])("has no answer for %s deadline", (_label, deadline) => {
+    expect(daysUntil(deadline, NOON)).toBeNull();
+  });
+
+  it("uses the current moment when none is given", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOON);
+
+    try {
+      expect(daysUntil("2026-10-10")).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
