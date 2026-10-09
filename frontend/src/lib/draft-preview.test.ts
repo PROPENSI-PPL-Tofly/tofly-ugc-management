@@ -12,7 +12,7 @@ function rawPreview(overrides: Partial<RawDraftPreview> = {}): RawDraftPreview {
   return {
     brief: "Tunjukkan fitur cashback.",
     link: "https://drive.google.com/file/d/draft-2",
-    status: "draft_revised",
+    status: "draft_review",
     revisionHistory: [
       { note: "Audio terlalu pelan.", date: "2026-09-20T03:00:00.000Z" },
       { note: "Tambahkan subtitle.", date: "2026-09-22T03:00:00.000Z" },
@@ -34,7 +34,7 @@ describe("toDraftPreview", () => {
       type: "specific",
       brief: "Tunjukkan fitur cashback.",
       deadline: "2026-10-05",
-      status: "draft_revised",
+      status: "draft_review",
       draftLink: "https://drive.google.com/file/d/draft-2",
     });
   });
@@ -110,7 +110,7 @@ describe("toDraftPreview", () => {
     const asMergedIn36: RawDraftPreview = {
       brief: "Tunjukkan fitur cashback.",
       link: "https://drive.google.com/file/d/draft-2",
-      status: "draft_revised",
+      status: "draft_review",
       revisionHistory: [],
     };
 
