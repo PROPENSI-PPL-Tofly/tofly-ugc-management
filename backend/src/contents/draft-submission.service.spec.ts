@@ -90,7 +90,7 @@ describe('DraftSubmissionService.submit', () => {
     });
   });
 
-  it('hands in a resubmit: a content under revision becomes draft_revised', async () => {
+  it('hands in a resubmit: a content under revision waits for review again', async () => {
     const { transaction, service } = stub({
       content: { id: CONTENT_ID, status: 'draft_revision' },
     });
@@ -102,14 +102,14 @@ describe('DraftSubmissionService.submit', () => {
 
     expect(transaction.contents.updateMany).toHaveBeenCalledWith({
       where: { id: CONTENT_ID, status: 'draft_revision' },
-      data: { status: 'draft_revised' },
+      data: { status: 'draft_review' },
     });
     expect(transaction.submissions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ creator_notes: null }),
       }),
     );
-    expect(result).toMatchObject({ status: 'draft_revised', notes: null });
+    expect(result).toMatchObject({ status: 'draft_review', notes: null });
   });
 
   it('answers 404 alike for a missing content, another creator’s content and a proposal, so none of them leak', async () => {
@@ -128,7 +128,6 @@ describe('DraftSubmissionService.submit', () => {
 
   it.each([
     'draft_review',
-    'draft_revised',
     'draft_approved',
     'link_submitted',
   ])(
