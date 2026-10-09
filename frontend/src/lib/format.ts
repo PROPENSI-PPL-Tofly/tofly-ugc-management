@@ -102,14 +102,17 @@ export function daysUntil(deadline: string | null, now: Date = new Date()): numb
   return Math.round((due - today) / MS_PER_DAY);
 }
 
-/** How far a deadline is from today: "H-3" before it, "Hari ini" on it, "Lewat 2 hari" after. */
-export function formatDue(deadline: string | null, now: Date = new Date()): string {
-  const days = daysUntil(deadline, now);
-
+/** A count of days to a deadline as it reads: "H-3", "Hari ini", "Lewat 2 hari"; a dash if unknown. */
+export function formatDaysLeft(days: number | null): string {
   if (days === null) return EMPTY;
   if (days > 0) return `H-${days}`;
   if (days === 0) return "Hari ini";
   return `Lewat ${-days} hari`;
+}
+
+/** How far a deadline is from today: "H-3" before it, "Hari ini" on it, "Lewat 2 hari" after. */
+export function formatDue(deadline: string | null, now: Date = new Date()): string {
+  return formatDaysLeft(daysUntil(deadline, now));
 }
 
 export function formatPercent(value: number | null): string {
