@@ -1,4 +1,9 @@
 import { REVIEWABLE_STATUSES } from './draft-review.js';
+import type { RevisedSubmission } from './dto/revised-submission.dto.js';
+import type {
+  RevisionStore,
+  SubmissionUnderRevision,
+} from './submission-revision.service.js';
 
 type ReviewableStatus = (typeof REVIEWABLE_STATUSES)[number];
 
@@ -70,15 +75,12 @@ interface RevisionPrismaClient extends SubmissionLookup {
   ): Promise<T>;
 }
 
-export class SubmissionRevisionRepository {
+export class SubmissionRevisionRepository implements RevisionStore {
   constructor(private readonly prisma: RevisionPrismaClient) {}
 
-  async findById(submissionId: string): Promise<{
-    id: string;
-    content_id: string;
-    status: string;
-    isLatest: boolean;
-  } | null> {
+  async findById(
+    submissionId: string,
+  ): Promise<SubmissionUnderRevision | null> {
     const submission = await this.prisma.submissions.findUnique({
       where: {
         id: submissionId,
@@ -117,11 +119,7 @@ export class SubmissionRevisionRepository {
     submissionId: string,
     contentId: string,
     revisionNotes: string,
-  ): Promise<{
-    id: string;
-    status: string;
-    revisionNotes: string | null;
-  } | null> {
+  ): Promise<RevisedSubmission | null> {
     return this.prisma.$transaction(async (transaction) => {
       const { count } = await transaction.contents.updateMany({
         where: {
@@ -150,6 +148,7 @@ export class SubmissionRevisionRepository {
 
       return {
         id: submission.id,
+        contentId: submission.content_id,
         status: 'draft_revision',
         revisionNotes: submission.revision_notes,
       };
