@@ -1,26 +1,34 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { vi } from "vitest";
 import { CreatorDetailModal } from "./creator-detail-modal";
 
-const { push } = vi.hoisted(() => ({
+const { push, refresh } = vi.hoisted(() => ({
   push: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push,
+    refresh,
   }),
 }));
 
-const { fetchContentDetail } = vi.hoisted(() => ({
+const { fetchContentDetail, approveSubmission } = vi.hoisted(() => ({
   fetchContentDetail: vi.fn(),
+  approveSubmission: vi.fn(),
 }));
 
 vi.mock("@/lib/content-detail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/content-detail")>()),
   fetchContentDetail: (id: string, role: "admin" | "creator") =>
     fetchContentDetail(id, role),
+}));
+
+vi.mock("@/lib/draft-review-actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/draft-review-actions")>()),
+  approveSubmission: (id: string) => approveSubmission(id),
 }));
 
 const creatorDetail = {
@@ -464,5 +472,44 @@ describe("CreatorDetailModal content detail panel", () => {
 
     expect(await screen.findByRole("dialog", { name: "Evergreen - Tips Belajar Cepat" })).toBeInTheDocument();
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
+  });
+
+  // Review feedback on #73: a decision from this surface must close the panel and
+  // reload the creator detail, or the history keeps its old status until a full page
+  // reload and a second Approve hits the backend's 409.
+  it("closes the panel and reloads the creator detail once a draft is approved", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
+    fetchContentDetail.mockResolvedValue({
+      id: "content-1",
+      name: "Evergreen - Tips Belajar Cepat",
+      type: "evergreen",
+      brief: "",
+      deadline: "2026-09-30",
+      status: "draft_review",
+      creatorName: "Rangga Pratama",
+      tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+      waitingOn: "admin",
+      latestSubmissionId: "submission-1",
+      creatorActions: [],
+      events: [],
+    });
+    approveSubmission.mockResolvedValue(undefined);
+
+    open();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Evergreen - Tips Belajar Cepat" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(approveSubmission).toHaveBeenCalledWith("submission-1");
+    expect(refresh).toHaveBeenCalled();
+    // Once for the mount, once for the reload the decision asked for.
+    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

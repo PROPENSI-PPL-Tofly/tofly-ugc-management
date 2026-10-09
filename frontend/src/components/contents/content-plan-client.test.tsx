@@ -3,6 +3,7 @@ import {
     fireEvent,
     render,
     screen,
+    waitFor,
 } from "@testing-library/react";
 import { ContentPlanClient } from "./content-plan-client";
 import {
@@ -26,8 +27,9 @@ vi.mock("@/lib/creators", async (importOriginal) => {
     };
 });
 
-const { fetchContentDetail } = vi.hoisted(() => ({
+const { fetchContentDetail, approveSubmission } = vi.hoisted(() => ({
     fetchContentDetail: vi.fn(),
+    approveSubmission: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -38,6 +40,11 @@ vi.mock("@/lib/content-detail", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@/lib/content-detail")>()),
     fetchContentDetail: (id: string, role: "admin" | "creator") =>
         fetchContentDetail(id, role),
+}));
+
+vi.mock("@/lib/draft-review-actions", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/draft-review-actions")>()),
+    approveSubmission: (id: string) => approveSubmission(id),
 }));
 
 vi.mock("@/components/contents/add-content-modal", () => ({
@@ -821,5 +828,52 @@ describe("ContentPlanClient content detail panel", () => {
 
         expect(await screen.findByRole("dialog")).toBeInTheDocument();
         expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
+    });
+
+    // Review feedback on #73: a decision from this surface must close the panel and
+    // reload the schedule, or the row keeps its old status until a full page reload
+    // and a second Approve hits the backend's 409.
+    it("closes the panel and reloads the schedule once a draft is approved", async () => {
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-1",
+                        name: "Evg_Rangga_30092026",
+                        type: "evergreen",
+                        deadline: "2026-09-30",
+                        status: "draft_review",
+                        outcome: "open",
+                        videoLink: null,
+                    },
+                ],
+            }),
+        );
+        fetchContentDetail.mockResolvedValue({
+            id: "content-1",
+            name: "Evg_Rangga_30092026",
+            type: "evergreen",
+            brief: "",
+            deadline: "2026-09-30",
+            status: "draft_review",
+            creatorName: "Rangga Pratama",
+            tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+            waitingOn: "admin",
+            latestSubmissionId: "submission-1",
+            creatorActions: [],
+            events: [],
+        } satisfies ContentDetail);
+        approveSubmission.mockResolvedValue(undefined);
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+            expect(approveSubmission).toHaveBeenCalledWith("submission-1");
+            expect(vi.mocked(fetchCreatorDetail)).toHaveBeenCalledTimes(2);
+        });
     });
 });
