@@ -18,16 +18,22 @@ const SIZES = {
 
 // Where the dialog sits. "side" is a sheet docked to the right edge at full height, for detail
 // that is read next to the list it was opened from; it has its own width, so `size` is ignored.
+// A centred dialog scrolls as a whole; a sheet keeps its header in place and scrolls its body,
+// so the subject stays in view however long the detail under it runs.
 const PLACEMENTS = {
   center: {
     backdrop: "items-center justify-center p-5",
-    dialog: "max-h-[88vh] rounded-(--radius-panel) border",
+    dialog: "max-h-[88vh] overflow-y-auto rounded-(--radius-panel) border",
+    header: "py-[18px]",
     title: "text-[15px]",
+    body: "",
   },
   side: {
     backdrop: "justify-end",
-    dialog: "h-full max-w-[520px] border-l animate-sheet-in",
+    dialog: "flex h-full max-w-[520px] flex-col border-l shadow-sheet animate-sheet-in",
+    header: "pb-4 pt-5",
     title: "text-lg",
+    body: "min-h-0 flex-1 overflow-y-auto",
   },
 } as const;
 
@@ -163,9 +169,9 @@ export function Modal({
         aria-labelledby={headingId}
         tabIndex={-1}
         data-modal-dialog=""
-        className={`w-full ${width} ${layout.dialog} overflow-y-auto border-rule bg-surface focus:outline-none`}
+        className={`w-full ${width} ${layout.dialog} border-rule bg-surface focus:outline-none`}
       >
-        <div className="border-b border-rule px-5 py-[18px]">
+        <div className={`border-b border-rule px-5 ${layout.header}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               {eyebrow ? (
@@ -192,14 +198,14 @@ export function Modal({
           {meta ? (
             <div
               data-testid="modal-meta"
-              className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12.5px] text-muted"
+              className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-muted"
             >
               {meta}
             </div>
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-3.5 p-5">{children}</div>
+        <div className={`flex flex-col gap-3.5 p-5 ${layout.body}`}>{children}</div>
 
         {footer ? (
           <div className="flex flex-wrap justify-end gap-2 border-t border-rule px-5 py-4">
