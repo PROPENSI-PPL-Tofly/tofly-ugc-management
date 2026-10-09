@@ -105,7 +105,11 @@ describe('buildEvents', () => {
     );
 
     const drafts = events.filter((event) => event.type === 'draft_submitted');
-    expect(drafts.map((event) => event.payload?.version)).toEqual([1, 2]);
+    expect(drafts.map((event) => event.payload?.version)).toEqual([2, 1]);
+    expect(drafts.at(1)?.payload).toEqual({
+      version: 1,
+      link: 'https://drive.google.com/draft-v1',
+    });
     expect(events.at(0)?.type).toBe('draft_submitted');
     expect(events.at(0)?.payload).toEqual({
       version: 2,
