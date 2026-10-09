@@ -1,0 +1,159 @@
+import {
+  ContentDetailError,
+  dueLabel,
+  fetchContentDetail,
+  toContentDetail,
+  type RawContentDetail,
+} from "./content-detail";
+
+// GET /api/contents/:id (admin) and GET /me/contents/:id (creator) as PBI 6 answers them.
+// One fixture per test group, so a contract change is a change here and in toContentDetail.
+function raw(overrides: Partial<RawContentDetail> = {}): RawContentDetail {
+  return {
+    id: "11111111-1111-1111-1111-111111111111",
+    name: "Evg_Rangga_30092026",
+    type: "evergreen",
+    brief: "",
+    deadline: "2026-09-30",
+    status: "draft_review",
+    creatorName: "Rangga Pratama",
+    tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+    waitingOn: "admin",
+    latestSubmissionId: "22222222-2222-2222-2222-222222222222",
+    creatorActions: [],
+    events: [
+      {
+        id: "sub-2",
+        type: "draft_submitted",
+        at: "2026-09-20T10:00:00.000Z",
+        actor: { name: "Rangga Pratama", role: "creator" },
+        payload: { version: 2, link: "https://drive.google.com/draft-v2" },
+      },
+      {
+        id: "11111111-1111-1111-1111-111111111111:scheduled",
+        type: "scheduled",
+        at: "2026-09-01T03:00:00.000Z",
+        actor: { name: null, role: "admin" },
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("toContentDetail", () => {
+  it("carries the API's words over to the panel's names", () => {
+    expect(toContentDetail(raw())).toMatchObject({
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Evg_Rangga_30092026",
+      type: "evergreen",
+      brief: "",
+      deadline: "2026-09-30",
+      status: "draft_review",
+      creatorName: "Rangga Pratama",
+      waitingOn: "admin",
+      latestSubmissionId: "22222222-2222-2222-2222-222222222222",
+      creatorActions: [],
+    });
+  });
+
+  it("keeps the tags beside the status, including the two 6.2 owns", () => {
+    const detail = toContentDetail(
+      raw({
+        tags: { overdue: true, lateSubmission: true, approvalBypassed: true },
+      }),
+    );
+
+    expect(detail.tags).toEqual({
+      overdue: true,
+      lateSubmission: true,
+      approvalBypassed: true,
+    });
+  });
+
+  it("keeps the endpoint's newest-first event order instead of re-sorting it", () => {
+    const { events } = toContentDetail(raw());
+
+    expect(events.map((event) => event.id)).toEqual([
+      "sub-2",
+      "11111111-1111-1111-1111-111111111111:scheduled",
+    ]);
+  });
+
+  it("passes the journey through unchanged", () => {
+    const { events } = toContentDetail(raw());
+
+    expect(events[0]).toEqual(raw().events[0]);
+  });
+});
+
+describe("dueLabel", () => {
+  it("says the content is finished once the link is in", () => {
+    expect(dueLabel("link_submitted", "2026-09-30", "2026-10-20")).toBe("Selesai");
+  });
+
+  it("counts the days left to the deadline", () => {
+    expect(dueLabel("draft_review", "2026-10-05", "2026-09-30")).toBe("H-5");
+  });
+
+  it("names the deadline day itself", () => {
+    expect(dueLabel("scheduled", "2026-09-30", "2026-09-30")).toBe("Hari ini");
+  });
+
+  it("counts the days a deadline has been missed", () => {
+    expect(dueLabel("draft_revision", "2026-09-27", "2026-09-30")).toBe("Lewat 3 hari");
+  });
+});
+
+describe("fetchContentDetail", () => {
+  function answer(status: number, body: unknown = raw()) {
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(body), { status }));
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("asks this app's API proxy for the content, without caching, as the admin", async () => {
+    const fetchSpy = answer(200);
+
+    const detail = await fetchContentDetail(
+      "11111111-1111-1111-1111-111111111111",
+      "admin",
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/contents/11111111-1111-1111-1111-111111111111", {
+      cache: "no-store",
+    });
+    expect(detail.name).toBe("Evg_Rangga_30092026");
+  });
+
+  it("asks the creator-scoped route when a creator opens the panel", async () => {
+    const fetchSpy = answer(200);
+
+    await fetchContentDetail("11111111-1111-1111-1111-111111111111", "creator");
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/me/contents/11111111-1111-1111-1111-111111111111", {
+      cache: "no-store",
+    });
+  });
+
+  it("encodes the id so a crafted value cannot climb out of the path (OWASP A01)", async () => {
+    const fetchSpy = answer(200);
+
+    await fetchContentDetail("../../me/contents", "admin");
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/contents/..%2F..%2Fme%2Fcontents", {
+      cache: "no-store",
+    });
+  });
+
+  it("keeps the status so a 404 reads differently from a failure", async () => {
+    answer(404);
+
+    await expect(
+      fetchContentDetail("11111111-1111-1111-1111-111111111111", "admin"),
+    ).rejects.toThrow(ContentDetailError);
+  });
+});
