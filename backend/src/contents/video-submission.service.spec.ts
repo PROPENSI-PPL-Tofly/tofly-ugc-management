@@ -141,7 +141,6 @@ describe('VideoSubmissionService.submit', () => {
     'scheduled',
     'draft_review',
     'draft_revision',
-    'draft_revised',
   ] as const)('allows %s during the H-1 grace window', async (status) => {
     const { transaction, service } = stub({
       content: {
@@ -166,7 +165,6 @@ describe('VideoSubmissionService.submit', () => {
     'scheduled',
     'draft_review',
     'draft_revision',
-    'draft_revised',
   ] as const)('rejects %s before the H-1 grace window', async (status) => {
     const { transaction, service } = stub({
       content: {

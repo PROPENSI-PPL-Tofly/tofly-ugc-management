@@ -1,3 +1,4 @@
+import { content_status } from '@prisma/client';
 import {
   CONTENT_STATUSES,
   REVIEWABLE_STATUSES,
@@ -20,6 +21,11 @@ describe('CONTENT_STATUSES', () => {
 
   it('no longer knows Draft Revised', () => {
     expect(CONTENT_STATUSES).not.toContain('draft_revised');
+  });
+
+  // Prisma generates this enum from schema.prisma, which mirrors the database type.
+  it('matches the content_status enum of the Prisma schema, value for value', () => {
+    expect(Object.values(content_status)).toEqual([...CONTENT_STATUSES]);
   });
 });
 

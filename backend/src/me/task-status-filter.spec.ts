@@ -19,7 +19,7 @@ describe('checkTaskStatus', () => {
   it.each([
     ['an unknown status', 'done'],
     ['an empty value', ''],
-    ["the admin-side draft_revised, which a creator sees as draft_review", 'draft_revised'],
+    ['the removed draft_revised', 'draft_revised'],
     ['a status in the wrong case', 'Scheduled'],
     ['a repeated parameter', ['scheduled', 'draft_review']],
     ['a SQL payload', "scheduled' OR 1=1--"],
@@ -29,12 +29,13 @@ describe('checkTaskStatus', () => {
 });
 
 describe('statusesFor', () => {
-  // The creator's "waiting for review" covers both hand-ins the admin has not ruled on yet.
-  it('widens draft_review to a revised hand-in as well', () => {
-    expect(statusesFor('draft_review')).toEqual(['draft_review', 'draft_revised']);
-  });
-
-  it.each(['scheduled', 'draft_revision', 'draft_approved', 'link_submitted'] as const)(
+  it.each([
+    'scheduled',
+    'draft_review',
+    'draft_revision',
+    'draft_approved',
+    'link_submitted',
+  ] as const)(
     'keeps %s to itself',
     (status) => {
       expect(statusesFor(status)).toEqual([status]);

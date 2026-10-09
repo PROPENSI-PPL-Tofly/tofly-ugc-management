@@ -158,7 +158,7 @@ describe('MyContentsService.list', () => {
 
     const where = {
       ...OWN,
-      status: { in: ['draft_review', 'draft_revised'] },
+      status: { in: ['draft_review'] },
       video_submitted_at: null,
     };
     expect(client.contents.findMany).toHaveBeenCalledWith(
@@ -208,7 +208,7 @@ describe('MyContentsService.list', () => {
 
   it('leaves out revision notes once the revision has been handed in or approved', async () => {
     const { service } = stub([
-      row({ id: 'c1', status: 'draft_revised', revisionNotes: 'Perjelas intro' }),
+      row({ id: 'c1', status: 'draft_review', revisionNotes: 'Perjelas intro' }),
       row({ id: 'c2', status: 'draft_approved', revisionNotes: 'Perjelas intro' }),
     ]);
 

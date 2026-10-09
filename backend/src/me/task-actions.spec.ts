@@ -32,7 +32,6 @@ describe('canSubmitDraft', () => {
     ['scheduled', true],
     ['draft_revision', true],
     ['draft_review', false],
-    ['draft_revised', false],
     ['draft_approved', false],
     ['link_submitted', false],
   ] as const)('%s → %s', (status, expected) => {
@@ -52,7 +51,6 @@ describe('canSubmitVideo', () => {
     'scheduled',
     'draft_review',
     'draft_revision',
-    'draft_revised',
   ] as const)(
     'refuses %s outside the grace window and allows it inside',
     (status) => {
@@ -75,7 +73,6 @@ describe('taskActions', () => {
     ['scheduled', FAR, ['submit_draft']],
     ['draft_revision', FAR, ['resubmit_draft']],
     ['draft_review', FAR, []],
-    ['draft_revised', FAR, []],
     ['draft_approved', FAR, ['submit_video']],
     ['link_submitted', FAR, []],
     ['scheduled', H_MINUS_1, ['submit_draft', 'submit_video']],
