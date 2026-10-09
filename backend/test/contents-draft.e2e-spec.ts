@@ -21,7 +21,6 @@ type Status =
   | 'scheduled'
   | 'draft_review'
   | 'draft_revision'
-  | 'draft_revised'
   | 'draft_approved';
 
 describe('POST /contents/:id/draft (e2e)', () => {
@@ -156,9 +155,18 @@ describe('POST /contents/:id/draft (e2e)', () => {
     expect((await stateOf(scheduled.id)).submissions).toHaveLength(1);
   });
 
-  it('hands in a resubmit: the content becomes draft_revised and heads the admin review queue', async () => {
+  it('hands in a resubmit: the content waits for review again and heads the admin review queue', async () => {
     const revision = await content('resubmit', 'draft_revision', {
       deadline: daysFromToday(60),
+    });
+    // The first hand-in, the one the admin sent back.
+    await prisma.submissions.create({
+      data: {
+        content_id: revision.id,
+        creator_id: ownerId,
+        link: 'https://drive.google.com/d/first',
+        revision_notes: 'Perjelas intro',
+      },
     });
     await content('waiting sooner', 'draft_review', {
       deadline: daysFromToday(2),
@@ -178,7 +186,7 @@ describe('POST /contents/:id/draft (e2e)', () => {
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
-      status: 'draft_revised',
+      status: 'draft_review',
       notes: null,
     });
 
@@ -187,7 +195,8 @@ describe('POST /contents/:id/draft (e2e)', () => {
     );
     expect(queue.body.items[0]).toMatchObject({
       submissionId: response.body.submissionId,
-      status: 'draft_revised',
+      status: 'draft_review',
+      revisionCount: 1,
     });
   });
 
