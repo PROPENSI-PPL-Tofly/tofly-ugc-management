@@ -94,17 +94,12 @@ export function checkDraftSubmission(input: unknown): DraftSubmission {
 
 /**
  * Where a draft hand-in moves the content, or null when no draft is expected now. A first
- * draft waits for review; one sent after a revision request is draft_revised, which the review
- * queue lists first (see draft-review.ts).
+ * draft and one sent after a revision request both wait for review; the review queue tells a
+ * resubmit apart by counting hand-ins, not by a status of its own.
  */
-export function nextDraftStatus(
-  status: content_status,
-): 'draft_review' | 'draft_revised' | null {
-  if (status === 'scheduled') {
+export function nextDraftStatus(status: content_status): 'draft_review' | null {
+  if (status === 'scheduled' || status === 'draft_revision') {
     return 'draft_review';
-  }
-  if (status === 'draft_revision') {
-    return 'draft_revised';
   }
   return null;
 }

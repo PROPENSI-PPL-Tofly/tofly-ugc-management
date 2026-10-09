@@ -11,7 +11,7 @@ import { nextDraftStatus, type DraftSubmission } from './draft-submission.js';
 export interface SubmittedDraft {
   contentId: string;
   submissionId: string;
-  status: 'draft_review' | 'draft_revised';
+  status: 'draft_review';
   link: string;
   notes: string | null;
   /** ISO timestamp of the hand-in. */
@@ -31,7 +31,7 @@ export interface DraftSubmissionTransaction {
     }) => Promise<{ id: string; status: content_status } | null>;
     updateMany: (args: {
       where: { id: string; status: content_status };
-      data: { status: 'draft_review' | 'draft_revised' };
+      data: { status: 'draft_review' };
     }) => Promise<{ count: number }>;
   };
   submissions: {
