@@ -13,6 +13,16 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+const { fetchContentDetail } = vi.hoisted(() => ({
+  fetchContentDetail: vi.fn(),
+}));
+
+vi.mock("@/lib/content-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content-detail")>()),
+  fetchContentDetail: (id: string, role: "admin" | "creator") =>
+    fetchContentDetail(id, role),
+}));
+
 const creatorDetail = {
   id: "creator-rangga",
   name: "Rangga Pratama",
@@ -420,5 +430,39 @@ describe("CreatorDetailModal", () => {
     fireEvent.click(button);
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("CreatorDetailModal content detail panel", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fetchContentDetail.mockReset();
+  });
+
+  it("opens the content detail panel from a content history row, as the admin", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(creatorDetail)),
+    );
+    fetchContentDetail.mockResolvedValue({
+      id: "content-1",
+      name: "Evergreen - Tips Belajar Cepat",
+      type: "evergreen",
+      brief: "",
+      deadline: "2026-09-30",
+      status: "link_submitted",
+      creatorName: "Rangga Pratama",
+      tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+      waitingOn: null,
+      latestSubmissionId: null,
+      creatorActions: [],
+      events: [],
+    });
+
+    open();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+
+    expect(await screen.findByRole("dialog", { name: "Evergreen - Tips Belajar Cepat" })).toBeInTheDocument();
+    expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
   });
 });

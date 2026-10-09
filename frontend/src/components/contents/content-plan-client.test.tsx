@@ -9,6 +9,7 @@ import {
     fetchCreatorDetail,
     type CreatorDetail,
 } from "@/lib/creators";
+import type { ContentDetail } from "@/lib/content-detail";
 
 vi.mock("next/link", async (importOriginal) => {
     const actual = await importOriginal<typeof import("next/link")>();
@@ -24,6 +25,16 @@ vi.mock("@/lib/creators", async (importOriginal) => {
         fetchCreatorDetail: vi.fn(),
     };
 });
+
+const { fetchContentDetail } = vi.hoisted(() => ({
+    fetchContentDetail: vi.fn(),
+}));
+
+vi.mock("@/lib/content-detail", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/content-detail")>()),
+    fetchContentDetail: (id: string, role: "admin" | "creator") =>
+        fetchContentDetail(id, role),
+}));
 
 vi.mock("@/components/contents/add-content-modal", () => ({
     AddContentModal: ({
@@ -760,5 +771,51 @@ describe("ContentPlanClient", () => {
 
             expect(screen.queryByRole("status")).toBeNull();
         });
+    });
+});
+
+describe("ContentPlanClient content detail panel", () => {
+    beforeEach(() => {
+        vi.mocked(fetchCreatorDetail).mockReset();
+        fetchContentDetail.mockReset();
+    });
+
+    it("opens the content detail panel of a content row, as the admin", async () => {
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-1",
+                        name: "Evg_Rangga_30092026",
+                        type: "evergreen",
+                        deadline: "2026-09-30",
+                        status: "scheduled",
+                        outcome: "open",
+                        videoLink: null,
+                    },
+                ],
+            }),
+        );
+        fetchContentDetail.mockResolvedValue({
+            id: "content-1",
+            name: "Evg_Rangga_30092026",
+            type: "evergreen",
+            brief: "",
+            deadline: "2026-09-30",
+            status: "scheduled",
+            creatorName: "Rangga Pratama",
+            tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+            waitingOn: "creator",
+            latestSubmissionId: null,
+            creatorActions: ["submit_draft"],
+            events: [],
+        } satisfies ContentDetail);
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+
+        expect(await screen.findByRole("dialog")).toBeInTheDocument();
+        expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
     });
 });
