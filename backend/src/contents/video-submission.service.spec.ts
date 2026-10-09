@@ -117,6 +117,7 @@ describe('VideoSubmissionService.submit', () => {
         video_link: REEL,
         video_submitted_at: SUBMITTED_AT,
         platform: 'instagram',
+        approval_bypassed: false,
       },
     });
 
@@ -167,6 +168,61 @@ describe('VideoSubmissionService.submit', () => {
     });
 
     expect(transaction.contents.updateMany).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    'scheduled',
+    'draft_review',
+    'draft_revision',
+  ] as const)(
+    'marks a link handed in from %s inside H-1 as approval bypassed, guarded on that same status',
+    async (status) => {
+      const { transaction, service } = stub({
+        content: {
+          id: CONTENT_ID,
+          status,
+          deadline: GRACE_DEADLINE,
+        },
+      });
+
+      await service.submit(CONTENT_ID, CREATOR_ID, {
+        videoLink: REEL,
+      });
+
+      expect(transaction.contents.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: CONTENT_ID,
+          status,
+        },
+        data: {
+          status: 'link_submitted',
+          video_link: REEL,
+          video_submitted_at: SUBMITTED_AT,
+          platform: 'instagram',
+          approval_bypassed: true,
+        },
+      });
+    },
+  );
+
+  it('does not mark a draft-approved content handed in inside H-1 as approval bypassed', async () => {
+    const { transaction, service } = stub({
+      content: {
+        id: CONTENT_ID,
+        status: 'draft_approved',
+        deadline: GRACE_DEADLINE,
+      },
+    });
+
+    await service.submit(CONTENT_ID, CREATOR_ID, {
+      videoLink: REEL,
+    });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ approval_bypassed: false }),
+      }),
+    );
   });
 
   it.each([
