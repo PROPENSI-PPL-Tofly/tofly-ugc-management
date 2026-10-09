@@ -3,14 +3,9 @@
 
 import { BadRequestException } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
+import { COMMITTED_STATUSES } from '../contents/content-lifecycle.js';
 
-export const TASK_STATUS_FILTERS = [
-  'scheduled',
-  'draft_review',
-  'draft_revision',
-  'draft_approved',
-  'link_submitted',
-] as const;
+export const TASK_STATUS_FILTERS = COMMITTED_STATUSES;
 
 export type TaskStatusFilter = (typeof TASK_STATUS_FILTERS)[number];
 

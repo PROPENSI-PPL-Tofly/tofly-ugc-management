@@ -1,5 +1,6 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
+import { canTransition } from './content-lifecycle.js';
 
 export interface DraftSubmission {
   link: string;
@@ -98,8 +99,5 @@ export function checkDraftSubmission(input: unknown): DraftSubmission {
  * resubmit apart by counting hand-ins, not by a status of its own.
  */
 export function nextDraftStatus(status: content_status): 'draft_review' | null {
-  if (status === 'scheduled' || status === 'draft_revision') {
-    return 'draft_review';
-  }
-  return null;
+  return canTransition(status, 'draft_review') ? 'draft_review' : null;
 }
