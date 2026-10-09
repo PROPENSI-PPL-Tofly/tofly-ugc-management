@@ -65,6 +65,7 @@ const creatorDetail = {
       deadline: "2026-09-30",
       status: "link_submitted",
       outcome: "on_time" as const,
+      tags: [] as string[],
       videoLink: "https://example.com/video",
     },
   ],
@@ -264,7 +265,7 @@ describe("CreatorDetailModal", () => {
     const cells = within(firstRow).getAllByRole("cell");
     expect(cells[0]).toHaveTextContent("Evergreen - Tips Belajar Cepat");
     expect(cells[0].firstElementChild).toHaveAttribute("title", "Evergreen - Tips Belajar Cepat");
-    expect(cells[2]).toHaveTextContent("Tepat waktu");
+    expect(cells[2]).toHaveTextContent("Content Link Submitted");
   });
 
   it("colours an open content's status dot by where it is in the workflow", async () => {
@@ -304,6 +305,74 @@ describe("CreatorDetailModal", () => {
 
     expect(await screen.findByText(label)).toBeInTheDocument();
     expect(screen.queryByText("Berjalan")).not.toBeInTheDocument();
+  });
+
+  describe("content tags beside the status", () => {
+    function respondWith(content: Record<string, unknown>) {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...creatorDetail,
+            contents: [{ ...creatorDetail.contents[0], ...content }],
+          }),
+        ),
+      );
+    }
+
+    async function statusCell() {
+      const table = await screen.findByRole("table", { name: "Riwayat konten" });
+      return within(within(table).getAllByRole("row")[1]).getAllByRole("cell")[2];
+    }
+
+    it("shows a late, bypassed link with its status and both tags", async () => {
+      respondWith({
+        status: "link_submitted",
+        outcome: "submitted_late",
+        tags: ["late_submission", "approval_bypassed"],
+      });
+
+      open();
+
+      const cell = await statusCell();
+      expect(within(cell).getByText("Content Link Submitted")).toBeInTheDocument();
+      const tags = within(cell).getByRole("list", { name: "Tanda konten" });
+      expect(
+        within(tags)
+          .getAllByRole("listitem")
+          .map((item) => item.textContent),
+      ).toEqual(["Terlambat", "Approval dilewati"]);
+    });
+
+    it("shows an overdue scheduled content as Scheduled with an Overdue tag", async () => {
+      respondWith({ status: "scheduled", outcome: "late", tags: ["overdue"] });
+
+      open();
+
+      const cell = await statusCell();
+      expect(within(cell).getByText("Scheduled")).toBeInTheDocument();
+      expect(within(cell).getByText("Overdue")).toBeInTheDocument();
+    });
+
+    it("shows an on-time link by its status alone, without a tag list", async () => {
+      respondWith({ status: "link_submitted", outcome: "on_time", tags: [] });
+
+      open();
+
+      const cell = await statusCell();
+      expect(within(cell).getByText("Content Link Submitted")).toBeInTheDocument();
+      expect(within(cell).queryByRole("list")).not.toBeInTheDocument();
+    });
+
+    it("no longer replaces the status with the old outcome wording", async () => {
+      respondWith({ status: "scheduled", outcome: "late", tags: ["overdue"] });
+
+      open();
+
+      await statusCell();
+      expect(screen.queryByText("Lewat deadline")).not.toBeInTheDocument();
+      expect(screen.queryByText("Terlambat kirim")).not.toBeInTheDocument();
+      expect(screen.queryByText("Tepat waktu")).not.toBeInTheDocument();
+    });
   });
 
   describe("content history paging", () => {

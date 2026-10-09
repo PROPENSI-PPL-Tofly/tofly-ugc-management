@@ -185,6 +185,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                     {
@@ -194,6 +195,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-10-05",
                         status: "link_submitted",
                         outcome: "on_time",
+                        tags: [],
                         videoLink:
                             "https://example.com/video",
                     },
@@ -276,6 +278,7 @@ describe("ContentPlanClient", () => {
             deadline: `2026-10-${String(index + 1).padStart(2, "0")}`,
             status: "scheduled" as const,
             outcome: "open" as const,
+            tags: [],
             videoLink: null,
         }));
 
@@ -333,6 +336,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "draft_revision",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                 ],
@@ -387,6 +391,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                     {
@@ -396,6 +401,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-10-05",
                         status: "link_submitted",
                         outcome: "on_time",
+                        tags: [],
                         videoLink: null,
                     },
                 ],
@@ -452,6 +458,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                     {
@@ -461,6 +468,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-10-05",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                 ],
@@ -522,6 +530,7 @@ describe("ContentPlanClient", () => {
                             deadline: "2026-09-30",
                             status: "link_submitted",
                             outcome: "on_time",
+                            tags: [],
                             videoLink: null,
                         },
                     ],
@@ -537,6 +546,7 @@ describe("ContentPlanClient", () => {
                             deadline: "2026-09-30",
                             status: "link_submitted",
                             outcome: "on_time",
+                            tags: [],
                             videoLink: null,
                         },
                         {
@@ -546,6 +556,7 @@ describe("ContentPlanClient", () => {
                             deadline: "2026-10-05",
                             status: "scheduled",
                             outcome: "open",
+                            tags: [],
                             videoLink: null,
                         },
                     ],
