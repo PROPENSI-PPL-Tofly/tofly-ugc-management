@@ -3,6 +3,7 @@ import {
   daysUntil,
   formatContractWindow,
   formatDate,
+  formatDaysLeft,
   formatDaysRemaining,
   formatDue,
   formatPercent,
@@ -195,6 +196,30 @@ describe("daysUntil", () => {
       expect(daysUntil("2026-10-10")).toBe(1);
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe("formatDaysLeft", () => {
+  it.each([
+    [3, "H-3"],
+    [1, "H-1"],
+    [0, "Hari ini"],
+    [-1, "Lewat 1 hari"],
+    [-10, "Lewat 10 hari"],
+  ])("reads %i days as %s", (days, label) => {
+    expect(formatDaysLeft(days)).toBe(label);
+  });
+
+  it("shows a dash when the number of days is unknown", () => {
+    expect(formatDaysLeft(null)).toBe(EMPTY);
+  });
+
+  it("agrees with formatDue, which is the same count taken from a deadline", () => {
+    const now = new Date("2026-10-09T05:00:00Z");
+
+    for (const deadline of ["2026-10-12", "2026-10-09", "2026-10-01", null, "segera"]) {
+      expect(formatDaysLeft(daysUntil(deadline, now))).toBe(formatDue(deadline, now));
     }
   });
 });
