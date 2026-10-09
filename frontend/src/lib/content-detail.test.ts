@@ -1,7 +1,6 @@
 import {
   ContentDetailError,
   describeJourney,
-  dueLabel,
   fetchContentDetail,
   toContentDetail,
   type RawContentDetail,
@@ -85,24 +84,6 @@ describe("toContentDetail", () => {
     const { events } = toContentDetail(raw());
 
     expect(events[0]).toEqual(raw().events[0]);
-  });
-});
-
-describe("dueLabel", () => {
-  it("says the content is finished once the link is in", () => {
-    expect(dueLabel("link_submitted", "2026-09-30", "2026-10-20")).toBe("Selesai");
-  });
-
-  it("counts the days left to the deadline", () => {
-    expect(dueLabel("draft_review", "2026-10-05", "2026-09-30")).toBe("H-5");
-  });
-
-  it("names the deadline day itself", () => {
-    expect(dueLabel("scheduled", "2026-09-30", "2026-09-30")).toBe("Hari ini");
-  });
-
-  it("counts the days a deadline has been missed", () => {
-    expect(dueLabel("draft_revision", "2026-09-27", "2026-09-30")).toBe("Lewat 3 hari");
   });
 });
 

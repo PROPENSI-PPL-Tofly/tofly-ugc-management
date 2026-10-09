@@ -59,31 +59,6 @@ export function toContentDetail(raw: RawContentDetail): ContentDetail {
   return raw;
 }
 
-/**
- * How far off the deadline reads in the header: "Selesai" once the link is in, then
- * "H-n" / "Hari ini" / "Lewat n hari" as the prototype's drawer does. ISO days compare
- * correctly as strings, and both sides are parsed as UTC so the day never shifts for
- * anyone west of Greenwich.
- */
-export function dueLabel(
-  status: ContentStatus,
-  deadline: string,
-  today: string,
-): string {
-  if (status === "link_submitted") {
-    return "Selesai";
-  }
-
-  const day = 24 * 60 * 60 * 1000;
-  const days = Math.round(
-    (Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / day,
-  );
-
-  if (days > 0) return `H-${days}`;
-  if (days === 0) return "Hari ini";
-  return `Lewat ${-days} hari`;
-}
-
 /** One step of the journey, worded for the timeline: the panel only lays it out. */
 export interface JourneyStep {
   event: RawContentEvent;
