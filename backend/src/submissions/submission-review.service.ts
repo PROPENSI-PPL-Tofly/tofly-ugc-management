@@ -1,16 +1,8 @@
-import {
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import {
-  checkReviewable,
-  REVIEWABLE_STATUSES,
-  type ReviewRejection,
-} from './draft-review.js';
+import { checkReviewable, REVIEWABLE_STATUSES } from './draft-review.js';
 import type { ApprovedSubmission } from './dto/approved-submission.dto.js';
+import { reviewConflict, submissionNotFound } from './review-errors.js';
 
 type ReviewableStatus = (typeof REVIEWABLE_STATUSES)[number];
 
@@ -54,15 +46,6 @@ export interface SubmissionReviewClient {
   };
 }
 
-const REJECTION_MESSAGES: Record<ReviewRejection, string> = {
-  DRAFT_NOT_REVIEWABLE: 'Draft ini sudah tidak menunggu keputusan',
-  SUBMISSION_SUPERSEDED: 'Creator sudah mengirim draft yang lebih baru',
-};
-
-function conflict(code: ReviewRejection): ConflictException {
-  return new ConflictException({ code, message: REJECTION_MESSAGES[code] });
-}
-
 @Injectable()
 export class SubmissionReviewService {
   constructor(
@@ -90,10 +73,7 @@ export class SubmissionReviewService {
     });
 
     if (!submission) {
-      throw new NotFoundException({
-        code: 'SUBMISSION_NOT_FOUND',
-        message: 'Draft tidak ditemukan',
-      });
+      throw submissionNotFound();
     }
 
     const rejected = checkReviewable({
@@ -101,7 +81,7 @@ export class SubmissionReviewService {
       isLatest: submission.contents.submissions[0]?.id === submission.id,
     });
     if (rejected) {
-      throw conflict(rejected);
+      throw reviewConflict(rejected);
     }
 
     // Compare-and-set: the status guard lives in the UPDATE itself, so of two decisions racing
@@ -115,7 +95,7 @@ export class SubmissionReviewService {
       data: { status: 'draft_approved' },
     });
     if (count === 0) {
-      throw conflict('DRAFT_NOT_REVIEWABLE');
+      throw reviewConflict('DRAFT_NOT_REVIEWABLE');
     }
 
     return {

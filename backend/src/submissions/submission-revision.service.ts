@@ -1,12 +1,5 @@
-import {
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
-
-import {
-  checkReviewable,
-  type ReviewRejection,
-} from './draft-review.js';
+import { checkReviewable } from './draft-review.js';
+import { reviewConflict, submissionNotFound } from './review-errors.js';
 import type { RevisionRequest } from './revise-submission.js';
 
 interface RevisionResult {
@@ -32,18 +25,6 @@ export interface SubmissionRevisionRepository {
   ): Promise<RevisionResult | null>;
 }
 
-const REJECTION_MESSAGES: Record<ReviewRejection, string> = {
-  DRAFT_NOT_REVIEWABLE: 'Draft ini sudah tidak menunggu keputusan',
-  SUBMISSION_SUPERSEDED: 'Creator sudah mengirim draft yang lebih baru',
-};
-
-function conflict(code: ReviewRejection): ConflictException {
-  return new ConflictException({
-    code,
-    message: REJECTION_MESSAGES[code],
-  });
-}
-
 export class SubmissionRevisionService {
   constructor(
     private readonly repository: SubmissionRevisionRepository,
@@ -56,10 +37,7 @@ export class SubmissionRevisionService {
     const submission = await this.repository.findById(submissionId);
 
     if (!submission) {
-      throw new NotFoundException({
-        code: 'SUBMISSION_NOT_FOUND',
-        message: 'Draft tidak ditemukan',
-      });
+      throw submissionNotFound();
     }
 
     const rejected = checkReviewable({
@@ -68,7 +46,7 @@ export class SubmissionRevisionService {
     });
 
     if (rejected) {
-      throw conflict(rejected);
+      throw reviewConflict(rejected);
     }
 
     const result = await this.repository.saveRevision(
@@ -78,7 +56,7 @@ export class SubmissionRevisionService {
     );
 
     if (!result) {
-      throw conflict('DRAFT_NOT_REVIEWABLE');
+      throw reviewConflict('DRAFT_NOT_REVIEWABLE');
     }
 
     return result;
