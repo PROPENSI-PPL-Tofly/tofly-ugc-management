@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { content_status, Prisma } from '@prisma/client';
+import { contentTags } from '../contents/content-tags.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   computePerformance,
@@ -96,6 +97,7 @@ const DETAIL_SELECT = {
           status: true,
           video_link: true,
           video_submitted_at: true,
+          approval_bypassed: true,
           _count: {
             select: {
               submissions: true,
@@ -327,6 +329,17 @@ export class CreatorsService implements CreatorLister {
               videoSubmittedAt: content.video_submitted_at,
               isProposal: isProposal(content.status),
               submissionCount: content._count.submissions,
+            },
+            today,
+          ),
+          tags: contentTags(
+            {
+              deadline: content.deadline,
+              status: content.status,
+              videoSubmittedAt: content.video_submitted_at,
+              // Submissions arrive oldest first, so the last one is the latest draft.
+              latestDraftAt: content.submissions.at(-1)?.created_at ?? null,
+              approvalBypassed: content.approval_bypassed,
             },
             today,
           ),

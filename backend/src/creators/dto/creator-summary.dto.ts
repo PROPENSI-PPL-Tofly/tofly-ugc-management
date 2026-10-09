@@ -4,6 +4,7 @@
 // into a response by accident.
 
 import type { ContentStatus } from '../../contents/content-lifecycle.js';
+import type { ContentTag } from '../../contents/content-tags.js';
 import type {
   ContentOutcome,
   Productivity,
@@ -80,8 +81,11 @@ export interface ContractHistoryEntry {
   isCurrent: boolean;
 }
 
-/** Where a content is in its lifecycle; the list itself lives in content-lifecycle.ts. */
-export type { ContentStatus };
+/**
+ * Where a content is in its lifecycle, and what flags it for attention; the lists themselves
+ * live in content-lifecycle.ts and content-tags.ts.
+ */
+export type { ContentStatus, ContentTag };
 
 export interface ContentEntry {
   id: string;
@@ -90,6 +94,10 @@ export interface ContentEntry {
   deadline: string;
   status: ContentStatus;
   outcome: ContentOutcome;
+
+  /** Late, overdue or approval bypassed; empty when nothing needs attention. */
+  tags: ContentTag[];
+
   videoLink: string | null;
 }
 
