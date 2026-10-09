@@ -122,6 +122,35 @@ describe('checkQueueQuery', () => {
     });
   });
 
+  // The message is what tells a client which parameter to fix, so each one is pinned.
+  it.each([
+    ['a wrong queue name', { status: 'approved' }, 'status must be review'],
+    [
+      'a search over the cap',
+      { status: 'review', q: 'a'.repeat(MAX_SEARCH_LENGTH + 1) },
+      'q must be 100 characters or fewer',
+    ],
+    [
+      'an unknown type',
+      { status: 'review', type: 'all' },
+      'type must be one of evergreen, specific',
+    ],
+    [
+      'a resubmitted value that is not a boolean',
+      { status: 'review', resubmitted: 'draft_revised' },
+      'resubmitted must be true or false',
+    ],
+    [
+      'an overdue value that is not a boolean',
+      { status: 'review', overdue: 'yes' },
+      'overdue must be true or false',
+    ],
+  ])('names the parameter to fix for %s', (_label, query, message) => {
+    expect(() => checkQueueQuery(query)).toThrow(
+      new BadRequestException(message),
+    );
+  });
+
   it('combines every filter', () => {
     expect(
       checkQueueQuery({

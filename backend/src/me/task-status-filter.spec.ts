@@ -28,6 +28,16 @@ describe('checkTaskStatus', () => {
   });
 });
 
+describe('checkTaskStatus message', () => {
+  it('lists the statuses a caller may ask for, so the 400 says how to fix the request', () => {
+    expect(() => checkTaskStatus('pending')).toThrow(
+      new BadRequestException(
+        'status must be one of scheduled, draft_review, draft_revision, draft_approved, link_submitted',
+      ),
+    );
+  });
+});
+
 describe('statusesFor', () => {
   it.each([
     'scheduled',

@@ -34,6 +34,7 @@ const NEXT_STATUSES: Record<ContentStatus, readonly ContentStatus[]> = {
   draft_review: ['draft_approved', 'draft_revision', 'link_submitted'],
   draft_revision: ['draft_review', 'link_submitted'],
   draft_approved: ['link_submitted'],
+  // Stryker disable next-line ArrayDeclaration: equivalent mutant. The mutation puts a string that is not a status in this list, and canTransition only ever looks a status up in it, so no call can tell the difference.
   link_submitted: [],
 };
 
