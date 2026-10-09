@@ -69,6 +69,7 @@ type DetailContentRow = {
   status: string;
   video_link: string | null;
   video_submitted_at: Date | null;
+  approval_bypassed: boolean;
   _count: { submissions: number };
   submissions: DetailSubmissionRow[];
 };
@@ -138,6 +139,7 @@ function detailRow(): DetailCreatorRow {
             status: 'link_submitted',
             video_link: 'https://example.com/video-1',
             video_submitted_at: day(-31),
+            approval_bypassed: false,
             _count: {
               submissions: 2,
             },
@@ -164,6 +166,7 @@ function detailRow(): DetailCreatorRow {
             status: 'draft_review',
             video_link: null,
             video_submitted_at: null,
+            approval_bypassed: false,
             _count: {
               submissions: 0,
             },
@@ -310,6 +313,7 @@ describe('CreatorsService', () => {
       status: 'pending',
       video_link: null,
       video_submitted_at: null,
+      approval_bypassed: false,
       _count: { submissions: 0 },
       submissions: [],
     });
@@ -318,6 +322,69 @@ describe('CreatorsService', () => {
     const result = await service.findOne('creator-1', TODAY);
 
     expect(result.contractHistory[0]).toMatchObject({ completed: 1, total: 2 });
+  });
+
+  it('tags each content in the detail as late, overdue or approval bypassed', async () => {
+    const detail = detailRow();
+    detail.contracts[0].contents.push(
+      {
+        id: 'content-late-bypassed',
+        name: 'Link telat tanpa approval',
+        type: 'evergreen',
+        deadline: day(-10),
+        status: 'link_submitted',
+        video_link: 'https://example.com/video-late',
+        video_submitted_at: day(-8),
+        approval_bypassed: true,
+        _count: { submissions: 0 },
+        submissions: [],
+      },
+      {
+        id: 'content-overdue',
+        name: 'Draft telat, belum ada link',
+        type: 'evergreen',
+        deadline: day(-5),
+        status: 'draft_revision',
+        video_link: null,
+        video_submitted_at: null,
+        approval_bypassed: false,
+        _count: { submissions: 2 },
+        submissions: [
+          { id: 'submission-early', link: 'https://example.com/d1', revision_notes: null, created_at: day(-6) },
+          { id: 'submission-late', link: 'https://example.com/d2', revision_notes: 'Ulang', created_at: day(-3) },
+        ],
+      },
+    );
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(
+      Object.fromEntries(result.contents.map((content) => [content.id, content.tags])),
+    ).toEqual({
+      'content-1': [],
+      'content-2': [],
+      'content-late-bypassed': ['late_submission', 'approval_bypassed'],
+      'content-overdue': ['late_submission', 'overdue'],
+    });
+  });
+
+  it('reads the bypass flag and every draft hand-in time with the detail, in the same query', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    await service.findOne('creator-1', TODAY);
+
+    expect(prisma.creators.findUnique).toHaveBeenCalledTimes(1);
+    const contents =
+      prisma.creators.findUnique.mock.calls[0][0].select.contracts.select.contents;
+    expect(contents.select).toMatchObject({
+      approval_bypassed: true,
+      video_submitted_at: true,
+      submissions: {
+        orderBy: { created_at: 'asc' },
+        select: expect.objectContaining({ created_at: true }),
+      },
+    });
   });
 
   it('joins the middle name into the display name', async () => {
