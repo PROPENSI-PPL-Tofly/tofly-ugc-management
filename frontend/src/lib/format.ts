@@ -72,6 +72,35 @@ export function formatDaysRemaining(days: number | null): string {
   return `sisa ${days} hari`;
 }
 
+// "2026-10-09": en-CA writes a date as year-month-day, the way the API writes calendar days.
+const JAKARTA_ISO_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: JAKARTA,
+});
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * How far a deadline is from today: "H-3" before it, "Hari ini" on it, "Lewat 2 hari" after.
+ * Today is Jakarta's calendar day, so the count turns over at midnight WIB for everyone. `now`
+ * is a parameter so a test can pin the day.
+ */
+export function formatDue(deadline: string | null, now: Date = new Date()): string {
+  if (!deadline) return EMPTY;
+
+  const due = Date.parse(`${deadline}T00:00:00Z`);
+  if (Number.isNaN(due)) return EMPTY;
+
+  const today = Date.parse(`${JAKARTA_ISO_DAY_FORMAT.format(now)}T00:00:00Z`);
+  const days = Math.round((due - today) / MS_PER_DAY);
+
+  if (days > 0) return `H-${days}`;
+  if (days === 0) return "Hari ini";
+  return `Lewat ${-days} hari`;
+}
+
 export function formatPercent(value: number | null): string {
   return value === null ? EMPTY : `${value}%`;
 }
