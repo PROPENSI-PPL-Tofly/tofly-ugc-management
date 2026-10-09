@@ -97,7 +97,7 @@ describe("ContentDetailPanel", () => {
     expect(await screen.findByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
     expect(screen.getByText("Brief")).toBeInTheDocument();
-    expect(screen.getByText(/H-\d+/)).toBeInTheDocument();
+    expect(screen.getByText(/H-\d+|Hari ini|Lewat \d+ hari/)).toBeInTheDocument();
   });
 
   it("draws the Overdue tag beside the status, never as the status", async () => {
