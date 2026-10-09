@@ -113,6 +113,29 @@ describe('SubmissionRevisionService', () => {
     });
   });
 
+  it('answers with the content id, as approve does', async () => {
+    const saved = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      contentId: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'draft_revision',
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
+    };
+
+    const service = new SubmissionRevisionService({
+      findById: vi.fn().mockResolvedValue({
+        id: saved.id,
+        content_id: saved.contentId,
+        status: 'draft_review',
+        isLatest: true,
+      }),
+      saveRevision: vi.fn().mockResolvedValue(saved),
+    });
+
+    await expect(
+      service.revise(saved.id, { revisionNotes: saved.revisionNotes }),
+    ).resolves.toEqual(saved);
+  });
+
   it('rejects a submission that is not in draft_review status', async () => {
     const submission = {
   id: '550e8400-e29b-41d4-a716-446655440000',

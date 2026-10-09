@@ -60,10 +60,43 @@ describe('SubmissionRevisionRepository', () => {
 
   expect(result).toEqual({
     id: submissionId,
+    contentId,
     status: 'draft_revision',
     revisionNotes: 'Mohon perbaiki bagian pembuka.',
   });
 });
+
+  it('answers with the content id of the row it saved', async () => {
+    const savedContentId = '550e8400-e29b-41d4-a716-446655440099';
+
+    const repository = new SubmissionRevisionRepository({
+      submissions: {
+        findUnique: vi.fn(),
+      },
+      $transaction: vi.fn(async (callback) =>
+        callback({
+          submissions: {
+            update: vi.fn().mockResolvedValue({
+              id: '550e8400-e29b-41d4-a716-446655440000',
+              content_id: savedContentId,
+              revision_notes: 'Mohon perbaiki bagian pembuka.',
+            }),
+          },
+          contents: {
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
+        }),
+      ),
+    });
+
+    const result = await repository.saveRevision(
+      '550e8400-e29b-41d4-a716-446655440000',
+      savedContentId,
+      'Mohon perbaiki bagian pembuka.',
+    );
+
+    expect(result).toHaveProperty('contentId', savedContentId);
+  });
   it('does not save the revision note when the content is no longer reviewable', async () => {
   const submissionId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '550e8400-e29b-41d4-a716-446655440001';

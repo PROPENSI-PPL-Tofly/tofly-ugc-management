@@ -88,6 +88,7 @@ describe('PATCH /submissions/:id/revise', () => {
 
     expect(response.body).toEqual({
       id: submissionId,
+      contentId,
       status: 'draft_revision',
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
