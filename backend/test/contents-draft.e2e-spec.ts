@@ -18,6 +18,7 @@ function daysFromToday(days: number): Date {
 }
 
 type Status =
+  | 'pending'
   | 'scheduled'
   | 'draft_review'
   | 'draft_revision'
@@ -59,7 +60,7 @@ describe('POST /contents/:id/draft (e2e)', () => {
   async function content(
     name: string,
     status: Status,
-    options: { isProposal?: boolean; deadline?: Date } = {},
+    options: { deadline?: Date } = {},
   ) {
     return prisma.contents.create({
       data: {
@@ -68,7 +69,6 @@ describe('POST /contents/:id/draft (e2e)', () => {
         type: 'specific',
         deadline: options.deadline ?? daysFromToday(20),
         status,
-        is_proposal: options.isProposal ?? false,
       },
     });
   }
@@ -237,9 +237,7 @@ describe('POST /contents/:id/draft (e2e)', () => {
   });
 
   it('answers 404 for a proposal the admin has not approved', async () => {
-    const proposal = await content('proposal', 'scheduled', {
-      isProposal: true,
-    });
+    const proposal = await content('proposal', 'pending');
 
     const response = await handIn(proposal.id, {
       link: 'https://drive.google.com/d/proposal',

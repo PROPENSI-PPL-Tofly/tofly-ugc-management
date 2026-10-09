@@ -1,5 +1,6 @@
 import { content_status } from '@prisma/client';
 import {
+  COMMITTED_STATUSES,
   CONTENT_STATUSES,
   REVIEWABLE_STATUSES,
   canTransition,
@@ -103,6 +104,20 @@ describe('canTransition', () => {
     for (const from of CONTENT_STATUSES) {
       expect(canTransition(from, 'pending')).toBe(false);
     }
+  });
+});
+
+describe('COMMITTED_STATUSES', () => {
+  // A proposal is not assigned work until an admin accepts it, so it stays out of Task Saya,
+  // the draft and video hand-ins and the creator's progress numbers.
+  it('is every status except pending, in lifecycle order', () => {
+    expect(COMMITTED_STATUSES).toEqual([
+      'scheduled',
+      'draft_review',
+      'draft_revision',
+      'draft_approved',
+      'link_submitted',
+    ]);
   });
 });
 

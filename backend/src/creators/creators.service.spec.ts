@@ -32,19 +32,19 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
           {
             deadline: day(-30),
             video_submitted_at: day(-31),
-            is_proposal: false,
+            status: 'link_submitted',
             _count: { submissions: 1 },
           },
           {
             deadline: day(-10),
             video_submitted_at: day(-8),
-            is_proposal: false,
+            status: 'link_submitted',
             _count: { submissions: 2 },
           },
           {
             deadline: day(20),
             video_submitted_at: null,
-            is_proposal: false,
+            status: 'scheduled',
             _count: { submissions: 0 },
           },
         ],
@@ -67,7 +67,6 @@ type DetailContentRow = {
   type: string;
   deadline: Date;
   status: string;
-  is_proposal: boolean;
   video_link: string | null;
   video_submitted_at: Date | null;
   _count: { submissions: number };
@@ -137,7 +136,6 @@ function detailRow(): DetailCreatorRow {
             type: 'evergreen',
             deadline: day(-30),
             status: 'link_submitted',
-            is_proposal: false,
             video_link: 'https://example.com/video-1',
             video_submitted_at: day(-31),
             _count: {
@@ -164,7 +162,6 @@ function detailRow(): DetailCreatorRow {
             type: 'specific',
             deadline: day(2),
             status: 'draft_review',
-            is_proposal: false,
             video_link: null,
             video_submitted_at: null,
             _count: {
@@ -261,6 +258,66 @@ describe('CreatorsService', () => {
       total: 1,
       totalPages: 1,
     });
+  });
+
+  it('leaves a pending proposal out of progress and performance', async () => {
+    const withProposal = row();
+    withProposal.contracts[0].contents.push({
+      // Past its deadline with nothing handed in: counted, it would drag every number down.
+      deadline: day(-5),
+      video_submitted_at: null,
+      status: 'pending',
+      _count: { submissions: 0 },
+    });
+    prisma.creators.findMany.mockResolvedValue([withProposal]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(result.items[0].progress).toEqual({
+      submitted: 2,
+      total: 3,
+      percent: 67,
+    });
+    expect(result.items[0].performance).toMatchObject({
+      onTimeRate: 50,
+      avgRevisions: 0.5,
+    });
+  });
+
+  it('reads each content status, which is what marks a proposal', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(0);
+
+    await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    const { select } = prisma.creators.findMany.mock.calls[0][0];
+    expect(select.contracts.select.contents.select).toEqual({
+      deadline: true,
+      video_submitted_at: true,
+      status: true,
+      _count: { select: { submissions: true } },
+    });
+  });
+
+  it('leaves a pending proposal out of a contract period’s totals in the detail', async () => {
+    const detail = detailRow();
+    detail.contracts[0].contents.push({
+      id: 'content-proposal',
+      name: 'Ide konten dari kreator',
+      type: 'specific',
+      deadline: day(10),
+      status: 'pending',
+      video_link: null,
+      video_submitted_at: null,
+      _count: { submissions: 0 },
+      submissions: [],
+    });
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(result.contractHistory[0]).toMatchObject({ completed: 1, total: 2 });
   });
 
   it('joins the middle name into the display name', async () => {
@@ -426,7 +483,7 @@ describe('CreatorsService', () => {
             end_date: day(80),
             content_quota: 1,
             contract_type: 'regular',
-            contents: [{ deadline: day(-30), video_submitted_at: null, is_proposal: false, _count: { submissions: 0 } }],
+            contents: [{ deadline: day(-30), video_submitted_at: null, status: 'scheduled', _count: { submissions: 0 } }],
           },
         ],
       }),

@@ -62,7 +62,18 @@ function stub(
   return { client, service: new MyContentsService(client) };
 }
 
-const OWN = { is_proposal: false, contracts: { creator_id: CREATOR_ID } };
+// A pending proposal is not assigned work, so every read names the committed statuses.
+const COMMITTED = [
+  'scheduled',
+  'draft_review',
+  'draft_revision',
+  'draft_approved',
+  'link_submitted',
+];
+const OWN = {
+  status: { in: COMMITTED },
+  contracts: { creator_id: CREATOR_ID },
+};
 
 describe('MyContentsService.list', () => {
   beforeEach(() => {

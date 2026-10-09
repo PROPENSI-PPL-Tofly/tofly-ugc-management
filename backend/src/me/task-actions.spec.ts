@@ -29,6 +29,7 @@ describe('inGraceWindow', () => {
 
 describe('canSubmitDraft', () => {
   it.each([
+    ['pending', false],
     ['scheduled', true],
     ['draft_revision', true],
     ['draft_review', false],
@@ -63,6 +64,13 @@ describe('canSubmitVideo', () => {
     expect(canSubmitVideo('link_submitted', DEADLINE, FAR)).toBe(false);
     expect(canSubmitVideo('link_submitted', DEADLINE, H_MINUS_1)).toBe(false);
   });
+
+  // The grace window opens a shortcut for assigned work only; a proposal nobody accepted
+  // cannot be published through it.
+  it('never allows a link for a pending proposal, even inside the grace window', () => {
+    expect(canSubmitVideo('pending', DEADLINE, FAR)).toBe(false);
+    expect(canSubmitVideo('pending', DEADLINE, H_MINUS_1)).toBe(false);
+  });
 });
 
 describe('taskActions', () => {
@@ -70,6 +78,8 @@ describe('taskActions', () => {
   const H_MINUS_1 = '2026-10-19';
 
   it.each([
+    ['pending', FAR, []],
+    ['pending', H_MINUS_1, []],
     ['scheduled', FAR, ['submit_draft']],
     ['draft_revision', FAR, ['resubmit_draft']],
     ['draft_review', FAR, []],
