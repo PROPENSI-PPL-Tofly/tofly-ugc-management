@@ -13,6 +13,14 @@ export const CONTENT_STATUSES = [
 
 export type ContentStatus = (typeof CONTENT_STATUSES)[number];
 
+/**
+ * Content an admin has committed to. A pending proposal is not assigned work yet, so reads of
+ * a creator's tasks and progress name these statuses rather than every status.
+ */
+export const COMMITTED_STATUSES = CONTENT_STATUSES.filter(
+  (status): status is Exclude<ContentStatus, 'pending'> => status !== 'pending',
+);
+
 /** Narrows an outside value to a status; anything else, a list included, is not one. */
 export function isContentStatus(value: unknown): value is ContentStatus {
   return (CONTENT_STATUSES as readonly unknown[]).includes(value);

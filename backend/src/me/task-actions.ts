@@ -26,13 +26,13 @@ export function canSubmitDraft(status: content_status): boolean {
   return status === 'scheduled' || status === 'draft_revision';
 }
 
-/** An approved draft, or any unfinished content inside the grace window. */
+/** An approved draft, or any unfinished assigned content inside the grace window. */
 export function canSubmitVideo(
   status: content_status,
   deadline: string,
   today: string,
 ): boolean {
-  if (status === 'link_submitted') {
+  if (status === 'link_submitted' || status === 'pending') {
     return false;
   }
   return status === 'draft_approved' || inGraceWindow(deadline, today);
