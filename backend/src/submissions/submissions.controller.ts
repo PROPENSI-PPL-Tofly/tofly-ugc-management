@@ -59,13 +59,13 @@ export class SubmissionsController {
     @Query('status') status?: unknown,
     @Query('q') q?: unknown,
     @Query('type') type?: unknown,
-    @Query('filterStatus') filterStatus?: unknown,
+    @Query('resubmitted') resubmitted?: unknown,
     @Query('overdue') overdue?: unknown,
   ): Promise<ReviewQueueResponse> {
     return this.queue.list(
       checkPaging(page, pageSize),
       new Date(),
-      checkQueueQuery({ status, q, type, filterStatus, overdue }),
+      checkQueueQuery({ status, q, type, resubmitted, overdue }),
     );
   }
 
