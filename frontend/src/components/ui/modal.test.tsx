@@ -305,4 +305,30 @@ describe("Modal as a side sheet", () => {
     expect(screen.queryByTestId("modal-eyebrow")).not.toBeInTheDocument();
     expect(screen.queryByTestId("modal-meta")).not.toBeInTheDocument();
   });
+
+  it("keeps a side sheet's header in place and scrolls only its body", () => {
+    const { dialog } = renderSheet();
+    const body = screen.getByText("isi panel").parentElement;
+
+    expect(dialog).toHaveClass("flex", "flex-col");
+    expect(dialog).not.toHaveClass("overflow-y-auto");
+    expect(body).toHaveClass("flex-1", "overflow-y-auto");
+  });
+
+  it("still scrolls a centred dialog as a whole", () => {
+    render(
+      <Modal title="Promo Lebaran" onClose={() => {}}>
+        <p>isi dialog</p>
+      </Modal>,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveClass("overflow-y-auto");
+    expect(screen.getByText("isi dialog").parentElement).not.toHaveClass("overflow-y-auto");
+  });
+
+  it("lifts a side sheet off the page with a shadow, which a centred dialog does not need", () => {
+    const { dialog } = renderSheet();
+
+    expect(dialog).toHaveClass("shadow-sheet");
+  });
 });
