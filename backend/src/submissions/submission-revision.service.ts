@@ -3,15 +3,22 @@ import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import { reviewConflict, submissionNotFound } from './review-errors.js';
 import type { RevisionRequest } from './revise-submission.js';
 
-export interface SubmissionRevisionRepository {
-  findById(
-    submissionId: string,
-  ): Promise<{
-    id: string;
-    content_id: string;
-    status: string;
-    isLatest: boolean;
-  } | null>;
+/** What the service needs to know about a submission before it asks for a revision. */
+export interface SubmissionUnderRevision {
+  id: string;
+  content_id: string;
+  /** The status of the content the submission belongs to. */
+  status: string;
+  /** Whether this submission is the content's most recent hand-in. */
+  isLatest: boolean;
+}
+
+/**
+ * Where the service reads and saves a revision. The service depends on this, not on the Prisma
+ * repository that implements it, so a test can hand it a stub.
+ */
+export interface RevisionStore {
+  findById(submissionId: string): Promise<SubmissionUnderRevision | null>;
 
   saveRevision(
     submissionId: string,
@@ -22,7 +29,7 @@ export interface SubmissionRevisionRepository {
 
 export class SubmissionRevisionService {
   constructor(
-    private readonly repository: SubmissionRevisionRepository,
+    private readonly repository: RevisionStore,
   ) {}
 
   async revise(
