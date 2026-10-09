@@ -54,6 +54,8 @@ export function CreatorDetailModal({
   const [contentPage, setContentPage] = useState(0);
   // The content whose detail panel is open; it stacks over this modal.
   const [openContentId, setOpenContentId] = useState<string | null>(null);
+  // Bumped by a decision inside the panel, so the history below re-fetches its data.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // No reset on creatorId here: the caller keys this component by creator, so a
   // different creator is a different mount that starts from the initial state.
@@ -76,7 +78,7 @@ export function CreatorDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [creatorId]);
+  }, [creatorId, refreshKey]);
 
   const contentTotal = detail?.contents.length ?? 0;
   const contentFirst = contentPage * CONTENTS_PER_PAGE;
@@ -320,6 +322,12 @@ export function CreatorDetailModal({
         contentId={openContentId}
         role="admin"
         onClose={() => setOpenContentId(null)}
+        // A decision closes the panel and re-fetches the creator detail, so the
+        // decided content's status updates without a full page reload (#73).
+        onDecided={() => {
+          setOpenContentId(null);
+          setRefreshKey((current) => current + 1);
+        }}
       />
     ) : null}
     </>

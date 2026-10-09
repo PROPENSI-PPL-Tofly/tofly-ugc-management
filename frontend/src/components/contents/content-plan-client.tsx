@@ -276,6 +276,12 @@ export function ContentPlanClient({
                         contentId={openContentId}
                         role="admin"
                         onClose={() => setOpenContentId(null)}
+                        // A decision closes the panel and re-fetches the schedule, so the
+                        // decided row's status updates without a full page reload (#73).
+                        onDecided={() => {
+                            setOpenContentId(null);
+                            setRefreshKey((current) => current + 1);
+                        }}
                     />
                 ) : null}
             </>
