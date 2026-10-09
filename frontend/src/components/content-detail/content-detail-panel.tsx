@@ -345,7 +345,10 @@ export function ContentDetailPanel({
               variant={command.variant}
               onClick={() => {
                 if (command.kind === "revise") {
-                  command.run();
+                  // Opening the note form is synchronous, but PanelCommand.run may answer
+                  // with a promise; `void` marks the ignored answer so no lint sees a
+                  // floating promise (Sonar S9383).
+                  void command.run();
                   return;
                 }
                 void decide("approve", async () => {
