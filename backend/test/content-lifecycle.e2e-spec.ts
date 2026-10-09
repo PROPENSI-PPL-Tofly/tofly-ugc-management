@@ -53,6 +53,16 @@ describe('content_status in Postgres (e2e)', () => {
     expect(column.column_default).toBe("'scheduled'::content_status");
   });
 
+  // Pending says the same thing, so the flag would be a second source of truth.
+  it('no longer has the is_proposal flag on contents', async () => {
+    const rows = await prisma.$queryRaw<{ column_name: string }[]>`
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public' and table_name = 'contents' and column_name = 'is_proposal'`;
+
+    expect(rows).toEqual([]);
+  });
+
   it('holds no content row outside the six statuses', async () => {
     const rows = await prisma.$queryRaw<{ status: string }[]>`
       select distinct status::text as status from contents`;
