@@ -42,28 +42,6 @@ describe('SubmissionRevisionService', () => {
     });
   });
 
-  it('rejects when the submission does not exist', async () => {
-    const findById = vi.fn().mockResolvedValue(null);
-    const saveRevision = vi.fn();
-
-    const service = new SubmissionRevisionService({
-      findById,
-      saveRevision,
-    });
-
-    await expect(
-      service.revise('missing-submission-id', {
-        revisionNotes: 'Please revise this draft.',
-      }),
-    ).rejects.toThrow();
-
-    expect(findById).toHaveBeenCalledExactlyOnceWith(
-      'missing-submission-id',
-    );
-
-    expect(saveRevision).not.toHaveBeenCalled();
-  });
-
   describe('an unknown submission', () => {
     const UNKNOWN_ID = '550e8400-e29b-41d4-a716-446655440000';
 
@@ -138,6 +116,15 @@ describe('SubmissionRevisionService', () => {
 
   describe('a status that does not allow a revision request', () => {
     const SUBMISSION_ID = '550e8400-e29b-41d4-a716-446655440000';
+    // Every status but the one a draft is reviewed in. 'pending' arrives with the six-status
+    // lifecycle (SCRUM-146); a proposal nobody accepted must never be open to a decision.
+    const REFUSED_STATUSES = [
+      'pending',
+      'scheduled',
+      'draft_revision',
+      'draft_approved',
+      'link_submitted',
+    ];
 
     async function reviseIn(status: string, isLatest = true) {
       const saveRevision = vi.fn();
@@ -158,7 +145,7 @@ describe('SubmissionRevisionService', () => {
       return { error, saveRevision };
     }
 
-    it.each(['scheduled', 'draft_revision', 'draft_approved', 'link_submitted'])(
+    it.each(REFUSED_STATUSES)(
       'answers 409 DRAFT_NOT_REVIEWABLE for a draft in %s',
       async (status) => {
         const { error } = await reviseIn(status);
@@ -171,7 +158,7 @@ describe('SubmissionRevisionService', () => {
       },
     );
 
-    it.each(['scheduled', 'draft_revision', 'draft_approved', 'link_submitted'])(
+    it.each(REFUSED_STATUSES)(
       'saves nothing for a draft in %s',
       async (status) => {
         const { saveRevision } = await reviseIn(status);
@@ -184,6 +171,10 @@ describe('SubmissionRevisionService', () => {
       const { error, saveRevision } = await reviseIn('not_a_status');
 
       expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toEqual({
+        code: 'DRAFT_NOT_REVIEWABLE',
+        message: 'Draft ini sudah tidak menunggu keputusan',
+      });
       expect(saveRevision).not.toHaveBeenCalled();
     });
 
@@ -195,31 +186,6 @@ describe('SubmissionRevisionService', () => {
         'DRAFT_NOT_REVIEWABLE',
       );
     });
-  });
-
-  it('rejects a submission that is not in draft_review status', async () => {
-    const submission = {
-  id: '550e8400-e29b-41d4-a716-446655440000',
-  content_id: '550e8400-e29b-41d4-a716-446655440001',
-  status: 'draft_approved',
-  isLatest: true,
-};
-
-    const findById = vi.fn().mockResolvedValue(submission);
-    const saveRevision = vi.fn();
-
-    const service = new SubmissionRevisionService({
-      findById,
-      saveRevision,
-    });
-
-    await expect(
-      service.revise(submission.id, {
-        revisionNotes: 'Please revise this draft.',
-      }),
-    ).rejects.toThrow();
-
-    expect(saveRevision).not.toHaveBeenCalled();
   });
 
   it('passes the related content ID when saving the revision', async () => {

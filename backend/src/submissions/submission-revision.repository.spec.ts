@@ -66,7 +66,8 @@ describe('SubmissionRevisionRepository', () => {
   });
 });
 
-  it('answers with the content id of the row it saved', async () => {
+  it('answers with the content id of the row it saved, not the one it was handed', async () => {
+    const requestedContentId = '550e8400-e29b-41d4-a716-446655440001';
     const savedContentId = '550e8400-e29b-41d4-a716-446655440099';
 
     const repository = new SubmissionRevisionRepository({
@@ -91,12 +92,13 @@ describe('SubmissionRevisionRepository', () => {
 
     const result = await repository.saveRevision(
       '550e8400-e29b-41d4-a716-446655440000',
-      savedContentId,
+      requestedContentId,
       'Mohon perbaiki bagian pembuka.',
     );
 
     expect(result).toHaveProperty('contentId', savedContentId);
   });
+
   it('does not save the revision note when the content is no longer reviewable', async () => {
   const submissionId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '550e8400-e29b-41d4-a716-446655440001';
@@ -279,4 +281,23 @@ it('returns null when the submission does not exist', async () => {
 
   expect(result).toBeNull();
 });
+
+  it('treats a content whose submissions vanished mid-request as not latest', async () => {
+    const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+
+    const repository = new SubmissionRevisionRepository({
+      submissions: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: submissionId,
+          content_id: '550e8400-e29b-41d4-a716-446655440001',
+          contents: { status: 'draft_review', submissions: [] },
+        }),
+      },
+      $transaction: vi.fn(),
+    });
+
+    await expect(repository.findById(submissionId)).resolves.toMatchObject({
+      isLatest: false,
+    });
+  });
 });

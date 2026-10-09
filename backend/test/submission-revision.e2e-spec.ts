@@ -140,4 +140,66 @@ describe('PATCH /submissions/:id/revise', () => {
     expect(submissionUpdate).not.toHaveBeenCalled();
     expect(contentUpdateMany).not.toHaveBeenCalled();
   });
+
+  it('answers 404 SUBMISSION_NOT_FOUND for an unknown submission, changing nothing', async () => {
+    findUnique.mockResolvedValue(null);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      code: 'SUBMISSION_NOT_FOUND',
+      message: 'Draft tidak ditemukan',
+    });
+    expect(submissionUpdate).not.toHaveBeenCalled();
+    expect(contentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 DRAFT_NOT_REVIEWABLE for a draft that is already decided, changing nothing', async () => {
+    findUnique.mockResolvedValue({
+      id: submissionId,
+      content_id: contentId,
+      contents: {
+        status: 'draft_approved',
+        submissions: [{ id: submissionId }],
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      code: 'DRAFT_NOT_REVIEWABLE',
+      message: 'Draft ini sudah tidak menunggu keputusan',
+    });
+    expect(submissionUpdate).not.toHaveBeenCalled();
+    expect(contentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 SUBMISSION_SUPERSEDED for an older draft once the creator resubmitted, changing nothing', async () => {
+    findUnique.mockResolvedValue({
+      id: submissionId,
+      content_id: contentId,
+      contents: {
+        status: 'draft_review',
+        submissions: [{ id: '550e8400-e29b-41d4-a716-446655440099' }],
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      code: 'SUBMISSION_SUPERSEDED',
+      message: 'Creator sudah mengirim draft yang lebih baru',
+    });
+    expect(submissionUpdate).not.toHaveBeenCalled();
+    expect(contentUpdateMany).not.toHaveBeenCalled();
+  });
 });
