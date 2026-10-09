@@ -56,7 +56,10 @@ export class SubmissionRevisionService {
     const submission = await this.repository.findById(submissionId);
 
     if (!submission) {
-      throw new NotFoundException('Submission tidak ditemukan');
+      throw new NotFoundException({
+        code: 'SUBMISSION_NOT_FOUND',
+        message: 'Draft tidak ditemukan',
+      });
     }
 
     const rejected = checkReviewable({
