@@ -121,7 +121,7 @@ describe("CreatorDetailModal", () => {
 
     expect(screen.getAllByText("Evergreen - Tips Belajar Cepat")).toHaveLength(2);
 
-    expect(screen.getByText("Tepat waktu")).toBeInTheDocument();
+    expect(screen.getByText("Content Link Submitted")).toBeInTheDocument();
   });
 
   it("names the contract type of the current contract and of each period", async () => {

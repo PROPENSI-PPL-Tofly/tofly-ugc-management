@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
@@ -234,15 +235,12 @@ export function CreatorDetailModal({
                           {formatDate(content.deadline)}
                         </td>
                         <td className="py-2">
-                          {content.outcome === "open" ? (
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             <StatusDot tone={CONTENT_STATUS_TONES[content.status]}>
                               {CONTENT_STATUS_LABELS[content.status]}
                             </StatusDot>
-                          ) : (
-                            <Pill tone={OUTCOME_TONES[content.outcome]}>
-                              {OUTCOME_LABELS[content.outcome]}
-                            </Pill>
-                          )}
+                            <ContentTags tags={content.tags} />
+                          </div>
                         </td>
                       </tr>
                     ))}
