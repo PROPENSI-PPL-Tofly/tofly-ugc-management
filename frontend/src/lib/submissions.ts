@@ -5,6 +5,8 @@ import { appSessionCookieHeader } from "./session-cookie";
 
 export interface SubmissionQueueItem {
   submissionId: string;
+  /** The content the detail panel opens by, so one row reaches both decision and journey. */
+  contentId: string;
   creatorName: string;
   contentName: string;
   type: string;
