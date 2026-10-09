@@ -85,7 +85,7 @@ describe('ReviewQueueService.list', () => {
     });
   });
 
-  it('answers each row with the latest submission id, the full creator name and the deadline as a calendar day', async () => {
+  it('answers each row with the latest submission id, the content id the panel opens by, the full creator name and the deadline as a calendar day', async () => {
     const { service } = stub([
       row({
         status: 'draft_revised',
@@ -105,6 +105,7 @@ describe('ReviewQueueService.list', () => {
       items: [
         {
           submissionId: 'latest',
+          contentId: 'content-1',
           creatorName: 'Dina Ayu Putri',
           contentName: 'Evg_1_Dina_20102026',
           type: 'evergreen',
