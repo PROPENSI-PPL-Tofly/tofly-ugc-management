@@ -1,13 +1,7 @@
 import { checkReviewable } from './draft-review.js';
+import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import { reviewConflict, submissionNotFound } from './review-errors.js';
 import type { RevisionRequest } from './revise-submission.js';
-
-interface RevisionResult {
-  id: string;
-  contentId: string;
-  status: string;
-  revisionNotes: string | null;
-}
 
 export interface SubmissionRevisionRepository {
   findById(
@@ -23,7 +17,7 @@ export interface SubmissionRevisionRepository {
     submissionId: string,
     contentId: string,
     revisionNotes: string,
-  ): Promise<RevisionResult | null>;
+  ): Promise<RevisedSubmission | null>;
 }
 
 export class SubmissionRevisionService {
@@ -34,7 +28,7 @@ export class SubmissionRevisionService {
   async revise(
     submissionId: string,
     input: RevisionRequest,
-  ): Promise<RevisionResult> {
+  ): Promise<RevisedSubmission> {
     const submission = await this.repository.findById(submissionId);
 
     if (!submission) {

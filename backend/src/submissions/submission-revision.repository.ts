@@ -1,4 +1,5 @@
 import { REVIEWABLE_STATUSES } from './draft-review.js';
+import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 
 type ReviewableStatus = (typeof REVIEWABLE_STATUSES)[number];
 
@@ -117,12 +118,7 @@ export class SubmissionRevisionRepository {
     submissionId: string,
     contentId: string,
     revisionNotes: string,
-  ): Promise<{
-    id: string;
-    contentId: string;
-    status: string;
-    revisionNotes: string | null;
-  } | null> {
+  ): Promise<RevisedSubmission | null> {
     return this.prisma.$transaction(async (transaction) => {
       const { count } = await transaction.contents.updateMany({
         where: {
