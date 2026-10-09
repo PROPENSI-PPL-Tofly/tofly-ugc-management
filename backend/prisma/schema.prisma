@@ -125,10 +125,10 @@ model app_sessions {
 }
 
 enum content_status {
+  pending
   scheduled
   draft_review
   draft_revision
-  draft_revised
   draft_approved
   link_submitted
 }

@@ -154,7 +154,7 @@ insert into seed_contents values
   ('intan@example.com',   60, 'Tofly untuk toko online',       'specific',   -78, 'link_submitted',  -80, false, 2),
   ('intan@example.com',   60, 'Cara klaim asuransi',           'specific',   -64, 'link_submitted',  -64, false, 1),
   ('intan@example.com',   60, 'Behind the scene packing',      'evergreen',  -50, 'link_submitted',  -52, false, 1),
-  ('intan@example.com',   60, 'Ide konten dari Intan',         'specific',   -10, 'scheduled',      null, true,  0),
+  ('intan@example.com',   60, 'Ide konten dari Intan',         'specific',   -10, 'pending',        null, true,  0),
   ('intan@example.com',   60, 'Tofly untuk pemula',            'evergreen',   14, 'draft_review',   null, false, 1),
   -- Reza: contract ends today; two late on the way → Perlu Perhatian.
   ('reza@example.com',     0, 'Perkenalan Reza',               'evergreen', -166, 'link_submitted', -166, false, 1),
@@ -169,7 +169,7 @@ insert into seed_contents values
   ('kirana@example.com', -60, 'Tofly untuk mahasiswa',         'specific',  -170, 'link_submitted', -172, false, 1),
   ('kirana@example.com', -60, 'Packing kado',                  'evergreen', -142, 'link_submitted', -140, false, 1),
   ('kirana@example.com', -60, 'Promo 11.11',                   'specific',  -114, 'link_submitted', -114, false, 2),
-  ('kirana@example.com', -60, 'Salam perpisahan',              'evergreen',  -86, 'draft_revised',  null, false, 2),
+  ('kirana@example.com', -60, 'Salam perpisahan',              'evergreen',  -86, 'draft_review',   null, false, 2),
   -- Adit: two finished periods; the later one went badly → Berisiko.
   ('adit@example.com',  -240, 'Perkenalan Adit',               'evergreen', -406, 'link_submitted', -406, false, 1),
   ('adit@example.com',  -240, 'Kirim paket ke kampung',        'evergreen', -350, 'link_submitted', -352, false, 1),
