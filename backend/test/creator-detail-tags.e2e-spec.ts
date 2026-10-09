@@ -5,23 +5,11 @@ import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signInAsAdmin } from './sessions.js';
-import { jakartaMidnight } from '../src/creators/evergreen.js';
+import { day } from './days.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, seeded or not.
 const MARKER = 'e2e-detail-tags';
-
-/** A calendar day relative to today in Jakarta, the day the app counts from. */
-function day(offset: number): Date {
-  const today = jakartaMidnight(new Date());
-  return new Date(
-    Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(),
-      today.getUTCDate() + offset,
-    ),
-  );
-}
 
 describe('GET /creators/:id content tags (e2e)', () => {
   let app: INestApplication<App>;

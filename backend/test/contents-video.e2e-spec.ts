@@ -4,18 +4,12 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { DEV_CREATOR_HEADER } from '../src/auth/dev-creator.guard.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
-import { jakartaMidnight } from '../src/creators/evergreen.js';
+import { day } from './days.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else.
 const MARKER = 'e2e-video';
 
-const DAY = 24 * 60 * 60 * 1000;
 const REEL = 'https://www.instagram.com/reel/e2e-video/';
-
-function daysFromToday(days: number): Date {
-  // Today in Jakarta, the day the app counts from.
-  return new Date(jakartaMidnight(new Date()).getTime() + days * DAY);
-}
 
 describe('POST /contents/:id/video (e2e)', () => {
   let app: INestApplication;
@@ -33,7 +27,7 @@ describe('POST /contents/:id/video (e2e)', () => {
         name: `${MARKER} ${name}`,
         type: 'specific',
         // Tomorrow: inside the H-1 window, so an unapproved content may hand in its link.
-        deadline: daysFromToday(1),
+        deadline: day(1),
         status,
       },
     });
@@ -71,8 +65,8 @@ describe('POST /contents/:id/video (e2e)', () => {
             last_name: 'owner',
             contracts: {
               create: {
-                start_date: daysFromToday(-30),
-                end_date: daysFromToday(90),
+                start_date: day(-30),
+                end_date: day(90),
                 contract_type: 'regular',
                 days_between: 14,
                 content_quota: 4,
