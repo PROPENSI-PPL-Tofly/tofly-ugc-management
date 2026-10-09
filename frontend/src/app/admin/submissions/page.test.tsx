@@ -48,7 +48,7 @@ describe("Antrian Draft page", () => {
 
     expect(mockedFetch).toHaveBeenCalledWith(1, {
       q: undefined,
-      status: "all",
+      resubmitted: "all",
       type: "all",
       overdue: false,
     });
@@ -64,6 +64,7 @@ describe("Antrian Draft page", () => {
           type: "Evergreen",
           deadline: "2026-09-15",
           status: "draft_review",
+          revisionCount: 0,
         },
       ],
       page: 1,
@@ -181,7 +182,7 @@ describe("Antrian Draft page", () => {
 
     expect(mockedFetch).toHaveBeenCalledWith(1, {
       q: undefined,
-      status: "all",
+      resubmitted: "all",
       type: "all",
       overdue: false,
     });
@@ -217,6 +218,7 @@ describe("Antrian Draft page", () => {
           type: "evergreen",
           deadline: "2026-09-15",
           status: "draft_review" as const,
+          revisionCount: 0,
         },
       ],
       page: 1,

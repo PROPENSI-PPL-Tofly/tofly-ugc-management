@@ -219,6 +219,7 @@ describe("fetchSubmissionQueue", () => {
           type: "Evergreen",
           deadline: "2026-09-15",
           status: "draft_review",
+          revisionCount: 0,
         },
       ],
       page: 1,

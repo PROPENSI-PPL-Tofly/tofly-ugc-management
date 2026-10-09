@@ -83,6 +83,10 @@ export function SubmissionQueueTable({
                   ) : (
                     row.status
                   )}
+                  {/* The status is the same for every queued draft, so a resubmit says so here. */}
+                  {row.revisionCount > 0 ? (
+                    <span className="ml-2 text-xs text-amber-ink">Dikirim ulang</span>
+                  ) : null}
                 </td>
                 <td className="px-5 py-3">
                   <button
