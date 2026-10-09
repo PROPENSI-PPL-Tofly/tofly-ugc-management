@@ -9,7 +9,7 @@ import {
 function entry(overrides: Partial<QueueEntry> = {}): QueueEntry {
   return {
     submissionId: 'sub-1',
-    status: 'draft_review',
+    revisionCount: 0,
     deadline: new Date('2026-10-10T00:00:00.000Z'),
     submittedAt: new Date('2026-10-01T08:00:00.000Z'),
     ...overrides,
@@ -73,26 +73,33 @@ describe('checkQueueQuery', () => {
     );
   });
 
-  describe('filterStatus', () => {
-    it.each(['draft_review', 'draft_revised'] as const)(
-      'accepts %s',
-      (filterStatus) => {
-        expect(checkQueueQuery({ status: 'review', filterStatus })).toEqual({
-          status: filterStatus,
-        });
-      },
-    );
+  // Every queued draft is Draft Waiting for Review, so the old status dropdown became one
+  // question: is this a resubmit or a first hand-in?
+  describe('resubmitted', () => {
+    it('turns "true" into resubmits only', () => {
+      expect(
+        checkQueueQuery({ status: 'review', resubmitted: 'true' }),
+      ).toEqual({ resubmitted: true });
+    });
 
-    // draft_revision waits on the creator and draft_approved is already decided, so neither
-    // can ever be in the queue; asking for them is a client bug, not an empty result.
-    it.each(['draft_revision', 'draft_approved', 'scheduled', 'all'])(
-      'answers 400 for %s',
-      (filterStatus) => {
-        expect(() =>
-          checkQueueQuery({ status: 'review', filterStatus }),
-        ).toThrow(BadRequestException);
-      },
-    );
+    it('turns "false" into first hand-ins only', () => {
+      expect(
+        checkQueueQuery({ status: 'review', resubmitted: 'false' }),
+      ).toEqual({ resubmitted: false });
+    });
+
+    it.each([
+      ['a word', 'yes'],
+      ['a number', '1'],
+      ['another case', 'TRUE'],
+      ['an empty value', ''],
+      ['the removed status name', 'draft_revised'],
+      ['a repeated parameter', ['true', 'false']],
+    ])('answers 400 for %s', (_, resubmitted) => {
+      expect(() =>
+        checkQueueQuery({ status: 'review', resubmitted }),
+      ).toThrow(BadRequestException);
+    });
   });
 
   describe('overdue', () => {
@@ -121,13 +128,13 @@ describe('checkQueueQuery', () => {
         status: 'review',
         q: 'dina',
         type: 'specific',
-        filterStatus: 'draft_revised',
+        resubmitted: 'true',
         overdue: 'true',
       }),
     ).toEqual({
       q: 'dina',
       type: 'specific',
-      status: 'draft_revised',
+      resubmitted: true,
       overdue: true,
     });
   });
@@ -143,12 +150,12 @@ describe('compareQueueEntries', () => {
   it('puts a resubmitted draft above a first hand-in even when its deadline is later', () => {
     const firstHandIn = entry({
       submissionId: 'first',
-      status: 'draft_review',
+      revisionCount: 0,
       deadline: new Date('2026-10-01T00:00:00.000Z'),
     });
     const resubmit = entry({
       submissionId: 'resubmit',
-      status: 'draft_revised',
+      revisionCount: 1,
       deadline: new Date('2026-12-01T00:00:00.000Z'),
     });
 
@@ -156,7 +163,23 @@ describe('compareQueueEntries', () => {
     expect(sorted([resubmit, firstHandIn])).toEqual(['resubmit', 'first']);
   });
 
-  it('orders drafts with the same status by nearest deadline', () => {
+  // Resubmitted is yes or no: a third hand-in is not more urgent than a second.
+  it('orders two resubmits by deadline, whatever their revision counts', () => {
+    const manyRevisions = entry({
+      submissionId: 'many',
+      revisionCount: 4,
+      deadline: new Date('2026-10-20T00:00:00.000Z'),
+    });
+    const oneRevision = entry({
+      submissionId: 'one',
+      revisionCount: 1,
+      deadline: new Date('2026-10-05T00:00:00.000Z'),
+    });
+
+    expect(sorted([manyRevisions, oneRevision])).toEqual(['one', 'many']);
+  });
+
+  it('orders drafts on the same hand-in by nearest deadline', () => {
     const later = entry({
       submissionId: 'later',
       deadline: new Date('2026-10-20T00:00:00.000Z'),
