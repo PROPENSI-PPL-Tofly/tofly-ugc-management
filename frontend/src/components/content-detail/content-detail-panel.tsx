@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { CreatorLink } from "@/components/ui/creator-link";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
@@ -19,7 +20,6 @@ import {
   CONTENT_TYPE_LABELS,
 } from "@/lib/content-labels";
 import { formatDate, formatDue, formatTimestamp } from "@/lib/format";
-import { safeHref } from "@/lib/safe-href";
 
 /** Shown in the header until there is a content name to show instead. */
 const DEFAULT_TITLE = "Detail Konten";
@@ -121,36 +121,6 @@ function Brief({ brief }: Readonly<{ brief: string }>) {
   );
 }
 
-/**
- * A link a creator typed: clickable only when it is a web address. Anything else is shown as
- * text, so what was sent is still visible without a click being able to run it (OWASP A03).
- */
-function EventLink({ link, label }: Readonly<{ link: string; label: string }>) {
-  const href = safeHref(link);
-
-  if (!href) {
-    return (
-      <div className="mt-1.5 text-xs">
-        <span className="break-all">{link}</span>
-        <p className="mt-1 text-red-ink">
-          Link ini bukan link web yang valid, jadi tidak bisa dibuka.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded-(--radius-control) border border-rule bg-surface px-2 py-1 text-xs font-semibold text-ink hover:border-ink-2"
-    >
-      {label} <span aria-hidden="true">↗</span>
-    </a>
-  );
-}
-
 function EventItem({ event }: Readonly<{ event: TimelineEvent }>) {
   return (
     <li className={TIMELINE_ROW}>
@@ -169,7 +139,9 @@ function EventItem({ event }: Readonly<{ event: TimelineEvent }>) {
         </p>
 
         {event.link && event.linkLabel ? (
-          <EventLink link={event.link} label={event.linkLabel} />
+          <div className="mt-1.5">
+            <CreatorLink link={event.link} label={event.linkLabel} look="chip" />
+          </div>
         ) : null}
 
         {event.note ? (
