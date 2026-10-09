@@ -470,8 +470,15 @@ describe("CreatorDetailModal content detail panel", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
 
-    expect(await screen.findByRole("dialog", { name: "Evergreen - Tips Belajar Cepat" })).toBeInTheDocument();
+    const panel = await screen.findByRole("dialog", {
+      name: "Evergreen - Tips Belajar Cepat",
+    });
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Tutup" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Evergreen - Tips Belajar Cepat" }),
+    ).not.toBeInTheDocument();
   });
 
   // Review feedback on #73: a decision from this surface must close the panel and
@@ -506,10 +513,10 @@ describe("CreatorDetailModal content detail panel", () => {
       expect(
         screen.queryByRole("dialog", { name: "Evergreen - Tips Belajar Cepat" }),
       ).not.toBeInTheDocument();
+      // Once for the mount, once for the reload the decision asked for.
+      expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
     expect(approveSubmission).toHaveBeenCalledWith("submission-1");
     expect(refresh).toHaveBeenCalled();
-    // Once for the mount, once for the reload the decision asked for.
-    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -238,3 +238,28 @@ describe("submitRevision", () => {
     expect(revise).toHaveBeenCalledWith(SUBMISSION, "Perbaiki intro");
   });
 });
+
+describe("optional ports", () => {
+  it("answers a command whose approve port is missing as a resolved no-op", async () => {
+    const commands = actionsFor({
+      role: "admin",
+      detail: facts(),
+      state: idle,
+      ports: ports(),
+    });
+
+    const approve = commands.find((command) => command.kind === "approve");
+
+    await expect(approve?.run()).resolves.toBeUndefined();
+  });
+
+  it("answers a Kirim whose revise port is missing as a resolved no-op", async () => {
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({ busy: false, note: "Perbaiki intro" }),
+      ports: ports(),
+    });
+
+    await expect(command.run()).resolves.toBeUndefined();
+  });
+});

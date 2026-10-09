@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
 import type { PanelActionPorts } from "@/lib/panel-actions";
@@ -243,5 +243,153 @@ describe("ContentDetailPanel", () => {
 
     expect(entries[0]).toHaveTextContent("Draft v2 dikirim");
     expect(entries[1]).toHaveTextContent("Ditambahkan Admin");
+  });
+
+  it("names every event kind, falls back on a missing version, and shows an unusable link as inert text", async () => {
+    open(
+      detail({
+        events: [
+          {
+            id: "sub-2",
+            type: "draft_submitted",
+            at: "2026-09-20T10:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+          },
+          {
+            id: "sub-2:revision",
+            type: "revision_requested",
+            at: "2026-09-19T10:00:00.000Z",
+            actor: { name: null, role: "admin" },
+            payload: { note: "Perbaiki bagian intro." },
+          },
+          {
+            id: `${CONTENT}:approved`,
+            type: "draft_approved",
+            at: "2026-09-21T10:00:00.000Z",
+            actor: { name: null, role: "admin" },
+          },
+          {
+            id: `${CONTENT}:link`,
+            type: "link_submitted",
+            at: "2026-09-22T10:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+            payload: { link: "javascript:alert(1)" },
+          },
+        ],
+      }),
+    );
+
+    const journey = await screen.findByLabelText("Riwayat konten");
+    expect(journey).toHaveTextContent("Draft v? dikirim");
+    expect(journey).toHaveTextContent("Minta revisi");
+    expect(journey).toHaveTextContent("Perbaiki bagian intro.");
+    expect(journey).toHaveTextContent("Draft di-approve");
+    expect(journey).toHaveTextContent("Link video dikirim");
+    expect(journey).toHaveTextContent(
+      "Link ini bukan link web yang valid, jadi tidak bisa dibuka.",
+    );
+    expect(within(journey).queryByRole("link")).toBeNull();
+  });
+
+  it("falls back to a dash for a missing creator name or empty brief, and shows every tag pill", async () => {
+    open(
+      detail({
+        type: "specific",
+        creatorName: "",
+        brief: "",
+        tags: { overdue: true, lateSubmission: true, approvalBypassed: true },
+      }),
+    );
+
+    await screen.findByText("Draft Menunggu Review");
+    // Creator name and brief both fall back to the dash.
+    expect(screen.getAllByText("—")).toHaveLength(2);
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("Late Submission")).toBeInTheDocument();
+    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+  });
+
+  it("reads a load that fails without a status as a plain failure", async () => {
+    open(Promise.reject(new Error("gateway exploded")));
+
+    expect(
+      await screen.findByText("Gagal memuat konten. Coba tutup dan buka lagi."),
+    ).toBeInTheDocument();
+  });
+
+  it("stops caring about a load that settles after the panel was closed", async () => {
+    let resolve!: (detail: ContentDetail) => void;
+    const pending = new Promise<ContentDetail>((r) => {
+      resolve = r;
+    });
+
+    const { unmount } = render(
+      <ContentDetailPanel
+        contentId={CONTENT}
+        role="admin"
+        onClose={vi.fn()}
+        load={() => pending}
+      />,
+    );
+
+    expect(await screen.findByText("Memuat konten...")).toBeInTheDocument();
+
+    unmount();
+    resolve(detail());
+
+    await waitFor(() => {
+      expect(screen.queryByText("Promo Lebaran")).not.toBeInTheDocument();
+    });
+  });
+
+  it("stops caring about a load that fails after the panel was closed", async () => {
+    let reject!: (reason: unknown) => void;
+    const pending = new Promise<ContentDetail>((_, r) => {
+      reject = r;
+    });
+
+    const { unmount } = render(
+      <ContentDetailPanel
+        contentId={CONTENT}
+        role="admin"
+        onClose={vi.fn()}
+        load={() => pending}
+      />,
+    );
+
+    expect(await screen.findByText("Memuat konten...")).toBeInTheDocument();
+
+    unmount();
+    reject(new Error("too late"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Gagal memuat konten. Coba tutup dan buka lagi.")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the panel open and shows the reason when Approve is refused", async () => {
+    const approve = vi
+      .fn()
+      .mockRejectedValue(new Error("Draft ini sudah tidak menunggu keputusan"));
+    const onDecided = vi.fn();
+    open(detail(), { ports: { approve }, onDecided });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText("Draft ini sudah tidak menunggu keputusan"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(onDecided).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("answers a decision that fails without an Error with its own generic message", async () => {
+    const approve = vi.fn().mockRejectedValue("not even an error");
+    open(detail(), { ports: { approve } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("Terjadi kesalahan. Coba lagi.")).toBeInTheDocument();
   });
 });

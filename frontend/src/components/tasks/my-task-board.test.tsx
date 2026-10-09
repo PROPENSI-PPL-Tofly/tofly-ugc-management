@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { MyTask } from "@/lib/my-tasks";
 import { MyTaskBoard } from "./my-task-board";
 
@@ -291,5 +291,30 @@ describe("MyTaskBoard content detail panel", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
+  });
+
+  it("closes the panel from Tutup without opening any modal", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes the panel without a modal when the link points at a task the list does not hold", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-404");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 });

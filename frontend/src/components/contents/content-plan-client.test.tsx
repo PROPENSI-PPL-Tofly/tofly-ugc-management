@@ -828,6 +828,9 @@ describe("ContentPlanClient content detail panel", () => {
 
         expect(await screen.findByRole("dialog")).toBeInTheDocument();
         expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
+
+        fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     // Review feedback on #73: a decision from this surface must close the panel and
