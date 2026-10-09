@@ -1,9 +1,11 @@
 import {
   ContentDetailError,
+  describeJourney,
   dueLabel,
   fetchContentDetail,
   toContentDetail,
   type RawContentDetail,
+  type RawContentEvent,
 } from "./content-detail";
 
 // GET /api/contents/:id (admin) and GET /me/contents/:id (creator) as PBI 6 answers them.
@@ -149,11 +151,128 @@ describe("fetchContentDetail", () => {
     });
   });
 
+  it("hands a cancel signal on to the request when one is given", async () => {
+    const fetchSpy = answer(200);
+    const controller = new AbortController();
+
+    await fetchContentDetail("11111111-1111-1111-1111-111111111111", "admin", controller.signal);
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/contents/11111111-1111-1111-1111-111111111111", {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  });
+
   it("keeps the status so a 404 reads differently from a failure", async () => {
     answer(404);
 
     await expect(
       fetchContentDetail("11111111-1111-1111-1111-111111111111", "admin"),
     ).rejects.toThrow(ContentDetailError);
+  });
+});
+
+describe("describeJourney", () => {
+  const ADMIN = { name: null, role: "admin" } as const;
+  const CREATOR = { name: "Rangga Pratama", role: "creator" } as const;
+
+  function event(overrides: Partial<RawContentEvent> & Pick<RawContentEvent, "id" | "type">) {
+    return { at: "2026-09-20T10:00:00.000Z", actor: ADMIN, ...overrides } as RawContentEvent;
+  }
+
+  // Newest first, as the endpoint sends it.
+  const journey: RawContentEvent[] = [
+    event({ id: "link", type: "link_submitted", actor: CREATOR, payload: { link: "https://www.instagram.com/reel/abc" } }),
+    event({ id: "approved", type: "draft_approved" }),
+    event({ id: "sub-3", type: "draft_submitted", actor: CREATOR, payload: { version: 3, link: "https://drive.google.com/v3" } }),
+    event({ id: "rev-2", type: "revision_requested", payload: { note: "Subtitle belum ada." } }),
+    event({ id: "sub-2", type: "draft_submitted", actor: CREATOR, payload: { version: 2, link: "https://drive.google.com/v2", note: "Opening sudah diganti." } }),
+    event({ id: "rev-1", type: "revision_requested", payload: { note: "Audio terlalu pelan.\nTambahkan subtitle." } }),
+    event({ id: "sub-1", type: "draft_submitted", actor: CREATOR, payload: { version: 1, link: "https://drive.google.com/v1" } }),
+    event({ id: "scheduled", type: "scheduled" }),
+  ];
+
+  it("keeps every event, in the order it was given, with the event itself", () => {
+    const steps = describeJourney(journey);
+
+    expect(steps.map((step) => step.event.id)).toEqual(journey.map((item) => item.id));
+    expect(steps[0].event).toBe(journey[0]);
+  });
+
+  it("titles each kind of event, with the draft version and the revision round", () => {
+    expect(describeJourney(journey).map((step) => step.title)).toEqual([
+      "Link video dikirim",
+      "Draft di-approve",
+      "Draft v3 dikirim",
+      "Revisi ke-2 diminta",
+      "Draft v2 dikirim",
+      "Revisi ke-1 diminta",
+      "Draft v1 dikirim",
+      "Ditambahkan Admin",
+    ]);
+  });
+
+  it("counts a draft's version from the oldest when the API sends none", () => {
+    const steps = describeJourney([
+      event({ id: "b", type: "draft_submitted", actor: CREATOR }),
+      event({ id: "a", type: "draft_submitted", actor: CREATOR }),
+    ]);
+
+    expect(steps.map((step) => step.title)).toEqual(["Draft v2 dikirim", "Draft v1 dikirim"]);
+  });
+
+  it("labels a link by what it opens, and only when there is one", () => {
+    const steps = describeJourney(journey);
+
+    expect(steps[0].linkLabel).toBe("Buka video");
+    expect(steps[2].linkLabel).toBe("Buka draft v3");
+    expect(steps[1].linkLabel).toBeNull();
+    expect(describeJourney([event({ id: "a", type: "draft_submitted" })])[0].linkLabel).toBeNull();
+  });
+
+  it("has no link label for a kind of event that never carries a link, even if one is sent", () => {
+    const [step] = describeJourney([
+      event({ id: "a", type: "draft_approved", payload: { link: "https://example.com/stray" } }),
+    ]);
+
+    expect(step.linkLabel).toBeNull();
+  });
+
+  it("signs an admin's note as the admin's and a creator's with their name", () => {
+    const steps = describeJourney(journey);
+
+    expect(steps[3].noteBy).toBe("Catatan Admin");
+    expect(steps[4].noteBy).toBe("Catatan Rangga Pratama");
+  });
+
+  it("signs a creator's note generically when the API sends no name", () => {
+    const [step] = describeJourney([
+      event({ id: "a", type: "draft_submitted", actor: { name: null, role: "creator" }, payload: { note: "Sudah diperbaiki." } }),
+    ]);
+
+    expect(step.noteBy).toBe("Catatan kreator");
+  });
+
+  it.each([
+    ["no payload", undefined],
+    ["no note", {}],
+    ["an empty note", { note: "" }],
+    ["a whitespace-only note", { note: "  \n " }],
+  ])("signs nothing for an event with %s", (_label, payload) => {
+    const [step] = describeJourney([event({ id: "a", type: "revision_requested", payload })]);
+
+    expect(step.noteBy).toBeNull();
+  });
+
+  it("describes an empty journey as empty", () => {
+    expect(describeJourney([])).toEqual([]);
+  });
+
+  it("does not reorder or change the events it was given", () => {
+    const before = journey.map((item) => item.id);
+
+    describeJourney(journey);
+
+    expect(journey.map((item) => item.id)).toEqual(before);
   });
 });
