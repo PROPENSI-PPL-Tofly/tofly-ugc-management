@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { SubmissionRevisionService } from './submission-revision.service.js';
 
 describe('SubmissionRevisionService', () => {
@@ -134,6 +134,67 @@ describe('SubmissionRevisionService', () => {
     await expect(
       service.revise(saved.id, { revisionNotes: saved.revisionNotes }),
     ).resolves.toEqual(saved);
+  });
+
+  describe('a status that does not allow a revision request', () => {
+    const SUBMISSION_ID = '550e8400-e29b-41d4-a716-446655440000';
+
+    async function reviseIn(status: string, isLatest = true) {
+      const saveRevision = vi.fn();
+      const service = new SubmissionRevisionService({
+        findById: vi.fn().mockResolvedValue({
+          id: SUBMISSION_ID,
+          content_id: '550e8400-e29b-41d4-a716-446655440001',
+          status,
+          isLatest,
+        }),
+        saveRevision,
+      });
+
+      const error: unknown = await service
+        .revise(SUBMISSION_ID, { revisionNotes: 'Mohon perbaiki draft ini.' })
+        .catch((caught: unknown) => caught);
+
+      return { error, saveRevision };
+    }
+
+    it.each(['scheduled', 'draft_revision', 'draft_approved', 'link_submitted'])(
+      'answers 409 DRAFT_NOT_REVIEWABLE for a draft in %s',
+      async (status) => {
+        const { error } = await reviseIn(status);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).getResponse()).toEqual({
+          code: 'DRAFT_NOT_REVIEWABLE',
+          message: 'Draft ini sudah tidak menunggu keputusan',
+        });
+      },
+    );
+
+    it.each(['scheduled', 'draft_revision', 'draft_approved', 'link_submitted'])(
+      'saves nothing for a draft in %s',
+      async (status) => {
+        const { saveRevision } = await reviseIn(status);
+
+        expect(saveRevision).not.toHaveBeenCalled();
+      },
+    );
+
+    it('refuses a status the lifecycle does not know', async () => {
+      const { error, saveRevision } = await reviseIn('not_a_status');
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(saveRevision).not.toHaveBeenCalled();
+    });
+
+    it('reports the status before staleness for an older draft that is already decided', async () => {
+      const { error } = await reviseIn('draft_approved', false);
+
+      expect((error as ConflictException).getResponse()).toHaveProperty(
+        'code',
+        'DRAFT_NOT_REVIEWABLE',
+      );
+    });
   });
 
   it('rejects a submission that is not in draft_review status', async () => {
