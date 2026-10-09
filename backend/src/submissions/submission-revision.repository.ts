@@ -119,6 +119,7 @@ export class SubmissionRevisionRepository {
     revisionNotes: string,
   ): Promise<{
     id: string;
+    contentId: string;
     status: string;
     revisionNotes: string | null;
   } | null> {
@@ -150,6 +151,7 @@ export class SubmissionRevisionRepository {
 
       return {
         id: submission.id,
+        contentId: submission.content_id,
         status: 'draft_revision',
         revisionNotes: submission.revision_notes,
       };

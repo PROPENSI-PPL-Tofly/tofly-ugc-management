@@ -4,6 +4,7 @@ import type { RevisionRequest } from './revise-submission.js';
 
 interface RevisionResult {
   id: string;
+  contentId: string;
   status: string;
   revisionNotes: string | null;
 }
