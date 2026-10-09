@@ -59,6 +59,7 @@ describe("Antrian Draft page", () => {
       items: [
         {
           submissionId: "1",
+          contentId: "content-1",
           creatorName: "Salsa",
           contentName: "Evg_1",
           type: "Evergreen",
@@ -210,6 +211,7 @@ describe("Antrian Draft page", () => {
       items: [
         {
           submissionId: "1",
+          contentId: "content-1",
           creatorName: "Salsa",
           contentName: "Evg_1",
           type: "evergreen",

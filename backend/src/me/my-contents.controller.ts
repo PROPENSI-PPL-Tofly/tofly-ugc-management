@@ -3,13 +3,20 @@ import {
   DefaultValuePipe,
   Get,
   Inject,
+  Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentCreator } from '../auth/current-creator.decorator.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { checkPaging } from '../creators/paging.js';
+import {
+  ContentDetailService,
+  type ContentDetailReader,
+} from '../contents/content-detail.service.js';
+import type { ContentDetail } from '../contents/content-detail.js';
 import type { MyContentsResponse } from './dto/my-contents.dto.js';
 import {
   MyContentsService,
@@ -33,6 +40,8 @@ export class MyContentsController {
   constructor(
     @Inject(MyContentsService)
     private readonly contents: MyContentsLister,
+    @Inject(ContentDetailService)
+    private readonly contentDetail: ContentDetailReader,
   ) {}
 
   /**
@@ -57,5 +66,18 @@ export class MyContentsController {
       { ...checkPaging(page, pageSize), status: checkTaskStatus(status) },
       new Date(),
     );
+  }
+
+  /**
+   * The Content Detail panel a creator opens from Task Saya (PBI 6). The id is scoped to the
+   * contract the guard resolved, so one creator cannot read another's content, and the
+   * answer is 404 rather than 403 so the endpoint never confirms that an id exists.
+   */
+  @Get('contents/:id')
+  async detail(
+    @CurrentCreator() creatorId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<ContentDetail> {
+    return this.contentDetail.getDetail(id, new Date(), { creatorId });
   }
 }

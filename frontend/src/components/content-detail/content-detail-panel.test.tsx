@@ -1,609 +1,395 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import type { ComponentProps } from "react";
-import { ContentDetailError, type ContentDetail, type TimelineEvent } from "@/lib/content-detail";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
+import type { PanelActionPorts } from "@/lib/panel-actions";
 import { ContentDetailPanel } from "./content-detail-panel";
 
-// The panel is tested against a stubbed loader, not the network: what it renders for a given
-// detail is its job, how the detail is fetched and worded is lib/content-detail's.
+const refresh = vi.fn();
 
-/** Midday in Jakarta on 9 Oct 2026, three days before the fixture's deadline. */
-const NOW = new Date("2026-10-09T05:00:00Z");
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh }),
+}));
 
-function event(overrides: Partial<TimelineEvent> = {}): TimelineEvent {
-  return {
-    type: "scheduled",
-    title: "Dijadwalkan",
-    actorName: "Dewi Lestari",
-    actorRole: "admin",
-    timestamp: "2026-09-20T03:00:00.000Z",
-    link: null,
-    linkLabel: null,
-    note: null,
-    noteBy: null,
-    ...overrides,
-  };
-}
+const CONTENT = "11111111-1111-1111-1111-111111111111";
+const SUBMISSION = "22222222-2222-2222-2222-222222222222";
 
 function detail(overrides: Partial<ContentDetail> = {}): ContentDetail {
   return {
-    contentId: "content-7",
+    id: CONTENT,
     name: "Promo Lebaran",
     type: "specific",
+    brief: "Tunjukkan fitur cashback.",
+    deadline: "2026-10-05",
     status: "draft_review",
-    deadline: "2026-10-12",
-    brief: "Tunjukkan fitur cashback.\nDurasi maksimal 30 detik.",
     creatorName: "Rangga Pratama",
-    periodNumber: 2,
-    currentStep: { waitingFor: "admin", title: "Review draft v2" },
+    tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+    waitingOn: "admin",
+    latestSubmissionId: SUBMISSION,
+    creatorActions: [],
     events: [
-      event({
+      {
+        id: "sub-2",
         type: "draft_submitted",
-        title: "Draft v2 dikirim",
-        actorName: "Rangga Pratama",
-        actorRole: "creator",
-        timestamp: "2026-10-03T03:00:00.000Z",
-        link: "https://drive.google.com/file/d/draft-v2",
-        linkLabel: "Buka draft v2",
-        note: "Opening sudah aku ganti kak.",
-        noteBy: "Catatan Rangga Pratama",
-      }),
-      event({
-        type: "revision_requested",
-        title: "Revisi ke-1 diminta",
-        timestamp: "2026-10-02T03:00:00.000Z",
-        note: "Audio terlalu pelan.\nTambahkan subtitle.",
-        noteBy: "Catatan Admin",
-      }),
-      event({
-        type: "draft_submitted",
-        title: "Draft v1 dikirim",
-        actorName: "Rangga Pratama",
-        actorRole: "creator",
-        timestamp: "2026-10-01T03:00:00.000Z",
-        link: "https://drive.google.com/file/d/draft-v1",
-        linkLabel: "Buka draft v1",
-      }),
-      event(),
+        at: "2026-09-20T10:00:00.000Z",
+        actor: { name: "Rangga Pratama", role: "creator" },
+        payload: { version: 2, link: "https://drive.google.com/draft-v2" },
+      },
+      {
+        id: `${CONTENT}:scheduled`,
+        type: "scheduled",
+        at: "2026-09-01T03:00:00.000Z",
+        actor: { name: null, role: "admin" },
+      },
     ],
     ...overrides,
   };
 }
 
-type Props = ComponentProps<typeof ContentDetailPanel>;
-type Loader = NonNullable<Props["load"]>;
-
-function renderPanel(props: Partial<Props> = {}) {
+function open(
+  loaded: ContentDetail | Promise<ContentDetail>,
+  props: Partial<{
+    role: "admin" | "creator";
+    ports: PanelActionPorts;
+    actions: ReactNode;
+    onDecided: () => void;
+  }> = {},
+) {
+  const load = vi.fn().mockResolvedValue(loaded);
   const onClose = vi.fn();
-  // Hand back the loader the panel was actually given, so a test that passes its own can
-  // assert on it rather than on an unused default.
-  const load = props.load ?? vi.fn<Loader>().mockResolvedValue(detail());
-  const utils = render(
-    <ContentDetailPanel contentId="content-7" onClose={onClose} now={NOW} {...props} load={load} />,
+
+  render(
+    <ContentDetailPanel
+      contentId={CONTENT}
+      role={props.role ?? "admin"}
+      onClose={onClose}
+      load={load}
+      {...(props.ports && { ports: props.ports })}
+      {...(props.actions && { actions: props.actions })}
+      {...(props.onDecided && { onDecided: props.onDecided })}
+    />,
   );
-  return { ...utils, onClose, load };
-}
 
-function renderWith(overrides: Partial<ContentDetail>, props: Partial<Props> = {}) {
-  return renderPanel({ ...props, load: vi.fn<Loader>().mockResolvedValue(detail(overrides)) });
-}
-
-/** Settles only when the test says so, to look at the panel while it is still loading. */
-function deferred() {
-  let resolve!: (value: ContentDetail) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<ContentDetail>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-async function timelineItems() {
-  const timeline = await screen.findByRole("list", { name: "Timeline" });
-  return within(timeline).getAllByRole("listitem");
+  return { load, onClose };
 }
 
 describe("ContentDetailPanel", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  describe("while loading", () => {
-    it("says it is loading and asks for the content it was opened on", () => {
-      const { load } = renderPanel({ load: vi.fn<Loader>().mockReturnValue(deferred().promise) });
-
-      expect(screen.getByText("Memuat konten...")).toBeInTheDocument();
-      expect(load).toHaveBeenCalledWith("content-7");
+  it("asks for the content it was opened by and shows the loading line meanwhile", async () => {
+    let resolve!: (detail: ContentDetail) => void;
+    const pending = new Promise<ContentDetail>((r) => {
+      resolve = r;
     });
 
-    it("opens as a side sheet with a neutral title until the name is known", () => {
-      renderPanel({ load: vi.fn<Loader>().mockReturnValue(deferred().promise) });
+    open(pending);
 
-      const dialog = screen.getByRole("dialog", { name: "Detail Konten" });
-      expect(dialog).toHaveClass("h-full", "max-w-[520px]");
-      expect(screen.queryByTestId("modal-eyebrow")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("modal-meta")).not.toBeInTheDocument();
-    });
+    expect(await screen.findByText("Memuat konten...")).toBeInTheDocument();
 
-    it("keeps the actions hidden until there is a step to act on", () => {
-      renderPanel({
-        load: vi.fn<Loader>().mockReturnValue(deferred().promise),
-        actions: <button type="button">Approve</button>,
-      });
-
-      expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    });
+    resolve(detail());
+    await screen.findByText("Promo Lebaran");
   });
 
-  describe("header", () => {
-    it("titles the sheet with the content name", async () => {
-      renderPanel();
+  it("renders the header with type, status, deadline and the D-n countdown beside them", async () => {
+    open(detail());
 
-      expect(await screen.findByRole("dialog", { name: "Promo Lebaran" })).toBeInTheDocument();
-    });
-
-    it.each([
-      ["the creator and the period", {}, "Rangga Pratama › Periode 2"],
-      ["the creator alone", { periodNumber: null }, "Rangga Pratama"],
-      ["the period alone", { creatorName: null }, "Periode 2"],
-    ])("says where the content sits with %s", async (_label, overrides, crumb) => {
-      renderWith(overrides);
-
-      expect(await screen.findByTestId("modal-eyebrow")).toHaveTextContent(crumb);
-    });
-
-    it("has no breadcrumb when neither the creator nor the period is known", async () => {
-      renderWith({ creatorName: null, periodNumber: null });
-
-      await screen.findByRole("dialog", { name: "Promo Lebaran" });
-      expect(screen.queryByTestId("modal-eyebrow")).not.toBeInTheDocument();
-    });
-
-    it("shows the content type, the status and the deadline", async () => {
-      renderPanel();
-
-      const meta = await screen.findByTestId("modal-meta");
-      expect(within(meta).getByText("Specific")).toBeInTheDocument();
-      expect(within(meta).getByText("Draft Menunggu Review")).toBeInTheDocument();
-      expect(meta).toHaveTextContent("Deadline 12 Okt 2026");
-    });
-
-    it("draws the type as a quiet badge and the status as a badge in its own colour", async () => {
-      renderPanel();
-
-      const meta = await screen.findByTestId("modal-meta");
-      expect(within(meta).getByText("Specific")).toHaveClass("rounded-full", "bg-surface-2");
-      // Same hue as the tables: a draft waiting on the admin is brand blue.
-      expect(within(meta).getByText("Draft Menunggu Review")).toHaveClass(
-        "rounded-full",
-        "bg-accent-wash",
-        "text-accent-deep",
-      );
-    });
-
-    it.each([
-      ["draft_revision", "Draft Perlu Revisi", "bg-amber-wash"],
-      ["draft_approved", "Draft Approved", "bg-green-wash"],
-      ["scheduled", "Scheduled", "bg-surface-2"],
-    ] as const)("colours the %s badge like the rest of the app", async (status, label, wash) => {
-      renderWith({ status });
-
-      const meta = await screen.findByTestId("modal-meta");
-      expect(within(meta).getByText(label)).toHaveClass(wash);
-    });
-
-    it.each([
-      ["2026-10-12", "H-3"],
-      ["2026-10-10", "H-1"],
-      ["2026-10-09", "Hari ini"],
-      ["2026-10-07", "Lewat 2 hari"],
-    ])("counts a %s deadline from today as %s", async (deadline, due) => {
-      renderWith({ deadline });
-
-      expect(await screen.findByTestId("modal-meta")).toHaveTextContent(due);
-    });
-
-    it.each([
-      ["2026-10-07", "Lewat 2 hari", "text-red-ink"],
-      ["2026-10-08", "Lewat 1 hari", "text-red-ink"],
-      ["2026-10-09", "Hari ini", "text-amber-ink"],
-      ["2026-10-10", "H-1", "text-amber-ink"],
-    ])("warns about a %s deadline: %s in %s", async (deadline, due, tone) => {
-      renderWith({ deadline });
-
-      const meta = await screen.findByTestId("modal-meta");
-      expect(within(meta).getByText(due)).toHaveClass(tone);
-    });
-
-    it("leaves a deadline two or more days away uncoloured", async () => {
-      renderWith({ deadline: "2026-10-11" });
-
-      const due = within(await screen.findByTestId("modal-meta")).getByText("H-2");
-      expect(due).not.toHaveClass("text-amber-ink");
-      expect(due).not.toHaveClass("text-red-ink");
-    });
-
-    it("leaves a deadline it cannot read uncoloured, with a dash", async () => {
-      renderWith({ deadline: "segera" });
-
-      const due = within(await screen.findByTestId("modal-meta")).getByTestId("deadline-due");
-      expect(due).toHaveTextContent("—");
-      expect(due.className).not.toMatch(/text-(red|amber|green)-ink/);
-    });
-
-    it("turns Selesai green once the video link is in", async () => {
-      renderWith({ status: "link_submitted", deadline: "2026-10-01", currentStep: null });
-
-      const meta = await screen.findByTestId("modal-meta");
-      expect(within(meta).getByText("Selesai")).toHaveClass("text-green-ink");
-    });
-
-    it("reads Selesai once the video link is in, however late the deadline", async () => {
-      renderWith({ status: "link_submitted", deadline: "2026-10-01", currentStep: null });
-
-      const meta = await screen.findByTestId("modal-meta");
-      expect(meta).toHaveTextContent("Selesai");
-      expect(meta).not.toHaveTextContent("Lewat");
-    });
+    expect(await screen.findByText("Rangga Pratama")).toBeInTheDocument();
+    expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
+    expect(screen.getByText("Brief")).toBeInTheDocument();
+    expect(screen.getByText(/H-\d+|Hari ini|Lewat \d+ hari/)).toBeInTheDocument();
   });
 
-  describe("brief", () => {
-    it("shows a Specific content's brief with its line breaks kept", async () => {
-      renderPanel();
-
-      const brief = await screen.findByText(/Tunjukkan fitur cashback\./);
-      expect(brief).toHaveTextContent("Durasi maksimal 30 detik.");
-      expect(brief).toHaveClass("whitespace-pre-line");
-    });
-
-    it("leaves the brief out for Evergreen content, which has none", async () => {
-      renderWith({ type: "evergreen", brief: "Sisa brief lama." });
-
-      await timelineItems();
-      expect(screen.queryByText("Brief")).not.toBeInTheDocument();
-      expect(screen.queryByText("Sisa brief lama.")).not.toBeInTheDocument();
-    });
-
-    it("leaves the brief out when a Specific content has none written", async () => {
-      renderWith({ brief: "" });
-
-      await timelineItems();
-      expect(screen.queryByText("Brief")).not.toBeInTheDocument();
-    });
-
-    it("shows a brief of exactly 160 characters whole, with nothing to expand", async () => {
-      const brief = "a".repeat(160);
-      renderWith({ brief });
-
-      expect(await screen.findByText(brief)).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Selengkapnya" })).not.toBeInTheDocument();
-    });
-
-    it("cuts a longer brief at 160 characters and offers the rest", async () => {
-      const brief = `${"a".repeat(160)}b`;
-      renderWith({ brief });
-
-      const more = await screen.findByRole("button", { name: "Selengkapnya" });
-      expect(more).toHaveAttribute("aria-expanded", "false");
-      expect(screen.getByText(`${"a".repeat(160)}…`)).toBeInTheDocument();
-      expect(screen.queryByText(brief)).not.toBeInTheDocument();
-    });
-
-    it("expands to the whole brief and folds it back", async () => {
-      const brief = `${"a".repeat(160)}b`;
-      renderWith({ brief });
-
-      fireEvent.click(await screen.findByRole("button", { name: "Selengkapnya" }));
-
-      const less = screen.getByRole("button", { name: "Ringkas" });
-      expect(less).toHaveAttribute("aria-expanded", "true");
-      expect(screen.getByText(brief)).toBeInTheDocument();
-
-      fireEvent.click(less);
-
-      expect(screen.getByRole("button", { name: "Selengkapnya" })).toBeInTheDocument();
-      expect(screen.queryByText(brief)).not.toBeInTheDocument();
-    });
-  });
-
-  describe("timeline", () => {
-    it("lists the current step first, then the events in the order it was given", async () => {
-      renderPanel();
-
-      const items = await timelineItems();
-
-      expect(items).toHaveLength(5);
-      expect(items[0]).toHaveTextContent("Review draft v2");
-      expect(items[1]).toHaveTextContent("Draft v2 dikirim");
-      expect(items[2]).toHaveTextContent("Revisi ke-1 diminta");
-      expect(items[3]).toHaveTextContent("Draft v1 dikirim");
-      expect(items[4]).toHaveTextContent("Dijadwalkan");
-    });
-
-    it("shows when each event happened, in Jakarta time, and who did it in which role", async () => {
-      renderPanel();
-
-      const [, draft, revision] = await timelineItems();
-
-      expect(draft).toHaveTextContent("3 Okt 2026, 10.00 WIB");
-      expect(within(draft).getByText("3 Okt 2026, 10.00 WIB")).toHaveAttribute(
-        "datetime",
-        "2026-10-03T03:00:00.000Z",
-      );
-      expect(draft).toHaveTextContent("Rangga Pratama · Kreator");
-      expect(revision).toHaveTextContent("Dewi Lestari · Admin");
-    });
-
-    it("colours each event's dot by what happened", async () => {
-      renderWith({
-        events: [
-          event({ type: "link_submitted", title: "Link video dikirim" }),
-          event({ type: "creator_comment", title: "Komentar kreator" }),
-          event({ type: "draft_approved", title: "Draft di-approve" }),
-          event({ type: "revision_requested", title: "Revisi ke-1 diminta" }),
-          event({ type: "draft_submitted", title: "Draft v1 dikirim" }),
-          event(),
-        ],
-        currentStep: null,
-      });
-
-      const dots = (await timelineItems()).map(
-        (item) => item.querySelector("[data-timeline-dot]")?.className ?? "",
-      );
-
-      expect(dots[0]).toContain("bg-green");
-      expect(dots[1]).toContain("bg-rule");
-      expect(dots[2]).toContain("bg-green");
-      expect(dots[3]).toContain("bg-red");
-      expect(dots[4]).toContain("bg-amber");
-      expect(dots[5]).toContain("bg-accent");
-    });
-
-    it("rings each dot in its own colour, so it reads as a marker on the line", async () => {
-      renderWith({
-        events: [
-          event({ type: "draft_approved", title: "Draft di-approve" }),
-          event({ type: "revision_requested", title: "Revisi ke-1 diminta" }),
-          event({ type: "draft_submitted", title: "Draft v1 dikirim" }),
-        ],
-        currentStep: null,
-      });
-
-      const dots = (await timelineItems()).map(
-        (item) => item.querySelector("[data-timeline-dot]")?.className ?? "",
-      );
-
-      expect(dots[0]).toContain("ring-green");
-      expect(dots[1]).toContain("ring-red");
-      expect(dots[2]).toContain("ring-amber");
-    });
-
-    it("opens a draft in a new tab, labelled with its version", async () => {
-      renderPanel();
-
-      const link = await screen.findByRole("link", { name: /Buka draft v2/ });
-
-      expect(link).toHaveAttribute("href", "https://drive.google.com/file/d/draft-v2");
-      expect(link).toHaveAttribute("target", "_blank");
-      expect(link).toHaveAttribute("rel", "noopener noreferrer");
-      expect(screen.getByRole("link", { name: /Buka draft v1/ })).toBeInTheDocument();
-    });
-
-    it("shows a link that is not a web address as text, never as something to click", async () => {
-      renderWith({
-        events: [
-          event({
-            type: "draft_submitted",
-            title: "Draft v1 dikirim",
-            link: "javascript:alert(1)",
-            linkLabel: "Buka draft v1",
-          }),
-        ],
-      });
-
-      const [, draft] = await timelineItems();
-
-      expect(within(draft).queryByRole("link")).not.toBeInTheDocument();
-      expect(draft).toHaveTextContent("javascript:alert(1)");
-      expect(draft).toHaveTextContent("Link ini bukan link web yang valid, jadi tidak bisa dibuka.");
-    });
-
-    it("shows no link on an event that has none", async () => {
-      renderPanel();
-
-      const items = await timelineItems();
-
-      expect(within(items[2]).queryByRole("link")).not.toBeInTheDocument();
-      expect(items[2]).not.toHaveTextContent("bukan link web");
-    });
-
-    it("quotes a note under its event, signed and with its line breaks kept", async () => {
-      renderPanel();
-
-      const [, draft, revision] = await timelineItems();
-
-      expect(within(revision).getByText("Catatan Admin")).toBeInTheDocument();
-      const note = within(revision).getByText(/Audio terlalu pelan\./);
-      expect(note).toHaveTextContent("Tambahkan subtitle.");
-      expect(note).toHaveClass("whitespace-pre-line");
-
-      expect(within(draft).getByText("Catatan Rangga Pratama")).toBeInTheDocument();
-      expect(within(draft).getByText("Opening sudah aku ganti kak.")).toBeInTheDocument();
-    });
-
-    it("quotes nothing under an event without a note", async () => {
-      renderPanel();
-
-      const items = await timelineItems();
-
-      expect(within(items[3]).queryByText(/^Catatan/)).not.toBeInTheDocument();
-    });
-
-    it("says so when a content has neither a step nor any history yet", async () => {
-      renderWith({ currentStep: null, events: [] });
-
-      expect(await screen.findByText("Belum ada aktivitas.")).toBeInTheDocument();
-      expect(screen.queryByRole("list", { name: "Timeline" })).not.toBeInTheDocument();
-    });
-  });
-
-  describe("current step", () => {
-    it.each([
-      ["admin", "Menunggu Admin"],
-      ["creator", "Menunggu kreator"],
-    ] as const)("says the content waits on the %s", async (waitingFor, label) => {
-      renderWith({ currentStep: { waitingFor, title: "Kirim draft" } });
-
-      const [step] = await timelineItems();
-
-      expect(within(step).getByText(label)).toBeInTheDocument();
-      expect(within(step).getByText("Kirim draft")).toBeInTheDocument();
-    });
-
-    it.each([
-      ["admin", "Menunggu Admin", ["border-accent", "bg-accent-wash"], "text-accent-deep", "ring-accent"],
-      ["creator", "Menunggu kreator", ["border-amber", "bg-amber-wash"], "text-amber-ink", "ring-amber"],
-    ] as const)(
-      "tints the step by who it waits on: %s",
-      async (waitingFor, label, card, text, ring) => {
-        renderWith({ currentStep: { waitingFor, title: "Kirim draft" } });
-
-        const [step] = await timelineItems();
-        const who = within(step).getByText(label);
-
-        expect(who).toHaveClass(text);
-        expect(who.parentElement).toHaveClass(...card);
-        // A hollow dot: the step has not happened yet.
-        const dot = step.querySelector("[data-timeline-dot]");
-        expect(dot).toHaveClass("bg-surface", ring);
-      },
+  it("draws the Overdue tag beside the status, never as the status", async () => {
+    open(
+      detail({
+        status: "draft_revision",
+        tags: { overdue: true, lateSubmission: false, approvalBypassed: false },
+      }),
     );
 
-    it("is the only item while nothing has happened yet", async () => {
-      renderWith({ currentStep: { waitingFor: "creator", title: "Kirim draft" }, events: [] });
+    expect(await screen.findByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("Draft Perlu Revisi")).toBeInTheDocument();
+  });
 
-      expect(await timelineItems()).toHaveLength(1);
+  it("shows the step waiting on the admin with Approve and Minta Revisi for an admin", async () => {
+    open(detail());
+
+    expect(await screen.findByText("Menunggu Admin")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Minta Revisi" })).toBeInTheDocument();
+  });
+
+  it("shows an admin nothing to do while the step waits on the creator", async () => {
+    open(detail({ waitingOn: "creator", status: "scheduled", latestSubmissionId: null }));
+
+    expect(await screen.findByText("Menunggu kreator")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("keeps Kirim disabled while the note is empty or only spaces, and opens it after real text", async () => {
+    open(detail());
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    const kirim = screen.getByRole("button", { name: "Kirim Revisi" });
+    const note = screen.getByRole("textbox");
+
+    expect(kirim).toBeDisabled();
+
+    fireEvent.change(note, { target: { value: "   " } });
+    expect(kirim).toBeDisabled();
+
+    fireEvent.change(note, { target: { value: "Audio terlalu pelan." } });
+    expect(kirim).toBeEnabled();
+  });
+
+  it("sends the trimmed note and reports the decision upward", async () => {
+    const revise = vi.fn().mockResolvedValue(undefined);
+    const onDecided = vi.fn();
+    open(detail(), { ports: { revise }, onDecided });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "  Audio terlalu pelan.  " },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
 
-    it("is left out once nothing is left to do, so only the history shows", async () => {
-      renderWith({ status: "link_submitted", currentStep: null });
-
-      const items = await timelineItems();
-
-      expect(items).toHaveLength(4);
-      expect(screen.queryByText(/^Menunggu/)).not.toBeInTheDocument();
-    });
-
-    it("puts the actions it is handed on the current step", async () => {
-      renderPanel({ actions: <button type="button">Approve</button> });
-
-      const [step, firstEvent] = await timelineItems();
-
-      expect(within(step).getByRole("button", { name: "Approve" })).toBeInTheDocument();
-      expect(within(firstEvent).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    });
-
-    it("shows no actions when there is no step to act on", async () => {
-      renderWith(
-        { status: "link_submitted", currentStep: null },
-        { actions: <button type="button">Approve</button> },
-      );
-
-      await timelineItems();
-      expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(revise).toHaveBeenCalledWith(SUBMISSION, "Audio terlalu pelan.");
+      expect(onDecided).toHaveBeenCalled();
     });
   });
 
-  describe("when loading fails", () => {
-    it("says the content was not found on a 404, with nothing to retry", async () => {
-      renderPanel({ load: vi.fn<Loader>().mockRejectedValue(new ContentDetailError(404)) });
+  it("keeps the panel open with the backend's reason when a decision fails", async () => {
+    const revise = vi
+      .fn()
+      .mockRejectedValue(new Error("Draft ini sudah tidak menunggu keputusan"));
+    const onDecided = vi.fn();
+    open(detail(), { ports: { revise }, onDecided });
 
-      expect(await screen.findByText("Konten tidak ditemukan.")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Muat ulang" })).not.toBeInTheDocument();
-      expect(screen.getByRole("dialog", { name: "Detail Konten" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Audio terlalu pelan." },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
 
-    it.each([
-      ["a server error", new ContentDetailError(500)],
-      ["a refused request", new ContentDetailError(403)],
-      ["a network failure", new TypeError("Failed to fetch")],
-    ])("raises an alert with a way to retry on %s", async (_label, error) => {
-      renderPanel({ load: vi.fn<Loader>().mockRejectedValue(error) });
+    expect(
+      await screen.findByText("Draft ini sudah tidak menunggu keputusan"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("Audio terlalu pelan.");
+    expect(onDecided).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
 
-      const alert = await screen.findByRole("alert");
+  it("approves the latest hand-in through its command", async () => {
+    const approve = vi.fn().mockResolvedValue(undefined);
+    const onDecided = vi.fn();
+    open(detail(), { ports: { approve }, onDecided });
 
-      expect(alert).toHaveTextContent("Detail konten gagal dimuat");
-      expect(within(alert).getByRole("button", { name: "Muat ulang" })).toBeInTheDocument();
-    });
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
-    it("loads again on retry, showing the loading state and then the content", async () => {
-      const second = deferred();
-      const load = vi
-        .fn<Loader>()
-        .mockRejectedValueOnce(new ContentDetailError(500))
-        .mockReturnValueOnce(second.promise);
-      renderPanel({ load });
-
-      fireEvent.click(await screen.findByRole("button", { name: "Muat ulang" }));
-
-      expect(screen.getByText("Memuat konten...")).toBeInTheDocument();
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-      expect(load).toHaveBeenCalledTimes(2);
-
-      await act(async () => second.resolve(detail()));
-
-      expect(screen.getByRole("dialog", { name: "Promo Lebaran" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(approve).toHaveBeenCalledWith(SUBMISSION);
+      expect(refresh).toHaveBeenCalled();
+      expect(onDecided).toHaveBeenCalled();
     });
   });
 
-  describe("closing", () => {
-    it("closes on Escape and on the close button", async () => {
-      const { onClose } = renderPanel();
-      await timelineItems();
+  it("shows a creator their own next step instead of the review buttons", async () => {
+    const onCreatorAction = vi.fn();
+    open(
+      detail({
+        waitingOn: "creator",
+        status: "draft_review",
+        latestSubmissionId: null,
+        creatorActions: ["submit_video"],
+      }),
+      { role: "creator", ports: { onCreatorAction } },
+    );
 
-      fireEvent.keyDown(document, { key: "Escape" });
-      fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+    const button = await screen.findByRole("button", { name: "Submit Link (H-1)" });
+    fireEvent.click(button);
 
-      expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onCreatorAction).toHaveBeenCalledWith("submit_video");
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("renders an injected action list instead of its own commands", async () => {
+    open(detail(), { actions: <button type="button">Tinjau pengajuan</button> });
+
+    expect(await screen.findByRole("button", { name: "Tinjau pengajuan" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("reads a 404 as content that does not exist, not as a failure", async () => {
+    open(Promise.reject(new ContentDetailError(404)));
+
+    expect(await screen.findByText("Konten tidak ditemukan.")).toBeInTheDocument();
+  });
+
+  it("reads any other failure as something to retry", async () => {
+    open(Promise.reject(new ContentDetailError(500)));
+
+    expect(
+      await screen.findByText("Gagal memuat konten. Coba tutup dan buka lagi."),
+    ).toBeInTheDocument();
+  });
+
+  it("lists the journey newest first with each draft's version", async () => {
+    open(detail());
+
+    const journey = await screen.findByLabelText("Riwayat konten");
+    const entries = journey.querySelectorAll("li");
+
+    expect(entries[0]).toHaveTextContent("Draft v2 dikirim");
+    expect(entries[1]).toHaveTextContent("Ditambahkan Admin");
+  });
+
+  it("names every event kind, falls back on a missing version, and shows an unusable link as inert text", async () => {
+    open(
+      detail({
+        events: [
+          {
+            id: "sub-2",
+            type: "draft_submitted",
+            at: "2026-09-20T10:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+          },
+          {
+            id: "sub-2:revision",
+            type: "revision_requested",
+            at: "2026-09-19T10:00:00.000Z",
+            actor: { name: null, role: "admin" },
+            payload: { note: "Perbaiki bagian intro." },
+          },
+          {
+            id: `${CONTENT}:approved`,
+            type: "draft_approved",
+            at: "2026-09-21T10:00:00.000Z",
+            actor: { name: null, role: "admin" },
+          },
+          {
+            id: `${CONTENT}:link`,
+            type: "link_submitted",
+            at: "2026-09-22T10:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+            payload: { link: "javascript:alert(1)" },
+          },
+        ],
+      }),
+    );
+
+    const journey = await screen.findByLabelText("Riwayat konten");
+    expect(journey).toHaveTextContent("Draft v? dikirim");
+    expect(journey).toHaveTextContent("Minta revisi");
+    expect(journey).toHaveTextContent("Perbaiki bagian intro.");
+    expect(journey).toHaveTextContent("Draft di-approve");
+    expect(journey).toHaveTextContent("Link video dikirim");
+    expect(journey).toHaveTextContent(
+      "Link ini bukan link web yang valid, jadi tidak bisa dibuka.",
+    );
+    expect(within(journey).queryByRole("link")).toBeNull();
+  });
+
+  it("falls back to a dash for a missing creator name or empty brief, and shows every tag pill", async () => {
+    open(
+      detail({
+        type: "specific",
+        creatorName: "",
+        brief: "",
+        tags: { overdue: true, lateSubmission: true, approvalBypassed: true },
+      }),
+    );
+
+    await screen.findByText("Draft Menunggu Review");
+    // Creator name and brief both fall back to the dash.
+    expect(screen.getAllByText("—")).toHaveLength(2);
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("Late Submission")).toBeInTheDocument();
+    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+  });
+
+  it("reads a load that fails without a status as a plain failure", async () => {
+    open(Promise.reject(new Error("gateway exploded")));
+
+    expect(
+      await screen.findByText("Gagal memuat konten. Coba tutup dan buka lagi."),
+    ).toBeInTheDocument();
+  });
+
+  it("stops caring about a load that settles after the panel was closed", async () => {
+    let resolve!: (detail: ContentDetail) => void;
+    const pending = new Promise<ContentDetail>((r) => {
+      resolve = r;
     });
 
-    it("ignores an answer that arrives after it was closed", async () => {
-      const pending = deferred();
-      const { unmount } = renderPanel({ load: vi.fn<Loader>().mockReturnValue(pending.promise) });
+    const { unmount } = render(
+      <ContentDetailPanel
+        contentId={CONTENT}
+        role="admin"
+        onClose={vi.fn()}
+        load={() => pending}
+      />,
+    );
 
-      unmount();
-      await act(async () => pending.resolve(detail()));
+    expect(await screen.findByText("Memuat konten...")).toBeInTheDocument();
 
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+    unmount();
+    resolve(detail());
 
-    it("ignores a failure that arrives after it was closed", async () => {
-      const pending = deferred();
-      const { unmount } = renderPanel({ load: vi.fn<Loader>().mockReturnValue(pending.promise) });
-
-      unmount();
-      await act(async () => pending.reject(new ContentDetailError(500)));
-
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Promo Lebaran")).not.toBeInTheDocument();
     });
   });
 
-  it("counts the deadline from the current day when no day is pinned", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-10-11T05:00:00Z"));
+  it("stops caring about a load that fails after the panel was closed", async () => {
+    let reject!: (reason: unknown) => void;
+    const pending = new Promise<ContentDetail>((_, r) => {
+      reject = r;
+    });
 
-    try {
-      render(
-        <ContentDetailPanel
-          contentId="content-7"
-          onClose={() => {}}
-          load={vi.fn<Loader>().mockResolvedValue(detail())}
-        />,
-      );
+    const { unmount } = render(
+      <ContentDetailPanel
+        contentId={CONTENT}
+        role="admin"
+        onClose={vi.fn()}
+        load={() => pending}
+      />,
+    );
 
-      expect(await screen.findByTestId("modal-meta")).toHaveTextContent("H-1");
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(await screen.findByText("Memuat konten...")).toBeInTheDocument();
+
+    unmount();
+    reject(new Error("too late"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Gagal memuat konten. Coba tutup dan buka lagi.")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the panel open and shows the reason when Approve is refused", async () => {
+    const approve = vi
+      .fn()
+      .mockRejectedValue(new Error("Draft ini sudah tidak menunggu keputusan"));
+    const onDecided = vi.fn();
+    open(detail(), { ports: { approve }, onDecided });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText("Draft ini sudah tidak menunggu keputusan"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(onDecided).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("answers a decision that fails without an Error with its own generic message", async () => {
+    const approve = vi.fn().mockRejectedValue("not even an error");
+    open(detail(), { ports: { approve } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("Terjadi kesalahan. Coba lagi.")).toBeInTheDocument();
   });
 });
