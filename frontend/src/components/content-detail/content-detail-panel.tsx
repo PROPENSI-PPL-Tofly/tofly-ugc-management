@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
-import { DetailField } from "@/components/ui/detail-field";
+import { CreatorLink } from "@/components/ui/creator-link";
+import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot } from "@/components/ui/pill";
 import {
@@ -14,22 +15,21 @@ import {
 } from "@/lib/content-labels";
 import {
   ContentDetailError,
-  dueLabel,
+  describeJourney,
   fetchContentDetail,
   type ContentDetail,
   type ContentDetailLoader,
   type DetailEventType,
-  type RawContentEvent,
+  type JourneyStep,
 } from "@/lib/content-detail";
 import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
-import { EMPTY, formatDate, formatTimestamp } from "@/lib/format";
+import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
   submitRevision,
   type PanelActionPorts,
 } from "@/lib/panel-actions";
 import type { Role } from "@/lib/session";
-import { safeHref } from "@/lib/safe-href";
 
 /** The API's limit on a revision note (backend revise-submission.ts). */
 export const MAX_REVISION_NOTE_LENGTH = 1000;
@@ -44,10 +44,32 @@ type LoadState =
   | { kind: "not_found" }
   | { kind: "failed" };
 
+/** A brief longer than this is cut, with the rest one press away. */
+const BRIEF_PREVIEW_LENGTH = 160;
+
+/** From this many days before the deadline on, the countdown is shown as a warning. */
+const DUE_SOON_DAYS = 1;
+
+type WaitingOn = ContentDetail["waitingOn"];
+
+const ROLE_LABELS: Record<"admin" | "creator", string> = {
+  admin: "Admin",
+  creator: "Kreator",
+};
+
 /** The step's waiting side reads the same however the status spells it. */
 const WAITING_LABELS: Record<"admin" | "creator", string> = {
   admin: "Menunggu Admin",
   creator: "Menunggu kreator",
+};
+
+// The current step takes the colour the status dots use for the same situation: brand blue
+// while the admin's decision is awaited, amber while the work is back with the creator, green
+// once nothing is left to do.
+const STEP_TONES: Record<"admin" | "creator" | "done", { card: string; label: string }> = {
+  admin: { card: "border-accent bg-accent-wash", label: "text-accent-deep" },
+  creator: { card: "border-amber bg-amber-wash", label: "text-amber-ink" },
+  done: { card: "border-green bg-green-wash", label: "text-green-ink" },
 };
 
 /** One line of context under the waiting side, per status. */
@@ -60,20 +82,26 @@ const STEP_TEXT: Record<ContentDetail["status"], string> = {
   link_submitted: "Link video sudah dikirim.",
 };
 
-const EVENT_TITLES: Record<DetailEventType, (event: RawContentEvent) => string> = {
-  scheduled: () => "Ditambahkan Admin",
-  draft_submitted: (event) => `Draft v${event.payload?.version ?? "?"} dikirim`,
-  revision_requested: () => "Minta revisi",
-  draft_approved: () => "Draft di-approve",
-  link_submitted: () => "Link video dikirim",
+// The dot beside each event, always next to its title so colour is never the only signal:
+// brand blue where the content began, amber for a draft handed in, red for a revision asked,
+// green from approval on.
+const EVENT_DOTS: Record<DetailEventType, string> = {
+  scheduled: "bg-accent ring-accent",
+  draft_submitted: "bg-amber ring-amber",
+  revision_requested: "bg-red ring-red",
+  draft_approved: "bg-green ring-green",
+  link_submitted: "bg-green ring-green",
 };
 
-/** Today where the deadlines count from, as the ISO day the API sends. */
-function jakartaToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(
-    new Date(),
-  );
-}
+const SECTION_LABEL = "mb-2 text-[11px] font-bold uppercase tracking-wider text-muted";
+
+// One row of the timeline: the dot in a narrow first column, and a line drawn from under it
+// to the next row, left off the last row.
+const TIMELINE_ROW =
+  "relative grid grid-cols-[13px_1fr] gap-3 pb-5 before:absolute before:bottom-0 before:left-[6px] before:top-4 before:w-px before:bg-rule last:pb-0 last:before:hidden";
+
+// A filled disc with a gap and a ring of its own colour, so it reads as a marker on the line.
+const DOT = "mt-[3px] size-[13px] rounded-full border-2 border-surface ring-[1.5px]";
 
 /**
  * The note form opens from a click on Minta Revisi, so focus follows the admin into it.
@@ -84,139 +112,178 @@ function focusOnMount(element: HTMLTextAreaElement | null) {
   element?.focus();
 }
 
-function CreatorOrSystemLink({ link, label }: Readonly<{ link: string; label: string }>) {
-  const href = safeHref(link);
+/** Red once the deadline has passed, amber from the day before it, green when finished. */
+function dueTone(finished: boolean, days: number | null): string {
+  if (finished) return "text-green-ink";
+  if (days === null) return "";
+  if (days < 0) return "text-red-ink";
+  return days <= DUE_SOON_DAYS ? "text-amber-ink" : "";
+}
 
-  if (!href) {
-    return (
-      <>
-        <span className="break-all">{link}</span>
-        <p className="mt-1 text-xs text-red-ink">
-          Link ini bukan link web yang valid, jadi tidak bisa dibuka.
-        </p>
-      </>
-    );
-  }
+function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Date }>) {
+  // A finished content has no countdown left, however its deadline compares to today. The
+  // days are counted once, so the label and its colour can never disagree across midnight.
+  const finished = detail.status === "link_submitted";
+  const days = daysUntil(detail.deadline, now);
+  // The API can name a status newer than this build: its raw name then, never a blank.
+  const statusLabel: string = CONTENT_STATUS_LABELS[detail.status] ?? detail.status;
 
   return (
     <>
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-semibold text-accent-deep underline underline-offset-2"
-      >
-        {label}
-      </a>
-      <p className="mt-1 break-all text-xs text-muted">{href}</p>
+      <StatusDot tone="accent">{CONTENT_TYPE_LABELS[detail.type]}</StatusDot>
+
+      <StatusDot tone={CONTENT_STATUS_TONES[detail.status] ?? "neutral"}>{statusLabel}</StatusDot>
+
+      {detail.tags.overdue ? <Pill tone="red">Overdue</Pill> : null}
+      {detail.tags.lateSubmission ? <Pill tone="red">Late Submission</Pill> : null}
+      {detail.tags.approvalBypassed ? <Pill tone="amber">Approval di-bypass</Pill> : null}
+
+      <span>
+        Deadline <b className="font-semibold text-ink">{formatDate(detail.deadline)}</b> ·{" "}
+        <span data-testid="deadline-due" className={`font-semibold ${dueTone(finished, days)}`}>
+          {finished ? "Selesai" : formatDaysLeft(days)}
+        </span>
+      </span>
     </>
   );
 }
 
-function Journey({ events }: Readonly<{ events: RawContentEvent[] }>) {
-  if (events.length === 0) {
+function Brief({ brief }: Readonly<{ brief: string }>) {
+  const [expanded, setExpanded] = useState(false);
+  // By character, not by UTF-16 unit, so an emoji at the cut is kept whole or left out.
+  const characters = Array.from(brief);
+  const long = characters.length > BRIEF_PREVIEW_LENGTH;
+  const shown =
+    long && !expanded ? `${characters.slice(0, BRIEF_PREVIEW_LENGTH).join("")}…` : brief;
+
+  return (
+    <section>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className={SECTION_LABEL}>Brief</h3>
+
+        {long ? (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+            className="mb-2 cursor-pointer rounded-(--radius-control) border-none bg-transparent p-0 text-xs font-semibold text-accent-deep hover:underline"
+          >
+            {expanded ? "Ringkas" : "Selengkapnya"}
+          </button>
+        ) : null}
+      </div>
+
+      <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-ink-2">{shown}</p>
+    </section>
+  );
+}
+
+function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
+  const { event } = step;
+  const role = ROLE_LABELS[event.actor.role];
+  const link = event.payload?.link;
+
+  return (
+    <li className={TIMELINE_ROW}>
+      <span aria-hidden="true" data-timeline-dot="" className={`${DOT} ${EVENT_DOTS[event.type]}`} />
+
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold">
+          <span data-step-title="">{step.title}</span>
+          <time dateTime={event.at} className="text-[11.5px] font-normal text-muted">
+            {formatTimestamp(event.at)}
+          </time>
+        </p>
+
+        <p data-step-actor="" className="mt-0.5 text-[11.5px] text-muted">
+          {event.actor.name ? `${event.actor.name} · ${role}` : role}
+        </p>
+
+        {link && step.linkLabel ? (
+          <div className="mt-2">
+            <CreatorLink link={link} label={step.linkLabel} look="chip" />
+          </div>
+        ) : null}
+
+        {step.noteBy ? (
+          <blockquote className="mt-2 rounded-r-(--radius-control) border-l-2 border-rule bg-surface-2 px-3 py-2 text-[12.5px] leading-relaxed">
+            <span className="mb-0.5 block text-[11px] font-semibold text-muted">{step.noteBy}</span>
+            <p className="whitespace-pre-line">{event.payload?.note}</p>
+          </blockquote>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
+  if (steps.length === 0) {
     return <p className="text-xs text-muted">Belum ada riwayat.</p>;
   }
 
   return (
-    <ol aria-label="Riwayat konten" className="flex flex-col">
-      {events.map((event) => (
-        <li
-          key={event.id}
-          className="border-b border-dashed border-rule-2 py-2 text-xs last:border-none"
-        >
-          <p className="flex flex-wrap justify-between gap-2">
-            <span className="font-semibold">{EVENT_TITLES[event.type](event)}</span>
-            <span className="text-muted">{formatTimestamp(event.at)}</span>
-          </p>
-
-          {event.payload?.note ? (
-            <p className="mt-1.5 whitespace-pre-line">
-              <span className="font-semibold">Catatan Admin: </span>
-              {event.payload.note}
-            </p>
-          ) : null}
-
-          {event.payload?.link ? (
-            <div className="mt-1.5">
-              <CreatorOrSystemLink link={event.payload.link} label="Buka file" />
-            </div>
-          ) : null}
-        </li>
+    <ol aria-label="Riwayat konten">
+      {steps.map((step) => (
+        <JourneyItem key={step.event.id} step={step} />
       ))}
     </ol>
   );
 }
 
-function DetailBody({
-  detail,
-  today,
-}: Readonly<{ detail: ContentDetail; today: string }>) {
+/** The step the content is waiting on; the revision form and a refusal show inside it. */
+function CurrentStep({
+  status,
+  waitingOn,
+  children,
+}: Readonly<{ status: ContentDetail["status"]; waitingOn: WaitingOn; children?: ReactNode }>) {
+  const tone = STEP_TONES[waitingOn ?? "done"];
+  // Undefined for a status newer than this build, which then simply has no line of context.
+  const text: string | undefined = STEP_TEXT[status];
+
   return (
-    <>
-      <div className="grid gap-3.5 sm:grid-cols-2">
-        <DetailField label="Creator">{detail.creatorName || EMPTY}</DetailField>
+    <div
+      data-testid="current-step"
+      className={`mb-5 rounded-(--radius-panel) border p-3.5 ${tone.card}`}
+    >
+      <p className={`text-[11px] font-bold uppercase tracking-wider ${tone.label}`}>
+        {waitingOn === null ? "Selesai" : WAITING_LABELS[waitingOn]}
+      </p>
 
-        <DetailField label="Tipe konten">
-          <StatusDot tone="accent">{CONTENT_TYPE_LABELS[detail.type]}</StatusDot>
-        </DetailField>
+      {text ? (
+        <p data-testid="step-text" className="mt-1 text-[13px] text-ink-2">
+          {text}
+        </p>
+      ) : null}
 
-        <DetailField label="Status saat ini">
-          <span className="flex flex-wrap items-center gap-2">
-            <StatusDot tone={CONTENT_STATUS_TONES[detail.status]}>
-              {CONTENT_STATUS_LABELS[detail.status]}
-            </StatusDot>
-            {detail.tags.overdue ? <Pill tone="red">Overdue</Pill> : null}
-            {detail.tags.lateSubmission ? (
-              <Pill tone="red">Late Submission</Pill>
-            ) : null}
-            {detail.tags.approvalBypassed ? (
-              <Pill tone="amber">Approval di-bypass</Pill>
-            ) : null}
-          </span>
-        </DetailField>
-
-        <DetailField label="Deadline">
-          {formatDate(detail.deadline)} ·{" "}
-          {dueLabel(detail.status, detail.deadline, today)}
-        </DetailField>
-      </div>
-
-      {/* Evergreen content has no brief. */}
-      {detail.type === "evergreen" ? null : (
-        <DetailField label="Brief">
-          <p className="whitespace-pre-line">{detail.brief || EMPTY}</p>
-        </DetailField>
-      )}
-
-      <DetailField label="Riwayat konten">
-        <Journey events={detail.events} />
-      </DetailField>
-    </>
+      {children}
+    </div>
   );
 }
 
 function StatusMessage({
   state,
-}: Readonly<{ state: Exclude<LoadState, { kind: "loaded" }> }>) {
+  onRetry,
+}: Readonly<{ state: Exclude<LoadState, { kind: "loaded" }>; onRetry: () => void }>) {
   if (state.kind === "loading") {
     return (
       <p className="py-6 text-center text-[13px] text-muted">Memuat konten...</p>
     );
   }
 
-  return (
-    <p className="py-6 text-center text-[13px] text-red-ink">
-      {state.kind === "not_found"
-        ? "Konten tidak ditemukan."
-        : "Gagal memuat konten. Coba tutup dan buka lagi."}
-    </p>
-  );
+  if (state.kind === "not_found") {
+    return (
+      <p className="py-6 text-center text-[13px] text-red-ink">Konten tidak ditemukan.</p>
+    );
+  }
+
+  return <LoadError title="Detail konten gagal dimuat" onRetry={onRetry} />;
 }
 
 /**
  * The Content Detail panel: one view of a content item's journey and its next step,
- * opened from every touchpoint with the same content (PBI 6). The step's actions are
+ * opened from every touchpoint with the same content (PBI 6). It is a sheet docked to the
+ * right: the header names the content, its type, status, tags and deadline; under it the
+ * brief, the step it is waiting on, and the journey as a timeline. The step's actions are
  * the commands `actionsFor` chose for the caller's role; an `actions` slot replaces
  * them entirely when the touchpoint brings its own.
  *
@@ -233,6 +300,7 @@ export function ContentDetailPanel({
   showClose = true,
   load = fetchContentDetail,
   ports = {},
+  now,
 }: Readonly<{
   contentId: string;
   role: Role;
@@ -246,6 +314,8 @@ export function ContentDetailPanel({
   /** Where the detail comes from; the API by default, a stub in tests. */
   load?: ContentDetailLoader;
   ports?: PanelActionPorts;
+  /** The moment "today" is read from; the current one by default, a fixed one in tests. */
+  now?: Date;
 }>) {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
@@ -258,28 +328,42 @@ export function ContentDetailPanel({
   const [cancelled, setCancelled] = useState(false);
   const countId = useId();
   const busy = pending !== null;
-  const today = jakartaToday();
+  const [attempt, setAttempt] = useState(0);
+
+  // Read through a ref, so a parent that passes a fresh loader function on every render does
+  // not make the effect below fetch again each time.
+  const loader = useRef(load);
+  useEffect(() => {
+    loader.current = load;
+  }, [load]);
 
   // No reset on contentId here: the caller keys this component by content, so a
   // different item is a fresh mount starting from "loading".
   useEffect(() => {
-    let cancelledLoad = false;
+    // Closing the panel or retrying cancels the request nobody is waiting for any more.
+    const controller = new AbortController();
 
-    load(contentId, role)
+    loader
+      .current(contentId, role, controller.signal)
       .then((detail) => {
-        if (!cancelledLoad) setState({ kind: "loaded", detail });
+        if (!controller.signal.aborted) setState({ kind: "loaded", detail });
       })
       .catch((caught: unknown) => {
-        if (cancelledLoad) return;
+        if (controller.signal.aborted) return;
         const notFound =
           caught instanceof ContentDetailError && caught.status === 404;
         setState({ kind: notFound ? "not_found" : "failed" });
       });
 
     return () => {
-      cancelledLoad = true;
+      controller.abort();
     };
-  }, [contentId, load, role]);
+  }, [contentId, role, attempt]);
+
+  function retry() {
+    setState({ kind: "loading" });
+    setAttempt((count) => count + 1);
+  }
 
   const loaded = state.kind === "loaded" ? state.detail : null;
 
@@ -335,6 +419,9 @@ export function ContentDetailPanel({
     <Modal
       title={(loaded && loaded.name) || DEFAULT_TITLE}
       onClose={onClose}
+      placement="side"
+      eyebrow={(loaded && loaded.creatorName) || undefined}
+      meta={loaded ? <HeaderMeta detail={loaded} now={now} /> : undefined}
       footer={
         <>
           {formOpen ? null : actions}
@@ -372,19 +459,14 @@ export function ContentDetailPanel({
       }
     >
       {loaded ? (
-        <>
-          <DetailBody detail={loaded} today={today} />
+        <div className="flex flex-col gap-5">
+          {/* Evergreen content has no brief. */}
+          {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
 
-          <div className="rounded-(--radius-control) border border-rule bg-surface-2 p-3.5">
-            <p className="text-[12.5px] font-semibold">
-              {loaded.waitingOn === null
-                ? "Selesai"
-                : WAITING_LABELS[loaded.waitingOn]}
-            </p>
-            <p className="mt-1 text-[13px] text-ink-2">
-              {STEP_TEXT[loaded.status]}
-            </p>
+          <section>
+            <h3 className={SECTION_LABEL}>Timeline</h3>
 
+            <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn}>
             {formOpen && kirim ? (
               <div className="mt-3 flex w-full flex-col gap-2">
                 {error ? (
@@ -435,14 +517,18 @@ export function ContentDetailPanel({
                 {error}
               </p>
             ) : null}
-          </div>
-        </>
+            </CurrentStep>
+
+            <Journey steps={describeJourney(loaded.events)} />
+          </section>
+        </div>
       ) : (
         // This branch only renders while `loaded` is null, so the state is one of the
         // three that StatusMessage handles; the union cannot narrow itself through the
         // const above.
         <StatusMessage
           state={state as Exclude<LoadState, { kind: "loaded" }>}
+          onRetry={retry}
         />
       )}
     </Modal>
