@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
@@ -264,7 +264,6 @@ export function ContentDetailPanel({
   // different item is a fresh mount starting from "loading".
   useEffect(() => {
     let cancelledLoad = false;
-    setState({ kind: "loading" });
 
     load(contentId, role)
       .then((detail) => {
@@ -436,7 +435,12 @@ export function ContentDetailPanel({
           </div>
         </>
       ) : (
-        <StatusMessage state={state} />
+        // This branch only renders while `loaded` is null, so the state is one of the
+        // three that StatusMessage handles; the union cannot narrow itself through the
+        // const above.
+        <StatusMessage
+          state={state as Exclude<LoadState, { kind: "loaded" }>}
+        />
       )}
     </Modal>
   );

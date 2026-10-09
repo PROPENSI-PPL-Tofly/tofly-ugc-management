@@ -30,6 +30,10 @@ const { fetchContentDetail } = vi.hoisted(() => ({
     fetchContentDetail: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("@/lib/content-detail", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@/lib/content-detail")>()),
     fetchContentDetail: (id: string, role: "admin" | "creator") =>

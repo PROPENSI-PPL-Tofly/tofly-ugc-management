@@ -204,6 +204,7 @@ export function ContentPlanClient({
                                     <th scope="col" className={TABLE_HEAD}>
                                         Aksi
                                     </th>
+                                </tr>
                                 </thead>
 
                                 <tbody>

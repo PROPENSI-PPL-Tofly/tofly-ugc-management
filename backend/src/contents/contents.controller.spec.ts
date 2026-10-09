@@ -38,10 +38,10 @@ describe('ContentsController', () => {
   });
 
   it('answers GET /contents/:id from the detail service', async () => {
-    const getDetail = vi.fn().mockResolvedValue({ id: body.contractId });
+    const id = '11111111-1111-1111-1111-111111111111';
+    const getDetail = vi.fn().mockResolvedValue({ id });
     const controller = new ContentsController({ create: vi.fn() }, { getDetail });
 
-    const id = '11111111-1111-1111-1111-111111111111';
     await expect(controller.getDetail(id)).resolves.toEqual({ id });
 
     expect(getDetail).toHaveBeenCalledWith(id, expect.any(Date));

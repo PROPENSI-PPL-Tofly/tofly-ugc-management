@@ -52,18 +52,17 @@ function ActionCell({
   onAction?: (task: MyTask, action: MyTaskAction) => void;
   onDetail?: (task: MyTask) => void;
 }>) {
-  const detailButton = (
+  const detailButton = onDetail ? (
     <Button
       key="detail"
       variant="ghost"
       className="whitespace-nowrap"
       aria-label={`Detail: ${task.name}`}
-      disabled={!onDetail}
-      onClick={() => onDetail?.(task)}
+      onClick={() => onDetail(task)}
     >
       Detail
     </Button>
-  );
+  ) : null;
 
   if (task.actions.length === 0) {
     return (

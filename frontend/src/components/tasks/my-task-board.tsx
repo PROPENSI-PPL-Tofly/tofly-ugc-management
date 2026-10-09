@@ -43,10 +43,14 @@ export function MyTaskBoard({
   const focusListOnClose = useRef(false);
 
   // A notification (or a bookmarked link) opens the panel straight from the URL; read on
-  // the client because the search string is only reliable there after hydration.
+  // the client because the search string only carries the real address after hydration.
+  // One read on mount, then the URL is never consulted again — this is the effect doing
+  // exactly what the rule asks of an effect (syncing with an external system), not a
+  // cascading render.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("content");
     if (id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot URL read on mount
       setDetailContentId(id);
     }
   }, []);

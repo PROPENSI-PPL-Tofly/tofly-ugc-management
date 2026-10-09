@@ -259,7 +259,7 @@ describe("CreatorDetailModal", () => {
   });
 
   // UAT: the rows did not line up; each value now sits in its own column under a header.
-  it("lays the content history out in columns: content, deadline, status", async () => {
+  it("lays the content history out in columns: content, deadline, status, aksi", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(creatorDetail)));
 
     open();
@@ -268,7 +268,7 @@ describe("CreatorDetailModal", () => {
     const headers = within(table)
       .getAllByRole("columnheader")
       .map((header) => header.textContent);
-    expect(headers).toEqual(["Konten", "Deadline", "Status"]);
+    expect(headers).toEqual(["Konten", "Deadline", "Status", "Aksi"]);
 
     const firstRow = within(table).getAllByRole("row")[1];
     const cells = within(firstRow).getAllByRole("cell");
