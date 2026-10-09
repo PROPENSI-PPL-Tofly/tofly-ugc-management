@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { vi } from "vitest";
+import type { ContentTag } from "@/lib/creators";
 import { CreatorDetailModal } from "./creator-detail-modal";
 
 const { push } = vi.hoisted(() => ({
@@ -65,7 +66,7 @@ const creatorDetail = {
       deadline: "2026-09-30",
       status: "link_submitted",
       outcome: "on_time" as const,
-      tags: [] as string[],
+      tags: [] as ContentTag[],
       videoLink: "https://example.com/video",
     },
   ],
