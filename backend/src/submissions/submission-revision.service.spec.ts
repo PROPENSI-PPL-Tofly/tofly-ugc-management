@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { SubmissionRevisionService } from './submission-revision.service.js';
 
 describe('SubmissionRevisionService', () => {
@@ -61,6 +62,55 @@ describe('SubmissionRevisionService', () => {
     );
 
     expect(saveRevision).not.toHaveBeenCalled();
+  });
+
+  describe('an unknown submission', () => {
+    const UNKNOWN_ID = '550e8400-e29b-41d4-a716-446655440000';
+
+    async function reviseUnknown() {
+      const saveRevision = vi.fn();
+      const service = new SubmissionRevisionService({
+        findById: vi.fn().mockResolvedValue(null),
+        saveRevision,
+      });
+
+      const error: unknown = await service
+        .revise(UNKNOWN_ID, { revisionNotes: 'Mohon perbaiki bagian pembuka.' })
+        .catch((caught: unknown) => caught);
+
+      return { error, saveRevision };
+    }
+
+    it('answers 404', async () => {
+      const { error } = await reviseUnknown();
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).getStatus()).toBe(404);
+    });
+
+    it('carries the SUBMISSION_NOT_FOUND code, as approve does', async () => {
+      const { error } = await reviseUnknown();
+
+      expect((error as NotFoundException).getResponse()).toHaveProperty(
+        'code',
+        'SUBMISSION_NOT_FOUND',
+      );
+    });
+
+    it('uses the same wording as approve', async () => {
+      const { error } = await reviseUnknown();
+
+      expect((error as NotFoundException).getResponse()).toEqual({
+        code: 'SUBMISSION_NOT_FOUND',
+        message: 'Draft tidak ditemukan',
+      });
+    });
+
+    it('saves nothing', async () => {
+      const { saveRevision } = await reviseUnknown();
+
+      expect(saveRevision).not.toHaveBeenCalled();
+    });
   });
 
   it('rejects a submission that is not in draft_review status', async () => {
