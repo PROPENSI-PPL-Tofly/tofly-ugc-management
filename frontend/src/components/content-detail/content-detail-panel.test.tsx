@@ -159,17 +159,37 @@ describe("ContentDetailPanel", () => {
       expect(screen.queryByTestId("modal-eyebrow")).not.toBeInTheDocument();
     });
 
-    it("shows the content type, the status with its colour, and the deadline", async () => {
+    it("shows the content type, the status and the deadline", async () => {
       renderPanel();
 
       const meta = await screen.findByTestId("modal-meta");
       expect(within(meta).getByText("Specific")).toBeInTheDocument();
       expect(within(meta).getByText("Draft Menunggu Review")).toBeInTheDocument();
-      // Same colour as the tables: a draft waiting on the admin is brand blue.
-      expect(
-        within(meta).getByText("Draft Menunggu Review").querySelector(".bg-accent"),
-      ).not.toBeNull();
       expect(meta).toHaveTextContent("Deadline 12 Okt 2026");
+    });
+
+    it("draws the type as a quiet badge and the status as a badge in its own colour", async () => {
+      renderPanel();
+
+      const meta = await screen.findByTestId("modal-meta");
+      expect(within(meta).getByText("Specific")).toHaveClass("rounded-full", "bg-surface-2");
+      // Same hue as the tables: a draft waiting on the admin is brand blue.
+      expect(within(meta).getByText("Draft Menunggu Review")).toHaveClass(
+        "rounded-full",
+        "bg-accent-wash",
+        "text-accent-deep",
+      );
+    });
+
+    it.each([
+      ["draft_revision", "Draft Perlu Revisi", "bg-amber-wash"],
+      ["draft_approved", "Draft Approved", "bg-green-wash"],
+      ["scheduled", "Scheduled", "bg-surface-2"],
+    ] as const)("colours the %s badge like the rest of the app", async (status, label, wash) => {
+      renderWith({ status });
+
+      const meta = await screen.findByTestId("modal-meta");
+      expect(within(meta).getByText(label)).toHaveClass(wash);
     });
 
     it.each([
@@ -181,6 +201,41 @@ describe("ContentDetailPanel", () => {
       renderWith({ deadline });
 
       expect(await screen.findByTestId("modal-meta")).toHaveTextContent(due);
+    });
+
+    it.each([
+      ["2026-10-07", "Lewat 2 hari", "text-red-ink"],
+      ["2026-10-08", "Lewat 1 hari", "text-red-ink"],
+      ["2026-10-09", "Hari ini", "text-amber-ink"],
+      ["2026-10-10", "H-1", "text-amber-ink"],
+    ])("warns about a %s deadline: %s in %s", async (deadline, due, tone) => {
+      renderWith({ deadline });
+
+      const meta = await screen.findByTestId("modal-meta");
+      expect(within(meta).getByText(due)).toHaveClass(tone);
+    });
+
+    it("leaves a deadline two or more days away uncoloured", async () => {
+      renderWith({ deadline: "2026-10-11" });
+
+      const due = within(await screen.findByTestId("modal-meta")).getByText("H-2");
+      expect(due).not.toHaveClass("text-amber-ink");
+      expect(due).not.toHaveClass("text-red-ink");
+    });
+
+    it("leaves a deadline it cannot read uncoloured, with a dash", async () => {
+      renderWith({ deadline: "segera" });
+
+      const due = within(await screen.findByTestId("modal-meta")).getByTestId("deadline-due");
+      expect(due).toHaveTextContent("—");
+      expect(due.className).not.toMatch(/text-(red|amber|green)-ink/);
+    });
+
+    it("turns Selesai green once the video link is in", async () => {
+      renderWith({ status: "link_submitted", deadline: "2026-10-01", currentStep: null });
+
+      const meta = await screen.findByTestId("modal-meta");
+      expect(within(meta).getByText("Selesai")).toHaveClass("text-green-ink");
     });
 
     it("reads Selesai once the video link is in, however late the deadline", async () => {
@@ -304,6 +359,25 @@ describe("ContentDetailPanel", () => {
       expect(dots[5]).toContain("bg-accent");
     });
 
+    it("rings each dot in its own colour, so it reads as a marker on the line", async () => {
+      renderWith({
+        events: [
+          event({ type: "draft_approved", title: "Draft di-approve" }),
+          event({ type: "revision_requested", title: "Revisi ke-1 diminta" }),
+          event({ type: "draft_submitted", title: "Draft v1 dikirim" }),
+        ],
+        currentStep: null,
+      });
+
+      const dots = (await timelineItems()).map(
+        (item) => item.querySelector("[data-timeline-dot]")?.className ?? "",
+      );
+
+      expect(dots[0]).toContain("ring-green");
+      expect(dots[1]).toContain("ring-red");
+      expect(dots[2]).toContain("ring-amber");
+    });
+
     it("opens a draft in a new tab, labelled with its version", async () => {
       renderPanel();
 
@@ -385,6 +459,25 @@ describe("ContentDetailPanel", () => {
       expect(within(step).getByText(label)).toBeInTheDocument();
       expect(within(step).getByText("Kirim draft")).toBeInTheDocument();
     });
+
+    it.each([
+      ["admin", "Menunggu Admin", ["border-accent", "bg-accent-wash"], "text-accent-deep", "ring-accent"],
+      ["creator", "Menunggu kreator", ["border-amber", "bg-amber-wash"], "text-amber-ink", "ring-amber"],
+    ] as const)(
+      "tints the step by who it waits on: %s",
+      async (waitingFor, label, card, text, ring) => {
+        renderWith({ currentStep: { waitingFor, title: "Kirim draft" } });
+
+        const [step] = await timelineItems();
+        const who = within(step).getByText(label);
+
+        expect(who).toHaveClass(text);
+        expect(who.parentElement).toHaveClass(...card);
+        // A hollow dot: the step has not happened yet.
+        const dot = step.querySelector("[data-timeline-dot]");
+        expect(dot).toHaveClass("bg-surface", ring);
+      },
+    );
 
     it("is the only item while nothing has happened yet", async () => {
       renderWith({ currentStep: { waitingFor: "creator", title: "Kirim draft" }, events: [] });
