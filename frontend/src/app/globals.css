@@ -51,6 +51,16 @@
       transform: translateY(8px);
     }
   }
+
+  /* Side sheet entrance (the Content Detail panel): a short slide in from the right edge. */
+  --animate-sheet-in: sheet-in 200ms var(--ease-out);
+
+  @keyframes sheet-in {
+    from {
+      opacity: 0.6;
+      transform: translateX(24px);
+    }
+  }
 }
 
 /* Set by next/font on <html>, so it stays outside the static token block. */
