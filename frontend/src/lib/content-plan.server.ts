@@ -2,16 +2,21 @@
 // reads the browser's session through next/headers, which client components cannot import, so
 // it lives apart from the shared content-plan module.
 //
-// The endpoint is the 5.1 contract (GET /contents). Until that subtask lands the fetch fails
-// and the page offers a retry; the shape it answers with is the one this app expects.
+// The endpoint is the 5.1 contract (GET /contents). Its query and its answer are spelled in
+// the API's own words, so both pass through content-list-api, the one module that knows them.
 
 import { fetchCreators } from "./creators.server";
 import {
-  buildContentPlanQuery,
-  type ContentPlanCreatorOption,
-  type ContentPlanParams,
-  type ContentPlanResponse,
+  toContentListQuery,
+  toContentPlanResponse,
+  type RawContentList,
+} from "./content-list-api";
+import type {
+  ContentPlanCreatorOption,
+  ContentPlanParams,
+  ContentPlanResponse,
 } from "./content-plan";
+import { jakartaDay } from "./format";
 import { appSessionCookieHeader } from "./session-cookie";
 
 /** How far the creator filter looks for names: twenty pages of ten, never an endless walk. */
@@ -41,9 +46,8 @@ export async function fetchContentPlan(
     throw new Error("BACKEND_URL is not configured");
   }
 
-  const query = new URLSearchParams(buildContentPlanQuery(state));
-  // The API counts on a page number whichever page is asked for, page one included.
-  query.set("page", String(state.page));
+  // Named periods ("30 hari ke depan") are counted from today where the admins work.
+  const query = toContentListQuery(state, jakartaDay());
 
   // Admin-only: the request carries the browser's session, and only it.
   const cookie = await appSessionCookieHeader();
@@ -56,7 +60,7 @@ export async function fetchContentPlan(
     throw new Error(`Loading the content plan failed with HTTP ${response.status}`);
   }
 
-  return (await response.json()) as ContentPlanResponse;
+  return toContentPlanResponse((await response.json()) as RawContentList);
 }
 
 /**
