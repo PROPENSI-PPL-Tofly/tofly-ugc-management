@@ -8,12 +8,22 @@ const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
 const CREATOR_ID = '0b5e2c9a-6f3d-4e1b-8a7c-9d2f4e6a8b1c';
 const SUBMISSION_ID = '3f8a1c2d-4b5e-4f6a-9b7c-1d2e3f4a5b6c';
 const SUBMITTED_AT = new Date('2026-10-02T03:04:05.000Z');
-const INPUT = { link: 'https://drive.google.com/d/1', notes: 'Cek menit 0:10' };
+const INPUT = {
+  link: 'https://drive.google.com/d/1',
+  notes: 'Cek menit 0:10',
+};
 
-function stub(options: {
-  content?: { id: string; status: string } | null;
-  updated?: number;
-}) {
+function stub(
+  options: {
+    content?: { id: string; status: string } | null;
+    updated?: number;
+    creator?: {
+      first_name: string;
+      middle_name: string | null;
+      last_name: string | null;
+    } | null;
+  } = {},
+) {
   const transaction = {
     contents: {
       findFirst: vi
@@ -26,29 +36,41 @@ function stub(options: {
       updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
     },
     submissions: {
-      findMany: vi.fn().mockResolvedValue([
-        { id: 'prior-submission-1' },
-        { id: 'prior-submission-2' },
-      ]),
+      findMany: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'prior-submission-1' },
+          { id: 'prior-submission-2' },
+        ]),
       create: vi
         .fn()
         .mockResolvedValue({ id: SUBMISSION_ID, created_at: SUBMITTED_AT }),
     },
     creators: {
-      findUnique: vi.fn().mockResolvedValue({
-        first_name: 'Dina',
-        middle_name: 'Ayu',
-        last_name: 'Putri',
-      }),
+      findUnique: vi.fn().mockResolvedValue(
+        options.creator === undefined
+          ? {
+              first_name: 'Dina',
+              middle_name: 'Ayu',
+              last_name: 'Putri',
+            }
+          : options.creator,
+      ),
     },
     content_events: {
       create: vi.fn().mockResolvedValue({ id: 'event-id' }),
     },
   };
+
   const client = {
     $transaction: vi.fn(async (work) => work(transaction)),
   } satisfies DraftSubmissionClient;
-  return { client, transaction, service: new DraftSubmissionService(client) };
+
+  return {
+    client,
+    transaction,
+    service: new DraftSubmissionService(client),
+  };
 }
 
 async function failure(promise: Promise<unknown>): Promise<unknown> {
@@ -119,12 +141,39 @@ describe('DraftSubmissionService.submit', () => {
         event_data: { version: 3, link: INPUT.link },
       },
     });
-    expect(transaction.contents.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(
+      transaction.contents.updateMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(
       transaction.content_events.create.mock.invocationCallOrder[0],
     );
-    expect(transaction.submissions.create.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(
+      transaction.submissions.create.mock.invocationCallOrder[0],
+    ).toBeLessThan(
       transaction.content_events.create.mock.invocationCallOrder[0],
     );
+  });
+
+  it('uses only the available creator name parts when optional names are absent', async () => {
+    const { transaction, service } = stub({
+      creator: {
+        first_name: 'Dina',
+        middle_name: null,
+        last_name: null,
+      },
+    });
+
+    await service.submit(CONTENT_ID, CREATOR_ID, INPUT);
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Draft Submitted',
+        actor_name: 'Dina',
+        actor_role: 'creator',
+        occurred_at: SUBMITTED_AT,
+        event_data: { version: 3, link: INPUT.link },
+      },
+    });
   });
 
   it('hands in a resubmit: a content under revision becomes draft_revised', async () => {
@@ -161,6 +210,26 @@ describe('DraftSubmissionService.submit', () => {
     });
     expect(transaction.contents.updateMany).not.toHaveBeenCalled();
     expect(transaction.submissions.create).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 when the creator profile is missing and saves no submission', async () => {
+    const { transaction, service } = stub({ creator: null });
+
+    const error = await failure(service.submit(CONTENT_ID, CREATOR_ID, INPUT));
+
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toEqual({
+      code: 'CREATOR_NOT_FOUND',
+      message: 'Kreator tidak ditemukan',
+    });
+    expect(transaction.contents.updateMany).toHaveBeenCalled();
+    expect(transaction.submissions.findMany).toHaveBeenCalled();
+    expect(transaction.creators.findUnique).toHaveBeenCalledWith({
+      where: { id: CREATOR_ID },
+      select: { first_name: true, middle_name: true, last_name: true },
+    });
+    expect(transaction.submissions.create).not.toHaveBeenCalled();
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
   it.each([
