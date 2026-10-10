@@ -1,4 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface ContentEventRecord {
@@ -55,6 +59,106 @@ export interface ContentEventHistoryClient {
   };
 }
 
+const CONTENT_EVENT_TYPES: readonly ContentEventType[] = [
+  'Scheduled',
+  'Draft Submitted',
+  'Revision Requested',
+  'Draft Approved',
+  'Link Submitted',
+  'Creator Comment',
+];
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNonblankString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function invalidContentEvent(
+  errors: Record<string, string>,
+): UnprocessableEntityException {
+  return new UnprocessableEntityException({
+    message: 'Data event konten tidak valid',
+    errors,
+  });
+}
+
+function checkContentEventInput(input: unknown): ContentEventInput {
+  if (!isObject(input)) {
+    throw invalidContentEvent({ event: 'Harus berupa objek' });
+  }
+
+  const errors: Record<string, string> = {};
+  if (!isNonblankString(input.content_id)) {
+    errors.content_id = 'Wajib diisi';
+  }
+  if (!isNonblankString(input.actor_name)) {
+    errors.actor_name = 'Wajib diisi';
+  }
+  if (input.actor_role !== 'admin' && input.actor_role !== 'creator') {
+    errors.actor_role = 'Harus berupa admin atau creator';
+  }
+  if (
+    !(input.occurred_at instanceof Date) ||
+    !Number.isFinite(input.occurred_at.getTime())
+  ) {
+    errors.occurred_at = 'Harus berupa timestamp yang valid';
+  }
+
+  const validEventType = CONTENT_EVENT_TYPES.includes(
+    input.event_type as ContentEventType,
+  );
+  if (!validEventType) {
+    errors.event_type = 'Jenis event tidak didukung';
+  }
+
+  const eventData = input.event_data;
+  if (!isObject(eventData)) {
+    errors.event_data = 'Harus berupa objek';
+  } else if (validEventType) {
+    switch (input.event_type as ContentEventType) {
+      case 'Draft Submitted':
+        if (
+          typeof eventData.version !== 'number' ||
+          !Number.isInteger(eventData.version) ||
+          eventData.version <= 0
+        ) {
+          errors.version = 'Harus berupa bilangan bulat positif';
+        }
+        if (!isNonblankString(eventData.link)) {
+          errors.link = 'Wajib diisi';
+        }
+        break;
+      case 'Revision Requested':
+        if (!isNonblankString(eventData.revision_note)) {
+          errors.revision_note = 'Wajib diisi';
+        }
+        break;
+      case 'Link Submitted':
+        if (!isNonblankString(eventData.link)) {
+          errors.link = 'Wajib diisi';
+        }
+        break;
+      case 'Creator Comment':
+        if (!isNonblankString(eventData.comment)) {
+          errors.comment = 'Wajib diisi';
+        }
+        break;
+      case 'Scheduled':
+      case 'Draft Approved':
+        break;
+    }
+  }
+
+  if (Object.keys(errors).length > 0) {
+    throw invalidContentEvent(errors);
+  }
+
+  return input as ContentEventInput;
+}
+
 @Injectable()
 export class ContentEventHistoryService {
   constructor(
@@ -69,7 +173,8 @@ export class ContentEventHistoryService {
     });
   }
 
-  record(input: ContentEventInput): Promise<void> {
-    return this.prisma.content_events.create({ data: input });
+  async record(input: ContentEventInput): Promise<void> {
+    const data = checkContentEventInput(input);
+    await this.prisma.content_events.create({ data });
   }
 }
