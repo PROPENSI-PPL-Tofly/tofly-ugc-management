@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
+import {
+  ContentDetailPanel,
+  DECISION_CONFIRMATIONS,
+} from "@/components/content-detail/content-detail-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
+import { Toast } from "@/components/ui/toast";
 import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import type { ContentStatus } from "@/lib/creators";
 import { formatDate } from "@/lib/format";
@@ -27,6 +31,8 @@ export function SubmissionQueueTable({
   filtered?: boolean;
 }) {
   const [openContentId, setOpenContentId] = useState<string | null>(null);
+  // The id is the Toast key: a second decision remounts it, restarting its countdown.
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
 
   if (items.length === 0) {
     return filtered ? (
@@ -104,8 +110,18 @@ export function SubmissionQueueTable({
           contentId={openContentId}
           role="admin"
           onClose={() => setOpenContentId(null)}
-          onDecided={() => setOpenContentId(null)}
+          onDecided={(decision) => {
+            setOpenContentId(null);
+            setToast((last) => ({
+              id: (last?.id ?? 0) + 1,
+              message: DECISION_CONFIRMATIONS[decision],
+            }));
+          }}
         />
+      ) : null}
+
+      {toast ? (
+        <Toast key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />
       ) : null}
     </>
   );

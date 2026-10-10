@@ -9,7 +9,10 @@ import { Panel, PanelHead } from "@/components/ui/panel";
 import { StatusDot } from "@/components/ui/pill";
 import { Toast } from "@/components/ui/toast";
 import { AddContentModal } from "@/components/contents/add-content-modal";
-import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
+import {
+    ContentDetailPanel,
+    DECISION_CONFIRMATIONS,
+} from "@/components/content-detail/content-detail-panel";
 import {
     fetchCreatorDetail,
     type CreatorDetail,
@@ -278,9 +281,13 @@ export function ContentPlanClient({
                         onClose={() => setOpenContentId(null)}
                         // A decision closes the panel and re-fetches the schedule, so the
                         // decided row's status updates without a full page reload (#73).
-                        onDecided={() => {
+                        onDecided={(decision) => {
                             setOpenContentId(null);
                             setRefreshKey((current) => current + 1);
+                            setToast((current) => ({
+                                id: (current?.id ?? 0) + 1,
+                                message: DECISION_CONFIRMATIONS[decision],
+                            }));
                         }}
                     />
                 ) : null}

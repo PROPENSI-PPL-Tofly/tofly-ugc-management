@@ -39,6 +39,12 @@ import type { Role } from "@/lib/session";
 /** The API's limit on a revision note (backend revise-submission.ts). */
 export const MAX_REVISION_NOTE_LENGTH = 1000;
 
+/** How each decision is confirmed once the panel has closed; the touchpoint shows it. */
+export const DECISION_CONFIRMATIONS: Record<"approve" | "revise", string> = {
+  approve: "Draft di-approve. Kreator bisa kirim link video.",
+  revise: "Permintaan revisi terkirim ke kreator.",
+};
+
 /** Shown in the header until there is a content name to show instead. */
 const DEFAULT_TITLE = "Detail Konten";
 
