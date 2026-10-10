@@ -1,5 +1,6 @@
 import {
   ContentCreationService,
+  type ContentsClient,
   type ContentsTransaction,
 } from './contents.service.js';
 
@@ -89,6 +90,67 @@ describe('ContentCreationService', () => {
         status: 'scheduled',
       },
     });
+  });
+
+  it('records a Scheduled event in the content transaction', async () => {
+    const input = {
+      contractId: CONTRACT_ID,
+      type: 'specific' as const,
+      deadline: '2026-10-10',
+      name: 'Product launch',
+      brief: 'Introduce the new product.',
+    };
+    const transaction = {
+      contracts: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: CONTRACT_ID,
+          contents: [],
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+          },
+          content_quota: 2,
+          start_date: new Date('2026-09-01T00:00:00.000Z'),
+          end_date: new Date('2026-12-31T00:00:00.000Z'),
+        }),
+      },
+      contents: {
+        create: vi.fn().mockResolvedValue({
+          id: CONTENT_ID,
+          contract_id: CONTRACT_ID,
+          type: 'specific',
+          name: input.name,
+          brief: input.brief,
+          deadline: new Date('2026-10-10T00:00:00.000Z'),
+          status: 'scheduled',
+        }),
+      },
+      content_events: {
+        create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (work) =>
+        work({ ...transaction, $queryRaw: vi.fn().mockResolvedValue([]) }),
+      ),
+    } satisfies ContentsClient;
+    const service = new ContentCreationService(prisma, TEST_SCHEDULING);
+
+    await service.create(input);
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        content_id: CONTENT_ID,
+        event_type: 'Scheduled',
+        actor_name: expect.stringMatching(/^[^@\s]+@[^@\s]+$/),
+        actor_role: 'admin',
+        occurred_at: expect.any(Date),
+      }),
+    });
+    expect(transaction.contents.create.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
   });
 
   it('rejects content creation when the contract does not exist', async () => {
