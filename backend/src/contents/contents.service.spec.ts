@@ -5,7 +5,6 @@ import {
 } from './contents.service.js';
 
 const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
-const ADMIN_EMAIL = 'admin@example.test';
 
 type ContentsFixture = Omit<
   ContentsTransaction,

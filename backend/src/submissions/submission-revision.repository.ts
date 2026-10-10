@@ -1,4 +1,5 @@
 import { REVIEWABLE_STATUSES } from './draft-review.js';
+import { adminActor, type AdminActor } from '../contents/content-event-actors.js';
 import { unauthenticated } from '../auth/creator-request.js';
 import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import type {
@@ -72,17 +73,15 @@ interface RevisionTransaction {
   users?: {
     findUnique(args: {
       where: { id: string };
-      select: { email: true };
-    }): Promise<{ email: string } | null>;
+      select: { id: true };
+    }): Promise<{ id: string } | null>;
   };
 
   content_events?: {
     create(args: {
-      data: {
+      data: AdminActor & {
         content_id: string;
         event_type: 'Revision Requested';
-        actor_name: string;
-        actor_role: 'admin';
         occurred_at: Date;
         event_data: { revision_note: string };
       };
@@ -175,7 +174,7 @@ export class SubmissionRevisionRepository implements RevisionStore {
 
         const admin = await transaction.users.findUnique({
           where: { id: adminUserId },
-          select: { email: true },
+          select: { id: true },
         });
         if (!admin) throw unauthenticated();
 
@@ -183,8 +182,7 @@ export class SubmissionRevisionRepository implements RevisionStore {
           data: {
             content_id: submission.content_id,
             event_type: 'Revision Requested',
-            actor_name: admin.email,
-            actor_role: 'admin',
+            ...adminActor(admin.id),
             occurred_at: new Date(),
             event_data: { revision_note: revisionNotes },
           },

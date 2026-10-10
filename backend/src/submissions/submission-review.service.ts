@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { adminActor, type AdminActor } from '../contents/content-event-actors.js';
 import { unauthenticated } from '../auth/creator-request.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { checkReviewable, REVIEWABLE_STATUSES } from './draft-review.js';
@@ -56,16 +57,14 @@ interface SubmissionReviewTransaction {
   users: {
     findUnique: (args: {
       where: { id: string };
-      select: { email: true };
-    }) => Promise<{ email: string } | null>;
+      select: { id: true };
+    }) => Promise<{ id: string } | null>;
   };
   content_events: {
     create: (args: {
-      data: {
+      data: AdminActor & {
         content_id: string;
         event_type: 'Draft Approved';
-        actor_name: string;
-        actor_role: 'admin';
         occurred_at: Date;
         event_data: Record<string, never>;
       };
@@ -134,7 +133,7 @@ export class SubmissionReviewService {
 
       const admin = await transaction.users.findUnique({
         where: { id: adminUserId },
-        select: { email: true },
+        select: { id: true },
       });
       if (!admin) throw unauthenticated();
 
@@ -142,8 +141,7 @@ export class SubmissionReviewService {
         data: {
           content_id: submission.content_id,
           event_type: 'Draft Approved',
-          actor_name: admin.email,
-          actor_role: 'admin',
+          ...adminActor(admin.id),
           occurred_at: new Date(),
           event_data: {},
         },

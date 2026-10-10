@@ -5,6 +5,7 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { adminActor, type AdminActor } from './content-event-actors.js';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { evergreenName, jakartaDay } from '../creators/evergreen.js';
@@ -70,8 +71,8 @@ export interface ContentsTransaction {
   users: {
     findUnique: (args: {
       where: { id: string };
-      select: { email: true };
-    }) => Promise<{ email: string } | null>;
+      select: { id: true };
+    }) => Promise<{ id: string } | null>;
   };
 
   contracts: {
@@ -99,11 +100,9 @@ export interface ContentsTransaction {
 
   content_events: {
     create: (args: {
-      data: {
+      data: AdminActor & {
         content_id: string;
         event_type: 'Scheduled';
-        actor_name: string;
-        actor_role: 'admin';
         occurred_at: Date;
         event_data: Record<string, never>;
       };
@@ -187,7 +186,7 @@ export class ContentCreationService {
 
         const admin = await transaction.users.findUnique({
           where: { id: adminUserId },
-          select: { email: true },
+          select: { id: true },
         });
         if (!admin) {
           throw new NotFoundException({
@@ -200,8 +199,7 @@ export class ContentCreationService {
           data: {
             content_id: saved.id,
             event_type: 'Scheduled',
-            actor_name: admin.email,
-            actor_role: 'admin',
+            ...adminActor(admin.id),
             occurred_at: new Date(),
             event_data: {},
           },

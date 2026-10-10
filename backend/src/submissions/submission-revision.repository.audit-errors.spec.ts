@@ -46,7 +46,7 @@ function createHarness(options?: {
         .mockResolvedValue(
           options?.adminFound === false
             ? null
-            : { email: 'admin@example.test' },
+            : { id: '11111111-1111-4111-8111-111111111111' },
         ),
     };
   }
@@ -134,7 +134,7 @@ describe('SubmissionRevisionRepository audit error paths', () => {
 
     expect(transaction.users?.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER_ID },
-      select: { email: true },
+      select: { id: true },
     });
 
     expect(transaction.content_events?.create).not.toHaveBeenCalled();
