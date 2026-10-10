@@ -17,6 +17,7 @@ function row() {
     status: 'scheduled' as const,
     video_link: null,
     video_submitted_at: null,
+    approval_bypassed: false,
     created_at: new Date('2026-09-01T03:00:00.000Z'),
     updated_at: new Date('2026-09-01T03:00:00.000Z'),
     contracts: {
@@ -45,6 +46,8 @@ describe('ContentDetailService', () => {
       select: expect.objectContaining({
         id: true,
         status: true,
+        video_submitted_at: true,
+        approval_bypassed: true,
         contracts: expect.anything(),
         submissions: expect.anything(),
       }),
@@ -54,8 +57,21 @@ describe('ContentDetailService', () => {
       creatorName: 'Rangga Pratama',
       deadline: '2026-09-30',
       waitingOn: 'creator',
+      tags: [],
       creatorActions: ['submit_draft'],
     });
+  });
+
+  it('judges the tags at the moment of the read', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+
+    const detail = await service(prisma).getDetail(
+      '11111111-1111-1111-1111-111111111111',
+      new Date('2026-10-05T05:00:00.000Z'),
+    );
+
+    expect(detail.tags).toEqual(['overdue']);
   });
 
   it('scopes a creator read to their own contract', async () => {

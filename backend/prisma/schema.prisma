@@ -26,6 +26,7 @@ model contents {
   engagement         Decimal?         @db.Decimal(5, 2)
   created_at         DateTime         @default(now()) @db.Timestamptz(6)
   updated_at         DateTime         @default(now()) @db.Timestamptz(6)
+  approval_bypassed  Boolean          @default(false)
   contracts          contracts        @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   submissions        submissions[]
 

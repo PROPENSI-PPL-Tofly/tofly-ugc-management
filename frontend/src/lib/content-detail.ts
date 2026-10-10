@@ -7,7 +7,7 @@
 
 import { apiFetch } from "./api-client";
 import type { ContentType } from "./contents";
-import type { ContentStatus } from "./creators";
+import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
 import type { MyTaskAction } from "./my-tasks";
 
@@ -37,7 +37,8 @@ export interface RawContentDetail {
   deadline: string;
   status: ContentStatus;
   creatorName: string;
-  tags: { overdue: boolean; lateSubmission: boolean; approvalBypassed: boolean };
+  /** Late, overdue or approval bypassed, in the backend's order; empty when nothing is flagged. */
+  tags: ContentTag[];
   waitingOn: "admin" | "creator" | null;
   latestSubmissionId: string | null;
   creatorActions: MyTaskAction[];

@@ -2,12 +2,13 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
-import { Pill, StatusDot } from "@/components/ui/pill";
+import { StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
@@ -138,9 +139,7 @@ function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Dat
 
       <StatusDot tone={CONTENT_STATUS_TONES[detail.status] ?? "neutral"}>{statusLabel}</StatusDot>
 
-      {detail.tags.overdue ? <Pill tone="red">Overdue</Pill> : null}
-      {detail.tags.lateSubmission ? <Pill tone="red">Late Submission</Pill> : null}
-      {detail.tags.approvalBypassed ? <Pill tone="amber">Approval di-bypass</Pill> : null}
+      <ContentTags tags={detail.tags} />
 
       <span>
         Deadline <b className="font-semibold text-ink">{formatDate(detail.deadline)}</b> ·{" "}

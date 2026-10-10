@@ -18,7 +18,7 @@ function raw(overrides: Partial<RawContentDetail> = {}): RawContentDetail {
     deadline: "2026-09-30",
     status: "draft_review",
     creatorName: "Rangga Pratama",
-    tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+    tags: [],
     waitingOn: "admin",
     latestSubmissionId: "22222222-2222-2222-2222-222222222222",
     creatorActions: [],
@@ -57,18 +57,12 @@ describe("toContentDetail", () => {
     });
   });
 
-  it("keeps the tags beside the status, including the two 6.2 owns", () => {
+  it("keeps the tags as the API lists them, in its order", () => {
     const detail = toContentDetail(
-      raw({
-        tags: { overdue: true, lateSubmission: true, approvalBypassed: true },
-      }),
+      raw({ tags: ["late_submission", "overdue", "approval_bypassed"] }),
     );
 
-    expect(detail.tags).toEqual({
-      overdue: true,
-      lateSubmission: true,
-      approvalBypassed: true,
-    });
+    expect(detail.tags).toEqual(["late_submission", "overdue", "approval_bypassed"]);
   });
 
   it("keeps the endpoint's newest-first event order instead of re-sorting it", () => {

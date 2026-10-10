@@ -52,6 +52,7 @@ export interface VideoSubmissionTransaction {
         video_link: string;
         video_submitted_at: Date;
         platform: social_platform;
+        approval_bypassed: boolean;
       };
     }) => Promise<{ count: number }>;
   };
@@ -144,7 +145,8 @@ export class VideoSubmissionService implements VideoSubmitter {
       const submittedAt = new Date(`${today}T00:00:00.000Z`);
 
       // Conditional on the status that was read above: if another request changes the row
-      // first, this update affects zero rows and only one submission can succeed.
+      // first, this update affects zero rows and only one submission can succeed. The bypass
+      // flag comes from that same status, so it describes exactly the row the update matched.
       const { count } = await transaction.contents.updateMany({
         where: {
           id: contentId,
@@ -155,6 +157,7 @@ export class VideoSubmissionService implements VideoSubmitter {
           video_link: videoLink,
           video_submitted_at: submittedAt,
           platform,
+          approval_bypassed: content.status !== 'draft_approved',
         },
       });
 

@@ -1,5 +1,4 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { jakartaDay } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   toContentDetail,
@@ -20,6 +19,7 @@ const CONTENT_DETAIL_SELECT = {
   status: true,
   video_link: true,
   video_submitted_at: true,
+  approval_bypassed: true,
   created_at: true,
   updated_at: true,
   contracts: {
@@ -96,6 +96,6 @@ export class ContentDetailService implements ContentDetailReader {
       });
     }
 
-    return toContentDetail(row, jakartaDay(now));
+    return toContentDetail(row, now);
   }
 }

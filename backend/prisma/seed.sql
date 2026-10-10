@@ -207,4 +207,15 @@ join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contra
 join contents n on n.contract_id = k.id and n.name = s.name
 cross join lateral generate_series(1, s.draft_count) as g (n);
 
+-- Two links handed in inside the H-1 window without an approved draft: Nabila's Tofly COD late
+-- and with no draft at all, Salsa's Paket ke pelosok on time after a single unreviewed draft.
+update contents n set approval_bypassed = true
+from contracts k
+join creators c on c.id = k.creator_id
+join users u on u.id = c.user_id
+where n.contract_id = k.id
+  and n.status = 'link_submitted'
+  and (u.email, n.name) in (('nabila@example.com', 'Tofly COD'),
+                            ('salsa@example.com', 'Paket ke pelosok'));
+
 commit;

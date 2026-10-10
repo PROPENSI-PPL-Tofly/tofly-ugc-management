@@ -24,6 +24,9 @@ export type ContentStatus =
 export type Productivity = "good" | "watch" | "risk" | "no_data";
 export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
 
+/** Facts the backend flags on a content beside its status, always in this order. */
+export type ContentTag = "late_submission" | "overdue" | "approval_bypassed";
+
 // "all" plus every value the API accepts, spelled the way the API spells them: these go
 // straight into the query string, so a name that drifts from the backend is a filter that
 // silently stops filtering.
@@ -102,6 +105,7 @@ export interface CreatorDetail extends CreatorSummary {
     deadline: string;
     status: ContentStatus;
     outcome: ContentOutcome;
+    tags: ContentTag[];
     videoLink: string | null;
   }[];
 

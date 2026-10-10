@@ -1,10 +1,11 @@
 import type { content_status } from '@prisma/client';
-import { joinName } from '../creators/evergreen.js';
+import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
-import { COMMITTED_STATUSES } from './content-lifecycle.js';
+import { contentTags, type ContentTag } from './content-tags.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
-// step is waiting on, the tags the prototype draws beside the status, and the journey so far.
+// step is waiting on and the journey so far. The tags the prototype draws beside the status
+// are not decided here: they come from content-tags.ts, the same rules every other read uses.
 //
 // The journey is derived from what the schema stores today (contents + submissions). PBI 6.3
 // replaces this derivation with the append-only event history behind the same response shape;
@@ -37,6 +38,7 @@ export interface ContentDetailRow {
   status: content_status;
   video_link: string | null;
   video_submitted_at: Date | null;
+  approval_bypassed: boolean;
   created_at: Date;
   updated_at: Date;
   contracts: {
@@ -61,12 +63,6 @@ export interface ContentEvent {
   payload?: { version?: number; link?: string; note?: string };
 }
 
-export interface ContentTags {
-  overdue: boolean;
-  lateSubmission: boolean;
-  approvalBypassed: boolean;
-}
-
 export interface ContentDetail {
   id: string;
   name: string;
@@ -76,7 +72,8 @@ export interface ContentDetail {
   deadline: string;
   status: content_status;
   creatorName: string;
-  tags: ContentTags;
+  /** Late, overdue or approval bypassed, in that order; empty when nothing needs attention. */
+  tags: ContentTag[];
   waitingOn: DetailWaitingOn;
   latestSubmissionId: string | null;
   creatorActions: TaskAction[];
@@ -96,19 +93,6 @@ const WAITING_ON: Record<content_status, DetailWaitingOn> = {
 /** Whose turn the step is on; nothing is waiting once the link has closed the content. */
 export function waitingOnFor(status: content_status): DetailWaitingOn {
   return WAITING_ON[status];
-}
-
-/**
- * Deadline passed with no final link in yet, on work the creator is committed to: a pending
- * proposal has not been accepted. ISO days compare correctly as strings.
- */
-export function isOverdue(
-  status: content_status,
-  deadlineDay: string,
-  today: string,
-): boolean {
-  const committed = (COMMITTED_STATUSES as readonly content_status[]).includes(status);
-  return committed && status !== 'link_submitted' && today > deadlineDay;
 }
 
 /** A revision note that says nothing has nothing to request. */
@@ -195,7 +179,8 @@ export function buildEvents(
   return events;
 }
 
-export function toContentDetail(row: ContentDetailRow, today: string): ContentDetail {
+export function toContentDetail(row: ContentDetailRow, now: Date): ContentDetail {
+  const today = jakartaDay(now);
   const deadlineDay = row.deadline.toISOString().slice(0, 10);
   const latest = [...row.submissions].sort(
     (a, b) => b.created_at.getTime() - a.created_at.getTime() || b.id.localeCompare(a.id),
@@ -209,12 +194,16 @@ export function toContentDetail(row: ContentDetailRow, today: string): ContentDe
     deadline: deadlineDay,
     status: row.status,
     creatorName: joinName(row.contracts.creators),
-    tags: {
-      overdue: isOverdue(row.status, deadlineDay, today),
-      // Written at submit time by PBI 6.2; until those columns exist nothing can claim them.
-      lateSubmission: false,
-      approvalBypassed: false,
-    },
+    tags: contentTags(
+      {
+        deadline: row.deadline,
+        status: row.status,
+        videoSubmittedAt: row.video_submitted_at,
+        latestDraftAt: latest?.created_at ?? null,
+        approvalBypassed: row.approval_bypassed,
+      },
+      now,
+    ),
     waitingOn: waitingOnFor(row.status),
     latestSubmissionId: latest?.id ?? null,
     creatorActions: taskActions(row.status, deadlineDay, today),
