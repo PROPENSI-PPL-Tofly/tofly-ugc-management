@@ -27,24 +27,25 @@ function event(
   };
 }
 
-function stubClient(events: ContentEventRecord[]) {
+function stubClient(events: ContentEventRecord[], contentExists = true) {
   const findMany = vi.fn(async (query: ContentEventQuery) => {
     const matching = events.filter(
       (candidate) => candidate.content_id === query.where.content_id,
     );
-
-    if (!query.orderBy) return matching;
 
     return matching.sort((left, right) => {
       const byTime = right.occurred_at.getTime() - left.occurred_at.getTime();
       return byTime || right.id.localeCompare(left.id);
     });
   });
+
+  const findContent = vi.fn(async ({ where }: { where: { id: string } }) =>
+    contentExists ? { id: where.id } : null,
+  );
+
   const client = {
     contents: {
-      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({
-        id: where.id,
-      })),
+      findUnique: findContent,
     },
     content_events: {
       findMany,
@@ -54,6 +55,7 @@ function stubClient(events: ContentEventRecord[]) {
 
   return {
     findMany,
+    findContent,
     create: client.content_events.create,
     service: new ContentEventHistoryService(client),
   };
@@ -114,6 +116,13 @@ function unvalidatedInput(input: unknown): ContentEventInput {
   return input as ContentEventInput;
 }
 
+async function expectInvalidInput(input: unknown): Promise<void> {
+  const { create, service } = stubClient([]);
+
+  await expect(service.record(unvalidatedInput(input))).rejects.toThrow();
+  expect(create).not.toHaveBeenCalled();
+}
+
 describe('ContentEventHistoryService.getForContent', () => {
   it('returns events for the requested content item only', async () => {
     const requested = event('requested', CONTENT_ID, '2026-10-01T10:00:00Z');
@@ -125,9 +134,10 @@ describe('ContentEventHistoryService.getForContent', () => {
     await expect(service.getForContent(CONTENT_ID)).resolves.toEqual([
       requested,
     ]);
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { content_id: CONTENT_ID } }),
-    );
+    expect(findMany).toHaveBeenCalledWith({
+      where: { content_id: CONTENT_ID },
+      orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],
+    });
   });
 
   it('returns the newest event first', async () => {
@@ -157,10 +167,27 @@ describe('ContentEventHistoryService.getForContent', () => {
 
     await expect(service.getForContent(CONTENT_ID)).resolves.toEqual([]);
   });
+
+  it('returns the structured 404 response without querying events when content is missing', async () => {
+    const { findContent, findMany, service } = stubClient([], false);
+
+    await expect(service.getForContent(CONTENT_ID)).rejects.toMatchObject({
+      response: {
+        code: 'CONTENT_NOT_FOUND',
+        message: 'Konten tidak ditemukan',
+      },
+    });
+
+    expect(findContent).toHaveBeenCalledWith({
+      where: { id: CONTENT_ID },
+      select: { id: true },
+    });
+    expect(findMany).not.toHaveBeenCalled();
+  });
 });
 
 describe('ContentEventHistoryService.record', () => {
-  it.each(VALID_WRITES)('persists valid %s event data', async (input) => {
+  it.each(VALID_WRITES)('persists a valid $event_type event', async (input) => {
     const { create, service } = stubClient([]);
 
     await service.record(input);
@@ -168,39 +195,133 @@ describe('ContentEventHistoryService.record', () => {
     expect(create).toHaveBeenCalledWith({ data: input });
   });
 
-  it('rejects an event without an actor name before persistence', async () => {
-    const { create, service } = stubClient([]);
-    const invalid = unvalidatedInput({
+  it.each([
+    { label: 'null', input: null },
+    { label: 'a string', input: 'not-an-event' },
+    { label: 'an array', input: [] },
+  ])('rejects a non-object event input: $label', async ({ input }) => {
+    await expectInvalidInput(input);
+  });
+
+  it('rejects an event without a content ID', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[0],
+      content_id: '',
+    });
+  });
+
+  it('rejects an event without an actor name', async () => {
+    await expectInvalidInput({
       content_id: CONTENT_ID,
       event_type: 'Scheduled',
       actor_role: 'admin',
       occurred_at: new Date('2026-10-01T10:00:00Z'),
       event_data: {},
     });
-
-    await expect(service.record(invalid)).rejects.toThrow();
-    expect(create).not.toHaveBeenCalled();
   });
 
-  it('rejects a Draft Submitted event without its version before persistence', async () => {
-    const { create, service } = stubClient([]);
-    const invalid = unvalidatedInput({
+  it('rejects a blank actor name', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[0],
+      actor_name: '   ',
+    });
+  });
+
+  it('rejects an unsupported actor role', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[0],
+      actor_role: 'owner',
+    });
+  });
+
+  it('rejects a timestamp that is not a Date', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[0],
+      occurred_at: '2026-10-01T10:00:00Z',
+    });
+  });
+
+  it('rejects an invalid Date timestamp', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[0],
+      occurred_at: new Date('invalid'),
+    });
+  });
+
+  it('rejects an unsupported event type', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[0],
+      event_type: 'Unknown Event',
+    });
+  });
+
+  it.each([
+    { label: 'null', event_data: null },
+    { label: 'a string', event_data: 'not-an-object' },
+    { label: 'an array', event_data: [] },
+  ])('rejects non-object event data: $label', async ({ event_data }) => {
+    await expectInvalidInput({
+      ...VALID_WRITES[0],
+      event_data,
+    });
+  });
+
+  it.each([
+    { label: 'a missing version', event_data: { link: 'https://example.com' } },
+    {
+      label: 'a string version',
+      event_data: { version: '2', link: 'https://example.com' },
+    },
+    {
+      label: 'a fractional version',
+      event_data: { version: 1.5, link: 'https://example.com' },
+    },
+    {
+      label: 'a zero version',
+      event_data: { version: 0, link: 'https://example.com' },
+    },
+  ])('rejects Draft Submitted with $label', async ({ event_data }) => {
+    await expectInvalidInput({
       ...VALID_WRITES[1],
-      event_data: { link: 'https://drive.example.com/draft-2' },
+      event_data,
     });
-
-    await expect(service.record(invalid)).rejects.toThrow();
-    expect(create).not.toHaveBeenCalled();
   });
 
-  it('rejects a Revision Requested event without its note before persistence', async () => {
-    const { create, service } = stubClient([]);
-    const invalid = unvalidatedInput({
-      ...VALID_WRITES[2],
-      event_data: {},
+  it('rejects Draft Submitted without a nonblank link', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[1],
+      event_data: { version: 1, link: '   ' },
     });
+  });
 
-    await expect(service.record(invalid)).rejects.toThrow();
-    expect(create).not.toHaveBeenCalled();
+  it('rejects Revision Requested without a nonblank note', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[2],
+      event_data: { revision_note: '   ' },
+    });
+  });
+
+  it('rejects Link Submitted without a nonblank link', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[4],
+      event_data: { link: '' },
+    });
+  });
+
+  it('rejects Creator Comment without a nonblank comment', async () => {
+    await expectInvalidInput({
+      ...VALID_WRITES[5],
+      event_data: { comment: '   ' },
+    });
+  });
+
+  it('does not swallow a persistence failure', async () => {
+    const { create, service } = stubClient([]);
+    const persistenceError = new Error('Database write failed');
+    create.mockRejectedValueOnce(persistenceError);
+
+    await expect(service.record(VALID_WRITES[0])).rejects.toBe(
+      persistenceError,
+    );
   });
 });
