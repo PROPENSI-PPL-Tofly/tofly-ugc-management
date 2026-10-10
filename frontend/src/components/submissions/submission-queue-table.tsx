@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DraftPreviewModal } from "@/components/draft-review/draft-preview-modal";
-import { ReviewActions } from "@/components/draft-review/review-actions";
+import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
 import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
@@ -27,14 +26,7 @@ export function SubmissionQueueTable({
   /** Whether a search or filter narrowed the queue, which changes what an empty queue means. */
   filtered?: boolean;
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  // Whether the open draft's revision note form is showing; each draft starts without it.
-  const [revising, setRevising] = useState(false);
-
-  function openDraft(submissionId: string) {
-    setRevising(false);
-    setOpenId(submissionId);
-  }
+  const [openContentId, setOpenContentId] = useState<string | null>(null);
 
   if (items.length === 0) {
     return filtered ? (
@@ -91,7 +83,7 @@ export function SubmissionQueueTable({
                 <td className="px-5 py-3">
                   <button
                     type="button"
-                    onClick={() => openDraft(row.submissionId)}
+                    onClick={() => setOpenContentId(row.contentId)}
                     className="cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 py-1 text-xs font-semibold text-ink hover:border-ink-2"
                   >
                     Lihat Detail
@@ -103,22 +95,16 @@ export function SubmissionQueueTable({
         </table>
       </div>
 
-      {openId ? (
-        // Keyed by submission so switching rows remounts the modal rather than leaving the
-        // previous draft on screen while the next loads. A decision refreshes the queue
-        // (inside ReviewActions) and closes the modal, so the decided row drops out.
-        <DraftPreviewModal
-          key={openId}
-          submissionId={openId}
-          onClose={() => setOpenId(null)}
-          showClose={!revising}
-          actions={
-            <ReviewActions
-              submissionId={openId}
-              onDecided={() => setOpenId(null)}
-              onFormToggle={setRevising}
-            />
-          }
+      {openContentId ? (
+        // Keyed by content so switching rows remounts the panel rather than leaving the
+        // previous item on screen while the next loads. A decision refreshes the queue
+        // and closes the panel, so the decided row drops out.
+        <ContentDetailPanel
+          key={openContentId}
+          contentId={openContentId}
+          role="admin"
+          onClose={() => setOpenContentId(null)}
+          onDecided={() => setOpenContentId(null)}
         />
       ) : null}
     </>

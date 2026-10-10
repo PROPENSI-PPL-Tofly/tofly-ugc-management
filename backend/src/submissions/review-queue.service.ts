@@ -157,6 +157,7 @@ export class ReviewQueueService implements ReviewQueueLister {
       {
         item: {
           submissionId: latest.id,
+          contentId: row.id,
           creatorName: joinName(row.contracts.creators),
           contentName: row.name,
           type: row.type,

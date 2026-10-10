@@ -153,4 +153,15 @@ describe("AddCreatorTrigger", () => {
     expect(createCreator).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("lets the admin dismiss the confirmation toast", async () => {
+    createCreator.mockResolvedValue({ ok: true });
+    render(<AddCreatorTrigger />);
+    openAndFill();
+    await save();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup notifikasi" }));
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

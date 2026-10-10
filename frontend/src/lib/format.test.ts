@@ -1,8 +1,11 @@
 import {
   EMPTY,
+  daysUntil,
   formatContractWindow,
   formatDate,
+  formatDaysLeft,
   formatDaysRemaining,
+  formatDue,
   formatPercent,
   formatRevisions,
   formatTimestamp,
@@ -22,6 +25,13 @@ describe("formatDate", () => {
   it("shows a dash for a missing date", () => {
     expect(formatDate(null)).toBe(EMPTY);
   });
+
+  it.each(["segera", "2026-13-45", ""])(
+    "shows a dash for %j, which is not a calendar day, instead of throwing",
+    (date) => {
+      expect(formatDate(date)).toBe(EMPTY);
+    },
+  );
 });
 
 describe("formatTimestamp", () => {
@@ -98,5 +108,118 @@ describe("formatRevisions", () => {
     expect(formatRevisions(0)).toBe("0x");
     expect(formatRevisions(0.5)).toBe("0,5x");
     expect(formatRevisions(2.17)).toBe("2,17x");
+  });
+});
+
+describe("formatDue", () => {
+  // Midday in Jakarta on 9 Oct 2026, well away from either midnight.
+  const NOON = new Date("2026-10-09T05:00:00Z");
+
+  it("counts the days left as H-n", () => {
+    expect(formatDue("2026-10-12", NOON)).toBe("H-3");
+  });
+
+  it("reads H-1 on the eve of the deadline", () => {
+    expect(formatDue("2026-10-10", NOON)).toBe("H-1");
+  });
+
+  it("says today on the deadline itself", () => {
+    expect(formatDue("2026-10-09", NOON)).toBe("Hari ini");
+  });
+
+  it("counts the days a passed deadline is late", () => {
+    expect(formatDue("2026-10-08", NOON)).toBe("Lewat 1 hari");
+    expect(formatDue("2026-09-29", NOON)).toBe("Lewat 10 hari");
+  });
+
+  it("counts across the end of a month and of a year", () => {
+    expect(formatDue("2026-11-01", NOON)).toBe("H-23");
+    expect(formatDue("2027-01-01", NOON)).toBe("H-84");
+  });
+
+  it("takes today from Jakarta, not from UTC", () => {
+    // 17.00 UTC on the 9th is already 00.00 on the 10th in WIB.
+    const lastMinute = new Date("2026-10-09T16:59:59Z");
+    const midnight = new Date("2026-10-09T17:00:00Z");
+
+    expect(formatDue("2026-10-10", lastMinute)).toBe("H-1");
+    expect(formatDue("2026-10-10", midnight)).toBe("Hari ini");
+  });
+
+  it("uses the current moment when none is given", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOON);
+
+    try {
+      expect(formatDue("2026-10-11")).toBe("H-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ["a missing", null],
+    ["an empty", ""],
+    ["a malformed", "12 Oktober"],
+  ])("shows a dash for %s deadline", (_label, deadline) => {
+    expect(formatDue(deadline, NOON)).toBe(EMPTY);
+  });
+});
+
+describe("daysUntil", () => {
+  const NOON = new Date("2026-10-09T05:00:00Z");
+
+  it("is positive before the deadline, zero on it and negative after", () => {
+    expect(daysUntil("2026-10-12", NOON)).toBe(3);
+    expect(daysUntil("2026-10-09", NOON)).toBe(0);
+    expect(daysUntil("2026-10-07", NOON)).toBe(-2);
+  });
+
+  it("turns over at midnight in Jakarta", () => {
+    expect(daysUntil("2026-10-10", new Date("2026-10-09T16:59:59Z"))).toBe(1);
+    expect(daysUntil("2026-10-10", new Date("2026-10-09T17:00:00Z"))).toBe(0);
+  });
+
+  it.each([
+    ["a missing", null],
+    ["an empty", ""],
+    ["a malformed", "12 Oktober"],
+  ])("has no answer for %s deadline", (_label, deadline) => {
+    expect(daysUntil(deadline, NOON)).toBeNull();
+  });
+
+  it("uses the current moment when none is given", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOON);
+
+    try {
+      expect(daysUntil("2026-10-10")).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("formatDaysLeft", () => {
+  it.each([
+    [3, "H-3"],
+    [1, "H-1"],
+    [0, "Hari ini"],
+    [-1, "Lewat 1 hari"],
+    [-10, "Lewat 10 hari"],
+  ])("reads %i days as %s", (days, label) => {
+    expect(formatDaysLeft(days)).toBe(label);
+  });
+
+  it("shows a dash when the number of days is unknown", () => {
+    expect(formatDaysLeft(null)).toBe(EMPTY);
+  });
+
+  it("agrees with formatDue, which is the same count taken from a deadline", () => {
+    const now = new Date("2026-10-09T05:00:00Z");
+
+    for (const deadline of ["2026-10-12", "2026-10-09", "2026-10-01", null, "segera"]) {
+      expect(formatDaysLeft(daysUntil(deadline, now))).toBe(formatDue(deadline, now));
+    }
   });
 });

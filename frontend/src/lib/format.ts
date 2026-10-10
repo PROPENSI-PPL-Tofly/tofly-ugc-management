@@ -38,7 +38,12 @@ export const EMPTY = "—";
  */
 export function formatDate(date: string | null): string {
   if (!date) return EMPTY;
-  return DATE_FORMAT.format(new Date(`${date}T00:00:00Z`));
+
+  // A value that is not a calendar day gets the dash too: formatting an invalid Date throws.
+  const day = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(day.getTime())) return EMPTY;
+
+  return DATE_FORMAT.format(day);
 }
 
 /**
@@ -70,6 +75,44 @@ export function formatDaysRemaining(days: number | null): string {
   if (days === 0) return "berakhir hari ini";
   if (days < 0) return `berakhir ${Math.abs(days)} hari lalu`;
   return `sisa ${days} hari`;
+}
+
+// "2026-10-09": en-CA writes a date as year-month-day, the way the API writes calendar days.
+const JAKARTA_ISO_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: JAKARTA,
+});
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Whole days from today to a deadline: positive before it, 0 on it, negative after; null when
+ * the deadline cannot be read. Today is Jakarta's calendar day, so the count turns over at
+ * midnight WIB for everyone. `now` is a parameter so a test can pin the day.
+ */
+export function daysUntil(deadline: string | null, now: Date = new Date()): number | null {
+  if (!deadline) return null;
+
+  const due = Date.parse(`${deadline}T00:00:00Z`);
+  if (Number.isNaN(due)) return null;
+
+  const today = Date.parse(`${JAKARTA_ISO_DAY_FORMAT.format(now)}T00:00:00Z`);
+  return Math.round((due - today) / MS_PER_DAY);
+}
+
+/** A count of days to a deadline as it reads: "H-3", "Hari ini", "Lewat 2 hari"; a dash if unknown. */
+export function formatDaysLeft(days: number | null): string {
+  if (days === null) return EMPTY;
+  if (days > 0) return `H-${days}`;
+  if (days === 0) return "Hari ini";
+  return `Lewat ${-days} hari`;
+}
+
+/** How far a deadline is from today: "H-3" before it, "Hari ini" on it, "Lewat 2 hari" after. */
+export function formatDue(deadline: string | null, now: Date = new Date()): string {
+  return formatDaysLeft(daysUntil(deadline, now));
 }
 
 export function formatPercent(value: number | null): string {
