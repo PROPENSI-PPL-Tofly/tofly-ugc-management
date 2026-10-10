@@ -97,7 +97,9 @@ function invalidContentEvent(
   });
 }
 
-function checkContentEventInput(input: unknown): ContentEventInput {
+function assertContentEventInput(
+  input: unknown,
+): asserts input is ContentEventInput {
   if (!isObject(input)) {
     throw invalidContentEvent({ event: 'Harus berupa objek' });
   }
@@ -168,7 +170,6 @@ function checkContentEventInput(input: unknown): ContentEventInput {
     throw invalidContentEvent(errors);
   }
 
-  return input as ContentEventInput;
 }
 
 @Injectable()
@@ -197,7 +198,7 @@ export class ContentEventHistoryService {
   }
 
   async record(input: ContentEventInput): Promise<void> {
-    const data = checkContentEventInput(input);
-    await this.prisma.content_events.create({ data });
+    assertContentEventInput(input);
+    await this.prisma.content_events.create({ data: input });
   }
 }

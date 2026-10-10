@@ -283,6 +283,28 @@ describe('toContentDetail', () => {
     expect(detail.waitingOn).toBe('admin');
   });
 
+  it('uses the greater submission ID to break a latest-hand-in timestamp tie', () => {
+    const submittedAt = new Date('2026-09-14T10:00:00.000Z');
+    const detail = toContentDetail(
+      row({
+        status: 'draft_review',
+        submissions: [
+          submission({
+            id: 'cccccccc-0000-0000-0000-000000000001',
+            created_at: submittedAt,
+          }),
+          submission({
+            id: 'cccccccc-0000-0000-0000-000000000002',
+            created_at: submittedAt,
+          }),
+        ],
+      }),
+      on('2026-09-20'),
+    );
+
+    expect(detail.latestSubmissionId).toBe('cccccccc-0000-0000-0000-000000000002');
+  });
+
   it('flags overdue work and never finished work', () => {
     const overdue = toContentDetail(
       row({ status: 'draft_revision' }),
