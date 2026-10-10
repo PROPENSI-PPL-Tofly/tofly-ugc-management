@@ -26,9 +26,23 @@ function stub(options: {
       updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
     },
     submissions: {
+      findMany: vi.fn().mockResolvedValue([
+        { id: 'prior-submission-1' },
+        { id: 'prior-submission-2' },
+      ]),
       create: vi
         .fn()
         .mockResolvedValue({ id: SUBMISSION_ID, created_at: SUBMITTED_AT }),
+    },
+    creators: {
+      findUnique: vi.fn().mockResolvedValue({
+        first_name: 'Dina',
+        middle_name: 'Ayu',
+        last_name: 'Putri',
+      }),
+    },
+    content_events: {
+      create: vi.fn().mockResolvedValue({ id: 'event-id' }),
     },
   };
   const client = {
@@ -88,6 +102,29 @@ describe('DraftSubmissionService.submit', () => {
       notes: INPUT.notes,
       submittedAt: '2026-10-02T03:04:05.000Z',
     });
+  });
+
+  it('records a Draft Submitted event in the same transaction with the creator identity and next submission sequence', async () => {
+    const { transaction, service } = stub({});
+
+    await service.submit(CONTENT_ID, CREATOR_ID, INPUT);
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Draft Submitted',
+        actor_name: 'Dina Ayu Putri',
+        actor_role: 'creator',
+        occurred_at: SUBMITTED_AT,
+        event_data: { version: 3, link: INPUT.link },
+      },
+    });
+    expect(transaction.contents.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
+    expect(transaction.submissions.create.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
   });
 
   it('hands in a resubmit: a content under revision becomes draft_revised', async () => {

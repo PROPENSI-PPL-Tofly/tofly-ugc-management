@@ -38,6 +38,16 @@ function stub(options: {
       ),
       updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
     },
+    creators: {
+      findUnique: vi.fn().mockResolvedValue({
+        first_name: 'Dina',
+        middle_name: 'Ayu',
+        last_name: 'Putri',
+      }),
+    },
+    content_events: {
+      create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+    },
   };
 
   const client = {
@@ -119,6 +129,26 @@ describe('VideoSubmissionService.submit', () => {
       platform: 'instagram',
       submittedAt: SUBMITTED_AT.toISOString(),
     });
+  });
+
+  it('records a Link Submitted event in the same transaction with the creator identity and submitted link', async () => {
+    const { transaction, service } = stub({});
+
+    await service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL });
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Link Submitted',
+        actor_name: 'Dina Ayu Putri',
+        actor_role: 'creator',
+        occurred_at: SUBMITTED_AT,
+        event_data: { link: REEL },
+      },
+    });
+    expect(transaction.contents.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
   });
 
   it('stores TikTok as the detected platform', async () => {
