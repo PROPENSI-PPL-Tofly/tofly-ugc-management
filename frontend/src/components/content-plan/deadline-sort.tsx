@@ -1,26 +1,17 @@
+import { SortableTh } from "@/components/ui/sortable-th";
 import type { DeadlineSort } from "@/lib/content-plan";
 
+/** What each direction means for a deadline. */
+const DEADLINE_HINTS = { asc: "Terdekat dulu", desc: "Terjauh dulu" } as const;
+
 /**
- * The deadline column's header: the sort state lives on the cell for screen readers, the
- * arrow and the title say it in words too, and one press turns the direction over.
+ * The deadline column's header: the shared sortable header, worded for deadlines. The sort
+ * state, the arrow and the press all come from SortableTh, so this column and any other table
+ * that sorts (Task Saya next) behave the same.
  */
 export function DeadlineSortTh({
   sort,
   onToggle,
 }: Readonly<{ sort: DeadlineSort; onToggle: () => void }>) {
-  return (
-    <th
-      aria-sort={sort === "asc" ? "ascending" : "descending"}
-      className="px-5 py-3 text-left font-semibold"
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        title={sort === "asc" ? "Terdekat dulu" : "Terjauh dulu"}
-        className="cursor-pointer rounded-(--radius-control) border-none bg-transparent p-0 text-left text-xs font-semibold text-muted hover:text-ink"
-      >
-        Deadline <span aria-hidden="true">{sort === "asc" ? "↑" : "↓"}</span>
-      </button>
-    </th>
-  );
+  return <SortableTh label="Deadline" direction={sort} hints={DEADLINE_HINTS} onToggle={onToggle} />;
 }
