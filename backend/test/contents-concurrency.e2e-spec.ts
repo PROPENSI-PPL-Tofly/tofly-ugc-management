@@ -164,7 +164,7 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
       .send(body)
       .expect(422);
     expect(response.body.errors).toEqual({
-      deadline: 'Deadline paling cepat 2026-09-29',
+      deadline: 'Deadline paling cepat 29 Sep 2026',
     });
     await request(app.getHttpServer())
       .post('/contents')
