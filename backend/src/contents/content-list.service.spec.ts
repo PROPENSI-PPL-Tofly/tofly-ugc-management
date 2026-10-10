@@ -70,7 +70,10 @@ function stub(rows: ContentListRow[]) {
   return { client, service: new ContentListService(client) };
 }
 
-async function names(rows: ContentListRow[], filters: Partial<ContentListFilters>) {
+async function names(
+  rows: ContentListRow[],
+  filters: Partial<ContentListFilters>,
+) {
   const { service } = stub(rows);
   const answer = await service.list(PAGE, NOW, { ...EVERYTHING, ...filters });
   return answer.items.map((item) => item.name);
@@ -157,13 +160,16 @@ describe('ContentListService.list', () => {
       ['a first hand-in', 1, 0],
       ['a draft handed in again', 2, 1],
       ['a draft handed in three times', 3, 2],
-    ])('counts %s as the right number of revisions', async (_, handIns, revisionCount) => {
-      const { service } = stub([row({ handIns })]);
+    ])(
+      'counts %s as the right number of revisions',
+      async (_, handIns, revisionCount) => {
+        const { service } = stub([row({ handIns })]);
 
-      const answer = await service.list(PAGE, NOW, EVERYTHING);
+        const answer = await service.list(PAGE, NOW, EVERYTHING);
 
-      expect(answer.items[0].revisionCount).toBe(revisionCount);
-    });
+        expect(answer.items[0].revisionCount).toBe(revisionCount);
+      },
+    );
 
     it('is tagged overdue once its deadline day has passed without a link', async () => {
       const { service } = stub([row({ deadline: '2026-10-09' })]);
@@ -252,7 +258,17 @@ describe('ContentListService.list', () => {
     }
 
     it.each([
-      ['all', ['Usulan', 'Terjadwal', 'Menunggu Review', 'Perlu Revisi', 'Disetujui', 'Selesai']],
+      [
+        'all',
+        [
+          'Usulan',
+          'Terjadwal',
+          'Menunggu Review',
+          'Perlu Revisi',
+          'Disetujui',
+          'Selesai',
+        ],
+      ],
       ['needs_approval', ['Usulan', 'Menunggu Review']],
       ['waiting_creator', ['Terjadwal', 'Perlu Revisi', 'Disetujui']],
       ['done', ['Selesai']],
@@ -352,7 +368,9 @@ describe('ContentListService.list', () => {
     });
 
     it('finds a content by its creator, across the parts of the name', async () => {
-      expect(await names(rows(), { q: 'adi wijaya' })).toEqual(['Review Toner']);
+      expect(await names(rows(), { q: 'adi wijaya' })).toEqual([
+        'Review Toner',
+      ]);
     });
 
     it('lists nothing when neither name holds the text', async () => {
@@ -367,11 +385,21 @@ describe('ContentListService.list', () => {
         row({ name: 'Dina 1' }),
         row({
           name: 'Raka 1',
-          creator: { id: RAKA, first_name: 'Raka', middle_name: null, last_name: null },
+          creator: {
+            id: RAKA,
+            first_name: 'Raka',
+            middle_name: null,
+            last_name: null,
+          },
         }),
         row({
           name: 'Sari 1',
-          creator: { id: other, first_name: 'Sari', middle_name: null, last_name: null },
+          creator: {
+            id: other,
+            first_name: 'Sari',
+            middle_name: null,
+            last_name: null,
+          },
         }),
       ];
 
@@ -387,7 +415,9 @@ describe('ContentListService.list', () => {
         row({ name: 'Specific', type: 'specific' }),
       ];
 
-      expect(await names(rows, { types: ['evergreen'] })).toEqual(['Evergreen']);
+      expect(await names(rows, { types: ['evergreen'] })).toEqual([
+        'Evergreen',
+      ]);
       expect(await names(rows, { types: ['evergreen', 'specific'] })).toEqual([
         'Evergreen',
         'Specific',
@@ -411,7 +441,11 @@ describe('ContentListService.list', () => {
         row({ name: 'Lewat, terjadwal', deadline: '2026-10-01' }),
         // Past its deadline but never tagged: nobody committed to a proposal, and a submitted
         // link is finished.
-        row({ name: 'Lewat, usulan', status: 'pending', deadline: '2026-10-01' }),
+        row({
+          name: 'Lewat, usulan',
+          status: 'pending',
+          deadline: '2026-10-01',
+        }),
         row({
           name: 'Lewat, selesai',
           status: 'link_submitted',
@@ -427,7 +461,9 @@ describe('ContentListService.list', () => {
         overdue: true,
       });
 
-      expect(answer.items.map((item) => item.name)).toEqual(['Lewat, terjadwal']);
+      expect(answer.items.map((item) => item.name)).toEqual([
+        'Lewat, terjadwal',
+      ]);
       expect(answer.items.every((item) => item.tags.includes('overdue'))).toBe(
         true,
       );
@@ -474,9 +510,24 @@ describe('ContentListService.list', () => {
 
     it('keeps only what passes every filter at once', async () => {
       const rows = [
-        row({ name: 'Serum A', type: 'evergreen', status: 'draft_review', handIns: 1 }),
-        row({ name: 'Serum B', type: 'specific', status: 'draft_review', handIns: 1 }),
-        row({ name: 'Toner A', type: 'evergreen', status: 'draft_review', handIns: 1 }),
+        row({
+          name: 'Serum A',
+          type: 'evergreen',
+          status: 'draft_review',
+          handIns: 1,
+        }),
+        row({
+          name: 'Serum B',
+          type: 'specific',
+          status: 'draft_review',
+          handIns: 1,
+        }),
+        row({
+          name: 'Toner A',
+          type: 'evergreen',
+          status: 'draft_review',
+          handIns: 1,
+        }),
         row({ name: 'Serum C', type: 'evergreen', status: 'scheduled' }),
       ];
 
@@ -547,7 +598,11 @@ describe('ContentListService.list', () => {
     it('answers the asked page of the sorted list with its totals', async () => {
       const { service } = stub(many(25));
 
-      const answer = await service.list({ page: 2, pageSize: 10 }, NOW, EVERYTHING);
+      const answer = await service.list(
+        { page: 2, pageSize: 10 },
+        NOW,
+        EVERYTHING,
+      );
 
       expect(answer.items.map((item) => item.name)).toEqual(
         Array.from({ length: 10 }, (_, index) => `Konten ${index + 11}`),
@@ -563,7 +618,11 @@ describe('ContentListService.list', () => {
     it('answers the short last page', async () => {
       const { service } = stub(many(25));
 
-      const answer = await service.list({ page: 3, pageSize: 10 }, NOW, EVERYTHING);
+      const answer = await service.list(
+        { page: 3, pageSize: 10 },
+        NOW,
+        EVERYTHING,
+      );
 
       expect(answer.items).toHaveLength(5);
     });
@@ -571,7 +630,11 @@ describe('ContentListService.list', () => {
     it('answers no rows past the last page and still the real totals', async () => {
       const { service } = stub(many(5));
 
-      const answer = await service.list({ page: 4, pageSize: 10 }, NOW, EVERYTHING);
+      const answer = await service.list(
+        { page: 4, pageSize: 10 },
+        NOW,
+        EVERYTHING,
+      );
 
       expect(answer.items).toEqual([]);
       expect(answer).toMatchObject({ total: 5, totalPages: 1 });

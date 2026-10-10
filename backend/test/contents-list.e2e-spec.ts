@@ -159,7 +159,7 @@ describe('GET /contents (e2e)', () => {
     await app.close();
   });
 
-  it('lists every creator\'s content by nearest deadline with a counter per tab', async () => {
+  it("lists every creator's content by nearest deadline with a counter per tab", async () => {
     const response = await list();
 
     expect(response.status).toBe(200);
@@ -187,7 +187,7 @@ describe('GET /contents (e2e)', () => {
     });
   });
 
-  it('answers a row with exactly the table\'s fields', async () => {
+  it("answers a row with exactly the table's fields", async () => {
     const response = await list('&status=draft_review&sort=deadline_desc');
 
     expect(response.body.items[0]).toEqual({
@@ -220,7 +220,10 @@ describe('GET /contents (e2e)', () => {
 
   it.each([
     ['needs_approval', ['proposal', 'review', 'resubmit']],
-    ['waiting_creator', ['overdue', 'scheduled', 'revision', 'approved', 'evergreen']],
+    [
+      'waiting_creator',
+      ['overdue', 'scheduled', 'revision', 'approved', 'evergreen'],
+    ],
     ['done', ['late link']],
   ])('lists the %s tab and still counts every tab', async (tab, expected) => {
     const response = await list(`&tab=${tab}`);
@@ -250,7 +253,7 @@ describe('GET /contents (e2e)', () => {
     ).toHaveLength(9);
   });
 
-  it('finds content by its creator\'s name', async () => {
+  it("finds content by its creator's name", async () => {
     expect(await names('%20raka')).toEqual(['evergreen']);
   });
 
@@ -261,9 +264,10 @@ describe('GET /contents (e2e)', () => {
   it('narrows by several statuses and counts the tabs under them', async () => {
     const response = await list('&status=pending&status=link_submitted');
 
-    expect(
-      (response.body.items as Item[]).map((item) => item.status),
-    ).toEqual(['link_submitted', 'pending']);
+    expect((response.body.items as Item[]).map((item) => item.status)).toEqual([
+      'link_submitted',
+      'pending',
+    ]);
     expect(response.body.tabCounts).toEqual({
       all: 2,
       needs_approval: 1,
@@ -273,9 +277,9 @@ describe('GET /contents (e2e)', () => {
   });
 
   it('narrows by a deadline period, both days included', async () => {
-    expect(
-      await names(`&deadlineFrom=${iso(6)}&deadlineTo=${iso(8)}`),
-    ).toEqual(['revision', 'approved', 'proposal']);
+    expect(await names(`&deadlineFrom=${iso(6)}&deadlineTo=${iso(8)}`)).toEqual(
+      ['revision', 'approved', 'proposal'],
+    );
   });
 
   it('lists the furthest deadline first when asked', async () => {
