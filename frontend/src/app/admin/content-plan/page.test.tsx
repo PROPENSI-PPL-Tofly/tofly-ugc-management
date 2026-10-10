@@ -159,6 +159,16 @@ describe("Content Plan page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/tidak bisa dimuat/i);
   });
 
+  it("fails as a whole when even the first page cannot answer a past-end link", async () => {
+    fetchPlan
+      .mockResolvedValueOnce(planOf({ total: 22, totalPages: 3 }))
+      .mockRejectedValueOnce(new Error("backend down"));
+
+    await renderPage({ page: "99" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/tidak bisa dimuat/i);
+  });
+
   it("hands every creator name to the filter bar", async () => {
     await renderPage();
 
