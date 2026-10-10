@@ -181,6 +181,16 @@ describe("describeJourney", () => {
     ]);
   });
 
+  it("titles a proposal the system scheduled at H-1", () => {
+    const steps = describeJourney([
+      event({ id: "auto", type: "auto_scheduled", actor: { name: null, role: "system" } }),
+    ]);
+
+    expect(steps.map((step) => [step.title, step.linkLabel, step.noteBy])).toEqual([
+      ["Dijadwalkan otomatis (H-1)", null, null],
+    ]);
+  });
+
   it("keeps every event, in the order it was given, with the event itself", () => {
     const steps = describeJourney(journey);
 

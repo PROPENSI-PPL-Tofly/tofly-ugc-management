@@ -1041,6 +1041,24 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(within(items[0]).getByText("Boleh mundur sehari?")).toBeInTheDocument();
     });
 
+    it("names the system as the actor of an H-1 scheduling, with a neutral dot", async () => {
+      show({
+        events: [
+          {
+            id: "auto",
+            type: "auto_scheduled",
+            at: "2026-09-02T03:00:00.000Z",
+            actor: { name: null, role: "system" },
+          },
+        ],
+      });
+
+      const [item] = await journeyItems();
+      expect(item.querySelector("[data-step-title]")).toHaveTextContent("Dijadwalkan otomatis (H-1)");
+      expect(item.querySelector("[data-step-actor]")).toHaveTextContent("Sistem");
+      expect(item.querySelector("[data-timeline-dot]")?.className).toContain("bg-muted ring-muted");
+    });
+
     it("shows when each event happened in Jakarta time, and who did it in which role", async () => {
       show({ events: FULL });
 
