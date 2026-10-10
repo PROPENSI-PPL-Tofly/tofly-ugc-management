@@ -14,7 +14,7 @@ export type ContentEventOrder = readonly [
 
 export interface ContentEventQuery {
   where: { content_id: string };
-  orderBy?: ContentEventOrder;
+  orderBy: ContentEventOrder;
 }
 
 /** The small Prisma surface needed to read one content item's event history. */
@@ -34,6 +34,7 @@ export class ContentEventHistoryService {
   getForContent(contentId: string): Promise<ContentEventRecord[]> {
     return this.prisma.content_events.findMany({
       where: { content_id: contentId },
+      orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],
     });
   }
 }
