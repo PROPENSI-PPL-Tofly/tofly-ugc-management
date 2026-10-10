@@ -16,6 +16,8 @@ import type { Role } from "./session";
 export type PanelActionKind =
   | "approve"
   | "revise"
+  | "approve_proposal"
+  | "reject_proposal"
   | "submit_draft"
   | "resubmit_draft"
   | "submit_video";
@@ -45,6 +47,12 @@ export interface PanelActionPorts {
   revise?: (submissionId: string, note: string) => Promise<void>;
   /** Opens the revision note form; revising starts with a form, not a request. */
   openRevisionForm?: () => void;
+  /** A creator's proposal becomes scheduled work (PRD 3.10). */
+  approveProposal?: (contentId: string) => Promise<void>;
+  /** Removes the proposal for good, with the admin's optional reason. */
+  rejectProposal?: (contentId: string, reason: string) => Promise<void>;
+  /** Opens the rejection reason form; like revising, rejecting starts with a form. */
+  openRejectForm?: () => void;
   /** The touchpoint owns the Submit Draft / Submit Link Video modals. */
   onCreatorAction?: (action: MyTaskAction) => void;
 }
@@ -52,7 +60,7 @@ export interface PanelActionPorts {
 /** The step's facts the command list is chosen from. */
 export type PanelActionFacts = Pick<
   ContentDetail,
-  "waitingOn" | "latestSubmissionId" | "creatorActions" | "status"
+  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status"
 >;
 
 const CREATOR_LABELS: Record<MyTaskAction, { approved: string; grace: string }> = {
@@ -82,6 +90,27 @@ export function actionsFor(input: {
   }
 
   if (role === "admin") {
+    // A proposal waits on the admin with no hand-in yet: the decision is on the proposal itself.
+    if (detail.status === "pending") {
+      const contentId = detail.id;
+      return [
+        {
+          kind: "reject_proposal",
+          label: "Tolak",
+          variant: "danger",
+          canRun: () => !state().busy,
+          run: () => ports.openRejectForm?.(),
+        },
+        {
+          kind: "approve_proposal",
+          label: "Setujui",
+          variant: "accent",
+          canRun: () => !state().busy,
+          run: () => ports.approveProposal?.(contentId) ?? Promise.resolve(),
+        },
+      ];
+    }
+
     if (detail.waitingOn !== "admin" || !detail.latestSubmissionId) {
       return [];
     }
@@ -136,5 +165,25 @@ export function submitRevision(input: {
     variant: "accent",
     canRun: () => !state().busy && state().note.trim() !== "",
     run: () => ports.revise?.(submissionId, state().note.trim()) ?? Promise.resolve(),
+  };
+}
+
+/**
+ * The "Tolak Pengajuan" of the rejection form. The reason is optional (PRD 3.10), so only a
+ * decision already in flight locks it; the reason goes out trimmed.
+ */
+export function submitRejection(input: {
+  contentId: string;
+  state: () => PanelActionState;
+  ports: PanelActionPorts;
+}): PanelCommand {
+  const { contentId, state, ports } = input;
+
+  return {
+    kind: "reject_proposal",
+    label: "Tolak Pengajuan",
+    variant: "danger",
+    canRun: () => !state().busy,
+    run: () => ports.rejectProposal?.(contentId, state().note.trim()) ?? Promise.resolve(),
   };
 }
