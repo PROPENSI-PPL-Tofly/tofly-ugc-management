@@ -14,6 +14,7 @@ import type { MyTaskAction } from "./my-tasks";
 export type DetailEventType =
   | "scheduled"
   | "proposal_approved"
+  | "auto_scheduled"
   | "creator_comment"
   | "draft_submitted"
   | "revision_requested"
@@ -26,7 +27,8 @@ export interface RawContentEvent {
   type: DetailEventType;
   /** ISO instant, or a plain day when the API only knows the day; the newest arrives first. */
   at: string;
-  actor: { name: string | null; role: "admin" | "creator" };
+  /** "system" for a step the app took by itself (the H-1 scheduling); it has no name. */
+  actor: { name: string | null; role: "admin" | "creator" | "system" };
   payload?: { version?: number; link?: string; note?: string };
 }
 
@@ -91,6 +93,7 @@ const STEP_WORDING: Record<
   revision_requested: (round) => ({ title: `Revisi ke-${round} diminta`, linkLabel: null }),
   draft_approved: () => ({ title: "Draft di-approve", linkLabel: null }),
   proposal_approved: () => ({ title: "Pengajuan disetujui", linkLabel: null }),
+  auto_scheduled: () => ({ title: "Dijadwalkan otomatis (H-1)", linkLabel: null }),
   // A comment moves the content nowhere; its note is the whole point and reads signed.
   creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
   link_submitted: () => ({ title: "Link video dikirim", linkLabel: "Buka video" }),

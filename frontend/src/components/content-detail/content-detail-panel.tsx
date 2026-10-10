@@ -72,9 +72,10 @@ const DUE_SOON_DAYS = 1;
 
 type WaitingOn = ContentDetail["waitingOn"];
 
-const ROLE_LABELS: Record<"admin" | "creator", string> = {
+const ROLE_LABELS: Record<"admin" | "creator" | "system", string> = {
   admin: "Admin",
   creator: "Kreator",
+  system: "Sistem",
 };
 
 /** The step's waiting side reads the same however the status spells it. */
@@ -158,6 +159,7 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   draft_approved: "bg-green ring-green",
   // An approved proposal lands in Scheduled; a comment changes no status at all.
   proposal_approved: "bg-muted ring-muted",
+  auto_scheduled: "bg-muted ring-muted",
   creator_comment: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
 };
