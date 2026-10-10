@@ -4,6 +4,8 @@
 
 import { BadRequestException } from '@nestjs/common';
 import { isCalendarDay } from '../creators/evergreen.js';
+import { MAX_SEARCH_LENGTH } from '../creators/filters.js';
+import { isUuid } from '../uuid.js';
 import {
   CONTENT_STATUSES,
   isContentStatus,
@@ -27,8 +29,8 @@ const CONTENT_TYPES = ['evergreen', 'specific'] as const;
 
 export type ContentListType = (typeof CONTENT_TYPES)[number];
 
-/** Nobody searches for a paragraph; a cap keeps a hostile query from driving the scan. */
-export const MAX_SEARCH_LENGTH = 100;
+// The same cap every list's search has, defined once beside the Creator Database's filters.
+export { MAX_SEARCH_LENGTH };
 
 /** No filter has a reason to name more values than this, so a longer list is refused. */
 export const MAX_FILTER_VALUES = 50;
@@ -87,8 +89,6 @@ export interface ContentListFilters {
   sort: ContentListSort;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function reject(message: string): never {
   throw new BadRequestException(message);
 }
@@ -138,10 +138,6 @@ function listOf<T extends string>(
     reject(problem);
   }
   return [...new Set(elements)];
-}
-
-function isCreatorId(value: unknown): value is string {
-  return typeof value === 'string' && UUID.test(value);
 }
 
 function isContentType(value: unknown): value is ContentListType {
@@ -209,7 +205,7 @@ export function checkContentListQuery(
     creators: listOf(
       'creator',
       query.creator,
-      isCreatorId,
+      isUuid,
       'creator must be a creator id',
     ),
     types: listOf(
