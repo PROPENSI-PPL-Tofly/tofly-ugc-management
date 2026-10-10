@@ -55,6 +55,12 @@ const STATUS_TABS: readonly StatusTab[] = [
   'done',
 ];
 
+/**
+ * The period filter never narrows this tab, its rows or its counter, so nothing that waits for
+ * an admin can be hidden behind a date range.
+ */
+export const PERIOD_FREE_TAB: StatusTab = 'needs_approval';
+
 /** The one tab besides Semua that lists a status, read off TAB_STATUSES so the two cannot drift. */
 export function tabOf(status: ContentStatus): StatusTab {
   return STATUS_TABS.find((tab) =>
@@ -80,8 +86,10 @@ export interface ContentListFilters {
   q?: string;
   creators?: string[];
   types?: ContentListType[];
+  /** Narrows the rows only; the tab counters are counted without it. */
   statuses?: ContentStatus[];
-  overdue?: true;
+  /** True keeps what is past its deadline or was finished late, false everything else. */
+  overdue?: boolean;
   /** ISO calendar day, inclusive. */
   deadlineFrom?: string;
   /** ISO calendar day, inclusive. */
@@ -167,14 +175,14 @@ function calendarDay(name: string, value: unknown): string | undefined {
   return value;
 }
 
-function onlyOverdue(value: unknown): true | undefined {
-  if (value === undefined || value === 'false') {
+function overdueOrNot(value: unknown): boolean | undefined {
+  if (value === undefined) {
     return undefined;
   }
-  if (value !== 'true') {
+  if (value !== 'true' && value !== 'false') {
     reject('overdue must be true or false');
   }
-  return true;
+  return value === 'true';
 }
 
 /** Drops the filters nobody asked for, so the result names only what narrows the list. */
@@ -220,9 +228,9 @@ export function checkContentListQuery(
       isContentStatus,
       `status must be one of ${CONTENT_STATUSES.join(', ')}`,
     ),
-    overdue: onlyOverdue(query.overdue),
+    overdue: overdueOrNot(query.overdue),
     deadlineFrom,
     deadlineTo,
-    sort: oneOf('sort', CONTENT_LIST_SORTS, query.sort, 'deadline_asc'),
+    sort: oneOf('sort', CONTENT_LIST_SORTS, query.sort, 'deadline_desc'),
   });
 }

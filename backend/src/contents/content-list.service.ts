@@ -4,6 +4,7 @@ import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ContentStatus } from './content-lifecycle.js';
 import {
+  PERIOD_FREE_TAB,
   tabOf,
   type ContentListFilters,
   type ContentListSort,
@@ -113,9 +114,18 @@ function compareBy(sort: ContentListSort) {
     compareText(a.id, b.id);
 }
 
-/** Decides whether a row passes the search and filters, with what never changes worked out once. */
+/** Past its deadline with no link yet, or finished after it: both read as overdue to an admin. */
+function isOverdue(item: ContentListItem): boolean {
+  return item.tags.includes('overdue') || item.tags.includes('late_submission');
+}
+
+/**
+ * Decides whether a row passes the search and the filters every tab shares, with what never
+ * changes worked out once. The status filter and the period are not here: the first narrows
+ * the rows without touching a counter, the second leaves one tab alone.
+ */
 function matcher(filters: ContentListFilters) {
-  const { types, statuses, overdue, deadlineFrom, deadlineTo } = filters;
+  const { types, overdue } = filters;
   const creators = filters.creators && new Set(filters.creators);
   const needle = filters.q?.toLowerCase();
 
@@ -126,17 +136,7 @@ function matcher(filters: ContentListFilters) {
     if (types && !types.includes(item.type)) {
       return false;
     }
-    if (statuses && !statuses.includes(item.status)) {
-      return false;
-    }
-    if (overdue && !item.tags.includes('overdue')) {
-      return false;
-    }
-    // ISO days order the same as text and as dates.
-    if (deadlineFrom && item.deadline < deadlineFrom) {
-      return false;
-    }
-    if (deadlineTo && item.deadline > deadlineTo) {
+    if (overdue !== undefined && isOverdue(item) !== overdue) {
       return false;
     }
     if (!needle) {
@@ -149,6 +149,15 @@ function matcher(filters: ContentListFilters) {
   };
 }
 
+/** Whether a deadline falls inside the asked period; always, when none is asked. */
+function withinPeriod(filters: ContentListFilters) {
+  const { deadlineFrom, deadlineTo } = filters;
+  // ISO days order the same as text and as dates.
+  return (item: ContentListItem): boolean =>
+    !(deadlineFrom && item.deadline < deadlineFrom) &&
+    !(deadlineTo && item.deadline > deadlineTo);
+}
+
 @Injectable()
 export class ContentListService implements ContentListLister {
   constructor(
@@ -159,8 +168,10 @@ export class ContentListService implements ContentListLister {
   // A contract cycle holds about 180 contents, so the list is read once and then filtered,
   // counted, sorted and paged in memory. The overdue filter and the creator-name search are
   // judged on the very tags and name a row shows, so a filter can never disagree with its row.
-  // The tab is applied after the counting: every counter is the size of its tab under the same
-  // search and filters, whichever tab is open.
+  //
+  // The counters follow the prototype: each is the size of its tab under the search and the
+  // creator, type, overdue and period filters, whichever tab is open. The status filter only
+  // narrows the rows, and the period never applies to Perlu Approval.
   async list(
     paging: Paging,
     now: Date,
@@ -171,6 +182,8 @@ export class ContentListService implements ContentListLister {
     });
 
     const matches = matcher(filters);
+    const inPeriod = withinPeriod(filters);
+    const { statuses } = filters;
     const tabCounts: Record<ContentListTab, number> = {
       all: 0,
       needs_approval: 0,
@@ -179,17 +192,25 @@ export class ContentListService implements ContentListLister {
     };
     const listed: ContentListItem[] = [];
 
-    // One pass: a matching row is counted under Semua and under its own tab, and kept when
-    // the open tab is one of those two.
     for (const row of rows) {
       const item = this.toItem(row, now);
       if (!matches(item)) {
         continue;
       }
       const tab = tabOf(item.status);
-      tabCounts.all += 1;
-      tabCounts[tab] += 1;
-      if (filters.tab === 'all' || filters.tab === tab) {
+      const dated = inPeriod(item);
+      // Semua holds a row only inside the period; the row's own tab also holds it outside the
+      // period when that tab is Perlu Approval.
+      const inOwnTab = dated || tab === PERIOD_FREE_TAB;
+      if (dated) {
+        tabCounts.all += 1;
+      }
+      if (inOwnTab) {
+        tabCounts[tab] += 1;
+      }
+      const shown =
+        filters.tab === 'all' ? dated : filters.tab === tab && inOwnTab;
+      if (shown && (!statuses || statuses.includes(item.status))) {
         listed.push(item);
       }
     }
