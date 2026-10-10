@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
 import { DraftReviewActionError } from "@/lib/draft-review-actions";
@@ -438,6 +438,50 @@ describe("ContentDetailPanel", () => {
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     });
     expect(screen.getByText("Draft Approved")).toBeInTheDocument();
+  });
+
+  it("cancels the re-read after a 409 when the panel closes before it answers", async () => {
+    const approve = vi
+      .fn()
+      .mockRejectedValue(
+        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+      );
+    let answer: (value: ContentDetail) => void = () => {};
+    const { load } = open(detail(), { ports: { approve } });
+    load.mockReturnValueOnce(new Promise<ContentDetail>((resolve) => (answer = resolve)));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    await waitFor(() => {
+      expect(load).toHaveBeenCalledTimes(2);
+    });
+    cleanup();
+
+    const signal = load.mock.calls[1][2] as AbortSignal;
+    expect(signal.aborted).toBe(true);
+    // Answering after the panel is gone changes nothing and throws nothing.
+    answer(detail({ status: "draft_revision", waitingOn: "creator" }));
+    await new Promise((settle) => setTimeout(settle, 0));
+  });
+
+  it("drops an earlier re-read when a second 409 asks for a newer one", async () => {
+    const approve = vi
+      .fn()
+      .mockRejectedValue(
+        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+      );
+    const { load } = open(detail(), { ports: { approve } });
+    // The first re-read never answers; the content still looks undecided meanwhile.
+    load.mockReturnValueOnce(new Promise<ContentDetail>(() => {}));
+    load.mockResolvedValueOnce(detail({ status: "draft_approved", waitingOn: "creator" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    await waitFor(() => {
+      expect(load).toHaveBeenCalledTimes(2);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("Draft Approved")).toBeInTheDocument();
+    expect((load.mock.calls[1][2] as AbortSignal).aborted).toBe(true);
   });
 
   it("does not re-read the content when a decision fails for another reason", async () => {
