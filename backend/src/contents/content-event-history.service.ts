@@ -1,14 +1,20 @@
 import {
   Inject,
   Injectable,
+  NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface ContentEventRecord {
   id: string;
   content_id: string;
+  event_type: ContentEventType;
+  actor_name: string;
+  actor_role: ContentEventActorRole;
   occurred_at: Date;
+  event_data: Prisma.JsonValue;
 }
 
 export type ContentEventType =
@@ -53,9 +59,15 @@ export interface ContentEventQuery {
 
 /** The small Prisma surface needed to read one content item's event history. */
 export interface ContentEventHistoryClient {
+  contents: {
+    findUnique(args: {
+      where: { id: string };
+      select: { id: true };
+    }): Promise<{ id: string } | null>;
+  };
   content_events: {
     findMany(query: ContentEventQuery): Promise<ContentEventRecord[]>;
-    create(args: { data: ContentEventInput }): Promise<void>;
+    create(args: { data: ContentEventInput }): Promise<unknown>;
   };
 }
 
@@ -166,7 +178,18 @@ export class ContentEventHistoryService {
     private readonly prisma: ContentEventHistoryClient,
   ) {}
 
-  getForContent(contentId: string): Promise<ContentEventRecord[]> {
+  async getForContent(contentId: string): Promise<ContentEventRecord[]> {
+    const content = await this.prisma.contents.findUnique({
+      where: { id: contentId },
+      select: { id: true },
+    });
+    if (!content) {
+      throw new NotFoundException({
+        code: 'CONTENT_NOT_FOUND',
+        message: 'Konten tidak ditemukan',
+      });
+    }
+
     return this.prisma.content_events.findMany({
       where: { content_id: contentId },
       orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],

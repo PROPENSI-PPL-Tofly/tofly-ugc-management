@@ -16,7 +16,15 @@ function event(
   contentId: string,
   occurredAt: string,
 ): ContentEventRecord {
-  return { id, content_id: contentId, occurred_at: new Date(occurredAt) };
+  return {
+    id,
+    content_id: contentId,
+    event_type: 'Scheduled',
+    actor_name: 'Test Actor',
+    actor_role: 'admin',
+    occurred_at: new Date(occurredAt),
+    event_data: {},
+  };
 }
 
 function stubClient(events: ContentEventRecord[]) {
@@ -33,6 +41,11 @@ function stubClient(events: ContentEventRecord[]) {
     });
   });
   const client = {
+    contents: {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+      })),
+    },
     content_events: {
       findMany,
       create: vi.fn(async (_args: { data: ContentEventInput }) => undefined),

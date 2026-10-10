@@ -29,7 +29,7 @@ describe('ContentsController', () => {
     const create = vi.fn().mockResolvedValue(createdContent);
     vi.mocked(checkNewContent).mockReturnValue(body);
 
-    const controller = new ContentsController({ create });
+    const controller = new ContentsController({ create }, { getForContent: vi.fn() });
 
     await expect(controller.create(body)).resolves.toEqual(createdContent);
 
