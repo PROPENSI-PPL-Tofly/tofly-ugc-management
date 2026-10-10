@@ -9,6 +9,11 @@ import {
 
 const DEADLINE = new Date('2026-09-30T00:00:00.000Z');
 
+/** Midday in Jakarta on the given day, so the day is the same on either side of UTC. */
+function on(day: string): Date {
+  return new Date(`${day}T05:00:00.000Z`);
+}
+
 function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
   return {
     id: '11111111-1111-1111-1111-111111111111',
@@ -19,6 +24,7 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
     status: 'scheduled',
     video_link: null,
     video_submitted_at: null,
+    approval_bypassed: false,
     created_at: new Date('2026-09-01T03:00:00.000Z'),
     updated_at: new Date('2026-09-01T03:00:00.000Z'),
     contracts: {
@@ -216,7 +222,7 @@ describe('buildEvents', () => {
 
 describe('toContentDetail', () => {
   it('joins the creator name, the ISO deadline day and the waiting side', () => {
-    const detail = toContentDetail(row(), '2026-09-20');
+    const detail = toContentDetail(row(), on('2026-09-20'));
 
     expect(detail).toMatchObject({
       name: 'Evg_Test 1',
@@ -244,7 +250,7 @@ describe('toContentDetail', () => {
           }),
         ],
       }),
-      '2026-09-20',
+      on('2026-09-20'),
     );
 
     expect(detail.latestSubmissionId).toBe('cccccccc-0000-0000-0000-000000000002');
@@ -254,25 +260,80 @@ describe('toContentDetail', () => {
   it('flags overdue work and never finished work', () => {
     const overdue = toContentDetail(
       row({ status: 'draft_revision' }),
-      '2026-10-01',
+      on('2026-10-01'),
     );
     const done = toContentDetail(
       row({ status: 'link_submitted', video_submitted_at: new Date('2026-09-28T00:00:00.000Z') }),
-      '2026-10-01',
+      on('2026-10-01'),
     );
 
-    expect(overdue.tags.overdue).toBe(true);
-    expect(done.tags.overdue).toBe(false);
+    expect(overdue.tags).toEqual(['overdue']);
+    expect(done.tags).toEqual([]);
   });
 
-  it('leaves the late and bypass tags to the write-time columns of PBI 6.2', () => {
+  it('counts overdue by the Jakarta day, which starts seven hours before the UTC one', () => {
+    // 18:00 UTC on the deadline day is already 01:00 the next day in Jakarta.
+    const detail = toContentDetail(row(), new Date('2026-09-30T18:00:00.000Z'));
+
+    expect(detail.tags).toEqual(['overdue']);
+  });
+
+  it('never tags a pending proposal as overdue', () => {
+    const detail = toContentDetail(row({ status: 'pending' }), on('2026-10-05'));
+
+    expect(detail.tags).toEqual([]);
+  });
+
+  it('tags a late submission by the latest draft, whatever order the rows arrive in', () => {
     const detail = toContentDetail(
-      row({ status: 'link_submitted', video_submitted_at: new Date('2026-09-28T00:00:00.000Z') }),
-      '2026-09-20',
+      row({
+        status: 'draft_review',
+        submissions: [
+          submission({
+            id: 'dddddddd-0000-0000-0000-000000000002',
+            created_at: new Date('2026-10-02T03:00:00.000Z'),
+          }),
+          submission({
+            id: 'dddddddd-0000-0000-0000-000000000001',
+            created_at: new Date('2026-09-10T10:00:00.000Z'),
+          }),
+        ],
+      }),
+      on('2026-10-03'),
     );
 
-    expect(detail.tags.lateSubmission).toBe(false);
-    expect(detail.tags.approvalBypassed).toBe(false);
+    expect(detail.tags).toEqual(['late_submission', 'overdue']);
+  });
+
+  it('tags a video link that came in after the deadline day as a late submission', () => {
+    const detail = toContentDetail(
+      row({ status: 'link_submitted', video_submitted_at: new Date('2026-10-02T00:00:00.000Z') }),
+      on('2026-10-03'),
+    );
+
+    expect(detail.tags).toEqual(['late_submission']);
+  });
+
+  it('tags a link handed in without an approval from the flag stored at hand-in', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        video_submitted_at: new Date('2026-09-28T00:00:00.000Z'),
+        approval_bypassed: true,
+      }),
+      on('2026-10-03'),
+    );
+
+    expect(detail.tags).toEqual(['approval_bypassed']);
+  });
+
+  it('opens the H-1 video hand-in by the Jakarta day too', () => {
+    // 18:00 UTC on the 28th is 01:00 on the 29th in Jakarta, the day before the deadline.
+    const before = toContentDetail(row(), on('2026-09-28'));
+    const dayBefore = toContentDetail(row(), new Date('2026-09-28T18:00:00.000Z'));
+
+    expect(before.creatorActions).toEqual(['submit_draft']);
+    expect(dayBefore.creatorActions).toEqual(['submit_draft', 'submit_video']);
   });
 
   it('offers the creator hand-in buttons a finished content no longer has', () => {
@@ -281,7 +342,7 @@ describe('toContentDetail', () => {
         status: 'link_submitted',
         video_submitted_at: new Date('2026-09-28T00:00:00.000Z'),
       }),
-      '2026-09-20',
+      on('2026-09-20'),
     );
 
     expect(detail.creatorActions).toEqual([]);

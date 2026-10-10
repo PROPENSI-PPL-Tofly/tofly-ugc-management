@@ -18,7 +18,7 @@ const DETAIL = {
   deadline: '2026-09-30',
   status: 'scheduled',
   creatorName: 'Rangga Pratama',
-  tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+  tags: [],
   waitingOn: 'creator',
   latestSubmissionId: null,
   creatorActions: ['submit_draft'],
