@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import type { ContentStatus } from './content-lifecycle.js';
 import {
   PERIOD_FREE_TAB,
+  TAB_STATUSES,
   tabOf,
   type ContentListFilters,
   type ContentListSort,
@@ -74,10 +75,23 @@ export interface ContentListRow {
   _count: { submissions: number };
 }
 
+interface DeadlineRange {
+  gte?: Date;
+  lte?: Date;
+}
+
+/** The filters the database can decide by itself, on columns it can index. */
+export interface ContentListWhere {
+  contracts?: { creator_id: { in: string[] } };
+  type?: { in: ContentListType[] };
+  OR?: [{ deadline: DeadlineRange }, { status: { in: ContentStatus[] } }];
+}
+
 /** The slice of Prisma this service touches, so tests can stub exactly that. */
 export interface ContentListClient {
   contents: {
     findMany: (args: {
+      where: ContentListWhere;
       select: typeof CONTENT_LIST_SELECT;
     }) => Promise<ContentListRow[]>;
   };
@@ -120,22 +134,16 @@ function isOverdue(item: ContentListItem): boolean {
 }
 
 /**
- * Decides whether a row passes the search and the filters every tab shares, with what never
- * changes worked out once. The status filter and the period are not here: the first narrows
- * the rows without touching a counter, the second leaves one tab alone.
+ * Decides whether a row passes the search and the overdue filter, the two that are judged on
+ * what a row shows (its joined creator name, its tags) and so cannot be asked of the database.
+ * The status filter and the period are not here: the first narrows the rows without touching a
+ * counter, the second leaves one tab alone.
  */
 function matcher(filters: ContentListFilters) {
-  const { types, overdue } = filters;
-  const creators = filters.creators && new Set(filters.creators);
+  const { overdue } = filters;
   const needle = filters.q?.toLowerCase();
 
   return (item: ContentListItem): boolean => {
-    if (creators && !creators.has(item.creatorId)) {
-      return false;
-    }
-    if (types && !types.includes(item.type)) {
-      return false;
-    }
     if (overdue !== undefined && isOverdue(item) !== overdue) {
       return false;
     }
@@ -147,6 +155,41 @@ function matcher(filters: ContentListFilters) {
       item.creatorName.toLowerCase().includes(needle)
     );
   };
+}
+
+/** A calendar day as Postgres `date` columns hold it: midnight UTC. */
+function asDate(day: string): Date {
+  return new Date(`${day}T00:00:00.000Z`);
+}
+
+/**
+ * What the query itself narrows by: creator, type and deadline period. The period keeps every
+ * status of Perlu Approval whatever its deadline, because that tab is never narrowed by it;
+ * which rows the period then leaves in each tab is decided row by row in list().
+ */
+function narrowing(filters: ContentListFilters): ContentListWhere {
+  const { creators, types, deadlineFrom, deadlineTo } = filters;
+  const where: ContentListWhere = {};
+  if (creators) {
+    where.contracts = { creator_id: { in: creators } };
+  }
+  if (types) {
+    where.type = { in: types };
+  }
+  if (deadlineFrom || deadlineTo) {
+    const deadline: DeadlineRange = {};
+    if (deadlineFrom) {
+      deadline.gte = asDate(deadlineFrom);
+    }
+    if (deadlineTo) {
+      deadline.lte = asDate(deadlineTo);
+    }
+    where.OR = [
+      { deadline },
+      { status: { in: [...TAB_STATUSES[PERIOD_FREE_TAB]] } },
+    ];
+  }
+  return where;
 }
 
 /** Whether a deadline falls inside the asked period; always, when none is asked. */
@@ -165,9 +208,9 @@ export class ContentListService implements ContentListLister {
     private readonly prisma: ContentListClient,
   ) {}
 
-  // A contract cycle holds about 180 contents, so the list is read once and then filtered,
-  // counted, sorted and paged in memory. The overdue filter and the creator-name search are
-  // judged on the very tags and name a row shows, so a filter can never disagree with its row.
+  // The query narrows by creator, type and period; what it returns is then searched, counted,
+  // sorted and paged in memory. The overdue filter and the creator-name search are judged on
+  // the very tags and name a row shows, so a filter can never disagree with its row.
   //
   // The counters follow the prototype: each is the size of its tab under the search and the
   // creator, type, overdue and period filters, whichever tab is open. The status filter only
@@ -178,6 +221,7 @@ export class ContentListService implements ContentListLister {
     filters: ContentListFilters,
   ): Promise<ContentListResponse> {
     const rows = await this.prisma.contents.findMany({
+      where: narrowing(filters),
       select: CONTENT_LIST_SELECT,
     });
 
