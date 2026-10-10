@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 export const TOAST_DURATION_MS = 4000;
 
@@ -39,4 +39,24 @@ export function Toast({ message, onDismiss }: { message: string; onDismiss: () =
       </button>
     </div>
   );
+}
+
+/**
+ * The state every surface that confirms something keeps: the message on screen, and a counter
+ * used as the Toast's key so a second confirmation remounts it and restarts its countdown, even
+ * with the same text. `show` is stable, so it is safe in effects and callbacks; `toast` is the
+ * element to render beside the surface (never inside a part that reloads, or it would vanish).
+ */
+export function useToast(): { show: (message: string) => void; toast: ReactNode } {
+  const [current, setCurrent] = useState<{ id: number; message: string } | null>(null);
+  const show = useCallback((message: string) => {
+    setCurrent((last) => ({ id: (last?.id ?? 0) + 1, message }));
+  }, []);
+
+  return {
+    show,
+    toast: current ? (
+      <Toast key={current.id} message={current.message} onDismiss={() => setCurrent(null)} />
+    ) : null,
+  };
 }

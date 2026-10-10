@@ -10,6 +10,7 @@ import { CreatorsModule } from './creators/creators.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MeModule } from './me/me.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { ProposalsModule } from './contents/proposals.module.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
@@ -33,6 +34,7 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
         PrismaModule,
         CreatorsModule,
         ContentsModule,
+        ProposalsModule,
         SubmissionsModule,
         MeModule,
         SessionModule,

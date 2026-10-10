@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { type ExecutionContext, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AdminGuard } from '../src/auth/admin.guard.js';
@@ -27,6 +27,14 @@ describe('PATCH /submissions/:id/revise', () => {
         },
         contents: {
           updateMany: contentUpdateMany,
+        },
+        users: {
+          findUnique: vi.fn().mockResolvedValue({
+            email: 'test-admin@example.test',
+          }),
+        },
+        content_events: {
+          create: vi.fn().mockResolvedValue({ id: 'event-id' }),
         },
       }),
     ),
@@ -66,7 +74,18 @@ describe('PATCH /submissions/:id/revise', () => {
       // Prisma is stubbed here, so there is no session table to sign in against; the admin
       // guard is proven by admin-routes.e2e-spec.ts on the real database.
       .overrideGuard(AdminGuard)
-      .useValue({ canActivate: () => true })
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          const request = context.switchToHttp().getRequest<{
+            principal?: { userId: string; role: 'admin' };
+          }>();
+          request.principal = {
+            userId: 'test-admin-user-id',
+            role: 'admin',
+          };
+          return true;
+        },
+      })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -88,6 +107,7 @@ describe('PATCH /submissions/:id/revise', () => {
 
     expect(response.body).toEqual({
       id: submissionId,
+      contentId,
       status: 'draft_revision',
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
@@ -96,7 +116,7 @@ describe('PATCH /submissions/:id/revise', () => {
       where: {
         id: contentId,
         status: {
-          in: ['draft_review', 'draft_revised'],
+          in: ['draft_review'],
         },
       },
       data: {
@@ -135,6 +155,68 @@ describe('PATCH /submissions/:id/revise', () => {
     expect(response.body).toEqual({
       message: 'Data revisi tidak valid',
       errors: { revisionNotes: 'Catatan revisi maksimal 1000 karakter' },
+    });
+    expect(submissionUpdate).not.toHaveBeenCalled();
+    expect(contentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 SUBMISSION_NOT_FOUND for an unknown submission, changing nothing', async () => {
+    findUnique.mockResolvedValue(null);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      code: 'SUBMISSION_NOT_FOUND',
+      message: 'Draft tidak ditemukan',
+    });
+    expect(submissionUpdate).not.toHaveBeenCalled();
+    expect(contentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 DRAFT_NOT_REVIEWABLE for a draft that is already decided, changing nothing', async () => {
+    findUnique.mockResolvedValue({
+      id: submissionId,
+      content_id: contentId,
+      contents: {
+        status: 'draft_approved',
+        submissions: [{ id: submissionId }],
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      code: 'DRAFT_NOT_REVIEWABLE',
+      message: 'Draft ini sudah tidak menunggu keputusan',
+    });
+    expect(submissionUpdate).not.toHaveBeenCalled();
+    expect(contentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 SUBMISSION_SUPERSEDED for an older draft once the creator resubmitted, changing nothing', async () => {
+    findUnique.mockResolvedValue({
+      id: submissionId,
+      content_id: contentId,
+      contents: {
+        status: 'draft_review',
+        submissions: [{ id: '550e8400-e29b-41d4-a716-446655440099' }],
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      code: 'SUBMISSION_SUPERSEDED',
+      message: 'Creator sudah mengirim draft yang lebih baru',
     });
     expect(submissionUpdate).not.toHaveBeenCalled();
     expect(contentUpdateMany).not.toHaveBeenCalled();

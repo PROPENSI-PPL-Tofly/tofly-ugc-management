@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { content_status, content_type } from '@prisma/client';
+import { COMMITTED_STATUSES } from '../contents/content-lifecycle.js';
+import { contentTags, type ContentTag } from '../contents/content-tags.js';
 import { jakartaDay } from '../creators/evergreen.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -20,9 +22,13 @@ const MY_CONTENT_SELECT = {
   brief: true,
   deadline: true,
   status: true,
-  // Only the latest hand-in: its revision_notes are what the admin asked to change.
+  // What the row's tags are judged on (content-tags.ts), never shown themselves.
+  video_submitted_at: true,
+  approval_bypassed: true,
+  // Only the latest hand-in: its revision_notes are what the admin asked to change, and its time
+  // decides a late draft.
   submissions: {
-    select: { revision_notes: true },
+    select: { revision_notes: true, created_at: true },
     orderBy: { created_at: 'desc' },
     take: 1,
   },
@@ -44,14 +50,16 @@ export interface MyContentRow {
   brief: string;
   deadline: Date;
   status: content_status;
-  submissions: { revision_notes: string | null }[];
+  video_submitted_at: Date | null;
+  approval_bypassed: boolean;
+  submissions: { revision_notes: string | null; created_at: Date }[];
 }
 
 interface MyContentsWhere {
-  // A pending proposal is not assigned work yet; it belongs to the proposal flow.
-  is_proposal: false;
   contracts: { creator_id: string };
-  status?: { in: content_status[] };
+  // Always named: without a filter it is every committed status, so a pending proposal, which
+  // is not assigned work yet, never reaches Task Saya.
+  status: { in: content_status[] };
   // Only a submitted link has video_submitted_at (the video endpoint sets both together with
   // link_submitted), so this is what tells finished work from open work.
   video_submitted_at?: null | { not: null };
@@ -102,9 +110,8 @@ export class MyContentsService implements MyContentsLister {
   ): Promise<MyContentsResponse> {
     const { page, pageSize, status } = query;
     const where: MyContentsWhere = {
-      is_proposal: false,
       contracts: { creator_id: creatorId },
-      ...(status && { status: { in: statusesFor(status) } }),
+      status: { in: status ? statusesFor(status) : [...COMMITTED_STATUSES] },
     };
     const open: MyContentsWhere = { ...where, video_submitted_at: null };
     const finished: MyContentsWhere = {
@@ -128,11 +135,22 @@ export class MyContentsService implements MyContentsLister {
     ]);
 
     const today = jakartaDay(now);
+    const tagsOf = (row: MyContentRow) =>
+      contentTags(
+        {
+          deadline: row.deadline,
+          status: row.status,
+          videoSubmittedAt: row.video_submitted_at,
+          latestDraftAt: row.submissions[0]?.created_at ?? null,
+          approvalBypassed: row.approval_bypassed,
+        },
+        now,
+      );
     const total = openTotal + finishedTotal;
 
     return {
       items: [...openRows, ...finishedRows].map((row) =>
-        this.toItem(row, today),
+        this.toItem(row, today, tagsOf(row)),
       ),
       page,
       pageSize,
@@ -159,7 +177,7 @@ export class MyContentsService implements MyContentsLister {
     });
   }
 
-  private toItem(row: MyContentRow, today: string): MyContentItem {
+  private toItem(row: MyContentRow, today: string, tags: ContentTag[]): MyContentItem {
     // Postgres `date` arrives as midnight UTC, so the ISO day is its first ten characters.
     const deadline = row.deadline.toISOString().slice(0, 10);
     return {
@@ -169,6 +187,7 @@ export class MyContentsService implements MyContentsLister {
       brief: row.brief,
       deadline,
       status: row.status,
+      tags,
       actions: taskActions(row.status, deadline, today),
       // Stale once the revision is handed in, so only a row awaiting a resubmit carries them.
       revisionNotes:

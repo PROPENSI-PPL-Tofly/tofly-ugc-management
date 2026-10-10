@@ -2,12 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
-import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import { Pill, StatusDot } from "@/components/ui/pill";
+import {
+  ContentDetailPanel,
+  DECISION_CONFIRMATIONS,
+} from "@/components/content-detail/content-detail-panel";
+import { useToast } from "@/components/ui/toast";
 import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
-import { fetchCreatorDetail, type ContentOutcome, type CreatorDetail } from "@/lib/creators";
+import { fetchCreatorDetail, type CreatorDetail } from "@/lib/creators";
 import {
   formatContractWindow,
   formatDate,
@@ -17,22 +23,6 @@ import {
 } from "@/lib/format";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { CONTRACT_TYPE_LABELS, contractTypePrefix } from "@/lib/creator-form";
-
-// A resolved content gets a judgement (on time or not) as a pill; one still in progress
-// shows the plain fact of where it is in the workflow instead.
-type ResolvedOutcome = Exclude<ContentOutcome, "open">;
-
-const OUTCOME_LABELS: Record<ResolvedOutcome, string> = {
-  on_time: "Tepat waktu",
-  submitted_late: "Terlambat kirim",
-  late: "Lewat deadline",
-};
-
-const OUTCOME_TONES: Record<ResolvedOutcome, Tone> = {
-  on_time: "green",
-  submitted_late: "amber",
-  late: "red",
-};
 
 /** Content history rows per page; keeps the modal short for creators with long contracts. */
 const CONTENTS_PER_PAGE = 5;
@@ -51,6 +41,11 @@ export function CreatorDetailModal({
   const [detail, setDetail] = useState<CreatorDetail | null>(null);
   const [failed, setFailed] = useState(false);
   const [contentPage, setContentPage] = useState(0);
+  // The content whose detail panel is open; it stacks over this modal.
+  const [openContentId, setOpenContentId] = useState<string | null>(null);
+  // Bumped by a decision inside the panel, so the history below re-fetches its data.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { show: confirm, toast } = useToast();
 
   // No reset on creatorId here: the caller keys this component by creator, so a
   // different creator is a different mount that starts from the initial state.
@@ -73,7 +68,7 @@ export function CreatorDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [creatorId]);
+  }, [creatorId, refreshKey]);
 
   const contentTotal = detail?.contents.length ?? 0;
   const contentFirst = contentPage * CONTENTS_PER_PAGE;
@@ -81,6 +76,7 @@ export function CreatorDetailModal({
   const visibleContents = detail?.contents.slice(contentFirst, contentLast) ?? [];
 
   return (
+    <>
     <Modal
       title={name}
       onClose={onClose}
@@ -220,6 +216,9 @@ export function CreatorDetailModal({
                       <th scope="col" className="w-40 py-1.5 font-semibold">
                         Status
                       </th>
+                      <th scope="col" className="w-16 py-1.5 font-semibold">
+                        Aksi
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -234,15 +233,22 @@ export function CreatorDetailModal({
                           {formatDate(content.deadline)}
                         </td>
                         <td className="py-2">
-                          {content.outcome === "open" ? (
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             <StatusDot tone={CONTENT_STATUS_TONES[content.status]}>
                               {CONTENT_STATUS_LABELS[content.status]}
                             </StatusDot>
-                          ) : (
-                            <Pill tone={OUTCOME_TONES[content.outcome]}>
-                              {OUTCOME_LABELS[content.outcome]}
-                            </Pill>
-                          )}
+                            <ContentTags tags={content.tags} />
+                          </div>
+                        </td>
+                        <td className="py-2">
+                          <Button
+                            variant="ghost"
+                            // Every row has a Detail button; the content's name tells them apart when heard.
+                            aria-label={`Detail: ${content.name}`}
+                            onClick={() => setOpenContentId(content.id)}
+                          >
+                            Detail
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -298,5 +304,24 @@ export function CreatorDetailModal({
         </>
       ) : null}
     </Modal>
+
+    {openContentId ? (
+      <ContentDetailPanel
+        key={openContentId}
+        contentId={openContentId}
+        role="admin"
+        onClose={() => setOpenContentId(null)}
+        // A decision closes the panel and re-fetches the creator detail, so the
+        // decided content's status updates without a full page reload (#73).
+        onDecided={(decision) => {
+          setOpenContentId(null);
+          setRefreshKey((current) => current + 1);
+          confirm(DECISION_CONFIRMATIONS[decision]);
+        }}
+      />
+    ) : null}
+
+    {toast}
+    </>
   );
 }

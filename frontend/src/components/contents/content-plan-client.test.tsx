@@ -3,12 +3,14 @@ import {
     fireEvent,
     render,
     screen,
+    waitFor,
 } from "@testing-library/react";
 import { ContentPlanClient } from "./content-plan-client";
 import {
     fetchCreatorDetail,
     type CreatorDetail,
 } from "@/lib/creators";
+import type { ContentDetail } from "@/lib/content-detail";
 
 vi.mock("next/link", async (importOriginal) => {
     const actual = await importOriginal<typeof import("next/link")>();
@@ -24,6 +26,32 @@ vi.mock("@/lib/creators", async (importOriginal) => {
         fetchCreatorDetail: vi.fn(),
     };
 });
+
+const { fetchContentDetail, approveSubmission, approveProposal } = vi.hoisted(() => ({
+    fetchContentDetail: vi.fn(),
+    approveSubmission: vi.fn(),
+    approveProposal: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+vi.mock("@/lib/content-detail", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/content-detail")>()),
+    fetchContentDetail: (id: string, role: "admin" | "creator") =>
+        fetchContentDetail(id, role),
+}));
+
+vi.mock("@/lib/draft-review-actions", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/draft-review-actions")>()),
+    approveSubmission: (id: string) => approveSubmission(id),
+}));
+
+vi.mock("@/lib/proposal-actions", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/proposal-actions")>()),
+    approveProposal: (id: string) => approveProposal(id),
+}));
 
 vi.mock("@/components/contents/add-content-modal", () => ({
     AddContentModal: ({
@@ -185,6 +213,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                     {
@@ -194,6 +223,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-10-05",
                         status: "link_submitted",
                         outcome: "on_time",
+                        tags: [],
                         videoLink:
                             "https://example.com/video",
                     },
@@ -276,6 +306,7 @@ describe("ContentPlanClient", () => {
             deadline: `2026-10-${String(index + 1).padStart(2, "0")}`,
             status: "scheduled" as const,
             outcome: "open" as const,
+            tags: [],
             videoLink: null,
         }));
 
@@ -333,6 +364,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "draft_revision",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                 ],
@@ -387,6 +419,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                     {
@@ -396,6 +429,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-10-05",
                         status: "link_submitted",
                         outcome: "on_time",
+                        tags: [],
                         videoLink: null,
                     },
                 ],
@@ -452,6 +486,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-09-30",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                     {
@@ -461,6 +496,7 @@ describe("ContentPlanClient", () => {
                         deadline: "2026-10-05",
                         status: "scheduled",
                         outcome: "open",
+                        tags: [],
                         videoLink: null,
                     },
                 ],
@@ -522,6 +558,7 @@ describe("ContentPlanClient", () => {
                             deadline: "2026-09-30",
                             status: "link_submitted",
                             outcome: "on_time",
+                            tags: [],
                             videoLink: null,
                         },
                     ],
@@ -537,6 +574,7 @@ describe("ContentPlanClient", () => {
                             deadline: "2026-09-30",
                             status: "link_submitted",
                             outcome: "on_time",
+                            tags: [],
                             videoLink: null,
                         },
                         {
@@ -546,6 +584,7 @@ describe("ContentPlanClient", () => {
                             deadline: "2026-10-05",
                             status: "scheduled",
                             outcome: "open",
+                            tags: [],
                             videoLink: null,
                         },
                     ],
@@ -760,5 +799,184 @@ describe("ContentPlanClient", () => {
 
             expect(screen.queryByRole("status")).toBeNull();
         });
+    });
+});
+
+describe("ContentPlanClient content detail panel", () => {
+    beforeEach(() => {
+        vi.mocked(fetchCreatorDetail).mockReset();
+        fetchContentDetail.mockReset();
+    });
+
+    it("names every row's Detail button after its content, so a screen reader can tell them apart", async () => {
+        const row = (id: string, name: string) => ({
+            id,
+            name,
+            type: "evergreen" as const,
+            deadline: "2026-09-30",
+            status: "scheduled" as const,
+            outcome: "open" as const,
+            videoLink: null,
+            tags: [],
+        });
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    row("content-1", "Evg_Rangga_30092026"),
+                    row("content-2", "Evg_Rangga_14102026"),
+                ],
+            }),
+        );
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        expect(
+            await screen.findByRole("button", { name: "Detail: Evg_Rangga_30092026" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: "Detail: Evg_Rangga_14102026" }),
+        ).toBeInTheDocument();
+    });
+
+    it("approves a creator's proposal from its panel, reloads the plan and confirms it", async () => {
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-9",
+                        name: "Ide konten dari Rangga",
+                        type: "specific",
+                        deadline: "2026-10-30",
+                        status: "pending",
+                        outcome: "open",
+                        videoLink: null,
+                        tags: [],
+                    },
+                ],
+            }),
+        );
+        fetchContentDetail.mockResolvedValue({
+            id: "content-9",
+            name: "Ide konten dari Rangga",
+            type: "specific",
+            brief: "Unboxing paket olahraga.",
+            deadline: "2026-10-30",
+            status: "pending",
+            creatorName: "Rangga Pratama",
+            tags: [],
+            waitingOn: "admin",
+            latestSubmissionId: null,
+            creatorActions: [],
+            events: [],
+        } satisfies ContentDetail);
+        approveProposal.mockResolvedValue(undefined);
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        fireEvent.click(
+            await screen.findByRole("button", { name: "Detail: Ide konten dari Rangga" }),
+        );
+        fireEvent.click(await screen.findByRole("button", { name: "Setujui" }));
+
+        expect(await screen.findByRole("status")).toHaveTextContent(
+            "Pengajuan disetujui. Konten masuk jadwal kreator.",
+        );
+        expect(approveProposal).toHaveBeenCalledWith("content-9");
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(vi.mocked(fetchCreatorDetail)).toHaveBeenCalledTimes(2);
+    });
+
+    it("opens the content detail panel of a content row, as the admin", async () => {
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-1",
+                        name: "Evg_Rangga_30092026",
+                        type: "evergreen",
+                        deadline: "2026-09-30",
+                        status: "scheduled",
+                        outcome: "open",
+                        videoLink: null,
+                        tags: [],
+                    },
+                ],
+            }),
+        );
+        fetchContentDetail.mockResolvedValue({
+            id: "content-1",
+            name: "Evg_Rangga_30092026",
+            type: "evergreen",
+            brief: "",
+            deadline: "2026-09-30",
+            status: "scheduled",
+            creatorName: "Rangga Pratama",
+            tags: [],
+            waitingOn: "creator",
+            latestSubmissionId: null,
+            creatorActions: ["submit_draft"],
+            events: [],
+        } satisfies ContentDetail);
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Detail: Evg_Rangga_30092026" }));
+
+        expect(await screen.findByRole("dialog")).toBeInTheDocument();
+        expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
+
+        fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    // Review feedback on #73: a decision from this surface must close the panel and
+    // reload the schedule, or the row keeps its old status until a full page reload
+    // and a second Approve hits the backend's 409.
+    it("closes the panel and reloads the schedule once a draft is approved", async () => {
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-1",
+                        name: "Evg_Rangga_30092026",
+                        type: "evergreen",
+                        deadline: "2026-09-30",
+                        status: "draft_review",
+                        outcome: "open",
+                        videoLink: null,
+                        tags: [],
+                    },
+                ],
+            }),
+        );
+        fetchContentDetail.mockResolvedValue({
+            id: "content-1",
+            name: "Evg_Rangga_30092026",
+            type: "evergreen",
+            brief: "",
+            deadline: "2026-09-30",
+            status: "draft_review",
+            creatorName: "Rangga Pratama",
+            tags: [],
+            waitingOn: "admin",
+            latestSubmissionId: "submission-1",
+            creatorActions: [],
+            events: [],
+        } satisfies ContentDetail);
+        approveSubmission.mockResolvedValue(undefined);
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Detail: Evg_Rangga_30092026" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+            expect(approveSubmission).toHaveBeenCalledWith("submission-1");
+            expect(vi.mocked(fetchCreatorDetail)).toHaveBeenCalledTimes(2);
+        });
+        expect(await screen.findByRole("status")).toHaveTextContent(
+            "Draft di-approve. Kreator bisa kirim link video.",
+        );
     });
 });

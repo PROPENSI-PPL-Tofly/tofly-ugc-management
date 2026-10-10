@@ -23,6 +23,7 @@ function iso(offset: number): string {
 }
 
 type Status =
+  | 'pending'
   | 'scheduled'
   | 'draft_review'
   | 'draft_revision'
@@ -69,7 +70,6 @@ describe('GET /me/contents (e2e)', () => {
     name: string,
     status: Status,
     offset: number,
-    isProposal = false,
   ) {
     return prisma.contents.create({
       data: {
@@ -78,7 +78,6 @@ describe('GET /me/contents (e2e)', () => {
         type: 'evergreen',
         deadline: day(offset),
         status,
-        is_proposal: isProposal,
         // A submitted link always carries its link and day, as POST /contents/:id/video sets them.
         ...(status === 'link_submitted' && {
           video_link: 'https://www.instagram.com/reel/e2e/',
@@ -125,7 +124,7 @@ describe('GET /me/contents (e2e)', () => {
     await content(a.contractId, 'In review', 'draft_review', 20);
     await content(a.contractId, 'Overdue', 'scheduled', -2);
     await content(a.contractId, 'Far away', 'scheduled', 40);
-    await content(a.contractId, 'Pending proposal', 'scheduled', 5, true);
+    await content(a.contractId, 'Pending proposal', 'pending', 5);
     await content(b.contractId, 'Raka only', 'scheduled', 3);
   });
 
@@ -232,8 +231,12 @@ describe('GET /me/contents (e2e)', () => {
       'name',
       'revisionNotes',
       'status',
+      'tags',
       'type',
     ]);
+    // The tags are judged on the link and bypass columns; those columns stay on the server.
+    expect(response.body.items[0]).not.toHaveProperty('video_submitted_at');
+    expect(response.body.items[0]).not.toHaveProperty('approval_bypassed');
   });
 
   it("never shows one creator another creator's contents or a pending proposal", async () => {

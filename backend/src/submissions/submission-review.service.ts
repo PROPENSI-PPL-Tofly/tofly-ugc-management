@@ -1,16 +1,10 @@
-import {
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { adminActor, type AdminActor } from '../contents/content-event-actors.js';
+import { unauthenticated } from '../auth/creator-request.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import {
-  checkReviewable,
-  REVIEWABLE_STATUSES,
-  type ReviewRejection,
-} from './draft-review.js';
+import { checkReviewable, REVIEWABLE_STATUSES } from './draft-review.js';
 import type { ApprovedSubmission } from './dto/approved-submission.dto.js';
+import { reviewConflict, submissionNotFound } from './review-errors.js';
 
 type ReviewableStatus = (typeof REVIEWABLE_STATUSES)[number];
 
@@ -52,15 +46,30 @@ export interface SubmissionReviewClient {
       data: { status: 'draft_approved' };
     }) => Promise<{ count: number }>;
   };
+
+  $transaction?<T>(
+    work: (transaction: SubmissionReviewTransaction) => Promise<T>,
+  ): Promise<T>;
 }
 
-const REJECTION_MESSAGES: Record<ReviewRejection, string> = {
-  DRAFT_NOT_REVIEWABLE: 'Draft ini sudah tidak menunggu keputusan',
-  SUBMISSION_SUPERSEDED: 'Creator sudah mengirim draft yang lebih baru',
-};
-
-function conflict(code: ReviewRejection): ConflictException {
-  return new ConflictException({ code, message: REJECTION_MESSAGES[code] });
+interface SubmissionReviewTransaction {
+  contents: SubmissionReviewClient['contents'];
+  users: {
+    findUnique: (args: {
+      where: { id: string };
+      select: { id: true };
+    }) => Promise<{ id: string } | null>;
+  };
+  content_events: {
+    create: (args: {
+      data: AdminActor & {
+        content_id: string;
+        event_type: 'Draft Approved';
+        occurred_at: Date;
+        event_data: Record<string, never>;
+      };
+    }) => Promise<unknown>;
+  };
 }
 
 @Injectable()
@@ -70,7 +79,7 @@ export class SubmissionReviewService {
     private readonly prisma: SubmissionReviewClient,
   ) {}
 
-  async approve(id: string): Promise<ApprovedSubmission> {
+  async approve(id: string, adminUserId?: string): Promise<ApprovedSubmission> {
     const submission = await this.prisma.submissions.findUnique({
       where: { id },
       select: {
@@ -90,10 +99,7 @@ export class SubmissionReviewService {
     });
 
     if (!submission) {
-      throw new NotFoundException({
-        code: 'SUBMISSION_NOT_FOUND',
-        message: 'Draft tidak ditemukan',
-      });
+      throw submissionNotFound();
     }
 
     const rejected = checkReviewable({
@@ -101,21 +107,61 @@ export class SubmissionReviewService {
       isLatest: submission.contents.submissions[0]?.id === submission.id,
     });
     if (rejected) {
-      throw conflict(rejected);
+      throw reviewConflict(rejected);
     }
 
     // Compare-and-set: the status guard lives in the UPDATE itself, so of two decisions racing
     // on the same draft (double click, replayed request, approve vs. revise) exactly one
     // matches the row and the other gets count 0 instead of overwriting it.
-    const { count } = await this.prisma.contents.updateMany({
-      where: {
-        id: submission.content_id,
-        status: { in: [...REVIEWABLE_STATUSES] },
-      },
-      data: { status: 'draft_approved' },
-    });
-    if (count === 0) {
-      throw conflict('DRAFT_NOT_REVIEWABLE');
+    const recordInTransaction = async (
+      transaction: SubmissionReviewTransaction,
+    ): Promise<void> => {
+      const { count } = await transaction.contents.updateMany({
+        where: {
+          id: submission.content_id,
+          status: { in: [...REVIEWABLE_STATUSES] },
+        },
+        data: { status: 'draft_approved' },
+      });
+      if (count === 0) {
+        throw reviewConflict('DRAFT_NOT_REVIEWABLE');
+      }
+
+      // Direct service callers without an authenticated request retain the existing contract;
+      // the guarded HTTP route always supplies the Admin ID and records the audit event.
+      if (adminUserId === undefined) return;
+
+      const admin = await transaction.users.findUnique({
+        where: { id: adminUserId },
+        select: { id: true },
+      });
+      if (!admin) throw unauthenticated();
+
+      await transaction.content_events.create({
+        data: {
+          content_id: submission.content_id,
+          event_type: 'Draft Approved',
+          ...adminActor(admin.id),
+          occurred_at: new Date(),
+          event_data: {},
+        },
+      });
+    };
+
+    if (this.prisma.$transaction) {
+      await this.prisma.$transaction(recordInTransaction);
+    } else if (adminUserId === undefined) {
+      // Keep the actorless service contract usable for existing internal callers.
+      const { count } = await this.prisma.contents.updateMany({
+        where: {
+          id: submission.content_id,
+          status: { in: [...REVIEWABLE_STATUSES] },
+        },
+        data: { status: 'draft_approved' },
+      });
+      if (count === 0) throw reviewConflict('DRAFT_NOT_REVIEWABLE');
+    } else {
+      throw new Error('Approval event recording requires a transaction client');
     }
 
     return {

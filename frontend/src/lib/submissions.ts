@@ -5,11 +5,15 @@ import { appSessionCookieHeader } from "./session-cookie";
 
 export interface SubmissionQueueItem {
   submissionId: string;
+  /** The content the detail panel opens by, so one row reaches both decision and journey. */
+  contentId: string;
   creatorName: string;
   contentName: string;
   type: string;
   deadline: string;
-  status: "draft_review" | "draft_revised";
+  status: "draft_review";
+  /** Hand-ins after the first; above zero the draft was resubmitted after a revision request. */
+  revisionCount: number;
 }
 
 export interface SubmissionQueueResponse {
@@ -22,7 +26,8 @@ export interface SubmissionQueueResponse {
 
 export interface SubmissionQueueFilters {
   q?: string;
-  status?: string;
+  /** "true" lists resubmitted drafts only, "false" first hand-ins only; anything else, both. */
+  resubmitted?: string;
   type?: string;
   overdue?: boolean;
 }
@@ -47,7 +52,9 @@ export function buildSubmissionQuery(
   query.set("status", "review");
   if (filters.q) query.set("q", filters.q);
   if (filters.type && filters.type !== "all") query.set("type", filters.type);
-  if (filters.status && filters.status !== "all") query.set("filterStatus", filters.status);
+  if (filters.resubmitted === "true" || filters.resubmitted === "false") {
+    query.set("resubmitted", filters.resubmitted);
+  }
   if (filters.overdue) query.set("overdue", "true");
   query.set("page", String(filters.page));
   return query.toString();

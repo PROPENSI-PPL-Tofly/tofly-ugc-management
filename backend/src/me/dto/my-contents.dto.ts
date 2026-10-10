@@ -2,6 +2,7 @@
 // table and its Submit Draft / Submit Link Video modals read these fields.
 
 import type { content_status, content_type } from '@prisma/client';
+import type { ContentTag } from '../../contents/content-tags.js';
 import type { TaskAction } from '../task-actions.js';
 
 export interface MyContentItem {
@@ -14,6 +15,8 @@ export interface MyContentItem {
   deadline: string;
   /** Raw workflow status; the frontend owns its label. */
   status: content_status;
+  /** Late, overdue or approval bypassed, as the admin sees them; empty when nothing is flagged. */
+  tags: ContentTag[];
   /** The buttons this row shows today, in display order; empty means none. */
   actions: TaskAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */

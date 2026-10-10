@@ -23,7 +23,7 @@ describe('GET /submissions/:id (e2e)', () => {
         type: 'specific',
         brief: 'Create a short product review',
         deadline: new Date('2026-10-20T00:00:00.000Z'),
-        status: 'draft_revised',
+        status: 'draft_review',
       },
     });
 
@@ -137,7 +137,7 @@ describe('GET /submissions/:id (e2e)', () => {
       type: 'specific',
       brief: 'Create a short product review',
       link: `https://drive.example.com/${MARKER}/latest`,
-      status: 'draft_revised',
+      status: 'draft_review',
       revisionHistory: [
         {
           note: 'Tolong ubah opening',

@@ -6,7 +6,19 @@ import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import type { NewCreator } from './dto/new-creator.dto.js';
 
 // 10:00 WIB on 12 September 2026.
+const ADMIN_USER_ID = '99999999-9999-4999-8999-999999999999';
+
 const NOW = new Date('2026-09-12T03:00:00Z');
+
+/** The first step of a generated content's history: scheduled by the onboarding admin. */
+const SCHEDULED_BY_ADMIN = {
+  event_type: 'Scheduled',
+  actor_name: 'Admin',
+  actor_role: 'admin',
+  actor_user_id: ADMIN_USER_ID,
+  occurred_at: NOW,
+  event_data: {},
+};
 
 function day(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`);
@@ -84,7 +96,7 @@ describe('CreatorOnboardingService', () => {
   it('whitelists the email with the creator, contract and Evergreen contents in one write', async () => {
     prisma.creators.create.mockResolvedValue(CREATED);
 
-    await service.onboard(INPUT, NOW);
+    await service.onboard(INPUT, NOW, ADMIN_USER_ID);
 
     expect(prisma.creators.create).toHaveBeenCalledTimes(1);
     expect(prisma.creators.create.mock.calls[0][0].data).toEqual({
@@ -111,6 +123,7 @@ describe('CreatorOnboardingService', () => {
                 brief: '',
                 deadline: day('2026-09-26'),
                 status: 'scheduled',
+                content_events: { create: SCHEDULED_BY_ADMIN },
               },
               {
                 name: 'Evg_2_Rangga Pratama_10102026',
@@ -118,11 +131,23 @@ describe('CreatorOnboardingService', () => {
                 brief: '',
                 deadline: day('2026-10-10'),
                 status: 'scheduled',
+                content_events: { create: SCHEDULED_BY_ADMIN },
               },
             ],
           },
         },
       },
+    });
+  });
+
+  it('starts the history of a content scheduled without a signed-in admin (the local stand-in) with no account behind it', async () => {
+    prisma.creators.create.mockResolvedValue(CREATED);
+
+    await service.onboard(INPUT, NOW);
+
+    const contents = prisma.creators.create.mock.calls[0][0].data.contracts.create.contents.create;
+    expect(contents[0].content_events).toEqual({
+      create: { ...SCHEDULED_BY_ADMIN, actor_user_id: null },
     });
   });
 

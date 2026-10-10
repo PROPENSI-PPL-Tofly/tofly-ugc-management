@@ -6,12 +6,16 @@ import type { QueueContentType, QueueStatus } from '../review-queue.js';
 export interface ReviewQueueItem {
   /** The content's latest hand-in: the id Draft Preview, approve and revise all take. */
   submissionId: string;
+  /** The content the detail panel opens by, so one item reaches both the decision and the journey. */
+  contentId: string;
   creatorName: string;
   contentName: string;
   type: QueueContentType;
   /** ISO calendar day. */
   deadline: string;
   status: QueueStatus;
+  /** Hand-ins after the first; above zero the row is a resubmit, which the queue lists first. */
+  revisionCount: number;
 }
 
 export interface ReviewQueueResponse {

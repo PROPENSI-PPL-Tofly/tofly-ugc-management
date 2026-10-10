@@ -7,8 +7,12 @@ import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { StatusDot } from "@/components/ui/pill";
-import { Toast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import { AddContentModal } from "@/components/contents/add-content-modal";
+import {
+    ContentDetailPanel,
+    DECISION_CONFIRMATIONS,
+} from "@/components/content-detail/content-detail-panel";
 import {
     fetchCreatorDetail,
     type CreatorDetail,
@@ -40,8 +44,9 @@ export function ContentPlanClient({
     const [detail, setDetail] = useState<CreatorDetail | null>(null);
     const [error, setError] = useState("");
     const [showModal, setShowModal] = useState(false);
-    // The id is the Toast key: a second save remounts it, restarting its countdown.
-    const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+    // The content whose detail panel is open, so a row opens its own journey.
+    const [openContentId, setOpenContentId] = useState<string | null>(null);
+    const { show: confirm, toast } = useToast();
     const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
@@ -98,10 +103,7 @@ export function ContentPlanClient({
     function handleSaved() {
         setDetail(null);
         setError("");
-        setToast((current) => ({
-            id: (current?.id ?? 0) + 1,
-            message: "Konten berhasil ditambahkan.",
-        }));
+        confirm("Konten berhasil ditambahkan.");
         setRefreshKey((current) => current + 1);
     }
 
@@ -197,6 +199,10 @@ export function ContentPlanClient({
                                     <th scope="col" className={TABLE_HEAD}>
                                         Status
                                     </th>
+
+                                    <th scope="col" className={TABLE_HEAD}>
+                                        Aksi
+                                    </th>
                                 </tr>
                                 </thead>
 
@@ -224,6 +230,17 @@ export function ContentPlanClient({
                                             <StatusDot tone={CONTENT_STATUS_TONES[content.status]}>
                                                 {CONTENT_STATUS_LABELS[content.status]}
                                             </StatusDot>
+                                        </td>
+
+                                        <td className={TABLE_CELL}>
+                                            <Button
+                                                variant="ghost"
+                                                // Every row has a Detail button; the content's name tells them apart when heard.
+                                                aria-label={`Detail: ${content.name}`}
+                                                onClick={() => setOpenContentId(content.id)}
+                                            >
+                                                Detail
+                                            </Button>
                                         </td>
                                     </tr>
                                 ))}
@@ -253,6 +270,22 @@ export function ContentPlanClient({
                         onSaved={handleSaved}
                     />
                 ) : null}
+
+                {openContentId ? (
+                    <ContentDetailPanel
+                        key={openContentId}
+                        contentId={openContentId}
+                        role="admin"
+                        onClose={() => setOpenContentId(null)}
+                        // A decision closes the panel and re-fetches the schedule, so the
+                        // decided row's status updates without a full page reload (#73).
+                        onDecided={(decision) => {
+                            setOpenContentId(null);
+                            setRefreshKey((current) => current + 1);
+                            confirm(DECISION_CONFIRMATIONS[decision]);
+                        }}
+                    />
+                ) : null}
             </>
         );
     }
@@ -261,13 +294,7 @@ export function ContentPlanClient({
     return (
         <>
             {renderPlan()}
-            {toast ? (
-                <Toast
-                    key={toast.id}
-                    message={toast.message}
-                    onDismiss={() => setToast(null)}
-                />
-            ) : null}
+            {toast}
         </>
     );
 }

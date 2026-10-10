@@ -1,8 +1,5 @@
-import {
-  DraftReviewActionError,
-  approveSubmission,
-  reviseSubmission,
-} from "./draft-review-actions";
+import { DecisionError } from "./decisions";
+import { approveSubmission, reviseSubmission } from "./draft-review-actions";
 
 const UUID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -53,7 +50,7 @@ describe("approveSubmission", () => {
 
     const error = await approveSubmission(UUID).catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(DraftReviewActionError);
+    expect(error).toBeInstanceOf(DecisionError);
     expect(error).toMatchObject({
       status: 409,
       message: "Draft ini sudah tidak menunggu keputusan",
@@ -77,9 +74,9 @@ describe("approveSubmission", () => {
 
     const error = await approveSubmission(UUID).catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(DraftReviewActionError);
+    expect(error).toBeInstanceOf(DecisionError);
     expect(error).toMatchObject({ status: 500 });
-    expect((error as DraftReviewActionError).message).toBe(
+    expect((error as DecisionError).message).toBe(
       "Keputusan gagal dikirim. Coba lagi.",
     );
   });
@@ -95,7 +92,7 @@ describe("approveSubmission", () => {
     const error = await approveSubmission(UUID).catch((e: unknown) => e);
 
     expect(error).toMatchObject({ status: 404 });
-    expect((error as DraftReviewActionError).message).toBe(
+    expect((error as DecisionError).message).toBe(
       "Keputusan gagal dikirim. Coba lagi.",
     );
   });
@@ -108,7 +105,7 @@ describe("approveSubmission", () => {
     const error = await approveSubmission(UUID).catch((e: unknown) => e);
 
     expect(error).toMatchObject({ status: 500 });
-    expect((error as DraftReviewActionError).message).toBe(
+    expect((error as DecisionError).message).toBe(
       "Keputusan gagal dikirim. Coba lagi.",
     );
   });
@@ -159,9 +156,9 @@ describe("reviseSubmission", () => {
 
     const error = await reviseSubmission(UUID, "   ").catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(DraftReviewActionError);
+    expect(error).toBeInstanceOf(DecisionError);
     expect(error).toMatchObject({ status: 422 });
-    expect((error as DraftReviewActionError).message).toBe(
+    expect((error as DecisionError).message).toBe(
       "Catatan revisi tidak boleh kosong",
     );
   });
@@ -171,8 +168,8 @@ describe("reviseSubmission", () => {
 
     const error = await reviseSubmission(UUID, "note").catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(DraftReviewActionError);
-    expect((error as DraftReviewActionError).message).toBe(
+    expect(error).toBeInstanceOf(DecisionError);
+    expect((error as DecisionError).message).toBe(
       "Permintaan revisi gagal dikirim. Coba lagi.",
     );
   });
@@ -188,6 +185,19 @@ describe("reviseSubmission", () => {
 
     expect(error).toMatchObject({
       status: 502,
+      message: "Permintaan revisi gagal dikirim. Coba lagi.",
+    });
+  });
+
+  it("falls back to the generic message when a 4xx body has neither a message nor errors", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 409 }),
+    );
+
+    const error = await reviseSubmission(UUID, "note").catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
+      status: 409,
       message: "Permintaan revisi gagal dikirim. Coba lagi.",
     });
   });

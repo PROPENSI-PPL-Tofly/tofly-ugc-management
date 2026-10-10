@@ -1,10 +1,20 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { MyTask } from "@/lib/my-tasks";
 import { MyTaskBoard } from "./my-task-board";
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+const { fetchContentDetail } = vi.hoisted(() => ({
+  fetchContentDetail: vi.fn(),
+}));
+
+vi.mock("@/lib/content-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content-detail")>()),
+  fetchContentDetail: (id: string, role: "admin" | "creator") =>
+    fetchContentDetail(id, role),
+}));
 
 // The modals are stubbed: what they do inside is their own tests' business. These stand-ins
 // show what the board handed them and expose the two ways a modal hands control back.
@@ -59,6 +69,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     brief: "",
     deadline: "2026-10-12",
     status: "scheduled",
+    tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
     ...overrides,
@@ -225,5 +236,141 @@ describe("MyTaskBoard", () => {
     render(<MyTaskBoard tasks={[]} />);
 
     expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
+  });
+});
+
+describe("MyTaskBoard content detail panel", () => {
+  beforeEach(() => {
+    refresh.mockClear();
+    fetchContentDetail.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
+  });
+
+  function panelDetail() {
+    return {
+      id: "content-1",
+      name: "Evg_1_RanggaPratama_12102026",
+      type: "evergreen" as const,
+      brief: "",
+      deadline: "2026-10-12",
+      status: "draft_review" as const,
+      creatorName: "Rangga Pratama",
+      tags: [],
+      waitingOn: "creator" as const,
+      latestSubmissionId: null,
+      creatorActions: ["submit_video"] as const,
+      events: [],
+    };
+  }
+
+  it("opens the content detail panel from a row, as the creator", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
+  });
+
+  it("hands the panel's submit action back to the row's submit modal", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Detail Konten|Evg_1/ })).toBeNull();
+  });
+
+  it("opens the panel straight from a ?content= link, the way a notification would", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-1");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
+  });
+
+  it("drops ?content= from the address once the panel closes, keeping the other filters", async () => {
+    window.history.pushState({}, "", "/creator/tasks?status=scheduled&content=content-1&page=2");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(window.location.pathname).toBe("/creator/tasks");
+    expect(window.location.search).toBe("?status=scheduled&page=2");
+  });
+
+  it("drops ?content= too when a command in the panel hands over to the submit modal", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-1");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("puts the opened content in the address, so the panel can be shared or reopened as a link", async () => {
+    window.history.pushState({}, "", "/creator/tasks?status=scheduled&page=2");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(window.location.search).toBe("?status=scheduled&page=2&content=content-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(window.location.search).toBe("?status=scheduled&page=2");
+  });
+
+  it("replaces the address rather than adding history, so Back leaves the page instead of reopening", async () => {
+    window.history.pushState({}, "", "/creator/tasks");
+    const pushState = vi.spyOn(window.history, "pushState");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+
+    await screen.findByRole("dialog");
+    expect(pushState).not.toHaveBeenCalled();
+    pushState.mockRestore();
+  });
+
+  it("closes the panel from Tutup without opening any modal", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes the panel without a modal when the link points at a task the list does not hold", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-404");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 });

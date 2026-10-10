@@ -2,10 +2,12 @@
 
 import { MAX_SEARCH_LENGTH, useUrlFilters } from "@/lib/use-url-filters";
 
-const STATUS_OPTIONS = [
+// Every queued draft is Draft Menunggu Review; what differs is whether the creator is handing
+// it in for the first time or again after a revision request.
+const HAND_IN_OPTIONS = [
   { value: "all", label: "Semua" },
-  { value: "draft_review", label: "Draft Menunggu Review" },
-  { value: "draft_revised", label: "Draft Revised" },
+  { value: "false", label: "Kiriman pertama" },
+  { value: "true", label: "Dikirim ulang" },
 ] as const;
 
 const TYPE_OPTIONS = [
@@ -20,16 +22,16 @@ const TYPE_OPTIONS = [
  * everything the same way the Creator Database does.
  */
 export function SubmissionFilters({
-  status,
+  resubmitted,
   type,
   overdue,
 }: {
-  status: string;
+  resubmitted: string;
   type: string;
   overdue: boolean;
 }) {
   const { search, setSearch, setParam, reset, pending } = useUrlFilters();
-  const isFiltered = search !== "" || status !== "all" || type !== "all" || overdue;
+  const isFiltered = search !== "" || resubmitted !== "all" || type !== "all" || overdue;
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
@@ -47,14 +49,14 @@ export function SubmissionFilters({
       </label>
 
       <label className="flex items-center gap-2 text-[13px]">
-        <span className="text-muted">Status</span>
+        <span className="text-muted">Kiriman</span>
         <select
-          aria-label="Status"
-          value={status}
-          onChange={(e) => setParam("status", e.target.value)}
+          aria-label="Kiriman"
+          value={resubmitted}
+          onChange={(e) => setParam("resubmitted", e.target.value)}
           className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
         >
-          {STATUS_OPTIONS.map((o) => (
+          {HAND_IN_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>

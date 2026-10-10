@@ -14,7 +14,7 @@ import {
 const MARKER = 'e2e-approve';
 
 type Status =
-  'draft_review' | 'draft_revision' | 'draft_revised' | 'draft_approved';
+  'draft_review' | 'draft_revision' | 'draft_approved';
 
 describe('PATCH /submissions/:id/approve (e2e)', () => {
   let app: INestApplication;
@@ -106,16 +106,20 @@ describe('PATCH /submissions/:id/approve (e2e)', () => {
     await app.close();
   });
 
-  it.each(['draft_review', 'draft_revised'] as const)(
-    'approves the latest submission of a draft in %s',
-    async (status) => {
-      const { contentId, submissions } = await draft(status);
+  it.each([
+    ['a first hand-in', 1],
+    ['a resubmit', 2],
+  ] as const)(
+    'approves the latest submission of %s',
+    async (_label, handIns) => {
+      const { contentId, submissions } = await draft('draft_review', handIns);
+      const latest = submissions[handIns - 1];
 
-      const response = await approve(submissions[0].id);
+      const response = await approve(latest.id);
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
-        id: submissions[0].id,
+        id: latest.id,
         contentId,
         status: 'draft_approved',
       });
@@ -144,13 +148,13 @@ describe('PATCH /submissions/:id/approve (e2e)', () => {
   });
 
   it('refuses an older submission once the creator resubmitted', async () => {
-    const { contentId, submissions } = await draft('draft_revised', 2);
+    const { contentId, submissions } = await draft('draft_review', 2);
 
     const response = await approve(submissions[0].id);
 
     expect(response.status).toBe(409);
     expect(response.body).toMatchObject({ code: 'SUBMISSION_SUPERSEDED' });
-    expect(await statusOf(contentId)).toBe('draft_revised');
+    expect(await statusOf(contentId)).toBe('draft_review');
   });
 
   it('lets exactly one of several racing approvals change the status', async () => {

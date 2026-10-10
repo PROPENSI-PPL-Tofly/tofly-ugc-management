@@ -22,7 +22,6 @@ type Status =
   | 'scheduled'
   | 'draft_review'
   | 'draft_revision'
-  | 'draft_revised'
   | 'draft_approved';
 
 describe('GET /submissions?status=review (e2e)', () => {
@@ -62,7 +61,7 @@ describe('GET /submissions?status=review (e2e)', () => {
         }),
       );
     }
-    return submissions;
+    return { contentId: content.id, submissions };
   }
 
   function queue(query = '') {
@@ -71,9 +70,9 @@ describe('GET /submissions?status=review (e2e)', () => {
     );
   }
 
-  let reviewSoon: { id: string }[];
-  let resubmitLate: { id: string }[];
-  let overdue: { id: string }[];
+  let reviewSoon: { contentId: string; submissions: { id: string }[] };
+  let resubmitLate: { contentId: string; submissions: { id: string }[] };
+  let overdue: { contentId: string; submissions: { id: string }[] };
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -119,7 +118,7 @@ describe('GET /submissions?status=review (e2e)', () => {
     );
     resubmitLate = await draft(
       'resubmit late',
-      'draft_revised',
+      'draft_review',
       daysFromToday(60),
       2,
     );
@@ -144,28 +143,34 @@ describe('GET /submissions?status=review (e2e)', () => {
     expect(response.body).toEqual({
       items: [
         {
-          submissionId: resubmitLate[1].id,
+          submissionId: resubmitLate.submissions[1].id,
+          contentId: resubmitLate.contentId,
           creatorName: `${MARKER} Dina`,
           contentName: `${MARKER} resubmit late`,
           type: 'specific',
           deadline: daysFromToday(60).toISOString().slice(0, 10),
-          status: 'draft_revised',
+          status: 'draft_review',
+          revisionCount: 1,
         },
         {
-          submissionId: overdue[0].id,
+          submissionId: overdue.submissions[0].id,
+          contentId: overdue.contentId,
           creatorName: `${MARKER} Dina`,
           contentName: `${MARKER} overdue`,
           type: 'specific',
           deadline: daysFromToday(-3).toISOString().slice(0, 10),
           status: 'draft_review',
+          revisionCount: 0,
         },
         {
-          submissionId: reviewSoon[0].id,
+          submissionId: reviewSoon.submissions[0].id,
+          contentId: reviewSoon.contentId,
           creatorName: `${MARKER} Dina`,
           contentName: `${MARKER} review soon`,
           type: 'evergreen',
           deadline: daysFromToday(10).toISOString().slice(0, 10),
           status: 'draft_review',
+          revisionCount: 0,
         },
       ],
       page: 1,
@@ -177,7 +182,7 @@ describe('GET /submissions?status=review (e2e)', () => {
 
   it.each([
     ['overdue=true', `${MARKER} overdue`],
-    ['filterStatus=draft_revised', `${MARKER} resubmit late`],
+    ['resubmitted=true', `${MARKER} resubmit late`],
     ['type=evergreen', `${MARKER} review soon`],
   ])('narrows the queue with %s', async (filter, contentName) => {
     const response = await queue(`&${filter}`);
@@ -207,7 +212,7 @@ describe('GET /submissions?status=review (e2e)', () => {
 
   it('hands out a submission id that approve accepts, after which the draft leaves the queue', async () => {
     const approved = await admin.patch(
-      `/submissions/${resubmitLate[1].id}/approve`,
+      `/submissions/${resubmitLate.submissions[1].id}/approve`, 
     );
     expect(approved.status).toBe(200);
 
@@ -216,6 +221,6 @@ describe('GET /submissions?status=review (e2e)', () => {
       response.body.items.map(
         (item: { submissionId: string }) => item.submissionId,
       ),
-    ).toEqual([overdue[0].id, reviewSoon[0].id]);
+    ).toEqual([overdue.submissions[0].id, reviewSoon.submissions[0].id]);
   });
 });
