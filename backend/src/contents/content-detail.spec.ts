@@ -564,6 +564,28 @@ describe('toContentDetail with a stored history', () => {
     ]);
   });
 
+  it('reads a proposal the system scheduled at H-1 as a step by the system, not by anyone', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Auto Scheduled', '2026-09-02T03:00:00.000Z', {
+            actor_name: 'Sistem',
+            actor_role: 'system',
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z'),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toEqual({
+      id: 'e2',
+      type: 'auto_scheduled',
+      at: '2026-09-02T03:00:00.000Z',
+      actor: { name: null, role: 'system' },
+    });
+  });
+
   it('skips a step of a kind this build does not know, and data fields that are not the right type', () => {
     const detail = toContentDetail(
       row({

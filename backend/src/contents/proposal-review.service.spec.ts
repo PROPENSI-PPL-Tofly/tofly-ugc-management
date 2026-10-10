@@ -19,7 +19,7 @@ interface Stored {
  * An in-memory contents table that honours the compare-and-set filters, so the tests can
  * prove what reaches the row rather than only which calls were made.
  */
-function stubClient(stored: Stored | null) {
+function stubClient(stored: Stored | null, due?: string[]) {
   let row = stored ? { ...stored } : null;
   const events: unknown[] = [];
   const tables = {
@@ -33,6 +33,7 @@ function stubClient(stored: Stored | null) {
         }
         return { count: 3 };
       }),
+      updateManyAndReturn: vi.fn(async () => (due ? due.map((id) => ({ id })) : [])),
       deleteMany: vi.fn(async ({ where }: Parameters<ProposalReviewClient['contents']['deleteMany']>[0]) => {
         if (!row || where.id !== ID || row.status !== where.status) return { count: 0 };
         row = null;
@@ -43,6 +44,10 @@ function stubClient(stored: Stored | null) {
       create: vi.fn(async ({ data }: Parameters<ProposalReviewClient['content_events']['create']>[0]) => {
         events.push(data);
         return {};
+      }),
+      createMany: vi.fn(async ({ data }: Parameters<ProposalReviewClient['content_events']['createMany']>[0]) => {
+        events.push(...data);
+        return { count: data.length };
       }),
     },
   };
@@ -167,13 +172,15 @@ describe('ProposalReviewService.approve, its history', () => {
   });
 
   it('never records the H-1 promotion as an approval: nobody approved it', async () => {
-    const { client, events } = stubClient(pending);
+    const { client, events } = stubClient(pending, [ID]);
 
     await new ProposalReviewService(client, notifier()).scheduleDue(
       new Date('2026-10-10T05:00:00.000Z'),
     );
 
-    expect(events()).toEqual([]);
+    expect(events()).not.toContainEqual(
+      expect.objectContaining({ event_type: 'Proposal Approved' }),
+    );
   });
 });
 
@@ -245,19 +252,45 @@ describe('ProposalReviewService.reject', () => {
 });
 
 describe('ProposalReviewService.scheduleDue', () => {
-  it('promotes every pending proposal whose deadline is within H-1, in one statement', async () => {
-    const { client } = stubClient(pending);
+  const NOW = new Date('2026-10-10T05:00:00.000Z');
+  const OTHER = '44444444-4444-4444-8444-444444444444';
 
-    await expect(
-      new ProposalReviewService(client, notifier()).scheduleDue(
-        new Date('2026-10-10T05:00:00.000Z'),
-      ),
-    ).resolves.toBe(3);
+  it('promotes every pending proposal due within H-1 in one statement and answers how many', async () => {
+    const { client } = stubClient(pending, [ID, OTHER]);
 
-    expect(client.contents.updateMany).toHaveBeenCalledWith({
+    await expect(new ProposalReviewService(client, notifier()).scheduleDue(NOW)).resolves.toBe(2);
+
+    expect(client.contents.updateManyAndReturn).toHaveBeenCalledWith({
       where: { status: 'pending', deadline: { lte: new Date('2026-10-11T00:00:00.000Z') } },
       data: { status: 'scheduled' },
+      select: { id: true },
     });
+  });
+
+  it('records why each one became scheduled: by the system at H-1, with no account behind it', async () => {
+    const { client, events } = stubClient(pending, [ID, OTHER]);
+
+    await new ProposalReviewService(client, notifier()).scheduleDue(NOW);
+
+    const step = (contentId: string) => ({
+      content_id: contentId,
+      event_type: 'Auto Scheduled',
+      actor_name: 'Sistem',
+      actor_role: 'system',
+      actor_user_id: null,
+      occurred_at: NOW,
+      event_data: {},
+    });
+    expect(events()).toEqual([step(ID), step(OTHER)]);
+    expect(client.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes nothing to the history when nothing was due, the common case on every request', async () => {
+    const { client } = stubClient(pending, []);
+
+    await expect(new ProposalReviewService(client, notifier()).scheduleDue(NOW)).resolves.toBe(0);
+
+    expect(client.content_events.createMany).not.toHaveBeenCalled();
   });
 });
 
