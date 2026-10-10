@@ -319,23 +319,6 @@ describe("MyTaskBoard content detail panel", () => {
     expect(window.location.search).toBe("");
   });
 
-  it("leaves an address without ?content= untouched when a panel opened from a row closes", async () => {
-    window.history.pushState({}, "", "/creator/tasks?status=scheduled");
-    const replaceState = vi.spyOn(window.history, "replaceState");
-    fetchContentDetail.mockResolvedValue(panelDetail());
-
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
-    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-    expect(replaceState).not.toHaveBeenCalled();
-    expect(window.location.search).toBe("?status=scheduled");
-    replaceState.mockRestore();
-  });
-
   it("puts the opened content in the address, so the panel can be shared or reopened as a link", async () => {
     window.history.pushState({}, "", "/creator/tasks?status=scheduled&page=2");
     fetchContentDetail.mockResolvedValue(panelDetail());

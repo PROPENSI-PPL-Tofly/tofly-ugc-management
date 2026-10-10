@@ -18,6 +18,17 @@ interface Opened {
 const CONTENT_PARAM = "content";
 
 /**
+ * Puts the open panel's content in the address, so it can be copied, shared or reopened like
+ * the link a notification sends. Replaced rather than pushed: Back leaves the page instead of
+ * walking through every panel opened on it. Other parameters (the status filter, the page) stay.
+ */
+function rememberContentParam(contentId: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(CONTENT_PARAM, contentId);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+/**
  * Takes the deep link back out of the address once its panel has closed, so a reload or a
  * Back does not open the panel again. Other parameters (the status filter, the page) stay.
  * replaceState keeps Next's router in sync without a navigation or a server round trip.
@@ -139,7 +150,10 @@ export function MyTaskBoard({
           emptyMessage={emptyMessage}
           emptyAction={emptyAction}
           onAction={(task, action) => setOpened({ task, action })}
-          onDetail={(task) => setDetailContentId(task.id)}
+          onDetail={(task) => {
+            setDetailContentId(task.id);
+            rememberContentParam(task.id);
+          }}
         />
       </section>
       {opened ? renderModal(opened) : null}
