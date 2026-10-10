@@ -9,6 +9,7 @@ import {
   formatPercent,
   formatRevisions,
   formatTimestamp,
+  jakartaDay,
 } from "./format";
 
 describe("formatDate", () => {
@@ -226,5 +227,42 @@ describe("formatDaysLeft", () => {
     for (const deadline of ["2026-10-12", "2026-10-09", "2026-10-01", null, "segera"]) {
       expect(formatDaysLeft(daysUntil(deadline, now))).toBe(formatDue(deadline, now));
     }
+  });
+});
+
+describe("jakartaDay", () => {
+  it("writes the day the way the API writes calendar days", () => {
+    expect(jakartaDay(new Date("2026-10-10T05:00:00Z"))).toBe("2026-10-10");
+  });
+
+  it("is already tomorrow in Jakarta from 17.00 UTC", () => {
+    expect(jakartaDay(new Date("2026-10-10T16:59:59Z"))).toBe("2026-10-10");
+    expect(jakartaDay(new Date("2026-10-10T17:00:00Z"))).toBe("2026-10-11");
+  });
+
+  it("crosses into the new month and the new year when Jakarta has", () => {
+    expect(jakartaDay(new Date("2026-10-31T17:00:00Z"))).toBe("2026-11-01");
+    expect(jakartaDay(new Date("2026-12-31T17:00:00Z"))).toBe("2027-01-01");
+  });
+
+  it("pads a single-digit month and day", () => {
+    expect(jakartaDay(new Date("2027-03-04T05:00:00Z"))).toBe("2027-03-04");
+  });
+
+  it("uses the current moment when none is given", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-10T05:00:00Z"));
+
+    try {
+      expect(jakartaDay()).toBe("2026-10-10");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("agrees with daysUntil about which day today is", () => {
+    const now = new Date("2026-10-10T17:30:00Z");
+
+    expect(daysUntil(jakartaDay(now), now)).toBe(0);
   });
 });
