@@ -142,17 +142,31 @@ describe('ContentListController', () => {
     });
   });
 
+  it('never turns a bracketed key into a filter', async () => {
+    // The query parser keeps `creator[id]` as a key of that literal name, so no object can be
+    // built from the address; the list is simply not narrowed.
+    const response = await get(`?creator[id]=${CREATOR_A}&status[$ne]=pending`);
+
+    expect(response.status).toBe(200);
+    expect(contents.list.mock.calls[0][2]).toEqual({
+      tab: 'all',
+      sort: 'deadline_asc',
+    });
+  });
+
   it.each([
     ['an unknown tab', '?tab=archived'],
     ['an unknown status', '?status=review'],
     ['one unknown status among known ones', '?status=pending&status=approved'],
     ['an unknown type', '?type=sponsored'],
     ['a creator that is not an id', '?creator=dina'],
-    ['a creator written as an object', `?creator[id]=${CREATOR_A}`],
     ['an unknown sort', '?sort=name_asc'],
     ['an overdue flag that is neither true nor false', '?overdue=yes'],
     ['a start day that does not exist', '?deadlineFrom=2026-02-30'],
-    ['a period that ends before it starts', '?deadlineFrom=2026-10-11&deadlineTo=2026-10-10'],
+    [
+      'a period that ends before it starts',
+      '?deadlineFrom=2026-10-11&deadlineTo=2026-10-10',
+    ],
     ['a search sent twice', '?q=a&q=b'],
     ['a page that is not a number', '?page=two'],
     ['page zero', '?page=0'],
