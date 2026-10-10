@@ -269,6 +269,17 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       expect(screen.getByText("Rangga", { selector: "b" })).toHaveClass("font-semibold");
     });
 
+    it("opens the popup under the trigger, never over it", () => {
+      renderSelect();
+
+      const popup = open();
+
+      // Without an anchor an absolute box sits at its container's top-left corner, which is
+      // where the trigger is: the popup would cover the control that opened it.
+      expect(popup).toHaveClass("absolute", "top-full", "left-0");
+      expect(popup.parentElement).toHaveClass("relative");
+    });
+
     it("marks the trigger while its popup is open", () => {
       renderSelect();
       expect(trigger()).not.toHaveClass("border-ink");
