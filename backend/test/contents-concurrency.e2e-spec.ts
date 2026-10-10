@@ -6,6 +6,7 @@ import { ContentsController } from '../src/contents/contents.controller.js';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { ContentCreationService } from '../src/contents/contents.service.js';
+import { ContentDetailService } from '../src/contents/content-detail.service.js';
 
 // Use a dedicated disposable database, never the application's DATABASE_URL.
 const databaseUrl = process.env.CONTENTS_TEST_DATABASE_URL;
@@ -26,7 +27,11 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
     });
     const module = await Test.createTestingModule({
       controllers: [ContentsController],
-      providers: [{ provide: ContentCreationService, useValue: service }],
+      providers: [
+        { provide: ContentCreationService, useValue: service },
+        // The controller also serves GET /contents/:id; this suite never calls it.
+        { provide: ContentDetailService, useValue: {} },
+      ],
     })
       // This suite is about transactions on a disposable database; the admin guard is proven
       // by admin-routes.e2e-spec.ts.
