@@ -17,7 +17,6 @@ model contents {
   brief              String           @default("")
   deadline           DateTime         @db.Date
   status             content_status   @default(scheduled)
-  is_proposal        Boolean          @default(false)
   proposal_notes     String?
   video_link         String?
   video_submitted_at DateTime?        @db.Date
@@ -125,10 +124,10 @@ model app_sessions {
 }
 
 enum content_status {
+  pending
   scheduled
   draft_review
   draft_revision
-  draft_revised
   draft_approved
   link_submitted
 }

@@ -70,9 +70,9 @@ describe("MyTaskTable", () => {
   });
 
   describe("creator wording", () => {
-    it("shows a revised hand-in as waiting for review, like a first one", () => {
+    it("shows a draft handed in again as waiting for review, like a first one", () => {
       render(
-        <MyTaskTable tasks={[task({ status: "draft_revised", actions: [] })]} onAction={vi.fn()} />,
+        <MyTaskTable tasks={[task({ status: "draft_review", actions: [] })]} onAction={vi.fn()} />,
       );
 
       expect(within(rows()[0]).getByText("Draft Menunggu Review")).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe("MyTaskTable", () => {
       ).toBeInTheDocument();
     });
 
-    it.each(["draft_review", "draft_revised"] as const)(
+    it.each(["draft_review"] as const)(
       "says a %s task is waiting for the admin instead of offering a button",
       (status) => {
         render(<MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} />);
@@ -194,7 +194,6 @@ describe("MyTaskTable", () => {
     it.each([
       ["scheduled", "bg-rule"],
       ["draft_review", "bg-accent"],
-      ["draft_revised", "bg-accent"],
       ["draft_revision", "bg-amber"],
       ["draft_approved", "bg-green"],
       ["link_submitted", "bg-green"],

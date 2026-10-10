@@ -3,6 +3,7 @@
 // that exists in the database purely for the workflow (OAuth tokens, phone numbers) can leak
 // into a response by accident.
 
+import type { ContentStatus } from '../../contents/content-lifecycle.js';
 import type {
   ContentOutcome,
   Productivity,
@@ -79,14 +80,8 @@ export interface ContractHistoryEntry {
   isCurrent: boolean;
 }
 
-/** Where a content is in the review workflow; mirrors the `content_status` enum. */
-export type ContentStatus =
-  | 'scheduled'
-  | 'draft_review'
-  | 'draft_revision'
-  | 'draft_revised'
-  | 'draft_approved'
-  | 'link_submitted';
+/** Where a content is in its lifecycle; the list itself lives in content-lifecycle.ts. */
+export type { ContentStatus };
 
 export interface ContentEntry {
   id: string;

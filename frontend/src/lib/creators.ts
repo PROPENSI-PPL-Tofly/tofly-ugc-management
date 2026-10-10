@@ -12,12 +12,12 @@ import type { ContractType, CreatorFormErrors, CreatorFormInput } from "./creato
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
-/** Where a content is in the review workflow, as the API reports it. */
+/** Where a content is in its lifecycle, as the API reports it. */
 export type ContentStatus =
+  | "pending"
   | "scheduled"
   | "draft_review"
   | "draft_revision"
-  | "draft_revised"
   | "draft_approved"
   | "link_submitted";
 

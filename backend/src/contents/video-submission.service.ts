@@ -9,6 +9,7 @@ import type { content_status, social_platform } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
 import { canSubmitVideo } from '../me/task-actions.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import {
   detectVideoPlatform,
   type VideoSubmission,
@@ -28,7 +29,7 @@ export interface VideoSubmissionTransaction {
     findFirst: (args: {
       where: {
         id: string;
-        is_proposal: false;
+        status: { in: content_status[] };
         contracts: { creator_id: string };
       };
       select: {
@@ -119,7 +120,7 @@ export class VideoSubmissionService implements VideoSubmitter {
       const content = await transaction.contents.findFirst({
         where: {
           id: contentId,
-          is_proposal: false,
+          status: { in: [...COMMITTED_STATUSES] },
           contracts: { creator_id: creatorId },
         },
         select: {

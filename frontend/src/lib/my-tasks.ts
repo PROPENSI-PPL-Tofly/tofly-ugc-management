@@ -14,8 +14,8 @@ import type { ContentStatus } from "./creators";
 export const MY_TASKS_PAGE_SIZE = 5;
 
 /**
- * The statuses Task Saya filters by (PRD 3.16), matching GET /me/contents?status. A creator does
- * not tell a first hand-in from a revised one, so draft_review also covers draft_revised.
+ * The statuses Task Saya filters by (PRD 3.16), matching GET /me/contents?status. Pending is not
+ * one of them: a proposal is not assigned work until an admin accepts it.
  */
 export const TASK_STATUS_FILTERS = [
   "scheduled",
@@ -27,9 +27,9 @@ export const TASK_STATUS_FILTERS = [
 
 export type TaskStatusFilter = (typeof TASK_STATUS_FILTERS)[number];
 
-/** How a status reads on Task Saya: the admin label, except a revised hand-in reads as in review. */
+/** How a status reads on Task Saya: the same label the admin sees. */
 export function taskStatusLabel(status: ContentStatus): string {
-  return CONTENT_STATUS_LABELS[status === "draft_revised" ? "draft_review" : status];
+  return CONTENT_STATUS_LABELS[status];
 }
 
 function isTaskStatusFilter(value: string): value is TaskStatusFilter {

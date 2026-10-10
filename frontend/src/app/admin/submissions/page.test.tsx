@@ -48,7 +48,7 @@ describe("Antrian Draft page", () => {
 
     expect(mockedFetch).toHaveBeenCalledWith(1, {
       q: undefined,
-      status: "all",
+      resubmitted: "all",
       type: "all",
       overdue: false,
     });
@@ -64,6 +64,7 @@ describe("Antrian Draft page", () => {
           type: "Evergreen",
           deadline: "2026-09-15",
           status: "draft_review",
+          revisionCount: 0,
         },
       ],
       page: 1,
@@ -114,7 +115,7 @@ describe("Antrian Draft page", () => {
     ).toBeInTheDocument();
   });
 
-  it("forwards valid status, type, q and overdue filters", async () => {
+  it("forwards valid resubmitted, type, q and overdue filters", async () => {
     mockedFetch.mockResolvedValue({
       items: [],
       page: 1,
@@ -125,20 +126,20 @@ describe("Antrian Draft page", () => {
 
     await renderPage({
       q: "salsa",
-      status: "draft_revised",
+      resubmitted: "true",
       type: "evergreen",
       overdue: "true",
     });
 
     expect(mockedFetch).toHaveBeenCalledWith(1, {
       q: "salsa",
-      status: "draft_revised",
+      resubmitted: "true",
       type: "evergreen",
       overdue: true,
     });
   });
 
-  it("falls back to defaults for unknown status and type values", async () => {
+  it("falls back to defaults for unknown resubmitted and type values, and ignores the old status parameter", async () => {
     mockedFetch.mockResolvedValue({
       items: [],
       page: 1,
@@ -148,14 +149,16 @@ describe("Antrian Draft page", () => {
     });
 
     await renderPage({
-      status: "draft_approved",
+      // An old bookmark: the status filter is gone and must not reach the API.
+      status: "draft_revised",
+      resubmitted: "yes",
       type: "unknown",
       overdue: "false",
     });
 
     expect(mockedFetch).toHaveBeenCalledWith(1, {
       q: undefined,
-      status: "all",
+      resubmitted: "all",
       type: "all",
       overdue: false,
     });
@@ -179,7 +182,7 @@ describe("Antrian Draft page", () => {
 
     expect(mockedFetch).toHaveBeenCalledWith(1, {
       q: undefined,
-      status: "all",
+      resubmitted: "all",
       type: "all",
       overdue: false,
     });
@@ -215,6 +218,7 @@ describe("Antrian Draft page", () => {
           type: "evergreen",
           deadline: "2026-09-15",
           status: "draft_review" as const,
+          revisionCount: 0,
         },
       ],
       page: 1,

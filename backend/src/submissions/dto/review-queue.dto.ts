@@ -12,6 +12,8 @@ export interface ReviewQueueItem {
   /** ISO calendar day. */
   deadline: string;
   status: QueueStatus;
+  /** Hand-ins after the first; above zero the row is a resubmit, which the queue lists first. */
+  revisionCount: number;
 }
 
 export interface ReviewQueueResponse {

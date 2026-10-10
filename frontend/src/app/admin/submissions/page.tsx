@@ -21,7 +21,9 @@ export const metadata = {
 function filterQuery(filters: SubmissionQueueFilters): Record<string, string> {
   const query: Record<string, string> = {};
   if (filters.q) query.q = filters.q;
-  if (filters.status && filters.status !== "all") query.status = filters.status;
+  if (filters.resubmitted && filters.resubmitted !== "all") {
+    query.resubmitted = filters.resubmitted;
+  }
   if (filters.type && filters.type !== "all") query.type = filters.type;
   if (filters.overdue) query.overdue = "true";
   return query;
@@ -37,9 +39,9 @@ export default async function SubmissionsPage({
 
   const filters = {
     q: typeof params.q === "string" ? params.q : undefined,
-    status:
-      params.status === "draft_review" || params.status === "draft_revised"
-        ? params.status
+    resubmitted:
+      params.resubmitted === "true" || params.resubmitted === "false"
+        ? params.resubmitted
         : "all",
     type:
       params.type === "evergreen" || params.type === "specific"
@@ -94,7 +96,7 @@ export default async function SubmissionsPage({
       <Panel>
         <PanelHead title="Semua draft menunggu review" />
         <SubmissionFilters
-          status={filters.status}
+          resubmitted={filters.resubmitted}
           type={filters.type}
           overdue={filters.overdue}
         />

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { content_status, content_type } from '@prisma/client';
+import { COMMITTED_STATUSES } from '../contents/content-lifecycle.js';
 import { jakartaDay } from '../creators/evergreen.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -48,10 +49,10 @@ export interface MyContentRow {
 }
 
 interface MyContentsWhere {
-  // A pending proposal is not assigned work yet; it belongs to the proposal flow.
-  is_proposal: false;
   contracts: { creator_id: string };
-  status?: { in: content_status[] };
+  // Always named: without a filter it is every committed status, so a pending proposal, which
+  // is not assigned work yet, never reaches Task Saya.
+  status: { in: content_status[] };
   // Only a submitted link has video_submitted_at (the video endpoint sets both together with
   // link_submitted), so this is what tells finished work from open work.
   video_submitted_at?: null | { not: null };
@@ -102,9 +103,8 @@ export class MyContentsService implements MyContentsLister {
   ): Promise<MyContentsResponse> {
     const { page, pageSize, status } = query;
     const where: MyContentsWhere = {
-      is_proposal: false,
       contracts: { creator_id: creatorId },
-      ...(status && { status: { in: statusesFor(status) } }),
+      status: { in: status ? statusesFor(status) : [...COMMITTED_STATUSES] },
     };
     const open: MyContentsWhere = { ...where, video_submitted_at: null };
     const finished: MyContentsWhere = {
