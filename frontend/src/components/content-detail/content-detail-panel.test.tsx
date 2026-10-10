@@ -810,7 +810,9 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       ]);
     });
 
-    it("marks each event with a ringed dot in the colour of what happened", async () => {
+    // Each dot takes the tone of the status the event moved the content into, the same tone
+    // that status has everywhere else; red stays reserved for a missed deadline.
+    it("marks each event with a ringed dot in the tone of the status it led to", async () => {
       show({ events: FULL });
 
       const dots = (await journeyItems()).map(
@@ -819,10 +821,11 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
 
       expect(dots[0]).toContain("bg-green ring-green");
       expect(dots[1]).toContain("bg-green ring-green");
-      expect(dots[2]).toContain("bg-amber ring-amber");
-      expect(dots[3]).toContain("bg-red ring-red");
-      expect(dots[4]).toContain("bg-amber ring-amber");
-      expect(dots[5]).toContain("bg-accent ring-accent");
+      expect(dots[2]).toContain("bg-accent ring-accent");
+      expect(dots[3]).toContain("bg-amber ring-amber");
+      expect(dots[4]).toContain("bg-accent ring-accent");
+      expect(dots[5]).toContain("bg-muted ring-muted");
+      expect(dots.join(" ")).not.toContain("bg-red");
     });
 
     it("shows when each event happened in Jakarta time, and who did it in which role", async () => {
