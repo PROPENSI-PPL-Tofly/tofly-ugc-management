@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { isUuid } from '../uuid.js';
 import { assertSameOrigin } from './same-origin.js';
 import { ACCESS_CHECK, type AccessCheck } from './session/access-check.js';
 import { unauthenticated, type CreatorRequest } from './creator-request.js';
@@ -17,8 +18,6 @@ import { AppSessionService } from './session/session.service.js';
 
 /** Node lower-cases incoming header names. */
 export const DEV_CREATOR_HEADER = 'x-dev-creator-id';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Env = Record<string, string | undefined>;
 
@@ -36,7 +35,7 @@ export function devCreatorId(
     return undefined;
   }
   const claimed = header ?? env.DEV_CREATOR_ID;
-  if (typeof claimed !== 'string' || !UUID.test(claimed)) {
+  if (!isUuid(claimed)) {
     return undefined;
   }
   return claimed.toLowerCase();
