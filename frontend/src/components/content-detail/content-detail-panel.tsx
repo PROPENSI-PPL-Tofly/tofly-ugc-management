@@ -23,11 +23,8 @@ import {
   type DetailEventType,
   type JourneyStep,
 } from "@/lib/content-detail";
-import {
-  approveSubmission,
-  DraftReviewActionError,
-  reviseSubmission,
-} from "@/lib/draft-review-actions";
+import { DecisionError } from "@/lib/decisions";
+import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
 import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
@@ -500,7 +497,7 @@ export function ContentDetailPanel({
       setError(caught instanceof Error ? caught.message : "Terjadi kesalahan. Coba lagi.");
       // A 409 means someone else already moved the content on: the step on screen is stale,
       // so the note form closes and the content is read again to show where it stands now.
-      if (caught instanceof DraftReviewActionError && caught.status === 409) {
+      if (caught instanceof DecisionError && caught.status === 409) {
         setForm(null);
         setNote("");
         void readAgain();

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
-import { DraftReviewActionError } from "@/lib/draft-review-actions";
+import { DecisionError } from "@/lib/decisions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
 import { ContentDetailPanel } from "./content-detail-panel";
 
@@ -397,7 +397,7 @@ describe("ContentDetailPanel", () => {
     const approve = vi
       .fn()
       .mockRejectedValue(
-        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+        new DecisionError(409, "Draft ini sudah tidak menunggu keputusan"),
       );
     const { load } = open(detail(), { ports: { approve } });
     load.mockResolvedValueOnce(
@@ -422,7 +422,7 @@ describe("ContentDetailPanel", () => {
     const revise = vi
       .fn()
       .mockRejectedValue(
-        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+        new DecisionError(409, "Draft ini sudah tidak menunggu keputusan"),
       );
     const { load } = open(detail(), { ports: { revise } });
     load.mockResolvedValueOnce(detail({ status: "draft_approved", waitingOn: "creator" }));
@@ -444,7 +444,7 @@ describe("ContentDetailPanel", () => {
     const approve = vi
       .fn()
       .mockRejectedValue(
-        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+        new DecisionError(409, "Draft ini sudah tidak menunggu keputusan"),
       );
     let answer: (value: ContentDetail) => void = () => {};
     const { load } = open(detail(), { ports: { approve } });
@@ -467,7 +467,7 @@ describe("ContentDetailPanel", () => {
     const approve = vi
       .fn()
       .mockRejectedValue(
-        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+        new DecisionError(409, "Draft ini sudah tidak menunggu keputusan"),
       );
     const { load } = open(detail(), { ports: { approve } });
     // The first re-read never answers; the content still looks undecided meanwhile.
@@ -487,7 +487,7 @@ describe("ContentDetailPanel", () => {
   it("does not re-read the content when a decision fails for another reason", async () => {
     const approve = vi
       .fn()
-      .mockRejectedValue(new DraftReviewActionError(500, "Keputusan gagal dikirim. Coba lagi."));
+      .mockRejectedValue(new DecisionError(500, "Keputusan gagal dikirim. Coba lagi."));
     const { load } = open(detail(), { ports: { approve } });
 
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
@@ -501,7 +501,7 @@ describe("ContentDetailPanel", () => {
     const approve = vi
       .fn()
       .mockRejectedValue(
-        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+        new DecisionError(409, "Draft ini sudah tidak menunggu keputusan"),
       );
     const { load } = open(detail(), { ports: { approve } });
     load.mockRejectedValueOnce(new ContentDetailError(503));
@@ -651,7 +651,7 @@ describe("ContentDetailPanel", () => {
       const approveProposal = vi
         .fn()
         .mockRejectedValue(
-          new DraftReviewActionError(409, "Pengajuan ini sudah tidak menunggu keputusan"),
+          new DecisionError(409, "Pengajuan ini sudah tidak menunggu keputusan"),
         );
       const { load } = open(proposal(), { ports: { approveProposal } });
       load.mockResolvedValueOnce(detail({ status: "scheduled", waitingOn: "creator", latestSubmissionId: null }));
@@ -670,7 +670,7 @@ describe("ContentDetailPanel", () => {
     it("keeps the reason form and the typed reason when the rejection fails for another reason", async () => {
       const rejectProposal = vi
         .fn()
-        .mockRejectedValue(new DraftReviewActionError(500, "Pengajuan gagal ditolak. Coba lagi."));
+        .mockRejectedValue(new DecisionError(500, "Pengajuan gagal ditolak. Coba lagi."));
       open(proposal(), { ports: { rejectProposal } });
 
       fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));

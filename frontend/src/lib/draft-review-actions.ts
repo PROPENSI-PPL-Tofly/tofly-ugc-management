@@ -2,59 +2,7 @@
 // creator, revise sends it back with a note. Fetched in the browser through this app's /api
 // proxy, like fetchDraftPreview, so BACKEND_URL never reaches the browser.
 
-import { apiFetch } from "./api-client";
-
-/** A failed decision, keeping the HTTP status so 404 and 409 can read differently. */
-export class DraftReviewActionError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "DraftReviewActionError";
-  }
-}
-
-/** What the backend answers an error with: sometimes a flat message, sometimes field errors. */
-interface FailureBody {
-  message?: string;
-  errors?: Record<string, string>;
-}
-
-async function readMessage(response: Response): Promise<string | null> {
-  try {
-    const body = (await response.json()) as FailureBody;
-    const fieldErrors = body.errors ? Object.values(body.errors) : [];
-    return fieldErrors.find(Boolean) ?? body.message ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Sends one admin decision through the /api proxy and resolves once the backend accepted it.
- * Shared by the draft and the proposal decisions, so a refusal reads the same from either.
- */
-export async function sendDecision(
-  url: string,
-  method: "PATCH" | "POST",
-  fallbackMessage: string,
-  body?: Record<string, unknown>,
-): Promise<void> {
-  const response = await apiFetch(url, {
-    method,
-    ...(body
-      ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-      : {}),
-  });
-
-  if (!response.ok) {
-    // Only a 4xx carries a message written for the admin; a 5xx body is the server's or a
-    // gateway's own wording and may describe internals, so it is never shown.
-    const message = response.status < 500 ? await readMessage(response) : null;
-    throw new DraftReviewActionError(response.status, message ?? fallbackMessage);
-  }
-}
+import { sendDecision } from "./decisions";
 
 /**
  * Approves the draft: its content becomes Draft Approved and it leaves the queue.

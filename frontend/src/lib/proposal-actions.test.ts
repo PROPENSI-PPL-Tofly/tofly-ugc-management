@@ -1,4 +1,4 @@
-import { DraftReviewActionError } from "./draft-review-actions";
+import { DecisionError } from "./decisions";
 import { approveProposal, rejectProposal } from "./proposal-actions";
 
 const UUID = "550e8400-e29b-41d4-a716-446655440000";
@@ -49,7 +49,7 @@ describe("approveProposal", () => {
 
     const error = await approveProposal(UUID).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(DraftReviewActionError);
+    expect(error).toBeInstanceOf(DecisionError);
     expect(error).toMatchObject({
       status: 409,
       message: "Pengajuan ini sudah tidak menunggu keputusan",

@@ -2,7 +2,7 @@
 // approving turns it into scheduled work, rejecting discards it with an optional reason that
 // goes to the creator. Through this app's /api proxy, like the draft decisions.
 
-import { sendDecision } from "./draft-review-actions";
+import { sendDecision } from "./decisions";
 
 /** The proposal becomes a normal Scheduled content. The id is encoded (OWASP A01). */
 export async function approveProposal(contentId: string): Promise<void> {
