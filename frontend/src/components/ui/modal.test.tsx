@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { Modal } from "./modal";
 
@@ -45,6 +45,26 @@ describe("Modal", () => {
 
     fireEvent.mouseDown(screen.getByTestId("modal-backdrop"));
     expect(onClose).toHaveBeenCalledTimes(3);
+  });
+
+  // The browser moves focus on mousedown by default, after the dialog has already handed it
+  // back to its opener, which would leave a keyboard user on the page body.
+  it("keeps the browser from taking focus away from the opener on a press outside", () => {
+    render(<Harness open />);
+
+    const press = createEvent.mouseDown(screen.getByTestId("modal-backdrop"));
+    fireEvent(screen.getByTestId("modal-backdrop"), press);
+
+    expect(press.defaultPrevented).toBe(true);
+  });
+
+  it("leaves a press inside the dialog to the browser, so its fields still take focus", () => {
+    render(<Harness open />);
+
+    const press = createEvent.mouseDown(screen.getByText("isi dialog"));
+    fireEvent(screen.getByText("isi dialog"), press);
+
+    expect(press.defaultPrevented).toBe(false);
   });
 
   it("does not close when the press lands inside the dialog", () => {
