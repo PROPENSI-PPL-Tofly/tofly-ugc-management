@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildEvents,
-  isOverdue,
   toContentDetail,
   waitingOnFor,
   type ContentDetailRow,
@@ -60,28 +59,6 @@ describe('waitingOnFor', () => {
     ['link_submitted', null],
   ] as const)('answers %s as %s', (status, expected) => {
     expect(waitingOnFor(status)).toBe(expected);
-  });
-});
-
-describe('isOverdue', () => {
-  it('is true once the deadline has passed and the link is not in', () => {
-    expect(isOverdue('draft_approved', '2026-09-29', '2026-09-30')).toBe(true);
-  });
-
-  it('is false on the deadline day itself', () => {
-    expect(isOverdue('scheduled', '2026-09-30', '2026-09-30')).toBe(false);
-  });
-
-  it('is false before the deadline', () => {
-    expect(isOverdue('scheduled', '2026-09-30', '2026-09-29')).toBe(false);
-  });
-
-  it('is false on finished content however late the deadline was', () => {
-    expect(isOverdue('link_submitted', '2026-09-01', '2026-09-30')).toBe(false);
-  });
-
-  it('is false on a pending proposal, which is not committed work yet', () => {
-    expect(isOverdue('pending', '2026-09-01', '2026-09-30')).toBe(false);
   });
 });
 

@@ -1,7 +1,6 @@
 import type { content_status } from '@prisma/client';
 import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
-import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import { contentTags, type ContentTag } from './content-tags.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
@@ -91,19 +90,6 @@ const WAITING_ON: Record<content_status, DetailWaitingOn> = {
 /** Whose turn the step is on; nothing is waiting once the link has closed the content. */
 export function waitingOnFor(status: content_status): DetailWaitingOn {
   return WAITING_ON[status];
-}
-
-/**
- * Deadline passed with no final link in yet, on work the creator is committed to: a pending
- * proposal has not been accepted. ISO days compare correctly as strings.
- */
-export function isOverdue(
-  status: content_status,
-  deadlineDay: string,
-  today: string,
-): boolean {
-  const committed = (COMMITTED_STATUSES as readonly content_status[]).includes(status);
-  return committed && status !== 'link_submitted' && today > deadlineDay;
 }
 
 /** A revision note that says nothing has nothing to request. */
