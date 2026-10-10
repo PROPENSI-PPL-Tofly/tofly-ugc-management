@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
-import { Toast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import type { MyTask, MyTaskAction } from "@/lib/my-tasks";
 import { MyTaskTable } from "./my-task-table";
 
@@ -52,8 +52,7 @@ export function MyTaskBoard({
   // The content whose detail panel is open; keyed by content so a ?content= link can
   // deep-link into it the way a notification would.
   const [detailContentId, setDetailContentId] = useState<string | null>(null);
-  // The id is the Toast key: a second hand-in remounts it, restarting its countdown.
-  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const { show: confirm, toast } = useToast();
   const listRef = useRef<HTMLElement>(null);
   const focusListOnClose = useRef(false);
 
@@ -99,7 +98,7 @@ export function MyTaskBoard({
     const content = { id, name, deadline, brief, revisionNotes };
     const submitted = () => {
       focusListOnClose.current = true;
-      setToast((last) => ({ id: (last?.id ?? 0) + 1, message: SUBMITTED[current.action] }));
+      confirm(SUBMITTED[current.action]);
       router.refresh();
     };
     // Keyed by task and action so opening another row starts from an empty form.
@@ -155,9 +154,7 @@ export function MyTaskBoard({
           }}
         />
       ) : null}
-      {toast ? (
-        <Toast key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />
-      ) : null}
+      {toast}
     </>
   );
 }

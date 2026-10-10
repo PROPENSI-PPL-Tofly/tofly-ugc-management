@@ -7,7 +7,7 @@ import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { StatusDot } from "@/components/ui/pill";
-import { Toast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import { AddContentModal } from "@/components/contents/add-content-modal";
 import {
     ContentDetailPanel,
@@ -46,8 +46,7 @@ export function ContentPlanClient({
     const [showModal, setShowModal] = useState(false);
     // The content whose detail panel is open, so a row opens its own journey.
     const [openContentId, setOpenContentId] = useState<string | null>(null);
-    // The id is the Toast key: a second save remounts it, restarting its countdown.
-    const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+    const { show: confirm, toast } = useToast();
     const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
@@ -104,10 +103,7 @@ export function ContentPlanClient({
     function handleSaved() {
         setDetail(null);
         setError("");
-        setToast((current) => ({
-            id: (current?.id ?? 0) + 1,
-            message: "Konten berhasil ditambahkan.",
-        }));
+        confirm("Konten berhasil ditambahkan.");
         setRefreshKey((current) => current + 1);
     }
 
@@ -286,10 +282,7 @@ export function ContentPlanClient({
                         onDecided={(decision) => {
                             setOpenContentId(null);
                             setRefreshKey((current) => current + 1);
-                            setToast((current) => ({
-                                id: (current?.id ?? 0) + 1,
-                                message: DECISION_CONFIRMATIONS[decision],
-                            }));
+                            confirm(DECISION_CONFIRMATIONS[decision]);
                         }}
                     />
                 ) : null}
@@ -301,13 +294,7 @@ export function ContentPlanClient({
     return (
         <>
             {renderPlan()}
-            {toast ? (
-                <Toast
-                    key={toast.id}
-                    message={toast.message}
-                    onDismiss={() => setToast(null)}
-                />
-            ) : null}
+            {toast}
         </>
     );
 }

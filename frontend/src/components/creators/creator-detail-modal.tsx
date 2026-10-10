@@ -11,7 +11,7 @@ import {
   ContentDetailPanel,
   DECISION_CONFIRMATIONS,
 } from "@/components/content-detail/content-detail-panel";
-import { Toast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import { fetchCreatorDetail, type CreatorDetail } from "@/lib/creators";
 import {
@@ -45,8 +45,7 @@ export function CreatorDetailModal({
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   // Bumped by a decision inside the panel, so the history below re-fetches its data.
   const [refreshKey, setRefreshKey] = useState(0);
-  // The id is the Toast key: a second decision remounts it, restarting its countdown.
-  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const { show: confirm, toast } = useToast();
 
   // No reset on creatorId here: the caller keys this component by creator, so a
   // different creator is a different mount that starts from the initial state.
@@ -317,17 +316,12 @@ export function CreatorDetailModal({
         onDecided={(decision) => {
           setOpenContentId(null);
           setRefreshKey((current) => current + 1);
-          setToast((last) => ({
-            id: (last?.id ?? 0) + 1,
-            message: DECISION_CONFIRMATIONS[decision],
-          }));
+          confirm(DECISION_CONFIRMATIONS[decision]);
         }}
       />
     ) : null}
 
-    {toast ? (
-      <Toast key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />
-    ) : null}
+    {toast}
     </>
   );
 }
