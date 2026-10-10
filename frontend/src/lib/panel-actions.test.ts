@@ -1,15 +1,22 @@
-import { actionsFor, submitRevision, type PanelActionPorts } from "./panel-actions";
+import {
+  actionsFor,
+  submitRejection,
+  submitRevision,
+  type PanelActionPorts,
+} from "./panel-actions";
 import type { ContentDetail } from "./content-detail";
 
 const SUBMISSION = "22222222-2222-2222-2222-222222222222";
+const CONTENT = "11111111-1111-1111-1111-111111111111";
 
 type Facts = Pick<
   ContentDetail,
-  "waitingOn" | "latestSubmissionId" | "creatorActions" | "status"
+  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status"
 >;
 
 function facts(overrides: Partial<Facts> = {}): Facts {
   return {
+    id: CONTENT,
     waitingOn: "admin",
     latestSubmissionId: SUBMISSION,
     creatorActions: [],
@@ -120,6 +127,128 @@ describe("actionsFor (admin)", () => {
     });
 
     expect(commands).toEqual([]);
+  });
+});
+
+describe("actionsFor (admin, a creator's proposal)", () => {
+  const proposal = () =>
+    facts({ status: "pending", waitingOn: "admin", latestSubmissionId: null });
+
+  it("offers Tolak and Setujui while a proposal waits on the admin", () => {
+    const commands = actionsFor({
+      role: "admin",
+      detail: proposal(),
+      state: idle,
+      ports: adminPorts(),
+    });
+
+    expect(commands.map((command) => [command.kind, command.label, command.variant])).toEqual([
+      ["reject_proposal", "Tolak", "danger"],
+      ["approve_proposal", "Setujui", "accent"],
+    ]);
+  });
+
+  it("approves the proposal by its content id", async () => {
+    const approveProposal = vi.fn().mockResolvedValue(undefined);
+    const commands = actionsFor({
+      role: "admin",
+      detail: proposal(),
+      state: idle,
+      ports: adminPorts({ approveProposal }),
+    });
+
+    await commands.find((command) => command.kind === "approve_proposal")?.run();
+
+    expect(approveProposal).toHaveBeenCalledWith(CONTENT);
+  });
+
+  it("opens the rejection form instead of removing anything by itself", () => {
+    const openRejectForm = vi.fn();
+    const rejectProposal = vi.fn();
+    const commands = actionsFor({
+      role: "admin",
+      detail: proposal(),
+      state: idle,
+      ports: adminPorts({ openRejectForm, rejectProposal }),
+    });
+
+    void commands.find((command) => command.kind === "reject_proposal")?.run();
+
+    expect(openRejectForm).toHaveBeenCalledTimes(1);
+    expect(rejectProposal).not.toHaveBeenCalled();
+  });
+
+  it("locks both while a decision is already in flight", () => {
+    const commands = actionsFor({
+      role: "admin",
+      detail: proposal(),
+      state: () => ({ busy: true, note: "" }),
+      ports: adminPorts(),
+    });
+
+    expect(commands.every((command) => !command.canRun())).toBe(true);
+  });
+
+  it("offers the proposing creator nothing to do while the admin decides", () => {
+    const commands = actionsFor({
+      role: "creator",
+      detail: proposal(),
+      state: idle,
+      ports: ports(),
+    });
+
+    expect(commands).toEqual([]);
+  });
+
+  it("answers a Setujui whose port is missing as a resolved no-op", async () => {
+    const commands = actionsFor({
+      role: "admin",
+      detail: proposal(),
+      state: idle,
+      ports: {},
+    });
+
+    await expect(
+      commands.find((command) => command.kind === "approve_proposal")?.run(),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("submitRejection", () => {
+  it("lets the admin reject without a reason, since it is optional", () => {
+    const command = submitRejection({ contentId: CONTENT, state: idle, ports: ports() });
+
+    expect(command).toMatchObject({ kind: "reject_proposal", label: "Tolak Pengajuan", variant: "danger" });
+    expect(command.canRun()).toBe(true);
+  });
+
+  it("locks while a decision is already in flight", () => {
+    const command = submitRejection({
+      contentId: CONTENT,
+      state: () => ({ busy: true, note: "Kurang relevan." }),
+      ports: ports(),
+    });
+
+    expect(command.canRun()).toBe(false);
+  });
+
+  it("sends the reason trimmed with the content id", async () => {
+    const rejectProposal = vi.fn().mockResolvedValue(undefined);
+    const command = submitRejection({
+      contentId: CONTENT,
+      state: () => ({ busy: false, note: "  Kurang relevan.  " }),
+      ports: ports({ rejectProposal }),
+    });
+
+    await command.run();
+
+    expect(rejectProposal).toHaveBeenCalledWith(CONTENT, "Kurang relevan.");
+  });
+
+  it("answers a missing reject port as a resolved no-op", async () => {
+    const command = submitRejection({ contentId: CONTENT, state: idle, ports: {} });
+
+    await expect(command.run()).resolves.toBeUndefined();
   });
 });
 

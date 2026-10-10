@@ -27,9 +27,10 @@ vi.mock("@/lib/creators", async (importOriginal) => {
     };
 });
 
-const { fetchContentDetail, approveSubmission } = vi.hoisted(() => ({
+const { fetchContentDetail, approveSubmission, approveProposal } = vi.hoisted(() => ({
     fetchContentDetail: vi.fn(),
     approveSubmission: vi.fn(),
+    approveProposal: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -45,6 +46,11 @@ vi.mock("@/lib/content-detail", async (importOriginal) => ({
 vi.mock("@/lib/draft-review-actions", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@/lib/draft-review-actions")>()),
     approveSubmission: (id: string) => approveSubmission(id),
+}));
+
+vi.mock("@/lib/proposal-actions", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/proposal-actions")>()),
+    approveProposal: (id: string) => approveProposal(id),
 }));
 
 vi.mock("@/components/contents/add-content-modal", () => ({
@@ -830,6 +836,54 @@ describe("ContentPlanClient content detail panel", () => {
         expect(
             screen.getByRole("button", { name: "Detail: Evg_Rangga_14102026" }),
         ).toBeInTheDocument();
+    });
+
+    it("approves a creator's proposal from its panel, reloads the plan and confirms it", async () => {
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    {
+                        id: "content-9",
+                        name: "Ide konten dari Rangga",
+                        type: "specific",
+                        deadline: "2026-10-30",
+                        status: "pending",
+                        outcome: "open",
+                        videoLink: null,
+                        tags: [],
+                    },
+                ],
+            }),
+        );
+        fetchContentDetail.mockResolvedValue({
+            id: "content-9",
+            name: "Ide konten dari Rangga",
+            type: "specific",
+            brief: "Unboxing paket olahraga.",
+            deadline: "2026-10-30",
+            status: "pending",
+            creatorName: "Rangga Pratama",
+            tags: [],
+            waitingOn: "admin",
+            latestSubmissionId: null,
+            creatorActions: [],
+            events: [],
+        } satisfies ContentDetail);
+        approveProposal.mockResolvedValue(undefined);
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        fireEvent.click(
+            await screen.findByRole("button", { name: "Detail: Ide konten dari Rangga" }),
+        );
+        fireEvent.click(await screen.findByRole("button", { name: "Setujui" }));
+
+        expect(await screen.findByRole("status")).toHaveTextContent(
+            "Pengajuan disetujui. Konten masuk jadwal kreator.",
+        );
+        expect(approveProposal).toHaveBeenCalledWith("content-9");
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(vi.mocked(fetchCreatorDetail)).toHaveBeenCalledTimes(2);
     });
 
     it("opens the content detail panel of a content row, as the admin", async () => {

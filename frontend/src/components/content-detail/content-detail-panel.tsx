@@ -23,27 +23,36 @@ import {
   type DetailEventType,
   type JourneyStep,
 } from "@/lib/content-detail";
-import {
-  approveSubmission,
-  DraftReviewActionError,
-  reviseSubmission,
-} from "@/lib/draft-review-actions";
+import { DecisionError } from "@/lib/decisions";
+import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
 import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
+  submitRejection,
   submitRevision,
+  type PanelActionKind,
   type PanelActionPorts,
+  type PanelCommand,
 } from "@/lib/panel-actions";
+import { approveProposal, rejectProposal } from "@/lib/proposal-actions";
 import type { Role } from "@/lib/session";
 
 /** The API's limit on a revision note (backend revise-submission.ts). */
 export const MAX_REVISION_NOTE_LENGTH = 1000;
 
+/** A decision the panel can send, named for the touchpoint that confirms it. */
+export type Decision = "approve" | "revise" | "approve_proposal" | "reject_proposal";
+
 /** How each decision is confirmed once the panel has closed; the touchpoint shows it. */
-export const DECISION_CONFIRMATIONS: Record<"approve" | "revise", string> = {
+export const DECISION_CONFIRMATIONS: Record<Decision, string> = {
   approve: "Draft di-approve. Kreator bisa kirim link video.",
   revise: "Permintaan revisi terkirim ke kreator.",
+  approve_proposal: "Pengajuan disetujui. Konten masuk jadwal kreator.",
+  reject_proposal: "Pengajuan ditolak dan dihapus.",
 };
+
+/** The API's limit on a rejection reason (backend proposal-review.ts). */
+export const MAX_REJECT_REASON_LENGTH = 1000;
 
 /** Shown in the header until there is a content name to show instead. */
 const DEFAULT_TITLE = "Detail Konten";
@@ -81,6 +90,51 @@ const STEP_TONES: Record<"admin" | "creator" | "done", { card: string; label: st
   admin: { card: "border-accent bg-accent-wash", label: "text-accent-deep" },
   creator: { card: "border-amber bg-amber-wash", label: "text-amber-ink" },
   done: { card: "border-green bg-green-wash", label: "text-green-ink" },
+};
+
+// The two decisions that start with a form rather than a request: what the form asks for, and
+// which footer command opened it (so focus can go back to it on Batal).
+type FormKind = "revise" | "reject";
+
+interface FormSpec {
+  label: string;
+  placeholder: string;
+  required: boolean;
+  max: number;
+  decision: Decision;
+  opener: PanelActionKind;
+}
+
+const FORMS: Record<FormKind, FormSpec> = {
+  revise: {
+    label: "Catatan revisi untuk creator",
+    placeholder: "mis. Warna kurang kontras, mohon perbaiki bagian intro...",
+    required: true,
+    max: MAX_REVISION_NOTE_LENGTH,
+    decision: "revise",
+    opener: "revise",
+  },
+  // The reason is optional (PRD 3.10): rejecting with an empty form is allowed.
+  reject: {
+    label: "Alasan penolakan (opsional)",
+    placeholder: "mis. Belum sesuai rencana kampanye bulan ini...",
+    required: false,
+    max: MAX_REJECT_REASON_LENGTH,
+    decision: "reject_proposal",
+    opener: "reject_proposal",
+  },
+};
+
+/** The footer commands that only open a form; every other command sends its decision. */
+const OPENS_FORM: ReadonlySet<PanelActionKind> = new Set<PanelActionKind>([
+  "revise",
+  "reject_proposal",
+]);
+
+/** Where the admin reads the step differently from the creator: their own decision is due. */
+const ADMIN_STEP_TEXT: Partial<Record<ContentDetail["status"], string>> = {
+  pending:
+    "Kreator mengajukan konten ini. Setujui untuk menjadwalkannya, atau tolak untuk menghapusnya.",
 };
 
 /** One line of context under the waiting side, per status. */
@@ -248,11 +302,18 @@ function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
 function CurrentStep({
   status,
   waitingOn,
+  role,
   children,
-}: Readonly<{ status: ContentDetail["status"]; waitingOn: WaitingOn; children?: ReactNode }>) {
+}: Readonly<{
+  status: ContentDetail["status"];
+  waitingOn: WaitingOn;
+  role: Role;
+  children?: ReactNode;
+}>) {
   const tone = STEP_TONES[waitingOn ?? "done"];
   // Undefined for a status newer than this build, which then simply has no line of context.
-  const text: string | undefined = STEP_TEXT[status];
+  const text: string | undefined =
+    (role === "admin" ? ADMIN_STEP_TEXT[status] : undefined) ?? STEP_TEXT[status];
 
   return (
     <div
@@ -322,7 +383,7 @@ export function ContentDetailPanel({
   /** Replaces the role-based commands entirely, when the touchpoint brings its own. */
   actions?: ReactNode;
   /** Called after a successful decision, naming it, so the caller can close and confirm. */
-  onDecided?: (decision: "approve" | "revise") => void;
+  onDecided?: (decision: Decision) => void;
   /** False while the revision form offers its own way back (Batal). */
   showClose?: boolean;
   /** Where the detail comes from; the API by default, a stub in tests. */
@@ -333,13 +394,14 @@ export function ContentDetailPanel({
 }>) {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [pending, setPending] = useState<"approve" | "revise" | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
+  const [pending, setPending] = useState<Decision | null>(null);
+  const [form, setForm] = useState<FormKind | null>(null);
+  const formOpen = form !== null;
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // Batal unmounts the textarea that held focus; Minta Revisi takes it back when it
-  // remounts, so a keyboard user is not dropped to the top of the page.
-  const [cancelled, setCancelled] = useState(false);
+  // Batal unmounts the textarea that held focus; the button that opened the form takes it back
+  // when it remounts, so a keyboard user is not dropped to the top of the page.
+  const [cancelled, setCancelled] = useState<FormKind | null>(null);
   const countId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
@@ -408,15 +470,22 @@ export function ContentDetailPanel({
     revise: ports.revise ?? reviseSubmission,
     openRevisionForm: () => {
       setError(null);
-      setFormOpen(true);
+      setForm("revise");
       ports.openRevisionForm?.();
+    },
+    approveProposal: ports.approveProposal ?? approveProposal,
+    rejectProposal: ports.rejectProposal ?? rejectProposal,
+    openRejectForm: () => {
+      setError(null);
+      setForm("reject");
+      ports.openRejectForm?.();
     },
     onCreatorAction: ports.onCreatorAction,
   };
 
   const snapshot = () => ({ busy, note });
 
-  async function decide(kind: "approve" | "revise", run: () => Promise<void>) {
+  async function decide(kind: Decision, run: () => Promise<void>) {
     setError(null);
     setPending(kind);
 
@@ -428,8 +497,8 @@ export function ContentDetailPanel({
       setError(caught instanceof Error ? caught.message : "Terjadi kesalahan. Coba lagi.");
       // A 409 means someone else already moved the content on: the step on screen is stale,
       // so the note form closes and the content is read again to show where it stands now.
-      if (caught instanceof DraftReviewActionError && caught.status === 409) {
-        setFormOpen(false);
+      if (caught instanceof DecisionError && caught.status === 409) {
+        setForm(null);
         setNote("");
         void readAgain();
       }
@@ -443,19 +512,25 @@ export function ContentDetailPanel({
         ? []
         : actionsFor({ role, detail: loaded, state: snapshot, ports: actionPorts })
     : [];
-  const kirim = loaded
-    ? submitRevision({
-        submissionId: loaded.latestSubmissionId ?? "",
-        state: snapshot,
-        ports: actionPorts,
-      })
-    : null;
+  // The open form's own send button: a revision needs a note, a rejection takes one if given.
+  let send: PanelCommand | null = null;
+  // Minta Revisi is only offered with a hand-in to revise, so the form always has one.
+  if (loaded?.latestSubmissionId && form === "revise") {
+    send = submitRevision({
+      submissionId: loaded.latestSubmissionId,
+      state: snapshot,
+      ports: actionPorts,
+    });
+  } else if (loaded && form === "reject") {
+    send = submitRejection({ contentId: loaded.id, state: snapshot, ports: actionPorts });
+  }
+  const formSpec = form ? FORMS[form] : null;
 
   function cancelForm() {
-    setFormOpen(false);
+    setCancelled(form);
+    setForm(null);
     setError(null);
     setNote("");
-    setCancelled(true);
   }
 
   return (
@@ -474,20 +549,21 @@ export function ContentDetailPanel({
               key={command.kind}
               variant={command.variant}
               onClick={() => {
-                if (command.kind === "revise") {
-                  // Opening the note form is synchronous, but PanelCommand.run may answer
-                  // with a promise; `void` marks the ignored answer so no lint sees a
-                  // floating promise (Sonar S9383).
+                if (OPENS_FORM.has(command.kind)) {
+                  // Opening a form is synchronous, but PanelCommand.run may answer with a
+                  // promise; `void` marks the ignored answer so no lint sees a floating
+                  // promise (Sonar S9383).
                   void command.run();
                   return;
                 }
-                void decide("approve", async () => {
+                // Every command that does not open a form is a decision of the same name.
+                void decide(command.kind as Decision, async () => {
                   await command.run();
                 });
               }}
               disabled={!command.canRun()}
               aria-busy={busy && pending === command.kind}
-              autoFocus={cancelled && command.kind === "revise"}
+              autoFocus={cancelled !== null && FORMS[cancelled].opener === command.kind}
             >
               {command.label}
             </Button>
@@ -509,8 +585,8 @@ export function ContentDetailPanel({
           <section>
             <h3 className={SECTION_LABEL}>Timeline</h3>
 
-            <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn}>
-            {formOpen && kirim ? (
+            <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn} role={role}>
+            {send && formSpec ? (
               <div className="mt-3 flex w-full flex-col gap-2">
                 {error ? (
                   <p role="alert" className="text-right text-xs text-red-ink">
@@ -519,39 +595,37 @@ export function ContentDetailPanel({
                 ) : null}
 
                 <label className="flex flex-col gap-1 text-[13px]">
-                  <span className="font-semibold text-ink">
-                    Catatan revisi untuk creator
-                  </span>
+                  <span className="font-semibold text-ink">{formSpec.label}</span>
                   <textarea
                     ref={focusOnMount}
-                    required
-                    maxLength={MAX_REVISION_NOTE_LENGTH}
+                    required={formSpec.required}
+                    maxLength={formSpec.max}
                     aria-describedby={countId}
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
-                    placeholder="mis. Warna kurang kontras, mohon perbaiki bagian intro..."
+                    placeholder={formSpec.placeholder}
                     rows={3}
                     disabled={busy}
                     className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
                   />
                 </label>
-                <CharLimit id={countId} length={note.length} max={MAX_REVISION_NOTE_LENGTH} />
+                <CharLimit id={countId} length={note.length} max={formSpec.max} />
 
                 <div className="flex justify-end gap-2">
                   <Button variant="ghost" onClick={cancelForm} disabled={busy}>
                     Batal
                   </Button>
                   <Button
-                    variant={kirim.variant}
+                    variant={send.variant}
                     onClick={() => {
-                      void decide("revise", async () => {
-                        await kirim.run();
+                      void decide(formSpec.decision, async () => {
+                        await send.run();
                       });
                     }}
-                    disabled={!kirim.canRun()}
-                    aria-busy={pending === "revise"}
+                    disabled={!send.canRun()}
+                    aria-busy={pending === formSpec.decision}
                   >
-                    {kirim.label}
+                    {send.label}
                   </Button>
                 </div>
               </div>
