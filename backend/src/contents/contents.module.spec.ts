@@ -1,4 +1,6 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
+import { ContentListController } from './content-list.controller.js';
+import { ContentListService } from './content-list.service.js';
 import { ContentsController } from './contents.controller.js';
 import { ContentsModule } from './contents.module.js';
 import { ContentCreationService } from './contents.service.js';
@@ -34,5 +36,20 @@ describe('ContentsModule', () => {
 
     expect(controllers).toContain(DraftSubmissionController);
     expect(providers).toContain(DraftSubmissionService);
+  });
+
+  it('registers the Content Plan list controller and service', () => {
+    const controllers = Reflect.getMetadata(
+      MODULE_METADATA.CONTROLLERS,
+      ContentsModule,
+    ) as unknown[];
+
+    const providers = Reflect.getMetadata(
+      MODULE_METADATA.PROVIDERS,
+      ContentsModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(ContentListController);
+    expect(providers).toContain(ContentListService);
   });
 });
