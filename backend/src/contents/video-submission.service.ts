@@ -54,6 +54,28 @@ export interface VideoSubmissionTransaction {
       };
     }) => Promise<{ count: number }>;
   };
+  creators: {
+    findUnique: (args: {
+      where: { id: string };
+      select: { first_name: true; middle_name: true; last_name: true };
+    }) => Promise<{
+      first_name: string;
+      middle_name: string | null;
+      last_name: string | null;
+    } | null>;
+  };
+  content_events: {
+    create: (args: {
+      data: {
+        content_id: string;
+        event_type: 'Link Submitted';
+        actor_name: string;
+        actor_role: 'creator';
+        occurred_at: Date;
+        event_data: { link: string };
+      };
+    }) => Promise<unknown>;
+  };
 }
 
 export interface VideoSubmissionClient {
@@ -160,6 +182,34 @@ export class VideoSubmissionService implements VideoSubmitter {
       if (count === 0) {
         throw notEligible(content.status);
       }
+
+      const creator = await transaction.creators.findUnique({
+        where: { id: creatorId },
+        select: { first_name: true, middle_name: true, last_name: true },
+      });
+      if (!creator) {
+        throw new NotFoundException({
+          code: 'CREATOR_NOT_FOUND',
+          message: 'Kreator tidak ditemukan',
+        });
+      }
+
+      await transaction.content_events.create({
+        data: {
+          content_id: contentId,
+          event_type: 'Link Submitted',
+          actor_name: [
+            creator.first_name,
+            creator.middle_name,
+            creator.last_name,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          actor_role: 'creator',
+          occurred_at: submittedAt,
+          event_data: { link: videoLink },
+        },
+      });
 
       return {
         contentId,
