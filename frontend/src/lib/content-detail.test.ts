@@ -193,6 +193,14 @@ describe("describeJourney", () => {
     ]);
   });
 
+  it("titles the first event by who made the content: a creator's proposal reads Diajukan kreator", () => {
+    const [proposed] = describeJourney([event({ id: "scheduled", type: "scheduled", actor: CREATOR })]);
+    const [added] = describeJourney([event({ id: "scheduled", type: "scheduled", actor: ADMIN })]);
+
+    expect(proposed.title).toBe("Diajukan kreator");
+    expect(added.title).toBe("Ditambahkan Admin");
+  });
+
   it("counts a draft's version from the oldest when the API sends none", () => {
     const steps = describeJourney([
       event({ id: "b", type: "draft_submitted", actor: CREATOR }),

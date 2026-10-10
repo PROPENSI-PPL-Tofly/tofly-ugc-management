@@ -49,6 +49,11 @@ describe("formatTimestamp", () => {
     expect(formatTimestamp("2025-12-31T17:00:00Z")).toBe("1 Jan 2026, 00.00 WIB");
   });
 
+  it("writes a plain calendar day as that day, with no time it never had", () => {
+    // A day read as an instant is midnight UTC, which would show as 07.00 WIB.
+    expect(formatTimestamp("2026-09-15")).toBe("15 Sep 2026");
+  });
+
   it("reads a timestamp that carries its own offset", () => {
     expect(formatTimestamp("2026-09-20T10:05:00+07:00")).toBe("20 Sep 2026, 10.05 WIB");
   });

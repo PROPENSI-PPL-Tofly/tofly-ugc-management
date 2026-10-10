@@ -189,9 +189,58 @@ describe('buildEvents', () => {
 
     expect(events.at(0)).toMatchObject({
       type: 'link_submitted',
-      at: '2026-09-15T00:00:00.000Z',
+      at: '2026-09-15',
       actor: { name: 'Rangga Pratama', role: 'creator' },
       payload: { link: 'https://instagram.com/reel/abc' },
+    });
+  });
+
+  it('dates the link by its day alone, because the hour it came in was never stored', () => {
+    const [link] = buildEvents(
+      row({
+        status: 'link_submitted',
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+    );
+
+    // Not midnight UTC dressed up as an instant, which the panel would show as 07.00 WIB.
+    expect(link.at).toBe('2026-09-15');
+  });
+
+  it('keeps the link on top of a draft and a revision request from later the same day', () => {
+    // The link closes the content, so nothing can follow it. Sorting its stored day as
+    // midnight would put it under everything else that happened that day.
+    const events = buildEvents(
+      row({
+        status: 'link_submitted',
+        video_link: 'https://instagram.com/reel/abc',
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+        submissions: [
+          submission({
+            created_at: new Date('2026-09-15T03:00:00.000Z'),
+            updated_at: new Date('2026-09-15T04:00:00.000Z'),
+            revision_notes: 'Audio terlalu pelan.',
+          }),
+        ],
+      }),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      'link_submitted',
+      'revision_requested',
+      'draft_submitted',
+      'scheduled',
+    ]);
+  });
+
+  it('starts a pending proposal with the creator who proposed it, not with an admin', () => {
+    const events = buildEvents(row({ status: 'pending' }));
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'scheduled',
+      at: '2026-09-01T03:00:00.000Z',
+      actor: { name: 'Rangga Pratama', role: 'creator' },
     });
   });
 

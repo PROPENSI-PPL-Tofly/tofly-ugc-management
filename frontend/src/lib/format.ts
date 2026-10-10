@@ -31,6 +31,9 @@ const JAKARTA_TIME_FORMAT = new Intl.DateTimeFormat("id-ID", {
 
 export const EMPTY = "—";
 
+/** A calendar day with no time of day, the way the API sends a Postgres `date`. */
+const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * The API sends plain calendar days. Parsing and formatting them as UTC keeps the day as
  * written; letting the browser read them in local time moves a date across midnight for
@@ -52,6 +55,8 @@ export function formatDate(date: string | null): string {
  */
 export function formatTimestamp(timestamp: string | null): string {
   if (!timestamp) return EMPTY;
+  // A plain day has no time to show; read as an instant it would be midnight UTC, 07.00 WIB.
+  if (PLAIN_DAY.test(timestamp)) return formatDate(timestamp);
 
   const moment = new Date(timestamp);
   if (Number.isNaN(moment.getTime())) return EMPTY;

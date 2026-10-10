@@ -52,7 +52,10 @@ export interface ContentDetailRow {
 export interface ContentEvent {
   id: string;
   type: DetailEventType;
-  /** ISO instant; the response lists the newest event first. */
+  /**
+   * ISO instant, or a plain ISO day ("2026-09-15") when only the day was stored. The response
+   * lists the newest event first.
+   */
   at: string;
   actor: { name: string | null; role: 'admin' | 'creator' };
   payload?: { version?: number; link?: string; note?: string };
@@ -115,7 +118,9 @@ function hasNote(submission: DetailSubmissionRow): boolean {
 
 /**
  * The journey, newest first. Submissions arrive oldest-first from the query, so versions
- * count up along the way and the sort at the end flips the list for the panel.
+ * count up along the way and the sort at the end flips the list for the panel. The link is
+ * kept out of that sort: it closes the content, so it is always the newest event, and its
+ * stored day has no hour to sort by.
  */
 export function buildEvents(
   row: Pick<
@@ -129,7 +134,11 @@ export function buildEvents(
       id: `${row.id}:scheduled`,
       type: 'scheduled',
       at: row.created_at.toISOString(),
-      actor: { name: null, role: 'admin' },
+      // Only a creator's own proposal is ever pending; an admin's content starts scheduled.
+      actor:
+        row.status === 'pending'
+          ? { name: creatorName, role: 'creator' }
+          : { name: null, role: 'admin' },
     },
   ];
 
@@ -168,19 +177,22 @@ export function buildEvents(
     });
   }
 
+  events.sort(
+    (a, b) => Date.parse(b.at) - Date.parse(a.at) || b.id.localeCompare(a.id),
+  );
+
   if (row.video_submitted_at) {
-    events.push({
+    events.unshift({
       id: `${row.id}:link`,
       type: 'link_submitted',
-      at: row.video_submitted_at.toISOString(),
+      // A Postgres `date`: its day is all that was stored, so its day is all that is sent.
+      at: row.video_submitted_at.toISOString().slice(0, 10),
       actor: { name: creatorName, role: 'creator' },
       payload: { link: row.video_link ?? '' },
     });
   }
 
-  return events.sort(
-    (a, b) => Date.parse(b.at) - Date.parse(a.at) || b.id.localeCompare(a.id),
-  );
+  return events;
 }
 
 export function toContentDetail(row: ContentDetailRow, today: string): ContentDetail {
