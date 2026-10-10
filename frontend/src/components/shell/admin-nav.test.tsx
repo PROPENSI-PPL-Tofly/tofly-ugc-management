@@ -26,50 +26,47 @@ describe("AdminNav", () => {
     );
   });
 
-  it("marks Content Plan (All) as current on its page and on the draft queue it leads to", () => {
-    for (const path of ["/admin/content-plan", "/admin/submissions"]) {
-      vi.mocked(usePathname).mockReturnValue(path);
+  it("marks Content Plan as current on its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/content-plan");
 
-      const { unmount } = render(<AdminNav />);
+    render(<AdminNav />);
 
-      expect(screen.getByRole("link", { name: "Content Plan (All)" })).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
-      expect(screen.getByRole("link", { name: "Creator Database" })).not.toHaveAttribute(
-        "aria-current",
-      );
-      unmount();
-    }
+    expect(screen.getByRole("link", { name: "Content Plan" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Creator Database" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
-  it("links Content Plan (All) to its page", () => {
+  it("links Content Plan to its page", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators");
 
     render(<AdminNav />);
 
-    expect(screen.getByRole("link", { name: "Content Plan (All)" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Content Plan" })).toHaveAttribute(
       "href",
       "/admin/content-plan",
     );
   });
 
-  it("does not mistake one creator's content plan for Content Plan (All)", () => {
+  it("does not mistake one creator's content plan for Content Plan", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators/abc/content-plan");
 
     render(<AdminNav />);
 
-    expect(screen.getByRole("link", { name: "Content Plan (All)" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Content Plan" })).not.toHaveAttribute(
       "aria-current",
     );
   });
 
   it("does not treat a path that only starts with the same letters as the same place", () => {
-    vi.mocked(usePathname).mockReturnValue("/admin/submissions-archive");
+    vi.mocked(usePathname).mockReturnValue("/admin/content-plan-archive");
 
     render(<AdminNav />);
 
-    expect(screen.getByRole("link", { name: "Content Plan (All)" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Content Plan" })).not.toHaveAttribute(
       "aria-current",
     );
   });
