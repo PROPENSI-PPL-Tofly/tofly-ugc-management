@@ -13,6 +13,8 @@ import type { MyTaskAction } from "./my-tasks";
 
 export type DetailEventType =
   | "scheduled"
+  | "proposal_approved"
+  | "creator_comment"
   | "draft_submitted"
   | "revision_requested"
   | "draft_approved"
@@ -88,6 +90,9 @@ const STEP_WORDING: Record<
   }),
   revision_requested: (round) => ({ title: `Revisi ke-${round} diminta`, linkLabel: null }),
   draft_approved: () => ({ title: "Draft di-approve", linkLabel: null }),
+  proposal_approved: () => ({ title: "Pengajuan disetujui", linkLabel: null }),
+  // A comment moves the content nowhere; its note is the whole point and reads signed.
+  creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
   link_submitted: () => ({ title: "Link video dikirim", linkLabel: "Buka video" }),
 };
 
