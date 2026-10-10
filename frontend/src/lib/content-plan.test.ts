@@ -141,6 +141,7 @@ describe("parseContentPlanParams", () => {
     expect(parseContentPlanParams({ tab: "action" }).tab).toBe("action");
     expect(parseContentPlanParams({ tab: ["waiting"] }).tab).toBe("waiting");
     expect(parseContentPlanParams({ tab: "draft" }).tab).toBe("all");
+    expect(tabDef("draft" as never).key).toBe("all");
   });
 
   it("keeps a positive integer page and drops anything else back to one", () => {
@@ -189,6 +190,8 @@ describe("parseContentPlanParams", () => {
       from: "2026-10-01",
       to: "",
     });
+    expect(parseContentPlanParams({ to: [] }).to).toBe("");
+    expect(parseContentPlanParams({ period: "custom", to: "2026-10-31" }).to).toBe("2026-10-31");
   });
 
   it("reads a sort direction and falls back to the default for anything else", () => {

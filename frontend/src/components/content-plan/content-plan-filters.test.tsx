@@ -154,6 +154,42 @@ describe("ContentPlanFilters", () => {
     expect(screen.getByRole("checkbox", { name: "Specific" })).toBeInTheDocument();
   });
 
+  it("picks types and statuses, one URL write each", () => {
+    let view = renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Evergreen" }));
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?type=evergreen", {
+      scroll: false,
+    });
+
+    view = view.rerenderWith(new URLSearchParams({ type: "evergreen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Draft Menunggu Review" }));
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      "/admin/content-plan?type=evergreen&status=draft_review",
+      { scroll: false },
+    );
+    view.unmount();
+  });
+
+  it("turns the period over and dates the far end of a custom range", () => {
+    let view = renderFilters();
+
+    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "month" } });
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?period=month", {
+      scroll: false,
+    });
+
+    view = view.rerenderWith(new URLSearchParams({ period: "custom" }), { period: "custom" });
+    fireEvent.change(screen.getByLabelText("Sampai"), { target: { value: "2026-10-31" } });
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      "/admin/content-plan?period=custom&to=2026-10-31",
+      { scroll: false },
+    );
+    view.unmount();
+  });
+
   it("offers Reset only while something narrows the view, and keeps the tab on it", () => {
     const view = renderFilters();
     expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
@@ -165,5 +201,25 @@ describe("ContentPlanFilters", () => {
     expect(mockReplace).toHaveBeenCalledWith("/admin/content-plan?tab=action", {
       scroll: false,
     });
+  });
+
+  it("opens the bare address when Reset is pressed on Semua", () => {
+    const view = renderFilters();
+    view.rerenderWith(new URLSearchParams({ q: "salsa", overdue: "yes" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    expect(mockReplace).toHaveBeenCalledWith("/admin/content-plan", { scroll: false });
+  });
+
+  it("shows the custom dates already sitting in the URL", () => {
+    searchParams = new URLSearchParams({
+      period: "custom",
+      from: "2026-10-01",
+      to: "2026-10-31",
+    });
+    renderFilters({ period: "custom", from: "2026-10-01", to: "2026-10-31" });
+
+    expect(screen.getByLabelText("Dari")).toHaveValue("2026-10-01");
+    expect(screen.getByLabelText("Sampai")).toHaveValue("2026-10-31");
   });
 });

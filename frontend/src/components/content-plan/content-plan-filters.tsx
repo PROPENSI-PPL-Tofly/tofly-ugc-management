@@ -5,7 +5,6 @@ import { startTransition } from "react";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
-  CONTENT_PLAN_BASE,
   statusOptionsFor,
   type ContentPlanCreatorOption,
   type ContentPlanParams,

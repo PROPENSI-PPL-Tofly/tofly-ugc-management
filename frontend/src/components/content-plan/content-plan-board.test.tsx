@@ -152,4 +152,13 @@ describe("ContentPlanBoard", () => {
       scroll: false,
     });
   });
+
+  it("opens the bare address when the flip leaves nothing else in the URL", () => {
+    searchParams = new URLSearchParams({ sort: "asc" });
+    renderBoard("asc");
+
+    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
+
+    expect(replace).toHaveBeenCalledWith("/admin/content-plan", { scroll: false });
+  });
 });

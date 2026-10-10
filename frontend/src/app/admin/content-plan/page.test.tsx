@@ -1,9 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ContentPlanResponse } from "@/lib/content-plan";
-import {
-  fetchContentPlan,
-  fetchContentPlanCreatorOptions,
-} from "@/lib/content-plan.server";
 import ContentPlanPage from "./page";
 
 const { fetchPlan, fetchCreators } = vi.hoisted(() => ({

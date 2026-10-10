@@ -78,7 +78,7 @@ describe("fetchContentPlan", () => {
   });
 
   it("throws when the endpoint answers something other than ok", async () => {
-    vi.mocked(globalThis, "fetch").mockResolvedValue(new Response("", { status: 503 }));
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response("", { status: 503 }));
     await expect(fetchContentPlan(DEFAULT_CONTENT_PLAN_PARAMS)).rejects.toThrow(
       "Loading the content plan failed with HTTP 503",
     );
@@ -88,7 +88,7 @@ describe("fetchContentPlan", () => {
     sessionCookies.push({ name: "__session", value: "token" });
 
     const body = { ...RESPONSE, total: 3, totalPages: 1 };
-    vi.mocked(globalThis, "fetch").mockResolvedValue(
+    vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify(body), { status: 200 }),
     );
 

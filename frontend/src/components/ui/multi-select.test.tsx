@@ -82,4 +82,22 @@ describe("MultiSelect", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Rangga/ })).not.toBeInTheDocument();
   });
+
+  it("reads a chip by its raw value when its option is gone", () => {
+    renderSelect(["id-x"]);
+    expect(
+      screen.getByRole("button", { name: "Hapus filter Creator: id-x" }),
+    ).toBeInTheDocument();
+  });
+
+  it("ignores a key that is not Escape and a press that lands inside it", () => {
+    renderSelect();
+    fireEvent.click(trigger());
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("group", { name: "Creator" }));
+    expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
+  });
 });
