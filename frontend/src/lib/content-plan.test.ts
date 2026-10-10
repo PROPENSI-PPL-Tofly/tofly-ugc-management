@@ -211,6 +211,13 @@ describe("buildContentPlanQuery", () => {
     ).toEqual({ tab: "action", q: "salsa", sort: "asc" });
   });
 
+  it.each([
+    ["yes", { overdue: "yes" }],
+    ["no", { overdue: "no" }],
+  ] as const)("keeps the overdue filter in the address as %s", (overdue, expected) => {
+    expect(buildContentPlanQuery({ ...FULL, overdue })).toEqual(expected);
+  });
+
   it("joins the multi-selects with commas", () => {
     expect(
       buildContentPlanQuery({
