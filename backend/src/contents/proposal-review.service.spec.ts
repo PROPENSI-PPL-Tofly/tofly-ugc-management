@@ -42,8 +42,10 @@ function stubClient(stored: Stored | null) {
   return { client, current: () => row };
 }
 
-function notifier(): ProposalNotifier & { proposalRejected: ReturnType<typeof vi.fn> } {
-  return { proposalRejected: vi.fn() };
+function notifier() {
+  return {
+    proposalRejected: vi.fn<ProposalNotifier['proposalRejected']>(),
+  } satisfies ProposalNotifier;
 }
 
 const pending: Stored = {
