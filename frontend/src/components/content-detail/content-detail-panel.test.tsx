@@ -1010,6 +1010,37 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(dots.join(" ")).not.toContain("bg-red");
     });
 
+    it("marks an approved proposal and a creator's comment as steps that move nothing on", async () => {
+      show({
+        events: [
+          {
+            id: "comment",
+            type: "creator_comment",
+            at: "2026-09-03T03:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+            payload: { note: "Boleh mundur sehari?" },
+          },
+          {
+            id: "proposal",
+            type: "proposal_approved",
+            at: "2026-09-02T03:00:00.000Z",
+            actor: { name: null, role: "admin" },
+          },
+        ],
+      });
+
+      const items = await journeyItems();
+      expect(items.map((item) => item.querySelector("[data-step-title]")?.textContent)).toEqual([
+        "Komentar kreator",
+        "Pengajuan disetujui",
+      ]);
+      expect(items.map((item) => item.querySelector("[data-timeline-dot]")?.className)).toEqual([
+        expect.stringContaining("bg-muted ring-muted"),
+        expect.stringContaining("bg-muted ring-muted"),
+      ]);
+      expect(within(items[0]).getByText("Boleh mundur sehari?")).toBeInTheDocument();
+    });
+
     it("shows when each event happened in Jakarta time, and who did it in which role", async () => {
       show({ events: FULL });
 

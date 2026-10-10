@@ -167,6 +167,20 @@ describe("describeJourney", () => {
     event({ id: "scheduled", type: "scheduled" }),
   ];
 
+  it("titles an approved proposal and a creator's comment, signing the comment with its writer", () => {
+    const steps = describeJourney([
+      event({ id: "comment", type: "creator_comment", actor: CREATOR, payload: { note: "Boleh mundur sehari?" } }),
+      event({ id: "proposal", type: "proposal_approved" }),
+      event({ id: "scheduled", type: "scheduled", actor: CREATOR }),
+    ]);
+
+    expect(steps.map((step) => [step.title, step.linkLabel, step.noteBy])).toEqual([
+      ["Komentar kreator", null, "Catatan Rangga Pratama"],
+      ["Pengajuan disetujui", null, null],
+      ["Diajukan kreator", null, null],
+    ]);
+  });
+
   it("keeps every event, in the order it was given, with the event itself", () => {
     const steps = describeJourney(journey);
 
