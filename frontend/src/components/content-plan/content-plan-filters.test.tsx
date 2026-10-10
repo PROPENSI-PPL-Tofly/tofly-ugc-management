@@ -115,7 +115,9 @@ describe("ContentPlanFilters", () => {
   it("scopes the status choices to the tab it is on", () => {
     renderFilters({ tab: "action" });
     fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
-    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    // The tab's two statuses, under the Semua option that clears the filter.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(screen.getByRole("checkbox", { name: "Semua" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Pending" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Draft Menunggu Review" })).toBeInTheDocument();
   });
