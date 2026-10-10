@@ -4,8 +4,7 @@ import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ContentStatus } from './content-lifecycle.js';
 import {
-  CONTENT_LIST_TABS,
-  TAB_STATUSES,
+  tabOf,
   type ContentListFilters,
   type ContentListSort,
   type ContentListTab,
@@ -88,17 +87,62 @@ export interface ContentListLister {
   ): Promise<ContentListResponse>;
 }
 
+// Names are compared by one fixed collator, so the order is the same on a laptop, in CI and on
+// the server whatever locale each of them runs in.
+// Stryker disable next-line StringLiteral: not a gap. An empty locale makes the constructor throw while this file loads, so every suite that imports it fails before a test runs, and the runner counts a mutant with no failed test as survived.
+const BY_NAME = new Intl.Collator('id');
+
+/** ISO days and ids are plain ASCII, so their code-unit order is their order. */
+function compareText(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  return a > b ? 1 : 0;
+}
+
 /** Nearest or furthest deadline first; name and id keep rows sharing a day in place. */
 function compareBy(sort: ContentListSort) {
   const direction = sort === 'deadline_desc' ? -1 : 1;
   return (a: ContentListItem, b: ContentListItem): number =>
-    direction * a.deadline.localeCompare(b.deadline) ||
-    a.name.localeCompare(b.name) ||
-    a.id.localeCompare(b.id);
+    direction * compareText(a.deadline, b.deadline) ||
+    BY_NAME.compare(a.name, b.name) ||
+    compareText(a.id, b.id);
 }
 
-function inTab(tab: ContentListTab, item: ContentListItem): boolean {
-  return TAB_STATUSES[tab].includes(item.status);
+/** Decides whether a row passes the search and filters, with what never changes worked out once. */
+function matcher(filters: ContentListFilters) {
+  const { types, statuses, overdue, deadlineFrom, deadlineTo } = filters;
+  const creators = filters.creators && new Set(filters.creators);
+  const needle = filters.q?.toLowerCase();
+
+  return (item: ContentListItem): boolean => {
+    if (creators && !creators.has(item.creatorId)) {
+      return false;
+    }
+    if (types && !types.includes(item.type)) {
+      return false;
+    }
+    if (statuses && !statuses.includes(item.status)) {
+      return false;
+    }
+    if (overdue && !item.tags.includes('overdue')) {
+      return false;
+    }
+    // ISO days order the same as text and as dates.
+    if (deadlineFrom && item.deadline < deadlineFrom) {
+      return false;
+    }
+    if (deadlineTo && item.deadline > deadlineTo) {
+      return false;
+    }
+    if (!needle) {
+      return true;
+    }
+    return (
+      item.name.toLowerCase().includes(needle) ||
+      item.creatorName.toLowerCase().includes(needle)
+    );
+  };
 }
 
 @Injectable()
@@ -122,20 +166,30 @@ export class ContentListService implements ContentListLister {
       select: CONTENT_LIST_SELECT,
     });
 
-    const matching = rows
-      .map((row) => this.toItem(row, now))
-      .filter((item) => this.matches(item, filters));
+    const matches = matcher(filters);
+    const tabCounts: Record<ContentListTab, number> = {
+      all: 0,
+      needs_approval: 0,
+      waiting_creator: 0,
+      done: 0,
+    };
+    const listed: ContentListItem[] = [];
 
-    const tabCounts = Object.fromEntries(
-      CONTENT_LIST_TABS.map((tab) => [
-        tab,
-        matching.filter((item) => inTab(tab, item)).length,
-      ]),
-    ) as Record<ContentListTab, number>;
-
-    const listed = matching
-      .filter((item) => inTab(filters.tab, item))
-      .sort(compareBy(filters.sort));
+    // One pass: a matching row is counted under Semua and under its own tab, and kept when
+    // the open tab is one of those two.
+    for (const row of rows) {
+      const item = this.toItem(row, now);
+      if (!matches(item)) {
+        continue;
+      }
+      const tab = tabOf(item.status);
+      tabCounts.all += 1;
+      tabCounts[tab] += 1;
+      if (filters.tab === 'all' || filters.tab === tab) {
+        listed.push(item);
+      }
+    }
+    listed.sort(compareBy(filters.sort));
 
     const { page, pageSize } = paging;
     const start = (page - 1) * pageSize;
@@ -174,37 +228,5 @@ export class ContentListService implements ContentListLister {
       // A content nobody has handed a draft in for has no revisions, not minus one.
       revisionCount: Math.max(0, row._count.submissions - 1),
     };
-  }
-
-  private matches(item: ContentListItem, filters: ContentListFilters): boolean {
-    const { q, creators, types, statuses, overdue, deadlineFrom, deadlineTo } =
-      filters;
-    if (creators && !creators.includes(item.creatorId)) {
-      return false;
-    }
-    if (types && !types.includes(item.type)) {
-      return false;
-    }
-    if (statuses && !statuses.includes(item.status)) {
-      return false;
-    }
-    if (overdue && !item.tags.includes('overdue')) {
-      return false;
-    }
-    // ISO days order the same as text and as dates.
-    if (deadlineFrom && item.deadline < deadlineFrom) {
-      return false;
-    }
-    if (deadlineTo && item.deadline > deadlineTo) {
-      return false;
-    }
-    if (!q) {
-      return true;
-    }
-    const needle = q.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(needle) ||
-      item.creatorName.toLowerCase().includes(needle)
-    );
   }
 }

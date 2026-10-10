@@ -44,6 +44,22 @@ export const TAB_STATUSES: Record<ContentListTab, readonly ContentStatus[]> = {
   done: ['link_submitted'],
 };
 
+/** A tab that holds some of the statuses; Semua holds them all and is nobody's own tab. */
+export type StatusTab = Exclude<ContentListTab, 'all'>;
+
+const STATUS_TABS: readonly StatusTab[] = [
+  'needs_approval',
+  'waiting_creator',
+  'done',
+];
+
+/** The one tab besides Semua that lists a status, read off TAB_STATUSES so the two cannot drift. */
+export function tabOf(status: ContentStatus): StatusTab {
+  return STATUS_TABS.find((tab) =>
+    TAB_STATUSES[tab].includes(status),
+  ) as StatusTab;
+}
+
 /** The raw query values, straight from the request. */
 export interface ContentListQuery {
   tab?: unknown;
