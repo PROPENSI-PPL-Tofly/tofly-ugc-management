@@ -334,6 +334,24 @@ describe('GET /contents (e2e)', () => {
     });
   });
 
+  it('combines creator, type and period in one query', async () => {
+    const period = `&deadlineFrom=${iso(6)}&deadlineTo=${iso(8)}`;
+
+    // Raka's only content is outside the period and does not wait for approval.
+    expect(await names(`&creator=${raka.creatorId}${period}`)).toEqual([]);
+    expect(
+      await names(`&creator=${dina.creatorId}&type=specific${period}`),
+    ).toEqual(['proposal', 'approved', 'revision']);
+    expect(
+      await names(
+        `&creator=${dina.creatorId}&type=specific&tab=needs_approval${period}`,
+      ),
+    ).toEqual(['resubmit', 'review', 'proposal']);
+    expect(
+      await names(`&creator=${dina.creatorId}&type=evergreen${period}`),
+    ).toEqual([]);
+  });
+
   it('lists the nearest deadline first when asked', async () => {
     const sorted = await names('&sort=deadline_asc');
 
