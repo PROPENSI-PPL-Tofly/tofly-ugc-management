@@ -46,8 +46,8 @@ function submission(overrides: Partial<ContentDetailRow['submissions'][number]> 
 
 describe('waitingOnFor', () => {
   it.each([
+    ['pending', 'admin'],
     ['draft_review', 'admin'],
-    ['draft_revised', 'admin'],
     ['scheduled', 'creator'],
     ['draft_revision', 'creator'],
     ['draft_approved', 'creator'],
@@ -72,6 +72,10 @@ describe('isOverdue', () => {
 
   it('is false on finished content however late the deadline was', () => {
     expect(isOverdue('link_submitted', '2026-09-01', '2026-09-30')).toBe(false);
+  });
+
+  it('is false on a pending proposal, which is not committed work yet', () => {
+    expect(isOverdue('pending', '2026-09-01', '2026-09-30')).toBe(false);
   });
 });
 

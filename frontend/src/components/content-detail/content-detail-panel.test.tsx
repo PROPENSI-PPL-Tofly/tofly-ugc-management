@@ -598,6 +598,16 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(within(step).getByTestId("step-text")).toHaveTextContent("Link video sudah dikirim.");
     });
 
+    it("reads a pending proposal as waiting on the admin's answer", async () => {
+      show({ status: "pending", waitingOn: "admin", latestSubmissionId: null });
+
+      const step = await screen.findByTestId("current-step");
+      expect(within(step).getByText("Menunggu Admin")).toBeInTheDocument();
+      expect(within(step).getByTestId("step-text")).toHaveTextContent(
+        "Pengajuan sedang ditinjau Admin.",
+      );
+    });
+
     it("sits above the history, so the next step is read first", async () => {
       show();
 
