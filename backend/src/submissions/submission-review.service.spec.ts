@@ -7,6 +7,8 @@ import {
 const SUBMISSION_ID = '0f9c2f5e-6b1a-4f3e-9a51-3c1d2e4b5a60';
 const OLDER_ID = '7d1e0a44-2c3b-4d5e-8f90-1a2b3c4d5e6f';
 const CONTENT_ID = 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0';
+const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
+const ADMIN_EMAIL = 'admin@example.test';
 
 function stubClient(
   found: {
@@ -44,6 +46,55 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('SubmissionReviewService.approve', () => {
+  it('records Draft Approved in the status transaction with the Admin identity', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const transaction = {
+      contents: { updateMany },
+      users: {
+        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+      },
+      content_events: {
+        create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+      },
+    };
+    const base = stubClient({
+      status: 'draft_review',
+      latestIds: [SUBMISSION_ID],
+    });
+    const client: SubmissionReviewClient & {
+      $transaction: (
+        work: (tx: typeof transaction) => Promise<unknown>,
+      ) => Promise<unknown>;
+    } = {
+      ...base,
+      $transaction: vi.fn(async (work: (tx: typeof transaction) => Promise<unknown>) =>
+        work(transaction),
+      ),
+    };
+    const service = new SubmissionReviewService(client);
+
+    await Reflect.apply(service.approve, service, [SUBMISSION_ID, ADMIN_USER_ID]);
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Draft Approved',
+        actor_name: ADMIN_EMAIL,
+        actor_role: 'admin',
+        occurred_at: expect.any(Date),
+        event_data: {},
+      },
+    });
+    expect(client.$transaction).toHaveBeenCalledOnce();
+    expect(transaction.users.findUnique).toHaveBeenCalledWith({
+      where: { id: ADMIN_USER_ID },
+      select: { email: true },
+    });
+    expect(updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
+  });
+
   it.each(['draft_review', 'draft_revised'])(
     'approves the latest submission of a draft in %s',
     async (status) => {

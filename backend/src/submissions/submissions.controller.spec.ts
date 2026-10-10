@@ -9,6 +9,7 @@ import { SubmissionReviewService } from './submission-review.service.js';
 import { SubmissionsController } from './submissions.controller.js';
 
 const SUBMISSION_ID = '0f9c2f5e-6b1a-4f3e-9a51-3c1d2e4b5a60';
+const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('SubmissionsController', () => {
   const review = { approve: vi.fn() };
@@ -27,7 +28,15 @@ describe('SubmissionsController', () => {
     })
       // AdminGuard has its own spec; these tests are about the routes behind it.
       .overrideGuard(AdminGuard)
-      .useValue({ canActivate: () => true })
+      .useValue({
+        canActivate: (context: { switchToHttp(): { getRequest(): { principal?: unknown } } }) => {
+          context.switchToHttp().getRequest().principal = {
+            userId: ADMIN_USER_ID,
+            role: 'admin',
+          };
+          return true;
+        },
+      })
       .compile();
 
     app = module.createNestApplication();
@@ -145,7 +154,7 @@ describe('SubmissionsController', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(approved);
-      expect(review.approve).toHaveBeenCalledWith(SUBMISSION_ID);
+      expect(review.approve).toHaveBeenCalledWith(SUBMISSION_ID, ADMIN_USER_ID);
     });
 
     it.each([

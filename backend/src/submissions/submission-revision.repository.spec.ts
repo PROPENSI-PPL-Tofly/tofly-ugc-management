@@ -1,6 +1,68 @@
 import { SubmissionRevisionRepository } from './submission-revision.repository.js';
 
+const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
+const ADMIN_EMAIL = 'admin@example.test';
+
 describe('SubmissionRevisionRepository', () => {
+  it('records Revision Requested in the revision transaction with the Admin identity and note', async () => {
+    const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+    const contentId = '550e8400-e29b-41d4-a716-446655440001';
+    const revisionNotes = 'Mohon perbaiki bagian pembuka.';
+    const updateManyContent = vi.fn().mockResolvedValue({ count: 1 });
+    const updateSubmission = vi.fn().mockResolvedValue({
+      id: submissionId,
+      content_id: contentId,
+      revision_notes: revisionNotes,
+    });
+    const transaction = {
+      submissions: { update: updateSubmission },
+      contents: { updateMany: updateManyContent },
+      users: {
+        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+      },
+      content_events: {
+        create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+      },
+    };
+    const runTransaction = vi.fn(
+      async (callback: (tx: typeof transaction) => Promise<any>) =>
+        callback(transaction),
+    );
+    const repository = new SubmissionRevisionRepository({
+      submissions: { findUnique: vi.fn() },
+      $transaction: runTransaction,
+    });
+
+    await Reflect.apply(repository.saveRevision, repository, [
+      submissionId,
+      contentId,
+      revisionNotes,
+      ADMIN_USER_ID,
+    ]);
+
+    expect(transaction.users.findUnique).toHaveBeenCalledWith({
+      where: { id: ADMIN_USER_ID },
+      select: { email: true },
+    });
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: contentId,
+        event_type: 'Revision Requested',
+        actor_name: ADMIN_EMAIL,
+        actor_role: 'admin',
+        occurred_at: expect.any(Date),
+        event_data: { revision_note: revisionNotes },
+      },
+    });
+    expect(runTransaction).toHaveBeenCalledOnce();
+    expect(updateManyContent.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
+    expect(updateSubmission.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
+  });
+
   it('stores the revision note and changes the content status to draft_revision', async () => {
   const submissionId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '550e8400-e29b-41d4-a716-446655440001';
