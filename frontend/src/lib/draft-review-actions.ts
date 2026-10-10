@@ -31,13 +31,18 @@ async function readMessage(response: Response): Promise<string | null> {
   }
 }
 
-async function patch(
-  path: string,
+/**
+ * Sends one admin decision through the /api proxy and resolves once the backend accepted it.
+ * Shared by the draft and the proposal decisions, so a refusal reads the same from either.
+ */
+export async function sendDecision(
+  url: string,
+  method: "PATCH" | "POST",
   fallbackMessage: string,
-  body?: { revisionNotes: string },
+  body?: Record<string, unknown>,
 ): Promise<void> {
-  const response = await apiFetch(`/api/submissions/${path}`, {
-    method: "PATCH",
+  const response = await apiFetch(url, {
+    method,
     ...(body
       ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
       : {}),
@@ -56,8 +61,9 @@ async function patch(
  * The id is encoded so a crafted value cannot climb out of /submissions/ (OWASP A01).
  */
 export async function approveSubmission(submissionId: string): Promise<void> {
-  return patch(
-    `${encodeURIComponent(submissionId)}/approve`,
+  return sendDecision(
+    `/api/submissions/${encodeURIComponent(submissionId)}/approve`,
+    "PATCH",
     "Keputusan gagal dikirim. Coba lagi.",
   );
 }
@@ -67,8 +73,9 @@ export async function reviseSubmission(
   submissionId: string,
   revisionNotes: string,
 ): Promise<void> {
-  return patch(
-    `${encodeURIComponent(submissionId)}/revise`,
+  return sendDecision(
+    `/api/submissions/${encodeURIComponent(submissionId)}/revise`,
+    "PATCH",
     "Permintaan revisi gagal dikirim. Coba lagi.",
     { revisionNotes },
   );
