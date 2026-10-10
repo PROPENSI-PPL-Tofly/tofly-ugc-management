@@ -35,7 +35,6 @@ function rememberContentParam(contentId: string) {
  */
 function forgetContentParam() {
   const url = new URL(window.location.href);
-  if (!url.searchParams.has(CONTENT_PARAM)) return;
   url.searchParams.delete(CONTENT_PARAM);
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
