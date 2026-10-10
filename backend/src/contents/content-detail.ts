@@ -151,7 +151,7 @@ export function buildEvents(
         type: 'revision_requested',
         at: submission.updated_at.toISOString(),
         actor: { name: null, role: 'admin' },
-        payload: { note: submission.revision_notes ?? '' },
+        payload: { note: submission.revision_notes },
       });
     }
   });
