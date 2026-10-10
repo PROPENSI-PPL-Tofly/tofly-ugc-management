@@ -14,6 +14,21 @@ interface Opened {
   action: MyTaskAction;
 }
 
+/** The search parameter a notification or a bookmark uses to open one content's panel. */
+const CONTENT_PARAM = "content";
+
+/**
+ * Takes the deep link back out of the address once its panel has closed, so a reload or a
+ * Back does not open the panel again. Other parameters (the status filter, the page) stay.
+ * replaceState keeps Next's router in sync without a navigation or a server round trip.
+ */
+function forgetContentParam() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(CONTENT_PARAM)) return;
+  url.searchParams.delete(CONTENT_PARAM);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 const SUBMITTED: Record<MyTaskAction, string> = {
   submit_draft: "Draft terkirim. Admin akan meninjaunya.",
   resubmit_draft: "Draft terkirim. Admin akan meninjaunya.",
@@ -48,7 +63,7 @@ export function MyTaskBoard({
   // exactly what the rule asks of an effect (syncing with an external system), not a
   // cascading render.
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("content");
+    const id = new URLSearchParams(window.location.search).get(CONTENT_PARAM);
     if (id) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot URL read on mount
       setDetailContentId(id);
@@ -65,10 +80,15 @@ export function MyTaskBoard({
 
   const close = () => setOpened(null);
 
+  function closeDetail() {
+    setDetailContentId(null);
+    forgetContentParam();
+  }
+
   /** A command inside the panel hands its action back here: the row's submit modal owns it. */
   function openSubmitFromPanel(contentId: string, action: MyTaskAction) {
     const task = tasks.find((candidate) => candidate.id === contentId);
-    setDetailContentId(null);
+    closeDetail();
     if (task) {
       setOpened({ task, action });
     }
@@ -129,7 +149,7 @@ export function MyTaskBoard({
           key={detailContentId}
           contentId={detailContentId}
           role="creator"
-          onClose={() => setDetailContentId(null)}
+          onClose={closeDetail}
           ports={{
             onCreatorAction: (action) => openSubmitFromPanel(detailContentId, action),
           }}
