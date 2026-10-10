@@ -70,7 +70,7 @@ describe('SubmissionReviewService transactional approval race', () => {
       where: {
         id: CONTENT_ID,
         status: {
-          in: ['draft_review', 'draft_revised'],
+          in: ['draft_review'],
         },
       },
       data: {

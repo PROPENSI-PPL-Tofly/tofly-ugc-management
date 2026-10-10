@@ -5,6 +5,7 @@ import {
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AdminGuard } from '../auth/admin.guard.js';
+import { ContentDetailService } from './content-detail.service.js';
 import { ContentEventHistoryService } from './content-event-history.service.js';
 import { ContentsController } from './contents.controller.js';
 import { ContentCreationService } from './contents.service.js';
@@ -76,6 +77,7 @@ describe('GET /contents/:id/events', () => {
       controllers: [ContentsController],
       providers: [
         { provide: ContentCreationService, useValue: creation },
+        { provide: ContentDetailService, useValue: { getDetail: vi.fn() } },
         { provide: ContentEventHistoryService, useValue: history },
       ],
     })

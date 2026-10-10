@@ -97,7 +97,15 @@ describe('CreatorCommentService.addComment', () => {
     expect(contentsFindFirst).toHaveBeenCalledWith({
       where: {
         id: CONTENT_ID,
-        is_proposal: false,
+        status: {
+          in: [
+            'scheduled',
+            'draft_review',
+            'draft_revision',
+            'draft_approved',
+            'link_submitted',
+          ],
+        },
         contracts: {
           creator_id: CREATOR_ID,
         },

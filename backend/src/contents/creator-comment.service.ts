@@ -1,5 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { content_status } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import type { CreatorComment } from './creator-comment.js';
 
 export interface CreatorCommentTransaction {
@@ -7,7 +9,7 @@ export interface CreatorCommentTransaction {
     findFirst(args: {
       where: {
         id: string;
-        is_proposal: false;
+        status: { in: content_status[] };
         contracts: { creator_id: string };
       };
       select: { id: true };
@@ -67,7 +69,7 @@ export class CreatorCommentService implements CreatorCommentWriter {
       const content = await transaction.contents.findFirst({
         where: {
           id: contentId,
-          is_proposal: false,
+          status: { in: [...COMMITTED_STATUSES] },
           contracts: { creator_id: creatorId },
         },
         select: { id: true },
