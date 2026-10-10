@@ -112,10 +112,14 @@ function focusOnMount(element: HTMLTextAreaElement | null) {
   element?.focus();
 }
 
-/** Red once the deadline has passed, amber from the day before it, green when finished. */
-function dueTone(finished: boolean, days: number | null): string {
-  if (finished) return "text-green-ink";
-  if (days === null) return "";
+/**
+ * Red once the deadline has passed, amber from the day before it, green when finished. A
+ * pending proposal is not assigned work yet, so its deadline warns about nothing, the same
+ * way it never carries the Overdue tag.
+ */
+function dueTone(status: ContentDetail["status"], days: number | null): string {
+  if (status === "link_submitted") return "text-green-ink";
+  if (status === "pending" || days === null) return "";
   if (days < 0) return "text-red-ink";
   return days <= DUE_SOON_DAYS ? "text-amber-ink" : "";
 }
@@ -140,7 +144,7 @@ function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Dat
 
       <span>
         Deadline <b className="font-semibold text-ink">{formatDate(detail.deadline)}</b> ·{" "}
-        <span data-testid="deadline-due" className={`font-semibold ${dueTone(finished, days)}`}>
+        <span data-testid="deadline-due" className={`font-semibold ${dueTone(detail.status, days)}`}>
           {finished ? "Selesai" : formatDaysLeft(days)}
         </span>
       </span>

@@ -22,7 +22,7 @@ export type DetailEventType =
 export interface RawContentEvent {
   id: string;
   type: DetailEventType;
-  /** ISO instant; the newest event arrives first. */
+  /** ISO instant, or a plain day when the API only knows the day; the newest arrives first. */
   at: string;
   actor: { name: string | null; role: "admin" | "creator" };
   payload?: { version?: number; link?: string; note?: string };
@@ -74,9 +74,13 @@ export interface JourneyStep {
 // kinds that have neither ignore it. A kind without a link label never shows a link.
 const STEP_WORDING: Record<
   DetailEventType,
-  (ordinal: number) => { title: string; linkLabel: string | null }
+  (ordinal: number, by: RawContentEvent["actor"]["role"]) => { title: string; linkLabel: string | null }
 > = {
-  scheduled: () => ({ title: "Ditambahkan Admin", linkLabel: null }),
+  // A content starts with whoever made it: an admin adds it, a creator proposes it.
+  scheduled: (_ordinal, by) => ({
+    title: by === "creator" ? "Diajukan kreator" : "Ditambahkan Admin",
+    linkLabel: null,
+  }),
   draft_submitted: (version) => ({
     title: `Draft v${version} dikirim`,
     linkLabel: `Buka draft v${version}`,
@@ -119,7 +123,7 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
       ordinal = rounds;
     }
 
-    const { title, linkLabel } = STEP_WORDING[event.type](ordinal);
+    const { title, linkLabel } = STEP_WORDING[event.type](ordinal, event.actor.role);
 
     steps.unshift({
       event,
