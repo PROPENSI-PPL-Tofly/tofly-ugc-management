@@ -329,7 +329,7 @@ describe("MyTaskBoard content detail panel", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(window.location.search).toBe("?status=scheduled&page=2&content=content-1");
 
-    fireEvent.click(screen.getByRole("button", { name: "Tutup", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
