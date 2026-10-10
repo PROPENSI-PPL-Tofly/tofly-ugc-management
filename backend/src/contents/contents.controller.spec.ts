@@ -29,11 +29,21 @@ describe('ContentsController', () => {
     const create = vi.fn().mockResolvedValue(createdContent);
     vi.mocked(checkNewContent).mockReturnValue(body);
 
-    const controller = new ContentsController({ create });
+    const controller = new ContentsController({ create }, { getDetail: vi.fn() });
 
     await expect(controller.create(body)).resolves.toEqual(createdContent);
 
     expect(checkNewContent).toHaveBeenCalledWith(body);
     expect(create).toHaveBeenCalledWith(body);
+  });
+
+  it('answers GET /contents/:id from the detail service', async () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    const getDetail = vi.fn().mockResolvedValue({ id });
+    const controller = new ContentsController({ create: vi.fn() }, { getDetail });
+
+    await expect(controller.getDetail(id)).resolves.toEqual({ id });
+
+    expect(getDetail).toHaveBeenCalledWith(id, expect.any(Date));
   });
 });

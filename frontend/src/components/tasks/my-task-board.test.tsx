@@ -1,10 +1,20 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { MyTask } from "@/lib/my-tasks";
 import { MyTaskBoard } from "./my-task-board";
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+const { fetchContentDetail } = vi.hoisted(() => ({
+  fetchContentDetail: vi.fn(),
+}));
+
+vi.mock("@/lib/content-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content-detail")>()),
+  fetchContentDetail: (id: string, role: "admin" | "creator") =>
+    fetchContentDetail(id, role),
+}));
 
 // The modals are stubbed: what they do inside is their own tests' business. These stand-ins
 // show what the board handed them and expose the two ways a modal hands control back.
@@ -225,5 +235,86 @@ describe("MyTaskBoard", () => {
     render(<MyTaskBoard tasks={[]} />);
 
     expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
+  });
+});
+
+describe("MyTaskBoard content detail panel", () => {
+  beforeEach(() => {
+    refresh.mockClear();
+    fetchContentDetail.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
+  });
+
+  function panelDetail() {
+    return {
+      id: "content-1",
+      name: "Evg_1_RanggaPratama_12102026",
+      type: "evergreen" as const,
+      brief: "",
+      deadline: "2026-10-12",
+      status: "draft_review" as const,
+      creatorName: "Rangga Pratama",
+      tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+      waitingOn: "creator" as const,
+      latestSubmissionId: null,
+      creatorActions: ["submit_video"] as const,
+      events: [],
+    };
+  }
+
+  it("opens the content detail panel from a row, as the creator", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
+  });
+
+  it("hands the panel's submit action back to the row's submit modal", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Detail Konten|Evg_1/ })).toBeNull();
+  });
+
+  it("opens the panel straight from a ?content= link, the way a notification would", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-1");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
+  });
+
+  it("closes the panel from Tutup without opening any modal", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes the panel without a modal when the link points at a task the list does not hold", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-404");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 });

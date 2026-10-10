@@ -61,7 +61,7 @@ describe('GET /submissions?status=review (e2e)', () => {
         }),
       );
     }
-    return submissions;
+    return { contentId: content.id, submissions };
   }
 
   function queue(query = '') {
@@ -70,9 +70,9 @@ describe('GET /submissions?status=review (e2e)', () => {
     );
   }
 
-  let reviewSoon: { id: string }[];
-  let resubmitLate: { id: string }[];
-  let overdue: { id: string }[];
+  let reviewSoon: { contentId: string; submissions: { id: string }[] };
+  let resubmitLate: { contentId: string; submissions: { id: string }[] };
+  let overdue: { contentId: string; submissions: { id: string }[] };
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -143,7 +143,8 @@ describe('GET /submissions?status=review (e2e)', () => {
     expect(response.body).toEqual({
       items: [
         {
-          submissionId: resubmitLate[1].id,
+          submissionId: resubmitLate.submissions[1].id,
+          contentId: resubmitLate.contentId,
           creatorName: `${MARKER} Dina`,
           contentName: `${MARKER} resubmit late`,
           type: 'specific',
@@ -152,7 +153,8 @@ describe('GET /submissions?status=review (e2e)', () => {
           revisionCount: 1,
         },
         {
-          submissionId: overdue[0].id,
+          submissionId: overdue.submissions[0].id,
+          contentId: overdue.contentId,
           creatorName: `${MARKER} Dina`,
           contentName: `${MARKER} overdue`,
           type: 'specific',
@@ -161,7 +163,8 @@ describe('GET /submissions?status=review (e2e)', () => {
           revisionCount: 0,
         },
         {
-          submissionId: reviewSoon[0].id,
+          submissionId: reviewSoon.submissions[0].id,
+          contentId: reviewSoon.contentId,
           creatorName: `${MARKER} Dina`,
           contentName: `${MARKER} review soon`,
           type: 'evergreen',
@@ -209,7 +212,7 @@ describe('GET /submissions?status=review (e2e)', () => {
 
   it('hands out a submission id that approve accepts, after which the draft leaves the queue', async () => {
     const approved = await admin.patch(
-      `/submissions/${resubmitLate[1].id}/approve`,
+      `/submissions/${resubmitLate.submissions[1].id}/approve`, 
     );
     expect(approved.status).toBe(200);
 
@@ -218,6 +221,6 @@ describe('GET /submissions?status=review (e2e)', () => {
       response.body.items.map(
         (item: { submissionId: string }) => item.submissionId,
       ),
-    ).toEqual([overdue[0].id, reviewSoon[0].id]);
+    ).toEqual([overdue.submissions[0].id, reviewSoon.submissions[0].id]);
   });
 });
