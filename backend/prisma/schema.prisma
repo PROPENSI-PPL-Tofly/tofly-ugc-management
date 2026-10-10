@@ -102,26 +102,30 @@ model submissions {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model content_events {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  content_id  String   @db.Uuid
-  event_type  String
-  actor_name  String
-  actor_role  String
-  occurred_at DateTime @default(now()) @db.Timestamptz(6)
-  event_data  Json     @db.JsonB
-  contents    contents @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content_id    String   @db.Uuid
+  event_type    String
+  actor_name    String
+  actor_role    String
+  occurred_at   DateTime @default(now()) @db.Timestamptz(6)
+  event_data    Json     @db.JsonB
+  /// The admin behind an admin event; the history names them "Admin", never by email.
+  actor_user_id String?  @db.Uuid
+  contents      contents @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users?   @relation(fields: [actor_user_id], references: [id], onUpdate: NoAction)
 
   @@index([content_id, occurred_at(sort: Desc), id(sort: Desc)], map: "content_events_content_occurred_id_idx")
 }
 
 model users {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String         @unique @db.Citext
-  is_admin     Boolean        @default(false)
-  created_at   DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
-  creators     creators?
-  app_sessions app_sessions[]
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email          String           @unique @db.Citext
+  is_admin       Boolean          @default(false)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  creators       creators?
+  app_sessions   app_sessions[]
+  content_events content_events[]
 }
 
 model app_sessions {
