@@ -178,7 +178,17 @@ insert into seed_contents values
   ('adit@example.com',   -50, 'Tofly untuk kantor',            'specific',  -160, 'draft_revision', null, 3),
   ('adit@example.com',   -50, 'Diskon pengguna baru',          'specific',  -132, 'scheduled',      null, 0);
 
-insert into contents (contract_id, name, type, deadline, status, video_link, video_submitted_at)
+-- The content detail timeline is built from these timestamps, so they follow the order things
+-- happen in: the content is created, then each draft is handed in two days apart with its review
+-- the day after, and the link (if any) comes last. Everything lands before today, even for an
+-- open content with a deadline ahead, because nothing can have been handed in in the future.
+-- base is the day the content was created; the drafts and reviews fill the days after it.
+alter table seed_contents add column base integer;
+update seed_contents
+set base = least(deadline, coalesce(submitted, deadline), 0) - 2 - 2 * draft_count;
+
+insert into contents (contract_id, name, type, deadline, status, video_link, video_submitted_at,
+                      created_at, updated_at)
 select k.id,
        s.name,
        s.type::content_type,
@@ -186,20 +196,31 @@ select k.id,
        s.status::content_status,
        case when s.submitted is null then null
             else 'https://example.com/video/' || lower(regexp_replace(s.name, '[^A-Za-z0-9]+', '-', 'g')) end,
-       case when s.submitted is null then null else current_date + s.submitted end
+       case when s.submitted is null then null else current_date + s.submitted end,
+       ((current_date + s.base) + time '02:00') at time zone 'UTC',
+       -- An approval is read from the moment the status last changed: the last review.
+       case when s.status = 'draft_approved'
+            then ((current_date + s.base + 2 * s.draft_count + 1) + time '07:00') at time zone 'UTC'
+            else ((current_date + s.base) + time '02:00') at time zone 'UTC' end
 from seed_contents s
 join users u on u.email = s.email
 join creators c on c.user_id = u.id
 join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contract_end;
 
 -- One submission row per draft handed in; the first is the original, the rest are revisions.
--- Spread over successive days so the order of hand-ins is unambiguous.
-insert into submissions (content_id, creator_id, link, revision_notes, created_at)
+-- The admin's revision note sits on the draft it was written about, as the review endpoint
+-- stores it: every draft but the last was sent back, and so was the last one while the
+-- content still waits for a revision. Hand-ins are at 10.00 WIB, reviews at 14.00 WIB.
+insert into submissions (content_id, creator_id, link, revision_notes, created_at, updated_at)
 select n.id,
        k.creator_id,
        'https://example.com/draft/' || lower(regexp_replace(s.name, '[^A-Za-z0-9]+', '-', 'g')) || '-' || g.n,
-       case when g.n = 1 then null else 'Revisi ke-' || (g.n - 1) end,
-       (current_date + s.deadline - 7 + g.n)::timestamptz
+       case when g.n < s.draft_count or s.status = 'draft_revision'
+            then 'Revisi ke-' || g.n end,
+       ((current_date + s.base + 2 * g.n) + time '03:00') at time zone 'UTC',
+       case when g.n < s.draft_count or s.status = 'draft_revision'
+            then ((current_date + s.base + 2 * g.n + 1) + time '07:00') at time zone 'UTC'
+            else ((current_date + s.base + 2 * g.n) + time '03:00') at time zone 'UTC' end
 from seed_contents s
 join users u on u.email = s.email
 join creators c on c.user_id = u.id
