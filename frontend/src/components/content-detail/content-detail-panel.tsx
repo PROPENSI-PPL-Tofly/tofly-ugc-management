@@ -23,7 +23,11 @@ import {
   type DetailEventType,
   type JourneyStep,
 } from "@/lib/content-detail";
-import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
+import {
+  approveSubmission,
+  DraftReviewActionError,
+  reviseSubmission,
+} from "@/lib/draft-review-actions";
 import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
@@ -310,8 +314,8 @@ export function ContentDetailPanel({
   onClose: () => void;
   /** Replaces the role-based commands entirely, when the touchpoint brings its own. */
   actions?: ReactNode;
-  /** Called after a successful decision, so the caller can close the panel. */
-  onDecided?: () => void;
+  /** Called after a successful decision, naming it, so the caller can close and confirm. */
+  onDecided?: (decision: "approve" | "revise") => void;
   /** False while the revision form offers its own way back (Batal). */
   showClose?: boolean;
   /** Where the detail comes from; the API by default, a stub in tests. */
@@ -363,6 +367,26 @@ export function ContentDetailPanel({
     };
   }, [contentId, role, attempt]);
 
+  // A re-read after a refused decision runs beside the panel's own load; unmounting cancels it.
+  const reread = useRef<AbortController | null>(null);
+  useEffect(() => () => reread.current?.abort(), []);
+
+  /**
+   * Reads the content again without leaving it: the last answer stays on screen until the
+   * new one arrives, and a failed re-read keeps it, since the refusal already said why.
+   */
+  async function readAgain() {
+    reread.current?.abort();
+    const controller = new AbortController();
+    reread.current = controller;
+    try {
+      const detail = await loader.current(contentId, role, controller.signal);
+      if (!controller.signal.aborted) setState({ kind: "loaded", detail });
+    } catch {
+      // The panel keeps what it showed; the refusal message is still the useful part.
+    }
+  }
+
   function retry() {
     setState({ kind: "loading" });
     setAttempt((count) => count + 1);
@@ -390,9 +414,16 @@ export function ContentDetailPanel({
     try {
       await run();
       router.refresh();
-      onDecided?.();
+      onDecided?.(kind);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Terjadi kesalahan. Coba lagi.");
+      // A 409 means someone else already moved the content on: the step on screen is stale,
+      // so the note form closes and the content is read again to show where it stands now.
+      if (caught instanceof DraftReviewActionError && caught.status === 409) {
+        setFormOpen(false);
+        setNote("");
+        void readAgain();
+      }
     } finally {
       setPending(null);
     }
