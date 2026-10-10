@@ -891,5 +891,8 @@ describe("ContentPlanClient content detail panel", () => {
             expect(approveSubmission).toHaveBeenCalledWith("submission-1");
             expect(vi.mocked(fetchCreatorDetail)).toHaveBeenCalledTimes(2);
         });
+        expect(await screen.findByRole("status")).toHaveTextContent(
+            "Draft di-approve. Kreator bisa kirim link video.",
+        );
     });
 });

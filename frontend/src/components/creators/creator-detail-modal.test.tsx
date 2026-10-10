@@ -588,5 +588,8 @@ describe("CreatorDetailModal content detail panel", () => {
     });
     expect(approveSubmission).toHaveBeenCalledWith("submission-1");
     expect(refresh).toHaveBeenCalled();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Draft di-approve. Kreator bisa kirim link video.",
+    );
   });
 });

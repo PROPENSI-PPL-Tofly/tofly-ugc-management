@@ -3,9 +3,10 @@ import { SubmissionQueueTable } from "./submission-queue-table";
 import type { SubmissionQueueItem } from "@/lib/submissions";
 import type { ContentDetail } from "@/lib/content-detail";
 
-const { fetchContentDetail, approveSubmission, refresh } = vi.hoisted(() => ({
+const { fetchContentDetail, approveSubmission, reviseSubmission, refresh } = vi.hoisted(() => ({
   fetchContentDetail: vi.fn(),
   approveSubmission: vi.fn(),
+  reviseSubmission: vi.fn(),
   refresh: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ vi.mock("@/lib/content-detail", async (importOriginal) => ({
 vi.mock("@/lib/draft-review-actions", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/draft-review-actions")>()),
   approveSubmission: (id: string) => approveSubmission(id),
+  reviseSubmission: (id: string, note: string) => reviseSubmission(id, note),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -250,5 +252,34 @@ describe("SubmissionQueueTable", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(approveSubmission).toHaveBeenCalledWith("111");
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("confirms an approval with a toast once the panel has closed", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
+    approveSubmission.mockResolvedValue(undefined);
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Draft di-approve. Kreator bisa kirim link video.",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("confirms a sent revision with its own toast", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
+    reviseSubmission.mockResolvedValue(undefined);
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Audio pelan." } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Permintaan revisi terkirim ke kreator.",
+    );
   });
 });
