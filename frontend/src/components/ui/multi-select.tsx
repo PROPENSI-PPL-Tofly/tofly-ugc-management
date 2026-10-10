@@ -20,7 +20,7 @@ const OPTION =
 const CHECKBOX = "size-3.5 accent-accent";
 
 const POPUP =
-  "absolute left-0 z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-(--radius-panel) border border-rule bg-surface p-2 shadow-lg";
+  "absolute left-0 top-full z-20 mt-1.5 max-h-64 w-60 overflow-y-auto rounded-(--radius-panel) border border-rule bg-surface p-2 shadow-lg";
 
 const CHIP =
   "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
