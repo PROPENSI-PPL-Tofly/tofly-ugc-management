@@ -2,6 +2,9 @@
 // the creator too, so an admin is named by role only and kept by account id for the audit; the
 // email address never goes into it (OWASP A01).
 
+/** What an event the app did by itself (the H-1 scheduling) stores as its actor. */
+export const SYSTEM_ACTOR_NAME = 'Sistem';
+
 /** What every admin event shows as its actor. */
 export const ADMIN_ACTOR_NAME = 'Admin';
 

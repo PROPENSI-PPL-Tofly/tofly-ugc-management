@@ -18,6 +18,7 @@ export type DetailWaitingOn = 'admin' | 'creator' | null;
 export type DetailEventType =
   | 'scheduled'
   | 'proposal_approved'
+  | 'auto_scheduled'
   | 'creator_comment'
   | 'draft_submitted'
   | 'revision_requested'
@@ -66,7 +67,8 @@ export interface ContentEvent {
    * lists the newest event first.
    */
   at: string;
-  actor: { name: string | null; role: 'admin' | 'creator' };
+  /** A system step has no name: the app did it by itself. */
+  actor: { name: string | null; role: 'admin' | 'creator' | 'system' };
   payload?: { version?: number; link?: string; note?: string };
 }
 

@@ -19,6 +19,7 @@ export interface StoredEventRow {
 const STEP_FOR: Record<string, { type: DetailEventType; payload: (data: Data) => ContentEvent['payload'] }> = {
   Scheduled: { type: 'scheduled', payload: () => undefined },
   'Proposal Approved': { type: 'proposal_approved', payload: () => undefined },
+  'Auto Scheduled': { type: 'auto_scheduled', payload: () => undefined },
   'Draft Approved': { type: 'draft_approved', payload: () => undefined },
   'Draft Submitted': {
     type: 'draft_submitted',
@@ -70,14 +71,15 @@ export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
     if (!step) {
       return [];
     }
-    const role = row.actor_role === 'admin' ? 'admin' : 'creator';
+    const role =
+      row.actor_role === 'admin' || row.actor_role === 'system' ? row.actor_role : 'creator';
     const payload = step.payload(dataOf(row.event_data));
     return [
       {
         id: row.id,
         type: step.type,
         at: row.occurred_at.toISOString(),
-        actor: { name: role === 'admin' ? null : row.actor_name, role },
+        actor: { name: role === 'creator' ? row.actor_name : null, role },
         ...(payload && { payload }),
       },
     ];
