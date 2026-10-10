@@ -29,6 +29,7 @@ model contents {
   updated_at         DateTime         @default(now()) @db.Timestamptz(6)
   contracts          contracts        @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   submissions        submissions[]
+  content_events     content_events[]
 
   @@index([contract_id, deadline], map: "contents_contract_deadline_idx")
 }
@@ -97,6 +98,20 @@ model submissions {
   creators       creators @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([content_id, created_at], map: "submissions_content_created_at_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model content_events {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content_id  String   @db.Uuid
+  event_type  String
+  actor_name  String
+  actor_role  String
+  occurred_at DateTime @default(now()) @db.Timestamptz(6)
+  event_data  Json     @db.JsonB
+  contents    contents @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([content_id, occurred_at(sort: Desc), id(sort: Desc)], map: "content_events_content_occurred_id_idx")
 }
 
 model users {
