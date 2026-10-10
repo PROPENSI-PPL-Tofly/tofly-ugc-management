@@ -10,7 +10,8 @@ const PAGE = { page: 1, pageSize: 10 };
 let seq = 0;
 
 function row(overrides: {
-  status?: 'draft_review' | 'draft_revised';
+  /** How many drafts the creator has handed in for this content; 1 is a first hand-in. */
+  handIns?: number;
   type?: 'evergreen' | 'specific';
   name?: string;
   deadline?: string;
@@ -27,7 +28,7 @@ function row(overrides: {
     name: overrides.name ?? `Konten ${seq}`,
     type: overrides.type ?? 'specific',
     deadline: new Date(`${overrides.deadline ?? '2026-10-20'}T00:00:00.000Z`),
-    status: overrides.status ?? 'draft_review',
+    status: 'draft_review',
     contracts: {
       creators: overrides.creator ?? {
         first_name: 'Dina',
@@ -38,6 +39,7 @@ function row(overrides: {
     submissions: overrides.submissions ?? [
       { id: `sub-${seq}`, created_at: new Date('2026-10-01T08:00:00.000Z') },
     ],
+    _count: { submissions: overrides.handIns ?? 1 },
   };
 }
 
@@ -60,7 +62,7 @@ describe('ReviewQueueService.list', () => {
 
     expect(client.contents.findMany).toHaveBeenCalledWith({
       where: {
-        status: { in: ['draft_review', 'draft_revised'] },
+        status: { in: ['draft_review'] },
         submissions: { some: {} },
       },
       select: {
@@ -81,6 +83,7 @@ describe('ReviewQueueService.list', () => {
           take: 1,
           select: { id: true, created_at: true },
         },
+        _count: { select: { submissions: true } },
       },
     });
   });
@@ -88,7 +91,7 @@ describe('ReviewQueueService.list', () => {
   it('answers each row with the latest submission id, the content id the panel opens by, the full creator name and the deadline as a calendar day', async () => {
     const { service } = stub([
       row({
-        status: 'draft_revised',
+        handIns: 3,
         type: 'evergreen',
         name: 'Evg_1_Dina_20102026',
         deadline: '2026-10-20',
@@ -110,7 +113,8 @@ describe('ReviewQueueService.list', () => {
           contentName: 'Evg_1_Dina_20102026',
           type: 'evergreen',
           deadline: '2026-10-20',
-          status: 'draft_revised',
+          status: 'draft_review',
+          revisionCount: 2,
         },
       ],
       page: 1,
@@ -148,7 +152,7 @@ describe('ReviewQueueService.list', () => {
     const { service } = stub([
       row({ name: 'review late', deadline: '2026-10-25' }),
       row({ name: 'review soon', deadline: '2026-10-12' }),
-      row({ name: 'resubmit late', status: 'draft_revised', deadline: '2026-11-30' }),
+      row({ name: 'resubmit late', handIns: 2, deadline: '2026-11-30' }),
     ]);
 
     const { items } = await service.list(PAGE, TODAY, {});
@@ -161,13 +165,57 @@ describe('ReviewQueueService.list', () => {
   });
 
   describe('filters', () => {
-    it('narrows the statuses read when one queue status is asked for', async () => {
+    it('counts a first hand-in as no revision and every later one as a revision', async () => {
+      const { service } = stub([
+        row({ name: 'first', handIns: 1, deadline: '2026-10-11' }),
+        row({ name: 'second', handIns: 2, deadline: '2026-10-12' }),
+      ]);
+
+      const { items } = await service.list(PAGE, TODAY, {});
+
+      expect(
+        items.map((item) => [item.contentName, item.revisionCount]),
+      ).toEqual([
+        ['second', 1],
+        ['first', 0],
+      ]);
+    });
+
+    it('keeps only resubmits when asked for them, and counts only those', async () => {
+      const { service } = stub([
+        row({ name: 'first', handIns: 1 }),
+        row({ name: 'second', handIns: 2 }),
+        row({ name: 'fourth', handIns: 4 }),
+      ]);
+
+      const result = await service.list(PAGE, TODAY, { resubmitted: true });
+
+      expect(result.items.map((item) => item.contentName).sort()).toEqual([
+        'fourth',
+        'second',
+      ]);
+      expect(result.total).toBe(2);
+    });
+
+    it('keeps only first hand-ins when resubmits are excluded', async () => {
+      const { service } = stub([
+        row({ name: 'first', handIns: 1 }),
+        row({ name: 'second', handIns: 2 }),
+      ]);
+
+      const result = await service.list(PAGE, TODAY, { resubmitted: false });
+
+      expect(result.items.map((item) => item.contentName)).toEqual(['first']);
+      expect(result.total).toBe(1);
+    });
+
+    it('reads the same statuses whichever hand-in is asked for', async () => {
       const { client, service } = stub([]);
 
-      await service.list(PAGE, TODAY, { status: 'draft_revised' });
+      await service.list(PAGE, TODAY, { resubmitted: true });
 
       expect(client.contents.findMany.mock.calls[0][0].where.status).toEqual({
-        in: ['draft_revised'],
+        in: ['draft_review'],
       });
     });
 

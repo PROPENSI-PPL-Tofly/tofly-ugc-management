@@ -44,7 +44,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('SubmissionReviewService.approve', () => {
-  it.each(['draft_review', 'draft_revised'])(
+  it.each(['draft_review'])(
     'approves the latest submission of a draft in %s',
     async (status) => {
       const client = stubClient({ status, latestIds: [SUBMISSION_ID] });
@@ -88,7 +88,7 @@ describe('SubmissionReviewService.approve', () => {
 
   it('changes the status only while the content is still awaiting review', async () => {
     const client = stubClient({
-      status: 'draft_revised',
+      status: 'draft_review',
       latestIds: [SUBMISSION_ID],
     });
 
@@ -97,7 +97,7 @@ describe('SubmissionReviewService.approve', () => {
     expect(client.contents.updateMany).toHaveBeenCalledWith({
       where: {
         id: CONTENT_ID,
-        status: { in: ['draft_review', 'draft_revised'] },
+        status: { in: ['draft_review'] },
       },
       data: { status: 'draft_approved' },
     });
@@ -138,7 +138,7 @@ describe('SubmissionReviewService.approve', () => {
 
   it('answers 409 for an older submission after the creator resubmitted', async () => {
     const client = stubClient({
-      status: 'draft_revised',
+      status: 'draft_review',
       latestIds: [OLDER_ID],
     });
 

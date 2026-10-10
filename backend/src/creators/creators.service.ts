@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { content_status, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   computePerformance,
@@ -42,7 +42,7 @@ const CREATOR_SELECT = {
         select: {
           deadline: true,
           video_submitted_at: true,
-          is_proposal: true,
+          status: true,
           _count: { select: { submissions: true } },
         },
       },
@@ -94,7 +94,6 @@ const DETAIL_SELECT = {
           type: true,
           deadline: true,
           status: true,
-          is_proposal: true,
           video_link: true,
           video_submitted_at: true,
           _count: {
@@ -129,6 +128,11 @@ const NO_CONTRACT: ContractSummary = {
   type: null,
 };
 
+/** Creator-proposed content an admin has not accepted yet: not a commitment, so not counted. */
+function isProposal(status: content_status): boolean {
+  return status === 'pending';
+}
+
 /** Postgres `date` columns arrive as midnight UTC; the first ten ISO characters are the day. */
 function calendarDay(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -151,7 +155,7 @@ function toMetricsContract(
     contents: contract.contents.map((content) => ({
       deadline: content.deadline,
       videoSubmittedAt: content.video_submitted_at,
-      isProposal: content.is_proposal,
+      isProposal: isProposal(content.status),
       submissionCount: content._count.submissions,
     })),
   };
@@ -271,7 +275,7 @@ export class CreatorsService implements CreatorLister {
         contents: contract.contents.map((content) => ({
           deadline: content.deadline,
           videoSubmittedAt: content.video_submitted_at,
-          isProposal: content.is_proposal,
+          isProposal: isProposal(content.status),
           submissionCount: content._count.submissions,
         })),
       }),
@@ -291,7 +295,7 @@ export class CreatorsService implements CreatorLister {
 
       contractHistory: row.contracts.map((contract, index) => {
         const committed = contract.contents.filter(
-          (content) => !content.is_proposal,
+          (content) => !isProposal(content.status),
         );
 
         return {
@@ -321,7 +325,7 @@ export class CreatorsService implements CreatorLister {
             {
               deadline: content.deadline,
               videoSubmittedAt: content.video_submitted_at,
-              isProposal: content.is_proposal,
+              isProposal: isProposal(content.status),
               submissionCount: content._count.submissions,
             },
             today,

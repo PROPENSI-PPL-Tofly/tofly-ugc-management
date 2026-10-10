@@ -62,7 +62,18 @@ function stub(
   return { client, service: new MyContentsService(client) };
 }
 
-const OWN = { is_proposal: false, contracts: { creator_id: CREATOR_ID } };
+// A pending proposal is not assigned work, so every read names the committed statuses.
+const COMMITTED = [
+  'scheduled',
+  'draft_review',
+  'draft_revision',
+  'draft_approved',
+  'link_submitted',
+];
+const OWN = {
+  status: { in: COMMITTED },
+  contracts: { creator_id: CREATOR_ID },
+};
 
 describe('MyContentsService.list', () => {
   beforeEach(() => {
@@ -158,7 +169,7 @@ describe('MyContentsService.list', () => {
 
     const where = {
       ...OWN,
-      status: { in: ['draft_review', 'draft_revised'] },
+      status: { in: ['draft_review'] },
       video_submitted_at: null,
     };
     expect(client.contents.findMany).toHaveBeenCalledWith(
@@ -208,7 +219,7 @@ describe('MyContentsService.list', () => {
 
   it('leaves out revision notes once the revision has been handed in or approved', async () => {
     const { service } = stub([
-      row({ id: 'c1', status: 'draft_revised', revisionNotes: 'Perjelas intro' }),
+      row({ id: 'c1', status: 'draft_review', revisionNotes: 'Perjelas intro' }),
       row({ id: 'c2', status: 'draft_approved', revisionNotes: 'Perjelas intro' }),
     ]);
 

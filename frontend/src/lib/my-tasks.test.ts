@@ -230,7 +230,8 @@ describe("parseTaskStatus", () => {
 
   it.each([
     ["an unknown status", "done"],
-    ["the admin-side draft_revised", "draft_revised"],
+    ["the removed draft_revised", "draft_revised"],
+    ["pending, which is not assigned work", "pending"],
   ])("drops %s and reports it", (_label, status) => {
     expect(parseTaskStatus({ status })).toEqual({
       status: null,
@@ -251,12 +252,6 @@ describe("parseTaskStatus", () => {
 });
 
 describe("taskStatusLabel", () => {
-  it("reads a revised hand-in as waiting for review", () => {
-    expect(taskStatusLabel("draft_revised")).toBe(
-        "Draft Menunggu Review",
-    );
-  });
-
   it.each([
     ["scheduled", "Scheduled"],
     ["draft_review", "Draft Menunggu Review"],

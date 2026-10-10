@@ -38,9 +38,7 @@ function actionVariant(task: MyTask, action: MyTaskAction): Variant {
 
 /** What an action-less row says instead of a button. */
 function idleText(task: MyTask): string {
-  return task.status === "draft_review" || task.status === "draft_revised"
-    ? "Menunggu review admin"
-    : EMPTY;
+  return task.status === "draft_review" ? "Menunggu review admin" : EMPTY;
 }
 
 function ActionCell({

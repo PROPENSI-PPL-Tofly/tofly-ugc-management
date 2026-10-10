@@ -9,6 +9,7 @@ import type {
 } from './dto/review-queue.dto.js';
 import {
   compareQueueEntries,
+  isResubmit,
   type QueueContentType,
   type QueueEntry,
   type QueueFilters,
@@ -37,6 +38,8 @@ const QUEUE_SELECT = {
     take: 1,
     select: { id: true, created_at: true },
   },
+  // Every hand-in, not just the latest: a draft handed in more than once is a resubmit.
+  _count: { select: { submissions: true } },
 } as const;
 
 export interface QueueRow {
@@ -54,6 +57,7 @@ export interface QueueRow {
     };
   };
   submissions: { id: string; created_at: Date }[];
+  _count: { submissions: number };
 }
 
 interface QueueWhere {
@@ -113,7 +117,7 @@ export class ReviewQueueService implements ReviewQueueLister {
 
     const queued = rows
       .flatMap((row) => this.toQueued(row))
-      .filter((item) => this.matches(item, filters.q))
+      .filter((item) => this.matches(item, filters))
       .sort((a, b) => compareQueueEntries(a.entry, b.entry));
 
     const { page, pageSize } = paging;
@@ -130,9 +134,7 @@ export class ReviewQueueService implements ReviewQueueLister {
 
   private where(today: Date, filters: QueueFilters): QueueWhere {
     const where: QueueWhere = {
-      status: {
-        in: filters.status ? [filters.status] : [...REVIEWABLE_STATUSES],
-      },
+      status: { in: [...REVIEWABLE_STATUSES] },
       submissions: { some: {} },
     };
     if (filters.type) {
@@ -150,6 +152,7 @@ export class ReviewQueueService implements ReviewQueueLister {
     if (!latest) {
       return [];
     }
+    const revisionCount = row._count.submissions - 1;
     return [
       {
         item: {
@@ -160,10 +163,11 @@ export class ReviewQueueService implements ReviewQueueLister {
           type: row.type,
           deadline: row.deadline.toISOString().slice(0, 10),
           status: row.status,
+          revisionCount,
         },
         entry: {
           submissionId: latest.id,
-          status: row.status,
+          revisionCount,
           deadline: row.deadline,
           submittedAt: latest.created_at,
         },
@@ -171,11 +175,17 @@ export class ReviewQueueService implements ReviewQueueLister {
     ];
   }
 
-  private matches({ item }: Queued, q: string | undefined): boolean {
-    if (!q) {
+  private matches({ item }: Queued, filters: QueueFilters): boolean {
+    if (
+      filters.resubmitted !== undefined &&
+      isResubmit(item.revisionCount) !== filters.resubmitted
+    ) {
+      return false;
+    }
+    if (!filters.q) {
       return true;
     }
-    const needle = q.toLowerCase();
+    const needle = filters.q.toLowerCase();
     return (
       item.creatorName.toLowerCase().includes(needle) ||
       item.contentName.toLowerCase().includes(needle)

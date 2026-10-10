@@ -163,13 +163,12 @@ describe('nextDraftStatus', () => {
     expect(nextDraftStatus('scheduled')).toBe('draft_review');
   });
 
-  it('marks a draft handed in after a revision request as revised, so the queue puts it first', () => {
-    expect(nextDraftStatus('draft_revision')).toBe('draft_revised');
+  it('sends a draft handed in after a revision request back to review, like a first draft', () => {
+    expect(nextDraftStatus('draft_revision')).toBe('draft_review');
   });
 
   it.each([
     'draft_review',
-    'draft_revised',
     'draft_approved',
     'link_submitted',
   ] as const)('has no next step from %s', (status) => {

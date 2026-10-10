@@ -92,9 +92,11 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
     });
     expect(saved).toMatchObject({
       status: 'scheduled',
-      is_proposal: false,
       brief: 'Brief',
     });
+    // Neither the body's status nor its is_proposal reached the row: admin-created content is
+    // committed work, never a pending proposal (OWASP A08, mass assignment).
+    expect(saved).not.toHaveProperty('is_proposal');
   });
 
   it('generates the Evergreen title and rejects the next item once quota is full', async () => {

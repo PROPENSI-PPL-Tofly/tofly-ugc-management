@@ -9,6 +9,14 @@ const CREATOR_ID = '0b5e2c9a-6f3d-4e1b-8a7c-9d2f4e6a8b1c';
 const SUBMISSION_ID = '3f8a1c2d-4b5e-4f6a-9b7c-1d2e3f4a5b6c';
 const SUBMITTED_AT = new Date('2026-10-02T03:04:05.000Z');
 const INPUT = { link: 'https://drive.google.com/d/1', notes: 'Cek menit 0:10' };
+// Spelled out, not imported: the where clause must name exactly these, whatever the code says.
+const COMMITTED = [
+  'scheduled',
+  'draft_review',
+  'draft_revision',
+  'draft_approved',
+  'link_submitted',
+];
 
 function stub(options: {
   content?: { id: string; status: string } | null;
@@ -55,7 +63,7 @@ describe('DraftSubmissionService.submit', () => {
     expect(transaction.contents.findFirst).toHaveBeenCalledWith({
       where: {
         id: CONTENT_ID,
-        is_proposal: false,
+        status: { in: COMMITTED },
         contracts: { creator_id: CREATOR_ID },
       },
       select: { id: true, status: true },
@@ -90,7 +98,7 @@ describe('DraftSubmissionService.submit', () => {
     });
   });
 
-  it('hands in a resubmit: a content under revision becomes draft_revised', async () => {
+  it('hands in a resubmit: a content under revision waits for review again', async () => {
     const { transaction, service } = stub({
       content: { id: CONTENT_ID, status: 'draft_revision' },
     });
@@ -102,14 +110,14 @@ describe('DraftSubmissionService.submit', () => {
 
     expect(transaction.contents.updateMany).toHaveBeenCalledWith({
       where: { id: CONTENT_ID, status: 'draft_revision' },
-      data: { status: 'draft_revised' },
+      data: { status: 'draft_review' },
     });
     expect(transaction.submissions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ creator_notes: null }),
       }),
     );
-    expect(result).toMatchObject({ status: 'draft_revised', notes: null });
+    expect(result).toMatchObject({ status: 'draft_review', notes: null });
   });
 
   it('answers 404 alike for a missing content, another creator’s content and a proposal, so none of them leak', async () => {
@@ -128,7 +136,6 @@ describe('DraftSubmissionService.submit', () => {
 
   it.each([
     'draft_review',
-    'draft_revised',
     'draft_approved',
     'link_submitted',
   ])(

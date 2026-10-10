@@ -12,6 +12,14 @@ import {
 const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
 const CREATOR_ID = '0b5e2c9a-6f3d-4e1b-8a7c-9d2f4e6a8b1c';
 const APPROVED_DEADLINE = new Date('2026-10-30T00:00:00.000Z');
+// Spelled out, not imported: the where clause must name exactly these, whatever the code says.
+const COMMITTED = [
+  'scheduled',
+  'draft_review',
+  'draft_revision',
+  'draft_approved',
+  'link_submitted',
+];
 const GRACE_DEADLINE = new Date('2026-10-20T00:00:00.000Z');
 const REEL = 'https://www.instagram.com/reel/C8abc/';
 const TIKTOK = 'https://www.tiktok.com/@creator/video/123';
@@ -81,7 +89,7 @@ describe('VideoSubmissionService.submit', () => {
     expect(transaction.contents.findFirst).toHaveBeenCalledWith({
       where: {
         id: CONTENT_ID,
-        is_proposal: false,
+        status: { in: COMMITTED },
         contracts: { creator_id: CREATOR_ID },
       },
       select: {
@@ -141,7 +149,6 @@ describe('VideoSubmissionService.submit', () => {
     'scheduled',
     'draft_review',
     'draft_revision',
-    'draft_revised',
   ] as const)('allows %s during the H-1 grace window', async (status) => {
     const { transaction, service } = stub({
       content: {
@@ -166,7 +173,6 @@ describe('VideoSubmissionService.submit', () => {
     'scheduled',
     'draft_review',
     'draft_revision',
-    'draft_revised',
   ] as const)('rejects %s before the H-1 grace window', async (status) => {
     const { transaction, service } = stub({
       content: {

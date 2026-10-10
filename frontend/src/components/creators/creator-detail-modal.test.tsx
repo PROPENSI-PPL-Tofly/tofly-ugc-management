@@ -306,7 +306,7 @@ describe("CreatorDetailModal", () => {
     ["scheduled", "Scheduled"],
     ["draft_review", "Draft Menunggu Review"],
     ["draft_revision", "Draft Perlu Revisi"],
-    ["draft_revised", "Draft Revised"],
+    ["pending", "Pending"],
     ["draft_approved", "Draft Approved"],
   ] as const)("shows open %s content by its workflow status", async (status, label) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

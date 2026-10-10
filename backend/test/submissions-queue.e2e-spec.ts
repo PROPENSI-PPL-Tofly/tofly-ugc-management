@@ -22,7 +22,6 @@ type Status =
   | 'scheduled'
   | 'draft_review'
   | 'draft_revision'
-  | 'draft_revised'
   | 'draft_approved';
 
 describe('GET /submissions?status=review (e2e)', () => {
@@ -119,7 +118,7 @@ describe('GET /submissions?status=review (e2e)', () => {
     );
     resubmitLate = await draft(
       'resubmit late',
-      'draft_revised',
+      'draft_review',
       daysFromToday(60),
       2,
     );
@@ -150,7 +149,8 @@ describe('GET /submissions?status=review (e2e)', () => {
           contentName: `${MARKER} resubmit late`,
           type: 'specific',
           deadline: daysFromToday(60).toISOString().slice(0, 10),
-          status: 'draft_revised',
+          status: 'draft_review',
+          revisionCount: 1,
         },
         {
           submissionId: overdue.submissions[0].id,
@@ -160,6 +160,7 @@ describe('GET /submissions?status=review (e2e)', () => {
           type: 'specific',
           deadline: daysFromToday(-3).toISOString().slice(0, 10),
           status: 'draft_review',
+          revisionCount: 0,
         },
         {
           submissionId: reviewSoon.submissions[0].id,
@@ -169,6 +170,7 @@ describe('GET /submissions?status=review (e2e)', () => {
           type: 'evergreen',
           deadline: daysFromToday(10).toISOString().slice(0, 10),
           status: 'draft_review',
+          revisionCount: 0,
         },
       ],
       page: 1,
@@ -180,7 +182,7 @@ describe('GET /submissions?status=review (e2e)', () => {
 
   it.each([
     ['overdue=true', `${MARKER} overdue`],
-    ['filterStatus=draft_revised', `${MARKER} resubmit late`],
+    ['resubmitted=true', `${MARKER} resubmit late`],
     ['type=evergreen', `${MARKER} review soon`],
   ])('narrows the queue with %s', async (filter, contentName) => {
     const response = await queue(`&${filter}`);

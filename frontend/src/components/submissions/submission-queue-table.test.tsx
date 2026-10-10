@@ -31,7 +31,7 @@ function detailOf(contentId: string, name: string): ContentDetail {
     type: "specific",
     brief: "Tunjukkan fitur jadwal",
     deadline: "2026-09-20",
-    status: "draft_revised",
+    status: "draft_review",
     creatorName: "Dimas Putra",
     tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
     waitingOn: "admin",
@@ -57,6 +57,7 @@ const ITEMS: SubmissionQueueItem[] = [
     type: "Evergreen",
     deadline: "2026-09-15",
     status: "draft_review",
+    revisionCount: 0,
   },
   {
     submissionId: "222",
@@ -65,7 +66,8 @@ const ITEMS: SubmissionQueueItem[] = [
     contentName: "Product Review iPhone",
     type: "Specific",
     deadline: "2026-09-20",
-    status: "draft_revised",
+    status: "draft_review",
+    revisionCount: 2,
   },
   {
     submissionId: "333",
@@ -75,6 +77,7 @@ const ITEMS: SubmissionQueueItem[] = [
     type: "unknown_type",
     deadline: "2026-09-25",
     status: "draft_review",
+    revisionCount: 0,
   },
 ];
 
@@ -115,10 +118,18 @@ describe("SubmissionQueueTable", () => {
     expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
   });
 
-  it("shows 'Draft Revised' for draft_revised status", () => {
+  it("marks a resubmitted draft beside its status, now that the status no longer says so", () => {
     render(<SubmissionQueueTable items={[ITEMS[1]]} />);
 
-    expect(screen.getByText("Draft Revised")).toBeInTheDocument();
+    expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
+    expect(screen.getByText("Dikirim ulang")).toBeInTheDocument();
+    expect(screen.queryByText("Draft Revised")).not.toBeInTheDocument();
+  });
+
+  it("does not mark a first hand-in as resubmitted", () => {
+    render(<SubmissionQueueTable items={[ITEMS[0]]} />);
+
+    expect(screen.queryByText("Dikirim ulang")).not.toBeInTheDocument();
   });
 
   it("falls back to raw type string for unknown types", () => {
