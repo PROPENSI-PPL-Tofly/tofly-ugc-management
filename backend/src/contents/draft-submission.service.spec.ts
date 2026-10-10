@@ -149,7 +149,7 @@ describe('DraftSubmissionService.submit', () => {
         actor_name: 'Dina Ayu Putri',
         actor_role: 'creator',
         occurred_at: SUBMITTED_AT,
-        event_data: { version: 3, link: INPUT.link },
+        event_data: { version: 3, link: INPUT.link, note: INPUT.notes },
       },
     });
 
@@ -184,7 +184,7 @@ describe('DraftSubmissionService.submit', () => {
         actor_name: 'Dina',
         actor_role: 'creator',
         occurred_at: SUBMITTED_AT,
-        event_data: { version: 3, link: INPUT.link },
+        event_data: { version: 3, link: INPUT.link, note: INPUT.notes },
       },
     });
   });
