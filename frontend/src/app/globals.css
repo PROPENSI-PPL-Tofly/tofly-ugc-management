@@ -120,10 +120,13 @@ h3 {
   border-radius: 9999px;
 }
 
-/* Keyboard focus is instant and brand-blue on every control; never removed without this. */
+/* Keyboard focus is instant and brand-blue on every control; never removed without this.
+   The transition list leaves the outline out, so a control with transition-colors keeps
+   fading its colours but shows the ring at once. Unlayered, so it outranks the utility. */
 :focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
 }
 
 @media (prefers-reduced-motion: reduce) {
