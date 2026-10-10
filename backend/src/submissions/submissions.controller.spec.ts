@@ -122,7 +122,7 @@ describe('SubmissionsController', () => {
       queue.list.mockResolvedValue(emptyQueue);
 
       const response = await getQueue(
-        'status=review&q=%20dina%20&type=evergreen&filterStatus=draft_revised&overdue=true&page=2',
+        'status=review&q=%20dina%20&type=evergreen&resubmitted=true&overdue=true&page=2',
       );
 
       expect(response.status).toBe(200);
@@ -132,7 +132,7 @@ describe('SubmissionsController', () => {
         {
           q: 'dina',
           type: 'evergreen',
-          status: 'draft_revised',
+          resubmitted: true,
           overdue: true,
         },
       );
@@ -154,8 +154,8 @@ describe('SubmissionsController', () => {
       ['status is not review', 'status=approved'],
       ['type is unknown', 'status=review&type=Evergreen'],
       [
-        'filterStatus is outside the queue',
-        'status=review&filterStatus=draft_revision',
+        'resubmitted is not a boolean',
+        'status=review&resubmitted=draft_revised',
       ],
       ['overdue is not a boolean', 'status=review&overdue=yes'],
       ['the search is too long', `status=review&q=${'a'.repeat(101)}`],
@@ -219,7 +219,7 @@ describe('SubmissionsController', () => {
       const detailData = {
         brief: 'Create a short product review',
         link: 'https://drive.example.com/draft-1',
-        status: 'draft_revised',
+        status: 'draft_review',
         revisionHistory: [
           {
             note: null,

@@ -103,7 +103,7 @@ describe('SubmissionRevisionRepository', () => {
     where: {
       id: contentId,
       status: {
-        in: ['draft_review', 'draft_revised'],
+        in: ['draft_review'],
       },
     },
     data: {
@@ -207,7 +207,7 @@ describe('SubmissionRevisionRepository', () => {
     where: {
       id: contentId,
       status: {
-        in: ['draft_review', 'draft_revised'],
+        in: ['draft_review'],
       },
     },
     data: {

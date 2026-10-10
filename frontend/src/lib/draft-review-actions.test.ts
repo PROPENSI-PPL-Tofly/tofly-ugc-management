@@ -191,4 +191,17 @@ describe("reviseSubmission", () => {
       message: "Permintaan revisi gagal dikirim. Coba lagi.",
     });
   });
+
+  it("falls back to the generic message when a 4xx body has neither a message nor errors", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 409 }),
+    );
+
+    const error = await reviseSubmission(UUID, "note").catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
+      status: 409,
+      message: "Permintaan revisi gagal dikirim. Coba lagi.",
+    });
+  });
 });

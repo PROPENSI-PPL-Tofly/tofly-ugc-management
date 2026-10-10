@@ -12,6 +12,14 @@ import {
 const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
 const CREATOR_ID = '0b5e2c9a-6f3d-4e1b-8a7c-9d2f4e6a8b1c';
 const APPROVED_DEADLINE = new Date('2026-10-30T00:00:00.000Z');
+// Spelled out, not imported: the where clause must name exactly these, whatever the code says.
+const COMMITTED = [
+  'scheduled',
+  'draft_review',
+  'draft_revision',
+  'draft_approved',
+  'link_submitted',
+];
 const GRACE_DEADLINE = new Date('2026-10-20T00:00:00.000Z');
 const REEL = 'https://www.instagram.com/reel/C8abc/';
 const TIKTOK = 'https://www.tiktok.com/@creator/video/123';
@@ -100,7 +108,7 @@ describe('VideoSubmissionService.submit', () => {
     expect(transaction.contents.findFirst).toHaveBeenCalledWith({
       where: {
         id: CONTENT_ID,
-        is_proposal: false,
+        status: { in: COMMITTED },
         contracts: { creator_id: CREATOR_ID },
       },
       select: {
@@ -128,6 +136,7 @@ describe('VideoSubmissionService.submit', () => {
         video_link: REEL,
         video_submitted_at: SUBMITTED_AT,
         platform: 'instagram',
+        approval_bypassed: false,
       },
     });
 
@@ -207,7 +216,6 @@ describe('VideoSubmissionService.submit', () => {
     'scheduled',
     'draft_review',
     'draft_revision',
-    'draft_revised',
   ] as const)('allows %s during the H-1 grace window', async (status) => {
     const { transaction, service } = stub({
       content: {
@@ -232,7 +240,61 @@ describe('VideoSubmissionService.submit', () => {
     'scheduled',
     'draft_review',
     'draft_revision',
-    'draft_revised',
+  ] as const)(
+    'marks a link handed in from %s inside H-1 as approval bypassed, guarded on that same status',
+    async (status) => {
+      const { transaction, service } = stub({
+        content: {
+          id: CONTENT_ID,
+          status,
+          deadline: GRACE_DEADLINE,
+        },
+      });
+
+      await service.submit(CONTENT_ID, CREATOR_ID, {
+        videoLink: REEL,
+      });
+
+      expect(transaction.contents.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: CONTENT_ID,
+          status,
+        },
+        data: {
+          status: 'link_submitted',
+          video_link: REEL,
+          video_submitted_at: SUBMITTED_AT,
+          platform: 'instagram',
+          approval_bypassed: true,
+        },
+      });
+    },
+  );
+
+  it('does not mark a draft-approved content handed in inside H-1 as approval bypassed', async () => {
+    const { transaction, service } = stub({
+      content: {
+        id: CONTENT_ID,
+        status: 'draft_approved',
+        deadline: GRACE_DEADLINE,
+      },
+    });
+
+    await service.submit(CONTENT_ID, CREATOR_ID, {
+      videoLink: REEL,
+    });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ approval_bypassed: false }),
+      }),
+    );
+  });
+
+  it.each([
+    'scheduled',
+    'draft_review',
+    'draft_revision',
   ] as const)('rejects %s before the H-1 grace window', async (status) => {
     const { transaction, service } = stub({
       content: {

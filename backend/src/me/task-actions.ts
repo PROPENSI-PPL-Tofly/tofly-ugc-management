@@ -3,6 +3,7 @@
 // from one place and the same "today" (WIB, see jakartaDay).
 
 import type { content_status } from '@prisma/client';
+import { canTransition } from '../contents/content-lifecycle.js';
 
 export type TaskAction = 'submit_draft' | 'resubmit_draft' | 'submit_video';
 
@@ -23,16 +24,17 @@ export function inGraceWindow(deadline: string, today: string): boolean {
 
 /** A first draft while scheduled, a resubmit after the admin asked for a revision. */
 export function canSubmitDraft(status: content_status): boolean {
-  return status === 'scheduled' || status === 'draft_revision';
+  return canTransition(status, 'draft_review');
 }
 
-/** An approved draft, or any unfinished content inside the grace window. */
+/** An approved draft, or any unfinished assigned content inside the grace window. */
 export function canSubmitVideo(
   status: content_status,
   deadline: string,
   today: string,
 ): boolean {
-  if (status === 'link_submitted') {
+  // A submitted link and a pending proposal have no move to link_submitted at all.
+  if (!canTransition(status, 'link_submitted')) {
     return false;
   }
   return status === 'draft_approved' || inGraceWindow(deadline, today);

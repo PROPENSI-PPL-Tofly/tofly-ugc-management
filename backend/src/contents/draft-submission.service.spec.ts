@@ -13,6 +13,15 @@ const INPUT = {
   notes: 'Cek menit 0:10',
 };
 
+// Explicitly lists committed statuses as defined by PBI-6.
+const COMMITTED = [
+  'scheduled',
+  'draft_review',
+  'draft_revision',
+  'draft_approved',
+  'link_submitted',
+];
+
 function stub(
   options: {
     content?: { id: string; status: string } | null;
@@ -50,10 +59,10 @@ function stub(
       findUnique: vi.fn().mockResolvedValue(
         options.creator === undefined
           ? {
-              first_name: 'Dina',
-              middle_name: 'Ayu',
-              last_name: 'Putri',
-            }
+            first_name: 'Dina',
+            middle_name: 'Ayu',
+            last_name: 'Putri',
+          }
           : options.creator,
       ),
     },
@@ -83,7 +92,7 @@ async function failure(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('DraftSubmissionService.submit', () => {
-  it('looks the content up only among the calling creator’s committed contents (OWASP A01)', async () => {
+  it('looks up only the calling creator’s committed content (OWASP A01)', async () => {
     const { transaction, service } = stub({});
 
     await service.submit(CONTENT_ID, CREATOR_ID, INPUT);
@@ -91,7 +100,7 @@ describe('DraftSubmissionService.submit', () => {
     expect(transaction.contents.findFirst).toHaveBeenCalledWith({
       where: {
         id: CONTENT_ID,
-        is_proposal: false,
+        status: { in: COMMITTED },
         contracts: { creator_id: CREATOR_ID },
       },
       select: { id: true, status: true },
@@ -107,6 +116,7 @@ describe('DraftSubmissionService.submit', () => {
       where: { id: CONTENT_ID, status: 'scheduled' },
       data: { status: 'draft_review' },
     });
+
     expect(transaction.submissions.create).toHaveBeenCalledWith({
       data: {
         content_id: CONTENT_ID,
@@ -116,6 +126,7 @@ describe('DraftSubmissionService.submit', () => {
       },
       select: { id: true, created_at: true },
     });
+
     expect(result).toEqual({
       contentId: CONTENT_ID,
       submissionId: SUBMISSION_ID,
@@ -126,7 +137,7 @@ describe('DraftSubmissionService.submit', () => {
     });
   });
 
-  it('records a Draft Submitted event in the same transaction with the creator identity and next submission sequence', async () => {
+  it('records a Draft Submitted event with the creator identity and next submission version', async () => {
     const { transaction, service } = stub({});
 
     await service.submit(CONTENT_ID, CREATOR_ID, INPUT);
@@ -141,11 +152,13 @@ describe('DraftSubmissionService.submit', () => {
         event_data: { version: 3, link: INPUT.link },
       },
     });
+
     expect(
       transaction.contents.updateMany.mock.invocationCallOrder[0],
     ).toBeLessThan(
       transaction.content_events.create.mock.invocationCallOrder[0],
     );
+
     expect(
       transaction.submissions.create.mock.invocationCallOrder[0],
     ).toBeLessThan(
@@ -153,7 +166,7 @@ describe('DraftSubmissionService.submit', () => {
     );
   });
 
-  it('uses only the available creator name parts when optional names are absent', async () => {
+  it('uses available creator name parts when optional names are absent', async () => {
     const { transaction, service } = stub({
       creator: {
         first_name: 'Dina',
@@ -176,7 +189,7 @@ describe('DraftSubmissionService.submit', () => {
     });
   });
 
-  it('hands in a resubmit: a content under revision becomes draft_revised', async () => {
+  it('resubmits a draft under revision and returns it to draft_review', async () => {
     const { transaction, service } = stub({
       content: { id: CONTENT_ID, status: 'draft_revision' },
     });
@@ -188,45 +201,74 @@ describe('DraftSubmissionService.submit', () => {
 
     expect(transaction.contents.updateMany).toHaveBeenCalledWith({
       where: { id: CONTENT_ID, status: 'draft_revision' },
-      data: { status: 'draft_revised' },
+      data: { status: 'draft_review' },
     });
+
     expect(transaction.submissions.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ creator_notes: null }),
+        data: expect.objectContaining({
+          creator_notes: null,
+        }),
       }),
     );
-    expect(result).toMatchObject({ status: 'draft_revised', notes: null });
+
+    expect(result).toMatchObject({
+      status: 'draft_review',
+      notes: null,
+    });
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Draft Submitted',
+        actor_name: 'Dina Ayu Putri',
+        actor_role: 'creator',
+        occurred_at: SUBMITTED_AT,
+        event_data: { version: 3, link: INPUT.link },
+      },
+    });
   });
 
-  it('answers 404 alike for a missing content, another creator’s content and a proposal, so none of them leak', async () => {
+  it('returns the same 404 for missing content, another creator’s content, or a proposal', async () => {
     const { transaction, service } = stub({ content: null });
 
-    const error = await failure(service.submit(CONTENT_ID, CREATOR_ID, INPUT));
+    const error = await failure(
+      service.submit(CONTENT_ID, CREATOR_ID, INPUT),
+    );
 
     expect(error).toBeInstanceOf(NotFoundException);
     expect((error as NotFoundException).getResponse()).toEqual({
       code: 'CONTENT_NOT_FOUND',
       message: 'Konten tidak ditemukan',
     });
+
     expect(transaction.contents.updateMany).not.toHaveBeenCalled();
     expect(transaction.submissions.create).not.toHaveBeenCalled();
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
-  it('answers 404 when the creator profile is missing and saves no submission', async () => {
+  it('returns 404 when the creator profile is missing and saves no submission or event', async () => {
     const { transaction, service } = stub({ creator: null });
 
-    const error = await failure(service.submit(CONTENT_ID, CREATOR_ID, INPUT));
+    const error = await failure(
+      service.submit(CONTENT_ID, CREATOR_ID, INPUT),
+    );
 
     expect(error).toBeInstanceOf(NotFoundException);
     expect((error as NotFoundException).getResponse()).toEqual({
       code: 'CREATOR_NOT_FOUND',
       message: 'Kreator tidak ditemukan',
     });
+
     expect(transaction.contents.updateMany).toHaveBeenCalled();
     expect(transaction.submissions.findMany).toHaveBeenCalled();
     expect(transaction.creators.findUnique).toHaveBeenCalledWith({
       where: { id: CREATOR_ID },
-      select: { first_name: true, middle_name: true, last_name: true },
+      select: {
+        first_name: true,
+        middle_name: true,
+        last_name: true,
+      },
     });
     expect(transaction.submissions.create).not.toHaveBeenCalled();
     expect(transaction.content_events.create).not.toHaveBeenCalled();
@@ -234,11 +276,10 @@ describe('DraftSubmissionService.submit', () => {
 
   it.each([
     'draft_review',
-    'draft_revised',
     'draft_approved',
     'link_submitted',
   ])(
-    'answers 409 while the content is %s, and saves nothing',
+    'returns 409 while the content is %s and saves nothing',
     async (status) => {
       const { transaction, service } = stub({
         content: { id: CONTENT_ID, status },
@@ -253,20 +294,26 @@ describe('DraftSubmissionService.submit', () => {
         code: 'DRAFT_NOT_ELIGIBLE',
         message: 'Konten ini sedang tidak menerima draft',
       });
+
       expect(transaction.contents.updateMany).not.toHaveBeenCalled();
       expect(transaction.submissions.create).not.toHaveBeenCalled();
+      expect(transaction.content_events.create).not.toHaveBeenCalled();
     },
   );
 
-  it('answers 409 and saves no link when another hand-in moved the status first', async () => {
+  it('returns 409 and saves no submission when another hand-in changes the status first', async () => {
     const { transaction, service } = stub({ updated: 0 });
 
-    const error = await failure(service.submit(CONTENT_ID, CREATOR_ID, INPUT));
+    const error = await failure(
+      service.submit(CONTENT_ID, CREATOR_ID, INPUT),
+    );
 
     expect(error).toBeInstanceOf(ConflictException);
     expect((error as ConflictException).getResponse()).toMatchObject({
       code: 'DRAFT_NOT_ELIGIBLE',
     });
+
     expect(transaction.submissions.create).not.toHaveBeenCalled();
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 });

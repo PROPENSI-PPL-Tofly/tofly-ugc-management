@@ -29,18 +29,20 @@ describe('ContentsController', () => {
   };
 
   it('validates the request and forwards it to the creation service', async () => {
+    const adminUserId = '11111111-1111-4111-8111-111111111111';
     const create = vi.fn().mockResolvedValue(createdContent);
     vi.mocked(checkNewContent).mockReturnValue(body);
 
     const controller = new ContentsController(
       { create },
+      { getDetail: vi.fn() },
       { getForContent: vi.fn() },
     );
 
     const request: AdminRequest = {
       headers: {},
       principal: {
-        userId: '11111111-1111-4111-8111-111111111111',
+        userId: adminUserId,
         role: 'admin',
       },
     };
@@ -50,7 +52,7 @@ describe('ContentsController', () => {
     );
 
     expect(checkNewContent).toHaveBeenCalledWith(body);
-    expect(create).toHaveBeenCalledWith(body, request.principal.userId);
+    expect(create).toHaveBeenCalledWith(body, adminUserId);
   });
 
   it('rejects a request without an authenticated principal', async () => {
@@ -59,6 +61,7 @@ describe('ContentsController', () => {
 
     const controller = new ContentsController(
       { create },
+      { getDetail: vi.fn() },
       { getForContent: vi.fn() },
     );
 
@@ -84,6 +87,7 @@ describe('ContentsController', () => {
 
     const controller = new ContentsController(
       { create },
+      { getDetail: vi.fn() },
       { getForContent: vi.fn() },
     );
 
@@ -107,6 +111,21 @@ describe('ContentsController', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('answers GET /contents/:id from the detail service', async () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    const getDetail = vi.fn().mockResolvedValue({ id });
+
+    const controller = new ContentsController(
+      { create: vi.fn() },
+      { getDetail },
+      { getForContent: vi.fn() },
+    );
+
+    await expect(controller.getDetail(id)).resolves.toEqual({ id });
+
+    expect(getDetail).toHaveBeenCalledWith(id, expect.any(Date));
+  });
+
   it('returns event history for the requested content', async () => {
     const contentId = 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0';
 
@@ -126,6 +145,7 @@ describe('ContentsController', () => {
 
     const controller = new ContentsController(
       { create: vi.fn() },
+      { getDetail: vi.fn() },
       { getForContent },
     );
 

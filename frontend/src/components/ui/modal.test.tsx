@@ -225,3 +225,110 @@ describe("Modal stacked over another modal", () => {
     expect(screen.getByRole("alertdialog")).toHaveAccessibleName("Dalam");
   });
 });
+
+describe("Modal as a side sheet", () => {
+  function renderSheet(props: Partial<Parameters<typeof Modal>[0]> = {}) {
+    const onClose = vi.fn();
+    render(
+      <Modal title="Promo Lebaran" onClose={onClose} placement="side" {...props}>
+        <p>isi panel</p>
+      </Modal>,
+    );
+    return { onClose, dialog: screen.getByRole("dialog"), backdrop: screen.getByTestId("modal-backdrop") };
+  }
+
+  it("centres the dialog unless asked otherwise", () => {
+    render(
+      <Modal title="Promo Lebaran" onClose={() => {}}>
+        <p>isi dialog</p>
+      </Modal>,
+    );
+
+    expect(screen.getByTestId("modal-backdrop")).toHaveClass("items-center", "justify-center");
+    expect(screen.getByRole("dialog")).toHaveClass("max-w-[640px]", "max-h-[88vh]");
+    expect(screen.getByRole("dialog")).not.toHaveClass("h-full");
+  });
+
+  it("docks a side sheet to the right edge at full height", () => {
+    const { dialog, backdrop } = renderSheet();
+
+    expect(backdrop).toHaveClass("justify-end");
+    expect(backdrop).not.toHaveClass("justify-center", "p-5");
+    expect(dialog).toHaveClass("h-full", "max-w-[520px]");
+    expect(dialog).not.toHaveClass("max-h-[88vh]");
+  });
+
+  it("keeps the sheet's own width whatever size is asked for", () => {
+    const { dialog } = renderSheet({ size: "compact" });
+
+    expect(dialog).toHaveClass("max-w-[520px]");
+    expect(dialog).not.toHaveClass("max-w-[420px]");
+  });
+
+  it("closes a side sheet the same three ways as a centred dialog", () => {
+    const { onClose, backdrop } = renderSheet();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+    fireEvent.mouseDown(backdrop);
+    expect(onClose).toHaveBeenCalledTimes(3);
+
+    fireEvent.mouseDown(screen.getByText("isi panel"));
+    expect(onClose).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows an eyebrow above the heading without making it part of the dialog's name", () => {
+    const { dialog } = renderSheet({ eyebrow: "Rangga Pratama › Periode 2" });
+
+    const eyebrow = screen.getByText("Rangga Pratama › Periode 2");
+    const heading = screen.getByRole("heading", { name: "Promo Lebaran" });
+
+    expect(eyebrow.compareDocumentPosition(heading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(dialog).toHaveAccessibleName("Promo Lebaran");
+  });
+
+  it("shows the meta line under the heading, inside the header", () => {
+    renderSheet({ meta: <span>Deadline 12 Okt 2026</span> });
+
+    const heading = screen.getByRole("heading", { name: "Promo Lebaran" });
+    const meta = screen.getByText("Deadline 12 Okt 2026");
+
+    expect(heading.compareDocumentPosition(meta)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(meta.compareDocumentPosition(screen.getByText("isi panel"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("adds neither an eyebrow nor a meta line when none is given", () => {
+    renderSheet();
+
+    expect(screen.queryByTestId("modal-eyebrow")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("modal-meta")).not.toBeInTheDocument();
+  });
+
+  it("keeps a side sheet's header in place and scrolls only its body", () => {
+    const { dialog } = renderSheet();
+    const body = screen.getByText("isi panel").parentElement;
+
+    expect(dialog).toHaveClass("flex", "flex-col");
+    expect(dialog).not.toHaveClass("overflow-y-auto");
+    expect(body).toHaveClass("flex-1", "overflow-y-auto");
+  });
+
+  it("still scrolls a centred dialog as a whole", () => {
+    render(
+      <Modal title="Promo Lebaran" onClose={() => {}}>
+        <p>isi dialog</p>
+      </Modal>,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveClass("overflow-y-auto");
+    expect(screen.getByText("isi dialog").parentElement).not.toHaveClass("overflow-y-auto");
+  });
+
+  it("lifts a side sheet off the page with a shadow, which a centred dialog does not need", () => {
+    const { dialog } = renderSheet();
+
+    expect(dialog).toHaveClass("shadow-sheet");
+  });
+});

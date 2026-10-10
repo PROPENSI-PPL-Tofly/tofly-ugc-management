@@ -3,14 +3,31 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DEV_CREATOR_HEADER } from '../auth/dev-creator.guard.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ContentDetailService } from '../contents/content-detail.service.js';
 import { MyContentsController } from './my-contents.controller.js';
 import { MyContentsService } from './my-contents.service.js';
 
 const CREATOR_ID = '5b0c8a4e-2f1d-4c3b-9a8e-7d6f5e4c3b2a';
+const CONTENT_ID = '11111111-1111-1111-1111-111111111111';
 const EMPTY = { items: [], page: 1, pageSize: 5, total: 0, totalPages: 1 };
+const DETAIL = {
+  id: CONTENT_ID,
+  name: 'Evg_Test 1',
+  type: 'evergreen',
+  brief: '',
+  deadline: '2026-09-30',
+  status: 'scheduled',
+  creatorName: 'Rangga Pratama',
+  tags: [],
+  waitingOn: 'creator',
+  latestSubmissionId: null,
+  creatorActions: ['submit_draft'],
+  events: [],
+};
 
 describe('MyContentsController', () => {
   const contents = { list: vi.fn() };
+  const detail = { getDetail: vi.fn() };
   const prisma = { creators: { findUnique: vi.fn() } };
   let app: INestApplication;
 
@@ -19,6 +36,7 @@ describe('MyContentsController', () => {
       controllers: [MyContentsController],
       providers: [
         { provide: MyContentsService, useValue: contents },
+        { provide: ContentDetailService, useValue: detail },
         { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
@@ -35,6 +53,7 @@ describe('MyContentsController', () => {
     vi.stubEnv('DEV_AUTH_ENABLED', 'true');
     vi.stubEnv('NODE_ENV', 'test');
     contents.list.mockReset().mockResolvedValue(EMPTY);
+    detail.getDetail.mockReset().mockResolvedValue(DETAIL);
     prisma.creators.findUnique
       .mockReset()
       .mockResolvedValue({ id: CREATOR_ID });
@@ -112,5 +131,38 @@ describe('MyContentsController', () => {
 
     expect(response.status).toBe(401);
     expect(contents.list).not.toHaveBeenCalled();
+  });
+
+  it("answers GET /me/contents/:id with the detail, scoped to the calling creator", async () => {
+    const before = Date.now();
+
+    const response = await request(app.getHttpServer())
+      .get(`/me/contents/${CONTENT_ID}`)
+      .set(DEV_CREATOR_HEADER, CREATOR_ID);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(DETAIL);
+    const [id, now, options] = detail.getDetail.mock.calls[0];
+    expect(id).toBe(CONTENT_ID);
+    expect((now as Date).getTime()).toBeGreaterThanOrEqual(before);
+    expect(options).toEqual({ creatorId: CREATOR_ID });
+  });
+
+  it('answers 400 for a malformed content id before the detail service is touched', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/me/contents/not-a-uuid')
+      .set(DEV_CREATOR_HEADER, CREATOR_ID);
+
+    expect(response.status).toBe(400);
+    expect(detail.getDetail).not.toHaveBeenCalled();
+  });
+
+  it('answers 401 for the detail without reading anything when no creator is identified', async () => {
+    const response = await request(app.getHttpServer()).get(
+      `/me/contents/${CONTENT_ID}`,
+    );
+
+    expect(response.status).toBe(401);
+    expect(detail.getDetail).not.toHaveBeenCalled();
   });
 });

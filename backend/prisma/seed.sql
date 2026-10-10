@@ -104,88 +104,86 @@ create temporary table seed_contents (
   deadline       integer,
   status         text,
   submitted      integer,
-  is_proposal    boolean,
   draft_count    integer
 ) on commit drop;
 
 insert into seed_contents values
   -- Rangga: four on time, one late, one open → on time 80 %, revisions 0 → Baik.
-  ('rangga@example.com',  80, 'Unboxing paket Tofly',          'evergreen', -86, 'link_submitted', -88, false, 1),
-  ('rangga@example.com',  80, 'Tips packing hemat',            'evergreen', -72, 'link_submitted', -72, false, 1),
-  ('rangga@example.com',  80, 'Review layanan same-day',       'specific',  -58, 'link_submitted', -60, false, 1),
-  ('rangga@example.com',  80, 'Cara lacak paket',              'evergreen', -44, 'link_submitted', -41, false, 1),
-  ('rangga@example.com',  80, 'Promo akhir bulan',             'specific',  -30, 'link_submitted', -31, false, 1),
-  ('rangga@example.com',  80, 'Tofly untuk UMKM',              'evergreen',  20, 'draft_review',   null, false, 1),
+  ('rangga@example.com',  80, 'Unboxing paket Tofly',          'evergreen', -86, 'link_submitted', -88, 1),
+  ('rangga@example.com',  80, 'Tips packing hemat',            'evergreen', -72, 'link_submitted', -72, 1),
+  ('rangga@example.com',  80, 'Review layanan same-day',       'specific',  -58, 'link_submitted', -60, 1),
+  ('rangga@example.com',  80, 'Cara lacak paket',              'evergreen', -44, 'link_submitted', -41, 1),
+  ('rangga@example.com',  80, 'Promo akhir bulan',             'specific',  -30, 'link_submitted', -31, 1),
+  ('rangga@example.com',  80, 'Tofly untuk UMKM',              'evergreen',  20, 'draft_review',   null, 1),
   -- Dimas: one on time, two late, one missed → on time 25 %, revisions 3 → Berisiko.
-  ('dimas@example.com',   90, 'Kenalan dengan Tofly',          'evergreen', -76, 'link_submitted', -70, false, 4),
-  ('dimas@example.com',   90, 'Kirim paket antar kota',        'evergreen', -62, 'link_submitted', -62, false, 3),
-  ('dimas@example.com',   90, 'Asuransi pengiriman',           'specific',  -48, 'link_submitted', -40, false, 4),
-  ('dimas@example.com',   90, 'Tarif flat se-Jawa',            'specific',  -34, 'draft_revision', null, false, 3),
-  ('dimas@example.com',   90, 'Drop point terdekat',           'evergreen',  30, 'scheduled',      null, false, 0),
+  ('dimas@example.com',   90, 'Kenalan dengan Tofly',          'evergreen', -76, 'link_submitted', -70, 4),
+  ('dimas@example.com',   90, 'Kirim paket antar kota',        'evergreen', -62, 'link_submitted', -62, 3),
+  ('dimas@example.com',   90, 'Asuransi pengiriman',           'specific',  -48, 'link_submitted', -40, 4),
+  ('dimas@example.com',   90, 'Tarif flat se-Jawa',            'specific',  -34, 'draft_revision', null, 3),
+  ('dimas@example.com',   90, 'Drop point terdekat',           'evergreen',  30, 'scheduled',      null, 0),
   -- Nabila: three on time, two late → on time 60 %, revisions 1,5 → Perlu Perhatian.
-  ('nabila@example.com', 105, 'Haul belanja online',           'evergreen', -61, 'link_submitted', -61, false, 2),
-  ('nabila@example.com', 105, 'Paket sampai cepat',            'evergreen', -47, 'link_submitted', -49, false, 1),
-  ('nabila@example.com', 105, 'Kirim hadiah ke luar kota',     'specific',  -33, 'link_submitted', -30, false, 2),
-  ('nabila@example.com', 105, 'Bungkus paket aman',            'evergreen', -19, 'link_submitted', -19, false, 1),
-  ('nabila@example.com', 105, 'Tofly COD',                     'specific',   -5, 'link_submitted',  -3, false, 0),
-  ('nabila@example.com', 105, 'Jadwal pickup',                 'evergreen',  23, 'scheduled',      null, false, 0),
+  ('nabila@example.com', 105, 'Haul belanja online',           'evergreen', -61, 'link_submitted', -61, 2),
+  ('nabila@example.com', 105, 'Paket sampai cepat',            'evergreen', -47, 'link_submitted', -49, 1),
+  ('nabila@example.com', 105, 'Kirim hadiah ke luar kota',     'specific',  -33, 'link_submitted', -30, 2),
+  ('nabila@example.com', 105, 'Bungkus paket aman',            'evergreen', -19, 'link_submitted', -19, 1),
+  ('nabila@example.com', 105, 'Tofly COD',                     'specific',   -5, 'link_submitted',  -3, 0),
+  ('nabila@example.com', 105, 'Jadwal pickup',                 'evergreen',  23, 'scheduled',      null, 0),
   -- Salsa: finished first period, plus a running second one with one delivery so far.
-  ('salsa@example.com',  -40, 'Pengalaman pertama Tofly',      'evergreen', -380, 'link_submitted', -380, false, 1),
-  ('salsa@example.com',  -40, 'Kirim paket pecah belah',       'evergreen', -300, 'link_submitted', -302, false, 2),
-  ('salsa@example.com',  -40, 'Tofly di hari libur',           'specific',  -200, 'link_submitted', -195, false, 1),
-  ('salsa@example.com',  150, 'Kembali bersama Tofly',         'evergreen',  -16, 'link_submitted',  -17, false, 1),
-  ('salsa@example.com',  150, 'Paket ke pelosok',              'evergreen',   -2, 'link_submitted',  -2, false, 1),
-  ('salsa@example.com',  150, 'Kirim dokumen penting',         'specific',    12, 'draft_approved', null, false, 1),
+  ('salsa@example.com',  -40, 'Pengalaman pertama Tofly',      'evergreen', -380, 'link_submitted', -380, 1),
+  ('salsa@example.com',  -40, 'Kirim paket pecah belah',       'evergreen', -300, 'link_submitted', -302, 2),
+  ('salsa@example.com',  -40, 'Tofly di hari libur',           'specific',  -200, 'link_submitted', -195, 1),
+  ('salsa@example.com',  150, 'Kembali bersama Tofly',         'evergreen',  -16, 'link_submitted',  -17, 1),
+  ('salsa@example.com',  150, 'Paket ke pelosok',              'evergreen',   -2, 'link_submitted',  -2, 1),
+  ('salsa@example.com',  150, 'Kirim dokumen penting',         'specific',    12, 'draft_approved', null, 1),
   -- Yusuf: finished contract, everything delivered, one late → Baik.
-  ('yusuf@example.com',  -20, 'Tofly untuk reseller',          'evergreen', -180, 'link_submitted', -181, false, 1),
-  ('yusuf@example.com',  -20, 'Cek ongkir',                    'evergreen', -150, 'link_submitted', -150, false, 1),
-  ('yusuf@example.com',  -20, 'Kirim banyak paket sekaligus',  'specific',  -120, 'link_submitted', -118, false, 1),
-  ('yusuf@example.com',  -20, 'Paket tiba sebelum lebaran',    'specific',   -90, 'link_submitted',  -91, false, 1),
-  ('yusuf@example.com',  -20, 'Tofly Points',                  'evergreen',  -60, 'link_submitted',  -60, false, 1),
-  ('yusuf@example.com',  -20, 'Layanan retur',                 'evergreen',  -30, 'link_submitted',  -30, false, 2),
+  ('yusuf@example.com',  -20, 'Tofly untuk reseller',          'evergreen', -180, 'link_submitted', -181, 1),
+  ('yusuf@example.com',  -20, 'Cek ongkir',                    'evergreen', -150, 'link_submitted', -150, 1),
+  ('yusuf@example.com',  -20, 'Kirim banyak paket sekaligus',  'specific',  -120, 'link_submitted', -118, 1),
+  ('yusuf@example.com',  -20, 'Paket tiba sebelum lebaran',    'specific',   -90, 'link_submitted',  -91, 1),
+  ('yusuf@example.com',  -20, 'Tofly Points',                  'evergreen',  -60, 'link_submitted',  -60, 1),
+  ('yusuf@example.com',  -20, 'Layanan retur',                 'evergreen',  -30, 'link_submitted',  -30, 2),
   -- Farah: contract has not started; nothing assigned yet.
   -- Bagas: running contract, deadlines all ahead, no drafts yet → Belum Ada Data.
-  ('bagas@example.com',  170, 'Halo dari Bagas',               'evergreen',   4, 'scheduled', null, false, 0),
-  ('bagas@example.com',  170, 'Kirim paket olahraga',          'evergreen',  18, 'scheduled', null, false, 0),
-  ('bagas@example.com',  170, 'Tofly x komunitas lari',        'specific',   32, 'scheduled', null, false, 0),
+  ('bagas@example.com',  170, 'Halo dari Bagas',               'evergreen',   4, 'scheduled', null, 0),
+  ('bagas@example.com',  170, 'Kirim paket olahraga',          'evergreen',  18, 'scheduled', null, 0),
+  ('bagas@example.com',  170, 'Tofly x komunitas lari',        'specific',   32, 'scheduled', null, 0),
   -- Intan: all on time, one proposal that must not count → Baik.
-  ('intan@example.com',   60, 'Skincare haul',                 'evergreen', -106, 'link_submitted', -107, false, 1),
-  ('intan@example.com',   60, 'Kirim paket rapuh',             'evergreen',  -92, 'link_submitted',  -92, false, 1),
-  ('intan@example.com',   60, 'Tofly untuk toko online',       'specific',   -78, 'link_submitted',  -80, false, 2),
-  ('intan@example.com',   60, 'Cara klaim asuransi',           'specific',   -64, 'link_submitted',  -64, false, 1),
-  ('intan@example.com',   60, 'Behind the scene packing',      'evergreen',  -50, 'link_submitted',  -52, false, 1),
-  ('intan@example.com',   60, 'Ide konten dari Intan',         'specific',   -10, 'scheduled',      null, true,  0),
-  ('intan@example.com',   60, 'Tofly untuk pemula',            'evergreen',   14, 'draft_review',   null, false, 1),
+  ('intan@example.com',   60, 'Skincare haul',                 'evergreen', -106, 'link_submitted', -107, 1),
+  ('intan@example.com',   60, 'Kirim paket rapuh',             'evergreen',  -92, 'link_submitted',  -92, 1),
+  ('intan@example.com',   60, 'Tofly untuk toko online',       'specific',   -78, 'link_submitted',  -80, 2),
+  ('intan@example.com',   60, 'Cara klaim asuransi',           'specific',   -64, 'link_submitted',  -64, 1),
+  ('intan@example.com',   60, 'Behind the scene packing',      'evergreen',  -50, 'link_submitted',  -52, 1),
+  ('intan@example.com',   60, 'Ide konten dari Intan',         'specific',   -10, 'pending',        null, 0),
+  ('intan@example.com',   60, 'Tofly untuk pemula',            'evergreen',   14, 'draft_review',   null, 1),
   -- Reza: contract ends today; two late on the way → Perlu Perhatian.
-  ('reza@example.com',     0, 'Perkenalan Reza',               'evergreen', -166, 'link_submitted', -166, false, 1),
-  ('reza@example.com',     0, 'Paket besar kirim mudah',       'evergreen', -138, 'link_submitted', -135, false, 2),
-  ('reza@example.com',     0, 'Cek status kiriman',            'specific',  -110, 'link_submitted', -110, false, 1),
-  ('reza@example.com',     0, 'Kirim motor lewat Tofly',       'specific',   -82, 'link_submitted',  -79, false, 1),
-  ('reza@example.com',     0, 'Layanan kargo',                 'evergreen',  -54, 'link_submitted',  -54, false, 2),
-  ('reza@example.com',     0, 'Ucapan terima kasih',           'evergreen',  -26, 'link_submitted',  -26, false, 1),
+  ('reza@example.com',     0, 'Perkenalan Reza',               'evergreen', -166, 'link_submitted', -166, 1),
+  ('reza@example.com',     0, 'Paket besar kirim mudah',       'evergreen', -138, 'link_submitted', -135, 2),
+  ('reza@example.com',     0, 'Cek status kiriman',            'specific',  -110, 'link_submitted', -110, 1),
+  ('reza@example.com',     0, 'Kirim motor lewat Tofly',       'specific',   -82, 'link_submitted',  -79, 1),
+  ('reza@example.com',     0, 'Layanan kargo',                 'evergreen',  -54, 'link_submitted',  -54, 2),
+  ('reza@example.com',     0, 'Ucapan terima kasih',           'evergreen',  -26, 'link_submitted',  -26, 1),
   -- Kirana: finished contract, access already revoked, one missed delivery.
-  ('kirana@example.com', -60, 'Halo dari Kirana',              'evergreen', -226, 'link_submitted', -226, false, 1),
-  ('kirana@example.com', -60, 'Kirim paket makanan',           'evergreen', -198, 'link_submitted', -198, false, 1),
-  ('kirana@example.com', -60, 'Tofly untuk mahasiswa',         'specific',  -170, 'link_submitted', -172, false, 1),
-  ('kirana@example.com', -60, 'Packing kado',                  'evergreen', -142, 'link_submitted', -140, false, 1),
-  ('kirana@example.com', -60, 'Promo 11.11',                   'specific',  -114, 'link_submitted', -114, false, 2),
-  ('kirana@example.com', -60, 'Salam perpisahan',              'evergreen',  -86, 'draft_revised',  null, false, 2),
+  ('kirana@example.com', -60, 'Halo dari Kirana',              'evergreen', -226, 'link_submitted', -226, 1),
+  ('kirana@example.com', -60, 'Kirim paket makanan',           'evergreen', -198, 'link_submitted', -198, 1),
+  ('kirana@example.com', -60, 'Tofly untuk mahasiswa',         'specific',  -170, 'link_submitted', -172, 1),
+  ('kirana@example.com', -60, 'Packing kado',                  'evergreen', -142, 'link_submitted', -140, 1),
+  ('kirana@example.com', -60, 'Promo 11.11',                   'specific',  -114, 'link_submitted', -114, 2),
+  ('kirana@example.com', -60, 'Salam perpisahan',              'evergreen',  -86, 'draft_review',   null, 2),
   -- Adit: two finished periods; the later one went badly → Berisiko.
-  ('adit@example.com',  -240, 'Perkenalan Adit',               'evergreen', -406, 'link_submitted', -406, false, 1),
-  ('adit@example.com',  -240, 'Kirim paket ke kampung',        'evergreen', -350, 'link_submitted', -352, false, 1),
-  ('adit@example.com',  -240, 'Tofly saat musim hujan',        'specific',  -290, 'link_submitted', -288, false, 1),
-  ('adit@example.com',   -50, 'Kembali lagi',                  'evergreen', -216, 'link_submitted', -205, false, 3),
-  ('adit@example.com',   -50, 'Kirim paket elektronik',        'evergreen', -188, 'link_submitted', -180, false, 4),
-  ('adit@example.com',   -50, 'Tofly untuk kantor',            'specific',  -160, 'draft_revision', null, false, 3),
-  ('adit@example.com',   -50, 'Diskon pengguna baru',          'specific',  -132, 'scheduled',      null, false, 0);
+  ('adit@example.com',  -240, 'Perkenalan Adit',               'evergreen', -406, 'link_submitted', -406, 1),
+  ('adit@example.com',  -240, 'Kirim paket ke kampung',        'evergreen', -350, 'link_submitted', -352, 1),
+  ('adit@example.com',  -240, 'Tofly saat musim hujan',        'specific',  -290, 'link_submitted', -288, 1),
+  ('adit@example.com',   -50, 'Kembali lagi',                  'evergreen', -216, 'link_submitted', -205, 3),
+  ('adit@example.com',   -50, 'Kirim paket elektronik',        'evergreen', -188, 'link_submitted', -180, 4),
+  ('adit@example.com',   -50, 'Tofly untuk kantor',            'specific',  -160, 'draft_revision', null, 3),
+  ('adit@example.com',   -50, 'Diskon pengguna baru',          'specific',  -132, 'scheduled',      null, 0);
 
-insert into contents (contract_id, name, type, deadline, status, is_proposal, video_link, video_submitted_at)
+insert into contents (contract_id, name, type, deadline, status, video_link, video_submitted_at)
 select k.id,
        s.name,
        s.type::content_type,
        current_date + s.deadline,
        s.status::content_status,
-       s.is_proposal,
        case when s.submitted is null then null
             else 'https://example.com/video/' || lower(regexp_replace(s.name, '[^A-Za-z0-9]+', '-', 'g')) end,
        case when s.submitted is null then null else current_date + s.submitted end
@@ -208,5 +206,16 @@ join creators c on c.user_id = u.id
 join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contract_end
 join contents n on n.contract_id = k.id and n.name = s.name
 cross join lateral generate_series(1, s.draft_count) as g (n);
+
+-- Two links handed in inside the H-1 window without an approved draft: Nabila's Tofly COD late
+-- and with no draft at all, Salsa's Paket ke pelosok on time after a single unreviewed draft.
+update contents n set approval_bypassed = true
+from contracts k
+join creators c on c.id = k.creator_id
+join users u on u.id = c.user_id
+where n.contract_id = k.id
+  and n.status = 'link_submitted'
+  and (u.email, n.name) in (('nabila@example.com', 'Tofly COD'),
+                            ('salsa@example.com', 'Paket ke pelosok'));
 
 commit;
