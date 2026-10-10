@@ -194,3 +194,19 @@ describe('ProposalReviewService.scheduleDue', () => {
     });
   });
 });
+
+describe('ProposalReviewService without a notifier', () => {
+  it('falls back to the mock email, as Add Content does, until notifications exist', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const { client } = stubClient(pending);
+
+    await new ProposalReviewService(client).reject(ID, { reason: 'Kurang relevan.' });
+
+    expect(info).toHaveBeenCalledWith('[MOCK EMAIL] Creator proposal rejected', {
+      creatorId: CREATOR,
+      contentName: 'Ide konten dari Intan',
+      reason: 'Kurang relevan.',
+    });
+    info.mockRestore();
+  });
+});
