@@ -336,6 +336,36 @@ describe("MyTaskBoard content detail panel", () => {
     replaceState.mockRestore();
   });
 
+  it("puts the opened content in the address, so the panel can be shared or reopened as a link", async () => {
+    window.history.pushState({}, "", "/creator/tasks?status=scheduled&page=2");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(window.location.search).toBe("?status=scheduled&page=2&content=content-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup", exact: true }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(window.location.search).toBe("?status=scheduled&page=2");
+  });
+
+  it("replaces the address rather than adding history, so Back leaves the page instead of reopening", async () => {
+    window.history.pushState({}, "", "/creator/tasks");
+    const pushState = vi.spyOn(window.history, "pushState");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+
+    await screen.findByRole("dialog");
+    expect(pushState).not.toHaveBeenCalled();
+    pushState.mockRestore();
+  });
+
   it("closes the panel from Tutup without opening any modal", async () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
