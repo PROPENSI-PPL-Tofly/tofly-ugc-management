@@ -484,6 +484,14 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(due.className).not.toMatch(/text-(red|amber|green)-ink/);
     });
 
+    it("leaves a pending proposal's passed deadline uncoloured, as it carries no Overdue tag either", async () => {
+      show({ status: "pending", waitingOn: "admin", latestSubmissionId: null, deadline: "2026-09-30" });
+
+      const due = await screen.findByTestId("deadline-due");
+      expect(due).toHaveTextContent("Lewat 2 hari");
+      expect(due.className).not.toMatch(/text-(red|amber|green)-ink/);
+    });
+
     it("reads Selesai in green once the video link is in, however late the deadline", async () => {
       show({ status: "link_submitted", waitingOn: null, deadline: "2026-09-01" });
 
@@ -694,6 +702,26 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       );
       expect(items[2]).toHaveTextContent("Rangga Pratama · Kreator");
       expect(items[3]).toHaveTextContent("Dewi Lestari · Admin");
+    });
+
+    it("shows an event the API dates by day alone without a time", async () => {
+      show({
+        status: "link_submitted",
+        waitingOn: null,
+        events: [
+          {
+            id: "link",
+            type: "link_submitted",
+            at: "2026-09-25",
+            actor: { name: "Rangga Pratama", role: "creator" },
+            payload: { link: "https://www.instagram.com/reel/abc" },
+          },
+        ],
+      });
+
+      const [link] = await journeyItems();
+      expect(within(link).getByText("25 Sep 2026")).toHaveAttribute("datetime", "2026-09-25");
+      expect(link).not.toHaveTextContent("WIB");
     });
 
     it("names only the role when the API sends no actor name", async () => {
