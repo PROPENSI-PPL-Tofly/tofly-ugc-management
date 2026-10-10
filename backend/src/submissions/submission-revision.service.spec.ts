@@ -218,11 +218,11 @@ describe('SubmissionRevisionService', () => {
     );
   });
 
-  it('allows revision for a resubmitted draft', async () => {
+  it('allows revision for a resubmitted draft awaiting review', async () => {
     const submission = {
       id: SUBMISSION_ID,
       content_id: CONTENT_ID,
-      status: 'draft_revised',
+      status: 'draft_review',
       isLatest: true,
     };
 
