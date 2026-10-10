@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { type ExecutionContext, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AdminGuard } from '../src/auth/admin.guard.js';
@@ -27,6 +27,14 @@ describe('PATCH /submissions/:id/revise', () => {
         },
         contents: {
           updateMany: contentUpdateMany,
+        },
+        users: {
+          findUnique: vi.fn().mockResolvedValue({
+            email: 'test-admin@example.test',
+          }),
+        },
+        content_events: {
+          create: vi.fn().mockResolvedValue({ id: 'event-id' }),
         },
       }),
     ),
@@ -66,7 +74,18 @@ describe('PATCH /submissions/:id/revise', () => {
       // Prisma is stubbed here, so there is no session table to sign in against; the admin
       // guard is proven by admin-routes.e2e-spec.ts on the real database.
       .overrideGuard(AdminGuard)
-      .useValue({ canActivate: () => true })
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          const request = context.switchToHttp().getRequest<{
+            principal?: { userId: string; role: 'admin' };
+          }>();
+          request.principal = {
+            userId: 'test-admin-user-id',
+            role: 'admin',
+          };
+          return true;
+        },
+      })
       .compile();
 
     app = moduleRef.createNestApplication();
