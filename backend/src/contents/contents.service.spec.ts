@@ -17,7 +17,7 @@ function transactional(client: ContentsFixture) {
     $transaction: async <T>(work: (tx: ContentsTransaction) => Promise<T>) =>
       work({
         users: {
-          findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+          findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }),
         },
         content_events: {
           create: vi.fn().mockResolvedValue({ id: 'event-id' }),
@@ -130,7 +130,7 @@ describe('ContentCreationService', () => {
     };
     const transaction = {
       users: {
-        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+        findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }),
       },
       contracts: {
         findUnique: vi.fn().mockResolvedValue({
@@ -174,15 +174,17 @@ describe('ContentCreationService', () => {
       data: expect.objectContaining({
         content_id: CONTENT_ID,
         event_type: 'Scheduled',
-        actor_name: ADMIN_EMAIL,
+        actor_name: 'Admin',
         actor_role: 'admin',
+        actor_user_id: ADMIN_USER_ID,
         occurred_at: expect.any(Date),
         event_data: {},
       }),
     });
+    // The admin is checked to exist, by id only: their email never reaches the history.
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER_ID },
-      select: { email: true },
+      select: { id: true },
     });
     expect(transaction.contents.create.mock.invocationCallOrder[0]).toBeLessThan(
       transaction.content_events.create.mock.invocationCallOrder[0],
@@ -595,7 +597,7 @@ describe('atomic Evergreen allocation', () => {
     const transaction = {
       $queryRaw: vi.fn().mockResolvedValue([]),
       users: {
-        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+        findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }),
       },
       content_events: {
         create: vi.fn().mockResolvedValue({ id: 'event-id' }),

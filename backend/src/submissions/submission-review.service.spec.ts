@@ -191,7 +191,7 @@ describe('SubmissionReviewService.approve', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       users: {
-        findUnique: vi.fn().mockResolvedValue({ email: 'admin@example.test' }),
+        findUnique: vi.fn().mockResolvedValue({ id: 'admin-id' }),
       },
       content_events: {
         create: vi.fn().mockResolvedValue({ id: 'event-id' }),
@@ -220,14 +220,15 @@ describe('SubmissionReviewService.approve', () => {
     });
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: 'admin-id' },
-      select: { email: true },
+      select: { id: true },
     });
     expect(transaction.content_events.create).toHaveBeenCalledWith({
       data: {
         content_id: CONTENT_ID,
         event_type: 'Draft Approved',
-        actor_name: 'admin@example.test',
+        actor_name: 'Admin',
         actor_role: 'admin',
+        actor_user_id: 'admin-id',
         occurred_at: expect.any(Date),
         event_data: {},
       },

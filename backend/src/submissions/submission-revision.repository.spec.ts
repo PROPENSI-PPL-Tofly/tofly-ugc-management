@@ -18,7 +18,7 @@ describe('SubmissionRevisionRepository', () => {
       submissions: { update: updateSubmission },
       contents: { updateMany: updateManyContent },
       users: {
-        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+        findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }),
       },
       content_events: {
         create: vi.fn().mockResolvedValue({ id: 'event-id' }),
@@ -42,14 +42,15 @@ describe('SubmissionRevisionRepository', () => {
 
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER_ID },
-      select: { email: true },
+      select: { id: true },
     });
     expect(transaction.content_events.create).toHaveBeenCalledWith({
       data: {
         content_id: contentId,
         event_type: 'Revision Requested',
-        actor_name: ADMIN_EMAIL,
+        actor_name: 'Admin',
         actor_role: 'admin',
+        actor_user_id: ADMIN_USER_ID,
         occurred_at: expect.any(Date),
         event_data: { revision_note: revisionNotes },
       },
