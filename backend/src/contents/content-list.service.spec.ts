@@ -93,6 +93,7 @@ describe('ContentListService.list', () => {
     await service.list(PAGE, NOW, EVERYTHING);
 
     expect(client.contents.findMany).toHaveBeenCalledWith({
+      where: {},
       select: {
         id: true,
         name: true,
@@ -466,51 +467,6 @@ describe('ContentListService.list', () => {
   });
 
   describe('filters', () => {
-    it('keeps the contents of any named creator', async () => {
-      const other = '22222222-2222-4222-8222-222222222222';
-      const rows = [
-        row({ name: 'Dina 1' }),
-        row({
-          name: 'Raka 1',
-          creator: {
-            id: RAKA,
-            first_name: 'Raka',
-            middle_name: null,
-            last_name: null,
-          },
-        }),
-        row({
-          name: 'Sari 1',
-          creator: {
-            id: other,
-            first_name: 'Sari',
-            middle_name: null,
-            last_name: null,
-          },
-        }),
-      ];
-
-      expect(await names(rows, { creators: [DINA, other] })).toEqual([
-        'Dina 1',
-        'Sari 1',
-      ]);
-    });
-
-    it('keeps the contents of any named type', async () => {
-      const rows = [
-        row({ name: 'Evergreen', type: 'evergreen' }),
-        row({ name: 'Specific', type: 'specific' }),
-      ];
-
-      expect(await names(rows, { types: ['evergreen'] })).toEqual([
-        'Evergreen',
-      ]);
-      expect(await names(rows, { types: ['evergreen', 'specific'] })).toEqual([
-        'Evergreen',
-        'Specific',
-      ]);
-    });
-
     it('keeps the contents in any named status', async () => {
       const rows = [
         row({ name: 'Disetujui', status: 'draft_approved', handIns: 1 }),
@@ -621,34 +577,108 @@ describe('ContentListService.list', () => {
 
     it('keeps only what passes every filter at once', async () => {
       const rows = [
-        row({
-          name: 'Serum A',
-          type: 'evergreen',
-          status: 'draft_review',
-          handIns: 1,
-        }),
+        row({ name: 'Serum A', status: 'draft_review', handIns: 1 }),
         row({
           name: 'Serum B',
-          type: 'specific',
           status: 'draft_review',
           handIns: 1,
+          deadline: '2026-10-01',
         }),
-        row({
-          name: 'Toner A',
-          type: 'evergreen',
-          status: 'draft_review',
-          handIns: 1,
-        }),
-        row({ name: 'Serum C', type: 'evergreen', status: 'scheduled' }),
+        row({ name: 'Toner A', status: 'draft_review', handIns: 1 }),
+        row({ name: 'Serum C', status: 'scheduled' }),
       ];
 
       expect(
         await names(rows, {
           q: 'serum',
-          types: ['evergreen'],
           statuses: ['draft_review'],
+          overdue: false,
         }),
       ).toEqual(['Serum A']);
+    });
+  });
+
+  describe('what it asks the database for', () => {
+    const other = '22222222-2222-4222-8222-222222222222';
+
+    async function where(filters: Partial<ContentListFilters>) {
+      const { client, service } = stub([]);
+      await service.list(PAGE, NOW, { ...EVERYTHING, ...filters });
+      return client.contents.findMany.mock.calls[0][0].where;
+    }
+
+    it('narrows to the named creators through their contracts', async () => {
+      expect(await where({ creators: [DINA, other] })).toEqual({
+        contracts: { creator_id: { in: [DINA, other] } },
+      });
+    });
+
+    it('narrows to the named types', async () => {
+      expect(await where({ types: ['evergreen'] })).toEqual({
+        type: { in: ['evergreen'] },
+      });
+    });
+
+    it('narrows to the period, and still reads everything that waits for approval', async () => {
+      expect(
+        await where({ deadlineFrom: '2026-10-12', deadlineTo: '2026-10-18' }),
+      ).toEqual({
+        OR: [
+          {
+            deadline: {
+              gte: new Date('2026-10-12T00:00:00.000Z'),
+              lte: new Date('2026-10-18T00:00:00.000Z'),
+            },
+          },
+          { status: { in: ['pending', 'draft_review'] } },
+        ],
+      });
+    });
+
+    it('narrows from a start day alone', async () => {
+      expect(await where({ deadlineFrom: '2026-10-12' })).toEqual({
+        OR: [
+          { deadline: { gte: new Date('2026-10-12T00:00:00.000Z') } },
+          { status: { in: ['pending', 'draft_review'] } },
+        ],
+      });
+    });
+
+    it('narrows up to an end day alone', async () => {
+      expect(await where({ deadlineTo: '2026-10-18' })).toEqual({
+        OR: [
+          { deadline: { lte: new Date('2026-10-18T00:00:00.000Z') } },
+          { status: { in: ['pending', 'draft_review'] } },
+        ],
+      });
+    });
+
+    it('narrows by all three at once', async () => {
+      expect(
+        await where({
+          creators: [DINA],
+          types: ['specific', 'evergreen'],
+          deadlineTo: '2026-10-18',
+        }),
+      ).toEqual({
+        contracts: { creator_id: { in: [DINA] } },
+        type: { in: ['specific', 'evergreen'] },
+        OR: [
+          { deadline: { lte: new Date('2026-10-18T00:00:00.000Z') } },
+          { status: { in: ['pending', 'draft_review'] } },
+        ],
+      });
+    });
+
+    it('leaves the search, the status filter, overdue and the tab out of the query', async () => {
+      expect(
+        await where({
+          tab: 'done',
+          q: 'serum',
+          statuses: ['link_submitted'],
+          overdue: true,
+        }),
+      ).toEqual({});
     });
   });
 
