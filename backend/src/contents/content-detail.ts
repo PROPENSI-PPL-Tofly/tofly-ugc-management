@@ -2,20 +2,23 @@ import type { content_status } from '@prisma/client';
 import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
 import { contentTags, type ContentTag } from './content-tags.js';
+import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
 // step is waiting on and the journey so far. The tags the prototype draws beside the status
 // are not decided here: they come from content-tags.ts, the same rules every other read uses.
 //
-// The journey is derived from what the schema stores today (contents + submissions). PBI 6.3
-// replaces this derivation with the append-only event history behind the same response shape;
-// the one fact this derivation cannot recover is an approval that a later status change has
-// overwritten, so a link_submitted content never claims one (see buildEvents).
+// The journey is the stored history (content_events, read by stored-history.ts). buildEvents
+// derives it from contents + submissions only for a content nothing was recorded for; that
+// derivation cannot recover an approval a later status change overwrote, so it never claims one
+// for a link_submitted content.
 
 export type DetailWaitingOn = 'admin' | 'creator' | null;
 
 export type DetailEventType =
   | 'scheduled'
+  | 'proposal_approved'
+  | 'creator_comment'
   | 'draft_submitted'
   | 'revision_requested'
   | 'draft_approved'
@@ -51,6 +54,8 @@ export interface ContentDetailRow {
     };
   };
   submissions: DetailSubmissionRow[];
+  /** The stored history, newest first; empty for a content nothing was recorded for. */
+  content_events: StoredEventRow[];
 }
 
 export interface ContentEvent {
@@ -213,6 +218,8 @@ export function toContentDetail(row: ContentDetailRow, now: Date): ContentDetail
     waitingOn: waitingOnFor(row.status),
     latestSubmissionId: latest?.id ?? null,
     creatorActions: taskActions(row.status, deadlineDay, today),
-    events: buildEvents(row),
+    // The stored history is the record; a content with none falls back to what its rows prove.
+    events:
+      row.content_events.length > 0 ? fromStoredHistory(row.content_events) : buildEvents(row),
   };
 }
