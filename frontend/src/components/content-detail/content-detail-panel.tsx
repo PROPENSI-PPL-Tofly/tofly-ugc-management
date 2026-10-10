@@ -514,9 +514,10 @@ export function ContentDetailPanel({
     : [];
   // The open form's own send button: a revision needs a note, a rejection takes one if given.
   let send: PanelCommand | null = null;
-  if (loaded && form === "revise") {
+  // Minta Revisi is only offered with a hand-in to revise, so the form always has one.
+  if (loaded?.latestSubmissionId && form === "revise") {
     send = submitRevision({
-      submissionId: loaded.latestSubmissionId ?? "",
+      submissionId: loaded.latestSubmissionId,
       state: snapshot,
       ports: actionPorts,
     });
