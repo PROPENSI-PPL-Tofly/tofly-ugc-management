@@ -6,9 +6,11 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
+import { unauthenticated } from '../auth/creator-request.js';
 import {
   ContentEventHistoryService,
   type ContentEventRecord,
@@ -17,7 +19,7 @@ import { ContentCreationService } from './contents.service.js';
 import { checkNewContent, type NewContent } from './new-content.js';
 
 export interface ContentCreator {
-  create(input: NewContent): Promise<unknown>;
+  create(input: NewContent, adminUserId: string): Promise<unknown>;
 }
 
 @Controller('contents')
@@ -41,8 +43,14 @@ export class ContentsController {
   }
 
   @Post()
-  async create(@Body() body: unknown): Promise<unknown> {
+  async create(
+    @Body() body: unknown,
+    @Req() request: AdminRequest,
+  ): Promise<unknown> {
     const validated = checkNewContent(body);
-    return this.contents.create(validated);
+    if (request.principal?.role !== 'admin') {
+      throw unauthenticated();
+    }
+    return this.contents.create(validated, request.principal.userId);
   }
 }

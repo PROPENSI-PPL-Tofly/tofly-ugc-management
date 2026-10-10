@@ -30,10 +30,14 @@ describe('ContentsController', () => {
     vi.mocked(checkNewContent).mockReturnValue(body);
 
     const controller = new ContentsController({ create }, { getForContent: vi.fn() });
+    const request = {
+      headers: {},
+      principal: { userId: '11111111-1111-4111-8111-111111111111', role: 'admin' as const },
+    };
 
-    await expect(controller.create(body)).resolves.toEqual(createdContent);
+    await expect(controller.create(body, request)).resolves.toEqual(createdContent);
 
     expect(checkNewContent).toHaveBeenCalledWith(body);
-    expect(create).toHaveBeenCalledWith(body);
+    expect(create).toHaveBeenCalledWith(body, request.principal.userId);
   });
 });
