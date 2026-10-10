@@ -1,8 +1,8 @@
-import type { INestApplication } from '@nestjs/common';
+import { UnauthorizedException, type INestApplication } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
@@ -29,7 +29,11 @@ describe('SubmissionsController', () => {
       // AdminGuard has its own spec; these tests are about the routes behind it.
       .overrideGuard(AdminGuard)
       .useValue({
-        canActivate: (context: { switchToHttp(): { getRequest(): { principal?: unknown } } }) => {
+        canActivate: (context: {
+          switchToHttp(): {
+            getRequest(): { principal?: unknown };
+          };
+        }) => {
           context.switchToHttp().getRequest().principal = {
             userId: ADMIN_USER_ID,
             role: 'admin',
@@ -48,13 +52,43 @@ describe('SubmissionsController', () => {
   });
 
   it('is open to signed-in admins only', () => {
-    expect(Reflect.getMetadata(GUARDS_METADATA, SubmissionsController)).toEqual([AdminGuard]);
+    expect(Reflect.getMetadata(GUARDS_METADATA, SubmissionsController)).toEqual(
+      [AdminGuard],
+    );
   });
 
   beforeEach(() => {
     review.approve.mockReset();
     detail.getDetail.mockReset();
     queue.list.mockReset();
+  });
+
+  it('rejects approval when the caller is authenticated as a Creator', async () => {
+    const controller = new SubmissionsController(review, detail, queue);
+
+    const requestAsCreator: AdminRequest = {
+      headers: {},
+      principal: {
+        userId: '22222222-2222-4222-8222-222222222222',
+        role: 'creator',
+        creatorId: '33333333-3333-4333-8333-333333333333',
+      },
+    };
+
+    await expect(
+      controller.approve(SUBMISSION_ID, requestAsCreator),
+    ).rejects.toThrow(UnauthorizedException);
+
+    await expect(
+      controller.approve(SUBMISSION_ID, requestAsCreator),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'UNAUTHENTICATED',
+        message: 'Silakan masuk terlebih dahulu',
+      },
+    });
+
+    expect(review.approve).not.toHaveBeenCalled();
   });
 
   describe('GET /submissions?status=review', () => {

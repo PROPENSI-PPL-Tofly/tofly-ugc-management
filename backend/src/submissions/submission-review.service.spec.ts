@@ -1,234 +1,365 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import {
-  SubmissionReviewService,
-  type SubmissionReviewClient,
-} from './submission-review.service.js';
+import { SubmissionRevisionService } from './submission-revision.service.js';
 
-const SUBMISSION_ID = '0f9c2f5e-6b1a-4f3e-9a51-3c1d2e4b5a60';
-const OLDER_ID = '7d1e0a44-2c3b-4d5e-8f90-1a2b3c4d5e6f';
-const CONTENT_ID = 'a08576d2-15a7-4ed0-bf4b-f5a28c2d65a0';
-const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
-const ADMIN_EMAIL = 'admin@example.test';
-
-function stubClient(
-  found: {
-    status: string;
-    latestIds: string[];
-  } | null,
-  updatedCount = 1,
-) {
-  return {
-    submissions: {
-      findUnique: vi.fn().mockResolvedValue(
-        found && {
-          id: SUBMISSION_ID,
-          content_id: CONTENT_ID,
-          contents: {
-            status: found.status,
-            submissions: found.latestIds.map((id) => ({ id })),
-          },
-        },
-      ),
-    },
-    contents: {
-      updateMany: vi.fn().mockResolvedValue({ count: updatedCount }),
-    },
-  } satisfies SubmissionReviewClient;
-}
-
-async function rejection(promise: Promise<unknown>): Promise<unknown> {
-  return promise.then(
-    () => {
-      throw new Error('expected a rejection');
-    },
-    (error: unknown) => error,
-  );
-}
-
-describe('SubmissionReviewService.approve', () => {
-  it('records Draft Approved in the status transaction with the Admin identity', async () => {
-    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const transaction = {
-      contents: { updateMany },
-      users: {
-        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
-      },
-      content_events: {
-        create: vi.fn().mockResolvedValue({ id: 'event-id' }),
-      },
-    };
-    const base = stubClient({
+describe('SubmissionRevisionService', () => {
+  it('stores the revision note and changes a review submission to draft_revision', async () => {
+    const submission = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      content_id: '550e8400-e29b-41d4-a716-446655440001',
       status: 'draft_review',
-      latestIds: [SUBMISSION_ID],
-    });
-    const client: SubmissionReviewClient & {
-      $transaction: (
-        work: (tx: typeof transaction) => Promise<unknown>,
-      ) => Promise<unknown>;
-    } = {
-      ...base,
-      $transaction: vi.fn(async (work: (tx: typeof transaction) => Promise<unknown>) =>
-        work(transaction),
-      ),
+      isLatest: true,
     };
-    const service = new SubmissionReviewService(client);
 
-    await Reflect.apply(service.approve, service, [SUBMISSION_ID, ADMIN_USER_ID]);
+    const findById = vi.fn().mockResolvedValue(submission);
 
-    expect(transaction.content_events.create).toHaveBeenCalledWith({
-      data: {
-        content_id: CONTENT_ID,
-        event_type: 'Draft Approved',
-        actor_name: ADMIN_EMAIL,
-        actor_role: 'admin',
-        occurred_at: expect.any(Date),
-        event_data: {},
-      },
+    const saveRevision = vi.fn().mockResolvedValue({
+      id: submission.id,
+      status: 'draft_revision',
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
     });
-    expect(client.$transaction).toHaveBeenCalledOnce();
-    expect(transaction.users.findUnique).toHaveBeenCalledWith({
-      where: { id: ADMIN_USER_ID },
-      select: { email: true },
+
+    const service = new SubmissionRevisionService({
+      findById,
+      saveRevision,
     });
-    expect(updateMany.mock.invocationCallOrder[0]).toBeLessThan(
-      transaction.content_events.create.mock.invocationCallOrder[0],
+
+    const result = await service.revise(submission.id, {
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
+    });
+
+    expect(findById).toHaveBeenCalledExactlyOnceWith(submission.id);
+
+    expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+      submission.id,
+      submission.content_id,
+      'Mohon perbaiki bagian pembuka.',
     );
+
+    expect(result).toEqual({
+      id: submission.id,
+      status: 'draft_revision',
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
+    });
   });
 
-  it.each(['draft_review', 'draft_revised'])(
-    'approves the latest submission of a draft in %s',
-    async (status) => {
-      const client = stubClient({ status, latestIds: [SUBMISSION_ID] });
+  describe('an unknown submission', () => {
+    const UNKNOWN_ID = '550e8400-e29b-41d4-a716-446655440000';
 
-      await expect(
-        new SubmissionReviewService(client).approve(SUBMISSION_ID),
-      ).resolves.toEqual({
-        id: SUBMISSION_ID,
-        contentId: CONTENT_ID,
-        status: 'draft_approved',
+    async function reviseUnknown() {
+      const saveRevision = vi.fn();
+      const service = new SubmissionRevisionService({
+        findById: vi.fn().mockResolvedValue(null),
+        saveRevision,
       });
-    },
-  );
 
-  it('reads the submission with its content status and only the newest hand-in', async () => {
-    const client = stubClient({
-      status: 'draft_review',
-      latestIds: [SUBMISSION_ID],
+      const error: unknown = await service
+        .revise(UNKNOWN_ID, {
+          revisionNotes: 'Mohon perbaiki bagian pembuka.',
+        })
+        .catch((caught: unknown) => caught);
+
+      return { error, saveRevision };
+    }
+
+    it('answers 404', async () => {
+      const { error } = await reviseUnknown();
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).getStatus()).toBe(404);
     });
 
-    await new SubmissionReviewService(client).approve(SUBMISSION_ID);
+    it('carries the SUBMISSION_NOT_FOUND code, as approve does', async () => {
+      const { error } = await reviseUnknown();
 
-    expect(client.submissions.findUnique).toHaveBeenCalledWith({
-      where: { id: SUBMISSION_ID },
-      select: {
-        id: true,
-        content_id: true,
-        contents: {
-          select: {
-            status: true,
-            submissions: {
-              orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-              take: 1,
-              select: { id: true },
-            },
-          },
-        },
-      },
-    });
-  });
-
-  it('changes the status only while the content is still awaiting review', async () => {
-    const client = stubClient({
-      status: 'draft_revised',
-      latestIds: [SUBMISSION_ID],
+      expect((error as NotFoundException).getResponse()).toHaveProperty(
+        'code',
+        'SUBMISSION_NOT_FOUND',
+      );
     });
 
-    await new SubmissionReviewService(client).approve(SUBMISSION_ID);
+    it('uses the same wording as approve', async () => {
+      const { error } = await reviseUnknown();
 
-    expect(client.contents.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: CONTENT_ID,
-        status: { in: ['draft_review', 'draft_revised'] },
-      },
-      data: { status: 'draft_approved' },
+      expect((error as NotFoundException).getResponse()).toEqual({
+        code: 'SUBMISSION_NOT_FOUND',
+        message: 'Draft tidak ditemukan',
+      });
+    });
+
+    it('saves nothing', async () => {
+      const { saveRevision } = await reviseUnknown();
+
+      expect(saveRevision).not.toHaveBeenCalled();
     });
   });
 
-  it('answers 404 for an unknown submission and writes nothing', async () => {
-    const client = stubClient(null);
+  it('answers with the content id, as approve does', async () => {
+    const saved = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      contentId: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'draft_revision',
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
+    };
 
-    const error = await rejection(
-      new SubmissionReviewService(client).approve(SUBMISSION_ID),
+    const service = new SubmissionRevisionService({
+      findById: vi.fn().mockResolvedValue({
+        id: saved.id,
+        content_id: saved.contentId,
+        status: 'draft_review',
+        isLatest: true,
+      }),
+      saveRevision: vi.fn().mockResolvedValue(saved),
+    });
+
+    await expect(
+      service.revise(saved.id, { revisionNotes: saved.revisionNotes }),
+    ).resolves.toEqual(saved);
+  });
+
+  describe('a status that does not allow a revision request', () => {
+    const SUBMISSION_ID = '550e8400-e29b-41d4-a716-446655440000';
+
+    // Every status but the one a draft is reviewed in. 'pending' arrives with the six-status
+    // lifecycle (SCRUM-146); a proposal nobody accepted must never be open to a decision.
+    const REFUSED_STATUSES = [
+      'pending',
+      'scheduled',
+      'draft_revision',
+      'draft_approved',
+      'link_submitted',
+    ];
+
+    async function reviseIn(status: string, isLatest = true) {
+      const saveRevision = vi.fn();
+      const service = new SubmissionRevisionService({
+        findById: vi.fn().mockResolvedValue({
+          id: SUBMISSION_ID,
+          content_id: '550e8400-e29b-41d4-a716-446655440001',
+          status,
+          isLatest,
+        }),
+        saveRevision,
+      });
+
+      const error: unknown = await service
+        .revise(SUBMISSION_ID, {
+          revisionNotes: 'Mohon perbaiki draft ini.',
+        })
+        .catch((caught: unknown) => caught);
+
+      return { error, saveRevision };
+    }
+
+    it.each(REFUSED_STATUSES)(
+      'answers 409 DRAFT_NOT_REVIEWABLE for a draft in %s',
+      async (status) => {
+        const { error } = await reviseIn(status);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).getResponse()).toEqual({
+          code: 'DRAFT_NOT_REVIEWABLE',
+          message: 'Draft ini sudah tidak menunggu keputusan',
+        });
+      },
     );
 
-    expect(error).toBeInstanceOf(NotFoundException);
-    expect((error as NotFoundException).getResponse()).toEqual({
-      code: 'SUBMISSION_NOT_FOUND',
-      message: 'Draft tidak ditemukan',
-    });
-    expect(client.contents.updateMany).not.toHaveBeenCalled();
-  });
+    it.each(REFUSED_STATUSES)(
+      'saves nothing for a draft in %s',
+      async (status) => {
+        const { saveRevision } = await reviseIn(status);
 
-  it.each(['scheduled', 'draft_revision', 'draft_approved', 'link_submitted'])(
-    'answers 409 for a draft in %s and writes nothing',
-    async (status) => {
-      const client = stubClient({ status, latestIds: [SUBMISSION_ID] });
+        expect(saveRevision).not.toHaveBeenCalled();
+      },
+    );
 
-      const error = await rejection(
-        new SubmissionReviewService(client).approve(SUBMISSION_ID),
-      );
+    it('refuses a status the lifecycle does not know', async () => {
+      const { error, saveRevision } = await reviseIn('not_a_status');
 
       expect(error).toBeInstanceOf(ConflictException);
       expect((error as ConflictException).getResponse()).toEqual({
         code: 'DRAFT_NOT_REVIEWABLE',
         message: 'Draft ini sudah tidak menunggu keputusan',
       });
-      expect(client.contents.updateMany).not.toHaveBeenCalled();
-    },
-  );
+      expect(saveRevision).not.toHaveBeenCalled();
+    });
 
-  it('answers 409 for an older submission after the creator resubmitted', async () => {
-    const client = stubClient({
+    it('reports the status before staleness for an older draft that is already decided', async () => {
+      const { error } = await reviseIn('draft_approved', false);
+
+      expect((error as ConflictException).getResponse()).toHaveProperty(
+        'code',
+        'DRAFT_NOT_REVIEWABLE',
+      );
+    });
+  });
+
+  it('passes the related content ID when saving the revision', async () => {
+    const submission = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      content_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'draft_review',
+      isLatest: true,
+    };
+
+    const findById = vi.fn().mockResolvedValue(submission);
+
+    const saveRevision = vi.fn().mockResolvedValue({
+      id: submission.id,
+      status: 'draft_revision',
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
+    });
+
+    const service = new SubmissionRevisionService({
+      findById,
+      saveRevision,
+    });
+
+    await service.revise(submission.id, {
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
+    });
+
+    expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+      submission.id,
+      submission.content_id,
+      'Mohon perbaiki bagian pembuka.',
+    );
+  });
+
+  it('allows revision for a resubmitted draft', async () => {
+    const submission = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      content_id: '550e8400-e29b-41d4-a716-446655440001',
       status: 'draft_revised',
-      latestIds: [OLDER_ID],
+      isLatest: true,
+    };
+
+    const findById = vi.fn().mockResolvedValue(submission);
+
+    const saveRevision = vi.fn().mockResolvedValue({
+      id: submission.id,
+      status: 'draft_revision',
+      revisionNotes: 'Mohon perbaiki bagian akhir.',
     });
 
-    const error = await rejection(
-      new SubmissionReviewService(client).approve(SUBMISSION_ID),
+    const service = new SubmissionRevisionService({
+      findById,
+      saveRevision,
+    });
+
+    await service.revise(submission.id, {
+      revisionNotes: 'Mohon perbaiki bagian akhir.',
+    });
+
+    expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+      submission.id,
+      submission.content_id,
+      'Mohon perbaiki bagian akhir.',
     );
-
-    expect((error as ConflictException).getResponse()).toEqual({
-      code: 'SUBMISSION_SUPERSEDED',
-      message: 'Creator sudah mengirim draft yang lebih baru',
-    });
-    expect(client.contents.updateMany).not.toHaveBeenCalled();
   });
 
-  it('treats a content whose submissions vanished mid-request as superseded', async () => {
-    const client = stubClient({ status: 'draft_review', latestIds: [] });
+  it('rejects a submission that has been superseded by a newer submission', async () => {
+    const submission = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      content_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'draft_review',
+      isLatest: false,
+    };
 
-    const error = await rejection(
-      new SubmissionReviewService(client).approve(SUBMISSION_ID),
-    );
+    const findById = vi.fn().mockResolvedValue(submission);
+    const saveRevision = vi.fn();
 
-    expect((error as ConflictException).getResponse()).toMatchObject({
-      code: 'SUBMISSION_SUPERSEDED',
+    const service = new SubmissionRevisionService({
+      findById,
+      saveRevision,
     });
+
+    await expect(
+      service.revise(submission.id, {
+        revisionNotes: 'Mohon perbaiki draft ini.',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        code: 'SUBMISSION_SUPERSEDED',
+        message: 'Creator sudah mengirim draft yang lebih baru',
+      },
+    });
+
+    expect(saveRevision).not.toHaveBeenCalled();
   });
 
-  it('answers 409 when another decision changed the status between read and write', async () => {
-    const client = stubClient(
-      { status: 'draft_review', latestIds: [SUBMISSION_ID] },
-      0,
-    );
+  it('rejects when the submission becomes non-reviewable during revision', async () => {
+    const submission = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      content_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'draft_review',
+      isLatest: true,
+    };
 
-    const error = await rejection(
-      new SubmissionReviewService(client).approve(SUBMISSION_ID),
-    );
+    const findById = vi.fn().mockResolvedValue(submission);
 
-    expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toMatchObject({
-      code: 'DRAFT_NOT_REVIEWABLE',
+    // Simulates another request approving/revising the draft first.
+    const saveRevision = vi.fn().mockResolvedValue(null);
+
+    const service = new SubmissionRevisionService({
+      findById,
+      saveRevision,
     });
+
+    await expect(
+      service.revise(submission.id, {
+        revisionNotes: 'Mohon perbaiki draft ini.',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        code: 'DRAFT_NOT_REVIEWABLE',
+        message: 'Draft ini sudah tidak menunggu keputusan',
+      },
+    });
+
+    expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+      submission.id,
+      submission.content_id,
+      'Mohon perbaiki draft ini.',
+    );
+  });
+
+  it('forwards the Admin ID when saving a revision', async () => {
+    const submission = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      content_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'draft_review',
+      isLatest: true,
+    };
+
+    const adminUserId = '11111111-1111-4111-8111-111111111111';
+    const revisionNotes = 'Mohon perbaiki bagian pembuka.';
+
+    const saved = {
+      id: submission.id,
+      contentId: submission.content_id,
+      status: 'draft_revision' as const,
+      revisionNotes,
+    };
+
+    const findById = vi.fn().mockResolvedValue(submission);
+    const saveRevision = vi.fn().mockResolvedValue(saved);
+
+    const service = new SubmissionRevisionService({
+      findById,
+      saveRevision,
+    });
+
+    await expect(
+      service.revise(submission.id, { revisionNotes }, adminUserId),
+    ).resolves.toEqual(saved);
+
+    expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
+      submission.id,
+      submission.content_id,
+      revisionNotes,
+      adminUserId,
+    );
   });
 });

@@ -56,21 +56,21 @@ export class SubmissionRevisionService {
     const result =
       adminUserId === undefined
         ? await this.repository.saveRevision(
-            submissionId,
-            submission.content_id,
-            input.revisionNotes,
-          )
+          submissionId,
+          submission.content_id,
+          input.revisionNotes,
+        )
         : await this.repository.saveRevision(
-            submissionId,
-            submission.content_id,
-            input.revisionNotes,
-            adminUserId,
-          );
+          submissionId,
+          submission.content_id,
+          input.revisionNotes,
+          adminUserId,
+        );
 
     if (!result) {
       throw reviewConflict('DRAFT_NOT_REVIEWABLE');
+    } else {
+      return result;
     }
-
-    return result;
   }
 }
