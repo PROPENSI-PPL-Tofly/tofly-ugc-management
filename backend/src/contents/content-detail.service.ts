@@ -39,6 +39,7 @@ const CONTENT_DETAIL_SELECT = {
       created_at: true,
       updated_at: true,
       revision_notes: true,
+      creator_notes: true,
     },
   },
 } as const;

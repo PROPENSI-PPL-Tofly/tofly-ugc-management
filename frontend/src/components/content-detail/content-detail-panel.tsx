@@ -23,7 +23,11 @@ import {
   type DetailEventType,
   type JourneyStep,
 } from "@/lib/content-detail";
-import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
+import {
+  approveSubmission,
+  DraftReviewActionError,
+  reviseSubmission,
+} from "@/lib/draft-review-actions";
 import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
@@ -34,6 +38,12 @@ import type { Role } from "@/lib/session";
 
 /** The API's limit on a revision note (backend revise-submission.ts). */
 export const MAX_REVISION_NOTE_LENGTH = 1000;
+
+/** How each decision is confirmed once the panel has closed; the touchpoint shows it. */
+export const DECISION_CONFIRMATIONS: Record<"approve" | "revise", string> = {
+  approve: "Draft di-approve. Kreator bisa kirim link video.",
+  revise: "Permintaan revisi terkirim ke kreator.",
+};
 
 /** Shown in the header until there is a content name to show instead. */
 const DEFAULT_TITLE = "Detail Konten";
@@ -83,13 +93,14 @@ const STEP_TEXT: Record<ContentDetail["status"], string> = {
   link_submitted: "Link video sudah dikirim.",
 };
 
-// The dot beside each event, always next to its title so colour is never the only signal:
-// brand blue where the content began, amber for a draft handed in, red for a revision asked,
-// green from approval on.
+// The dot beside each event, always next to its title so colour is never the only signal. It
+// takes the tone of the status the event led to, as the status dots do: neutral once scheduled,
+// brand blue for a draft waiting on the admin, amber for one sent back, green from approval on.
+// Red is left to a missed deadline, which the Overdue and Late Submission tags carry.
 const EVENT_DOTS: Record<DetailEventType, string> = {
-  scheduled: "bg-accent ring-accent",
-  draft_submitted: "bg-amber ring-amber",
-  revision_requested: "bg-red ring-red",
+  scheduled: "bg-muted ring-muted",
+  draft_submitted: "bg-accent ring-accent",
+  revision_requested: "bg-amber ring-amber",
   draft_approved: "bg-green ring-green",
   link_submitted: "bg-green ring-green",
 };
@@ -310,8 +321,8 @@ export function ContentDetailPanel({
   onClose: () => void;
   /** Replaces the role-based commands entirely, when the touchpoint brings its own. */
   actions?: ReactNode;
-  /** Called after a successful decision, so the caller can close the panel. */
-  onDecided?: () => void;
+  /** Called after a successful decision, naming it, so the caller can close and confirm. */
+  onDecided?: (decision: "approve" | "revise") => void;
   /** False while the revision form offers its own way back (Batal). */
   showClose?: boolean;
   /** Where the detail comes from; the API by default, a stub in tests. */
@@ -353,8 +364,10 @@ export function ContentDetailPanel({
       })
       .catch((caught: unknown) => {
         if (controller.signal.aborted) return;
+        // A 400 is an id that cannot name any content (a mistyped or crafted ?content= link):
+        // retrying cannot fix it, so it reads the same as one that names nothing.
         const notFound =
-          caught instanceof ContentDetailError && caught.status === 404;
+          caught instanceof ContentDetailError && (caught.status === 404 || caught.status === 400);
         setState({ kind: notFound ? "not_found" : "failed" });
       });
 
@@ -362,6 +375,26 @@ export function ContentDetailPanel({
       controller.abort();
     };
   }, [contentId, role, attempt]);
+
+  // A re-read after a refused decision runs beside the panel's own load; unmounting cancels it.
+  const reread = useRef<AbortController | null>(null);
+  useEffect(() => () => reread.current?.abort(), []);
+
+  /**
+   * Reads the content again without leaving it: the last answer stays on screen until the
+   * new one arrives, and a failed re-read keeps it, since the refusal already said why.
+   */
+  async function readAgain() {
+    reread.current?.abort();
+    const controller = new AbortController();
+    reread.current = controller;
+    try {
+      const detail = await loader.current(contentId, role, controller.signal);
+      if (!controller.signal.aborted) setState({ kind: "loaded", detail });
+    } catch {
+      // The panel keeps what it showed; the refusal message is still the useful part.
+    }
+  }
 
   function retry() {
     setState({ kind: "loading" });
@@ -390,9 +423,16 @@ export function ContentDetailPanel({
     try {
       await run();
       router.refresh();
-      onDecided?.();
+      onDecided?.(kind);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Terjadi kesalahan. Coba lagi.");
+      // A 409 means someone else already moved the content on: the step on screen is stale,
+      // so the note form closes and the content is read again to show where it stands now.
+      if (caught instanceof DraftReviewActionError && caught.status === 409) {
+        setFormOpen(false);
+        setNote("");
+        void readAgain();
+      }
     } finally {
       setPending(null);
     }

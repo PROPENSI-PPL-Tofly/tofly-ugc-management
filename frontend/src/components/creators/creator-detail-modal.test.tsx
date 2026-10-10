@@ -538,7 +538,7 @@ describe("CreatorDetailModal content detail panel", () => {
 
     open();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Detail: Evergreen - Tips Belajar Cepat" }));
 
     const panel = await screen.findByRole("dialog", {
       name: "Evergreen - Tips Belajar Cepat",
@@ -576,7 +576,7 @@ describe("CreatorDetailModal content detail panel", () => {
 
     open();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Detail: Evergreen - Tips Belajar Cepat" }));
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
     await waitFor(() => {
@@ -588,5 +588,8 @@ describe("CreatorDetailModal content detail panel", () => {
     });
     expect(approveSubmission).toHaveBeenCalledWith("submission-1");
     expect(refresh).toHaveBeenCalled();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Draft di-approve. Kreator bisa kirim link video.",
+    );
   });
 });

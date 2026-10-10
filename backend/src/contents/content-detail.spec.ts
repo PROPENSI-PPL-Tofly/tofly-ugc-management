@@ -45,6 +45,7 @@ function submission(overrides: Partial<ContentDetailRow['submissions'][number]> 
     created_at: new Date('2026-09-10T10:00:00.000Z'),
     updated_at: new Date('2026-09-11T08:00:00.000Z'),
     revision_notes: null,
+    creator_notes: null,
     ...overrides,
   };
 }
@@ -121,6 +122,38 @@ describe('buildEvents', () => {
       payload: { note: 'Durasi lewat 30 detik, mohon dipangkas.' },
     });
   });
+
+  it("carries the creator's note to the admin on the draft it came with", () => {
+    const events = buildEvents(
+      row({
+        status: 'draft_review',
+        submissions: [
+          submission({ creator_notes: 'Hook sudah diganti, musik royalty-free.' }),
+        ],
+      }),
+    );
+
+    expect(events.find((event) => event.type === 'draft_submitted')).toMatchObject({
+      actor: { name: 'Rangga Pratama', role: 'creator' },
+      payload: {
+        version: 1,
+        link: 'https://drive.google.com/draft-v1',
+        note: 'Hook sudah diganti, musik royalty-free.',
+      },
+    });
+  });
+
+  it.each([[null], [''], ['   ']])(
+    'leaves the note out of a draft whose creator note is %j',
+    (creatorNotes) => {
+      const events = buildEvents(
+        row({ status: 'draft_review', submissions: [submission({ creator_notes: creatorNotes })] }),
+      );
+
+      const draft = events.find((event) => event.type === 'draft_submitted');
+      expect(draft?.payload).not.toHaveProperty('note');
+    },
+  );
 
   it('ignores a submission whose revision note says nothing', () => {
     const events = buildEvents(

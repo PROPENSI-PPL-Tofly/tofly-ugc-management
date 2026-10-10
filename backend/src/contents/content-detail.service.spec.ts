@@ -49,7 +49,9 @@ describe('ContentDetailService', () => {
         video_submitted_at: true,
         approval_bypassed: true,
         contracts: expect.anything(),
-        submissions: expect.anything(),
+        submissions: expect.objectContaining({
+          select: expect.objectContaining({ creator_notes: true }),
+        }),
       }),
     });
     expect(detail).toMatchObject({

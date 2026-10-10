@@ -27,6 +27,8 @@ export interface DetailSubmissionRow {
   created_at: Date;
   updated_at: Date;
   revision_notes: string | null;
+  /** What the creator wrote to the admin with this hand-in, if anything. */
+  creator_notes: string | null;
 }
 
 export interface ContentDetailRow {
@@ -95,9 +97,9 @@ export function waitingOnFor(status: content_status): DetailWaitingOn {
   return WAITING_ON[status];
 }
 
-/** A revision note that says nothing has nothing to request. */
-function hasNote(submission: DetailSubmissionRow): boolean {
-  return Boolean(submission.revision_notes?.trim());
+/** A note that says nothing is no note: blank and whitespace-only are left out. */
+function said(note: string | null): note is string {
+  return Boolean(note?.trim());
 }
 
 /**
@@ -136,16 +138,20 @@ export function buildEvents(
       type: 'draft_submitted',
       at: submission.created_at.toISOString(),
       actor: { name: creatorName, role: 'creator' },
-      payload: { version: index + 1, link: submission.link },
+      payload: {
+        version: index + 1,
+        link: submission.link,
+        ...(said(submission.creator_notes) && { note: submission.creator_notes }),
+      },
     });
 
-    if (hasNote(submission)) {
+    if (said(submission.revision_notes)) {
       events.push({
         id: `${submission.id}:revision`,
         type: 'revision_requested',
         at: submission.updated_at.toISOString(),
         actor: { name: null, role: 'admin' },
-        payload: { note: submission.revision_notes ?? '' },
+        payload: { note: submission.revision_notes },
       });
     }
   });

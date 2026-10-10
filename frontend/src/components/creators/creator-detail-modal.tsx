@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { DetailField } from "@/components/ui/detail-field";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot } from "@/components/ui/pill";
-import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
+import {
+  ContentDetailPanel,
+  DECISION_CONFIRMATIONS,
+} from "@/components/content-detail/content-detail-panel";
+import { useToast } from "@/components/ui/toast";
 import { CONTENT_STATUS_LABELS, CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import { fetchCreatorDetail, type CreatorDetail } from "@/lib/creators";
 import {
@@ -41,6 +45,7 @@ export function CreatorDetailModal({
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   // Bumped by a decision inside the panel, so the history below re-fetches its data.
   const [refreshKey, setRefreshKey] = useState(0);
+  const { show: confirm, toast } = useToast();
 
   // No reset on creatorId here: the caller keys this component by creator, so a
   // different creator is a different mount that starts from the initial state.
@@ -238,6 +243,8 @@ export function CreatorDetailModal({
                         <td className="py-2">
                           <Button
                             variant="ghost"
+                            // Every row has a Detail button; the content's name tells them apart when heard.
+                            aria-label={`Detail: ${content.name}`}
                             onClick={() => setOpenContentId(content.id)}
                           >
                             Detail
@@ -306,12 +313,15 @@ export function CreatorDetailModal({
         onClose={() => setOpenContentId(null)}
         // A decision closes the panel and re-fetches the creator detail, so the
         // decided content's status updates without a full page reload (#73).
-        onDecided={() => {
+        onDecided={(decision) => {
           setOpenContentId(null);
           setRefreshKey((current) => current + 1);
+          confirm(DECISION_CONFIRMATIONS[decision]);
         }}
       />
     ) : null}
+
+    {toast}
     </>
   );
 }

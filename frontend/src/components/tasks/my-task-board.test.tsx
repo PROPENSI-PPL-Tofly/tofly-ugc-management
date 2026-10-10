@@ -293,6 +293,48 @@ describe("MyTaskBoard content detail panel", () => {
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
   });
 
+  it("drops ?content= from the address once the panel closes, keeping the other filters", async () => {
+    window.history.pushState({}, "", "/creator/tasks?status=scheduled&content=content-1&page=2");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(window.location.pathname).toBe("/creator/tasks");
+    expect(window.location.search).toBe("?status=scheduled&page=2");
+  });
+
+  it("drops ?content= too when a command in the panel hands over to the submit modal", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-1");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("leaves an address without ?content= untouched when a panel opened from a row closes", async () => {
+    window.history.pushState({}, "", "/creator/tasks?status=scheduled");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(replaceState).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("?status=scheduled");
+    replaceState.mockRestore();
+  });
+
   it("closes the panel from Tutup without opening any modal", async () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
