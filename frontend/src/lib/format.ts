@@ -93,6 +93,15 @@ const JAKARTA_ISO_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
 const MS_PER_DAY = 86_400_000;
 
 /**
+ * Today as a calendar day in Jakarta, where Tofly works: "2026-10-10". Deadlines are compared
+ * to this day, so it turns over at midnight WIB whoever is looking. `now` is a parameter so a
+ * test can pin the day.
+ */
+export function jakartaDay(now: Date = new Date()): string {
+  return JAKARTA_ISO_DAY_FORMAT.format(now);
+}
+
+/**
  * Whole days from today to a deadline: positive before it, 0 on it, negative after; null when
  * the deadline cannot be read. Today is Jakarta's calendar day, so the count turns over at
  * midnight WIB for everyone. `now` is a parameter so a test can pin the day.
@@ -103,7 +112,7 @@ export function daysUntil(deadline: string | null, now: Date = new Date()): numb
   const due = Date.parse(`${deadline}T00:00:00Z`);
   if (Number.isNaN(due)) return null;
 
-  const today = Date.parse(`${JAKARTA_ISO_DAY_FORMAT.format(now)}T00:00:00Z`);
+  const today = Date.parse(`${jakartaDay(now)}T00:00:00Z`);
   return Math.round((due - today) / MS_PER_DAY);
 }
 
