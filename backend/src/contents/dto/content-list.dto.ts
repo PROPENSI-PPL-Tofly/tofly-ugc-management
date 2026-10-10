@@ -19,7 +19,7 @@ export interface ContentListItem {
   status: ContentStatus;
   /** Late, overdue or approval bypassed; empty when nothing is flagged. */
   tags: ContentTag[];
-  /** Hand-ins after the first; zero while no draft has been sent back and handed in again. */
+  /** How many times an admin asked for a revision, counted from the moment it is asked. */
   revisionCount: number;
 }
 

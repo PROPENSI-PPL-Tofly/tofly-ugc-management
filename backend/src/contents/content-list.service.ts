@@ -45,8 +45,11 @@ const CONTENT_LIST_SELECT = {
     take: 1,
     select: { created_at: true },
   },
-  // Every hand-in, not just the latest: each one after the first is a revision.
-  _count: { select: { submissions: true } },
+  // A revision request is the note an admin leaves on a hand-in, the same fact the detail
+  // panel's timeline reads, so only the hand-ins carrying one are counted.
+  _count: {
+    select: { submissions: { where: { revision_notes: { not: null } } } },
+  },
 } as const;
 
 export interface ContentListRow {
@@ -66,6 +69,7 @@ export interface ContentListRow {
     };
   };
   submissions: { created_at: Date }[];
+  /** Hand-ins an admin answered with a revision request. */
   _count: { submissions: number };
 }
 
@@ -225,8 +229,7 @@ export class ContentListService implements ContentListLister {
         },
         now,
       ),
-      // A content nobody has handed a draft in for has no revisions, not minus one.
-      revisionCount: Math.max(0, row._count.submissions - 1),
+      revisionCount: row._count.submissions,
     };
   }
 }
