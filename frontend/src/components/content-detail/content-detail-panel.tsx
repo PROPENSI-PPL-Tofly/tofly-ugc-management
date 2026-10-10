@@ -93,13 +93,14 @@ const STEP_TEXT: Record<ContentDetail["status"], string> = {
   link_submitted: "Link video sudah dikirim.",
 };
 
-// The dot beside each event, always next to its title so colour is never the only signal:
-// brand blue where the content began, amber for a draft handed in, red for a revision asked,
-// green from approval on.
+// The dot beside each event, always next to its title so colour is never the only signal. It
+// takes the tone of the status the event led to, as the status dots do: neutral once scheduled,
+// brand blue for a draft waiting on the admin, amber for one sent back, green from approval on.
+// Red is left to a missed deadline, which the Overdue and Late Submission tags carry.
 const EVENT_DOTS: Record<DetailEventType, string> = {
-  scheduled: "bg-accent ring-accent",
-  draft_submitted: "bg-amber ring-amber",
-  revision_requested: "bg-red ring-red",
+  scheduled: "bg-muted ring-muted",
+  draft_submitted: "bg-accent ring-accent",
+  revision_requested: "bg-amber ring-amber",
   draft_approved: "bg-green ring-green",
   link_submitted: "bg-green ring-green",
 };
