@@ -8,10 +8,11 @@ export const ADMIN_ACTOR_NAME = 'Admin';
 export interface AdminActor {
   actor_name: typeof ADMIN_ACTOR_NAME;
   actor_role: 'admin';
-  actor_user_id: string;
+  /** Null only where no admin is signed in: the local development stand-in for sign-in. */
+  actor_user_id: string | null;
 }
 
 /** The actor fields of an event an admin caused. */
-export function adminActor(adminUserId: string): AdminActor {
+export function adminActor(adminUserId: string | null): AdminActor {
   return { actor_name: ADMIN_ACTOR_NAME, actor_role: 'admin', actor_user_id: adminUserId };
 }

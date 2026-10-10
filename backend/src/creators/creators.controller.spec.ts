@@ -229,7 +229,7 @@ describe('CreatorsController', () => {
     it('judges "today" by the date the request arrives', async () => {
       vi.setSystemTime(new Date('2026-10-02T00:00:00Z'));
 
-      await expect(controller.create(body)).rejects.toMatchObject({
+      await expect(controller.create(body, signedIn)).rejects.toMatchObject({
         response: {
           errors: {
             contractStart: 'Tanggal mulai tidak boleh sebelum hari ini',
