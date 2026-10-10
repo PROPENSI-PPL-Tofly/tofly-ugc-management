@@ -52,7 +52,7 @@ function open(
     role: "admin" | "creator";
     ports: PanelActionPorts;
     actions: ReactNode;
-    onDecided: (decision: "approve" | "revise") => void;
+    onDecided: (decision: "approve" | "revise" | "approve_proposal" | "reject_proposal") => void;
   }> = {},
 ) {
   const load = vi.fn().mockResolvedValue(loaded);
@@ -541,6 +541,144 @@ describe("ContentDetailPanel", () => {
 
     await waitFor(() => {
       expect(onDecided).toHaveBeenCalledWith("revise");
+    });
+  });
+
+  describe("a creator's proposal", () => {
+    const proposal = () =>
+      detail({
+        status: "pending",
+        waitingOn: "admin",
+        latestSubmissionId: null,
+        events: [
+          {
+            id: `${CONTENT}:scheduled`,
+            type: "scheduled",
+            at: "2026-09-01T03:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+          },
+        ],
+      });
+
+    it("asks the admin to decide, with Tolak and Setujui", async () => {
+      open(proposal());
+
+      expect(await screen.findByRole("button", { name: "Setujui" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Tolak" })).toBeEnabled();
+      expect(screen.getByTestId("step-text")).toHaveTextContent(
+        "Kreator mengajukan konten ini. Setujui untuk menjadwalkannya, atau tolak untuk menghapusnya.",
+      );
+    });
+
+    it("tells the proposing creator it is with the admin, with nothing to press", async () => {
+      open(proposal(), { role: "creator" });
+
+      expect(await screen.findByTestId("step-text")).toHaveTextContent(
+        "Pengajuan sedang ditinjau Admin.",
+      );
+      expect(screen.queryByRole("button", { name: "Setujui" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Tolak" })).not.toBeInTheDocument();
+    });
+
+    it("approves it, refreshes and reports the decision by name", async () => {
+      const approveProposal = vi.fn().mockResolvedValue(undefined);
+      const onDecided = vi.fn();
+      open(proposal(), { ports: { approveProposal }, onDecided });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Setujui" }));
+
+      await waitFor(() => {
+        expect(approveProposal).toHaveBeenCalledWith(CONTENT);
+        expect(refresh).toHaveBeenCalled();
+        expect(onDecided).toHaveBeenCalledWith("approve_proposal");
+      });
+    });
+
+    it("opens an optional reason form on Tolak, with focus in it and nothing sent yet", async () => {
+      const rejectProposal = vi.fn();
+      open(proposal(), { ports: { rejectProposal } });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+
+      const reason = screen.getByRole("textbox", { name: "Alasan penolakan (opsional)" });
+      expect(reason).toHaveFocus();
+      expect(reason).toHaveAttribute("maxLength", "1000");
+      expect(screen.getByRole("button", { name: "Tolak Pengajuan" })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Setujui" })).not.toBeInTheDocument();
+      expect(rejectProposal).not.toHaveBeenCalled();
+    });
+
+    it("rejects with the reason trimmed and reports it by name", async () => {
+      const rejectProposal = vi.fn().mockResolvedValue(undefined);
+      const onDecided = vi.fn();
+      open(proposal(), { ports: { rejectProposal }, onDecided });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "  Kurang relevan.  " } });
+      fireEvent.click(screen.getByRole("button", { name: "Tolak Pengajuan" }));
+
+      await waitFor(() => {
+        expect(rejectProposal).toHaveBeenCalledWith(CONTENT, "Kurang relevan.");
+        expect(onDecided).toHaveBeenCalledWith("reject_proposal");
+      });
+    });
+
+    it("rejects without a reason too", async () => {
+      const rejectProposal = vi.fn().mockResolvedValue(undefined);
+      open(proposal(), { ports: { rejectProposal } });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+      fireEvent.click(screen.getByRole("button", { name: "Tolak Pengajuan" }));
+
+      await waitFor(() => {
+        expect(rejectProposal).toHaveBeenCalledWith(CONTENT, "");
+      });
+    });
+
+    it("goes back from the reason form on Batal, dropping what was typed", async () => {
+      open(proposal());
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Kurang relevan." } });
+      fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Tolak" }));
+      expect(screen.getByRole("textbox")).toHaveValue("");
+    });
+
+    it("re-reads after a 409, when someone else already decided or H-1 scheduled it", async () => {
+      const approveProposal = vi
+        .fn()
+        .mockRejectedValue(
+          new DraftReviewActionError(409, "Pengajuan ini sudah tidak menunggu keputusan"),
+        );
+      const { load } = open(proposal(), { ports: { approveProposal } });
+      load.mockResolvedValueOnce(detail({ status: "scheduled", waitingOn: "creator", latestSubmissionId: null }));
+
+      fireEvent.click(await screen.findByRole("button", { name: "Setujui" }));
+
+      expect(
+        await screen.findByText("Pengajuan ini sudah tidak menunggu keputusan"),
+      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Setujui" })).not.toBeInTheDocument();
+      });
+      expect(screen.getByText("Scheduled")).toBeInTheDocument();
+    });
+
+    it("keeps the reason form and the typed reason when the rejection fails for another reason", async () => {
+      const rejectProposal = vi
+        .fn()
+        .mockRejectedValue(new DraftReviewActionError(500, "Pengajuan gagal ditolak. Coba lagi."));
+      open(proposal(), { ports: { rejectProposal } });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Kurang relevan." } });
+      fireEvent.click(screen.getByRole("button", { name: "Tolak Pengajuan" }));
+
+      expect(await screen.findByText("Pengajuan gagal ditolak. Coba lagi.")).toBeInTheDocument();
+      expect(screen.getByRole("textbox")).toHaveValue("Kurang relevan.");
     });
   });
 
