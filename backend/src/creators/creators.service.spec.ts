@@ -709,4 +709,17 @@ describe('CreatorsService', () => {
       findOne.call(service, 'missing-creator', TODAY),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('returns empty current-period details when no contract covers the date', async () => {
+    const detail = detailRow();
+    detail.contracts = [];
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(result.contractHistory).toEqual([]);
+    expect(result.contents).toEqual([]);
+    expect(result.drafts).toEqual([]);
+    expect(result.contract.status).toBe('none');
+  });
 });

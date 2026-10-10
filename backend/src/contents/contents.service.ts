@@ -67,6 +67,13 @@ interface SchedulingDependencies {
 export interface ContentsTransaction {
   $queryRaw: (query: Prisma.Sql) => Promise<unknown>;
 
+  users: {
+    findUnique: (args: {
+      where: { id: string };
+      select: { email: true };
+    }) => Promise<{ email: string } | null>;
+  };
+
   contracts: {
     findUnique: (args: {
       where: { id: string };
@@ -88,6 +95,19 @@ export interface ContentsTransaction {
         status: 'scheduled';
       };
     }) => Promise<SavedContent>;
+  };
+
+  content_events: {
+    create: (args: {
+      data: {
+        content_id: string;
+        event_type: 'Scheduled';
+        actor_name: string;
+        actor_role: 'admin';
+        occurred_at: Date;
+        event_data: Record<string, never>;
+      };
+    }) => Promise<unknown>;
   };
 }
 
@@ -116,7 +136,7 @@ export class ContentCreationService {
     };
   }
 
-  async create(input: NewContent): Promise<CreatedContent> {
+  async create(input: NewContent, adminUserId: string): Promise<CreatedContent> {
     return this.prisma.$transaction(
       async (transaction) => {
         // Lock before reading: the next request must see the preceding insert
@@ -162,6 +182,28 @@ export class ContentCreationService {
             brief,
             deadline: toDate(input.deadline),
             status: 'scheduled',
+          },
+        });
+
+        const admin = await transaction.users.findUnique({
+          where: { id: adminUserId },
+          select: { email: true },
+        });
+        if (!admin) {
+          throw new NotFoundException({
+            code: 'ADMIN_NOT_FOUND',
+            message: 'Admin tidak ditemukan',
+          });
+        }
+
+        await transaction.content_events.create({
+          data: {
+            content_id: saved.id,
+            event_type: 'Scheduled',
+            actor_name: admin.email,
+            actor_role: 'admin',
+            occurred_at: new Date(),
+            event_data: {},
           },
         });
 

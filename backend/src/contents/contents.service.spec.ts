@@ -1,12 +1,41 @@
 import {
   ContentCreationService,
+  type ContentsClient,
   type ContentsTransaction,
 } from './contents.service.js';
 
-function transactional(client: Omit<ContentsTransaction, '$queryRaw'>) {
+const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
+const ADMIN_EMAIL = 'admin@example.test';
+
+type ContentsFixture = Omit<
+  ContentsTransaction,
+  '$queryRaw' | 'users' | 'content_events'
+> & Partial<Pick<ContentsTransaction, 'users' | 'content_events'>>;
+
+function transactional(client: ContentsFixture) {
   return {
     $transaction: async <T>(work: (tx: ContentsTransaction) => Promise<T>) =>
-      work({ ...client, $queryRaw: vi.fn().mockResolvedValue([]) }),
+      work({
+        users: {
+          findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+        },
+        content_events: {
+          create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+        },
+        ...client,
+        $queryRaw: vi.fn().mockResolvedValue([]),
+      }),
+  };
+}
+
+function creationService(
+  prisma: ContentsClient,
+  scheduling?: ConstructorParameters<typeof ContentCreationService>[1],
+) {
+  const service = new ContentCreationService(prisma, scheduling);
+  return {
+    create: (input: Parameters<typeof service.create>[0]) =>
+      service.create(input, ADMIN_USER_ID),
   };
 }
 
@@ -58,7 +87,7 @@ describe('ContentCreationService', () => {
       },
     };
 
-    const service = new ContentCreationService(
+    const service = creationService(
       transactional(prisma),
       TEST_SCHEDULING,
     );
@@ -91,6 +120,75 @@ describe('ContentCreationService', () => {
     });
   });
 
+  it('records a Scheduled event in the content transaction', async () => {
+    const input = {
+      contractId: CONTRACT_ID,
+      type: 'specific' as const,
+      deadline: '2026-10-10',
+      name: 'Product launch',
+      brief: 'Introduce the new product.',
+    };
+    const transaction = {
+      users: {
+        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+      },
+      contracts: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: CONTRACT_ID,
+          contents: [],
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+          },
+          content_quota: 2,
+          start_date: new Date('2026-09-01T00:00:00.000Z'),
+          end_date: new Date('2026-12-31T00:00:00.000Z'),
+        }),
+      },
+      contents: {
+        create: vi.fn().mockResolvedValue({
+          id: CONTENT_ID,
+          contract_id: CONTRACT_ID,
+          type: 'specific',
+          name: input.name,
+          brief: input.brief,
+          deadline: new Date('2026-10-10T00:00:00.000Z'),
+          status: 'scheduled',
+        }),
+      },
+      content_events: {
+        create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (work) =>
+        work({ ...transaction, $queryRaw: vi.fn().mockResolvedValue([]) }),
+      ),
+    } satisfies ContentsClient;
+    const service = creationService(prisma, TEST_SCHEDULING);
+
+    await service.create(input);
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        content_id: CONTENT_ID,
+        event_type: 'Scheduled',
+        actor_name: ADMIN_EMAIL,
+        actor_role: 'admin',
+        occurred_at: expect.any(Date),
+        event_data: {},
+      }),
+    });
+    expect(transaction.users.findUnique).toHaveBeenCalledWith({
+      where: { id: ADMIN_USER_ID },
+      select: { email: true },
+    });
+    expect(transaction.contents.create.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
+  });
+
   it('rejects content creation when the contract does not exist', async () => {
     const input = {
       contractId: CONTRACT_ID,
@@ -109,7 +207,7 @@ describe('ContentCreationService', () => {
       },
     };
 
-    const service = new ContentCreationService(
+    const service = creationService(
       transactional(prisma),
       TEST_SCHEDULING,
     );
@@ -174,7 +272,7 @@ describe('ContentCreationService', () => {
       },
     };
 
-    const service = new ContentCreationService(
+    const service = creationService(
       transactional(prisma),
       TEST_SCHEDULING,
     );
@@ -230,7 +328,7 @@ describe('ContentCreationService', () => {
       },
     };
 
-    const service = new ContentCreationService(transactional(prisma), {
+    const service = creationService(transactional(prisma), {
       today: () => new Date('2026-09-24T00:00:00.000Z'),
       bufferDays: async () => 5,
     });
@@ -293,7 +391,7 @@ describe('ContentCreationService', () => {
       },
     };
 
-    const service = new ContentCreationService(transactional(prisma), {
+    const service = creationService(transactional(prisma), {
       today: () => new Date('2026-10-10T00:00:00.000Z'),
       bufferDays: async () => 5,
     });
@@ -360,7 +458,7 @@ describe('ContentCreationService', () => {
       },
     };
 
-    const service = new ContentCreationService(transactional(prisma), {
+    const service = creationService(transactional(prisma), {
       today: () => new Date('2026-10-10T00:00:00.000Z'),
       bufferDays: async () => 5,
     });
@@ -415,7 +513,7 @@ describe('ContentCreationService', () => {
       },
     };
 
-    const service = new ContentCreationService(transactional(prisma));
+    const service = creationService(transactional(prisma));
 
     await expect(service.create(input)).resolves.toMatchObject({
       contractId,
@@ -471,7 +569,7 @@ describe('ContentCreationService', () => {
         },
       };
 
-      const service = new ContentCreationService(
+      const service = creationService(
         transactional(prisma),
         TEST_SCHEDULING,
       );
@@ -496,6 +594,12 @@ describe('atomic Evergreen allocation', () => {
   function setup(quota: number, types: string[]) {
     const transaction = {
       $queryRaw: vi.fn().mockResolvedValue([]),
+      users: {
+        findUnique: vi.fn().mockResolvedValue({ email: ADMIN_EMAIL }),
+      },
+      content_events: {
+        create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+      },
       contracts: {
         findUnique: vi.fn().mockResolvedValue({
           start_date: new Date('2026-09-01Z'),
@@ -524,7 +628,7 @@ describe('atomic Evergreen allocation', () => {
 
     vi.spyOn(client, '$transaction');
 
-    const service = new ContentCreationService(client, {
+    const service = creationService(client, {
       today: () => new Date('2026-09-24Z'),
       bufferDays: async () => 5,
     });
@@ -610,7 +714,7 @@ describe('atomic Evergreen allocation', () => {
   it('uses the supplied global buffer value for Specific content', async () => {
     const { transaction, input } = setup(1, []);
 
-    const service = new ContentCreationService(transactional(transaction), {
+    const service = creationService(transactional(transaction), {
       today: () => new Date('2026-09-24Z'),
       bufferDays: async () => 20,
     });

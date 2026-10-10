@@ -32,6 +32,11 @@ function stub(options: {
     deadline: Date;
   } | null;
   updated?: number;
+  creator?: {
+    first_name: string;
+    middle_name: string | null;
+    last_name: string | null;
+  } | null;
 }) {
   const transaction = {
     contents: {
@@ -45,6 +50,20 @@ function stub(options: {
           : options.content,
       ),
       updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
+    },
+    creators: {
+      findUnique: vi.fn().mockResolvedValue(
+        options.creator === undefined
+          ? {
+              first_name: 'Dina',
+              middle_name: 'Ayu',
+              last_name: 'Putri',
+            }
+          : options.creator,
+      ),
+    },
+    content_events: {
+      create: vi.fn().mockResolvedValue({ id: 'event-id' }),
     },
   };
 
@@ -127,6 +146,53 @@ describe('VideoSubmissionService.submit', () => {
       videoLink: REEL,
       platform: 'instagram',
       submittedAt: SUBMITTED_AT.toISOString(),
+    });
+  });
+
+  it('records a Link Submitted event in the same transaction with the creator identity and submitted link', async () => {
+    const { transaction, service } = stub({});
+
+    await service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL });
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Link Submitted',
+        actor_name: 'Dina Ayu Putri',
+        actor_role: 'creator',
+        occurred_at: SUBMITTED_AT,
+        event_data: { link: REEL },
+      },
+    });
+    expect(
+      transaction.contents.updateMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('uses only available creator name parts when optional names are absent', async () => {
+    const { transaction, service } = stub({
+      creator: {
+        first_name: 'Dina',
+        middle_name: null,
+        last_name: null,
+      },
+    });
+
+    await service.submit(CONTENT_ID, CREATOR_ID, {
+      videoLink: REEL,
+    });
+
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Link Submitted',
+        actor_name: 'Dina',
+        actor_role: 'creator',
+        occurred_at: SUBMITTED_AT,
+        event_data: { link: REEL },
+      },
     });
   });
 
@@ -309,6 +375,31 @@ describe('VideoSubmissionService.submit', () => {
       message: 'Konten tidak ditemukan',
     });
     expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 when the creator profile is missing and does not record an event', async () => {
+    const { transaction, service } = stub({
+      creator: null,
+    });
+
+    const error = await failure(
+      service.submit(CONTENT_ID, CREATOR_ID, {
+        videoLink: REEL,
+      }),
+    );
+
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toEqual({
+      code: 'CREATOR_NOT_FOUND',
+      message: 'Kreator tidak ditemukan',
+    });
+
+    expect(transaction.creators.findUnique).toHaveBeenCalledWith({
+      where: { id: CREATOR_ID },
+      select: { first_name: true, middle_name: true, last_name: true },
+    });
+    expect(transaction.contents.updateMany).toHaveBeenCalledOnce();
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
   it('answers 409 when another request changed the status first', async () => {

@@ -24,6 +24,7 @@ export interface RevisionStore {
     submissionId: string,
     contentId: string,
     revisionNotes: string,
+    adminUserId?: string,
   ): Promise<RevisedSubmission | null>;
 }
 
@@ -35,6 +36,7 @@ export class SubmissionRevisionService {
   async revise(
     submissionId: string,
     input: RevisionRequest,
+    adminUserId?: string,
   ): Promise<RevisedSubmission> {
     const submission = await this.repository.findById(submissionId);
 
@@ -51,16 +53,24 @@ export class SubmissionRevisionService {
       throw reviewConflict(rejected);
     }
 
-    const result = await this.repository.saveRevision(
-      submissionId,
-      submission.content_id,
-      input.revisionNotes,
-    );
+    const result =
+      adminUserId === undefined
+        ? await this.repository.saveRevision(
+          submissionId,
+          submission.content_id,
+          input.revisionNotes,
+        )
+        : await this.repository.saveRevision(
+          submissionId,
+          submission.content_id,
+          input.revisionNotes,
+          adminUserId,
+        );
 
     if (!result) {
       throw reviewConflict('DRAFT_NOT_REVIEWABLE');
+    } else {
+      return result;
     }
-
-    return result;
   }
 }

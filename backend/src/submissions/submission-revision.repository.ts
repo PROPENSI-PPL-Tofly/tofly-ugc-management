@@ -1,4 +1,5 @@
 import { REVIEWABLE_STATUSES } from './draft-review.js';
+import { unauthenticated } from '../auth/creator-request.js';
 import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import type {
   RevisionStore,
@@ -67,6 +68,26 @@ interface RevisionTransaction {
       count: number;
     }>;
   };
+
+  users?: {
+    findUnique(args: {
+      where: { id: string };
+      select: { email: true };
+    }): Promise<{ email: string } | null>;
+  };
+
+  content_events?: {
+    create(args: {
+      data: {
+        content_id: string;
+        event_type: 'Revision Requested';
+        actor_name: string;
+        actor_role: 'admin';
+        occurred_at: Date;
+        event_data: { revision_note: string };
+      };
+    }): Promise<unknown>;
+  };
 }
 
 interface RevisionPrismaClient extends SubmissionLookup {
@@ -119,6 +140,7 @@ export class SubmissionRevisionRepository implements RevisionStore {
     submissionId: string,
     contentId: string,
     revisionNotes: string,
+    adminUserId?: string,
   ): Promise<RevisedSubmission | null> {
     return this.prisma.$transaction(async (transaction) => {
       const { count } = await transaction.contents.updateMany({
@@ -145,6 +167,29 @@ export class SubmissionRevisionRepository implements RevisionStore {
           revision_notes: revisionNotes,
         },
       });
+
+      if (adminUserId !== undefined) {
+        if (!transaction.users || !transaction.content_events) {
+          throw new Error('Revision event recording requires event transaction delegates');
+        }
+
+        const admin = await transaction.users.findUnique({
+          where: { id: adminUserId },
+          select: { email: true },
+        });
+        if (!admin) throw unauthenticated();
+
+        await transaction.content_events.create({
+          data: {
+            content_id: submission.content_id,
+            event_type: 'Revision Requested',
+            actor_name: admin.email,
+            actor_role: 'admin',
+            occurred_at: new Date(),
+            event_data: { revision_note: revisionNotes },
+          },
+        });
+      }
 
       return {
         id: submission.id,

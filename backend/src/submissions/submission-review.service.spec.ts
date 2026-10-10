@@ -180,4 +180,141 @@ describe('SubmissionReviewService.approve', () => {
       code: 'DRAFT_NOT_REVIEWABLE',
     });
   });
+
+  it('records the approval event with the Admin identity in the status transaction', async () => {
+    const base = stubClient({
+      status: 'draft_review',
+      latestIds: [SUBMISSION_ID],
+    });
+    const transaction = {
+      contents: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      users: {
+        findUnique: vi.fn().mockResolvedValue({ email: 'admin@example.test' }),
+      },
+      content_events: {
+        create: vi.fn().mockResolvedValue({ id: 'event-id' }),
+      },
+    };
+    const client: SubmissionReviewClient & {
+      $transaction: (
+        work: (tx: typeof transaction) => Promise<unknown>,
+      ) => Promise<unknown>;
+    } = {
+      ...base,
+      $transaction: vi.fn(async (work) => work(transaction)),
+    };
+
+    await expect(
+      new SubmissionReviewService(client).approve(SUBMISSION_ID, 'admin-id'),
+    ).resolves.toEqual({
+      id: SUBMISSION_ID,
+      contentId: CONTENT_ID,
+      status: 'draft_approved',
+    });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith({
+      where: { id: CONTENT_ID, status: { in: ['draft_review'] } },
+      data: { status: 'draft_approved' },
+    });
+    expect(transaction.users.findUnique).toHaveBeenCalledWith({
+      where: { id: 'admin-id' },
+      select: { email: true },
+    });
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        event_type: 'Draft Approved',
+        actor_name: 'admin@example.test',
+        actor_role: 'admin',
+        occurred_at: expect.any(Date),
+        event_data: {},
+      },
+    });
+    expect(base.contents.updateMany).not.toHaveBeenCalled();
+    expect(transaction.contents.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_events.create.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('keeps actorless internal approval calls from writing an audit event', async () => {
+    const base = stubClient({
+      status: 'draft_review',
+      latestIds: [SUBMISSION_ID],
+    });
+    const transaction = {
+      contents: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      users: {
+        findUnique: vi.fn(),
+      },
+      content_events: {
+        create: vi.fn(),
+      },
+    };
+    const client: SubmissionReviewClient & {
+      $transaction: (
+        work: (tx: typeof transaction) => Promise<unknown>,
+      ) => Promise<unknown>;
+    } = {
+      ...base,
+      $transaction: vi.fn(async (work) => work(transaction)),
+    };
+
+    await expect(
+      new SubmissionReviewService(client).approve(SUBMISSION_ID),
+    ).resolves.toMatchObject({ status: 'draft_approved' });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledTimes(1);
+    expect(transaction.users.findUnique).not.toHaveBeenCalled();
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an authenticated approval when the Admin record is missing', async () => {
+    const base = stubClient({
+      status: 'draft_review',
+      latestIds: [SUBMISSION_ID],
+    });
+    const transaction = {
+      contents: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      users: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      content_events: {
+        create: vi.fn(),
+      },
+    };
+    const client: SubmissionReviewClient & {
+      $transaction: (
+        work: (tx: typeof transaction) => Promise<unknown>,
+      ) => Promise<unknown>;
+    } = {
+      ...base,
+      $transaction: vi.fn(async (work) => work(transaction)),
+    };
+
+    await expect(
+      new SubmissionReviewService(client).approve(SUBMISSION_ID, 'admin-id'),
+    ).rejects.toMatchObject({ status: 401 });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledTimes(1);
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  it('requires a transaction when approval must record an Admin audit event', async () => {
+    const client = stubClient({
+      status: 'draft_review',
+      latestIds: [SUBMISSION_ID],
+    });
+
+    await expect(
+      new SubmissionReviewService(client).approve(SUBMISSION_ID, 'admin-id'),
+    ).rejects.toThrow('Approval event recording requires a transaction client');
+
+    expect(client.contents.updateMany).not.toHaveBeenCalled();
+  });
 });

@@ -36,6 +36,10 @@ export interface DraftSubmissionTransaction {
     }) => Promise<{ count: number }>;
   };
   submissions: {
+    findMany: (args: {
+      where: { content_id: string };
+      select: { id: true };
+    }) => Promise<{ id: string }[]>;
     create: (args: {
       data: {
         content_id: string;
@@ -45,6 +49,28 @@ export interface DraftSubmissionTransaction {
       };
       select: { id: true; created_at: true };
     }) => Promise<{ id: string; created_at: Date }>;
+  };
+  creators: {
+    findUnique: (args: {
+      where: { id: string };
+      select: { first_name: true; middle_name: true; last_name: true };
+    }) => Promise<{
+      first_name: string;
+      middle_name: string | null;
+      last_name: string | null;
+    } | null>;
+  };
+  content_events: {
+    create: (args: {
+      data: {
+        content_id: string;
+        event_type: 'Draft Submitted';
+        actor_name: string;
+        actor_role: 'creator';
+        occurred_at: Date;
+        event_data: { version: number; link: string };
+      };
+    }) => Promise<unknown>;
   };
 }
 
@@ -116,6 +142,24 @@ export class DraftSubmissionService implements DraftSubmitter {
         throw notEligible();
       }
 
+      const [previousSubmissions, creator] = await Promise.all([
+        transaction.submissions.findMany({
+          where: { content_id: contentId },
+          select: { id: true },
+        }),
+        transaction.creators.findUnique({
+          where: { id: creatorId },
+          select: { first_name: true, middle_name: true, last_name: true },
+        }),
+      ]);
+
+      if (!creator) {
+        throw new NotFoundException({
+          code: 'CREATOR_NOT_FOUND',
+          message: 'Kreator tidak ditemukan',
+        });
+      }
+
       const submission = await transaction.submissions.create({
         data: {
           content_id: contentId,
@@ -124,6 +168,26 @@ export class DraftSubmissionService implements DraftSubmitter {
           creator_notes: input.notes,
         },
         select: { id: true, created_at: true },
+      });
+
+      await transaction.content_events.create({
+        data: {
+          content_id: contentId,
+          event_type: 'Draft Submitted',
+          actor_name: [
+            creator.first_name,
+            creator.middle_name,
+            creator.last_name,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          actor_role: 'creator',
+          occurred_at: submission.created_at,
+          event_data: {
+            version: previousSubmissions.length + 1,
+            link: input.link,
+          },
+        },
       });
 
       return {
