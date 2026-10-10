@@ -228,6 +228,13 @@ describe("ContentDetailPanel", () => {
     expect(await screen.findByText("Konten tidak ditemukan.")).toBeInTheDocument();
   });
 
+  it("reads a 400 (a link with a malformed id) as content that does not exist, with no retry", async () => {
+    open(Promise.reject(new ContentDetailError(400)));
+
+    expect(await screen.findByText("Konten tidak ditemukan.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Muat ulang" })).not.toBeInTheDocument();
+  });
+
   it("reads any other failure as something to retry", async () => {
     open(Promise.reject(new ContentDetailError(500)));
 
