@@ -244,6 +244,8 @@ export function CreatorDetailModal({
                         <td className="py-2">
                           <Button
                             variant="ghost"
+                            // Every row has a Detail button; the content's name tells them apart when heard.
+                            aria-label={`Detail: ${content.name}`}
                             onClick={() => setOpenContentId(content.id)}
                           >
                             Detail
