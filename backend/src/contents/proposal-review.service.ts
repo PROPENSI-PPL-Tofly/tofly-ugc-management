@@ -6,6 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { adminActor, type AdminActor } from './content-event-actors.js';
 import { schedulingCutoff, type RejectReason } from './proposal-review.js';
 
 // An admin's decision on a creator's proposal (PRD 3.10), and the H-1 arrow that schedules a
@@ -36,6 +37,17 @@ export interface ProposalReviewClient {
       count: number;
     }>;
   };
+  content_events: {
+    create: (args: {
+      data: AdminActor & {
+        content_id: string;
+        event_type: 'Proposal Approved';
+        occurred_at: Date;
+        event_data: Record<string, never>;
+      };
+    }) => Promise<unknown>;
+  };
+  $transaction<T>(work: (transaction: ProposalReviewClient) => Promise<T>): Promise<T>;
 }
 
 /** Who hears that a proposal was turned down; the PRD sends it by email. */
@@ -96,18 +108,36 @@ export class ProposalReviewService {
     private readonly notifier: ProposalNotifier = mockEmail,
   ) {}
 
-  /** The proposal becomes a normal, schedule-visible content item (Scheduled). */
-  async approve(id: string): Promise<ApprovedProposal> {
-    const { count } = await this.prisma.contents.updateMany({
-      where: { id, status: 'pending' },
-      data: { status: 'scheduled' },
+  /**
+   * The proposal becomes a normal, schedule-visible content item (Scheduled), and its history
+   * records who approved it, in the same transaction so neither stands without the other.
+   */
+  async approve(id: string, adminUserId?: string): Promise<ApprovedProposal> {
+    return this.prisma.$transaction(async (transaction) => {
+      const { count } = await transaction.contents.updateMany({
+        where: { id, status: 'pending' },
+        data: { status: 'scheduled' },
+      });
+      if (count === 0) {
+        // Nothing matched: either there is no such content or it is no longer a proposal.
+        const row = await transaction.contents.findUnique({
+          where: { id },
+          select: PROPOSAL_SELECT,
+        });
+        throw row ? notPending() : contentNotFound();
+      }
+
+      await transaction.content_events.create({
+        data: {
+          content_id: id,
+          event_type: 'Proposal Approved',
+          ...adminActor(adminUserId ?? null),
+          occurred_at: new Date(),
+          event_data: {},
+        },
+      });
+      return { id, status: 'scheduled' };
     });
-    if (count === 0) {
-      // Nothing matched: either there is no such content or it is no longer a proposal.
-      const row = await this.prisma.contents.findUnique({ where: { id }, select: PROPOSAL_SELECT });
-      throw row ? notPending() : contentNotFound();
-    }
-    return { id, status: 'scheduled' };
   }
 
   /** A rejected proposal is discarded entirely (PRD 3.10); its creator is told why, if given. */

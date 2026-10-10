@@ -22,10 +22,10 @@ interface Stored {
 function stubClient(stored: Stored | null) {
   let row = stored ? { ...stored } : null;
   const events: unknown[] = [];
-  const client = {
+  const tables = {
     contents: {
       findUnique: vi.fn(async () => row),
-      updateMany: vi.fn(async ({ where, data }) => {
+      updateMany: vi.fn(async ({ where, data }: Parameters<ProposalReviewClient['contents']['updateMany']>[0]) => {
         if ('id' in where) {
           if (!row || where.id !== ID || row.status !== where.status) return { count: 0 };
           row = { ...row, status: data.status };
@@ -33,20 +33,25 @@ function stubClient(stored: Stored | null) {
         }
         return { count: 3 };
       }),
-      deleteMany: vi.fn(async ({ where }) => {
+      deleteMany: vi.fn(async ({ where }: Parameters<ProposalReviewClient['contents']['deleteMany']>[0]) => {
         if (!row || where.id !== ID || row.status !== where.status) return { count: 0 };
         row = null;
         return { count: 1 };
       }),
     },
     content_events: {
-      create: vi.fn(async ({ data }) => {
+      create: vi.fn(async ({ data }: Parameters<ProposalReviewClient['content_events']['create']>[0]) => {
         events.push(data);
         return {};
       }),
     },
-    $transaction: vi.fn(async (work) => work(client)),
-  } satisfies ProposalReviewClient;
+  };
+  // The work runs against the same tables, as a transaction would see its own writes.
+  const client: typeof tables & ProposalReviewClient = {
+    ...tables,
+    $transaction: (work) => work(client),
+  };
+  vi.spyOn(client, '$transaction');
   return { client, current: () => row, events: () => events };
 }
 

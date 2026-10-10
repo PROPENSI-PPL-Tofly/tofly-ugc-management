@@ -7,9 +7,10 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { checkRejectReason } from './proposal-review.js';
 import {
   ProposalReviewService,
@@ -33,8 +34,10 @@ export class ProposalReviewController {
   @Patch(':id/proposal/approve')
   async approve(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() request: Pick<AdminRequest, 'principal'>,
   ): Promise<ApprovedProposal> {
-    return this.proposals.approve(id);
+    // The admin the guard signed in, for the history; absent only behind the local stand-in.
+    return this.proposals.approve(id, request.principal?.userId);
   }
 
   /** POST, not DELETE: it carries a body (the optional reason) and answers what happened. */
