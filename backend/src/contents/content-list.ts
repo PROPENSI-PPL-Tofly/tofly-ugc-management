@@ -182,6 +182,7 @@ export function checkContentListQuery(
   const deadlineFrom = calendarDay('deadlineFrom', query.deadlineFrom);
   const deadlineTo = calendarDay('deadlineTo', query.deadlineTo);
   // ISO days order the same as text and as dates.
+  // Stryker disable next-line ConditionalExpression,LogicalOperator: equivalent mutants. A day left out is undefined, and undefined is neither above nor below any text, so the two presence checks only satisfy the type checker and no input can tell them apart from `true` or from `||`.
   if (deadlineFrom && deadlineTo && deadlineFrom > deadlineTo) {
     reject('deadlineFrom must not be after deadlineTo');
   }

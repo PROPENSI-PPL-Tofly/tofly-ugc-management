@@ -142,6 +142,7 @@ describe('checkContentListQuery', () => {
       ['not an id', 'dina'],
       ['empty', ''],
       ['an id with something after it', `${CREATOR_A}' or 1=1`],
+      ['an id with something before it', `x${CREATOR_A}`],
       ['a list holding one bad id', [CREATOR_A, 'dina']],
       ['an object', { id: CREATOR_A }],
       ['a list inside a list', [[CREATOR_A]]],
@@ -276,6 +277,7 @@ describe('checkContentListQuery', () => {
       ['a timestamp', '2026-10-10T00:00:00Z'],
       ['empty', ''],
       ['a list', ['2026-10-01', '2026-10-02']],
+      ['a list of one day', ['2026-10-01']],
     ])('answers 400 when the start is %s', (_, deadlineFrom) => {
       expect(message(() => checkContentListQuery({ deadlineFrom }))).toBe(
         'deadlineFrom must be a day written as YYYY-MM-DD',
@@ -314,6 +316,18 @@ describe('checkContentListQuery', () => {
         'sort must be one of deadline_asc, deadline_desc',
       );
     });
+  });
+
+  it.each([
+    ['creator', CREATOR_A],
+    ['type', 'evergreen'],
+    ['status', 'pending'],
+  ])('names %s when it is sent more times than the cap', (name, value) => {
+    const values = Array.from({ length: MAX_FILTER_VALUES + 1 }, () => value);
+
+    expect(message(() => checkContentListQuery({ [name]: values }))).toBe(
+      `${name} takes at most ${MAX_FILTER_VALUES} values`,
+    );
   });
 
   it('reads every filter together', () => {
