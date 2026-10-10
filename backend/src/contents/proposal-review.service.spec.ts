@@ -21,6 +21,7 @@ interface Stored {
  */
 function stubClient(stored: Stored | null) {
   let row = stored ? { ...stored } : null;
+  const events: unknown[] = [];
   const client = {
     contents: {
       findUnique: vi.fn(async () => row),
@@ -38,8 +39,15 @@ function stubClient(stored: Stored | null) {
         return { count: 1 };
       }),
     },
+    content_events: {
+      create: vi.fn(async ({ data }) => {
+        events.push(data);
+        return {};
+      }),
+    },
+    $transaction: vi.fn(async (work) => work(client)),
   } satisfies ProposalReviewClient;
-  return { client, current: () => row };
+  return { client, current: () => row, events: () => events };
 }
 
 function notifier() {
@@ -108,6 +116,59 @@ describe('ProposalReviewService.approve', () => {
     expect(first.status).toBe('fulfilled');
     expect(second.status).toBe('rejected');
     expect((second as PromiseRejectedResult).reason).toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('ProposalReviewService.approve, its history', () => {
+  const ADMIN = '33333333-3333-4333-8333-333333333333';
+
+  it('records Proposal Approved by the admin, in the same transaction as the status change', async () => {
+    const { client, events } = stubClient(pending);
+
+    await new ProposalReviewService(client, notifier()).approve(ID, ADMIN);
+
+    expect(client.$transaction).toHaveBeenCalledTimes(1);
+    expect(events()).toEqual([
+      {
+        content_id: ID,
+        event_type: 'Proposal Approved',
+        actor_name: 'Admin',
+        actor_role: 'admin',
+        actor_user_id: ADMIN,
+        occurred_at: expect.any(Date),
+        event_data: {},
+      },
+    ]);
+    expect(client.contents.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      client.content_events.create.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('records nothing when the approval is refused', async () => {
+    const { client, events } = stubClient({ ...pending, status: 'scheduled' });
+
+    await expect(
+      new ProposalReviewService(client, notifier()).approve(ID, ADMIN),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(events()).toEqual([]);
+  });
+
+  it('records the step with no account behind it when no admin is signed in (the local stand-in)', async () => {
+    const { client, events } = stubClient(pending);
+
+    await new ProposalReviewService(client, notifier()).approve(ID);
+
+    expect(events()).toEqual([expect.objectContaining({ actor_user_id: null })]);
+  });
+
+  it('never records the H-1 promotion as an approval: nobody approved it', async () => {
+    const { client, events } = stubClient(pending);
+
+    await new ProposalReviewService(client, notifier()).scheduleDue(
+      new Date('2026-10-10T05:00:00.000Z'),
+    );
+
+    expect(events()).toEqual([]);
   });
 });
 
