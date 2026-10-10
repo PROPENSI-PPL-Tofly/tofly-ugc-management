@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import type { Variant } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -159,9 +160,13 @@ export function MyTaskTable({
                 {formatDate(task.deadline)}
               </td>
               <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} lg:whitespace-nowrap`}>
-                <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
-                  {taskStatusLabel(task.status)}
-                </StatusDot>
+                {/* The tags sit beside the status, apart from it, as in the admin's views. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
+                    {taskStatusLabel(task.status)}
+                  </StatusDot>
+                  <ContentTags tags={task.tags} />
+                </div>
               </td>
               <td role="cell" className={`${CELL} max-lg:pt-2`}>
                 <ActionCell task={task} onAction={onAction} onDetail={onDetail} />

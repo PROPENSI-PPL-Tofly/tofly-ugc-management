@@ -69,6 +69,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     brief: "",
     deadline: "2026-10-12",
     status: "scheduled",
+    tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
     ...overrides,

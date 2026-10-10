@@ -8,7 +8,7 @@
 
 import { CONTENT_STATUS_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
-import type { ContentStatus } from "./creators";
+import type { ContentStatus, ContentTag } from "./creators";
 
 /** Task Saya shows five tasks a page (PRD 3.16). */
 export const MY_TASKS_PAGE_SIZE = 5;
@@ -60,6 +60,8 @@ export interface MyTask {
   /** Plain calendar day, "YYYY-MM-DD". */
   deadline: string;
   status: ContentStatus;
+  /** Late, overdue or approval bypassed, as the admin sees them; empty when nothing is flagged. */
+  tags: ContentTag[];
   /** The buttons this row shows today, in display order; empty means none. */
   actions: MyTaskAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */
