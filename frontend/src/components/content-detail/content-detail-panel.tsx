@@ -363,8 +363,10 @@ export function ContentDetailPanel({
       })
       .catch((caught: unknown) => {
         if (controller.signal.aborted) return;
+        // A 400 is an id that cannot name any content (a mistyped or crafted ?content= link):
+        // retrying cannot fix it, so it reads the same as one that names nothing.
         const notFound =
-          caught instanceof ContentDetailError && caught.status === 404;
+          caught instanceof ContentDetailError && (caught.status === 404 || caught.status === 400);
         setState({ kind: notFound ? "not_found" : "failed" });
       });
 
