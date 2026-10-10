@@ -1,6 +1,7 @@
 import type { content_status } from '@prisma/client';
 import { joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
+import { COMMITTED_STATUSES } from './content-lifecycle.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
 // step is waiting on, the tags the prototype draws beside the status, and the journey so far.
@@ -79,21 +80,32 @@ export interface ContentDetail {
   events: ContentEvent[];
 }
 
+// One entry per status, so a status added to the lifecycle cannot be left without an answer.
+const WAITING_ON: Record<content_status, DetailWaitingOn> = {
+  pending: 'admin',
+  scheduled: 'creator',
+  draft_review: 'admin',
+  draft_revision: 'creator',
+  draft_approved: 'creator',
+  link_submitted: null,
+};
+
 /** Whose turn the step is on; nothing is waiting once the link has closed the content. */
 export function waitingOnFor(status: content_status): DetailWaitingOn {
-  if (status === 'link_submitted') {
-    return null;
-  }
-  return status === 'draft_review' || status === 'draft_revised' ? 'admin' : 'creator';
+  return WAITING_ON[status];
 }
 
-/** Deadline passed with no final link in yet. ISO days compare correctly as strings. */
+/**
+ * Deadline passed with no final link in yet, on work the creator is committed to: a pending
+ * proposal has not been accepted. ISO days compare correctly as strings.
+ */
 export function isOverdue(
   status: content_status,
   deadlineDay: string,
   today: string,
 ): boolean {
-  return status !== 'link_submitted' && today > deadlineDay;
+  const committed = (COMMITTED_STATUSES as readonly content_status[]).includes(status);
+  return committed && status !== 'link_submitted' && today > deadlineDay;
 }
 
 /** A revision note that says nothing has nothing to request. */

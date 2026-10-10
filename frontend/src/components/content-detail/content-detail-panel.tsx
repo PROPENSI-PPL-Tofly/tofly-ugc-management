@@ -74,10 +74,10 @@ const STEP_TONES: Record<"admin" | "creator" | "done", { card: string; label: st
 
 /** One line of context under the waiting side, per status. */
 const STEP_TEXT: Record<ContentDetail["status"], string> = {
+  pending: "Pengajuan sedang ditinjau Admin.",
   scheduled: "Kreator belum kirim draft.",
   draft_review: "Draft sedang ditinjau Admin.",
   draft_revision: "Menunggu draft revisi dari kreator.",
-  draft_revised: "Draft ulangan sedang ditinjau Admin.",
   draft_approved: "Menunggu link video final.",
   link_submitted: "Link video sudah dikirim.",
 };
