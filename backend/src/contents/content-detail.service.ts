@@ -42,6 +42,18 @@ const CONTENT_DETAIL_SELECT = {
       creator_notes: true,
     },
   },
+  // The stored history, newest first. Never the admin's account id: the panel has no use for it.
+  content_events: {
+    orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],
+    select: {
+      id: true,
+      event_type: true,
+      actor_name: true,
+      actor_role: true,
+      occurred_at: true,
+      event_data: true,
+    },
+  },
 } as const;
 
 /** The slice of Prisma this service touches, so tests can stub exactly that. */

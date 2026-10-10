@@ -132,6 +132,12 @@ describe('Proposal review and H-1 scheduling (e2e)', () => {
     expect(body.status).toBe('scheduled');
     expect(body.creatorActions).toEqual(['submit_draft', 'submit_video']);
     expect(await statusOf(id)).toBe('scheduled');
+    // The timeline says why: the system scheduled it, once, however many requests ran it.
+    await creator.get(`/me/contents/${id}`).expect(200);
+    const again = await creator.get(`/me/contents/${id}`).expect(200);
+    expect(
+      again.body.events.filter((event: { type: string }) => event.type === 'auto_scheduled'),
+    ).toEqual([expect.objectContaining({ actor: { name: null, role: 'system' } })]);
   });
 
   it('leaves a proposal due later than tomorrow pending for the admin', async () => {

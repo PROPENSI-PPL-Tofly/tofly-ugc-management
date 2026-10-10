@@ -12,9 +12,13 @@ const PAGE = { page: 1, pageSize: 5 };
 let seq = 0;
 
 function row(
-  overrides: Partial<Omit<MyContentRow, 'deadline' | 'submissions'>> & {
+  overrides: Partial<Omit<MyContentRow, 'deadline' | 'submissions' | 'video_submitted_at'>> & {
     deadline?: string;
     revisionNotes?: string | null;
+    /** When the latest draft was handed in, if any. */
+    draftAt?: string;
+    /** The day the link went in, if it did. */
+    linkDay?: string;
   },
 ): MyContentRow {
   seq += 1;
@@ -25,10 +29,17 @@ function row(
     brief: overrides.brief ?? 'Review produk',
     deadline: new Date(`${overrides.deadline ?? '2026-10-30'}T00:00:00.000Z`),
     status: overrides.status ?? 'scheduled',
+    video_submitted_at: overrides.linkDay ? new Date(`${overrides.linkDay}T00:00:00.000Z`) : null,
+    approval_bypassed: overrides.approval_bypassed ?? false,
     submissions:
-      overrides.revisionNotes === undefined
+      overrides.revisionNotes === undefined && overrides.draftAt === undefined
         ? []
-        : [{ revision_notes: overrides.revisionNotes }],
+        : [
+            {
+              revision_notes: overrides.revisionNotes ?? null,
+              created_at: new Date(overrides.draftAt ?? '2026-10-01T03:00:00.000Z'),
+            },
+          ],
   };
 }
 
@@ -95,8 +106,10 @@ describe('MyContentsService.list', () => {
         brief: true,
         deadline: true,
         status: true,
+        video_submitted_at: true,
+        approval_bypassed: true,
         submissions: {
-          select: { revision_notes: true },
+          select: { revision_notes: true, created_at: true },
           orderBy: { created_at: 'desc' },
           take: 1,
         },
@@ -201,9 +214,34 @@ describe('MyContentsService.list', () => {
         brief: 'Tunjukkan kemasan',
         deadline: '2026-10-11',
         status: 'scheduled',
+        tags: [],
         actions: ['submit_draft', 'submit_video'],
         revisionNotes: null,
       },
+    ]);
+  });
+
+  it('flags each row with the same tags the admin sees, judged on today in WIB', async () => {
+    const { service } = stub(
+      [row({ id: 'overdue', status: 'draft_revision', deadline: '2026-10-05' })],
+      [
+        row({
+          id: 'late-bypassed',
+          status: 'link_submitted',
+          deadline: '2026-10-05',
+          linkDay: '2026-10-07',
+          approval_bypassed: true,
+        }),
+        row({ id: 'on-time', status: 'link_submitted', deadline: '2026-10-05', linkDay: '2026-10-05' }),
+      ],
+    );
+
+    const { items } = await service.list(CREATOR_ID, PAGE, NOW);
+
+    expect(items.map((item) => [item.id, item.tags])).toEqual([
+      ['overdue', ['overdue']],
+      ['late-bypassed', ['late_submission', 'approval_bypassed']],
+      ['on-time', []],
     ]);
   });
 

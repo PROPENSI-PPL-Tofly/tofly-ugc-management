@@ -72,9 +72,10 @@ const DUE_SOON_DAYS = 1;
 
 type WaitingOn = ContentDetail["waitingOn"];
 
-const ROLE_LABELS: Record<"admin" | "creator", string> = {
+const ROLE_LABELS: Record<"admin" | "creator" | "system", string> = {
   admin: "Admin",
   creator: "Kreator",
+  system: "Sistem",
 };
 
 /** The step's waiting side reads the same however the status spells it. */
@@ -156,6 +157,10 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   draft_submitted: "bg-accent ring-accent",
   revision_requested: "bg-amber ring-amber",
   draft_approved: "bg-green ring-green",
+  // An approved proposal lands in Scheduled; a comment changes no status at all.
+  proposal_approved: "bg-muted ring-muted",
+  auto_scheduled: "bg-muted ring-muted",
+  creator_comment: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
 };
 
@@ -510,7 +515,7 @@ export function ContentDetailPanel({
   const commands = loaded
     ? actions
         ? []
-        : actionsFor({ role, detail: loaded, state: snapshot, ports: actionPorts })
+        : actionsFor({ role, detail: loaded, state: snapshot, ports: actionPorts, now })
     : [];
   // The open form's own send button: a revision needs a note, a rejection takes one if given.
   let send: PanelCommand | null = null;

@@ -11,12 +11,13 @@ const CONTENT = "11111111-1111-1111-1111-111111111111";
 
 type Facts = Pick<
   ContentDetail,
-  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status"
+  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status" | "deadline"
 >;
 
 function facts(overrides: Partial<Facts> = {}): Facts {
   return {
     id: CONTENT,
+    deadline: "2026-10-11",
     waitingOn: "admin",
     latestSubmissionId: SUBMISSION,
     creatorActions: [],
@@ -278,6 +279,48 @@ describe("actionsFor (creator)", () => {
         [actions[0], label],
       ]);
     }
+  });
+
+  // 10 Oct 2026, 12.00 WIB: the default deadline (11 Oct) is H-1.
+  const NOW = new Date("2026-10-10T05:00:00.000Z");
+
+  it.each([
+    ["2026-10-11", "Submit Link (H-1)"],
+    ["2026-10-10", "Submit Link (H-1)"],
+    ["2026-10-09", "Submit Link (Terlambat)"],
+  ])("words the unapproved link by the deadline %s as %s", (deadline, label) => {
+    const commands = actionsFor({
+      role: "creator",
+      detail: facts({
+        waitingOn: "creator",
+        latestSubmissionId: null,
+        creatorActions: ["submit_video"],
+        status: "scheduled",
+        deadline,
+      }),
+      state: idle,
+      ports: ports(),
+      now: NOW,
+    });
+
+    expect(commands.map((command) => command.label)).toEqual([label]);
+  });
+
+  it("keeps an approved draft's link worded as the planned step, however late", () => {
+    const commands = actionsFor({
+      role: "creator",
+      detail: facts({
+        waitingOn: "creator",
+        creatorActions: ["submit_video"],
+        status: "draft_approved",
+        deadline: "2026-09-01",
+      }),
+      state: idle,
+      ports: ports(),
+      now: NOW,
+    });
+
+    expect(commands.map((command) => command.label)).toEqual(["Submit Link Video"]);
   });
 
   it("hands the chosen action back to the touchpoint, which owns the submit modals", () => {

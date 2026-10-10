@@ -231,8 +231,12 @@ describe('GET /me/contents (e2e)', () => {
       'name',
       'revisionNotes',
       'status',
+      'tags',
       'type',
     ]);
+    // The tags are judged on the link and bypass columns; those columns stay on the server.
+    expect(response.body.items[0]).not.toHaveProperty('video_submitted_at');
+    expect(response.body.items[0]).not.toHaveProperty('approval_bypassed');
   });
 
   it("never shows one creator another creator's contents or a pending proposal", async () => {

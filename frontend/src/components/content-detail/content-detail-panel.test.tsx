@@ -204,6 +204,8 @@ describe("ContentDetailPanel", () => {
         status: "draft_review",
         latestSubmissionId: null,
         creatorActions: ["submit_video"],
+        // Far ahead, so the link reads as the H-1 route whatever day the test runs.
+        deadline: "2099-12-31",
       }),
       { role: "creator", ports: { onCreatorAction } },
     );
@@ -1008,6 +1010,55 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(dots[4]).toContain("bg-accent ring-accent");
       expect(dots[5]).toContain("bg-muted ring-muted");
       expect(dots.join(" ")).not.toContain("bg-red");
+    });
+
+    it("marks an approved proposal and a creator's comment as steps that move nothing on", async () => {
+      show({
+        events: [
+          {
+            id: "comment",
+            type: "creator_comment",
+            at: "2026-09-03T03:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+            payload: { note: "Boleh mundur sehari?" },
+          },
+          {
+            id: "proposal",
+            type: "proposal_approved",
+            at: "2026-09-02T03:00:00.000Z",
+            actor: { name: null, role: "admin" },
+          },
+        ],
+      });
+
+      const items = await journeyItems();
+      expect(items.map((item) => item.querySelector("[data-step-title]")?.textContent)).toEqual([
+        "Komentar kreator",
+        "Pengajuan disetujui",
+      ]);
+      expect(items.map((item) => item.querySelector("[data-timeline-dot]")?.className)).toEqual([
+        expect.stringContaining("bg-muted ring-muted"),
+        expect.stringContaining("bg-muted ring-muted"),
+      ]);
+      expect(within(items[0]).getByText("Boleh mundur sehari?")).toBeInTheDocument();
+    });
+
+    it("names the system as the actor of an H-1 scheduling, with a neutral dot", async () => {
+      show({
+        events: [
+          {
+            id: "auto",
+            type: "auto_scheduled",
+            at: "2026-09-02T03:00:00.000Z",
+            actor: { name: null, role: "system" },
+          },
+        ],
+      });
+
+      const [item] = await journeyItems();
+      expect(item.querySelector("[data-step-title]")).toHaveTextContent("Dijadwalkan otomatis (H-1)");
+      expect(item.querySelector("[data-step-actor]")).toHaveTextContent("Sistem");
+      expect(item.querySelector("[data-timeline-dot]")?.className).toContain("bg-muted ring-muted");
     });
 
     it("shows when each event happened in Jakarta time, and who did it in which role", async () => {

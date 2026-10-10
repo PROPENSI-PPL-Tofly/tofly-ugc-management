@@ -34,6 +34,25 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
       },
     },
     submissions: [],
+    content_events: [],
+    ...overrides,
+  };
+}
+
+/** One stored history row, as content-detail.service selects it. */
+function stored(
+  id: string,
+  event_type: string,
+  occurred_at: string,
+  overrides: Partial<ContentDetailRow['content_events'][number]> = {},
+): ContentDetailRow['content_events'][number] {
+  return {
+    id,
+    event_type,
+    actor_name: 'Rangga Pratama',
+    actor_role: 'creator',
+    occurred_at: new Date(occurred_at),
+    event_data: {},
     ...overrides,
   };
 }
@@ -428,5 +447,189 @@ describe('toContentDetail', () => {
 
     expect(detail.creatorActions).toEqual([]);
     expect(detail.waitingOn).toBeNull();
+  });
+});
+
+describe('toContentDetail with a stored history', () => {
+  const ADMIN = { actor_name: 'Admin', actor_role: 'admin' };
+
+  // Newest first, as the service orders them.
+  const history = [
+    stored('e6', 'Link Submitted', '2026-09-20T05:00:00.000Z', {
+      event_data: { link: 'https://www.tiktok.com/@rangga/video/1' },
+    }),
+    stored('e5', 'Draft Approved', '2026-09-18T07:00:00.000Z', ADMIN),
+    stored('e4', 'Draft Submitted', '2026-09-16T03:00:00.000Z', {
+      event_data: { version: 2, link: 'https://drive.google.com/v2', note: 'Hook sudah diganti.' },
+    }),
+    stored('e3', 'Revision Requested', '2026-09-12T07:00:00.000Z', {
+      ...ADMIN,
+      event_data: { revision_note: 'Hook kurang kuat.' },
+    }),
+    stored('e2', 'Draft Submitted', '2026-09-10T03:00:00.000Z', {
+      event_data: { version: 1, link: 'https://drive.google.com/v1' },
+    }),
+    stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z', ADMIN),
+  ];
+
+  it('answers the stored steps in their stored order, worded for the panel', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        video_link: 'https://www.tiktok.com/@rangga/video/1',
+        video_submitted_at: new Date('2026-09-20T00:00:00.000Z'),
+        content_events: history,
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events).toEqual([
+      {
+        id: 'e6',
+        type: 'link_submitted',
+        at: '2026-09-20T05:00:00.000Z',
+        actor: { name: 'Rangga Pratama', role: 'creator' },
+        payload: { link: 'https://www.tiktok.com/@rangga/video/1' },
+      },
+      { id: 'e5', type: 'draft_approved', at: '2026-09-18T07:00:00.000Z', actor: { name: null, role: 'admin' } },
+      {
+        id: 'e4',
+        type: 'draft_submitted',
+        at: '2026-09-16T03:00:00.000Z',
+        actor: { name: 'Rangga Pratama', role: 'creator' },
+        payload: { version: 2, link: 'https://drive.google.com/v2', note: 'Hook sudah diganti.' },
+      },
+      {
+        id: 'e3',
+        type: 'revision_requested',
+        at: '2026-09-12T07:00:00.000Z',
+        actor: { name: null, role: 'admin' },
+        payload: { note: 'Hook kurang kuat.' },
+      },
+      {
+        id: 'e2',
+        type: 'draft_submitted',
+        at: '2026-09-10T03:00:00.000Z',
+        actor: { name: 'Rangga Pratama', role: 'creator' },
+        payload: { version: 1, link: 'https://drive.google.com/v1' },
+      },
+      { id: 'e1', type: 'scheduled', at: '2026-09-01T03:00:00.000Z', actor: { name: null, role: 'admin' } },
+    ]);
+  });
+
+  it('keeps the approval once the link is in, which the status alone can no longer prove', () => {
+    const detail = toContentDetail(
+      row({ status: 'link_submitted', content_events: history }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events.map((event) => event.type)).toContain('draft_approved');
+  });
+
+  it("never sends an admin's stored name, even one written before names were scrubbed (OWASP A01)", () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z', {
+            actor_name: 'admin@tofly.id',
+            actor_role: 'admin',
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0].actor).toEqual({ name: null, role: 'admin' });
+    expect(JSON.stringify(detail)).not.toContain('admin@tofly.id');
+  });
+
+  it('words a creator comment and an approved proposal as steps of their own', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e3', 'Creator Comment', '2026-09-03T03:00:00.000Z', {
+            event_data: { comment: 'Boleh mundur sehari?' },
+          }),
+          stored('e2', 'Proposal Approved', '2026-09-02T03:00:00.000Z', ADMIN),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z'),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events.map((event) => [event.type, event.actor, event.payload])).toEqual([
+      ['creator_comment', { name: 'Rangga Pratama', role: 'creator' }, { note: 'Boleh mundur sehari?' }],
+      ['proposal_approved', { name: null, role: 'admin' }, undefined],
+      ['scheduled', { name: 'Rangga Pratama', role: 'creator' }, undefined],
+    ]);
+  });
+
+  it('reads a proposal the system scheduled at H-1 as a step by the system, not by anyone', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Auto Scheduled', '2026-09-02T03:00:00.000Z', {
+            actor_name: 'Sistem',
+            actor_role: 'system',
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z'),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toEqual({
+      id: 'e2',
+      type: 'auto_scheduled',
+      at: '2026-09-02T03:00:00.000Z',
+      actor: { name: null, role: 'system' },
+    });
+  });
+
+  it('skips a step of a kind this build does not know, and data fields that are not the right type', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e3', 'Content Archived', '2026-09-03T03:00:00.000Z', ADMIN),
+          stored('e2', 'Draft Submitted', '2026-09-02T03:00:00.000Z', {
+            event_data: { version: 'two', link: 42, note: '   ' },
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z', ADMIN),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events.map((event) => event.id)).toEqual(['e2', 'e1']);
+    expect(detail.events[0].payload).toEqual({});
+  });
+
+  it('reads a stored history whose data is not an object as a step without details', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Link Submitted', '2026-09-01T03:00:00.000Z', { event_data: null }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events).toEqual([
+      {
+        id: 'e1',
+        type: 'link_submitted',
+        at: '2026-09-01T03:00:00.000Z',
+        actor: { name: 'Rangga Pratama', role: 'creator' },
+        payload: {},
+      },
+    ]);
+  });
+
+  it('falls back to the journey its rows prove when nothing was stored for it', () => {
+    const detail = toContentDetail(row({ content_events: [] }), on('2026-09-21'));
+
+    expect(detail.events).toEqual([
+      expect.objectContaining({ type: 'scheduled', actor: { name: null, role: 'admin' } }),
+    ]);
   });
 });

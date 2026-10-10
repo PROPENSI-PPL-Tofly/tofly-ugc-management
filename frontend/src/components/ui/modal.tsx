@@ -141,7 +141,12 @@ export function Modal({
     // mousedown, not click, so the press that opened the dialog cannot immediately
     // close it again as it finishes bubbling.
     const onMouseDown = (event: MouseEvent) => {
-      if (isTopDialog(dialog) && !dialog.contains(event.target as Node)) close.current();
+      if (isTopDialog(dialog) && !dialog.contains(event.target as Node)) {
+        // The browser's own mousedown would move focus to whatever was pressed (the page body)
+        // after closing has already handed it back to the opener.
+        event.preventDefault();
+        close.current();
+      }
     };
 
     document.addEventListener("keydown", onKeyDown);

@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { adminActor } from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { NewCreator, OnboardedCreator } from './dto/new-creator.dto.js';
 import {
@@ -63,9 +64,14 @@ function isEmailTaken(error: unknown): boolean {
 
 /**
  * The whole onboarding as one nested create: the whitelisted login, the creator, their social
- * account, the contract and one Evergreen content per deadline, earliest first.
+ * account, the contract and one Evergreen content per deadline, earliest first, each starting
+ * its history with the admin who scheduled it.
  */
-function onboardingData(input: NewCreator): Prisma.creatorsCreateInput {
+function onboardingData(
+  input: NewCreator,
+  now: Date,
+  adminUserId: string | null,
+): Prisma.creatorsCreateInput {
   const name = input.name.trim();
   const deadlines = [...input.deadlines].sort((a, b) => a.localeCompare(b));
   return {
@@ -92,6 +98,14 @@ function onboardingData(input: NewCreator): Prisma.creatorsCreateInput {
             brief: '',
             deadline: toDate(day),
             status: 'scheduled',
+            content_events: {
+              create: {
+                event_type: 'Scheduled',
+                ...adminActor(adminUserId),
+                occurred_at: now,
+                event_data: {},
+              },
+            },
           })),
         },
       },
@@ -104,7 +118,7 @@ export type OnboardingClient = Pick<PrismaService, 'creators'>;
 
 /** What the Add Creator endpoint needs, so it can inject or stub onboarding by contract. */
 export interface CreatorOnboarder {
-  onboard(input: NewCreator, now?: Date): Promise<OnboardedCreator>;
+  onboard(input: NewCreator, now?: Date, adminUserId?: string): Promise<OnboardedCreator>;
 }
 
 @Injectable()
@@ -121,6 +135,7 @@ export class CreatorOnboardingService implements CreatorOnboarder {
   async onboard(
     input: NewCreator,
     now = new Date(),
+    adminUserId?: string,
   ): Promise<OnboardedCreator> {
     const errors = checkSchedule(input, jakartaDay(now));
     if (Object.keys(errors).length > 0) {
@@ -130,7 +145,10 @@ export class CreatorOnboardingService implements CreatorOnboarder {
     // No lookup before the insert: the citext unique index on users.email is the check, so
     // two admins saving the same address at once cannot both succeed.
     const row = await this.prisma.creators
-      .create({ data: onboardingData(input), select: ONBOARDED_SELECT })
+      .create({
+        data: onboardingData(input, now, adminUserId ?? null),
+        select: ONBOARDED_SELECT,
+      })
       .catch((error: unknown) => {
         throw isEmailTaken(error)
           ? invalid({ email: 'Email sudah terdaftar' })

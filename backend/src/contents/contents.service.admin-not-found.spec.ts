@@ -76,7 +76,7 @@ describe('ContentCreationService when the Admin user is missing', () => {
 
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER_ID },
-      select: { email: true },
+      select: { id: true },
     });
 
     expect(transaction.content_events.create).not.toHaveBeenCalled();

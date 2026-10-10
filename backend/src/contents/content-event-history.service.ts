@@ -41,7 +41,7 @@ interface ContentEventBase<
 
 export type ContentEventInput =
   | ContentEventBase<'Scheduled', Record<string, never>>
-  | ContentEventBase<'Draft Submitted', { version: number; link: string }>
+  | ContentEventBase<'Draft Submitted', { version: number; link: string; note?: string }>
   | ContentEventBase<'Revision Requested', { revision_note: string }>
   | ContentEventBase<'Draft Approved', Record<string, never>>
   | ContentEventBase<'Link Submitted', { link: string }>

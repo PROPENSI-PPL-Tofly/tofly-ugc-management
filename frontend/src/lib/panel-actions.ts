@@ -9,6 +9,7 @@
 // re-deriving the rules in the browser.
 
 import type { Variant } from "@/components/ui/button-classes";
+import { daysUntil } from "./format";
 import type { ContentDetail } from "./content-detail";
 import type { MyTaskAction } from "./my-tasks";
 import type { Role } from "./session";
@@ -60,16 +61,30 @@ export interface PanelActionPorts {
 /** The step's facts the command list is chosen from. */
 export type PanelActionFacts = Pick<
   ContentDetail,
-  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status"
+  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status" | "deadline"
 >;
 
-const CREATOR_LABELS: Record<MyTaskAction, { approved: string; grace: string }> = {
-  submit_draft: { approved: "Submit Draft", grace: "Submit Draft" },
-  resubmit_draft: { approved: "Resubmit Draft", grace: "Resubmit Draft" },
-  // After approval the link is the planned next step; inside the H-1 window it is the
-  // emergency route that skips the draft approval, so it names itself as such.
-  submit_video: { approved: "Submit Link Video", grace: "Submit Link (H-1)" },
+type CreatorLabelCase = "approved" | "grace" | "late";
+
+const CREATOR_LABELS: Record<MyTaskAction, Record<CreatorLabelCase, string>> = {
+  submit_draft: { approved: "Submit Draft", grace: "Submit Draft", late: "Submit Draft" },
+  resubmit_draft: { approved: "Resubmit Draft", grace: "Resubmit Draft", late: "Resubmit Draft" },
+  // After approval the link is the planned next step; without one it is the emergency route
+  // that skips the draft approval, named after the window it opens in (H-1), or plainly late
+  // once the deadline has passed.
+  submit_video: {
+    approved: "Submit Link Video",
+    grace: "Submit Link (H-1)",
+    late: "Submit Link (Terlambat)",
+  },
 };
+
+/** Which wording the creator's commands take for this step, on the given day. */
+function labelCase(detail: PanelActionFacts, now: Date): CreatorLabelCase {
+  if (detail.status === "draft_approved") return "approved";
+  const days = daysUntil(detail.deadline, now);
+  return days !== null && days < 0 ? "late" : "grace";
+}
 
 const CREATOR_VARIANTS: Record<MyTaskAction, Variant> = {
   submit_draft: "accent",
@@ -82,8 +97,10 @@ export function actionsFor(input: {
   detail: PanelActionFacts;
   state: () => PanelActionState;
   ports: PanelActionPorts;
+  /** The moment "late" is judged from; the current one by default, a fixed one in tests. */
+  now?: Date;
 }): PanelCommand[] {
-  const { role, detail, state, ports } = input;
+  const { role, detail, state, ports, now = new Date() } = input;
 
   if (detail.waitingOn === null) {
     return [];
@@ -136,9 +153,7 @@ export function actionsFor(input: {
 
   return detail.creatorActions.map((action) => ({
     kind: action,
-    label: CREATOR_LABELS[action][
-      detail.status === "draft_approved" ? "approved" : "grace"
-    ],
+    label: CREATOR_LABELS[action][labelCase(detail, now)],
     variant: CREATOR_VARIANTS[action],
     canRun: () => !state().busy,
     run: () => {

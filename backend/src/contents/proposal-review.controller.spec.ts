@@ -1,4 +1,8 @@
-import { ConflictException, type INestApplication } from '@nestjs/common';
+import {
+  ConflictException,
+  type ExecutionContext,
+  type INestApplication,
+} from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -7,6 +11,7 @@ import { ProposalReviewController } from './proposal-review.controller.js';
 import { ProposalReviewService } from './proposal-review.service.js';
 
 const ID = '11111111-1111-4111-8111-111111111111';
+const ADMIN = '33333333-3333-4333-8333-333333333333';
 
 describe('ProposalReviewController', () => {
   const service = { approve: vi.fn(), reject: vi.fn() };
@@ -19,7 +24,13 @@ describe('ProposalReviewController', () => {
     })
       // The guard's own contract (session, admin role, same origin) is tested at the guard.
       .overrideGuard(AdminGuard)
-      .useValue({ canActivate: () => true })
+      .useValue({
+        // As the real guard does, the stand-in names the signed-in admin on the request.
+        canActivate: (context: ExecutionContext) => {
+          context.switchToHttp().getRequest().principal = { userId: ADMIN, role: 'admin' };
+          return true;
+        },
+      })
       .compile();
     app = module.createNestApplication();
     await app.init();
@@ -48,7 +59,7 @@ describe('ProposalReviewController', () => {
       .expect(200);
 
     expect(body).toEqual({ id: ID, status: 'scheduled' });
-    expect(service.approve).toHaveBeenCalledWith(ID);
+    expect(service.approve).toHaveBeenCalledWith(ID, ADMIN);
   });
 
   it('rejects through POST /contents/:id/proposal/reject with the checked reason, answering 200', async () => {

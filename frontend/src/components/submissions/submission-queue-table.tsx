@@ -88,6 +88,8 @@ export function SubmissionQueueTable({
                 <td className="px-5 py-3">
                   <button
                     type="button"
+                    // Every row has one; the content's name tells them apart when heard.
+                    aria-label={`Lihat Detail: ${row.contentName}`}
                     onClick={() => setOpenContentId(row.contentId)}
                     className="cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 py-1 text-xs font-semibold text-ink hover:border-ink-2"
                   >

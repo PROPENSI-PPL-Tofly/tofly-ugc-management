@@ -69,6 +69,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     brief: "",
     deadline: "2026-10-12",
     status: "scheduled",
+    tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
     ...overrides,
@@ -318,21 +319,34 @@ describe("MyTaskBoard content detail panel", () => {
     expect(window.location.search).toBe("");
   });
 
-  it("leaves an address without ?content= untouched when a panel opened from a row closes", async () => {
-    window.history.pushState({}, "", "/creator/tasks?status=scheduled");
-    const replaceState = vi.spyOn(window.history, "replaceState");
+  it("puts the opened content in the address, so the panel can be shared or reopened as a link", async () => {
+    window.history.pushState({}, "", "/creator/tasks?status=scheduled&page=2");
     fetchContentDetail.mockResolvedValue(panelDetail());
 
     render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
-    fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
+    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
 
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(window.location.search).toBe("?status=scheduled&page=2&content=content-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
-    expect(replaceState).not.toHaveBeenCalled();
-    expect(window.location.search).toBe("?status=scheduled");
-    replaceState.mockRestore();
+    expect(window.location.search).toBe("?status=scheduled&page=2");
+  });
+
+  it("replaces the address rather than adding history, so Back leaves the page instead of reopening", async () => {
+    window.history.pushState({}, "", "/creator/tasks");
+    const pushState = vi.spyOn(window.history, "pushState");
+    fetchContentDetail.mockResolvedValue(panelDetail());
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+
+    await screen.findByRole("dialog");
+    expect(pushState).not.toHaveBeenCalled();
+    pushState.mockRestore();
   });
 
   it("closes the panel from Tutup without opening any modal", async () => {

@@ -241,6 +241,17 @@ describe("SubmissionQueueTable", () => {
     expect(await screen.findByRole("button", { name: "Tutup" })).toBeInTheDocument();
   });
 
+  it("names each row's Lihat Detail after its content, so a screen reader can tell the rows apart", () => {
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    const names = screen
+      .getAllByRole("button", { name: /lihat detail/i })
+      .map((button) => button.getAttribute("aria-label"));
+
+    expect(names).toEqual(ITEMS.map((item) => `Lihat Detail: ${item.contentName}`));
+    expect(new Set(names).size).toBe(ITEMS.length);
+  });
+
   it("closes the panel and refreshes the queue once the draft is approved", async () => {
     fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
     approveSubmission.mockResolvedValue(undefined);

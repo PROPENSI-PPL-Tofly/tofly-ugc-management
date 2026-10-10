@@ -68,7 +68,7 @@ export interface DraftSubmissionTransaction {
         actor_name: string;
         actor_role: 'creator';
         occurred_at: Date;
-        event_data: { version: number; link: string };
+        event_data: { version: number; link: string; note?: string };
       };
     }) => Promise<unknown>;
   };
@@ -186,6 +186,8 @@ export class DraftSubmissionService implements DraftSubmitter {
           event_data: {
             version: previousSubmissions.length + 1,
             link: input.link,
+            // The creator's message to the admin travels with the draft it came with.
+            ...(input.notes !== null && { note: input.notes }),
           },
         },
       });
