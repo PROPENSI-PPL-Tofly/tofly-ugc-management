@@ -24,6 +24,8 @@ function row(
     creator?: ContentListRow['contracts']['creators'];
     /** How many drafts were handed in; none by default. */
     handIns?: number;
+    /** How many of those hand-ins an admin answered with a revision request; none by default. */
+    revisionsAsked?: number;
     latestDraftAt?: string;
     videoSubmittedAt?: string;
     approvalBypassed?: boolean;
@@ -59,7 +61,8 @@ function row(
             },
           ]
         : [],
-    _count: { submissions: handIns },
+    // What the query counts: only the hand-ins that carry a revision request.
+    _count: { submissions: overrides.revisionsAsked ?? 0 },
   };
 }
 
@@ -115,7 +118,11 @@ describe('ContentListService.list', () => {
           take: 1,
           select: { created_at: true },
         },
-        _count: { select: { submissions: true } },
+        _count: {
+          select: {
+            submissions: { where: { revision_notes: { not: null } } },
+          },
+        },
       },
     });
   });
@@ -156,18 +163,29 @@ describe('ContentListService.list', () => {
     });
 
     it.each([
-      ['no draft handed in', 0, 0],
-      ['a first hand-in', 1, 0],
-      ['a draft handed in again', 2, 1],
-      ['a draft handed in three times', 3, 2],
-    ])(
-      'counts %s as the right number of revisions',
-      async (_, handIns, revisionCount) => {
-        const { service } = stub([row({ handIns })]);
+      ['nothing when no draft was handed in', 'scheduled', 0, 0],
+      [
+        'nothing for a first draft still waiting for review',
+        'draft_review',
+        1,
+        0,
+      ],
+      [
+        'one once a revision is asked for, before the creator hands in again',
+        'draft_revision',
+        1,
+        1,
+      ],
+      ['one after that revision is handed in', 'draft_review', 2, 1],
+      ['two for a draft sent back twice', 'draft_revision', 2, 2],
+    ] as const)(
+      'counts the revisions an admin asked for: %s',
+      async (_, status, handIns, revisionsAsked) => {
+        const { service } = stub([row({ status, handIns, revisionsAsked })]);
 
         const answer = await service.list(PAGE, NOW, EVERYTHING);
 
-        expect(answer.items[0].revisionCount).toBe(revisionCount);
+        expect(answer.items[0].revisionCount).toBe(revisionsAsked);
       },
     );
 

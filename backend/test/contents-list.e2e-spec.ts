@@ -76,6 +76,8 @@ describe('GET /contents (e2e)', () => {
     deadlineOffset: number,
     extra: {
       handIns?: number;
+      /** How many of the hand-ins, oldest first, an admin answered with a revision request. */
+      revisionsAsked?: number;
       type?: 'evergreen' | 'specific';
       videoOffset?: number;
       bypassed?: boolean;
@@ -103,6 +105,8 @@ describe('GET /contents (e2e)', () => {
           content_id: created.id,
           creator_id: owner.creatorId,
           link: `https://drive.example.com/${MARKER}/${name}/${i}`,
+          revision_notes:
+            i < (extra.revisionsAsked ?? 0) ? `Revisi ${i + 1}` : null,
           created_at: new Date(Date.UTC(2026, 8, 1 + i)),
         },
       });
@@ -141,12 +145,16 @@ describe('GET /contents (e2e)', () => {
       bypassed: true,
     });
     await content(dina, 'scheduled', 'scheduled', 5);
-    await content(dina, 'revision', 'draft_revision', 6, { handIns: 1 });
+    await content(dina, 'revision', 'draft_revision', 6, {
+      handIns: 1,
+      revisionsAsked: 1,
+    });
     await content(dina, 'approved', 'draft_approved', 7, { handIns: 1 });
     await content(dina, 'proposal', 'pending', 8);
     await content(dina, 'review', 'draft_review', 10, { handIns: 1 });
     resubmitId = await content(dina, 'resubmit', 'draft_review', 12, {
       handIns: 2,
+      revisionsAsked: 1,
     });
     await content(raka, 'evergreen', 'scheduled', 20, { type: 'evergreen' });
   });
@@ -201,6 +209,19 @@ describe('GET /contents (e2e)', () => {
       tags: [],
       revisionCount: 1,
     });
+  });
+
+  it('counts the revisions an admin asked for, also before the creator hands in again', async () => {
+    const response = await list();
+    const revisionsOf = (name: string) =>
+      (response.body.items as (Item & { revisionCount: number })[]).find(
+        (item) => item.name === `${MARKER} ${name}`,
+      )?.revisionCount;
+
+    expect(revisionsOf('scheduled')).toBe(0);
+    expect(revisionsOf('review')).toBe(0);
+    expect(revisionsOf('revision')).toBe(1);
+    expect(revisionsOf('resubmit')).toBe(1);
   });
 
   it('tags a row from its real dates and stored bypass flag', async () => {
