@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
+import { DraftReviewActionError } from "@/lib/draft-review-actions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
 import { ContentDetailPanel } from "./content-detail-panel";
 
@@ -51,7 +52,7 @@ function open(
     role: "admin" | "creator";
     ports: PanelActionPorts;
     actions: ReactNode;
-    onDecided: () => void;
+    onDecided: (decision: "approve" | "revise") => void;
   }> = {},
 ) {
   const load = vi.fn().mockResolvedValue(loaded);
@@ -383,6 +384,113 @@ describe("ContentDetailPanel", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(onDecided).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("re-reads the content after a 409, so the step stops offering a decision already taken", async () => {
+    const approve = vi
+      .fn()
+      .mockRejectedValue(
+        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+      );
+    const { load } = open(detail(), { ports: { approve } });
+    load.mockResolvedValueOnce(
+      detail({ status: "draft_revision", waitingOn: "creator" }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText("Draft ini sudah tidak menunggu keputusan"),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("Draft Perlu Revisi")).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(2);
+    // The content stays on screen while it is read again; nothing flashes "Memuat".
+    expect(screen.queryByText("Memuat konten...")).not.toBeInTheDocument();
+  });
+
+  it("closes the note form after a 409 on Kirim Revisi, since there is nothing left to revise", async () => {
+    const revise = vi
+      .fn()
+      .mockRejectedValue(
+        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+      );
+    const { load } = open(detail(), { ports: { revise } });
+    load.mockResolvedValueOnce(detail({ status: "draft_approved", waitingOn: "creator" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Audio pelan." } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
+
+    expect(
+      await screen.findByText("Draft ini sudah tidak menunggu keputusan"),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("Draft Approved")).toBeInTheDocument();
+  });
+
+  it("does not re-read the content when a decision fails for another reason", async () => {
+    const approve = vi
+      .fn()
+      .mockRejectedValue(new DraftReviewActionError(500, "Keputusan gagal dikirim. Coba lagi."));
+    const { load } = open(detail(), { ports: { approve } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("Keputusan gagal dikirim. Coba lagi.")).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+
+  it("keeps the last content and the reason when the re-read after a 409 fails too", async () => {
+    const approve = vi
+      .fn()
+      .mockRejectedValue(
+        new DraftReviewActionError(409, "Draft ini sudah tidak menunggu keputusan"),
+      );
+    const { load } = open(detail(), { ports: { approve } });
+    load.mockRejectedValueOnce(new ContentDetailError(503));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText("Draft ini sudah tidak menunggu keputusan"),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(load).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole("heading", { name: "Promo Lebaran" })).toBeInTheDocument();
+    expect(screen.queryByText("Detail konten gagal dimuat")).not.toBeInTheDocument();
+  });
+
+  it("names the decision it reports upward, so the touchpoint can confirm it", async () => {
+    const approve = vi.fn().mockResolvedValue(undefined);
+    const onDecided = vi.fn();
+    open(detail(), { ports: { approve }, onDecided });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(onDecided).toHaveBeenCalledWith("approve");
+    });
+  });
+
+  it("reports a sent revision upward as a revision", async () => {
+    const revise = vi.fn().mockResolvedValue(undefined);
+    const onDecided = vi.fn();
+    open(detail(), { ports: { revise }, onDecided });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Audio pelan." } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
+
+    await waitFor(() => {
+      expect(onDecided).toHaveBeenCalledWith("revise");
+    });
   });
 
   it("answers a decision that fails without an Error with its own generic message", async () => {
