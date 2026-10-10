@@ -204,6 +204,8 @@ describe("ContentDetailPanel", () => {
         status: "draft_review",
         latestSubmissionId: null,
         creatorActions: ["submit_video"],
+        // Far ahead, so the link reads as the H-1 route whatever day the test runs.
+        deadline: "2099-12-31",
       }),
       { role: "creator", ports: { onCreatorAction } },
     );
