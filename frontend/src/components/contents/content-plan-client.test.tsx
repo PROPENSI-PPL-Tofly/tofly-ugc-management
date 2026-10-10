@@ -802,6 +802,36 @@ describe("ContentPlanClient content detail panel", () => {
         fetchContentDetail.mockReset();
     });
 
+    it("names every row's Detail button after its content, so a screen reader can tell them apart", async () => {
+        const row = (id: string, name: string) => ({
+            id,
+            name,
+            type: "evergreen" as const,
+            deadline: "2026-09-30",
+            status: "scheduled" as const,
+            outcome: "open" as const,
+            videoLink: null,
+            tags: [],
+        });
+        vi.mocked(fetchCreatorDetail).mockResolvedValue(
+            detail({
+                contents: [
+                    row("content-1", "Evg_Rangga_30092026"),
+                    row("content-2", "Evg_Rangga_14102026"),
+                ],
+            }),
+        );
+
+        render(<ContentPlanClient creatorId="creator-1" />);
+
+        expect(
+            await screen.findByRole("button", { name: "Detail: Evg_Rangga_30092026" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: "Detail: Evg_Rangga_14102026" }),
+        ).toBeInTheDocument();
+    });
+
     it("opens the content detail panel of a content row, as the admin", async () => {
         vi.mocked(fetchCreatorDetail).mockResolvedValue(
             detail({
@@ -836,7 +866,7 @@ describe("ContentPlanClient content detail panel", () => {
 
         render(<ContentPlanClient creatorId="creator-1" />);
 
-        fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Detail: Evg_Rangga_30092026" }));
 
         expect(await screen.findByRole("dialog")).toBeInTheDocument();
         expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
@@ -883,7 +913,7 @@ describe("ContentPlanClient content detail panel", () => {
 
         render(<ContentPlanClient creatorId="creator-1" />);
 
-        fireEvent.click(await screen.findByRole("button", { name: "Detail" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Detail: Evg_Rangga_30092026" }));
         fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
         await waitFor(() => {
