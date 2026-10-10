@@ -254,7 +254,7 @@ describe("MyTaskBoard content detail panel", () => {
       deadline: "2026-10-12",
       status: "draft_review" as const,
       creatorName: "Rangga Pratama",
-      tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+      tags: [],
       waitingOn: "creator" as const,
       latestSubmissionId: null,
       creatorActions: ["submit_video"] as const,

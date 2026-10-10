@@ -33,7 +33,7 @@ function detailOf(contentId: string, name: string): ContentDetail {
     deadline: "2026-09-20",
     status: "draft_review",
     creatorName: "Dimas Putra",
-    tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+    tags: [],
     waitingOn: "admin",
     latestSubmissionId: "111",
     creatorActions: [],

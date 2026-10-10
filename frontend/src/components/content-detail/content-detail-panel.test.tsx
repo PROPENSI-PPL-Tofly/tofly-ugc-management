@@ -22,7 +22,7 @@ function detail(overrides: Partial<ContentDetail> = {}): ContentDetail {
     deadline: "2026-10-05",
     status: "draft_review",
     creatorName: "Rangga Pratama",
-    tags: { overdue: false, lateSubmission: false, approvalBypassed: false },
+    tags: [],
     waitingOn: "admin",
     latestSubmissionId: SUBMISSION,
     creatorActions: [],
@@ -104,7 +104,7 @@ describe("ContentDetailPanel", () => {
     open(
       detail({
         status: "draft_revision",
-        tags: { overdue: true, lateSubmission: false, approvalBypassed: false },
+        tags: ["overdue"],
       }),
     );
 
@@ -297,7 +297,7 @@ describe("ContentDetailPanel", () => {
         type: "specific",
         creatorName: "",
         brief: "",
-        tags: { overdue: true, lateSubmission: true, approvalBypassed: true },
+        tags: ["late_submission", "overdue", "approval_bypassed"],
       }),
     );
 
@@ -440,7 +440,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
     });
 
     it("keeps type and status as dots, so the tag pills beside them stand out", async () => {
-      show({ tags: { overdue: true, lateSubmission: false, approvalBypassed: true } });
+      show({ tags: ["overdue", "approval_bypassed"] });
 
       const meta = await screen.findByTestId("modal-meta");
       const status = within(meta).getByText("Draft Menunggu Review");
@@ -450,6 +450,25 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(status.querySelector(".bg-accent")).not.toBeNull();
       expect(within(meta).getByText("Overdue")).toHaveClass("rounded-full", "bg-red-wash");
       expect(within(meta).getByText("Approval di-bypass")).toHaveClass("rounded-full", "bg-amber-wash");
+    });
+
+    it("lists the tags the way every other screen does, in the order the API sends them", async () => {
+      show({ tags: ["late_submission", "overdue", "approval_bypassed"] });
+
+      const meta = await screen.findByTestId("modal-meta");
+      const tags = within(meta).getByRole("list", { name: "Tanda konten" });
+      expect(
+        within(tags)
+          .getAllByRole("listitem")
+          .map((item) => item.textContent),
+      ).toEqual(["Late Submission", "Overdue", "Approval di-bypass"]);
+    });
+
+    it("draws no tag list for a content nothing is flagged on", async () => {
+      show();
+
+      const meta = await screen.findByTestId("modal-meta");
+      expect(within(meta).queryByRole("list")).not.toBeInTheDocument();
     });
 
     it("shows the deadline as a date with its countdown", async () => {
