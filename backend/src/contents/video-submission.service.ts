@@ -135,7 +135,9 @@ export class VideoSubmissionService implements VideoSubmitter {
       });
     }
 
-    const today = jakartaDay(new Date());
+    // One reading of the clock: the content stores its day, the timeline event its moment.
+    const now = new Date();
+    const today = jakartaDay(now);
 
     return this.prisma.$transaction(async (transaction) => {
       // Scope the lookup to the caller's own committed content. Another creator's content and
@@ -210,7 +212,9 @@ export class VideoSubmissionService implements VideoSubmitter {
             .filter(Boolean)
             .join(' '),
           actor_role: 'creator',
-          occurred_at: submittedAt,
+          // The moment, not the stored day: midnight would read 07.00 WIB and sort the link
+          // under a draft or an approval from earlier the same day.
+          occurred_at: now,
           event_data: { link: videoLink },
         },
       });

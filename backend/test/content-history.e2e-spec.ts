@@ -88,14 +88,13 @@ describe('Content history read back into the detail (e2e)', () => {
     for (const read of readers) {
       const { body } = await read().expect(200);
 
-      // Every step is kept, the approval included. Their order on the link's day is not asserted
-      // here: the Link Submitted event still stores midnight of its day.
+      // Every step is kept, the approval included, newest first: all of it happened today.
       type Step = { type: string; actor: unknown; payload?: unknown };
       const byType = (type: string) => body.events.find((event: Step) => event.type === type);
-      expect(body.events.map((event: Step) => event.type).sort()).toEqual([
+      expect(body.events.map((event: Step) => event.type)).toEqual([
+        'link_submitted',
         'draft_approved',
         'draft_submitted',
-        'link_submitted',
         'scheduled',
       ]);
       expect(byType('draft_submitted').payload).toMatchObject({ version: 1, note: 'Versi pertama.' });
