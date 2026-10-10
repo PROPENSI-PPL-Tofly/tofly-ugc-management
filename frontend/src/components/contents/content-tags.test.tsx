@@ -8,7 +8,7 @@ describe("ContentTags", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("lists each tag by its Indonesian label, in the order given", () => {
+  it("lists each tag by its label, in the order given", () => {
     render(<ContentTags tags={["late_submission", "overdue", "approval_bypassed"]} />);
 
     const list = screen.getByRole("list", { name: "Tanda konten" });
@@ -16,15 +16,15 @@ describe("ContentTags", () => {
       within(list)
         .getAllByRole("listitem")
         .map((item) => item.textContent),
-    ).toEqual(["Terlambat", "Overdue", "Approval dilewati"]);
+    ).toEqual(["Late Submission", "Overdue", "Approval di-bypass"]);
   });
 
   it("names each tag in text and tints it by its tone, so colour is never the only signal", () => {
     render(<ContentTags tags={["late_submission", "overdue", "approval_bypassed"]} />);
 
-    expect(screen.getByText("Terlambat")).toHaveClass("text-amber-ink");
+    expect(screen.getByText("Late Submission")).toHaveClass("text-red-ink");
     expect(screen.getByText("Overdue")).toHaveClass("text-red-ink");
-    expect(screen.getByText("Approval dilewati")).toHaveClass("text-ink-2");
+    expect(screen.getByText("Approval di-bypass")).toHaveClass("text-amber-ink");
   });
 
   it("wraps onto further lines instead of widening a narrow cell", () => {

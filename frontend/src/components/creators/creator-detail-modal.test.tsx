@@ -359,7 +359,7 @@ describe("CreatorDetailModal", () => {
         within(tags)
           .getAllByRole("listitem")
           .map((item) => item.textContent),
-      ).toEqual(["Terlambat", "Approval dilewati"]);
+      ).toEqual(["Late Submission", "Approval di-bypass"]);
     });
 
     it("shows an overdue scheduled content as Scheduled with an Overdue tag", async () => {

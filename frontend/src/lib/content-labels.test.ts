@@ -36,21 +36,21 @@ describe("CONTENT_STATUS_TONES", () => {
 });
 
 describe("CONTENT_TAG_LABELS", () => {
-  it("names the three tags in Indonesian, in the order the API sends them", () => {
+  it("names the three tags as the prototype words them, in the order the API sends them", () => {
     expect(Object.entries(CONTENT_TAG_LABELS)).toEqual([
-      ["late_submission", "Terlambat"],
+      ["late_submission", "Late Submission"],
       ["overdue", "Overdue"],
-      ["approval_bypassed", "Approval dilewati"],
+      ["approval_bypassed", "Approval di-bypass"],
     ]);
   });
 });
 
 describe("CONTENT_TAG_TONES", () => {
-  it("marks lateness amber, a missed deadline red and a skipped approval neutral", () => {
+  it("marks a late hand-in and a missed deadline red, and a skipped approval amber", () => {
     expect(CONTENT_TAG_TONES).toEqual({
-      late_submission: "amber",
+      late_submission: "red",
       overdue: "red",
-      approval_bypassed: "neutral",
+      approval_bypassed: "amber",
     });
   });
 });
