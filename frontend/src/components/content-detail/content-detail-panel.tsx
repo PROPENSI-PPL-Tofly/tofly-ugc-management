@@ -515,7 +515,7 @@ export function ContentDetailPanel({
   const commands = loaded
     ? actions
         ? []
-        : actionsFor({ role, detail: loaded, state: snapshot, ports: actionPorts })
+        : actionsFor({ role, detail: loaded, state: snapshot, ports: actionPorts, now })
     : [];
   // The open form's own send button: a revision needs a note, a rejection takes one if given.
   let send: PanelCommand | null = null;
