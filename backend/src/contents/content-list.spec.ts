@@ -55,10 +55,10 @@ describe('TAB_STATUSES', () => {
 });
 
 describe('checkContentListQuery', () => {
-  it('lists every content by nearest deadline when nothing is asked', () => {
+  it('lists every content, furthest deadline first, when nothing is asked', () => {
     expect(checkContentListQuery({})).toEqual({
       tab: 'all',
-      sort: 'deadline_asc',
+      sort: 'deadline_desc',
     });
   });
 
@@ -232,10 +232,12 @@ describe('checkContentListQuery', () => {
       expect(checkContentListQuery({ overdue: 'true' }).overdue).toBe(true);
     });
 
-    it('leaves the filter out for false', () => {
-      expect(checkContentListQuery({ overdue: 'false' })).not.toHaveProperty(
-        'overdue',
-      );
+    it('keeps only content that is not overdue for false', () => {
+      expect(checkContentListQuery({ overdue: 'false' }).overdue).toBe(false);
+    });
+
+    it('leaves the filter out when nothing is sent', () => {
+      expect(checkContentListQuery({})).not.toHaveProperty('overdue');
     });
 
     it.each([

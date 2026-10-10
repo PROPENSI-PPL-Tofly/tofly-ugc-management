@@ -167,7 +167,7 @@ describe('GET /contents (e2e)', () => {
     await app.close();
   });
 
-  it("lists every creator's content by nearest deadline with a counter per tab", async () => {
+  it("lists every creator's content, furthest deadline first, with a counter per tab", async () => {
     const response = await list();
 
     expect(response.status).toBe(200);
@@ -176,15 +176,15 @@ describe('GET /contents (e2e)', () => {
         item.name.replace(`${MARKER} `, ''),
       ),
     ).toEqual([
-      'overdue',
-      'late link',
-      'scheduled',
-      'revision',
-      'approved',
-      'proposal',
-      'review',
-      'resubmit',
       'evergreen',
+      'resubmit',
+      'review',
+      'proposal',
+      'approved',
+      'revision',
+      'scheduled',
+      'late link',
+      'overdue',
     ]);
     expect(response.body).toMatchObject({
       page: 1,
@@ -240,10 +240,10 @@ describe('GET /contents (e2e)', () => {
   });
 
   it.each([
-    ['needs_approval', ['proposal', 'review', 'resubmit']],
+    ['needs_approval', ['resubmit', 'review', 'proposal']],
     [
       'waiting_creator',
-      ['overdue', 'scheduled', 'revision', 'approved', 'evergreen'],
+      ['evergreen', 'approved', 'revision', 'scheduled', 'overdue'],
     ],
     ['done', ['late link']],
   ])('lists the %s tab and still counts every tab', async (tab, expected) => {
@@ -263,8 +263,20 @@ describe('GET /contents (e2e)', () => {
     });
   });
 
-  it('keeps only content tagged overdue, not everything past its deadline', async () => {
-    expect(await names('&overdue=true')).toEqual(['overdue']);
+  it('keeps what is past its deadline and what was finished late for overdue=true', async () => {
+    expect(await names('&overdue=true')).toEqual(['late link', 'overdue']);
+  });
+
+  it('keeps everything else for overdue=false', async () => {
+    expect(await names('&overdue=false')).toEqual([
+      'evergreen',
+      'resubmit',
+      'review',
+      'proposal',
+      'approved',
+      'revision',
+      'scheduled',
+    ]);
   });
 
   it('narrows to one creator, or several', async () => {
@@ -282,32 +294,51 @@ describe('GET /contents (e2e)', () => {
     expect(await names('&type=evergreen')).toEqual(['evergreen']);
   });
 
-  it('narrows by several statuses and counts the tabs under them', async () => {
+  it('narrows the rows by several statuses and leaves the tab counters alone', async () => {
     const response = await list('&status=pending&status=link_submitted');
 
     expect((response.body.items as Item[]).map((item) => item.status)).toEqual([
-      'link_submitted',
       'pending',
+      'link_submitted',
     ]);
+    expect(response.body.total).toBe(2);
     expect(response.body.tabCounts).toEqual({
-      all: 2,
-      needs_approval: 1,
-      waiting_creator: 0,
+      all: 9,
+      needs_approval: 3,
+      waiting_creator: 5,
       done: 1,
     });
   });
 
   it('narrows by a deadline period, both days included', async () => {
     expect(await names(`&deadlineFrom=${iso(6)}&deadlineTo=${iso(8)}`)).toEqual(
-      ['revision', 'approved', 'proposal'],
+      ['proposal', 'approved', 'revision'],
     );
   });
 
-  it('lists the furthest deadline first when asked', async () => {
-    const sorted = await names('&sort=deadline_desc');
+  it('never hides what waits for approval behind a deadline period', async () => {
+    const response = await list(
+      `&tab=needs_approval&deadlineFrom=${iso(6)}&deadlineTo=${iso(8)}`,
+    );
 
-    expect(sorted[0]).toBe('evergreen');
-    expect(sorted.at(-1)).toBe('overdue');
+    expect(
+      (response.body.items as Item[]).map((item) =>
+        item.name.replace(`${MARKER} `, ''),
+      ),
+    ).toEqual(['resubmit', 'review', 'proposal']);
+    expect(response.body.tabCounts).toEqual({
+      all: 3,
+      needs_approval: 3,
+      waiting_creator: 2,
+      done: 0,
+    });
+  });
+
+  it('lists the nearest deadline first when asked', async () => {
+    const sorted = await names('&sort=deadline_asc');
+
+    expect(sorted[0]).toBe('overdue');
+    expect(sorted.at(-1)).toBe('evergreen');
   });
 
   it('pages the list', async () => {
@@ -317,7 +348,7 @@ describe('GET /contents (e2e)', () => {
       (response.body.items as Item[]).map((item) =>
         item.name.replace(`${MARKER} `, ''),
       ),
-    ).toEqual(['evergreen']);
+    ).toEqual(['overdue']);
     expect(response.body).toMatchObject({
       page: 3,
       pageSize: 4,

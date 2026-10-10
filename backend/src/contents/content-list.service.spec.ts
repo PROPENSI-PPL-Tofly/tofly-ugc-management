@@ -344,7 +344,7 @@ describe('ContentListService.list', () => {
       expect(answer.total).toBe(0);
     });
 
-    it('narrows a tab by a status filter instead of widening it', async () => {
+    it('narrows the rows by a status filter and leaves every counter as it was', async () => {
       const { service } = stub([
         row({ name: 'Usulan', status: 'pending' }),
         row({ name: 'Terjadwal', status: 'scheduled' }),
@@ -357,13 +357,82 @@ describe('ContentListService.list', () => {
         statuses: ['pending', 'scheduled'],
       });
 
+      // The tab is narrowed, never widened: Terjadwal sits under another tab.
       expect(answer.items.map((item) => item.name)).toEqual(['Usulan']);
+      expect(answer.total).toBe(1);
       expect(answer.tabCounts).toEqual({
-        all: 2,
-        needs_approval: 1,
+        all: 3,
+        needs_approval: 2,
         waiting_creator: 1,
         done: 0,
       });
+    });
+
+    describe('under a deadline period', () => {
+      const PERIOD = { deadlineFrom: '2026-10-12', deadlineTo: '2026-10-18' };
+      const rows = () => [
+        row({ name: 'Usulan lama', status: 'pending', deadline: '2026-09-01' }),
+        row({
+          name: 'Review nanti',
+          status: 'draft_review',
+          deadline: '2026-12-01',
+          handIns: 1,
+        }),
+        row({
+          name: 'Review minggu ini',
+          status: 'draft_review',
+          deadline: '2026-10-15',
+          handIns: 1,
+        }),
+        row({ name: 'Terjadwal minggu ini', deadline: '2026-10-14' }),
+        row({ name: 'Terjadwal nanti', deadline: '2026-12-02' }),
+        row({
+          name: 'Selesai lama',
+          status: 'link_submitted',
+          deadline: '2026-09-02',
+          videoSubmittedAt: '2026-09-01',
+        }),
+      ];
+
+      it('still lists everything that waits for approval, whatever its deadline', async () => {
+        expect(
+          await names(rows(), { ...PERIOD, tab: 'needs_approval' }),
+        ).toEqual(['Usulan lama', 'Review minggu ini', 'Review nanti']);
+      });
+
+      it('keeps the other tabs to the period', async () => {
+        expect(
+          await names(rows(), { ...PERIOD, tab: 'waiting_creator' }),
+        ).toEqual(['Terjadwal minggu ini']);
+        expect(await names(rows(), { ...PERIOD, tab: 'done' })).toEqual([]);
+      });
+
+      it('keeps Semua to the period too, approval rows included', async () => {
+        expect(await names(rows(), { ...PERIOD, tab: 'all' })).toEqual([
+          'Terjadwal minggu ini',
+          'Review minggu ini',
+        ]);
+      });
+
+      it.each(['all', 'needs_approval', 'waiting_creator', 'done'] as const)(
+        'counts Perlu Approval in full and the other tabs within the period (%s open)',
+        async (tab) => {
+          const { service } = stub(rows());
+
+          const answer = await service.list(PAGE, NOW, {
+            ...EVERYTHING,
+            ...PERIOD,
+            tab,
+          });
+
+          expect(answer.tabCounts).toEqual({
+            all: 2,
+            needs_approval: 3,
+            waiting_creator: 1,
+            done: 0,
+          });
+        },
+      );
     });
   });
 
@@ -454,38 +523,62 @@ describe('ContentListService.list', () => {
       ).toEqual(['Disetujui', 'Usulan']);
     });
 
-    it('keeps exactly the contents tagged overdue for the overdue filter', async () => {
-      const rows = [
+    describe('overdue', () => {
+      const rows = () => [
         row({ name: 'Lewat, terjadwal', deadline: '2026-10-01' }),
-        // Past its deadline but never tagged: nobody committed to a proposal, and a submitted
-        // link is finished.
+        // Past its deadline but nobody committed to a proposal, so it is not overdue.
         row({
           name: 'Lewat, usulan',
           status: 'pending',
-          deadline: '2026-10-01',
+          deadline: '2026-10-02',
+        }),
+        // Its link came in after the deadline: the lateness stays with it once it is done.
+        row({
+          name: 'Selesai terlambat',
+          status: 'link_submitted',
+          deadline: '2026-10-03',
+          videoSubmittedAt: '2026-10-05',
         }),
         row({
-          name: 'Lewat, selesai',
+          name: 'Selesai tepat waktu',
           status: 'link_submitted',
-          deadline: '2026-10-01',
-          videoSubmittedAt: '2026-10-03',
+          deadline: '2026-10-04',
+          videoSubmittedAt: '2026-10-04',
         }),
         row({ name: 'Belum lewat', deadline: '2026-10-30' }),
       ];
 
-      const { service } = stub(rows);
-      const answer = await service.list(PAGE, NOW, {
-        ...EVERYTHING,
-        overdue: true,
+      it('keeps what is past its deadline and what was finished late for true', async () => {
+        const { service } = stub(rows());
+
+        const answer = await service.list(PAGE, NOW, {
+          ...EVERYTHING,
+          overdue: true,
+        });
+
+        expect(answer.items.map((item) => [item.name, item.tags])).toEqual([
+          ['Lewat, terjadwal', ['overdue']],
+          ['Selesai terlambat', ['late_submission']],
+        ]);
+        expect(answer.tabCounts).toEqual({
+          all: 2,
+          needs_approval: 0,
+          waiting_creator: 1,
+          done: 1,
+        });
       });
 
-      expect(answer.items.map((item) => item.name)).toEqual([
-        'Lewat, terjadwal',
-      ]);
-      expect(answer.items.every((item) => item.tags.includes('overdue'))).toBe(
-        true,
-      );
-      expect(answer.tabCounts.all).toBe(1);
+      it('keeps everything else for false', async () => {
+        expect(await names(rows(), { overdue: false })).toEqual([
+          'Lewat, usulan',
+          'Selesai tepat waktu',
+          'Belum lewat',
+        ]);
+      });
+
+      it('keeps all of it when the filter is left out', async () => {
+        expect(await names(rows(), {})).toHaveLength(5);
+      });
     });
 
     it('keeps deadlines from the first day of the period through the last', async () => {

@@ -83,13 +83,13 @@ describe('ContentListController', () => {
     expect(response.body).toEqual(list);
   });
 
-  it('lists every content, ten rows a page by nearest deadline, when nothing is asked', async () => {
+  it('lists every content, ten rows a page with the furthest deadline first, when nothing is asked', async () => {
     await get();
 
     expect(contents.list).toHaveBeenCalledWith(
       { page: 1, pageSize: 10 },
       expect.any(Date),
-      { tab: 'all', sort: 'deadline_asc' },
+      { tab: 'all', sort: 'deadline_desc' },
     );
   });
 
@@ -138,7 +138,7 @@ describe('ContentListController', () => {
       creators: [CREATOR_A, CREATOR_B],
       types: ['evergreen', 'specific'],
       statuses: ['pending', 'draft_review'],
-      sort: 'deadline_asc',
+      sort: 'deadline_desc',
     });
   });
 
@@ -150,7 +150,7 @@ describe('ContentListController', () => {
     expect(response.status).toBe(200);
     expect(contents.list.mock.calls[0][2]).toEqual({
       tab: 'all',
-      sort: 'deadline_asc',
+      sort: 'deadline_desc',
     });
   });
 
