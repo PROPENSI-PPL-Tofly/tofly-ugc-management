@@ -24,6 +24,8 @@ const GRACE_DEADLINE = new Date('2026-10-20T00:00:00.000Z');
 const REEL = 'https://www.instagram.com/reel/C8abc/';
 const TIKTOK = 'https://www.tiktok.com/@creator/video/123';
 const SUBMITTED_AT = new Date('2026-10-19T00:00:00.000Z');
+/** The moment the link arrives (the fake clock below), 11.00 WIB: what the timeline shows. */
+const HANDED_IN_AT = new Date('2026-10-19T04:00:00.000Z');
 
 function stub(options: {
   content?: {
@@ -160,7 +162,7 @@ describe('VideoSubmissionService.submit', () => {
         event_type: 'Link Submitted',
         actor_name: 'Dina Ayu Putri',
         actor_role: 'creator',
-        occurred_at: SUBMITTED_AT,
+        occurred_at: HANDED_IN_AT,
         event_data: { link: REEL },
       },
     });
@@ -169,6 +171,20 @@ describe('VideoSubmissionService.submit', () => {
     ).toBeLessThan(
       transaction.content_events.create.mock.invocationCallOrder[0],
     );
+  });
+
+  it('keeps the day on the content while the event keeps the moment, so a same-day draft sorts below it', async () => {
+    const { transaction, service } = stub({});
+
+    await service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ video_submitted_at: SUBMITTED_AT }),
+      }),
+    );
+    const event = transaction.content_events.create.mock.calls[0][0].data;
+    expect(event.occurred_at).toEqual(HANDED_IN_AT);
   });
 
   it('uses only available creator name parts when optional names are absent', async () => {
@@ -190,7 +206,7 @@ describe('VideoSubmissionService.submit', () => {
         event_type: 'Link Submitted',
         actor_name: 'Dina',
         actor_role: 'creator',
-        occurred_at: SUBMITTED_AT,
+        occurred_at: HANDED_IN_AT,
         event_data: { link: REEL },
       },
     });
