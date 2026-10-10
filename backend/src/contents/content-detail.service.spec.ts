@@ -24,6 +24,7 @@ function row() {
       creators: { first_name: 'Rangga', middle_name: null, last_name: 'Pratama' },
     },
     submissions: [],
+    content_events: [],
   };
 }
 
@@ -52,6 +53,17 @@ describe('ContentDetailService', () => {
         submissions: expect.objectContaining({
           select: expect.objectContaining({ creator_notes: true }),
         }),
+        content_events: {
+          orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],
+          select: {
+            id: true,
+            event_type: true,
+            actor_name: true,
+            actor_role: true,
+            occurred_at: true,
+            event_data: true,
+          },
+        },
       }),
     });
     expect(detail).toMatchObject({
