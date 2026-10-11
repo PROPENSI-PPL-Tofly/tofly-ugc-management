@@ -15,28 +15,6 @@ import { ContentPlanTable } from "./content-plan-table";
 const CONTENT_PARAM = "content";
 
 /**
- * Puts the open panel's content in the address, so it can be copied, shared or reopened like
- * the link a notification sends. Replaced rather than pushed: Back leaves the page instead of
- * walking through every panel opened on it. Other parameters (the tab, the page) stay.
- */
-function rememberContentParam(contentId: string) {
-  const url = new URL(window.location.href);
-  url.searchParams.set(CONTENT_PARAM, contentId);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
-/**
- * Takes the deep link back out of the address once its panel has closed, so a reload or a
- * Back does not open the panel again. Other parameters (the tab, the page) stay.
- * replaceState keeps Next's router in sync without a navigation or a server round trip.
- */
-function forgetContentParam() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(CONTENT_PARAM);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
-/**
  * The Content Plan's interactive part: the table plus the detail panel its Tinjau and Detail
  * buttons open. The page fetches on the server and cannot hold "which content is open", so this
  * client component does. A decision refreshes the plan, which re-fetches the rows and the tab
@@ -55,7 +33,7 @@ export function ContentPlanBoard({
 }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { replaceQuery } = useUrlQuery();
+  const { replaceQuery, replaceQuietly } = useUrlQuery();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   const { show: confirm, toast } = useToast();
 
@@ -72,19 +50,34 @@ export function ContentPlanBoard({
     }
   }, []);
 
-  // The address names the open panel's content for as long as the panel is open. Written here
-  // and not in the press that opens it: a filter change already on its way when the panel
-  // opened lands as an address without ?content=, and the link has to come back then too.
+  // The address names the open panel's content for as long as the panel is open, so it can be
+  // copied, shared or reopened like the link a notification sends. It replaces the entry
+  // rather than adding one: Back leaves the page instead of walking through every panel
+  // opened on it. Written here and not in the press that opens the panel: a filter change
+  // already on its way then lands as an address without ?content=, and the link has to come
+  // back then too.
+  //
+  // It is built on what was last sent, so a filter ticked a moment ago is kept, and checked
+  // against it too: once the link has been sent there is nothing more to write, however many
+  // times this runs before the address shows it.
   const linked = searchParams.get(CONTENT_PARAM);
   useEffect(() => {
-    if (openContentId && linked !== openContentId) {
-      rememberContentParam(openContentId);
-    }
-  }, [openContentId, linked]);
+    if (!openContentId) return;
 
+    const next = new URLSearchParams(latestQuery());
+    if (next.get(CONTENT_PARAM) === openContentId) return;
+
+    next.set(CONTENT_PARAM, openContentId);
+    replaceQuietly(next.toString());
+  }, [openContentId, linked, replaceQuietly]);
+
+  /** Closing takes the link back out, so a reload or a Back does not open the panel again. */
   function closePanel() {
     setOpenContentId(null);
-    forgetContentParam();
+
+    const next = new URLSearchParams(latestQuery());
+    next.delete(CONTENT_PARAM);
+    replaceQuietly(next.toString());
   }
 
   /**

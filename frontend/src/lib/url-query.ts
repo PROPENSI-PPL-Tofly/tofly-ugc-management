@@ -64,7 +64,8 @@ export function latestQuery(): string {
 /**
  * The page's query string for a control that rewrites it. `query` is what the controls hold,
  * shown at once and ahead of the address bar while a change is on its way; `replaceQuery`
- * sends a new one, which every other control on the page sees and builds on.
+ * sends a new one, which every other control on the page sees and builds on, and
+ * `replaceQuietly` writes one the server has nothing to render for.
  */
 export function useUrlQuery() {
   const router = useRouter();
@@ -111,5 +112,26 @@ export function useUrlQuery() {
     [pathname, router],
   );
 
-  return { query: held ?? urlQuery, replaceQuery, pending };
+  /**
+   * Writes a query into the address with no navigation, for a change the server has nothing
+   * to render for (which content's panel is open). While another change is on its way it goes
+   * out as a navigation instead: a write straight into the address makes the router drop the
+   * navigation it overtakes, and the change that was on its way would be lost.
+   */
+  const replaceQuietly = useCallback(
+    (query: string) => {
+      if (flight.held !== null) {
+        replaceQuery(query);
+        return;
+      }
+
+      // The address shows it from this line on, so its arrival is not somebody else's move.
+      flight.url = query;
+      const search = query ? `?${query}` : "";
+      window.history.replaceState(null, "", `${pathname}${search}${window.location.hash}`);
+    },
+    [pathname, replaceQuery],
+  );
+
+  return { query: held ?? urlQuery, replaceQuery, replaceQuietly, pending };
 }
