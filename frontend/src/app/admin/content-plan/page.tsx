@@ -89,7 +89,8 @@ export default async function ContentPlanPage({
       ) : null}
 
       {result ? (
-        <Panel>
+        // Unclipped: the filter popups hang below the bar and past the panel's foot.
+        <Panel clip={false}>
           <ContentPlanTabBar active={state.tab} counts={result.counts} />
           <ContentPlanFilters state={state} creators={creators} />
           <ContentPlanBoard
