@@ -178,6 +178,20 @@ describe("useUrlFilters", () => {
       });
     });
 
+    it("resets down to what the caller keeps, and builds the next change on that", () => {
+      searchParams = new URLSearchParams({ tab: "waiting", q: "ra", type: "specific" });
+      const { result } = renderHook(() => useUrlFilters());
+
+      act(() => result.current.resetKeeping({ tab: "waiting" }));
+      expect(result.current.search).toBe("");
+      expect(result.current.param("type")).toBe("all");
+      expect(result.current.param("tab")).toBe("waiting");
+      settle();
+
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(replace).toHaveBeenCalledWith("/admin/creators?tab=waiting", { scroll: false });
+    });
+
     it("shows every filter as cleared the moment it is reset", () => {
       searchParams = new URLSearchParams({ contractStatus: "active" });
       const { result } = renderHook(() => useUrlFilters());

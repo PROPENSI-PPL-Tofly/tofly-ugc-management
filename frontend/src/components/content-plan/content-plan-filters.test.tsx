@@ -221,6 +221,23 @@ describe("ContentPlanFilters", () => {
     });
   });
 
+  // Reset empties the search box, and the box's debounce then sent "search cleared" on top of
+  // the filters the URL still showed: on a render slower than the debounce they all came back.
+  it("stays reset when the URL is slower than the search debounce", () => {
+    renderFilters().rerenderWith(
+      new URLSearchParams({ tab: "waiting", q: "tofly", type: "specific" }),
+      { tab: "waiting" },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    act(() => vi.advanceTimersByTime(400));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?tab=waiting", {
+      scroll: false,
+    });
+    expect(screen.queryByRole("button", { name: /^Hapus filter/ })).not.toBeInTheDocument();
+  });
+
   it("opens the bare address when Reset is pressed on Semua", () => {
     const view = renderFilters();
     view.rerenderWith(new URLSearchParams({ q: "salsa", overdue: "yes" }));
