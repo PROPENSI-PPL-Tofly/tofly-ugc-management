@@ -1,6 +1,8 @@
+import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import {
   CALENDAR_GROUPS,
+  calendarChipLabel,
   calendarGroup,
   monthGrid,
   monthLabel,
@@ -231,5 +233,62 @@ describe("monthLabel", () => {
     [{ year: 2028, month: 2 }, "Februari 2028"],
   ])("reads the month in Indonesian", (month, label) => {
     expect(monthLabel(month)).toBe(label);
+  });
+});
+
+describe("calendarChipLabel", () => {
+  function chip(
+    name: string,
+    type: ContentType,
+    status: ContentStatus = "scheduled",
+    tags: ContentTag[] = [],
+  ) {
+    return { name, type, status, tags };
+  }
+
+  it.each([
+    ["Evg_10_RanggaPratama_07112026", "Evergreen #10"],
+    ["Evg_1_SalsaBila_12102026", "Evergreen #1"],
+    ["Evg_123_RanggaPratama_01012027", "Evergreen #123"],
+  ])("shortens the Evergreen content %s to its number", (name, label) => {
+    expect(calendarChipLabel(chip(name, "evergreen"))).toBe(label);
+  });
+
+  it("reads a Specific content as its full name", () => {
+    expect(calendarChipLabel(chip("Tutorial Latihan Listening", "specific"))).toBe(
+      "Tutorial Latihan Listening",
+    );
+  });
+
+  it.each([
+    ["no number", "Evg_RanggaPratama"],
+    ["a different prefix", "Evergreen_10_RanggaPratama"],
+    ["nothing after the number", "Evg_10"],
+    ["a free-form name", "Konten rutin mingguan"],
+  ])("falls back to the full name for an Evergreen content with %s", (_label, name) => {
+    expect(calendarChipLabel(chip(name, "evergreen"))).toBe(name);
+  });
+
+  it("keeps the full name of a Specific content that happens to be named like an Evergreen one", () => {
+    expect(calendarChipLabel(chip("Evg_10_RanggaPratama_07112026", "specific"))).toBe(
+      "Evg_10_RanggaPratama_07112026",
+    );
+  });
+
+  it("puts a mark in front of an overdue task", () => {
+    expect(calendarChipLabel(chip("Tutorial Latihan Listening", "specific", "scheduled", ["overdue"]))).toBe(
+      "! Tutorial Latihan Listening",
+    );
+    expect(
+      calendarChipLabel(chip("Evg_10_RanggaPratama_07112026", "evergreen", "draft_revision", ["overdue"])),
+    ).toBe("! Evergreen #10");
+  });
+
+  it("puts no mark on a finished task whose link came in late: it is done, not overdue", () => {
+    expect(
+      calendarChipLabel(
+        chip("Tutorial Latihan Listening", "specific", "link_submitted", ["late_submission"]),
+      ),
+    ).toBe("Tutorial Latihan Listening");
   });
 });
