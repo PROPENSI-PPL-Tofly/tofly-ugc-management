@@ -8,11 +8,16 @@ import {
   TAB_STATUSES,
   tabOf,
   type ContentListFilters,
-  type ContentListSort,
   type ContentListTab,
   type ContentListType,
 } from './content-list.js';
 import { contentTags } from './content-tags.js';
+import {
+  compareByDeadline,
+  deadlineWhere,
+  isOverdue,
+  withinPeriod,
+} from './list-rows.js';
 import type {
   ContentListItem,
   ContentListResponse,
@@ -106,33 +111,6 @@ export interface ContentListLister {
   ): Promise<ContentListResponse>;
 }
 
-// Names are compared by one fixed collator, so the order is the same on a laptop, in CI and on
-// the server whatever locale each of them runs in.
-// Stryker disable next-line StringLiteral: not a gap. An empty locale makes the constructor throw while this file loads, so every suite that imports it fails before a test runs, and the runner counts a mutant with no failed test as survived.
-const BY_NAME = new Intl.Collator('id');
-
-/** ISO days and ids are plain ASCII, so their code-unit order is their order. */
-function compareText(a: string, b: string): number {
-  if (a < b) {
-    return -1;
-  }
-  return a > b ? 1 : 0;
-}
-
-/** Nearest or furthest deadline first; name and id keep rows sharing a day in place. */
-function compareBy(sort: ContentListSort) {
-  const direction = sort === 'deadline_desc' ? -1 : 1;
-  return (a: ContentListItem, b: ContentListItem): number =>
-    direction * compareText(a.deadline, b.deadline) ||
-    BY_NAME.compare(a.name, b.name) ||
-    compareText(a.id, b.id);
-}
-
-/** Past its deadline with no link yet, or finished after it: both read as overdue to an admin. */
-function isOverdue(item: ContentListItem): boolean {
-  return item.tags.includes('overdue') || item.tags.includes('late_submission');
-}
-
 /**
  * Decides whether a row passes the search and the overdue filter, the two that are judged on
  * what a row shows (its joined creator name, its tags) and so cannot be asked of the database.
@@ -144,7 +122,7 @@ function matcher(filters: ContentListFilters) {
   const needle = filters.q?.toLowerCase();
 
   return (item: ContentListItem): boolean => {
-    if (overdue !== undefined && isOverdue(item) !== overdue) {
+    if (overdue !== undefined && isOverdue(item.tags) !== overdue) {
       return false;
     }
     if (!needle) {
@@ -155,11 +133,6 @@ function matcher(filters: ContentListFilters) {
       item.creatorName.toLowerCase().includes(needle)
     );
   };
-}
-
-/** A calendar day as Postgres `date` columns hold it: midnight UTC. */
-function asDate(day: string): Date {
-  return new Date(`${day}T00:00:00.000Z`);
 }
 
 /**
@@ -176,29 +149,14 @@ function narrowing(filters: ContentListFilters): ContentListWhere {
   if (types) {
     where.type = { in: types };
   }
-  if (deadlineFrom || deadlineTo) {
-    const deadline: DeadlineRange = {};
-    if (deadlineFrom) {
-      deadline.gte = asDate(deadlineFrom);
-    }
-    if (deadlineTo) {
-      deadline.lte = asDate(deadlineTo);
-    }
+  const deadline = deadlineWhere({ deadlineFrom, deadlineTo });
+  if (deadline) {
     where.OR = [
       { deadline },
       { status: { in: [...TAB_STATUSES[PERIOD_FREE_TAB]] } },
     ];
   }
   return where;
-}
-
-/** Whether a deadline falls inside the asked period; always, when none is asked. */
-function withinPeriod(filters: ContentListFilters) {
-  const { deadlineFrom, deadlineTo } = filters;
-  // ISO days order the same as text and as dates.
-  return (item: ContentListItem): boolean =>
-    !(deadlineFrom && item.deadline < deadlineFrom) &&
-    !(deadlineTo && item.deadline > deadlineTo);
 }
 
 @Injectable()
@@ -242,7 +200,7 @@ export class ContentListService implements ContentListLister {
         continue;
       }
       const tab = tabOf(item.status);
-      const dated = inPeriod(item);
+      const dated = inPeriod(item.deadline);
       // Semua holds a row only inside the period; the row's own tab also holds it outside the
       // period when that tab is Perlu Approval.
       const inOwnTab = dated || tab === PERIOD_FREE_TAB;
@@ -258,7 +216,7 @@ export class ContentListService implements ContentListLister {
         listed.push(item);
       }
     }
-    listed.sort(compareBy(filters.sort));
+    listed.sort(compareByDeadline(filters.sort));
 
     const { page, pageSize } = paging;
     const start = (page - 1) * pageSize;
