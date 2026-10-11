@@ -14,6 +14,7 @@ const ADMIN_ROUTES = [
   ['get', '/creators'],
   ['get', `/creators/${UUID}`],
   ['post', '/creators'],
+  ['get', '/contents'],
   ['post', '/contents'],
   ['get', '/submissions?status=review'],
   ['get', `/submissions/${UUID}`],

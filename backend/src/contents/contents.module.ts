@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { ContentDetailService } from './content-detail.service.js';
 import { ContentEventHistoryService } from './content-event-history.service.js';
+import { ContentListController } from './content-list.controller.js';
+import { ContentListService } from './content-list.service.js';
 import { CreatorCommentController } from './creator-comment.controller.js';
 import { CreatorCommentService } from './creator-comment.service.js';
 import { ContentsController } from './contents.controller.js';
@@ -13,6 +15,7 @@ import { VideoSubmissionService } from './video-submission.service.js';
 
 @Module({
   controllers: [
+    ContentListController,
     ContentsController,
     CreatorCommentController,
     DraftSubmissionController,
@@ -22,6 +25,7 @@ import { VideoSubmissionService } from './video-submission.service.js';
     ContentCreationService,
     ContentDetailService,
     ContentEventHistoryService,
+    ContentListService,
     CreatorCommentService,
     DraftSubmissionService,
     VideoSubmissionService,
