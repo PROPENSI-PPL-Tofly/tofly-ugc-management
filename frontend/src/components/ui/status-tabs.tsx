@@ -2,10 +2,13 @@
 
 import { useRef, type KeyboardEvent } from "react";
 
-const TAB =
-  "shrink-0 cursor-pointer whitespace-nowrap rounded-t-(--radius-control) border-b-2 border-transparent px-3 py-2 text-[13px] font-semibold text-muted transition-colors hover:text-ink";
+const TAB_BASE =
+  "shrink-0 cursor-pointer whitespace-nowrap rounded-t-(--radius-control) border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors";
 
-const TAB_ON = `${TAB} border-accent text-accent-deep`;
+// Each state names its own border and colour: stacked on one another, two utilities of the same
+// property resolve by stylesheet order, and the plain tab's won.
+const TAB = `${TAB_BASE} border-transparent text-muted hover:text-ink`;
+const TAB_ON = `${TAB_BASE} border-accent text-accent-deep`;
 
 const COUNT_RED = "ml-2 rounded-full bg-red px-2 py-0.5 text-[11px] font-semibold text-accent-ink";
 const COUNT_GREY =
