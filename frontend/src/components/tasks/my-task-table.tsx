@@ -188,7 +188,7 @@ export function MyTaskTable({
                 </div>
               </td>
               {hideActions ? null : (
-                <td role="cell" className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
+                <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
                   <ActionCell task={task} onAction={onAction} />
                 </td>
               )}
