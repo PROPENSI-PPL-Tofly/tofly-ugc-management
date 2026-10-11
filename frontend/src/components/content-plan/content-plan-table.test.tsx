@@ -106,6 +106,45 @@ describe("ContentPlanTable", () => {
       );
     });
 
+    // Dragging across a name to copy it ends in a click on the row. That is copying, not
+    // opening.
+    describe("when the press ends a text selection", () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("does not open the panel over the text just selected", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "Video Review",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("Video Review Kopi"));
+
+        expect(onOpen).not.toHaveBeenCalled();
+      });
+
+      it("still opens from the button, which is never part of a selection", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "Video Review",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByRole("button", { name: "Tinjau Video Review Kopi" }));
+
+        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+      });
+
+      it("opens as usual where the browser reports no selection at all", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue(null);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("Video Review Kopi"));
+
+        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+      });
+    });
+
     it("leaves the heading row alone", () => {
       const { onOpen } = renderTable();
 
