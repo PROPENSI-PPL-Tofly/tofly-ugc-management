@@ -7,7 +7,7 @@ import { canTransition } from '../contents/content-lifecycle.js';
 
 export type TaskAction = 'submit_draft' | 'resubmit_draft' | 'submit_video';
 
-/** H-1: from the day before the deadline, a video link may skip the draft approval. */
+/** H-1: from the day before the deadline, a video link may skip the approval of a draft in review. */
 export const GRACE_DAYS = 1;
 
 function daysBefore(day: string, days: number): string {
@@ -27,13 +27,14 @@ export function canSubmitDraft(status: content_status): boolean {
   return canTransition(status, 'draft_review');
 }
 
-/** An approved draft, or any unfinished assigned content inside the grace window. */
+/** An approved draft, or a draft still waiting for review once the grace window is open. */
 export function canSubmitVideo(
   status: content_status,
   deadline: string,
   today: string,
 ): boolean {
-  // A submitted link and a pending proposal have no move to link_submitted at all.
+  // The lifecycle has an arrow to link_submitted from an approved draft and from one in review
+  // only: no draft yet, a revision owed, a pending proposal and a sent link all stop here.
   if (!canTransition(status, 'link_submitted')) {
     return false;
   }
