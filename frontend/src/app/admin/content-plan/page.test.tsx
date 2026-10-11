@@ -169,6 +169,17 @@ describe("Content Plan page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/tidak bisa dimuat/i);
   });
 
+  // With no row to give the panel height, the filter popups were cut off at the panel's foot.
+  it("does not clip the panel that holds the filter popups", async () => {
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Creator:/ }));
+
+    expect(screen.getByRole("group", { name: "Creator" }).closest("section")).not.toHaveClass(
+      "overflow-hidden",
+    );
+  });
+
   it("hands every creator name to the filter bar", async () => {
     await renderPage();
 
