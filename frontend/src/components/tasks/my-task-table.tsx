@@ -107,6 +107,7 @@ export function MyTaskTable({
   onDetail,
   emptyMessage = "Belum ada tugas untuk kamu.",
   emptyAction,
+  emptyHint = "Tugas baru muncul di sini begitu admin menjadwalkannya.",
   sort = "asc",
   onSortToggle,
 }: Readonly<{
@@ -118,6 +119,8 @@ export function MyTaskTable({
   emptyMessage?: string;
   /** The way out of an empty list, e.g. clearing the filter that emptied it. */
   emptyAction?: ReactNode;
+  /** The line under an empty list's message; null where it would not be true (a finished tab). */
+  emptyHint?: string | null;
   /** Which way the deadline runs; only shown when the page can turn it over. */
   sort?: DeadlineSort;
   /** Turns the deadline order over; given, the Deadline header becomes its button. */
@@ -127,7 +130,7 @@ export function MyTaskTable({
     return (
       <EmptyState
         title={emptyMessage}
-        hint={emptyAction ? undefined : "Tugas baru muncul di sini begitu admin menjadwalkannya."}
+        hint={emptyAction ? undefined : (emptyHint ?? undefined)}
         action={emptyAction}
       />
     );

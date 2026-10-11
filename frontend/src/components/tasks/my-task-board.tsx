@@ -214,6 +214,8 @@ export function MyTaskBoard({
               <Button onClick={resetFilters}>Reset filter</Button>
             ) : undefined
           }
+          // New work lands in Semua and Perlu Dikerjakan, never straight in the other two tabs.
+          emptyHint={tab === "all" || tab === "action" ? undefined : null}
           sort={sort}
           onSortToggle={toggleSort}
           onAction={(task, action) => setOpened({ task, action })}
