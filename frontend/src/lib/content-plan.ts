@@ -159,6 +159,18 @@ function oneOf<T extends string>(values: readonly T[], raw: string, fallback: T)
 const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
+ * A `YYYY-MM-DD` that names a day that exists, read the way the API reads it: 2026-02-31 rolls
+ * over into March, so it fails the round trip. Empty for anything else.
+ */
+function calendarDay(raw: string): string {
+  if (!CALENDAR_DAY.test(raw)) return "";
+
+  const parsed = new Date(`${raw}T00:00:00Z`);
+  const exists = !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(raw);
+  return exists ? raw : "";
+}
+
+/**
  * The URL's values as the page's state, every one checked. Anything the page cannot hold —
  * an unknown tab, a status from another world, a page of zero — falls back to the default
  * rather than reaching the API, which would only answer with a 400.
@@ -181,8 +193,8 @@ export function parseContentPlanParams(
     ),
     overdue: oneOf(OVERDUE_FILTERS, single(params.overdue), "all"),
     period: oneOf(PERIOD_FILTERS, single(params.period), "all"),
-    from: CALENDAR_DAY.test(single(params.from)) ? single(params.from) : "",
-    to: CALENDAR_DAY.test(single(params.to)) ? single(params.to) : "",
+    from: calendarDay(single(params.from)),
+    to: calendarDay(single(params.to)),
     sort: oneOf(SORT_DIRECTIONS, single(params.sort), DEFAULT_SORT),
   };
 }
