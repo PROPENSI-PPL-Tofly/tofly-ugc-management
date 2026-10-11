@@ -205,7 +205,8 @@ describe("MyTaskTable", () => {
 
       const [row] = rows();
       expect(within(row).queryByRole("button")).not.toBeInTheDocument();
-      expect(within(row).getAllByRole("cell")[3]).toHaveTextContent("—");
+      // Nothing to do reads as an empty cell: a dash beside every finished row was only noise.
+      expect(within(row).getAllByRole("cell")[3]).toHaveTextContent("");
     });
 
     // UAT: every status and every button looked the same. Each action now takes the tone of
@@ -312,5 +313,52 @@ describe("MyTaskTable", () => {
 
     expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  describe("opening a task", () => {
+    it("opens the detail from the content name itself, with no separate Detail button", () => {
+      const onDetail = vi.fn();
+      const target = task();
+      render(<MyTaskTable tasks={[target]} onAction={vi.fn()} onDetail={onDetail} />);
+
+      const [row] = rows();
+      expect(within(row).queryByRole("button", { name: /^Detail/ })).not.toBeInTheDocument();
+      const name = within(row).getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
+      expect(name).toHaveAttribute("aria-haspopup", "dialog");
+      fireEvent.click(name);
+
+      expect(onDetail).toHaveBeenCalledWith(target);
+    });
+
+    it("shows the name as plain text when there is no detail to open", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+      expect(screen.queryByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).not.toBeInTheDocument();
+      expect(screen.getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
+    });
+  });
+
+  describe("without actions", () => {
+    it("drops the Aksi column on a list that never has anything to do", () => {
+      render(
+        <MyTaskTable tasks={[task({ status: "link_submitted", actions: [] })]} onDetail={vi.fn()} hideActions />,
+      );
+
+      expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+        "Nama Konten",
+        "Deadline",
+        "Status",
+      ]);
+      expect(within(rows()[0]).getAllByRole("cell")).toHaveLength(3);
+    });
+  });
+
+  it("centres every cell's content vertically, so the text lines up with the buttons", () => {
+    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+    for (const cell of within(rows()[0]).getAllByRole("cell")) {
+      expect(cell.className).toContain("align-middle");
+      expect(cell.className).not.toContain("align-top");
+    }
   });
 });

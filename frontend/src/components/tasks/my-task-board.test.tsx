@@ -291,6 +291,18 @@ describe("MyTaskBoard", () => {
     expect(replace).toHaveBeenCalledWith("/creator/tasks", { scroll: false });
   });
 
+  it("drops the Aksi column on Selesai, where nothing is left to do", () => {
+    render(<MyTaskBoard tasks={[task({ status: "link_submitted", actions: [] })]} tab="done" />);
+
+    expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the Aksi column on every other tab", () => {
+    render(<MyTaskBoard tasks={[task()]} tab="action" />);
+
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+  });
+
   it("names the region the tabs switch", () => {
     render(<MyTaskBoard tasks={[task()]} />);
 
@@ -393,7 +405,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
@@ -403,7 +415,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
 
     expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
@@ -450,7 +462,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
 
     render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(window.location.search).toBe("?status=scheduled&page=2&content=content-1");
@@ -468,7 +480,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
 
     render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
 
     await screen.findByRole("dialog");
     expect(pushState).not.toHaveBeenCalled();
@@ -482,7 +494,7 @@ describe("MyTaskBoard content detail panel", () => {
     render(<MyTaskBoard tasks={[task()]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
-    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
 
     await screen.findByRole("dialog");
     expect(replace).toHaveBeenLastCalledWith("/creator/tasks?sort=desc&content=content-1", {
@@ -494,7 +506,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
 
     await waitFor(() => {
