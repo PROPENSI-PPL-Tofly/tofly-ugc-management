@@ -171,6 +171,17 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       expect(onChange).toHaveBeenCalledWith([]);
     });
 
+    // Pressing it while it is already ticked changes nothing, so it must not report a change:
+    // on the Content Plan that was a navigation that threw page 3 back to page 1.
+    it("reports nothing when pressed while nothing is picked", () => {
+      const onChange = renderSelect();
+
+      fireEvent.click(within(open()).getByRole("checkbox", { name: "Semua" }));
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole("checkbox", { name: "Semua" })).toBeChecked();
+    });
+
     it("drops every chip once pressed", () => {
       render(<Stateful initial={["id-1", "id-3"]} />);
 
@@ -278,6 +289,32 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       // where the trigger is: the popup would cover the control that opened it.
       expect(popup).toHaveClass("absolute", "top-full", "left-0");
       expect(popup.parentElement).toHaveClass("relative");
+    });
+
+    // The chips sit beside the trigger and wrap onto more rows as picks are added. Anchored to
+    // the box that holds them too, the popup opened under the last row of chips, away from
+    // the trigger that opened it.
+    it("anchors the popup to the trigger alone, not to the chips beside it", () => {
+      renderSelect(["id-1", "id-2", "id-3"]);
+
+      const anchor = open().parentElement as HTMLElement;
+
+      expect(anchor).toHaveClass("relative");
+      expect(anchor).toContainElement(trigger());
+      expect(anchor).not.toContainElement(
+        screen.getByRole("button", { name: "Hapus filter Creator: Salsa" }),
+      );
+    });
+
+    it("still counts a press on a chip as inside, so dropping one keeps the popup open", () => {
+      render(<Stateful initial={["id-1", "id-2"]} />);
+      open();
+
+      const chip = screen.getByRole("button", { name: "Hapus filter Creator: Salsa" });
+      fireEvent.mouseDown(chip);
+      fireEvent.click(chip);
+
+      expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
     });
 
     it("marks the trigger while its popup is open", () => {
