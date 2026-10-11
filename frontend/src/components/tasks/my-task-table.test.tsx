@@ -412,4 +412,48 @@ describe("MyTaskTable", () => {
       expect(cell.className).not.toContain("align-top");
     }
   });
+
+  describe("type and fixed layout", () => {
+    it.each([
+      ["evergreen", "Evergreen"],
+      ["specific", "Specific"],
+    ] as const)("shows a %s task's type under its name, as quiet text", (type, label) => {
+      render(<MyTaskTable tasks={[task({ type })]} onAction={vi.fn()} onDetail={vi.fn()} />);
+
+      const nameCell = within(rows()[0]).getAllByRole("cell")[0];
+      const typeLabel = within(nameCell).getByText(label);
+      expect(typeLabel.className).toContain("text-muted");
+      expect(typeLabel.className).toContain("text-xs");
+    });
+
+    // The prototype's columns hold their width whatever a page holds, so a tab or a page with
+    // short names or no buttons does not reshuffle the table.
+    it("fixes the column widths from lg up, whatever the rows hold", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+      expect(screen.getByRole("table").className).toContain("lg:table-fixed");
+      const cols = document.querySelectorAll("colgroup col");
+      expect([...cols].map((col) => col.className)).toEqual(["w-[34%]", "w-[14%]", "w-[24%]", "w-[28%]"]);
+    });
+
+    it("spreads the three columns over the width when there is no Aksi column", () => {
+      render(<MyTaskTable tasks={[task({ status: "link_submitted", actions: [] })]} hideActions />);
+
+      const cols = document.querySelectorAll("colgroup col");
+      expect([...cols].map((col) => col.className)).toEqual(["w-[46%]", "w-[20%]", "w-[34%]"]);
+    });
+
+    it("gives every row the same height from lg up, buttons or none", () => {
+      render(
+        <MyTaskTable
+          tasks={[task({ id: "a" }), task({ id: "b", status: "link_submitted", actions: [] })]}
+          onAction={vi.fn()}
+        />,
+      );
+
+      for (const row of rows()) {
+        expect(row.className).toContain("lg:h-16");
+      }
+    });
+  });
 });
