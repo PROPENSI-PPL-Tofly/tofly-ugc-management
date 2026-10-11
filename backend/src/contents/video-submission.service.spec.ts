@@ -467,6 +467,26 @@ describe('VideoSubmissionService.submit', () => {
     expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
+  // A link pasted with a space or a newline around it is the same link: what is stored, what
+  // the timeline shows and what the creator gets back all leave the padding out.
+  it('stores, records and answers with the link without the spaces pasted around it', async () => {
+    const { transaction, service } = stub({});
+
+    const submitted = await service.submit(CONTENT_ID, CREATOR_ID, {
+      videoLink: `  ${REEL}\n`,
+    });
+
+    expect(submitted.videoLink).toBe(REEL);
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ video_link: REEL }),
+      }),
+    );
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ event_data: { link: REEL } }),
+    });
+  });
+
   it('rejects a non-Instagram/TikTok link before touching the database', async () => {
     const { client, service } = stub({});
 
@@ -477,6 +497,10 @@ describe('VideoSubmissionService.submit', () => {
     );
 
     expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as BadRequestException).getResponse()).toEqual({
+      code: 'INVALID_VIDEO_LINK',
+      message: 'Link harus berupa URL Instagram atau TikTok',
+    });
     expect(client.$transaction).not.toHaveBeenCalled();
   });
 });
