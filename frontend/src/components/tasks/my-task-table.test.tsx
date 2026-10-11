@@ -433,7 +433,7 @@ describe("MyTaskTable", () => {
 
       expect(screen.getByRole("table").className).toContain("lg:table-fixed");
       const cols = document.querySelectorAll("colgroup col");
-      expect([...cols].map((col) => col.className)).toEqual(["w-[34%]", "w-[14%]", "w-[24%]", "w-[28%]"]);
+      expect([...cols].map((col) => col.className)).toEqual(["w-[30%]", "w-[13%]", "w-[29%]", "w-[28%]"]);
     });
 
     it("spreads the three columns over the width when there is no Aksi column", () => {

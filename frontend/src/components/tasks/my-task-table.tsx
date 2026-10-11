@@ -25,7 +25,7 @@ const ACTION_LABELS: Record<MyTaskAction, string> = {
 const HEAD = "px-5 py-3 font-semibold";
 
 /** Column widths from lg up: Nama Konten, Deadline, Status, Aksi; without Aksi on Selesai. */
-const COLUMNS = ["w-[34%]", "w-[14%]", "w-[24%]", "w-[28%]"];
+const COLUMNS = ["w-[30%]", "w-[13%]", "w-[29%]", "w-[28%]"];
 const COLUMNS_WITHOUT_ACTIONS = ["w-[46%]", "w-[20%]", "w-[34%]"];
 const CELL = "px-5 py-3 align-middle max-lg:block max-lg:px-0 max-lg:py-1";
 const LABELLED =
