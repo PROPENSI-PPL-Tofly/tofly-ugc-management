@@ -94,4 +94,101 @@ describe("useUrlFilters", () => {
     settle();
     expect(replace).not.toHaveBeenCalled();
   });
+
+  // Found on the Content Plan: the URL only changes once the server has rendered, so a second
+  // tick made before that was built on the old URL and dropped the first one.
+  describe("while the URL is still catching up", () => {
+    it("shows a change at once, without waiting for the URL", () => {
+      const { result } = renderHook(() => useUrlFilters());
+
+      act(() => result.current.setParam("creator", "id-1"));
+
+      expect(result.current.param("creator")).toBe("id-1");
+    });
+
+    it("keeps the first change when a second is made before the URL has it", () => {
+      const { result } = renderHook(() => useUrlFilters());
+
+      act(() => result.current.setParam("creator", "id-1"));
+      act(() => result.current.setParam("type", "specific"));
+
+      expect(replace).toHaveBeenLastCalledWith("/admin/creators?creator=id-1&type=specific", {
+        scroll: false,
+      });
+    });
+
+    it("keeps both changes when they are made in the same breath", () => {
+      const { result } = renderHook(() => useUrlFilters());
+
+      act(() => {
+        result.current.setParam("creator", "id-1");
+        result.current.setParam("type", "specific");
+      });
+
+      expect(replace).toHaveBeenLastCalledWith("/admin/creators?creator=id-1&type=specific", {
+        scroll: false,
+      });
+    });
+
+    it("does not let an older change that lands late undo a newer one", () => {
+      const { result, rerender } = renderHook(() => useUrlFilters());
+
+      act(() => result.current.setParam("creator", "id-1"));
+      act(() => result.current.setParam("type", "specific"));
+      // The first navigation arrives while the second is still on its way.
+      searchParams = new URLSearchParams({ creator: "id-1" });
+      rerender();
+
+      expect(result.current.param("type")).toBe("specific");
+
+      act(() => result.current.setParam("overdue", "yes"));
+      expect(replace).toHaveBeenLastCalledWith(
+        "/admin/creators?creator=id-1&type=specific&overdue=yes",
+        { scroll: false },
+      );
+    });
+
+    it("settles once its own change has landed, then follows the URL again", () => {
+      const { result, rerender } = renderHook(() => useUrlFilters());
+
+      act(() => result.current.setParam("creator", "id-1"));
+      searchParams = new URLSearchParams({ creator: "id-1" });
+      rerender();
+      expect(result.current.param("creator")).toBe("id-1");
+
+      // Back, a tab press or a link: a URL this bar never sent.
+      searchParams = new URLSearchParams({ type: "evergreen" });
+      rerender();
+
+      expect(result.current.param("creator")).toBe("all");
+      expect(result.current.param("type")).toBe("evergreen");
+    });
+
+    it("follows the URL over a change of its own that never landed", () => {
+      const { result, rerender } = renderHook(() => useUrlFilters());
+
+      act(() => result.current.setParam("creator", "id-1"));
+      searchParams = new URLSearchParams({ tab: "done" });
+      rerender();
+
+      expect(result.current.param("creator")).toBe("all");
+      act(() => result.current.setParam("type", "specific"));
+      expect(replace).toHaveBeenLastCalledWith("/admin/creators?tab=done&type=specific", {
+        scroll: false,
+      });
+    });
+
+    it("shows every filter as cleared the moment it is reset", () => {
+      searchParams = new URLSearchParams({ contractStatus: "active" });
+      const { result } = renderHook(() => useUrlFilters());
+
+      act(() => result.current.reset());
+      expect(result.current.param("contractStatus")).toBe("all");
+
+      act(() => result.current.setParam("productivity", "risk"));
+      expect(replace).toHaveBeenLastCalledWith("/admin/creators?productivity=risk", {
+        scroll: false,
+      });
+    });
+  });
 });

@@ -149,6 +149,22 @@ describe("ContentPlanFilters", () => {
     view.unmount();
   });
 
+  // On a slow connection the URL changes well after the tick, and a second tick used to be
+  // built on the old URL: Salsa was dropped the moment Rangga was ticked.
+  it("keeps the first creator when a second is ticked before the URL has changed", () => {
+    renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Creator:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Salsa" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Rangga" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?creator=id-1%2Cid-2", {
+      scroll: false,
+    });
+    expect(screen.getByRole("checkbox", { name: "Salsa" })).toBeChecked();
+    expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveTextContent("2 dipilih");
+  });
+
   it("offers the two content types in its own multi-select", () => {
     renderFilters();
     fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
