@@ -4,8 +4,7 @@
 
 import { daysUntil, EMPTY } from "./format";
 import type { TaskStatusFilter } from "./my-tasks";
-
-const TASKS_PATH = "/creator/tasks";
+import { taskViewHref } from "./task-view";
 
 export interface StatCard {
   /** The status whose tasks the card counts, and the one Task Saya opens on when it is clicked. */
@@ -19,9 +18,12 @@ export const STAT_CARDS: readonly StatCard[] = [
   { status: "draft_approved", label: "Link Konten Perlu Diupload" },
 ];
 
-/** Where a card leads: Task Saya, narrowed to the card's status. */
+/**
+ * Where a card leads: Task Saya's table, narrowed to the card's status. The address is built by
+ * the one module that owns Task Saya's addresses, so a change to them is made in one place.
+ */
 export function statCardHref(status: TaskStatusFilter): string {
-  return `${TASKS_PATH}?status=${status}`;
+  return taskViewHref("table", status);
 }
 
 /**
