@@ -13,6 +13,38 @@ describe("CreatorNav", () => {
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
+  it("leads to the Dashboard first, then Task Saya", () => {
+    vi.mocked(usePathname).mockReturnValue("/creator/tasks");
+
+    render(<CreatorNav />);
+
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Dashboard",
+      "Task Saya",
+    ]);
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "href",
+      "/creator/dashboard",
+    );
+  });
+
+  it("marks only the Dashboard as current on the dashboard", () => {
+    vi.mocked(usePathname).mockReturnValue("/creator/dashboard");
+
+    render(<CreatorNav />);
+
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Task Saya" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("leaves the Dashboard plain on Task Saya", () => {
+    vi.mocked(usePathname).mockReturnValue("/creator/tasks");
+
+    render(<CreatorNav />);
+
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
+  });
+
   it("leads to Task Saya", () => {
     vi.mocked(usePathname).mockReturnValue("/creator/tasks");
 
