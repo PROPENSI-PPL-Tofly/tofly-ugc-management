@@ -2,7 +2,7 @@
 // still has to act on. The labels are the prototype's; the count behind each card and the
 // place it leads to both come from its status.
 
-import { daysUntil, EMPTY } from "./format";
+import { daysUntil, EMPTY, formatDaysLeft } from "./format";
 import type { TaskStatusFilter } from "./my-tasks";
 import { taskViewHref } from "./task-view";
 
@@ -27,11 +27,15 @@ export function statCardHref(status: TaskStatusFilter): string {
 }
 
 /**
- * What the Deadline Terdekat card reads: the days left to the nearest deadline still open, never
- * below zero, and a dash when nothing is open. `now` is passed in so a test can pin the day.
+ * What the Deadline Terdekat card reads: the days left to the nearest deadline still open, how
+ * late it is once it has passed ("Lewat 2 hari", worded as the detail panel does), and a dash
+ * when nothing is open. A passed deadline never reads as time left. `now` is passed in so a test
+ * can pin the day.
  */
 export function nearestDeadlineLabel(deadline: string | null, now: Date): string {
   const days = daysUntil(deadline, now);
 
-  return days === null ? EMPTY : `${Math.max(0, days)} hari lagi`;
+  if (days === null) return EMPTY;
+
+  return days < 0 ? formatDaysLeft(days) : `${days} hari lagi`;
 }
