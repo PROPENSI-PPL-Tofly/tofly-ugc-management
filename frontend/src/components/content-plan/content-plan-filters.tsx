@@ -167,7 +167,8 @@ export function ContentPlanFilters({
         </>
       ) : null}
 
-      {state.tab === "action" && state.period !== "all" ? (
+      {/* The period from the bar's own state, like the select beside it, so the two agree. */}
+      {state.tab === "action" && param("period") !== "all" ? (
         <span className="text-xs font-semibold text-amber">Periode tidak berlaku di tab ini</span>
       ) : null}
 
