@@ -75,6 +75,15 @@ describe("Creator dashboard page", () => {
     expect(screen.getByText("3 hari lagi")).toBeInTheDocument();
   });
 
+  it("says how late the nearest deadline is once it has passed", async () => {
+    mockedFetch.mockResolvedValue(dashboard({ nearestDeadline: "2026-10-07" }));
+
+    await renderPage();
+
+    expect(screen.getByText("Lewat 2 hari")).toBeInTheDocument();
+    expect(screen.queryByText("0 hari lagi")).not.toBeInTheDocument();
+  });
+
   it("shows a dash for the nearest deadline when nothing is open", async () => {
     mockedFetch.mockResolvedValue(dashboard({ nearestDeadline: null }));
 
