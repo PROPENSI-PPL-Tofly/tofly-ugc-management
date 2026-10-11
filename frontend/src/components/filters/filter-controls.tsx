@@ -136,7 +136,7 @@ export function PeriodFilter({
 
       {/* amber-ink, not amber: the plain amber token is too light to read on white. */}
       {ignored ? (
-        <span className="text-xs font-semibold text-amber-ink">Periode tidak berlaku di tab ini</span>
+        <span className="order-last basis-full text-xs font-semibold text-amber-ink">Periode tidak berlaku di tab ini</span>
       ) : null}
     </>
   );
