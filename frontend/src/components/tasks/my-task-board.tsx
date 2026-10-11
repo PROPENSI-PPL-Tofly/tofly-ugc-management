@@ -8,6 +8,7 @@ import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
 import { useToast } from "@/components/ui/toast";
 import type { MyTask, MyTaskAction } from "@/lib/my-tasks";
 import { MyTaskTable } from "./my-task-table";
+import { TaskCalendar } from "./task-calendar";
 
 interface Opened {
   task: MyTask;
@@ -56,7 +57,14 @@ export function MyTaskBoard({
   tasks,
   emptyMessage,
   emptyAction,
-}: Readonly<{ tasks: MyTask[]; emptyMessage?: string; emptyAction?: ReactNode }>) {
+  calendarToday,
+}: Readonly<{
+  tasks: MyTask[];
+  emptyMessage?: string;
+  emptyAction?: ReactNode;
+  /** Today in Jakarta, "YYYY-MM-DD": given, the tasks are shown as a month, not as the table. */
+  calendarToday?: string;
+}>) {
   const router = useRouter();
   const [opened, setOpened] = useState<Opened | null>(null);
   // The content whose detail panel is open; keyed by content so a ?content= link can
@@ -88,6 +96,12 @@ export function MyTaskBoard({
   }, [opened]);
 
   const close = () => setOpened(null);
+
+  /** A table row's Detail and a calendar chip open the panel the same way. */
+  function openDetail(contentId: string) {
+    setDetailContentId(contentId);
+    rememberContentParam(contentId);
+  }
 
   function closeDetail() {
     setDetailContentId(null);
@@ -144,16 +158,17 @@ export function MyTaskBoard({
         tabIndex={-1}
         className="outline-none"
       >
-        <MyTaskTable
-          tasks={tasks}
-          emptyMessage={emptyMessage}
-          emptyAction={emptyAction}
-          onAction={(task, action) => setOpened({ task, action })}
-          onDetail={(task) => {
-            setDetailContentId(task.id);
-            rememberContentParam(task.id);
-          }}
-        />
+        {calendarToday ? (
+          <TaskCalendar tasks={tasks} today={calendarToday} onOpen={openDetail} />
+        ) : (
+          <MyTaskTable
+            tasks={tasks}
+            emptyMessage={emptyMessage}
+            emptyAction={emptyAction}
+            onAction={(task, action) => setOpened({ task, action })}
+            onDetail={(task) => openDetail(task.id)}
+          />
+        )}
       </section>
       {opened ? renderModal(opened) : null}
       {detailContentId ? (

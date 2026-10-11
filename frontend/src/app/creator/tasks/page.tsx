@@ -2,15 +2,20 @@ import Link from "next/link";
 import { AppShell } from "@/components/shell/app-shell";
 import { MyTaskBoard } from "@/components/tasks/my-task-board";
 import { MyTaskFilters } from "@/components/tasks/my-task-filters";
+import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { parsePage } from "@/lib/creators";
+import { jakartaDay } from "@/lib/format";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
+import { fetchAllMyTasks } from "@/lib/task-calendar.server";
+import { parseTaskView, type TaskView } from "@/lib/task-view";
 import {
   MyTasksError,
   parseTaskStatus,
   taskStatusLabel,
+  type MyTask,
   type MyTasksResponse,
   type TaskStatusFilter,
 } from "@/lib/my-tasks";
@@ -28,6 +33,7 @@ const NOTICE =
 
 type Loaded =
     | { kind: "ok"; result: MyTasksResponse; pastEnd: number | null }
+    | { kind: "calendar"; tasks: MyTask[] }
     | { kind: "signed_out" }
     | { kind: "failed" };
 
@@ -35,8 +41,17 @@ type Loaded =
  * A page past the end (an old link, or a list that shrank) shows the first page instead of an
  * empty table that would claim the creator has nothing to do.
  */
-async function load(page: number, status: TaskStatusFilter | null): Promise<Loaded> {
+async function load(
+    page: number,
+    status: TaskStatusFilter | null,
+    view: TaskView,
+): Promise<Loaded> {
   try {
+    // A month is not paged: the calendar reads every task, the table only its page.
+    if (view === "calendar") {
+      return { kind: "calendar", tasks: await fetchAllMyTasks(status) };
+    }
+
     const result = await fetchMyTasks(page, status);
 
     if (result.total > 0 && result.page > result.totalPages) {
@@ -92,7 +107,8 @@ export default async function TaskSayaPage({
   const params = await searchParams;
   const { page, invalid } = parsePage(params);
   const { status, invalid: invalidStatus } = parseTaskStatus(params);
-  const loaded = await load(page, status);
+  const view = parseTaskView(params);
+  const loaded = await load(page, status, view);
 
   return (
       <AppShell
@@ -119,7 +135,18 @@ export default async function TaskSayaPage({
         ) : null}
 
         <Panel>
-          <PanelHead title="Daftar Tugas Saya" />
+          <PanelHead
+              title="Daftar Tugas Saya"
+              action={<TaskViewToggle view={view} status={status} />}
+          />
+
+          {loaded.kind === "calendar" ? (
+              <>
+                <MyTaskFilters status={status} />
+
+                <MyTaskBoard tasks={loaded.tasks} calendarToday={jakartaDay()} />
+              </>
+          ) : null}
 
           {loaded.kind === "ok" ? (
               <>
@@ -151,9 +178,11 @@ export default async function TaskSayaPage({
                     />
                 ) : null}
               </>
-          ) : (
+          ) : null}
+
+          {loaded.kind === "signed_out" || loaded.kind === "failed" ? (
               <LoadFailed signedOut={loaded.kind === "signed_out"} />
-          )}
+          ) : null}
         </Panel>
       </AppShell>
   );
