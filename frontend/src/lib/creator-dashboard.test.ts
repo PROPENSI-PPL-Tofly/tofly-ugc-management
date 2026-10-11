@@ -1,4 +1,4 @@
-import { STAT_CARDS, statCardHref } from "./creator-dashboard";
+import { nearestDeadlineLabel, STAT_CARDS, statCardHref } from "./creator-dashboard";
 import { TASK_STATUS_FILTERS } from "./my-tasks";
 
 describe("STAT_CARDS", () => {
@@ -51,5 +51,52 @@ describe("statCardHref", () => {
     const hrefs = STAT_CARDS.map((card) => statCardHref(card.status));
 
     expect(new Set(hrefs).size).toBe(STAT_CARDS.length);
+  });
+});
+
+describe("nearestDeadlineLabel", () => {
+  // Midday in Jakarta on 9 Oct 2026, well away from either midnight.
+  const NOON = new Date("2026-10-09T05:00:00Z");
+
+  it("counts the days left to the nearest open deadline", () => {
+    expect(nearestDeadlineLabel("2026-10-12", NOON)).toBe("3 hari lagi");
+  });
+
+  it("reads one day on the eve of the deadline", () => {
+    expect(nearestDeadlineLabel("2026-10-10", NOON)).toBe("1 hari lagi");
+  });
+
+  it("reads zero on the deadline itself", () => {
+    expect(nearestDeadlineLabel("2026-10-09", NOON)).toBe("0 hari lagi");
+  });
+
+  it.each(["2026-10-08", "2026-09-01"])(
+    "never goes below zero for %s, a deadline that has already passed",
+    (deadline) => {
+      expect(nearestDeadlineLabel(deadline, NOON)).toBe("0 hari lagi");
+    },
+  );
+
+  it("counts across the end of a month and of a year", () => {
+    expect(nearestDeadlineLabel("2026-11-01", NOON)).toBe("23 hari lagi");
+    expect(nearestDeadlineLabel("2027-01-01", NOON)).toBe("84 hari lagi");
+  });
+
+  it("takes today from Jakarta, not from UTC", () => {
+    // 17.00 UTC on the 9th is already 00.00 on the 10th in WIB.
+    expect(nearestDeadlineLabel("2026-10-10", new Date("2026-10-09T16:59:59Z"))).toBe(
+      "1 hari lagi",
+    );
+    expect(nearestDeadlineLabel("2026-10-10", new Date("2026-10-09T17:00:00Z"))).toBe(
+      "0 hari lagi",
+    );
+  });
+
+  it.each([
+    ["no open task", null],
+    ["an empty deadline", ""],
+    ["a deadline that is not a calendar day", "segera"],
+  ])("shows a dash for %s", (_label, deadline) => {
+    expect(nearestDeadlineLabel(deadline, NOON)).toBe("—");
   });
 });
