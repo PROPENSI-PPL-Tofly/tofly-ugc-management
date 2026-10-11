@@ -86,6 +86,16 @@ describe("PeriodFilter", () => {
     expect(hint.className).not.toMatch(/text-amber(\s|$)/);
   });
 
+  // Inline, the note pushed Reset onto a second line of its own; as the bar's last full-width
+  // line it leaves every control on the first.
+  it("puts the note on its own line after every control", () => {
+    renderPeriod("month", true);
+
+    const hint = screen.getByText("Periode tidak berlaku di tab ini");
+    expect(hint.className).toContain("basis-full");
+    expect(hint.className).toContain("order-last");
+  });
+
   it("stays quiet when the period applies", () => {
     renderPeriod("month", false);
     expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
