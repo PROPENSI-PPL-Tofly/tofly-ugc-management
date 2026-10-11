@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ContentDetailPanel,
@@ -8,6 +8,7 @@ import {
 } from "@/components/content-detail/content-detail-panel";
 import { useToast } from "@/components/ui/toast";
 import { DEFAULT_SORT, type ContentPlanRow, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
+import { latestQuery, useUrlQuery } from "@/lib/url-query";
 import { ContentPlanTable } from "./content-plan-table";
 
 /** The search parameter a notification or a bookmark uses to open one content's panel. */
@@ -53,8 +54,7 @@ export function ContentPlanBoard({
   sort: DeadlineSort;
 }>) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { replaceQuery } = useUrlQuery();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   const { show: confirm, toast } = useToast();
 
@@ -76,15 +76,18 @@ export function ContentPlanBoard({
     forgetContentParam();
   }
 
-  /** The deadline header's press: the direction turns over and the old page no longer means anything. */
+  /**
+   * The deadline header's press: the direction turns over and the old page no longer means
+   * anything. Both the rest of the query and the direction come from what was last sent, so
+   * the press keeps a filter ticked a moment ago and a second quick press turns back.
+   */
   function toggleSort() {
-    const next = new URLSearchParams(searchParams.toString());
-    const flipped = sort === "desc" ? "asc" : "desc";
+    const next = new URLSearchParams(latestQuery());
+    const flipped = next.get("sort") === "asc" ? "desc" : "asc";
     if (flipped === DEFAULT_SORT) next.delete("sort");
     else next.set("sort", flipped);
     next.delete("page");
-    const query = next.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    replaceQuery(next.toString());
   }
 
   return (

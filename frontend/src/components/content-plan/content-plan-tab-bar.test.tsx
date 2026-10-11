@@ -9,6 +9,7 @@ let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   useSearchParams: () => searchParams,
+  usePathname: () => "/admin/content-plan",
 }));
 
 const COUNTS: ContentPlanCounts = { all: 42, action: 3, waiting: 12, done: 27 };
