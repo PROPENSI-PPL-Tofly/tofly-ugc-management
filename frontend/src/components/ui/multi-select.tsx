@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 export interface MultiSelectOption {
   value: string;
@@ -21,6 +21,9 @@ const CHECKBOX = "size-3.5 accent-accent";
 
 const POPUP =
   "absolute left-0 top-full z-20 mt-1.5 max-h-64 w-60 overflow-y-auto rounded-(--radius-panel) border border-rule bg-surface p-2 shadow-lg";
+
+/** How far a popup stays from the edge of the window, in pixels. */
+const WINDOW_MARGIN = 8;
 
 const CHIP =
   "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
@@ -45,6 +48,7 @@ export function MultiSelect({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const labelFor = (value: string) =>
     options.find((option) => option.value === value)?.label ?? value;
@@ -82,6 +86,17 @@ export function MultiSelect({
     };
   }, [open]);
 
+  // The popup opens from the trigger's left edge. On a narrow window that can carry it past
+  // the right edge, so it is measured before it is painted and pulled back by the overhang.
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    if (!popup) return;
+
+    const overhang =
+      popup.getBoundingClientRect().right - (document.documentElement.clientWidth - WINDOW_MARGIN);
+    if (overhang > 0) popup.style.left = `${-overhang}px`;
+  }, [open]);
+
   function toggle(value: string) {
     onChange(
       selected.includes(value)
@@ -115,7 +130,7 @@ export function MultiSelect({
         </button>
 
         {open ? (
-          <div id={listId} role="group" aria-label={label} className={POPUP}>
+          <div ref={popupRef} id={listId} role="group" aria-label={label} className={POPUP}>
             {/* The way back to "everything", without unticking each pick in turn. */}
             <label className={`${OPTION} mb-1 border-b border-rule pb-2`}>
               <input
