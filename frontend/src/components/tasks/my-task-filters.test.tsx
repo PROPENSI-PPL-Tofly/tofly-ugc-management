@@ -61,4 +61,56 @@ describe("MyTaskFilters", () => {
 
     expect(replace).toHaveBeenCalledWith("/creator/tasks", { scroll: false });
   });
+
+  describe("on the calendar view", () => {
+    it("stays on the calendar when a status is picked", () => {
+      render(<MyTaskFilters status={null} view="calendar" />);
+
+      fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+        target: { value: "scheduled" },
+      });
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith(
+        "/creator/tasks?status=scheduled&view=calendar",
+        { scroll: false },
+      );
+    });
+
+    it("stays on the calendar when one status is swapped for another", () => {
+      render(<MyTaskFilters status="scheduled" view="calendar" />);
+
+      fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+        target: { value: "draft_approved" },
+      });
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith(
+        "/creator/tasks?status=draft_approved&view=calendar",
+        { scroll: false },
+      );
+    });
+
+    it("stays on the calendar when the filter is cleared with Semua", () => {
+      render(<MyTaskFilters status="scheduled" view="calendar" />);
+
+      fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+        target: { value: "" },
+      });
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith("/creator/tasks?view=calendar", {
+        scroll: false,
+      });
+    });
+  });
+
+  it("keeps the table's address free of a view when it is told the view is the table", () => {
+    render(<MyTaskFilters status={null} view="table" />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+      target: { value: "scheduled" },
+    });
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith("/creator/tasks?status=scheduled", {
+      scroll: false,
+    });
+  });
 });
