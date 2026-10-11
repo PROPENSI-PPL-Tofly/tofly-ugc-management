@@ -374,3 +374,74 @@ describe("MyTaskBoard content detail panel", () => {
     });
   });
 });
+
+describe("MyTaskBoard as a calendar", () => {
+  const TODAY = "2026-10-09";
+  const CHIP = "Evg_1_RanggaPratama_12102026 · Scheduled";
+
+  beforeEach(() => {
+    refresh.mockClear();
+    fetchContentDetail.mockReset();
+    fetchContentDetail.mockResolvedValue({
+      id: "content-1",
+      name: "Evg_1_RanggaPratama_12102026",
+      type: "evergreen" as const,
+      brief: "",
+      deadline: "2026-10-12",
+      status: "scheduled" as const,
+      creatorName: "Rangga Pratama",
+      tags: [],
+      waitingOn: "creator" as const,
+      latestSubmissionId: null,
+      creatorActions: ["submit_draft"] as const,
+      events: [],
+    });
+    window.history.pushState({}, "", "/creator/tasks?view=calendar");
+  });
+
+  it("shows the month calendar in place of the table when it is given today", () => {
+    render(<MyTaskBoard tasks={[task()]} calendarToday={TODAY} />);
+
+    expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: CHIP })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /detail:/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Submit Draft/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the table when it is given no day", () => {
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /detail:/i })).toBeInTheDocument();
+  });
+
+  it("opens the content detail panel from a chip, as the creator", async () => {
+    render(<MyTaskBoard tasks={[task()]} calendarToday={TODAY} />);
+
+    fireEvent.click(screen.getByRole("button", { name: CHIP }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
+  });
+
+  it("puts the content a chip opened in the address, keeping the calendar view", async () => {
+    render(<MyTaskBoard tasks={[task()]} calendarToday={TODAY} />);
+
+    fireEvent.click(screen.getByRole("button", { name: CHIP }));
+    await screen.findByRole("dialog");
+
+    const query = new URLSearchParams(window.location.search);
+
+    expect(query.get("content")).toBe("content-1");
+    expect(query.get("view")).toBe("calendar");
+  });
+
+  it("hands a submit action from the panel to the submit modal, as the table does", async () => {
+    render(<MyTaskBoard tasks={[task()]} calendarToday={TODAY} />);
+
+    fireEvent.click(screen.getByRole("button", { name: CHIP }));
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Draft" }));
+
+    expect(await screen.findByRole("dialog", { name: "draft-modal" })).toBeInTheDocument();
+  });
+});

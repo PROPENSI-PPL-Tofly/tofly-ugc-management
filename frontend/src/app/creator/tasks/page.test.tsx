@@ -1,10 +1,15 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MyTasksError, type MyTasksResponse } from "@/lib/my-tasks";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
+import { fetchAllMyTasks } from "@/lib/task-calendar.server";
 import TaskSayaPage from "./page";
 
 vi.mock("@/lib/my-tasks.server", () => ({
   fetchMyTasks: vi.fn(),
+}));
+
+vi.mock("@/lib/task-calendar.server", () => ({
+  fetchAllMyTasks: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -225,5 +230,105 @@ describe("Task Saya page", () => {
         "href",
         "/creator/tasks",
     );
+  });
+});
+
+describe("Task Saya page views", () => {
+  const mockedFetchAll = vi.mocked(fetchAllMyTasks);
+
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    mockedFetchAll.mockReset();
+    mockedFetch.mockResolvedValue(answer());
+    mockedFetchAll.mockResolvedValue(answer().items);
+    // Midday in Jakarta on 9 Oct 2026, so "today" is the same day whatever zone the test runs in.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-09T05:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function switchLink(name: string) {
+    return within(screen.getByRole("group", { name: "Tampilan tugas" })).getByRole("link", { name });
+  }
+
+  it("offers the Tabel / Kalender switch, on the table unless asked otherwise", async () => {
+    await renderPage();
+
+    expect(switchLink("Tabel")).toHaveAttribute("aria-current", "page");
+    expect(switchLink("Kalender")).toHaveAttribute("href", "/creator/tasks?view=calendar");
+  });
+
+  it("does not read every task for the table, only its page", async () => {
+    await renderPage();
+
+    expect(mockedFetchAll).not.toHaveBeenCalled();
+    expect(mockedFetch).toHaveBeenCalledWith(1, null);
+  });
+
+  it("shows this month's calendar with every task when the address asks for it", async () => {
+    await renderPage({ view: "calendar" });
+
+    expect(switchLink("Kalender")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026 · Scheduled" }),
+    ).toBeInTheDocument();
+    expect(mockedFetchAll).toHaveBeenCalledExactlyOnceWith(null);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("shows no pager on the calendar: a month is not paged", async () => {
+    await renderPage({ view: "calendar" });
+
+    expect(screen.queryByRole("link", { name: "Berikutnya" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sebelumnya" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the status filter on the calendar, in what it loads and in the switch", async () => {
+    await renderPage({ view: "calendar", status: "scheduled" });
+
+    expect(mockedFetchAll).toHaveBeenCalledExactlyOnceWith("scheduled");
+    expect(switchLink("Tabel")).toHaveAttribute("href", "/creator/tasks?status=scheduled");
+  });
+
+  it("shows an empty month, not the no-tasks message, when nothing is due", async () => {
+    mockedFetchAll.mockResolvedValue([]);
+
+    await renderPage({ view: "calendar" });
+
+    expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada tugas untuk kamu.")).not.toBeInTheDocument();
+  });
+
+  it("shows the table for a view it does not know", async () => {
+    await renderPage({ view: "grid" });
+
+    expect(switchLink("Tabel")).toHaveAttribute("aria-current", "page");
+    expect(mockedFetchAll).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
+  });
+
+  it("tells a visitor who is not signed in, on the calendar as on the table", async () => {
+    mockedFetchAll.mockRejectedValue(new MyTasksError(401));
+
+    await renderPage({ view: "calendar" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Kamu belum masuk sebagai creator.");
+    expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["a server error", new MyTasksError(500)],
+    ["an unreachable backend", new TypeError("fetch failed")],
+  ])("offers a reload after %s on the calendar", async (_label, failure) => {
+    mockedFetchAll.mockRejectedValue(failure);
+
+    await renderPage({ view: "calendar" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Daftar tugas tidak bisa dimuat.");
+    expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
   });
 });
