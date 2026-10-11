@@ -140,9 +140,13 @@ describe("MyTaskTable", () => {
       for (const row of screen.getAllByRole("row")) {
         expect(row).toHaveAttribute("role", "row");
       }
-      for (const cell of screen.getAllByRole("cell")) {
+      const [name, deadline, status, actions] = screen.getAllByRole("cell");
+      for (const cell of [name, deadline, status]) {
         expect(cell).toHaveAttribute("role", "cell");
       }
+      // The action cell names no role: its buttons already say which task they act on, and an
+      // explicit role on a td reads as an interactive element given a non-interactive role.
+      expect(actions).not.toHaveAttribute("role");
       for (const header of screen.getAllByRole("columnheader")) {
         expect(header).toHaveAttribute("role", "columnheader");
       }
