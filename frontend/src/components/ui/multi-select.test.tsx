@@ -320,12 +320,14 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
     // On a phone the second filter sits mid-row, and a popup opened from its left edge ran
     // 52 px past the right of the window.
     describe("near the right edge of the window", () => {
+      /** The popup is 240 px wide; where its right edge falls says where the trigger sits. */
       function windowIs(width: number, popupRight: number) {
         Object.defineProperty(document.documentElement, "clientWidth", {
           configurable: true,
           value: width,
         });
         vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+          left: popupRight - 240,
           right: popupRight,
         } as DOMRect);
       }
@@ -358,6 +360,29 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
         renderSelect();
 
         expect(open().style.left).toBe("");
+      });
+
+      // A pick adds a chip, the filter wraps to a row of its own and the trigger lands at the
+      // left edge. The offset measured when the popup opened then put it 23 px off-screen.
+      it("measures again after a pick has moved the trigger", () => {
+        windowIs(375, 427);
+        render(<Stateful />);
+        const popup = open();
+        expect(popup.style.left).toBe("-60px");
+
+        windowIs(375, 277);
+        fireEvent.click(within(popup).getByRole("checkbox", { name: "Salsa" }));
+
+        expect(popup.style.left).toBe("");
+      });
+
+      it("never pulls the popup past the window's left edge, however narrow the window", () => {
+        // 300 is 108 past a 200 px window's margin, but only 52 px separate the popup from
+        // the left margin.
+        windowIs(200, 300);
+        renderSelect();
+
+        expect(open().style.left).toBe("-52px");
       });
     });
 
