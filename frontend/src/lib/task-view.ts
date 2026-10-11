@@ -1,6 +1,7 @@
 // Which way Task Saya shows its tasks (PBI-7, subtask 7.3): the table, or the month calendar.
-// The address is the only state, as everywhere on this page, so a view can be linked,
-// bookmarked and reloaded.
+// The view lives in the address, like the rest of this page's filters, so it can be linked,
+// bookmarked and reloaded. The month the calendar is turned to is not in the address: it is
+// kept by the calendar itself and starts again from today.
 
 import type { TaskStatusFilter } from "./my-tasks";
 
