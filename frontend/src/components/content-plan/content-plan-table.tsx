@@ -71,7 +71,13 @@ export function ContentPlanTable({
         </thead>
         <tbody>
           {items.map((row) => (
-            <tr key={row.contentId} className="border-b border-rule">
+            // A press anywhere on the row opens its panel, as in the prototype. The button in
+            // the last cell is the same door for the keyboard and for screen readers.
+            <tr
+              key={row.contentId}
+              onClick={() => onOpen(row.contentId)}
+              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
+            >
               <td className="px-5 py-3">{row.name}</td>
               <td className="px-5 py-3">{row.creatorName}</td>
               <td className="px-5 py-3">{CONTENT_TYPE_LABELS[row.type]}</td>
@@ -100,7 +106,11 @@ export function ContentPlanTable({
                   type="button"
                   // Every row has one; the content's name tells them apart when heard.
                   aria-label={`${needsReview(row.status) ? "Tinjau" : "Detail"} ${row.name}`}
-                  onClick={() => onOpen(row.contentId)}
+                  onClick={(event) => {
+                    // The row would hear this press too and open the panel a second time.
+                    event.stopPropagation();
+                    onOpen(row.contentId);
+                  }}
                   className={`${buttonClasses(needsReview(row.status) ? "accent" : "ghost")} px-2 py-1`}
                 >
                   {needsReview(row.status) ? "Tinjau" : "Detail"}
