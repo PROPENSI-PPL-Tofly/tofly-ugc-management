@@ -76,7 +76,11 @@ export function ContentPlanTable({
             // the last cell is the same door for the keyboard and for screen readers.
             <tr
               key={row.contentId}
-              onClick={() => onOpen(row.contentId)}
+              onClick={() => {
+                // Dragging across a name to copy it ends in a click here: copying, not opening.
+                if (window.getSelection()?.toString()) return;
+                onOpen(row.contentId);
+              }}
               className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
             >
               <td className="px-5 py-3">{row.name}</td>
