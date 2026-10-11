@@ -137,6 +137,38 @@ describe("Content Plan page", () => {
     );
   });
 
+  it("shows the plan anyway when only the creator names fail to load", async () => {
+    fetchCreators.mockRejectedValue(new Error("creators down"));
+
+    await renderPage();
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Semua" })).toBeInTheDocument();
+    expect(screen.getByText("Evg_1_Salsa_15Sep2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveTextContent(
+      "Creator: Semua",
+    );
+  });
+
+  it("still fails as a whole when the plan itself fails, whoever else failed", async () => {
+    fetchPlan.mockRejectedValue(new Error("backend down"));
+    fetchCreators.mockRejectedValue(new Error("creators down"));
+
+    await renderPage();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/tidak bisa dimuat/i);
+  });
+
+  it("fails as a whole when even the first page cannot answer a past-end link", async () => {
+    fetchPlan
+      .mockResolvedValueOnce(planOf({ total: 22, totalPages: 3 }))
+      .mockRejectedValueOnce(new Error("backend down"));
+
+    await renderPage({ page: "99" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/tidak bisa dimuat/i);
+  });
+
   it("hands every creator name to the filter bar", async () => {
     await renderPage();
 

@@ -5,6 +5,7 @@
 // The endpoint is the 5.1 contract (GET /contents). Its query and its answer are spelled in
 // the API's own words, so both pass through content-list-api, the one module that knows them.
 
+import { NO_FILTERS } from "./creators";
 import { fetchCreators } from "./creators.server";
 import {
   toContentListQuery,
@@ -19,8 +20,11 @@ import type {
 import { jakartaDay } from "./format";
 import { appSessionCookieHeader } from "./session-cookie";
 
-/** How far the creator filter looks for names: twenty pages of ten, never an endless walk. */
-const MAX_CREATOR_PAGES = 20;
+/** The names arrive in the API's largest pages — fifty at a time, its own ceiling. */
+const CREATORS_PAGE_SIZE = 50;
+
+/** Two hundred names, the ceiling the old twenty pages of ten held — four pages of fifty. */
+const MAX_CREATOR_PAGES = 4;
 
 function withoutTrailingSlash(url: string): string {
   let end = url.length;
@@ -65,17 +69,24 @@ export async function fetchContentPlan(
 
 /**
  * The names behind the creator filter, gathered across the Creator Database's pages so the
- * picker offers every admin, not only the ten the first page holds.
+ * picker offers every admin, not only the first page. Page one carries the count; whatever
+ * pages remain then run at once, capped at two hundred names so a huge roster cannot turn
+ * the render into a long walk.
  */
 export async function fetchContentPlanCreatorOptions(): Promise<ContentPlanCreatorOption[]> {
-  const options: ContentPlanCreatorOption[] = [];
+  const first = await fetchCreators(1, NO_FILTERS, CREATORS_PAGE_SIZE);
+  const options = first.items.map(({ id, name }) => ({ id, name }));
+  const pages = Math.min(first.totalPages, MAX_CREATOR_PAGES);
 
-  for (let page = 1; page <= MAX_CREATOR_PAGES; page += 1) {
-    const list = await fetchCreators(page);
-    options.push(...list.items.map(({ id, name }) => ({ id, name })));
+  if (pages > 1) {
+    const rest = await Promise.all(
+      Array.from({ length: pages - 1 }, (_, index) =>
+        fetchCreators(index + 2, NO_FILTERS, CREATORS_PAGE_SIZE),
+      ),
+    );
 
-    if (page >= list.totalPages) {
-      break;
+    for (const list of rest) {
+      options.push(...list.items.map(({ id, name }) => ({ id, name })));
     }
   }
 
