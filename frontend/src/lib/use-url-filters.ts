@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 /** Long enough that a typed word is one request, short enough to feel immediate. */
 export const SEARCH_DEBOUNCE_MS = 300;
@@ -10,14 +10,13 @@ export const SEARCH_DEBOUNCE_MS = 300;
 export const MAX_SEARCH_LENGTH = 100;
 
 /**
- * A list's filter bar where the URL is the only state: a search box pushed to `?q=` once typing
- * pauses, other filters pushed as they change, and a reset back to the bare path. Any change
- * drops `?page=`, since the old page number no longer points at anything meaningful.
+ * A list's filter bar where the URL is the only lasting state: a search box pushed to `?q=` once
+ * typing pauses, other filters pushed as they change, and a reset back to the bare path. Any
+ * change drops `?page=`, since the old page number no longer points at anything meaningful.
  *
- * The search box is driven locally so typing never waits on a round trip. What was last sent to
- * the URL is remembered, not read back from it: the URL lags behind by a server render, and
- * comparing against it would let a reset (or any change) be undone by a debounce that still
- * saw the old value.
+ * The bar is driven locally so neither typing nor ticking waits on a round trip. What was last
+ * sent to the URL is remembered, not read back from it: the URL lags behind by a server render,
+ * and building on it would let a second change (or a debounce) undo the one still on its way.
  */
 export function useUrlFilters() {
   const router = useRouter();
@@ -29,6 +28,15 @@ export function useUrlFilters() {
   const [search, setSearch] = useState(q);
   const lastSent = useRef(q);
 
+  // The filters as the bar holds them, ahead of the URL while a change is on its way. `latest`
+  // is the same value for a second change made before the first one has re-rendered.
+  const urlQuery = searchParams.toString();
+  const [held, setHeld] = useState(urlQuery);
+  const latest = useRef(urlQuery);
+  const seenUrl = useRef(urlQuery);
+  /** Every query sent that the URL has not shown yet, oldest first. */
+  const onTheirWay = useRef<string[]>([]);
+
   // Back/forward (or a link) changed the search without any typing: the box follows it.
   useEffect(() => {
     if (q !== lastSent.current) {
@@ -37,10 +45,29 @@ export function useUrlFilters() {
     }
   }, [q]);
 
-  const replace = useCallback(
-    (next: URLSearchParams) => {
-      next.delete("page");
-      const query = next.toString();
+  // The URL moved. One of this bar's own changes landing needs nothing: the bar is already
+  // there, or further on if a newer change followed it. Anything else (back, a tab, a link) is
+  // somebody else's move, and the bar follows it.
+  useEffect(() => {
+    if (urlQuery === seenUrl.current) return;
+    seenUrl.current = urlQuery;
+
+    const landed = onTheirWay.current.indexOf(urlQuery);
+    if (landed >= 0) {
+      onTheirWay.current = onTheirWay.current.slice(landed + 1);
+      return;
+    }
+
+    onTheirWay.current = [];
+    latest.current = urlQuery;
+    setHeld(urlQuery);
+  }, [urlQuery]);
+
+  const send = useCallback(
+    (query: string) => {
+      latest.current = query;
+      onTheirWay.current.push(query);
+      setHeld(query);
       startTransition(() => {
         router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
       });
@@ -51,12 +78,13 @@ export function useUrlFilters() {
   /** Sets one filter; an empty value or "all" removes it from the URL. */
   const setParam = useCallback(
     (key: string, value: string) => {
-      const next = new URLSearchParams(searchParams.toString());
+      const next = new URLSearchParams(latest.current);
       if (value && value !== "all") next.set(key, value);
       else next.delete(key);
-      replace(next);
+      next.delete("page");
+      send(next.toString());
     },
-    [replace, searchParams],
+    [send],
   );
 
   // One request per pause in typing rather than one per keystroke.
@@ -75,13 +103,13 @@ export function useUrlFilters() {
   const reset = useCallback(() => {
     lastSent.current = "";
     setSearch("");
-    startTransition(() => {
-      router.replace(pathname, { scroll: false });
-    });
-  }, [pathname, router]);
+    send("");
+  }, [send]);
+
+  const filters = useMemo(() => new URLSearchParams(held), [held]);
 
   /** The current value of a filter, "all" when it is not applied. */
-  const param = useCallback((key: string) => searchParams.get(key) ?? "all", [searchParams]);
+  const param = useCallback((key: string) => filters.get(key) ?? "all", [filters]);
 
   return { search, setSearch, param, setParam, reset, pending };
 }
