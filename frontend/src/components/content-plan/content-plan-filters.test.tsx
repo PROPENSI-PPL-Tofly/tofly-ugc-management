@@ -112,6 +112,19 @@ describe("ContentPlanFilters", () => {
     expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
   });
 
+  // The select shows a pick at once; the notice beside it read the server's state and only
+  // caught up a round trip later, so for a moment the two said different things.
+  it("says so the moment a period is picked there, and stops the moment it is cleared", () => {
+    renderFilters({ tab: "action" });
+    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "month" } });
+    expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "all" } });
+    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
+  });
+
   it("scopes the status choices to the tab it is on", () => {
     renderFilters({ tab: "action" });
     fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
