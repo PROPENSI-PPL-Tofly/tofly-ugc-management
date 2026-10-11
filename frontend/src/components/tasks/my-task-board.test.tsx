@@ -310,6 +310,35 @@ describe("MyTaskBoard deadline sort", () => {
     });
   });
 
+  // Below lg the rows stack into cards and the header row is only read aloud, so the sort
+  // needs its own visible control there.
+  it("offers the sort as its own button where the header row is hidden on small screens", () => {
+    window.history.pushState({}, "", "/creator/tasks");
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    const mobile = screen.getByRole("button", { name: "Urutkan deadline: terdekat dulu" });
+    expect(mobile).toHaveTextContent("Terdekat dulu");
+    expect(mobile.parentElement?.className).toContain("lg:hidden");
+    fireEvent.click(mobile);
+
+    expect(replace).toHaveBeenCalledWith("/creator/tasks?sort=desc", { scroll: false });
+  });
+
+  it("names the furthest-first order on the small-screen button too", () => {
+    window.history.pushState({}, "", "/creator/tasks?sort=desc");
+    render(<MyTaskBoard tasks={[task()]} sort="desc" />);
+
+    expect(screen.getByRole("button", { name: "Urutkan deadline: terjauh dulu" })).toHaveTextContent(
+      "Terjauh dulu",
+    );
+  });
+
+  it("offers no sort on an empty list, where there is nothing to order", () => {
+    render(<MyTaskBoard tasks={[]} />);
+
+    expect(screen.queryByRole("button", { name: /Urutkan deadline/ })).not.toBeInTheDocument();
+  });
+
   it("turns back to the default, which leaves the address bare", () => {
     window.history.pushState({}, "", "/creator/tasks?sort=desc");
     render(<MyTaskBoard tasks={[task()]} sort="desc" />);
