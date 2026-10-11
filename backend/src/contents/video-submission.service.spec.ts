@@ -278,9 +278,12 @@ describe('VideoSubmissionService.submit', () => {
 
   // PBI-7 7.2: H-1 skips the approval of a draft, not the draft. Nothing is stored and nothing
   // is recorded for a link that arrives before one, or while a revision is still owed.
-  it.each(['scheduled', 'draft_revision'] as const)(
-    'refuses %s inside the H-1 grace window and leaves the content as it was',
-    async (status) => {
+  it.each([
+    ['scheduled', 'Kirim draft dulu sebelum mengirim link video'],
+    ['draft_revision', 'Kirim ulang draft dulu sebelum mengirim link video'],
+  ] as const)(
+    'refuses %s inside the H-1 grace window, naming the draft as the next step, and leaves the content as it was',
+    async (status, message) => {
       const { transaction, service } = stub({
         content: {
           id: CONTENT_ID,
@@ -296,8 +299,9 @@ describe('VideoSubmissionService.submit', () => {
       );
 
       expect(error).toBeInstanceOf(ConflictException);
-      expect((error as ConflictException).getResponse()).toMatchObject({
+      expect((error as ConflictException).getResponse()).toEqual({
         code: 'VIDEO_NOT_ELIGIBLE',
+        message,
       });
       expect(transaction.contents.updateMany).not.toHaveBeenCalled();
       expect(transaction.content_events.create).not.toHaveBeenCalled();
@@ -324,31 +328,39 @@ describe('VideoSubmissionService.submit', () => {
     );
   });
 
+  // Each refusal tells the creator what opens the link, which depends on where the draft is.
   it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-  ] as const)('rejects %s before the H-1 grace window', async (status) => {
-    const { transaction, service } = stub({
-      content: {
-        id: CONTENT_ID,
-        status,
-        deadline: APPROVED_DEADLINE,
-      },
-    });
+    ['scheduled', 'Kirim draft dulu sebelum mengirim link video'],
+    ['draft_revision', 'Kirim ulang draft dulu sebelum mengirim link video'],
+    [
+      'draft_review',
+      'Link video bisa dikirim setelah draft disetujui, atau mulai H-1 deadline',
+    ],
+  ] as const)(
+    'rejects %s before the H-1 grace window with its own next step',
+    async (status, message) => {
+      const { transaction, service } = stub({
+        content: {
+          id: CONTENT_ID,
+          status,
+          deadline: APPROVED_DEADLINE,
+        },
+      });
 
-    const error = await failure(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      }),
-    );
+      const error = await failure(
+        service.submit(CONTENT_ID, CREATOR_ID, {
+          videoLink: REEL,
+        }),
+      );
 
-    expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toMatchObject({
-      code: 'VIDEO_NOT_ELIGIBLE',
-    });
-    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
-  });
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toEqual({
+        code: 'VIDEO_NOT_ELIGIBLE',
+        message,
+      });
+      expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+    },
+  );
 
   it('allows draft-approved content before the grace window', async () => {
     const { service } = stub({
@@ -435,7 +447,8 @@ describe('VideoSubmissionService.submit', () => {
     expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
-  it('answers 409 when another request changed the status first', async () => {
+  // The status read a moment ago allowed the link, so no next step can be named from it.
+  it('answers 409 when another request changed the status first, asking for a reload and recording nothing', async () => {
     const { transaction, service } = stub({
       updated: 0,
     });
@@ -447,9 +460,11 @@ describe('VideoSubmissionService.submit', () => {
     );
 
     expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toMatchObject({
+    expect((error as ConflictException).getResponse()).toEqual({
       code: 'VIDEO_NOT_ELIGIBLE',
+      message: 'Status konten ini baru saja berubah. Muat ulang lalu coba lagi',
     });
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
   it('rejects a non-Instagram/TikTok link before touching the database', async () => {

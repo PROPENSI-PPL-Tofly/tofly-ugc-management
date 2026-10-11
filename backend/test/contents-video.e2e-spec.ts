@@ -112,24 +112,31 @@ describe('POST /contents/:id/video (e2e)', () => {
   });
 
   it.each([
-    ['no draft has been handed in', 'scheduled'],
-    ['a revision is still owed', 'draft_revision'],
-  ] as const)('refuses a link at H-1 while %s, and changes nothing', async (_why, status) => {
-    const waiting = await content(`refused ${status}`, status);
+    ['no draft has been handed in', 'scheduled', 'Kirim draft dulu sebelum mengirim link video'],
+    [
+      'a revision is still owed',
+      'draft_revision',
+      'Kirim ulang draft dulu sebelum mengirim link video',
+    ],
+  ] as const)(
+    'refuses a link at H-1 while %s, says what to send first, and changes nothing',
+    async (_why, status, message) => {
+      const waiting = await content(`refused ${status}`, status);
 
-    const response = await handIn(waiting.id, { link: REEL });
+      const response = await handIn(waiting.id, { link: REEL });
 
-    expect(response.status).toBe(409);
-    expect(response.body.code).toBe('VIDEO_NOT_ELIGIBLE');
-    expect(await stateOf(waiting.id)).toEqual({
-      status,
-      video_link: null,
-      approval_bypassed: false,
-    });
-    expect(
-      await prisma.content_events.count({ where: { content_id: waiting.id } }),
-    ).toBe(0);
-  });
+      expect(response.status).toBe(409);
+      expect(response.body).toMatchObject({ code: 'VIDEO_NOT_ELIGIBLE', message });
+      expect(await stateOf(waiting.id)).toEqual({
+        status,
+        video_link: null,
+        approval_bypassed: false,
+      });
+      expect(
+        await prisma.content_events.count({ where: { content_id: waiting.id } }),
+      ).toBe(0);
+    },
+  );
 
   it('does not mark a link handed in after the draft was approved', async () => {
     const approved = await content('approved', 'draft_approved');
