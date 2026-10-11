@@ -194,6 +194,25 @@ describe("parseContentPlanParams", () => {
     expect(parseContentPlanParams({ period: "custom", to: "2026-10-31" }).to).toBe("2026-10-31");
   });
 
+  // The API checks that the day exists, not only its shape, and answers a 400 that takes the
+  // whole page down. A date picker never produces these; a typed or stale link can.
+  it.each(["2026-02-31", "2026-02-29", "2026-04-31", "2026-13-01", "2026-00-10", "2026-10-00"])(
+    "drops %s, which is shaped like a day but is not one",
+    (day) => {
+      expect(parseContentPlanParams({ period: "custom", from: day, to: day })).toMatchObject({
+        from: "",
+        to: "",
+      });
+    },
+  );
+
+  it.each(["2028-02-29", "2026-12-31", "2026-01-01"])("keeps %s, a day that exists", (day) => {
+    expect(parseContentPlanParams({ period: "custom", from: day, to: day })).toMatchObject({
+      from: day,
+      to: day,
+    });
+  });
+
   it("reads a sort direction and falls back to the default for anything else", () => {
     expect(parseContentPlanParams({ sort: "asc" }).sort).toBe("asc");
     expect(parseContentPlanParams({ sort: "sideways" }).sort).toBe("desc");

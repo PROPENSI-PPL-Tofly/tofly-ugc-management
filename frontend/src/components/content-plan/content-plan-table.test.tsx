@@ -71,6 +71,136 @@ describe("ContentPlanTable", () => {
     expect(onOpen).toHaveBeenCalledWith("c-1");
   });
 
+  // The prototype opens the panel from anywhere on the row; the button stays for the keyboard.
+  describe("opening from the row", () => {
+    it("opens the content from a press anywhere on its row", () => {
+      const { onOpen } = renderTable();
+
+      fireEvent.click(screen.getByText("Video Review Kopi"));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+    });
+
+    it("opens it once, not twice, when the press lands on the row's button", () => {
+      const { onOpen } = renderTable();
+
+      fireEvent.click(screen.getByRole("button", { name: "Tinjau Video Review Kopi" }));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+    });
+
+    it("opens the row that was pressed, among several", () => {
+      const { onOpen } = renderTable([ROW, { ...ROW, contentId: "c-2", name: "Unboxing Paket" }]);
+
+      fireEvent.click(screen.getByText("Unboxing Paket"));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-2");
+    });
+
+    it("shows a row as something to press", () => {
+      renderTable();
+
+      expect(screen.getByText("Video Review Kopi").closest("tr")).toHaveClass(
+        "cursor-pointer",
+        "hover:bg-surface-2",
+      );
+    });
+
+    // Dragging across a name to copy it ends in a click on the row. That is copying, not
+    // opening.
+    describe("when the press ends a text selection", () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("does not open the panel over the text just selected", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "Video Review",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("Video Review Kopi"));
+
+        expect(onOpen).not.toHaveBeenCalled();
+      });
+
+      it("still opens from the button, which is never part of a selection", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "Video Review",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByRole("button", { name: "Tinjau Video Review Kopi" }));
+
+        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+      });
+
+      it("opens as usual where the browser reports no selection at all", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue(null);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("Video Review Kopi"));
+
+        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+      });
+    });
+
+    it("leaves the heading row alone", () => {
+      const { onOpen } = renderTable();
+
+      fireEvent.click(screen.getByText("Nama Konten"));
+
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+  });
+
+  // In the prototype a creator's name leads to that creator's own Content Plan.
+  describe("the creator's name", () => {
+    it("links to that creator's own Content Plan", () => {
+      renderTable();
+
+      expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(
+        "href",
+        "/admin/creators/id-1/content-plan",
+      );
+    });
+
+    it("links each row to its own creator", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", creatorId: "id-2", creatorName: "Rangga" }]);
+
+      expect(screen.getByRole("link", { name: "Rangga" })).toHaveAttribute(
+        "href",
+        "/admin/creators/id-2/content-plan",
+      );
+    });
+
+    it("keeps an id with a slash in it inside its own part of the address", () => {
+      renderTable([{ ...ROW, creatorId: "a/b" }]);
+
+      expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(
+        "href",
+        "/admin/creators/a%2Fb/content-plan",
+      );
+    });
+
+    it("does not open the detail panel as well when it is pressed", () => {
+      const { onOpen } = renderTable();
+      const link = screen.getByRole("link", { name: "Salsa" });
+      // jsdom cannot follow a link; the press itself is what is under test.
+      link.addEventListener("click", (event) => event.preventDefault());
+
+      fireEvent.click(link);
+
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it("reads as a link, underlined", () => {
+      renderTable();
+
+      expect(screen.getByRole("link", { name: "Salsa" })).toHaveClass("underline");
+    });
+  });
+
   it("keeps the detail button quiet for a row the creator holds", () => {
     renderTable([{ ...ROW, status: "scheduled" }]);
     const detail = screen.getByRole("button", { name: "Detail Video Review Kopi" });

@@ -1,4 +1,8 @@
-import { DEFAULT_CONTENT_PLAN_PARAMS, type ContentPlanParams } from "./content-plan";
+import {
+  DEFAULT_CONTENT_PLAN_PARAMS,
+  parseContentPlanParams,
+  type ContentPlanParams,
+} from "./content-plan";
 import {
   MAX_FILTER_VALUES,
   toContentListQuery,
@@ -223,6 +227,18 @@ describe("toContentListQuery", () => {
         "2026-09-30",
       ]);
     });
+  });
+
+  // Read from the address bar the way the page does: this exact link answered "Content Plan
+  // tidak bisa dimuat" because 31 February reached the API.
+  it("asks for no day that does not exist, however the link was typed", () => {
+    const typed = parseContentPlanParams({
+      period: "custom",
+      from: "2026-02-31",
+      to: "2026-03-10",
+    });
+
+    expect(toContentListQuery(typed, TODAY).toString()).toBe("deadlineTo=2026-03-10&page=1");
   });
 
   it("puts everything together in the order the API documents", () => {

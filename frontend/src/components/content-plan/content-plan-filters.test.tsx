@@ -112,6 +112,19 @@ describe("ContentPlanFilters", () => {
     expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
   });
 
+  // The select shows a pick at once; the notice beside it read the server's state and only
+  // caught up a round trip later, so for a moment the two said different things.
+  it("says so the moment a period is picked there, and stops the moment it is cleared", () => {
+    renderFilters({ tab: "action" });
+    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "month" } });
+    expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "all" } });
+    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
+  });
+
   it("scopes the status choices to the tab it is on", () => {
     renderFilters({ tab: "action" });
     fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
@@ -147,6 +160,22 @@ describe("ContentPlanFilters", () => {
       scroll: false,
     });
     view.unmount();
+  });
+
+  // On a slow connection the URL changes well after the tick, and a second tick used to be
+  // built on the old URL: Salsa was dropped the moment Rangga was ticked.
+  it("keeps the first creator when a second is ticked before the URL has changed", () => {
+    renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Creator:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Salsa" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Rangga" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?creator=id-1%2Cid-2", {
+      scroll: false,
+    });
+    expect(screen.getByRole("checkbox", { name: "Salsa" })).toBeChecked();
+    expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveTextContent("2 dipilih");
   });
 
   it("offers the two content types in its own multi-select", () => {
@@ -203,6 +232,23 @@ describe("ContentPlanFilters", () => {
     expect(mockReplace).toHaveBeenCalledWith("/admin/content-plan?tab=action", {
       scroll: false,
     });
+  });
+
+  // Reset empties the search box, and the box's debounce then sent "search cleared" on top of
+  // the filters the URL still showed: on a render slower than the debounce they all came back.
+  it("stays reset when the URL is slower than the search debounce", () => {
+    renderFilters().rerenderWith(
+      new URLSearchParams({ tab: "waiting", q: "tofly", type: "specific" }),
+      { tab: "waiting" },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    act(() => vi.advanceTimersByTime(400));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?tab=waiting", {
+      scroll: false,
+    });
+    expect(screen.queryByRole("button", { name: /^Hapus filter/ })).not.toBeInTheDocument();
   });
 
   it("opens the bare address when Reset is pressed on Semua", () => {

@@ -10,6 +10,28 @@ describe("Panel", () => {
     );
     expect(screen.getByText("isi").closest("section")).not.toBeNull();
   });
+
+  it("clips its content to its rounded corners unless told otherwise", () => {
+    render(
+      <Panel>
+        <p>isi</p>
+      </Panel>,
+    );
+    expect(screen.getByText("isi").closest("section")).toHaveClass("overflow-hidden");
+  });
+
+  // A filter's popup hangs below its trigger; clipped, it was cut off wherever the panel ended.
+  it("lets its content hang past its edge when it holds a popup", () => {
+    render(
+      <Panel clip={false}>
+        <p>isi</p>
+      </Panel>,
+    );
+    const section = screen.getByText("isi").closest("section");
+
+    expect(section).not.toHaveClass("overflow-hidden");
+    expect(section).toHaveClass("border", "border-rule", "bg-surface");
+  });
 });
 
 describe("PanelHead", () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot } from "@/components/ui/pill";
@@ -71,9 +72,29 @@ export function ContentPlanTable({
         </thead>
         <tbody>
           {items.map((row) => (
-            <tr key={row.contentId} className="border-b border-rule">
+            // A press anywhere on the row opens its panel, as in the prototype. The button in
+            // the last cell is the same door for the keyboard and for screen readers.
+            <tr
+              key={row.contentId}
+              onClick={() => {
+                // Dragging across a name to copy it ends in a click here: copying, not opening.
+                if (window.getSelection()?.toString()) return;
+                onOpen(row.contentId);
+              }}
+              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
+            >
               <td className="px-5 py-3">{row.name}</td>
-              <td className="px-5 py-3">{row.creatorName}</td>
+              <td className="px-5 py-3">
+                {/* The way to this creator's own Content Plan, as in the prototype. It is a
+                    link of its own, so the row must not open the panel on the same press. */}
+                <Link
+                  href={`/admin/creators/${encodeURIComponent(row.creatorId)}/content-plan`}
+                  onClick={(event) => event.stopPropagation()}
+                  className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
+                >
+                  {row.creatorName}
+                </Link>
+              </td>
               <td className="px-5 py-3">{CONTENT_TYPE_LABELS[row.type]}</td>
               <td className="px-5 py-3 whitespace-nowrap">{formatDate(row.deadline)}</td>
               <td className="px-5 py-3 whitespace-nowrap">
@@ -100,7 +121,11 @@ export function ContentPlanTable({
                   type="button"
                   // Every row has one; the content's name tells them apart when heard.
                   aria-label={`${needsReview(row.status) ? "Tinjau" : "Detail"} ${row.name}`}
-                  onClick={() => onOpen(row.contentId)}
+                  onClick={(event) => {
+                    // The row would hear this press too and open the panel a second time.
+                    event.stopPropagation();
+                    onOpen(row.contentId);
+                  }}
                   className={`${buttonClasses(needsReview(row.status) ? "accent" : "ghost")} px-2 py-1`}
                 >
                   {needsReview(row.status) ? "Tinjau" : "Detail"}

@@ -1,5 +1,6 @@
 import type { RawContentList } from "./content-list-api";
 import { DEFAULT_CONTENT_PLAN_PARAMS, type ContentPlanParams } from "./content-plan";
+import { NO_FILTERS } from "./creators";
 
 const { sessionCookies } = vi.hoisted(() => ({
   sessionCookies: [] as { name: string; value: string }[],
@@ -218,22 +219,46 @@ describe("fetchContentPlanCreatorOptions", () => {
     ]);
   });
 
-  it("stops asking after twenty pages, however long the database runs", async () => {
-    vi.mocked(fetchCreators).mockImplementation(
-      async (page) =>
-        ({
-          items: [{ id: `id-${page}`, name: `Creator ${page}` }],
-          page,
-          pageSize: 1,
-          total: 500,
-          totalPages: 500,
-        }) as never,
-    );
+  it("asks for the API's largest page first, so a normal roster is a single request", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue({
+      items: [{ id: "id-1", name: "Salsa" }],
+      page: 1,
+      pageSize: 50,
+      total: 1,
+      totalPages: 1,
+    } as never);
+
+    await expect(fetchContentPlanCreatorOptions()).resolves.toEqual([
+      { id: "id-1", name: "Salsa" },
+    ]);
+    expect(fetchCreators).toHaveBeenCalledTimes(1);
+    expect(fetchCreators).toHaveBeenCalledWith(1, NO_FILTERS, 50);
+  });
+
+  it("walks the pages after the first all at once, and never past two hundred names", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.mocked(fetchCreators).mockImplementation(async (page: number) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      inFlight -= 1;
+      return {
+        items: [{ id: `id-${page}`, name: `Creator ${page}` }],
+        page,
+        pageSize: 50,
+        total: 400,
+        totalPages: 999,
+      } as never;
+    });
 
     const options = await fetchContentPlanCreatorOptions();
 
-    expect(fetchCreators).toHaveBeenCalledTimes(20);
-    expect(options).toHaveLength(20);
-    expect(options.at(-1)).toEqual({ id: "id-20", name: "Creator 20" });
+    // Four pages of fifty hold the two hundred names the old twenty pages of ten held,
+    // and pages 2-4 only start once page 1 has answered with the count.
+    expect(fetchCreators).toHaveBeenCalledTimes(4);
+    expect(fetchCreators).toHaveBeenNthCalledWith(1, 1, NO_FILTERS, 50);
+    expect(maxInFlight).toBe(3);
+    expect(options.at(-1)).toEqual({ id: "id-4", name: "Creator 4" });
   });
 });

@@ -1,9 +1,16 @@
 import type { ReactNode } from "react";
 
-/** The bordered surface a section of the admin interface sits on. One containment layer. */
-export function Panel({ children }: { children: ReactNode }) {
+/**
+ * The bordered surface a section of the admin interface sits on. One containment layer.
+ *
+ * It clips its content to its rounded corners. A panel that holds a popup (a filter's
+ * dropdown) passes `clip={false}`, or the popup is cut off wherever the panel ends.
+ */
+export function Panel({ children, clip = true }: { children: ReactNode; clip?: boolean }) {
   return (
-    <section className="overflow-hidden rounded-(--radius-panel) border border-rule bg-surface shadow-whisper">
+    <section
+      className={`${clip ? "overflow-hidden " : ""}rounded-(--radius-panel) border border-rule bg-surface shadow-whisper`}
+    >
       {children}
     </section>
   );

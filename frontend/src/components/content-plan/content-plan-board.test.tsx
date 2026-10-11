@@ -96,6 +96,7 @@ describe("ContentPlanBoard", () => {
 
   it("opens the panel straight from a ?content= link, the way a notification would", async () => {
     window.history.pushState({}, "", "/admin/content-plan?tab=action&content=content-1");
+    searchParams = new URLSearchParams("tab=action&content=content-1");
     fetchContentDetail.mockResolvedValue(detailOf());
 
     renderBoard();
@@ -106,6 +107,7 @@ describe("ContentPlanBoard", () => {
 
   it("drops ?content= on close, keeping the other parameters", async () => {
     window.history.pushState({}, "", "/admin/content-plan?tab=waiting&content=content-1&page=2");
+    searchParams = new URLSearchParams("tab=waiting&content=content-1&page=2");
     fetchContentDetail.mockResolvedValue(detailOf());
 
     renderBoard();
@@ -113,6 +115,37 @@ describe("ContentPlanBoard", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(window.location.search).toBe("?tab=waiting&page=2");
+  });
+
+  // A filter change that was already on its way when the panel opened lands as an address
+  // without ?content=. The panel is still open, so its link has to come back.
+  it("puts the content back in the address when a navigation lands without it", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf());
+    const view = render(<ContentPlanBoard items={[ROW]} filtered={false} tab="all" sort="desc" />);
+    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Next shows the board the address it has just written.
+    searchParams = new URLSearchParams({ content: "content-1" });
+    view.rerender(<ContentPlanBoard items={[ROW]} filtered={false} tab="all" sort="desc" />);
+
+    window.history.replaceState({}, "", "/admin/content-plan?creator=id-1");
+    searchParams = new URLSearchParams({ creator: "id-1" });
+    view.rerender(<ContentPlanBoard items={[ROW]} filtered={false} tab="all" sort="desc" />);
+
+    expect(window.location.search).toBe("?creator=id-1&content=content-1");
+  });
+
+  it("leaves the address alone while it already names the open content", async () => {
+    window.history.pushState({}, "", "/admin/content-plan?content=content-1");
+    searchParams = new URLSearchParams({ content: "content-1" });
+    fetchContentDetail.mockResolvedValue(detailOf());
+    const written = vi.spyOn(window.history, "replaceState");
+
+    renderBoard();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    expect(written).not.toHaveBeenCalled();
+    written.mockRestore();
   });
 
   it("confirms a decision with a toast, closes the panel and refreshes the list", async () => {

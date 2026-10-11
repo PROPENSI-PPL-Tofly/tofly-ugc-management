@@ -44,23 +44,31 @@ export default async function ContentPlanPage({
   let pastEnd: number | null = null;
   let shownPage = state.page;
 
-  try {
-    const [plan, names] = await Promise.all([
-      fetchContentPlan(state),
-      fetchContentPlanCreatorOptions(),
-    ]);
-    result = plan;
-    creators = names;
+  // Each fetch fails for itself: a creator-name failure costs the filter's choices, while a
+  // list failure costs the page. Promise.all would let either one take down both.
+  const [plan, names] = await Promise.allSettled([
+    fetchContentPlan(state),
+    fetchContentPlanCreatorOptions(),
+  ]);
+  creators = names.status === "fulfilled" ? names.value : [];
+
+  if (plan.status === "rejected") {
+    result = null;
+  } else {
+    result = plan.value;
 
     // A page past the end (an old link, or a plan that shrank as content was decided) shows
     // the first page instead of an empty table that would claim there is nothing to plan.
-    if (plan.total > 0 && state.page > plan.totalPages) {
+    if (plan.value.total > 0 && state.page > plan.value.totalPages) {
       pastEnd = state.page;
       shownPage = 1;
-      result = await fetchContentPlan({ ...state, page: 1 });
+
+      try {
+        result = await fetchContentPlan({ ...state, page: 1 });
+      } catch {
+        result = null;
+      }
     }
-  } catch {
-    result = null;
   }
 
   const query = buildContentPlanQuery({ ...state, page: 1 });
@@ -81,7 +89,8 @@ export default async function ContentPlanPage({
       ) : null}
 
       {result ? (
-        <Panel>
+        // Unclipped: the filter popups hang below the bar and past the panel's foot.
+        <Panel clip={false}>
           <ContentPlanTabBar active={state.tab} counts={result.counts} />
           <ContentPlanFilters state={state} creators={creators} />
           <ContentPlanBoard

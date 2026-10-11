@@ -171,6 +171,17 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       expect(onChange).toHaveBeenCalledWith([]);
     });
 
+    // Pressing it while it is already ticked changes nothing, so it must not report a change:
+    // on the Content Plan that was a navigation that threw page 3 back to page 1.
+    it("reports nothing when pressed while nothing is picked", () => {
+      const onChange = renderSelect();
+
+      fireEvent.click(within(open()).getByRole("checkbox", { name: "Semua" }));
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole("checkbox", { name: "Semua" })).toBeChecked();
+    });
+
     it("drops every chip once pressed", () => {
       render(<Stateful initial={["id-1", "id-3"]} />);
 
@@ -278,6 +289,101 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       // where the trigger is: the popup would cover the control that opened it.
       expect(popup).toHaveClass("absolute", "top-full", "left-0");
       expect(popup.parentElement).toHaveClass("relative");
+    });
+
+    // The chips sit beside the trigger and wrap onto more rows as picks are added. Anchored to
+    // the box that holds them too, the popup opened under the last row of chips, away from
+    // the trigger that opened it.
+    it("anchors the popup to the trigger alone, not to the chips beside it", () => {
+      renderSelect(["id-1", "id-2", "id-3"]);
+
+      const anchor = open().parentElement as HTMLElement;
+
+      expect(anchor).toHaveClass("relative");
+      expect(anchor).toContainElement(trigger());
+      expect(anchor).not.toContainElement(
+        screen.getByRole("button", { name: "Hapus filter Creator: Salsa" }),
+      );
+    });
+
+    it("still counts a press on a chip as inside, so dropping one keeps the popup open", () => {
+      render(<Stateful initial={["id-1", "id-2"]} />);
+      open();
+
+      const chip = screen.getByRole("button", { name: "Hapus filter Creator: Salsa" });
+      fireEvent.mouseDown(chip);
+      fireEvent.click(chip);
+
+      expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
+    });
+
+    // On a phone the second filter sits mid-row, and a popup opened from its left edge ran
+    // 52 px past the right of the window.
+    describe("near the right edge of the window", () => {
+      /** The popup is 240 px wide; where its right edge falls says where the trigger sits. */
+      function windowIs(width: number, popupRight: number) {
+        Object.defineProperty(document.documentElement, "clientWidth", {
+          configurable: true,
+          value: width,
+        });
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+          left: popupRight - 240,
+          right: popupRight,
+        } as DOMRect);
+      }
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        Object.defineProperty(document.documentElement, "clientWidth", {
+          configurable: true,
+          value: 0,
+        });
+      });
+
+      it("pulls the popup back inside when it would run past the edge, keeping a margin", () => {
+        windowIs(375, 427);
+        renderSelect();
+
+        // 427 is 52 past the window; 8 more leaves a margin.
+        expect(open().style.left).toBe("-60px");
+      });
+
+      it("leaves the popup at the trigger's left edge when it fits", () => {
+        windowIs(1024, 729);
+        renderSelect();
+
+        expect(open().style.left).toBe("");
+      });
+
+      it("leaves it alone when it ends exactly at the margin", () => {
+        windowIs(375, 367);
+        renderSelect();
+
+        expect(open().style.left).toBe("");
+      });
+
+      // A pick adds a chip, the filter wraps to a row of its own and the trigger lands at the
+      // left edge. The offset measured when the popup opened then put it 23 px off-screen.
+      it("measures again after a pick has moved the trigger", () => {
+        windowIs(375, 427);
+        render(<Stateful />);
+        const popup = open();
+        expect(popup.style.left).toBe("-60px");
+
+        windowIs(375, 277);
+        fireEvent.click(within(popup).getByRole("checkbox", { name: "Salsa" }));
+
+        expect(popup.style.left).toBe("");
+      });
+
+      it("never pulls the popup past the window's left edge, however narrow the window", () => {
+        // 300 is 108 past a 200 px window's margin, but only 52 px separate the popup from
+        // the left margin.
+        windowIs(200, 300);
+        renderSelect();
+
+        expect(open().style.left).toBe("-52px");
+      });
     });
 
     it("marks the trigger while its popup is open", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ContentDetailPanel,
@@ -8,32 +8,11 @@ import {
 } from "@/components/content-detail/content-detail-panel";
 import { useToast } from "@/components/ui/toast";
 import { DEFAULT_SORT, type ContentPlanRow, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
+import { latestQuery, useUrlQuery } from "@/lib/url-query";
 import { ContentPlanTable } from "./content-plan-table";
 
 /** The search parameter a notification or a bookmark uses to open one content's panel. */
 const CONTENT_PARAM = "content";
-
-/**
- * Puts the open panel's content in the address, so it can be copied, shared or reopened like
- * the link a notification sends. Replaced rather than pushed: Back leaves the page instead of
- * walking through every panel opened on it. Other parameters (the tab, the page) stay.
- */
-function rememberContentParam(contentId: string) {
-  const url = new URL(window.location.href);
-  url.searchParams.set(CONTENT_PARAM, contentId);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
-/**
- * Takes the deep link back out of the address once its panel has closed, so a reload or a
- * Back does not open the panel again. Other parameters (the tab, the page) stay.
- * replaceState keeps Next's router in sync without a navigation or a server round trip.
- */
-function forgetContentParam() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(CONTENT_PARAM);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-}
 
 /**
  * The Content Plan's interactive part: the table plus the detail panel its Tinjau and Detail
@@ -53,8 +32,8 @@ export function ContentPlanBoard({
   sort: DeadlineSort;
 }>) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { replaceQuery, replaceQuietly } = useUrlQuery();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   const { show: confirm, toast } = useToast();
 
@@ -71,20 +50,48 @@ export function ContentPlanBoard({
     }
   }, []);
 
+  // The address names the open panel's content for as long as the panel is open, so it can be
+  // copied, shared or reopened like the link a notification sends. It replaces the entry
+  // rather than adding one: Back leaves the page instead of walking through every panel
+  // opened on it. Written here and not in the press that opens the panel: a filter change
+  // already on its way then lands as an address without ?content=, and the link has to come
+  // back then too.
+  //
+  // It is built on what was last sent, so a filter ticked a moment ago is kept, and checked
+  // against it too: once the link has been sent there is nothing more to write, however many
+  // times this runs before the address shows it.
+  const linked = searchParams.get(CONTENT_PARAM);
+  useEffect(() => {
+    if (!openContentId) return;
+
+    const next = new URLSearchParams(latestQuery());
+    if (next.get(CONTENT_PARAM) === openContentId) return;
+
+    next.set(CONTENT_PARAM, openContentId);
+    replaceQuietly(next.toString());
+  }, [openContentId, linked, replaceQuietly]);
+
+  /** Closing takes the link back out, so a reload or a Back does not open the panel again. */
   function closePanel() {
     setOpenContentId(null);
-    forgetContentParam();
+
+    const next = new URLSearchParams(latestQuery());
+    next.delete(CONTENT_PARAM);
+    replaceQuietly(next.toString());
   }
 
-  /** The deadline header's press: the direction turns over and the old page no longer means anything. */
+  /**
+   * The deadline header's press: the direction turns over and the old page no longer means
+   * anything. Both the rest of the query and the direction come from what was last sent, so
+   * the press keeps a filter ticked a moment ago and a second quick press turns back.
+   */
   function toggleSort() {
-    const next = new URLSearchParams(searchParams.toString());
-    const flipped = sort === "desc" ? "asc" : "desc";
+    const next = new URLSearchParams(latestQuery());
+    const flipped = next.get("sort") === "asc" ? "desc" : "asc";
     if (flipped === DEFAULT_SORT) next.delete("sort");
     else next.set("sort", flipped);
     next.delete("page");
-    const query = next.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    replaceQuery(next.toString());
   }
 
   return (
@@ -95,10 +102,7 @@ export function ContentPlanBoard({
         tab={tab}
         sort={sort}
         onSortToggle={toggleSort}
-        onOpen={(contentId) => {
-          setOpenContentId(contentId);
-          rememberContentParam(contentId);
-        }}
+        onOpen={setOpenContentId}
       />
       {openContentId ? (
         // Keyed by content so switching rows remounts the panel rather than leaving the

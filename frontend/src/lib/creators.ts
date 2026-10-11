@@ -187,13 +187,15 @@ export function hasActiveFilters(filters: CreatorFilterState): boolean {
 }
 
 /** Builds a query string for the backend, omitting defaults. */
-export function buildCreatorsQuery(filters: CreatorFilterState & { page: number }): string {
+export function buildCreatorsQuery(
+  filters: CreatorFilterState & { page: number; pageSize?: number },
+): string {
   const query = new URLSearchParams();
   if (filters.q) query.set("q", filters.q);
   if (filters.contractStatus !== "all") query.set("contractStatus", filters.contractStatus);
   if (filters.productivity !== "all") query.set("productivity", filters.productivity);
   query.set("page", String(filters.page));
-  query.set("pageSize", String(PAGE_SIZE));
+  query.set("pageSize", String(filters.pageSize ?? PAGE_SIZE));
   return query.toString();
 }
 
