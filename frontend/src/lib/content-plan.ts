@@ -4,6 +4,9 @@
 
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
+import type { PeriodFilter } from "./deadline-period";
+
+export type { PeriodFilter };
 
 export const CONTENT_PLAN_BASE = "/admin/content-plan";
 
@@ -51,7 +54,6 @@ export const CONTENT_PLAN_TAB_KEYS: readonly ContentPlanTab[] = [
 ];
 
 export type OverdueFilter = "all" | "yes" | "no";
-export type PeriodFilter = "all" | "month" | "next30" | "last90" | "custom";
 export type DeadlineSort = "asc" | "desc";
 
 /** Farthest deadline first, the way every tab opens in the prototype. */
