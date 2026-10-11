@@ -5,6 +5,15 @@
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { PeriodFilter } from "./deadline-period";
+import {
+  calendarDay,
+  list,
+  listOf,
+  oneOf,
+  pageNumber,
+  single,
+  type SearchParams,
+} from "./search-params";
 
 export type { PeriodFilter };
 
@@ -140,59 +149,21 @@ export function statusOptionsFor(tab: ContentPlanTab): readonly ContentStatus[] 
   return tabDef(tab).statuses ?? CONTENT_STATUSES;
 }
 
-/** A search parameter can arrive repeated; the first value is the one the UI set. */
-function single(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? "";
-  return value ?? "";
-}
-
-/** A comma-separated multi-select, trimmed and emptied of blanks. */
-function list(value: string | string[] | undefined): string[] {
-  return single(value)
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part !== "");
-}
-
-function oneOf<T extends string>(values: readonly T[], raw: string, fallback: T): T {
-  return (values as readonly string[]).includes(raw) ? (raw as T) : fallback;
-}
-
-const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * A `YYYY-MM-DD` that names a day that exists, read the way the API reads it: 2026-02-31 rolls
- * over into March, so it fails the round trip. Empty for anything else.
- */
-function calendarDay(raw: string): string {
-  if (!CALENDAR_DAY.test(raw)) return "";
-
-  const parsed = new Date(`${raw}T00:00:00Z`);
-  const exists = !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(raw);
-  return exists ? raw : "";
-}
-
 /**
  * The URL's values as the page's state, every one checked. Anything the page cannot hold —
  * an unknown tab, a status from another world, a page of zero — falls back to the default
  * rather than reaching the API, which would only answer with a 400.
  */
 export function parseContentPlanParams(
-  params: Record<string, string | string[] | undefined>,
+  params: SearchParams,
 ): ContentPlanParams {
-  const rawPage = single(params.page);
-
   return {
     tab: oneOf(CONTENT_PLAN_TAB_KEYS, single(params.tab), "all"),
-    page: /^[1-9]\d*$/.test(rawPage) ? Number(rawPage) : 1,
+    page: pageNumber(params.page),
     q: single(params.q).trim(),
     creator: list(params.creator),
-    type: list(params.type).filter((value): value is ContentType =>
-      (CONTENT_TYPES as readonly string[]).includes(value),
-    ),
-    status: list(params.status).filter((value): value is ContentStatus =>
-      (CONTENT_STATUSES as readonly string[]).includes(value),
-    ),
+    type: listOf(CONTENT_TYPES, params.type),
+    status: listOf(CONTENT_STATUSES, params.status),
     overdue: oneOf(OVERDUE_FILTERS, single(params.overdue), "all"),
     period: oneOf(PERIOD_FILTERS, single(params.period), "all"),
     from: calendarDay(single(params.from)),
