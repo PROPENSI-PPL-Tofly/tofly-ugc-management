@@ -56,6 +56,20 @@ describe("StatusTabs", () => {
     }
   });
 
+  // Seen in the browser: stacking the selected classes on the plain ones let border-transparent
+  // and text-muted win, so the selected tab looked like every other. Each state names its own.
+  it("underlines the selected tab in brand blue with no plain-tab class left to override it", () => {
+    renderTabs("wait");
+    const [plain, , selected] = [tabs()[0], tabs()[1], tabs()[2]];
+
+    expect(selected.className).toContain("border-accent");
+    expect(selected.className).toContain("text-accent-deep");
+    expect(selected.className).not.toContain("border-transparent");
+    expect(selected.className).not.toContain("text-muted");
+    expect(plain.className).toContain("border-transparent");
+    expect(plain.className).toContain("text-muted");
+  });
+
   it("turns the urgent counter red past zero and hides it at zero", () => {
     renderTabs("all", { ...COUNTS, todo: 4 });
     expect(screen.getByTestId("count-todo").className).toContain("bg-red");
