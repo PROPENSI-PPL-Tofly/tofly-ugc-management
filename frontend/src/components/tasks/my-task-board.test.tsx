@@ -257,6 +257,20 @@ describe("MyTaskBoard", () => {
     expect(screen.queryByRole("button", { name: "Reset filter" })).not.toBeInTheDocument();
   });
 
+  // Seen in the browser: an empty Selesai told the creator new tasks would appear there.
+  it.each([
+    ["all", true],
+    ["action", true],
+    ["waiting", false],
+    ["done", false],
+  ] as const)("on an empty %s tab, says new tasks arrive here only where they do (%s)", (tab, hinted) => {
+    render(<MyTaskBoard tasks={[]} tab={tab} />);
+
+    const hint = screen.queryByText("Tugas baru muncul di sini begitu admin menjadwalkannya.");
+    if (hinted) expect(hint).toBeInTheDocument();
+    else expect(hint).not.toBeInTheDocument();
+  });
+
   // An empty filtered list is never a dead end: the way back sits where the rows would be.
   it("says the filter matched nothing and offers to clear it, keeping the tab", () => {
     window.history.pushState({}, "", "/creator/tasks?tab=action&q=serum&overdue=yes&sort=desc");
