@@ -90,48 +90,57 @@ export function MultiSelect({
     );
   }
 
+  /** Back to "everything". Already there, it is no change, and the page is not asked to move. */
+  function clear() {
+    if (selected.length > 0) onChange([]);
+  }
+
   return (
-    <div ref={rootRef} className="relative flex flex-wrap items-center gap-2">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="true"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={() => setOpen(!open)}
-        className={`${TRIGGER} ${open ? "border-ink" : "border-rule"}`}
-      >
-        <span className="text-muted">{label}:</span>{" "}
-        <b className="max-w-48 truncate font-semibold">{summary()}</b>
-        <span aria-hidden="true" className={CARET} />
-      </button>
+    <div ref={rootRef} className="flex flex-wrap items-center gap-2">
+      {/* The popup hangs from the trigger alone. The chips wrap onto more rows as picks are
+          added, and a popup anchored to the whole box would open under the last of them. */}
+      <span className="relative inline-flex">
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-haspopup="true"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen(!open)}
+          className={`${TRIGGER} ${open ? "border-ink" : "border-rule"}`}
+        >
+          <span className="text-muted">{label}:</span>{" "}
+          <b className="max-w-48 truncate font-semibold">{summary()}</b>
+          <span aria-hidden="true" className={CARET} />
+        </button>
 
-      {open ? (
-        <div id={listId} role="group" aria-label={label} className={POPUP}>
-          {/* The way back to "everything", without unticking each pick in turn. */}
-          <label className={`${OPTION} mb-1 border-b border-rule pb-2`}>
-            <input
-              type="checkbox"
-              checked={selected.length === 0}
-              onChange={() => onChange([])}
-              className={CHECKBOX}
-            />
-            Semua
-          </label>
-
-          {options.map((option) => (
-            <label key={option.value} className={OPTION}>
+        {open ? (
+          <div id={listId} role="group" aria-label={label} className={POPUP}>
+            {/* The way back to "everything", without unticking each pick in turn. */}
+            <label className={`${OPTION} mb-1 border-b border-rule pb-2`}>
               <input
                 type="checkbox"
-                checked={selected.includes(option.value)}
-                onChange={() => toggle(option.value)}
+                checked={selected.length === 0}
+                onChange={clear}
                 className={CHECKBOX}
               />
-              {option.label}
+              Semua
             </label>
-          ))}
-        </div>
-      ) : null}
+
+            {options.map((option) => (
+              <label key={option.value} className={OPTION}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option.value)}
+                  onChange={() => toggle(option.value)}
+                  className={CHECKBOX}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        ) : null}
+      </span>
 
       {selected.map((value) => (
         <button
