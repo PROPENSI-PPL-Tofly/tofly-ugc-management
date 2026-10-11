@@ -71,6 +71,50 @@ describe("ContentPlanTable", () => {
     expect(onOpen).toHaveBeenCalledWith("c-1");
   });
 
+  // The prototype opens the panel from anywhere on the row; the button stays for the keyboard.
+  describe("opening from the row", () => {
+    it("opens the content from a press anywhere on its row", () => {
+      const { onOpen } = renderTable();
+
+      fireEvent.click(screen.getByText("Video Review Kopi"));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+    });
+
+    it("opens it once, not twice, when the press lands on the row's button", () => {
+      const { onOpen } = renderTable();
+
+      fireEvent.click(screen.getByRole("button", { name: "Tinjau Video Review Kopi" }));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+    });
+
+    it("opens the row that was pressed, among several", () => {
+      const { onOpen } = renderTable([ROW, { ...ROW, contentId: "c-2", name: "Unboxing Paket" }]);
+
+      fireEvent.click(screen.getByText("Unboxing Paket"));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-2");
+    });
+
+    it("shows a row as something to press", () => {
+      renderTable();
+
+      expect(screen.getByText("Video Review Kopi").closest("tr")).toHaveClass(
+        "cursor-pointer",
+        "hover:bg-surface-2",
+      );
+    });
+
+    it("leaves the heading row alone", () => {
+      const { onOpen } = renderTable();
+
+      fireEvent.click(screen.getByText("Nama Konten"));
+
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+  });
+
   it("keeps the detail button quiet for a row the creator holds", () => {
     renderTable([{ ...ROW, status: "scheduled" }]);
     const detail = screen.getByRole("button", { name: "Detail Video Review Kopi" });
