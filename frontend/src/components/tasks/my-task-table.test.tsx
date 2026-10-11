@@ -330,55 +330,39 @@ describe("MyTaskTable", () => {
       expect(onDetail).toHaveBeenCalledWith(target);
     });
 
-    it("opens the detail from a press anywhere on the row, as in the prototype", () => {
-      const onDetail = vi.fn();
-      const target = task();
-      render(<MyTaskTable tasks={[target]} onAction={vi.fn()} onDetail={onDetail} />);
+    // The row itself carries no click handler (a clickable row would be a non-interactive role
+    // doing an interactive job); the name button is stretched over it instead, so a press
+    // anywhere on the row is a press on a real button.
+    it("stretches the name over the whole row, so a press anywhere on it opens the detail", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
 
       const [row] = rows();
-      expect(row.className).toContain("cursor-pointer");
-      fireEvent.click(within(row).getAllByRole("cell")[2]);
-
-      expect(onDetail).toHaveBeenCalledTimes(1);
-      expect(onDetail).toHaveBeenCalledWith(target);
+      expect(row).not.toHaveAttribute("onclick");
+      expect(row.className).toContain("relative");
+      expect(row.className).toContain("hover:bg-surface-2");
+      const name = within(row).getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
+      expect(name.className).toContain("after:absolute");
+      expect(name.className).toContain("after:inset-0");
     });
 
-    it("opens the detail once, not twice, when the name itself is pressed", () => {
-      const onDetail = vi.fn();
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={onDetail} />);
-
-      fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
-
-      expect(onDetail).toHaveBeenCalledTimes(1);
-    });
-
-    it("runs a row's action without opening its detail on the same press", () => {
+    it("lifts the actions above the stretched name, so pressing one runs only that action", () => {
       const onDetail = vi.fn();
       const onAction = vi.fn();
       render(<MyTaskTable tasks={[task()]} onAction={onAction} onDetail={onDetail} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Submit Draft/ }));
+      const action = screen.getByRole("button", { name: /^Submit Draft/ });
+      expect(action.parentElement?.className).toContain("relative");
+      expect(action.parentElement?.className).toContain("z-10");
+      fireEvent.click(action);
 
       expect(onAction).toHaveBeenCalledTimes(1);
       expect(onDetail).not.toHaveBeenCalled();
     });
 
-    it("leaves the detail closed when the press ends a drag that selected text to copy", () => {
-      const onDetail = vi.fn();
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={onDetail} />);
-      vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "Evg_1" } as Selection);
-
-      fireEvent.click(within(rows()[0]).getAllByRole("cell")[1]);
-
-      expect(onDetail).not.toHaveBeenCalled();
-      vi.restoreAllMocks();
-    });
-
     it("keeps the row plain when there is no detail to open", () => {
       render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
 
-      expect(rows()[0].className).not.toContain("cursor-pointer");
-      fireEvent.click(within(rows()[0]).getAllByRole("cell")[1]);
+      expect(rows()[0].className).not.toContain("hover:bg-surface-2");
     });
 
     it("shows the name as plain text when there is no detail to open", () => {
