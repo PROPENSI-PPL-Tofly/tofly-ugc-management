@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
 import { CONTENT_STATUS_TONES } from "@/lib/content-labels";
 import type { DeadlineSort } from "@/lib/content-plan";
-import { EMPTY, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
 
 const ACTION_LABELS: Record<MyTaskAction, string> = {
@@ -23,7 +23,7 @@ const ACTION_LABELS: Record<MyTaskAction, string> = {
 // of behind a sideways scroll: the header row is visually hidden, and the deadline and status
 // cells print their column name from data-label.
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+const CELL = "px-5 py-3 align-middle max-lg:block max-lg:px-0 max-lg:py-1";
 const LABELLED =
   "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
@@ -39,39 +39,21 @@ function actionVariant(task: MyTask, action: MyTaskAction): Variant {
   return task.status === "draft_approved" ? "positive" : "default";
 }
 
-/** What an action-less row says instead of a button. */
-function idleText(task: MyTask): string {
-  return task.status === "draft_review" ? "Menunggu review admin" : EMPTY;
+/** What an action-less row says instead of a button; nothing once the work is done. */
+function idleText(task: MyTask): string | null {
+  return task.status === "draft_review" ? "Menunggu review admin" : null;
 }
 
 function ActionCell({
   task,
   onAction,
-  onDetail,
 }: Readonly<{
   task: MyTask;
   onAction?: (task: MyTask, action: MyTaskAction) => void;
-  onDetail?: (task: MyTask) => void;
 }>) {
-  const detailButton = onDetail ? (
-    <Button
-      key="detail"
-      variant="ghost"
-      className="whitespace-nowrap"
-      aria-label={`Detail: ${task.name}`}
-      onClick={() => onDetail(task)}
-    >
-      Detail
-    </Button>
-  ) : null;
-
   if (task.actions.length === 0) {
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted">{idleText(task)}</span>
-        {detailButton}
-      </div>
-    );
+    const idle = idleText(task);
+    return idle ? <span className="text-xs text-muted">{idle}</span> : null;
   }
 
   return (
@@ -90,7 +72,6 @@ function ActionCell({
           {ACTION_LABELS[action]}
         </Button>
       ))}
-      {detailButton}
     </div>
   );
 }
@@ -110,6 +91,7 @@ export function MyTaskTable({
   emptyHint = "Tugas baru muncul di sini begitu admin menjadwalkannya.",
   sort = "asc",
   onSortToggle,
+  hideActions = false,
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
@@ -125,6 +107,8 @@ export function MyTaskTable({
   sort?: DeadlineSort;
   /** Turns the deadline order over; given, the Deadline header becomes its button. */
   onSortToggle?: () => void;
+  /** Leaves out the Aksi column, for a list that never has anything to do (Selesai). */
+  hideActions?: boolean;
 }>) {
   if (tasks.length === 0) {
     return (
@@ -156,9 +140,11 @@ export function MyTaskTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Status
             </th>
-            <th role="columnheader" scope="col" className={HEAD}>
-              Aksi
-            </th>
+            {hideActions ? null : (
+              <th role="columnheader" scope="col" className={HEAD}>
+                Aksi
+              </th>
+            )}
           </tr>
         </thead>
         <tbody role="rowgroup" className="max-lg:block">
@@ -169,7 +155,19 @@ export function MyTaskTable({
               className="border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3"
             >
               <td role="cell" className={`${CELL} min-w-48 wrap-anywhere max-lg:min-w-0 max-lg:font-semibold`}>
-                {task.name}
+                {/* The name is the way into the task's detail, as a row is in the prototype. */}
+                {onDetail ? (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => onDetail(task)}
+                    className="cursor-pointer rounded-(--radius-control) border-none bg-transparent p-0 text-left font-semibold text-ink underline-offset-2 hover:text-accent-deep hover:underline"
+                  >
+                    {task.name}
+                  </button>
+                ) : (
+                  task.name
+                )}
               </td>
               <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 {formatDate(task.deadline)}
@@ -183,9 +181,11 @@ export function MyTaskTable({
                   <ContentTags tags={task.tags} />
                 </div>
               </td>
-              <td role="cell" className={`${CELL} max-lg:pt-2`}>
-                <ActionCell task={task} onAction={onAction} onDetail={onDetail} />
-              </td>
+              {hideActions ? null : (
+                <td role="cell" className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
+                  <ActionCell task={task} onAction={onAction} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
