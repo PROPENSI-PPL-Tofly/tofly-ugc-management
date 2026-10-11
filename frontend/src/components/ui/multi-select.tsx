@@ -87,15 +87,20 @@ export function MultiSelect({
   }, [open]);
 
   // The popup opens from the trigger's left edge. On a narrow window that can carry it past
-  // the right edge, so it is measured before it is painted and pulled back by the overhang.
+  // the right edge, so it is measured before it is painted and pulled back by the overhang,
+  // though never further than the left edge allows. It runs after every render, not only on
+  // opening: a pick adds a chip, the chip can wrap the trigger onto another row, and an
+  // offset measured for the old place would then push the popup off the other side.
   useLayoutEffect(() => {
     const popup = popupRef.current;
     if (!popup) return;
 
-    const overhang =
-      popup.getBoundingClientRect().right - (document.documentElement.clientWidth - WINDOW_MARGIN);
-    if (overhang > 0) popup.style.left = `${-overhang}px`;
-  }, [open]);
+    popup.style.left = "";
+    const box = popup.getBoundingClientRect();
+    const overhang = box.right - (document.documentElement.clientWidth - WINDOW_MARGIN);
+    const pull = Math.min(overhang, box.left - WINDOW_MARGIN);
+    if (pull > 0) popup.style.left = `${-pull}px`;
+  });
 
   function toggle(value: string) {
     onChange(
