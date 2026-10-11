@@ -102,7 +102,7 @@ describe("MyTaskTable", () => {
         />,
       );
 
-      expect(rows().map((row) => within(row).getAllByRole("cell")[0].textContent)).toEqual([
+      expect(rows().map((row) => within(row).getAllByRole("cell")[0].firstChild?.textContent)).toEqual([
         "Paling dekat",
         "Berikutnya",
         "Sudah dikirim",

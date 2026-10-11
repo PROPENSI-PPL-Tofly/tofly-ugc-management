@@ -7,7 +7,7 @@ import type { Variant } from "@/components/ui/button-classes";
 import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
-import { CONTENT_STATUS_TONES } from "@/lib/content-labels";
+import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import type { DeadlineSort } from "@/lib/content-plan";
 import { formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
@@ -23,6 +23,10 @@ const ACTION_LABELS: Record<MyTaskAction, string> = {
 // of behind a sideways scroll: the header row is visually hidden, and the deadline and status
 // cells print their column name from data-label.
 const HEAD = "px-5 py-3 font-semibold";
+
+/** Column widths from lg up: Nama Konten, Deadline, Status, Aksi; without Aksi on Selesai. */
+const COLUMNS = ["w-[34%]", "w-[14%]", "w-[24%]", "w-[28%]"];
+const COLUMNS_WITHOUT_ACTIONS = ["w-[46%]", "w-[20%]", "w-[34%]"];
 const CELL = "px-5 py-3 align-middle max-lg:block max-lg:px-0 max-lg:py-1";
 const LABELLED =
   "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
@@ -124,8 +128,15 @@ export function MyTaskTable({
   return (
     <div className="overflow-x-auto">
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
-      <table role="table" className="w-full text-[13px] max-lg:block">
+      <table role="table" className="w-full text-[13px] max-lg:block lg:table-fixed">
         <caption className="sr-only">Daftar Tugas Saya</caption>
+        {/* Fixed widths, as in the prototype: a page of short names or no buttons keeps the
+            columns where they were. Hidden below lg, where the rows are cards. */}
+        <colgroup className="max-lg:hidden">
+          {(hideActions ? COLUMNS_WITHOUT_ACTIONS : COLUMNS).map((width) => (
+            <col key={width} className={width} />
+          ))}
+        </colgroup>
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-left text-muted">
             <th role="columnheader" scope="col" className={HEAD}>
@@ -156,11 +167,11 @@ export function MyTaskTable({
             <tr
               key={task.id}
               role="row"
-              className={`border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3 ${
+              className={`border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3 lg:h-16 ${
                 onDetail ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
               }`}
             >
-              <td role="cell" className={`${CELL} min-w-48 wrap-anywhere max-lg:min-w-0 max-lg:font-semibold`}>
+              <td role="cell" className={`${CELL} wrap-anywhere max-lg:font-semibold`}>
                 {/* Reads as plain text; its ::after covers the row, and a keyboard focus rings the row. */}
                 {onDetail ? (
                   <button
@@ -174,11 +185,13 @@ export function MyTaskTable({
                 ) : (
                   task.name
                 )}
+                {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
+                <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
               </td>
               <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 {formatDate(task.deadline)}
               </td>
-              <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} lg:whitespace-nowrap`}>
+              <td role="cell" data-label="Status" className={`${CELL} ${LABELLED}`}>
                 {/* The tags sit beside the status, apart from it, as in the admin's views. */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
