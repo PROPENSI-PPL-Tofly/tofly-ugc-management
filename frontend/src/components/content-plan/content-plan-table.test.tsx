@@ -115,6 +115,53 @@ describe("ContentPlanTable", () => {
     });
   });
 
+  // In the prototype a creator's name leads to that creator's own Content Plan.
+  describe("the creator's name", () => {
+    it("links to that creator's own Content Plan", () => {
+      renderTable();
+
+      expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(
+        "href",
+        "/admin/creators/id-1/content-plan",
+      );
+    });
+
+    it("links each row to its own creator", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", creatorId: "id-2", creatorName: "Rangga" }]);
+
+      expect(screen.getByRole("link", { name: "Rangga" })).toHaveAttribute(
+        "href",
+        "/admin/creators/id-2/content-plan",
+      );
+    });
+
+    it("keeps an id with a slash in it inside its own part of the address", () => {
+      renderTable([{ ...ROW, creatorId: "a/b" }]);
+
+      expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(
+        "href",
+        "/admin/creators/a%2Fb/content-plan",
+      );
+    });
+
+    it("does not open the detail panel as well when it is pressed", () => {
+      const { onOpen } = renderTable();
+      const link = screen.getByRole("link", { name: "Salsa" });
+      // jsdom cannot follow a link; the press itself is what is under test.
+      link.addEventListener("click", (event) => event.preventDefault());
+
+      fireEvent.click(link);
+
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it("reads as a link, underlined", () => {
+      renderTable();
+
+      expect(screen.getByRole("link", { name: "Salsa" })).toHaveClass("underline");
+    });
+  });
+
   it("keeps the detail button quiet for a row the creator holds", () => {
     renderTable([{ ...ROW, status: "scheduled" }]);
     const detail = screen.getByRole("button", { name: "Detail Video Review Kopi" });
