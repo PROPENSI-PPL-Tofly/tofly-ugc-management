@@ -317,6 +317,50 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
     });
 
+    // On a phone the second filter sits mid-row, and a popup opened from its left edge ran
+    // 52 px past the right of the window.
+    describe("near the right edge of the window", () => {
+      function windowIs(width: number, popupRight: number) {
+        Object.defineProperty(document.documentElement, "clientWidth", {
+          configurable: true,
+          value: width,
+        });
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+          right: popupRight,
+        } as DOMRect);
+      }
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        Object.defineProperty(document.documentElement, "clientWidth", {
+          configurable: true,
+          value: 0,
+        });
+      });
+
+      it("pulls the popup back inside when it would run past the edge, keeping a margin", () => {
+        windowIs(375, 427);
+        renderSelect();
+
+        // 427 is 52 past the window; 8 more leaves a margin.
+        expect(open().style.left).toBe("-60px");
+      });
+
+      it("leaves the popup at the trigger's left edge when it fits", () => {
+        windowIs(1024, 729);
+        renderSelect();
+
+        expect(open().style.left).toBe("");
+      });
+
+      it("leaves it alone when it ends exactly at the margin", () => {
+        windowIs(375, 367);
+        renderSelect();
+
+        expect(open().style.left).toBe("");
+      });
+    });
+
     it("marks the trigger while its popup is open", () => {
       renderSelect();
       expect(trigger()).not.toHaveClass("border-ink");
