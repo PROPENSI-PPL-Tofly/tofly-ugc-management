@@ -1,0 +1,119 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { StatusTabs, type StatusTabDef } from "./status-tabs";
+
+type Key = "all" | "todo" | "wait" | "done";
+
+const TABS: readonly StatusTabDef<Key>[] = [
+  { key: "all", label: "Semua", urgent: false, counter: false },
+  { key: "todo", label: "Perlu Dikerjakan", urgent: true, counter: true },
+  { key: "wait", label: "Menunggu Admin", urgent: false, counter: true },
+  { key: "done", label: "Selesai", urgent: false, counter: false },
+];
+
+const COUNTS: Record<Key, number> = { all: 9, todo: 4, wait: 2, done: 3 };
+
+function renderTabs(active: Key = "all", counts = COUNTS) {
+  const onSelect = vi.fn();
+  render(
+    <StatusTabs
+      label="Tab Task Saya"
+      panelId="task-list"
+      tabs={TABS}
+      active={active}
+      counts={counts}
+      onSelect={onSelect}
+    />,
+  );
+  return onSelect;
+}
+
+const tabs = () => screen.getAllByRole("tab");
+
+describe("StatusTabs", () => {
+  it("names its tab list and offers each tab in order, counting only those that count", () => {
+    renderTabs();
+
+    expect(screen.getByRole("tablist", { name: "Tab Task Saya" })).toBeInTheDocument();
+    expect(tabs().map((node) => node.textContent)).toEqual([
+      "Semua",
+      "Perlu Dikerjakan4",
+      "Menunggu Admin2",
+      "Selesai",
+    ]);
+  });
+
+  it("marks the tab it is on as selected and points every tab at the list it controls", () => {
+    renderTabs("wait");
+
+    expect(tabs().map((node) => node.getAttribute("aria-selected"))).toEqual([
+      "false",
+      "false",
+      "true",
+      "false",
+    ]);
+    for (const node of tabs()) {
+      expect(node).toHaveAttribute("aria-controls", "task-list");
+    }
+  });
+
+  it("turns the urgent counter red past zero and hides it at zero", () => {
+    renderTabs("all", { ...COUNTS, todo: 4 });
+    expect(screen.getByTestId("count-todo").className).toContain("bg-red");
+  });
+
+  it("hides the urgent counter at zero, so an empty queue does not cry wolf", () => {
+    renderTabs("all", { ...COUNTS, todo: 0 });
+    expect(screen.queryByTestId("count-todo")).not.toBeInTheDocument();
+  });
+
+  it("keeps a counting tab grey with zero included", () => {
+    renderTabs("all", { ...COUNTS, wait: 0 });
+    const badge = screen.getByTestId("count-wait");
+    expect(badge).toHaveTextContent("0");
+    expect(badge.className).toContain("bg-surface-2");
+  });
+
+  it("hands the pressed tab back", () => {
+    const onSelect = renderTabs();
+    fireEvent.click(screen.getByRole("tab", { name: "Selesai" }));
+    expect(onSelect).toHaveBeenCalledWith("done");
+  });
+
+  // WAI-ARIA tabs: one Tab stop for the whole list, the arrows move between tabs.
+  it("leaves only the selected tab in the Tab order", () => {
+    renderTabs("todo");
+
+    expect(tabs().map((node) => node.tabIndex)).toEqual([-1, 0, -1, -1]);
+  });
+
+  it.each([
+    ["ArrowRight", "todo", "wait"],
+    ["ArrowLeft", "todo", "all"],
+    ["ArrowRight", "done", "all"],
+    ["ArrowLeft", "all", "done"],
+    ["Home", "wait", "all"],
+    ["End", "todo", "done"],
+  ] as const)("moves with %s from %s to %s, focusing it and selecting it", (key, from, to) => {
+    const onSelect = renderTabs(from);
+    const start = tabs()[TABS.findIndex((tab) => tab.key === from)];
+    start.focus();
+
+    fireEvent.keyDown(start, { key });
+
+    expect(onSelect).toHaveBeenCalledWith(to);
+    expect(document.activeElement).toBe(tabs()[TABS.findIndex((tab) => tab.key === to)]);
+  });
+
+  it("ignores any other key", () => {
+    const onSelect = renderTabs("todo");
+    fireEvent.keyDown(tabs()[1], { key: "a" });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("scrolls inside its own row on a narrow screen rather than wrapping or widening the page", () => {
+    renderTabs();
+    const list = screen.getByRole("tablist");
+    expect(list.className).toContain("overflow-x-auto");
+    expect(list.className).not.toContain("flex-wrap");
+  });
+});
