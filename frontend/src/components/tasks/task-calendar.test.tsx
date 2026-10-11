@@ -25,6 +25,11 @@ function renderCalendar(tasks: MyTask[] = [task()], today = TODAY) {
   return { ...view, onOpen };
 }
 
+/** The month grid alone: the list under it names the same tasks, for small screens. */
+function grid() {
+  return within(screen.getByRole("table"));
+}
+
 /** The cell of one calendar day. */
 function day(container: HTMLElement, iso: string): HTMLElement {
   const cell = container.querySelector<HTMLElement>(`[data-day="${iso}"]`);
@@ -57,7 +62,7 @@ describe("TaskCalendar", () => {
     const { container } = renderCalendar([]);
 
     expect(container.querySelectorAll("[data-day]")).toHaveLength(31);
-    expect(screen.queryByRole("button", { name: /·/ })).not.toBeInTheDocument();
+    expect(grid().queryByRole("button", { name: /·/ })).not.toBeInTheDocument();
   });
 
   it("puts a task's chip on its deadline day", () => {
@@ -82,7 +87,7 @@ describe("TaskCalendar", () => {
   it("marks an overdue chip in front of its text", () => {
     renderCalendar([task({ deadline: "2026-10-05", tags: ["overdue"] })]);
 
-    expect(screen.getByRole("button", { name: /Tutorial Latihan Listening/ })).toHaveTextContent(
+    expect(grid().getByRole("button", { name: /Tutorial Latihan Listening/ })).toHaveTextContent(
       "! Tutorial Latihan Listening",
     );
   });
@@ -97,7 +102,7 @@ describe("TaskCalendar", () => {
   ] as const)("colours a %s chip tagged %j as the %s group", (status, tags, group) => {
     renderCalendar([task({ status, tags: [...tags] })]);
 
-    expect(screen.getByRole("button", { name: /Tutorial Latihan Listening/ })).toHaveAttribute(
+    expect(grid().getByRole("button", { name: /Tutorial Latihan Listening/ })).toHaveAttribute(
       "data-group",
       group,
     );
@@ -119,7 +124,7 @@ describe("TaskCalendar", () => {
   it("asks to open the content a chip stands for", () => {
     const { onOpen } = renderCalendar([task({ id: "content-7" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: /Tutorial Latihan Listening/ }));
+    fireEvent.click(grid().getByRole("button", { name: /Tutorial Latihan Listening/ }));
 
     expect(onOpen).toHaveBeenCalledExactlyOnceWith("content-7");
   });
@@ -142,8 +147,8 @@ describe("TaskCalendar", () => {
       fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
 
       expect(screen.getByRole("heading", { name: "November 2026" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Konten November/ })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Konten Oktober/ })).not.toBeInTheDocument();
+      expect(grid().getByRole("button", { name: /Konten November/ })).toBeInTheDocument();
+      expect(grid().queryByRole("button", { name: /Konten Oktober/ })).not.toBeInTheDocument();
     });
 
     it("moves to the previous month", () => {
@@ -152,7 +157,7 @@ describe("TaskCalendar", () => {
       fireEvent.click(screen.getByRole("button", { name: "Bulan Sebelumnya" }));
 
       expect(screen.getByRole("heading", { name: "September 2026" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Konten September/ })).toBeInTheDocument();
+      expect(grid().getByRole("button", { name: /Konten September/ })).toBeInTheDocument();
     });
 
     it("turns the year over after December and before January", () => {
@@ -190,6 +195,101 @@ describe("TaskCalendar", () => {
 
       expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Hari Ini" })).toBeDisabled();
+    });
+  });
+
+  describe("on small screens", () => {
+    const FIRST = task({ id: "a", name: "Tutorial Latihan Listening", deadline: "2026-10-20" });
+    const EARLIER = task({
+      id: "b",
+      name: "Evg_10_RanggaPratama_05102026",
+      type: "evergreen",
+      deadline: "2026-10-05",
+      status: "draft_review",
+    });
+    const NOVEMBER = task({ id: "c", name: "Konten November", deadline: "2026-11-03" });
+
+    function list() {
+      return within(screen.getByRole("region", { name: "Task bulan ini" }));
+    }
+
+    it("lists the shown month's tasks under the grid, earliest deadline first", () => {
+      renderCalendar([FIRST, EARLIER, NOVEMBER]);
+
+      expect(
+        list()
+          .getAllByRole("listitem")
+          .map((item) => item.textContent),
+      ).toEqual([
+        expect.stringContaining("Evg_10_RanggaPratama_05102026"),
+        expect.stringContaining("Tutorial Latihan Listening"),
+      ]);
+    });
+
+    it("names each task in full with its deadline, where a chip has no room to", () => {
+      renderCalendar([EARLIER]);
+
+      const entry = list().getByRole("listitem");
+
+      expect(entry).toHaveTextContent("Evg_10_RanggaPratama_05102026");
+      expect(entry).not.toHaveTextContent("Evergreen #10");
+      expect(entry).toHaveTextContent("5 Okt 2026");
+    });
+
+    it.each([
+      ["scheduled", [], "Perlu Dikerjakan"],
+      ["draft_review", [], "Menunggu Admin"],
+      ["link_submitted", [], "Selesai"],
+      ["scheduled", ["overdue"], "Overdue"],
+    ] as const)("says a %s task tagged %j is %s", (status, tags, group) => {
+      renderCalendar([task({ status, tags: [...tags] })]);
+
+      expect(list().getByRole("listitem")).toHaveTextContent(group);
+    });
+
+    it("opens the content an entry stands for", () => {
+      const { onOpen } = renderCalendar([task({ id: "content-9" })]);
+
+      fireEvent.click(list().getByRole("button"));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("content-9");
+    });
+
+    it("follows the month the calendar is turned to", () => {
+      renderCalendar([FIRST, NOVEMBER]);
+
+      fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
+
+      expect(
+        list()
+          .getAllByRole("listitem")
+          .map((item) => item.textContent),
+      ).toEqual([expect.stringContaining("Konten November")]);
+    });
+
+    it("says so when the shown month has no task, instead of an empty list", () => {
+      renderCalendar([NOVEMBER]);
+
+      expect(list().getByText("Tidak ada task di bulan ini.")).toBeInTheDocument();
+      expect(list().queryByRole("listitem")).not.toBeInTheDocument();
+    });
+
+    it("is drawn for small screens only: wider ones read the chips", () => {
+      renderCalendar();
+
+      expect(screen.getByRole("region", { name: "Task bulan ini" })).toHaveClass("sm:hidden");
+    });
+
+    it("shrinks a chip to a dot, keeping its name for a screen reader", () => {
+      renderCalendar();
+
+      const chip = grid().getByRole("button", { name: "Tutorial Latihan Listening · Scheduled" });
+
+      expect(within(chip).getByText("Tutorial Latihan Listening")).toHaveClass(
+        "sr-only",
+        "sm:not-sr-only",
+      );
+      expect(chip.querySelector('[aria-hidden="true"]')).toHaveClass("sm:hidden");
     });
   });
 
