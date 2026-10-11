@@ -345,6 +345,18 @@ describe("MyTaskTable", () => {
       expect(name.className).toContain("after:inset-0");
     });
 
+    // The name reads as plain text: only the row says it can be pressed, and a keyboard focus
+    // rings the whole row rather than the name.
+    it("keeps the name looking like text, with the focus ring drawn around the row", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
+
+      const name = screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
+      expect(name.className).not.toMatch(/hover:(underline|text-)/);
+      expect(name.className).not.toContain("font-semibold");
+      expect(name.className).toContain("focus-visible:after:outline-focus");
+      expect(rows()[0].className).toContain("cursor-pointer");
+    });
+
     it("lifts the actions above the stretched name, so pressing one runs only that action", () => {
       const onDetail = vi.fn();
       const onAction = vi.fn();
