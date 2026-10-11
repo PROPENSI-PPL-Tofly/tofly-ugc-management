@@ -74,14 +74,17 @@ describe("AppShell", () => {
       expect(screen.queryByRole("link", { name: "Creator Database" })).not.toBeInTheDocument();
     });
 
-    it("sends the wordmark home to Task Saya and says whose frame it is", () => {
+    it("sends the wordmark home to the Dashboard and says whose frame it is", () => {
       render(
           <AppShell role="creator" title="Task Saya">
             <p>konten</p>
           </AppShell>,
       );
 
-      expect(screen.getByRole("link", { name: "tofly" })).toHaveAttribute("href", "/creator/tasks");
+      expect(screen.getByRole("link", { name: "tofly" })).toHaveAttribute(
+        "href",
+        "/creator/dashboard",
+      );
       expect(screen.getByText("Creator")).toBeInTheDocument();
     });
   });
