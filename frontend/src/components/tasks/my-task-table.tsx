@@ -57,7 +57,8 @@ function ActionCell({
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    // Above the row-wide name button, so a press on an action is the action alone.
+    <div className="relative z-10 flex flex-wrap gap-2">
       {task.actions.map((action) => (
         <Button
           key={action}
@@ -67,11 +68,7 @@ function ActionCell({
           // reader, keeping the visible label at the front.
           aria-label={`${ACTION_LABELS[action]}: ${task.name}`}
           disabled={!onAction}
-          onClick={(event) => {
-            // The row opens the detail; a press on an action is the action alone.
-            event.stopPropagation();
-            onAction?.(task, action);
-          }}
+          onClick={() => onAction?.(task, action)}
         >
           {ACTION_LABELS[action]}
         </Button>
@@ -153,36 +150,24 @@ export function MyTaskTable({
         </thead>
         <tbody role="rowgroup" className="max-lg:block">
           {tasks.map((task) => (
-            // A press anywhere on the row opens its detail, as in the prototype. The name is the
-            // same door for the keyboard and for screen readers.
+            // A press anywhere on the row opens its detail, as in the prototype: the name's button
+            // is stretched over the row (relative here), so the press lands on a real button and
+            // the keyboard and screen readers reach it the same way.
             <tr
               key={task.id}
               role="row"
-              onClick={
-                onDetail
-                  ? () => {
-                      // Dragging across a name to copy it ends in a click here: copying, not opening.
-                      if (window.getSelection()?.toString()) return;
-                      onDetail(task);
-                    }
-                  : undefined
-              }
               className={`border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3 ${
-                onDetail ? "cursor-pointer transition-colors hover:bg-surface-2" : ""
+                onDetail ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
               }`}
             >
               <td role="cell" className={`${CELL} min-w-48 wrap-anywhere max-lg:min-w-0 max-lg:font-semibold`}>
-                {/* The name is the way into the task's detail, as a row is in the prototype. */}
+                {/* Reads as plain text; its ::after covers the row, and a keyboard focus rings the row. */}
                 {onDetail ? (
                   <button
                     type="button"
                     aria-haspopup="dialog"
-                    onClick={(event) => {
-                      // The row would open it again on the same press.
-                      event.stopPropagation();
-                      onDetail(task);
-                    }}
-                    className="cursor-pointer rounded-(--radius-control) border-none bg-transparent p-0 text-left font-semibold text-ink underline-offset-2 hover:text-accent-deep hover:underline"
+                    onClick={() => onDetail(task)}
+                    className="cursor-pointer border-none bg-transparent p-0 text-left text-inherit after:absolute after:inset-0 focus-visible:outline-none! focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-focus"
                   >
                     {task.name}
                   </button>
