@@ -10,7 +10,7 @@ type Role = "admin" | "creator";
 // What changes between the two frames: where the wordmark leads, the menu, and the label.
 const FRAMES: Record<Role, { home: string; nav: ReactNode; label: string }> = {
   admin: { home: "/admin/creators", nav: <AdminNav />, label: "Admin" },
-  creator: { home: "/creator/tasks", nav: <CreatorNav />, label: "Creator" },
+  creator: { home: "/creator/dashboard", nav: <CreatorNav />, label: "Creator" },
 };
 
 /**

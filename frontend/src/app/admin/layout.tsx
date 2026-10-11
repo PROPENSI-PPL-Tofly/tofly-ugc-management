@@ -24,8 +24,8 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     return (
       <AccessDenied
         reason="Halaman ini hanya untuk Admin."
-        home="/creator/tasks"
-        homeLabel="Kembali ke Task Saya"
+        home="/creator/dashboard"
+        homeLabel="Kembali ke Dashboard"
       />
     );
   }
