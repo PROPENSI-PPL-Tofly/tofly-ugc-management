@@ -27,6 +27,16 @@ function header() {
 }
 
 describe("SortableTh", () => {
+  // A table that stacks into cards on small screens (Task Saya) loses its implicit roles, so
+  // the cell names its role outright, and its label is the same size as its neighbours'.
+  it("names itself a column header for its column, in the size of the headers beside it", () => {
+    renderHeader();
+
+    expect(header()).toHaveAttribute("role", "columnheader");
+    expect(header()).toHaveAttribute("scope", "col");
+    expect(screen.getByRole("button", { name: /Deadline/ }).className).not.toContain("text-xs");
+  });
+
   it.each([
     ["asc", "ascending"],
     ["desc", "descending"],

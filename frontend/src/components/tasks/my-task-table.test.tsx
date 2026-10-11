@@ -63,6 +63,24 @@ describe("MyTaskTable", () => {
       ]);
     });
 
+    it("makes the Deadline header a sort button once the page can sort, keeping its place", () => {
+      const onSortToggle = vi.fn();
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} sort="asc" onSortToggle={onSortToggle} />);
+
+      const header = screen.getAllByRole("columnheader")[1];
+      expect(header).toHaveAttribute("aria-sort", "ascending");
+      expect(header).toHaveAttribute("role", "columnheader");
+      fireEvent.click(within(header).getByRole("button", { name: /Deadline/ }));
+
+      expect(onSortToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it("says which way the deadline runs when it runs furthest first", () => {
+      render(<MyTaskTable tasks={[task()]} sort="desc" onSortToggle={vi.fn()} />);
+
+      expect(screen.getAllByRole("columnheader")[1]).toHaveAttribute("aria-sort", "descending");
+    });
+
     it("shows each task's name, deadline the Indonesian way, and status label", () => {
       render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
 

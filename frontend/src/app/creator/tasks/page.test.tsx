@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MyTasksError, type MyTasksResponse } from "@/lib/my-tasks";
+import { DEFAULT_MY_TASKS_PARAMS, MyTasksError, type MyTasksResponse } from "@/lib/my-tasks";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
 import TaskSayaPage from "./page";
 
@@ -10,6 +10,7 @@ vi.mock("@/lib/my-tasks.server", () => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => "/creator/tasks",
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 vi.mock("next/link", async (importOriginal) => {
@@ -18,6 +19,9 @@ vi.mock("next/link", async (importOriginal) => {
 });
 
 const mockedFetch = vi.mocked(fetchMyTasks);
+
+/** Named periods are counted from today in Jakarta, which the page works out itself. */
+const TODAY = expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/);
 
 function answer(overrides: Partial<MyTasksResponse> = {}): MyTasksResponse {
   return {
@@ -35,9 +39,10 @@ function answer(overrides: Partial<MyTasksResponse> = {}): MyTasksResponse {
       },
     ],
     page: 1,
-    pageSize: 5,
-    total: 6,
+    pageSize: 10,
+    total: 11,
     totalPages: 2,
+    counts: { all: 11, action: 6, waiting: 2, done: 3 },
     ...overrides,
   };
 }
@@ -54,6 +59,7 @@ async function renderPage(searchParams: Record<string, string> = {}) {
 describe("Task Saya page", () => {
   beforeEach(() => {
     mockedFetch.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
   });
 
   it("opens in the creator frame under the Task Saya title", async () => {
@@ -65,34 +71,60 @@ describe("Task Saya page", () => {
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
-  it("asks for the first page when the URL names none", async () => {
+  it("asks for Semua's first page, nearest deadline first, when the URL names nothing", async () => {
     mockedFetch.mockResolvedValue(answer());
 
     await renderPage();
 
-    expect(mockedFetch).toHaveBeenCalledWith(1, null);
+    expect(mockedFetch).toHaveBeenCalledWith(DEFAULT_MY_TASKS_PARAMS, TODAY);
   });
 
-  it("asks for the page the URL names", async () => {
+  it("asks for the tab, filters, sort and page the URL names", async () => {
     mockedFetch.mockResolvedValue(answer({ page: 2 }));
 
-    await renderPage({ page: "2" });
+    await renderPage({ tab: "action", status: "draft_revision", sort: "desc", page: "2" });
 
-    expect(mockedFetch).toHaveBeenCalledWith(2, null);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      { ...DEFAULT_MY_TASKS_PARAMS, tab: "action", status: ["draft_revision"], sort: "desc", page: 2 },
+      TODAY,
+    );
   });
 
-  it("lists the tasks with their actions and pages through them five at a time", async () => {
+  it("shows every tab with its counter, the one in the URL selected", async () => {
     mockedFetch.mockResolvedValue(answer());
 
-    await renderPage();
+    await renderPage({ tab: "waiting" });
+
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Semua",
+      "Perlu Dikerjakan6",
+      "Menunggu Admin2",
+      "Selesai",
+    ]);
+    expect(screen.getByRole("tab", { name: "Menunggu Admin2" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("lists the tasks with their actions and pages through them ten at a time, keeping the view", async () => {
+    mockedFetch.mockResolvedValue(answer());
+
+    await renderPage({ tab: "action", q: "serum" });
 
     const table = screen.getByRole("table", { name: "Daftar Tugas Saya" });
     expect(within(table).getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
-    expect(screen.getByText("Menampilkan 1–5 dari 6 tugas")).toBeInTheDocument();
+    expect(screen.getByText("Menampilkan 1–10 dari 11 tugas")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
         "href",
-        "/creator/tasks?page=2",
+        "/creator/tasks?tab=action&q=serum&page=2",
     );
+  });
+
+  it("shows the filter bar and the sortable deadline header", async () => {
+    mockedFetch.mockResolvedValue(answer());
+
+    await renderPage();
+
+    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /Deadline/ })).toHaveAttribute("aria-sort", "ascending");
   });
 
   it("opens the Submit Draft modal from a task's button", async () => {
@@ -109,91 +141,58 @@ describe("Task Saya page", () => {
 
     await renderPage({ page: "abc" });
 
-    expect(mockedFetch).toHaveBeenCalledWith(1, null);
+    expect(mockedFetch).toHaveBeenCalledWith(DEFAULT_MY_TASKS_PARAMS, TODAY);
     expect(screen.getByRole("status")).toHaveTextContent(
         "Halaman “abc” tidak dikenal, menampilkan halaman pertama.",
     );
   });
 
-  it("shows the first page, and says so, for a page past the end", async () => {
+  it("shows the first page of the same view, and says so, for a page past the end", async () => {
     mockedFetch
         .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
         .mockResolvedValueOnce(answer());
 
-    await renderPage({ page: "9" });
+    await renderPage({ tab: "done", page: "9" });
 
-    expect(mockedFetch).toHaveBeenNthCalledWith(2, 1, null);
+    expect(mockedFetch).toHaveBeenNthCalledWith(2, { ...DEFAULT_MY_TASKS_PARAMS, tab: "done" }, TODAY);
     expect(screen.getByRole("status")).toHaveTextContent(
         "Halaman 9 tidak ada, menampilkan halaman pertama.",
     );
     expect(screen.getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
   });
 
-  describe("status filter", () => {
-    it("asks for the status the URL filters by and shows it in the filter", async () => {
-      mockedFetch.mockResolvedValue(answer());
+  it("lists without a status it does not know, and says so", async () => {
+    mockedFetch.mockResolvedValue(answer());
 
-      await renderPage({ status: "draft_revision", page: "2" });
+    await renderPage({ status: "pending" });
 
-      expect(mockedFetch).toHaveBeenCalledWith(2, "draft_revision");
-      expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue("draft_revision");
-    });
+    expect(mockedFetch).toHaveBeenCalledWith(DEFAULT_MY_TASKS_PARAMS, TODAY);
+    expect(screen.getByRole("status")).toHaveTextContent(
+        "Status “pending” tidak dikenal, menampilkan semua tugas.",
+    );
+  });
 
-    it("keeps the filter when paging", async () => {
-      mockedFetch.mockResolvedValue(answer());
+  it("says the filter matched nothing, keeping the tabs and the bar to change it, without a pager", async () => {
+    mockedFetch.mockResolvedValue(answer({ items: [], total: 0, totalPages: 1 }));
 
-      await renderPage({ status: "scheduled" });
+    await renderPage({ tab: "action", overdue: "yes" });
 
-      expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
-          "href",
-          "/creator/tasks?status=scheduled&page=2",
-      );
-    });
-
-    it("keeps the filter when a page past the end falls back to the first", async () => {
-      mockedFetch
-          .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
-          .mockResolvedValueOnce(answer());
-
-      await renderPage({ status: "scheduled", page: "9" });
-
-      expect(mockedFetch).toHaveBeenNthCalledWith(2, 1, "scheduled");
-    });
-
-    it("lists every task, and says so, for a status it does not know", async () => {
-      mockedFetch.mockResolvedValue(answer());
-
-      await renderPage({ status: "done" });
-
-      expect(mockedFetch).toHaveBeenCalledWith(1, null);
-      expect(screen.getByRole("status")).toHaveTextContent(
-          "Status “done” tidak dikenal, menampilkan semua tugas.",
-      );
-    });
-
-    it("says which status found nothing, keeping the filter to change it", async () => {
-      mockedFetch.mockResolvedValue(answer({ items: [], total: 0, totalPages: 1 }));
-
-      await renderPage({ status: "draft_approved" });
-
-      expect(screen.getByText("Tidak ada tugas berstatus Draft Approved.")).toBeInTheDocument();
-      expect(screen.queryByText("Belum ada tugas untuk kamu.")).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Tampilkan semua tugas" })).toHaveAttribute(
-        "href",
-        "/creator/tasks",
-      );
-      expect(screen.getByRole("combobox", { name: "Status" })).toBeInTheDocument();
-    });
+    expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset filter" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Berikutnya" })).not.toBeInTheDocument();
   });
 
   it("says there are no tasks yet without a pager", async () => {
-    mockedFetch.mockResolvedValue(answer({ items: [], total: 0, totalPages: 0 }));
+    mockedFetch.mockResolvedValue(
+      answer({ items: [], total: 0, totalPages: 0, counts: { all: 0, action: 0, waiting: 0, done: 0 } }),
+    );
 
     await renderPage();
 
-    expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
+    expect(screen.getByText("Belum ada task.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Berikutnya" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Tampilkan semua tugas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset filter" })).not.toBeInTheDocument();
   });
 
   it("tells a visitor who is not signed in as a creator, instead of a broken table", async () => {
@@ -205,6 +204,7 @@ describe("Task Saya page", () => {
         "Kamu belum masuk sebagai creator.",
     );
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Masuk" })).toHaveAttribute("href", "/login");
   });
 
@@ -212,18 +212,27 @@ describe("Task Saya page", () => {
     ["a server error", new MyTasksError(500)],
     ["an unusable answer", new MyTasksError(502)],
     ["an unreachable backend", new TypeError("fetch failed")],
-  ])("offers a reload after %s", async (_label, failure) => {
+  ])("offers a reload of the same view after %s", async (_label, failure) => {
     mockedFetch.mockRejectedValue(failure);
 
-    await renderPage();
+    await renderPage({ tab: "done" });
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Daftar tugas tidak bisa dimuat.");
     expect(alert).toHaveTextContent("Coba muat ulang beberapa saat lagi.");
-    expect(alert).not.toHaveTextContent("Server tidak menjawab.");
     expect(within(alert).getByRole("link", { name: "Muat ulang" })).toHaveAttribute(
         "href",
-        "/creator/tasks",
+        "/creator/tasks?tab=done",
     );
+  });
+
+  it("falls back to an error, not a broken table, when the first page fails after a page past the end", async () => {
+    mockedFetch
+        .mockResolvedValueOnce(answer({ items: [], page: 9, totalPages: 2 }))
+        .mockRejectedValueOnce(new MyTasksError(500));
+
+    await renderPage({ page: "9" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Daftar tugas tidak bisa dimuat.");
   });
 });
