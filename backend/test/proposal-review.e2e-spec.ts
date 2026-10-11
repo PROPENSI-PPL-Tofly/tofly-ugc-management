@@ -130,7 +130,8 @@ describe('Proposal review and H-1 scheduling (e2e)', () => {
     const { body } = await creator.get(`/me/contents/${id}`).expect(200);
 
     expect(body.status).toBe('scheduled');
-    expect(body.creatorActions).toEqual(['submit_draft', 'submit_video']);
+    // The draft only: H-1 lets a link skip an approval, not the draft itself (PBI-7 7.2).
+    expect(body.creatorActions).toEqual(['submit_draft']);
     expect(await statusOf(id)).toBe('scheduled');
     // The timeline says why: the system scheduled it, once, however many requests ran it.
     await creator.get(`/me/contents/${id}`).expect(200);

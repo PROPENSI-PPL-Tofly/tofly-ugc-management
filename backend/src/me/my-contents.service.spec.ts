@@ -199,7 +199,7 @@ describe('MyContentsService.list', () => {
         type: 'specific',
         brief: 'Tunjukkan kemasan',
         deadline: '2026-10-11',
-        status: 'scheduled',
+        status: 'draft_review',
       }),
     ]);
 
@@ -213,9 +213,9 @@ describe('MyContentsService.list', () => {
         type: 'specific',
         brief: 'Tunjukkan kemasan',
         deadline: '2026-10-11',
-        status: 'scheduled',
+        status: 'draft_review',
         tags: [],
-        actions: ['submit_draft', 'submit_video'],
+        actions: ['submit_video'],
         revisionNotes: null,
       },
     ]);

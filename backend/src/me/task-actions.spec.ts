@@ -48,15 +48,19 @@ describe('canSubmitVideo', () => {
     expect(canSubmitVideo('draft_approved', DEADLINE, FAR)).toBe(true);
   });
 
-  it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-  ] as const)(
-    'refuses %s outside the grace window and allows it inside',
+  it('refuses a draft waiting for review outside the grace window and allows it inside', () => {
+    expect(canSubmitVideo('draft_review', DEADLINE, FAR)).toBe(false);
+    expect(canSubmitVideo('draft_review', DEADLINE, H_MINUS_1)).toBe(true);
+  });
+
+  // The window skips the admin's approval, not the draft: with no draft handed in, or a
+  // revision still owed, the link waits however close the deadline is (PBI-7 7.2).
+  it.each(['scheduled', 'draft_revision'] as const)(
+    'refuses %s inside the grace window as well as outside it, even after the deadline',
     (status) => {
       expect(canSubmitVideo(status, DEADLINE, FAR)).toBe(false);
-      expect(canSubmitVideo(status, DEADLINE, H_MINUS_1)).toBe(true);
+      expect(canSubmitVideo(status, DEADLINE, H_MINUS_1)).toBe(false);
+      expect(canSubmitVideo(status, DEADLINE, '2026-11-02')).toBe(false);
     },
   );
 
@@ -85,8 +89,8 @@ describe('taskActions', () => {
     ['draft_review', FAR, []],
     ['draft_approved', FAR, ['submit_video']],
     ['link_submitted', FAR, []],
-    ['scheduled', H_MINUS_1, ['submit_draft', 'submit_video']],
-    ['draft_revision', H_MINUS_1, ['resubmit_draft', 'submit_video']],
+    ['scheduled', H_MINUS_1, ['submit_draft']],
+    ['draft_revision', H_MINUS_1, ['resubmit_draft']],
     ['draft_review', H_MINUS_1, ['submit_video']],
     ['draft_approved', H_MINUS_1, ['submit_video']],
     ['link_submitted', H_MINUS_1, []],

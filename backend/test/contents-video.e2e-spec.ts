@@ -10,6 +10,7 @@ import { day } from './days.js';
 const MARKER = 'e2e-video';
 
 const REEL = 'https://www.instagram.com/reel/e2e-video/';
+const DRAFT = 'https://drive.google.com/file/d/e2e-video-draft';
 
 describe('POST /contents/:id/video (e2e)', () => {
   let app: INestApplication;
@@ -19,14 +20,14 @@ describe('POST /contents/:id/video (e2e)', () => {
 
   async function content(
     name: string,
-    status: 'scheduled' | 'draft_approved',
+    status: 'scheduled' | 'draft_review' | 'draft_revision' | 'draft_approved',
   ) {
     return prisma.contents.create({
       data: {
         contract_id: contractId,
         name: `${MARKER} ${name}`,
         type: 'specific',
-        // Tomorrow: inside the H-1 window, so an unapproved content may hand in its link.
+        // Tomorrow: inside the H-1 window, where a link may skip the approval of a draft.
         deadline: day(1),
         status,
       },
@@ -90,8 +91,15 @@ describe('POST /contents/:id/video (e2e)', () => {
     await app.close();
   });
 
-  it('marks a link handed in from scheduled inside H-1 as approval bypassed', async () => {
-    const scheduled = await content('scheduled', 'scheduled');
+  // The two hand-ins as a creator makes them at H-1: the draft first, then the link without
+  // waiting for the admin (PBI-7 7.2).
+  it('takes a link at H-1 once the draft is handed in, and marks the approval as bypassed', async () => {
+    const scheduled = await content('draft then link', 'scheduled');
+    await request(app.getHttpServer())
+      .post(`/contents/${scheduled.id}/draft`)
+      .set(DEV_CREATOR_HEADER, ownerId)
+      .send({ link: DRAFT })
+      .expect(201);
 
     const response = await handIn(scheduled.id, { link: REEL });
 
@@ -101,6 +109,26 @@ describe('POST /contents/:id/video (e2e)', () => {
       video_link: REEL,
       approval_bypassed: true,
     });
+  });
+
+  it.each([
+    ['no draft has been handed in', 'scheduled'],
+    ['a revision is still owed', 'draft_revision'],
+  ] as const)('refuses a link at H-1 while %s, and changes nothing', async (_why, status) => {
+    const waiting = await content(`refused ${status}`, status);
+
+    const response = await handIn(waiting.id, { link: REEL });
+
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('VIDEO_NOT_ELIGIBLE');
+    expect(await stateOf(waiting.id)).toEqual({
+      status,
+      video_link: null,
+      approval_bypassed: false,
+    });
+    expect(
+      await prisma.content_events.count({ where: { content_id: waiting.id } }),
+    ).toBe(0);
   });
 
   it('does not mark a link handed in after the draft was approved', async () => {
@@ -117,16 +145,16 @@ describe('POST /contents/:id/video (e2e)', () => {
   });
 
   it('ignores approval_bypassed and status in the request body (OWASP A08)', async () => {
-    const scheduled = await content('mass assignment', 'scheduled');
+    const inReview = await content('mass assignment', 'draft_review');
 
-    const response = await handIn(scheduled.id, {
+    const response = await handIn(inReview.id, {
       link: REEL,
       approval_bypassed: false,
       status: 'draft_approved',
     });
 
     expect(response.status).toBe(201);
-    expect(await stateOf(scheduled.id)).toEqual({
+    expect(await stateOf(inReview.id)).toEqual({
       status: 'link_submitted',
       video_link: REEL,
       approval_bypassed: true,

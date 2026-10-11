@@ -228,15 +228,11 @@ describe('VideoSubmissionService.submit', () => {
     );
   });
 
-  it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-  ] as const)('allows %s during the H-1 grace window', async (status) => {
+  it('allows a draft waiting for review during the H-1 grace window', async () => {
     const { transaction, service } = stub({
       content: {
         id: CONTENT_ID,
-        status,
+        status: 'draft_review',
         deadline: GRACE_DEADLINE,
       },
     });
@@ -252,12 +248,38 @@ describe('VideoSubmissionService.submit', () => {
     expect(transaction.contents.updateMany).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-  ] as const)(
-    'marks a link handed in from %s inside H-1 as approval bypassed, guarded on that same status',
+  it('marks a link handed in from a draft waiting for review inside H-1 as approval bypassed, guarded on that same status', async () => {
+    const { transaction, service } = stub({
+      content: {
+        id: CONTENT_ID,
+        status: 'draft_review',
+        deadline: GRACE_DEADLINE,
+      },
+    });
+
+    await service.submit(CONTENT_ID, CREATOR_ID, {
+      videoLink: REEL,
+    });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: CONTENT_ID,
+        status: 'draft_review',
+      },
+      data: {
+        status: 'link_submitted',
+        video_link: REEL,
+        video_submitted_at: SUBMITTED_AT,
+        platform: 'instagram',
+        approval_bypassed: true,
+      },
+    });
+  });
+
+  // PBI-7 7.2: H-1 skips the approval of a draft, not the draft. Nothing is stored and nothing
+  // is recorded for a link that arrives before one, or while a revision is still owed.
+  it.each(['scheduled', 'draft_revision'] as const)(
+    'refuses %s inside the H-1 grace window and leaves the content as it was',
     async (status) => {
       const { transaction, service } = stub({
         content: {
@@ -267,23 +289,18 @@ describe('VideoSubmissionService.submit', () => {
         },
       });
 
-      await service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      });
+      const error = await failure(
+        service.submit(CONTENT_ID, CREATOR_ID, {
+          videoLink: REEL,
+        }),
+      );
 
-      expect(transaction.contents.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: CONTENT_ID,
-          status,
-        },
-        data: {
-          status: 'link_submitted',
-          video_link: REEL,
-          video_submitted_at: SUBMITTED_AT,
-          platform: 'instagram',
-          approval_bypassed: true,
-        },
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'VIDEO_NOT_ELIGIBLE',
       });
+      expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+      expect(transaction.content_events.create).not.toHaveBeenCalled();
     },
   );
 

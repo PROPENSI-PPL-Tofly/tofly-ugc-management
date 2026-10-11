@@ -60,10 +60,9 @@ describe('canTransition', () => {
     ['draft_review', 'draft_revision'],
     ['draft_revision', 'draft_review'],
     ['draft_approved', 'link_submitted'],
-    // A video link from H-1 onward may skip the draft approval (task-actions.ts).
-    ['scheduled', 'link_submitted'],
+    // From H-1 a video link may skip the approval of a draft that is waiting for review
+    // (task-actions.ts decides when).
     ['draft_review', 'link_submitted'],
-    ['draft_revision', 'link_submitted'],
   ];
 
   it.each(ALLOWED)('allows %s to move to %s', (from, to) => {
@@ -78,8 +77,8 @@ describe('canTransition', () => {
       ),
     );
 
-    // 6 x 6 pairs, nine of them allowed.
-    expect(refused).toHaveLength(27);
+    // 6 x 6 pairs, seven of them allowed.
+    expect(refused).toHaveLength(29);
     for (const [from, to] of refused) {
       expect(canTransition(from, to), `${from} to ${to}`).toBe(false);
     }
@@ -87,6 +86,13 @@ describe('canTransition', () => {
 
   it.each([...CONTENT_STATUSES])('never moves %s to itself', (status) => {
     expect(canTransition(status, status)).toBe(false);
+  });
+
+  // PBI-7 7.2: the link may skip an approval, never the draft itself. Without a draft, or with
+  // a revision still owed, there is nothing for the admin to check the video against.
+  it('never sends a link from content with no draft handed in or with a revision still owed', () => {
+    expect(canTransition('scheduled', 'link_submitted')).toBe(false);
+    expect(canTransition('draft_revision', 'link_submitted')).toBe(false);
   });
 
   it('leaves Content Link Submitted with nowhere to go', () => {
