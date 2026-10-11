@@ -330,6 +330,57 @@ describe("MyTaskTable", () => {
       expect(onDetail).toHaveBeenCalledWith(target);
     });
 
+    it("opens the detail from a press anywhere on the row, as in the prototype", () => {
+      const onDetail = vi.fn();
+      const target = task();
+      render(<MyTaskTable tasks={[target]} onAction={vi.fn()} onDetail={onDetail} />);
+
+      const [row] = rows();
+      expect(row.className).toContain("cursor-pointer");
+      fireEvent.click(within(row).getAllByRole("cell")[2]);
+
+      expect(onDetail).toHaveBeenCalledTimes(1);
+      expect(onDetail).toHaveBeenCalledWith(target);
+    });
+
+    it("opens the detail once, not twice, when the name itself is pressed", () => {
+      const onDetail = vi.fn();
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={onDetail} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
+
+      expect(onDetail).toHaveBeenCalledTimes(1);
+    });
+
+    it("runs a row's action without opening its detail on the same press", () => {
+      const onDetail = vi.fn();
+      const onAction = vi.fn();
+      render(<MyTaskTable tasks={[task()]} onAction={onAction} onDetail={onDetail} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /^Submit Draft/ }));
+
+      expect(onAction).toHaveBeenCalledTimes(1);
+      expect(onDetail).not.toHaveBeenCalled();
+    });
+
+    it("leaves the detail closed when the press ends a drag that selected text to copy", () => {
+      const onDetail = vi.fn();
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={onDetail} />);
+      vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "Evg_1" } as Selection);
+
+      fireEvent.click(within(rows()[0]).getAllByRole("cell")[1]);
+
+      expect(onDetail).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+    });
+
+    it("keeps the row plain when there is no detail to open", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+      expect(rows()[0].className).not.toContain("cursor-pointer");
+      fireEvent.click(within(rows()[0]).getAllByRole("cell")[1]);
+    });
+
     it("shows the name as plain text when there is no detail to open", () => {
       render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
 
