@@ -1,4 +1,5 @@
 import { AccessDenied } from "@/components/shell/access-denied";
+import { homeFor } from "@/lib/session";
 import { currentRole } from "@/lib/session.server";
 
 // Every admin page renders per request behind the signed-in role, never from a static build.
@@ -24,7 +25,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     return (
       <AccessDenied
         reason="Halaman ini hanya untuk Admin."
-        home="/creator/dashboard"
+        home={homeFor("creator")}
         homeLabel="Kembali ke Dashboard"
       />
     );
