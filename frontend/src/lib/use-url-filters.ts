@@ -99,17 +99,27 @@ export function useUrlFilters() {
     return () => clearTimeout(timer);
   }, [search, setParam]);
 
+  /**
+   * Clears the search box and every filter in one step, leaving only what the caller names
+   * (the tab a page is on, say). The search is marked as sent, so its debounce has nothing
+   * left to send and cannot put the old filters back.
+   */
+  const resetKeeping = useCallback(
+    (keep: Readonly<Record<string, string>>) => {
+      lastSent.current = "";
+      setSearch("");
+      send(new URLSearchParams(keep).toString());
+    },
+    [send],
+  );
+
   /** Clears the search box and every filter in one step. */
-  const reset = useCallback(() => {
-    lastSent.current = "";
-    setSearch("");
-    send("");
-  }, [send]);
+  const reset = useCallback(() => resetKeeping({}), [resetKeeping]);
 
   const filters = useMemo(() => new URLSearchParams(held), [held]);
 
   /** The current value of a filter, "all" when it is not applied. */
   const param = useCallback((key: string) => filters.get(key) ?? "all", [filters]);
 
-  return { search, setSearch, param, setParam, reset, pending };
+  return { search, setSearch, param, setParam, reset, resetKeeping, pending };
 }

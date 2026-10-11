@@ -1,7 +1,5 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { startTransition } from "react";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
@@ -37,9 +35,7 @@ export function ContentPlanFilters({
   state,
   creators,
 }: Readonly<{ state: ContentPlanParams; creators: readonly ContentPlanCreatorOption[] }>) {
-  const { search, setSearch, param, setParam, pending } = useUrlFilters();
-  const router = useRouter();
-  const pathname = usePathname();
+  const { search, setSearch, param, setParam, resetKeeping, pending } = useUrlFilters();
 
   const statusChoices = statusOptionsFor(state.tab);
   const creatorOptions: MultiSelectOption[] = creators.map((c) => ({ value: c.id, label: c.name }));
@@ -63,13 +59,7 @@ export function ContentPlanFilters({
 
   /** Clears the box and every filter, but the tab the admin is standing on survives. */
   function resetKeepingTab() {
-    setSearch("");
-    const next = new URLSearchParams();
-    if (state.tab !== "all") next.set("tab", state.tab);
-    const query = next.toString();
-    startTransition(() => {
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    });
+    resetKeeping(state.tab === "all" ? {} : { tab: state.tab });
   }
 
   const isFilteredNow =
