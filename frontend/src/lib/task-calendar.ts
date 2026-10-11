@@ -2,6 +2,7 @@
 // and their order are the prototype's legend: whose move it is, with overdue above everything.
 
 import type { Tone } from "@/components/ui/pill";
+import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 
 export type CalendarGroup = "todo" | "wait" | "done" | "overdue";
@@ -39,6 +40,26 @@ export function calendarGroup(task: {
   tags: readonly ContentTag[];
 }): CalendarGroup {
   return task.tags.includes("overdue") ? "overdue" : STATUS_GROUP[task.status];
+}
+
+// "Evg_10_RanggaPratama_07112026": the number between the prefix and the creator's name.
+const EVERGREEN_NAME = /^Evg_(\d+)_/;
+
+/**
+ * What a task's chip reads in a day cell, which is too narrow for a full Evergreen name: its
+ * number for an Evergreen content named the generated way, the name itself otherwise, and a
+ * mark in front when the task is overdue.
+ */
+export function calendarChipLabel(task: {
+  name: string;
+  type: ContentType;
+  status: ContentStatus;
+  tags: readonly ContentTag[];
+}): string {
+  const sequence = task.type === "evergreen" ? EVERGREEN_NAME.exec(task.name)?.[1] : undefined;
+  const label = sequence ? `Evergreen #${sequence}` : task.name;
+
+  return calendarGroup(task) === "overdue" ? `! ${label}` : label;
 }
 
 /** The grid's header, Sunday first as the prototype draws it. */
