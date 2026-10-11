@@ -142,7 +142,7 @@ export default async function TaskSayaPage({
 
           {loaded.kind === "calendar" ? (
               <>
-                <MyTaskFilters status={status} />
+                <MyTaskFilters status={status} view={view} />
 
                 <MyTaskBoard tasks={loaded.tasks} calendarToday={jakartaDay()} />
               </>

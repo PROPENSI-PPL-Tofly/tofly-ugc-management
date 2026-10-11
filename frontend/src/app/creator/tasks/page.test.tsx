@@ -12,9 +12,11 @@ vi.mock("@/lib/task-calendar.server", () => ({
   fetchAllMyTasks: vi.fn(),
 }));
 
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/creator/tasks",
-  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace }),
 }));
 
 vi.mock("next/link", async (importOriginal) => {
@@ -292,6 +294,20 @@ describe("Task Saya page views", () => {
 
     expect(mockedFetchAll).toHaveBeenCalledExactlyOnceWith("scheduled");
     expect(switchLink("Tabel")).toHaveAttribute("href", "/creator/tasks?status=scheduled");
+  });
+
+  it("stays on the calendar when the status filter is changed there", async () => {
+    replace.mockClear();
+    await renderPage({ view: "calendar" });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+      target: { value: "scheduled" },
+    });
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith(
+      "/creator/tasks?status=scheduled&view=calendar",
+      { scroll: false },
+    );
   });
 
   it("shows an empty month, not the no-tasks message, when nothing is due", async () => {
