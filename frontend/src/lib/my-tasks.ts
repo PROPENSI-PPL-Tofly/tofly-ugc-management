@@ -97,13 +97,15 @@ export const MY_TASKS_EMPTY: Record<MyTaskTab, string> = {
 /** What a filtered-but-empty list says, whatever the tab. */
 export const MY_TASKS_FILTERED_EMPTY = "Tidak ada konten sesuai filter.";
 
-function myTabDef(tab: MyTaskTab): MyTaskTabDef {
-  return MY_TASK_TABS.find((candidate) => candidate.key === tab) ?? MY_TASK_TABS[0];
-}
+/** Each tab's statuses by key, read off MY_TASK_TABS so the two cannot drift. */
+const TAB_STATUSES = Object.fromEntries(MY_TASK_TABS.map((def) => [def.key, def.statuses])) as Record<
+  MyTaskTab,
+  readonly TaskStatusFilter[] | null
+>;
 
 /** The statuses the status filter offers on this tab. */
 export function myStatusOptionsFor(tab: MyTaskTab): readonly TaskStatusFilter[] {
-  return myTabDef(tab).statuses ?? TASK_STATUS_FILTERS;
+  return TAB_STATUSES[tab] ?? TASK_STATUS_FILTERS;
 }
 
 /** One view of Task Saya, every value checked. */
