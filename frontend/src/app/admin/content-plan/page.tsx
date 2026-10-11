@@ -1,92 +1,108 @@
-import Link from "next/link";
 import { AppShell } from "@/components/shell/app-shell";
-import { buttonClasses } from "@/components/ui/button-classes";
-import { StatusDot } from "@/components/ui/pill";
-import { Panel, PanelHead } from "@/components/ui/panel";
-import { fetchSubmissionQueue } from "@/lib/submissions";
+import { ContentPlanBoard } from "@/components/content-plan/content-plan-board";
+import { ContentPlanFilters } from "@/components/content-plan/content-plan-filters";
+import { ContentPlanTabBar } from "@/components/content-plan/content-plan-tab-bar";
+import { LoadError } from "@/components/ui/load-error";
+import { Pagination } from "@/components/ui/pagination";
+import { Panel } from "@/components/ui/panel";
+import {
+  CONTENT_PLAN_BASE,
+  CONTENT_PLAN_PAGE_SIZE,
+  buildContentPlanQuery,
+  contentPlanHref,
+  isFiltered,
+  parseContentPlanParams,
+  type ContentPlanCreatorOption,
+  type ContentPlanResponse,
+} from "@/lib/content-plan";
+import {
+  fetchContentPlan,
+  fetchContentPlanCreatorOptions,
+} from "@/lib/content-plan.server";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Content Plan (All) — Tofly",
+  title: "Content Plan — Tofly",
 };
 
-interface DraftCounts {
-  waiting: number;
-  resubmitted: number;
-}
-
-/** Both counts come from the review queue itself, so they match what the queue will list. */
-async function loadDraftCounts(): Promise<DraftCounts | null> {
-  try {
-    const [all, resubmitted] = await Promise.all([
-      fetchSubmissionQueue(1, {}),
-      fetchSubmissionQueue(1, { resubmitted: "true" }),
-    ]);
-    return { waiting: all.total, resubmitted: resubmitted.total };
-  } catch {
-    return null;
-  }
-}
-
-function DraftQueueSummary({ counts }: { counts: DraftCounts | null }) {
-  if (counts === null) {
-    return <p className="text-[13px] text-muted">Jumlah draft belum bisa dimuat.</p>;
-  }
-
-  if (counts.waiting === 0) {
-    return <p className="text-[13px] text-muted">Tidak ada draft yang menunggu review</p>;
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
-      <p className="font-semibold tabular-nums">{counts.waiting} draft menunggu review</p>
-      {counts.resubmitted > 0 ? (
-        // Resubmitted drafts are the most time-sensitive decisions, so they get their own way in.
-        <Link
-          href="/admin/submissions?resubmitted=true"
-          className="rounded-(--radius-control) text-ink-2 underline-offset-2 hover:text-ink hover:underline"
-        >
-          <StatusDot tone="amber">{counts.resubmitted} dikirim ulang</StatusDot>
-        </Link>
-      ) : null}
-    </div>
-  );
-}
-
 /**
- * The Content Plan (All) tab. For now it carries the entry into the draft review queue; the
- * cross-creator table and calendar of every content item will join it here.
+ * The Content Plan: every creator's content in one table, grouped by whose ball it is. The
+ * URL is the whole state — tab, search, filters, page — so a view can be linked, bookmarked
+ * and reloaded. The list arrives from the 5.1 endpoint; until it answers, the page offers a
+ * retry rather than a table it cannot fill.
  */
-export default async function ContentPlanAllPage() {
-  const counts = await loadDraftCounts();
+export default async function ContentPlanPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const state = parseContentPlanParams(await searchParams);
+
+  let result: ContentPlanResponse | null = null;
+  let creators: ContentPlanCreatorOption[] = [];
+  let pastEnd: number | null = null;
+  let shownPage = state.page;
+
+  try {
+    const [plan, names] = await Promise.all([
+      fetchContentPlan(state),
+      fetchContentPlanCreatorOptions(),
+    ]);
+    result = plan;
+    creators = names;
+
+    // A page past the end (an old link, or a plan that shrank as content was decided) shows
+    // the first page instead of an empty table that would claim there is nothing to plan.
+    if (plan.total > 0 && state.page > plan.totalPages) {
+      pastEnd = state.page;
+      shownPage = 1;
+      result = await fetchContentPlan({ ...state, page: 1 });
+    }
+  } catch {
+    result = null;
+  }
+
+  const query = buildContentPlanQuery({ ...state, page: 1 });
+  const retryHref = contentPlanHref(state);
 
   return (
     <AppShell
-      title="Content Plan (All)"
-      subtitle="Jadwal konten semua creator dan hal yang menunggu keputusan admin"
+      title="Content Plan"
+      subtitle="Semua konten semua creator, menurut deadline dan siapa yang pegang bola"
     >
-      <Panel>
-        <PanelHead title="Perlu keputusan" />
-        <section
-          aria-labelledby="draft-queue-title"
-          className="flex flex-wrap items-center justify-between gap-4 border-t border-rule px-5 py-4"
+      {pastEnd !== null ? (
+        <p
+          role="status"
+          className="mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink"
         >
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <h3 id="draft-queue-title" className="text-[14px] font-semibold">
-              Antrian Draft
-            </h3>
-            <p className="text-[12.5px] text-muted">
-              Draft dari creator yang menunggu Approve atau Minta Revisi.
-            </p>
-            <DraftQueueSummary counts={counts} />
-          </div>
-          {/* Opening the queue is this page's primary action, so it takes the accent look. */}
-          <Link href="/admin/submissions" className={`inline-block ${buttonClasses("accent")}`}>
-            Buka Antrian Draft
-          </Link>
-        </section>
-      </Panel>
+          Halaman {pastEnd} tidak ada, menampilkan halaman pertama.
+        </p>
+      ) : null}
+
+      {result ? (
+        <Panel>
+          <ContentPlanTabBar active={state.tab} counts={result.counts} />
+          <ContentPlanFilters state={state} creators={creators} />
+          <ContentPlanBoard
+            items={result.items}
+            filtered={isFiltered(state)}
+            tab={state.tab}
+            sort={state.sort}
+          />
+          <Pagination
+            basePath={CONTENT_PLAN_BASE}
+            noun="konten"
+            query={query}
+            page={shownPage}
+            pageSize={CONTENT_PLAN_PAGE_SIZE}
+            total={result.total}
+            totalPages={result.totalPages}
+          />
+        </Panel>
+      ) : (
+        <LoadError title="Content Plan tidak bisa dimuat." retryHref={retryHref} />
+      )}
     </AppShell>
   );
 }

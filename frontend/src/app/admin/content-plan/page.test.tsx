@@ -1,111 +1,156 @@
-import { render, screen, within } from "@testing-library/react";
-import { fetchSubmissionQueue, type SubmissionQueueResponse } from "@/lib/submissions";
-import ContentPlanAllPage from "./page";
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { ContentPlanResponse } from "@/lib/content-plan";
+import ContentPlanPage from "./page";
 
-vi.mock("@/lib/submissions", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/submissions")>();
-  return { ...actual, fetchSubmissionQueue: vi.fn() };
-});
-
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/content-plan",
-  useRouter: () => ({
-    replace: vi.fn(),
-    refresh: vi.fn(),
-  }),
+const { fetchPlan, fetchCreators } = vi.hoisted(() => ({
+  fetchPlan: vi.fn(),
+  fetchCreators: vi.fn(),
 }));
 
-const mockedFetch = vi.mocked(fetchSubmissionQueue);
+vi.mock("@/lib/content-plan.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content-plan.server")>()),
+  fetchContentPlan: (state: unknown) => fetchPlan(state),
+  fetchContentPlanCreatorOptions: () => fetchCreators(),
+}));
 
-function queueOf(total: number): SubmissionQueueResponse {
-  return { items: [], page: 1, pageSize: 10, total, totalPages: Math.ceil(total / 10) };
+let searchParams = new URLSearchParams();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/admin/content-plan",
+  useSearchParams: () => searchParams,
+}));
+
+vi.mock("next/link", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/link")>();
+  return { ...actual, useLinkStatus: () => ({ pending: false }) };
+});
+
+function planOf(overrides: Partial<ContentPlanResponse> = {}): ContentPlanResponse {
+  return {
+    items: [
+      {
+        contentId: "content-1",
+        name: "Evg_1_Salsa_15Sep2026",
+        creatorId: "id-1",
+        creatorName: "Salsa Wijaya",
+        type: "evergreen",
+        deadline: "2026-09-15",
+        status: "draft_review",
+        tags: [],
+        revisionCount: 0,
+      },
+    ],
+    total: 1,
+    totalPages: 1,
+    counts: { all: 1, action: 1, waiting: 0, done: 0 },
+    ...overrides,
+  };
 }
 
-/** Answers the whole queue with `waiting` and the resubmitted slice with `resubmitted`. */
-function queueCounts(waiting: number, resubmitted: number) {
-  mockedFetch.mockImplementation(async (_page, filters) =>
-      queueOf(filters?.resubmitted === "true" ? resubmitted : waiting),
-  );
+async function renderPage(params: Record<string, string> = {}) {
+  searchParams = new URLSearchParams(params);
+  const result = await ContentPlanPage({
+    searchParams: Promise.resolve(params) as Promise<
+      Record<string, string | string[] | undefined>
+    >,
+  });
+  return render(<>{result}</>);
 }
 
-async function renderPage() {
-  render(await ContentPlanAllPage());
-}
-
-function draftQueueEntry() {
-  return screen.getByRole("region", { name: "Antrian Draft" });
-}
-
-describe("Content Plan (All) page", () => {
+describe("Content Plan page", () => {
   beforeEach(() => {
-    mockedFetch.mockReset();
+    vi.clearAllMocks();
+    searchParams = new URLSearchParams();
+    window.history.replaceState({}, "", "/admin/content-plan");
+    fetchPlan.mockResolvedValue(planOf());
+    fetchCreators.mockResolvedValue([{ id: "id-1", name: "Salsa Wijaya" }]);
   });
 
-  it("is titled Content Plan (All) and lists what waits for a decision", async () => {
-    queueCounts(0, 0);
+  it("titles the page and offers the four tabs with the counts the endpoint measured", async () => {
+    fetchPlan.mockResolvedValue(
+      planOf({ total: 42, totalPages: 5, counts: { all: 42, action: 3, waiting: 12, done: 27 } }),
+    );
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Content Plan (All)" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Perlu keputusan" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Content Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Semua" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("count-action")).toHaveTextContent("3");
+    expect(screen.getByTestId("count-waiting")).toHaveTextContent("12");
   });
 
-  it("counts every draft waiting and the resubmitted ones from the review queue", async () => {
-    queueCounts(22, 2);
+  it("asks the backend for the URL's own parsed state, page one included", async () => {
+    await renderPage({ tab: "action", q: "salsa", page: "2", status: "pending" });
 
-    await renderPage();
-
-    expect(mockedFetch).toHaveBeenCalledWith(1, {});
-    expect(mockedFetch).toHaveBeenCalledWith(1, { resubmitted: "true" });
-    expect(within(draftQueueEntry()).getByText("22 draft menunggu review")).toBeInTheDocument();
-    expect(
-        within(draftQueueEntry()).getByRole("link", { name: "2 dikirim ulang" }),
-    ).toHaveAttribute("href", "/admin/submissions?resubmitted=true");
+    expect(fetchPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tab: "action",
+        q: "salsa",
+        page: 2,
+        status: ["pending"],
+      }),
+    );
   });
 
-  it("opens the draft queue from its entry", async () => {
-    queueCounts(22, 2);
-
+  it("lists the rows the endpoint returns, with their creators", async () => {
     await renderPage();
 
-    expect(
-        within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
-    ).toHaveAttribute("href", "/admin/submissions");
+    expect(screen.getByText("Evg_1_Salsa_15Sep2026")).toBeInTheDocument();
+    expect(screen.getByText("Salsa Wijaya")).toBeInTheDocument();
+    expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
   });
 
-  it("says the queue is clear and leaves out the resubmitted line when nothing waits", async () => {
-    queueCounts(0, 0);
+  it("keeps the filters in the pagination links and counts the pieces", async () => {
+    fetchPlan.mockResolvedValue(planOf({ total: 22, totalPages: 3 }));
 
-    await renderPage();
+    await renderPage({ q: "pw" });
 
-    expect(
-        within(draftQueueEntry()).getByText("Tidak ada draft yang menunggu review"),
-    ).toBeInTheDocument();
-    expect(within(draftQueueEntry()).queryByText(/dikirim ulang/)).not.toBeInTheDocument();
-    expect(
-        within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
+      "href",
+      "/admin/content-plan?q=pw&page=2",
+    );
+    expect(screen.getByText("Menampilkan 1–10 dari 22 konten")).toBeInTheDocument();
   });
 
-  it("still offers the queue when the count cannot be loaded", async () => {
-    mockedFetch.mockRejectedValue(new Error("backend down"));
+  it("shows the first page with a notice when the asked page is past the end", async () => {
+    fetchPlan
+      .mockResolvedValueOnce(planOf({ total: 22, totalPages: 3, counts: { all: 22, action: 0, waiting: 0, done: 22 } }))
+      .mockResolvedValueOnce(planOf());
 
-    await renderPage();
+    await renderPage({ page: "99", q: "pw" });
 
-    expect(
-        within(draftQueueEntry()).getByText("Jumlah draft belum bisa dimuat."),
-    ).toBeInTheDocument();
-    expect(
-        within(draftQueueEntry()).getByRole("link", { name: "Buka Antrian Draft" }),
-    ).toHaveAttribute("href", "/admin/submissions");
+    expect(fetchPlan).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, q: "pw" }));
+    expect(screen.getByText(/halaman 99 tidak ada/i)).toBeInTheDocument();
+    expect(screen.getByText("Evg_1_Salsa_15Sep2026")).toBeInTheDocument();
   });
 
-  it("leaves out the resubmitted line when drafts wait but none were resubmitted", async () => {
-    queueCounts(3, 0);
+  it("offers a retry that keeps the URL when the load fails", async () => {
+    fetchPlan.mockRejectedValue(new Error("backend down"));
 
+    await renderPage({ tab: "action", q: "salsa" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/tidak bisa dimuat/i);
+    expect(screen.getByRole("link", { name: "Muat ulang" })).toHaveAttribute(
+      "href",
+      "/admin/content-plan?tab=action&q=salsa",
+    );
+  });
+
+  it("hands every creator name to the filter bar", async () => {
     await renderPage();
 
-    expect(within(draftQueueEntry()).getByText("3 draft menunggu review")).toBeInTheDocument();
-    expect(within(draftQueueEntry()).queryByText(/dikirim ulang/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Creator:/ }));
+
+    expect(screen.getByRole("checkbox", { name: "Salsa Wijaya" })).toBeInTheDocument();
+  });
+
+  it("says the filter found nothing when a filter emptied the view", async () => {
+    fetchPlan.mockResolvedValue(planOf({ items: [], total: 0, totalPages: 0, counts: { all: 0, action: 0, waiting: 0, done: 0 } }));
+
+    await renderPage({ q: "zzz" });
+
+    expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada konten.")).not.toBeInTheDocument();
   });
 });
