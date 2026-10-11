@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import type { Variant } from "@/components/ui/button-classes";
+import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
 import { CONTENT_STATUS_TONES } from "@/lib/content-labels";
+import type { DeadlineSort } from "@/lib/content-plan";
 import { EMPTY, formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
 
@@ -105,6 +107,8 @@ export function MyTaskTable({
   onDetail,
   emptyMessage = "Belum ada tugas untuk kamu.",
   emptyAction,
+  sort = "asc",
+  onSortToggle,
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
@@ -114,6 +118,10 @@ export function MyTaskTable({
   emptyMessage?: string;
   /** The way out of an empty list, e.g. clearing the filter that emptied it. */
   emptyAction?: ReactNode;
+  /** Which way the deadline runs; only shown when the page can turn it over. */
+  sort?: DeadlineSort;
+  /** Turns the deadline order over; given, the Deadline header becomes its button. */
+  onSortToggle?: () => void;
 }>) {
   if (tasks.length === 0) {
     return (
@@ -135,9 +143,13 @@ export function MyTaskTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Nama Konten
             </th>
-            <th role="columnheader" scope="col" className={HEAD}>
-              Deadline
-            </th>
+            {onSortToggle ? (
+              <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
+            ) : (
+              <th role="columnheader" scope="col" className={HEAD}>
+                Deadline
+              </th>
+            )}
             <th role="columnheader" scope="col" className={HEAD}>
               Status
             </th>

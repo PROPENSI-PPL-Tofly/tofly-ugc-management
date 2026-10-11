@@ -213,7 +213,7 @@ describe("MyTaskBoard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
 
-    expect(screen.getByRole("region", { name: "Daftar Tugas Saya" })).toHaveFocus();
+    expect(screen.getByRole("tabpanel", { name: "Daftar Tugas Saya" })).toHaveFocus();
   });
 
   it("shows no toast when the creator cancels", () => {

@@ -24,12 +24,12 @@ export function SortableTh({
   onToggle: () => void;
 }>) {
   return (
-    <th aria-sort={ARIA_SORT[direction]} className="px-5 py-3 text-left font-semibold">
+    <th role="columnheader" scope="col" aria-sort={ARIA_SORT[direction]} className="px-5 py-3 text-left font-semibold">
       <button
         type="button"
         onClick={onToggle}
         title={hints[direction]}
-        className="inline-flex cursor-pointer items-center gap-1 rounded-(--radius-control) border-none bg-transparent p-0 text-left text-xs font-semibold text-muted hover:text-ink"
+        className="inline-flex cursor-pointer items-center gap-1 rounded-(--radius-control) border-none bg-transparent p-0 text-left font-semibold text-muted hover:text-ink"
       >
         {label}
         <span aria-hidden="true" className="text-ink">
