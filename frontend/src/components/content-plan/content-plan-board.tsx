@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ContentDetailPanel,
@@ -54,6 +54,7 @@ export function ContentPlanBoard({
   sort: DeadlineSort;
 }>) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { replaceQuery } = useUrlQuery();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   const { show: confirm, toast } = useToast();
@@ -70,6 +71,16 @@ export function ContentPlanBoard({
       setOpenContentId(id);
     }
   }, []);
+
+  // The address names the open panel's content for as long as the panel is open. Written here
+  // and not in the press that opens it: a filter change already on its way when the panel
+  // opened lands as an address without ?content=, and the link has to come back then too.
+  const linked = searchParams.get(CONTENT_PARAM);
+  useEffect(() => {
+    if (openContentId && linked !== openContentId) {
+      rememberContentParam(openContentId);
+    }
+  }, [openContentId, linked]);
 
   function closePanel() {
     setOpenContentId(null);
@@ -98,10 +109,7 @@ export function ContentPlanBoard({
         tab={tab}
         sort={sort}
         onSortToggle={toggleSort}
-        onOpen={(contentId) => {
-          setOpenContentId(contentId);
-          rememberContentParam(contentId);
-        }}
+        onOpen={setOpenContentId}
       />
       {openContentId ? (
         // Keyed by content so switching rows remounts the panel rather than leaving the
