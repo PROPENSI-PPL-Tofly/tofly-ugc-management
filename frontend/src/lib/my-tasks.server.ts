@@ -1,10 +1,6 @@
 import { appSessionCookieHeader } from "./session-cookie";
-import {
-    MY_TASKS_PAGE_SIZE,
-    MyTasksError,
-    type MyTasksResponse,
-    type TaskStatusFilter,
-} from "./my-tasks";
+import { MyTasksError, type MyTasksParams, type MyTasksResponse } from "./my-tasks";
+import { API_TABS, toMyContentsQuery, toMyTasksResponse, type RawMyContents } from "./my-tasks-api";
 
 /** Sent when a 200 carries a body the page cannot use. */
 const UNUSABLE_ANSWER = 502;
@@ -14,14 +10,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Just what the table relies on to render without crashing: a list of tasks, each with an
- * id for its row key and a list of actions, and numeric paging.
+ * Just what the page relies on to render without crashing: a list of tasks, each with an id
+ * for its row key and a list of actions, numeric paging, and a number for every tab's badge.
  */
-function isMyTasksResponse(body: unknown): body is MyTasksResponse {
+function isRawMyContents(body: unknown): body is RawMyContents {
     if (!isRecord(body) || !Array.isArray(body.items)) return false;
 
     const paging = [body.page, body.pageSize, body.total, body.totalPages];
     if (!paging.every((value) => typeof value === "number")) return false;
+
+    const counts = body.tabCounts;
+    if (!isRecord(counts) || !API_TABS.every((tab) => typeof counts[tab] === "number")) return false;
 
     return body.items.every(
         (item) => isRecord(item) && typeof item.id === "string" && Array.isArray(item.actions),
@@ -31,10 +30,11 @@ function isMyTasksResponse(body: unknown): body is MyTasksResponse {
 /**
  * Server-side only: talks to the backend directly so its address never reaches the browser.
  * The backend resolves whose tasks these are from the forwarded application session (OWASP A01).
+ * Named periods ("30 hari ke depan") are counted from `today`, Jakarta time.
  */
 export async function fetchMyTasks(
-    page: number,
-    status: TaskStatusFilter | null = null,
+    state: MyTasksParams,
+    today: string,
 ): Promise<MyTasksResponse> {
     const backendUrl = process.env.BACKEND_URL;
 
@@ -43,12 +43,7 @@ export async function fetchMyTasks(
     }
 
     const base = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
-    const query = new URLSearchParams({
-        page: String(page),
-        pageSize: String(MY_TASKS_PAGE_SIZE),
-    });
-
-    if (status) query.set("status", status);
+    const query = toMyContentsQuery(state, today);
 
     const cookie = await appSessionCookieHeader();
     const headers = cookie ? { cookie } : undefined;
@@ -64,9 +59,9 @@ export async function fetchMyTasks(
 
     const body: unknown = await response.json();
 
-    if (!isMyTasksResponse(body)) {
+    if (!isRawMyContents(body)) {
         throw new MyTasksError(UNUSABLE_ANSWER);
     }
 
-    return body;
+    return toMyTasksResponse(body);
 }
