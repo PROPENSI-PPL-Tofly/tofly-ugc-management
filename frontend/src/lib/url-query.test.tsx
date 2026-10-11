@@ -129,6 +129,70 @@ describe("useUrlQuery", () => {
     expect(result.current.query).toBe("creator=id-2");
   });
 
+  // Some changes need no server round trip: which content's panel is open, say. They are
+  // written straight into the address. Found in the app: written that way while a filter
+  // change was still on its way, the write cancelled the change and the tick was lost.
+  describe("a quiet write, with no navigation", () => {
+    let written: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      window.history.replaceState({}, "", "/admin/content-plan");
+      written = vi.spyOn(window.history, "replaceState");
+    });
+
+    afterEach(() => {
+      written.mockRestore();
+    });
+
+    it("puts the query in the address without asking the server for anything", () => {
+      const { result } = renderHook(() => useUrlQuery());
+
+      act(() => result.current.replaceQuietly("content=c-1"));
+
+      expect(window.location.search).toBe("?content=c-1");
+      expect(replace).not.toHaveBeenCalled();
+      expect(latestQuery()).toBe("content=c-1");
+    });
+
+    it("writes the bare path for an empty query, and keeps the hash", () => {
+      window.history.replaceState({}, "", "/admin/content-plan?content=c-1#bawah");
+      searchParams = new URLSearchParams({ content: "c-1" });
+      written.mockClear();
+      const { result } = renderHook(() => useUrlQuery());
+
+      act(() => result.current.replaceQuietly(""));
+
+      expect(written).toHaveBeenCalledExactlyOnceWith(null, "", "/admin/content-plan#bawah");
+    });
+
+    it("does not take its own write for somebody else's move when the address shows it", () => {
+      const { result, rerender } = renderHook(() => useUrlQuery());
+
+      act(() => result.current.replaceQuietly("content=c-1"));
+      act(() => result.current.replaceQuery("content=c-1&creator=id-1"));
+      // Next reports the quiet write only now, with the filter change already sent.
+      searchParams = new URLSearchParams({ content: "c-1" });
+      rerender();
+
+      expect(result.current.query).toBe("content=c-1&creator=id-1");
+    });
+
+    it("goes the full way while a change is on its way, so it cannot cancel that change", () => {
+      const { result } = renderHook(() => useUrlQuery());
+
+      act(() => result.current.replaceQuery("type=evergreen"));
+      written.mockClear();
+      act(() => result.current.replaceQuietly("type=evergreen&content=c-1"));
+
+      expect(written).not.toHaveBeenCalled();
+      expect(replace).toHaveBeenLastCalledWith(
+        "/admin/content-plan?type=evergreen&content=c-1",
+        { scroll: false },
+      );
+      expect(result.current.query).toBe("type=evergreen&content=c-1");
+    });
+  });
+
   it("starts clean on another page, even with a change still on its way from the last one", () => {
     const { result, rerender } = renderHook(() => useUrlQuery());
 

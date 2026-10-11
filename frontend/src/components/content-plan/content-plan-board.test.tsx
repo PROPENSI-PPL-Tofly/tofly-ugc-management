@@ -96,6 +96,7 @@ describe("ContentPlanBoard", () => {
 
   it("opens the panel straight from a ?content= link, the way a notification would", async () => {
     window.history.pushState({}, "", "/admin/content-plan?tab=action&content=content-1");
+    searchParams = new URLSearchParams("tab=action&content=content-1");
     fetchContentDetail.mockResolvedValue(detailOf());
 
     renderBoard();
@@ -106,6 +107,7 @@ describe("ContentPlanBoard", () => {
 
   it("drops ?content= on close, keeping the other parameters", async () => {
     window.history.pushState({}, "", "/admin/content-plan?tab=waiting&content=content-1&page=2");
+    searchParams = new URLSearchParams("tab=waiting&content=content-1&page=2");
     fetchContentDetail.mockResolvedValue(detailOf());
 
     renderBoard();

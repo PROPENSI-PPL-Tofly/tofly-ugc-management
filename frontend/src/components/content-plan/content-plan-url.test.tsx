@@ -14,6 +14,12 @@ const { replace, refresh } = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.f
 // long after a press, and every test below presses a second control inside that gap.
 const searchParams = new URLSearchParams();
 
+// The panel that a row opens loads its content; these tests only care about the address.
+vi.mock("@/lib/content-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content-detail")>()),
+  fetchContentDetail: () => new Promise(() => {}),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, refresh }),
   useSearchParams: () => searchParams,
@@ -128,6 +134,17 @@ describe("the Content Plan's address, written by its tabs, filters and sort toge
     act(() => vi.advanceTimersByTime(400));
 
     expect(lastAddress()).toBe("/admin/content-plan?tab=waiting");
+  });
+
+  // Found in the app: the row's ?content= link was written straight into the address, which
+  // cancelled the filter change still on its way. The list stayed unfiltered and the tick went.
+  it("keeps a creator ticked a moment ago when a row is opened before the address has it", () => {
+    renderPlan();
+
+    tickCreator("Salsa");
+    fireEvent.click(screen.getByText("Video Review Kopi"));
+
+    expect(lastAddress()).toBe("/admin/content-plan?creator=id-1&content=content-1");
   });
 
   it("builds a search typed after a tab press on that tab", () => {
