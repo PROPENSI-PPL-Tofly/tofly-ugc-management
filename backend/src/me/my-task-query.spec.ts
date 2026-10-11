@@ -126,6 +126,19 @@ describe('checkMyTaskQuery', () => {
     );
   });
 
+  it('reads the nearest deadline first when the query names it outright', () => {
+    expect(checkMyTaskQuery({ sort: 'deadline_asc' }).sort).toBe('deadline_asc');
+  });
+
+  it.each([
+    [{ type: 'optional' }, 'type must be one of evergreen, specific'],
+    [{ type: Array(51).fill('specific') }, 'type takes at most 50 values'],
+    [{ status: Array(51).fill('scheduled') }, 'status takes at most 50 values'],
+    [{ sort: 'asc' }, 'sort must be one of deadline_asc, deadline_desc'],
+  ])('names the parameter and what it takes in the 400 for %j', (query, message) => {
+    expect(() => checkMyTaskQuery(query)).toThrow(new BadRequestException(message));
+  });
+
   it('names the creator’s tabs in the 400', () => {
     expect(() => checkMyTaskQuery({ tab: 'action' })).toThrow(
       new BadRequestException('tab must be one of all, to_do, waiting_admin, done'),

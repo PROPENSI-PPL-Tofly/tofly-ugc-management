@@ -309,6 +309,20 @@ describe('MyContentsService.list', () => {
     expect(semua.tabCounts).toEqual({ all: 1, to_do: 1, waiting_admin: 1, done: 0 });
   });
 
+  it('keeps every other tab to the period, rows and counter alike', async () => {
+    // A row the database would not return, handed back anyway: the period still decides.
+    const { service } = stub([
+      row({ id: 'review-old', status: 'draft_review', deadline: '2026-09-01' }),
+      row({ id: 'done-old', status: 'link_submitted', deadline: '2026-09-02', linkDay: '2026-09-02' }),
+    ]);
+    const period = { deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' };
+
+    const waiting = await service.list(CREATOR_ID, query({ ...period, tab: 'waiting_admin' }), NOW);
+
+    expect(ids(waiting)).toEqual([]);
+    expect(waiting.tabCounts).toEqual({ all: 0, to_do: 0, waiting_admin: 0, done: 0 });
+  });
+
   it('keeps both ends of the period inclusive', async () => {
     const { service } = stub([
       row({ id: 'before', status: 'link_submitted', deadline: '2026-09-30', linkDay: '2026-09-30' }),
