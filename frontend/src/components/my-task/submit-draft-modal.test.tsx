@@ -547,4 +547,25 @@ describe("SubmitDraftModal", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Maksimal 1000 karakter");
     });
   });
+
+  it("ignores Escape and the close button while the draft is being sent", async () => {
+    const onClose = vi.fn();
+    mockSubmitDraft.mockReturnValue(new Promise(() => {}));
+    renderModal({ onClose });
+
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: { value: "https://drive.google.com/file/d/example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Draft" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Mengirim..." })).toBeDisabled();
+    });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Submit Draft" })).toBeInTheDocument();
+  });
 });

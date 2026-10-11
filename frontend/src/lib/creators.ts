@@ -12,17 +12,20 @@ import type { ContractType, CreatorFormErrors, CreatorFormInput } from "./creato
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
-/** Where a content is in the review workflow, as the API reports it. */
+/** Where a content is in its lifecycle, as the API reports it. */
 export type ContentStatus =
+  | "pending"
   | "scheduled"
   | "draft_review"
   | "draft_revision"
-  | "draft_revised"
   | "draft_approved"
   | "link_submitted";
 
 export type Productivity = "good" | "watch" | "risk" | "no_data";
 export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
+
+/** Facts the backend flags on a content beside its status, always in this order. */
+export type ContentTag = "late_submission" | "overdue" | "approval_bypassed";
 
 // "all" plus every value the API accepts, spelled the way the API spells them: these go
 // straight into the query string, so a name that drifts from the backend is a filter that
@@ -102,6 +105,7 @@ export interface CreatorDetail extends CreatorSummary {
     deadline: string;
     status: ContentStatus;
     outcome: ContentOutcome;
+    tags: ContentTag[];
     videoLink: string | null;
   }[];
 

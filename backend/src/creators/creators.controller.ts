@@ -9,9 +9,10 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import {
   CreatorOnboardingService,
   type CreatorOnboarder,
@@ -94,11 +95,16 @@ export class CreatorsController {
    * validated NewCreator reaches onboarding. Nest answers a POST with 201 Created.
    */
   @Post()
-  async create(@Body() body: unknown): Promise<OnboardedCreator> {
+  async create(
+    @Body() body: unknown,
+    @Req() request: Pick<AdminRequest, 'principal'>,
+  ): Promise<OnboardedCreator> {
     const now = new Date();
+    // The admin the guard signed in; absent only behind the local development stand-in.
     return this.onboarding.onboard(
       onboardingInput(checkNewCreator(body, now)),
       now,
+      request.principal?.userId,
     );
   }
 }

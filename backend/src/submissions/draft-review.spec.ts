@@ -1,14 +1,21 @@
 import { checkReviewable, REVIEWABLE_STATUSES } from './draft-review.js';
 
 describe('checkReviewable', () => {
-  it.each(['draft_review', 'draft_revised'])(
-    'accepts the latest submission of a draft in %s',
-    (contentStatus) => {
-      expect(checkReviewable({ contentStatus, isLatest: true })).toBeNull();
-    },
-  );
+  it('accepts the latest submission of a draft waiting for review', () => {
+    expect(
+      checkReviewable({ contentStatus: 'draft_review', isLatest: true }),
+    ).toBeNull();
+  });
 
-  it.each(['scheduled', 'draft_revision', 'draft_approved', 'link_submitted'])(
+  it.each([
+    'pending',
+    'scheduled',
+    'draft_revision',
+    'draft_approved',
+    'link_submitted',
+    // Removed by SCRUM-146: a leftover value must not open a decision.
+    'draft_revised',
+  ])(
     'rejects a draft in %s because no decision is pending',
     (contentStatus) => {
       expect(checkReviewable({ contentStatus, isLatest: true })).toBe(
@@ -19,7 +26,7 @@ describe('checkReviewable', () => {
 
   it('rejects an older submission once the creator has resubmitted', () => {
     expect(
-      checkReviewable({ contentStatus: 'draft_revised', isLatest: false }),
+      checkReviewable({ contentStatus: 'draft_review', isLatest: false }),
     ).toBe('SUBMISSION_SUPERSEDED');
   });
 
@@ -30,6 +37,6 @@ describe('checkReviewable', () => {
   });
 
   it('lists exactly the statuses the review queue shows', () => {
-    expect(REVIEWABLE_STATUSES).toEqual(['draft_review', 'draft_revised']);
+    expect(REVIEWABLE_STATUSES).toEqual(['draft_review']);
   });
 });

@@ -10,6 +10,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     brief: "",
     deadline: "2026-10-12",
     status: "scheduled",
+    tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
     ...overrides,
@@ -22,6 +23,28 @@ function rows() {
 }
 
 describe("MyTaskTable", () => {
+  it("shows a row's tags as pills beside its status, apart from it, as the admin sees them", () => {
+    render(
+      <MyTaskTable
+        tasks={[
+          task({ id: "late", status: "link_submitted", tags: ["late_submission", "approval_bypassed"], actions: [] }),
+          task({ id: "clean" }),
+        ]}
+        onAction={vi.fn()}
+        onDetail={vi.fn()}
+      />,
+    );
+
+    const [late, clean] = rows();
+    const tags = within(late).getByRole("list", { name: "Tanda konten" });
+    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Late Submission",
+      "Approval di-bypass",
+    ]);
+    expect(within(late).getByText("Content Link Submitted")).toBeInTheDocument();
+    expect(within(clean).queryByRole("list", { name: "Tanda konten" })).toBeNull();
+  });
+
   describe("columns", () => {
     it("names the table for screen readers", () => {
       render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
@@ -70,9 +93,9 @@ describe("MyTaskTable", () => {
   });
 
   describe("creator wording", () => {
-    it("shows a revised hand-in as waiting for review, like a first one", () => {
+    it("shows a draft handed in again as waiting for review, like a first one", () => {
       render(
-        <MyTaskTable tasks={[task({ status: "draft_revised", actions: [] })]} onAction={vi.fn()} />,
+        <MyTaskTable tasks={[task({ status: "draft_review", actions: [] })]} onAction={vi.fn()} />,
       );
 
       expect(within(rows()[0]).getByText("Draft Menunggu Review")).toBeInTheDocument();
@@ -146,7 +169,7 @@ describe("MyTaskTable", () => {
       ).toBeInTheDocument();
     });
 
-    it.each(["draft_review", "draft_revised"] as const)(
+    it.each(["draft_review"] as const)(
       "says a %s task is waiting for the admin instead of offering a button",
       (status) => {
         render(<MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} />);
@@ -194,7 +217,6 @@ describe("MyTaskTable", () => {
     it.each([
       ["scheduled", "bg-rule"],
       ["draft_review", "bg-accent"],
-      ["draft_revised", "bg-accent"],
       ["draft_revision", "bg-amber"],
       ["draft_approved", "bg-green"],
       ["link_submitted", "bg-green"],

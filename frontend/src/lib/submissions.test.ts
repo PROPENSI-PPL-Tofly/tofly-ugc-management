@@ -53,10 +53,25 @@ describe("buildSubmissionQuery", () => {
     expect(buildSubmissionQuery({ page: 1, type: "all" })).not.toContain("type=");
   });
 
-  it("adds filterStatus when not 'all'", () => {
-    expect(buildSubmissionQuery({ page: 1, status: "draft_revised" })).toContain(
-        "filterStatus=draft_revised",
+  it.each(["true", "false"])("adds resubmitted=%s when asked for", (resubmitted) => {
+    expect(buildSubmissionQuery({ page: 1, resubmitted })).toContain(
+      `resubmitted=${resubmitted}`,
     );
+  });
+
+  it.each(["all", "", "draft_revised", "yes"])(
+    "leaves resubmitted out for '%s', which the API would refuse",
+    (resubmitted) => {
+      expect(buildSubmissionQuery({ page: 1, resubmitted })).not.toContain(
+        "resubmitted",
+      );
+    },
+  );
+
+  it("never sends the removed filterStatus", () => {
+    expect(
+      buildSubmissionQuery({ page: 1, resubmitted: "true" }),
+    ).not.toContain("filterStatus");
   });
 
   it("adds overdue when true", () => {
@@ -68,14 +83,14 @@ describe("buildSubmissionQuery", () => {
       page: 2,
       q: "test",
       type: "specific",
-      status: "draft_review",
+      resubmitted: "false",
       overdue: true,
     });
 
     expect(result).toContain("status=review");
     expect(result).toContain("q=test");
     expect(result).toContain("type=specific");
-    expect(result).toContain("filterStatus=draft_review");
+    expect(result).toContain("resubmitted=false");
     expect(result).toContain("overdue=true");
     expect(result).toContain("page=2");
   });
@@ -140,7 +155,7 @@ describe("fetchSubmissionQueue", () => {
     expect(url).toBe("http://localhost:3001/submissions?status=review&page=1");
   });
 
-  it("forwards q and status in the query", async () => {
+  it("forwards q and resubmitted in the query", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
         new Response(
             JSON.stringify({
@@ -155,12 +170,12 @@ describe("fetchSubmissionQueue", () => {
 
     await fetchSubmissionQueue(1, {
       q: "salsa",
-      status: "draft_revised",
+      resubmitted: "true",
     });
 
     const url = vi.mocked(globalThis.fetch).mock.calls[0][0] as string;
     expect(url).toContain("q=salsa");
-    expect(url).toContain("filterStatus=draft_revised");
+    expect(url).toContain("resubmitted=true");
   });
 
   it("forwards type and overdue filters", async () => {
@@ -199,11 +214,13 @@ describe("fetchSubmissionQueue", () => {
       items: [
         {
           submissionId: "111",
+          contentId: "content-111",
           creatorName: "Salsa Wijaya",
           contentName: "Evg_1_Salsa_15Sep2026",
           type: "Evergreen",
           deadline: "2026-09-15",
           status: "draft_review",
+          revisionCount: 0,
         },
       ],
       page: 1,

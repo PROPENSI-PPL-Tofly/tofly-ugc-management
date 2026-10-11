@@ -468,4 +468,23 @@ describe("SubmitVideoModal", () => {
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(input).not.toHaveAttribute("aria-describedby");
   });
+
+  it("ignores Escape and the close button while the link is being sent", async () => {
+    const onClose = vi.fn();
+    mockSubmitVideo.mockReturnValue(new Promise(() => {}));
+    renderModal({ onClose });
+
+    fireEvent.change(screen.getByLabelText("Link Video"), { target: { value: VIDEO_LINK } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Link" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Mengirim..." })).toBeDisabled();
+    });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Submit Link Video" })).toBeInTheDocument();
+  });
 });

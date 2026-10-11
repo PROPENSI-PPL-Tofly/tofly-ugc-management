@@ -9,6 +9,7 @@ import type { content_status, social_platform } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
 import { canSubmitVideo } from '../me/task-actions.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import {
   detectVideoPlatform,
   type VideoSubmission,
@@ -28,7 +29,7 @@ export interface VideoSubmissionTransaction {
     findFirst: (args: {
       where: {
         id: string;
-        is_proposal: false;
+        status: { in: content_status[] };
         contracts: { creator_id: string };
       };
       select: {
@@ -51,8 +52,31 @@ export interface VideoSubmissionTransaction {
         video_link: string;
         video_submitted_at: Date;
         platform: social_platform;
+        approval_bypassed: boolean;
       };
     }) => Promise<{ count: number }>;
+  };
+  creators: {
+    findUnique: (args: {
+      where: { id: string };
+      select: { first_name: true; middle_name: true; last_name: true };
+    }) => Promise<{
+      first_name: string;
+      middle_name: string | null;
+      last_name: string | null;
+    } | null>;
+  };
+  content_events: {
+    create: (args: {
+      data: {
+        content_id: string;
+        event_type: 'Link Submitted';
+        actor_name: string;
+        actor_role: 'creator';
+        occurred_at: Date;
+        event_data: { link: string };
+      };
+    }) => Promise<unknown>;
   };
 }
 
@@ -111,7 +135,9 @@ export class VideoSubmissionService implements VideoSubmitter {
       });
     }
 
-    const today = jakartaDay(new Date());
+    // One reading of the clock: the content stores its day, the timeline event its moment.
+    const now = new Date();
+    const today = jakartaDay(now);
 
     return this.prisma.$transaction(async (transaction) => {
       // Scope the lookup to the caller's own committed content. Another creator's content and
@@ -119,7 +145,7 @@ export class VideoSubmissionService implements VideoSubmitter {
       const content = await transaction.contents.findFirst({
         where: {
           id: contentId,
-          is_proposal: false,
+          status: { in: [...COMMITTED_STATUSES] },
           contracts: { creator_id: creatorId },
         },
         select: {
@@ -143,7 +169,8 @@ export class VideoSubmissionService implements VideoSubmitter {
       const submittedAt = new Date(`${today}T00:00:00.000Z`);
 
       // Conditional on the status that was read above: if another request changes the row
-      // first, this update affects zero rows and only one submission can succeed.
+      // first, this update affects zero rows and only one submission can succeed. The bypass
+      // flag comes from that same status, so it describes exactly the row the update matched.
       const { count } = await transaction.contents.updateMany({
         where: {
           id: contentId,
@@ -154,12 +181,43 @@ export class VideoSubmissionService implements VideoSubmitter {
           video_link: videoLink,
           video_submitted_at: submittedAt,
           platform,
+          approval_bypassed: content.status !== 'draft_approved',
         },
       });
 
       if (count === 0) {
         throw notEligible(content.status);
       }
+
+      const creator = await transaction.creators.findUnique({
+        where: { id: creatorId },
+        select: { first_name: true, middle_name: true, last_name: true },
+      });
+      if (!creator) {
+        throw new NotFoundException({
+          code: 'CREATOR_NOT_FOUND',
+          message: 'Kreator tidak ditemukan',
+        });
+      }
+
+      await transaction.content_events.create({
+        data: {
+          content_id: contentId,
+          event_type: 'Link Submitted',
+          actor_name: [
+            creator.first_name,
+            creator.middle_name,
+            creator.last_name,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          actor_role: 'creator',
+          // The moment, not the stored day: midnight would read 07.00 WIB and sort the link
+          // under a draft or an approval from earlier the same day.
+          occurred_at: now,
+          event_data: { link: videoLink },
+        },
+      });
 
       return {
         contentId,

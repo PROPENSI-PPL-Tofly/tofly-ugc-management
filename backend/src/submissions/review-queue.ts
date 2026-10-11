@@ -5,7 +5,6 @@ export type QueueStatus = (typeof REVIEWABLE_STATUSES)[number];
 export type QueueContentType = 'evergreen' | 'specific';
 
 const CONTENT_TYPES: readonly string[] = ['evergreen', 'specific'];
-const QUEUE_STATUSES: readonly string[] = REVIEWABLE_STATUSES;
 
 /** Nobody searches for a paragraph; a cap keeps a hostile query from driving the scan. */
 export const MAX_SEARCH_LENGTH = 100;
@@ -15,15 +14,15 @@ export interface QueueQuery {
   status?: unknown;
   q?: unknown;
   type?: unknown;
-  filterStatus?: unknown;
+  resubmitted?: unknown;
   overdue?: unknown;
 }
 
 export interface QueueFilters {
   q?: string;
   type?: QueueContentType;
-  /** Narrows the queue to one of its two statuses. */
-  status?: QueueStatus;
+  /** True keeps only resubmits, false only first hand-ins; left out, both are listed. */
+  resubmitted?: boolean;
   overdue?: true;
 }
 
@@ -34,7 +33,7 @@ function reject(message: string): never {
 /**
  * Validates the raw query values once, at the edge, so the service only ever sees values the
  * queue can actually hold. `status=review` names the queue itself (PRD 3.11); the table's
- * status dropdown travels as `filterStatus`.
+ * hand-in dropdown travels as `resubmitted`.
  */
 export function checkQueueQuery(query: QueueQuery): QueueFilters {
   if (query.status !== 'review') {
@@ -57,11 +56,11 @@ export function checkQueueQuery(query: QueueQuery): QueueFilters {
     filters.type = query.type as QueueContentType;
   }
 
-  if (query.filterStatus !== undefined) {
-    if (!QUEUE_STATUSES.includes(query.filterStatus as string)) {
-      reject(`filterStatus must be one of ${QUEUE_STATUSES.join(', ')}`);
+  if (query.resubmitted !== undefined) {
+    if (query.resubmitted !== 'true' && query.resubmitted !== 'false') {
+      reject('resubmitted must be true or false');
     }
-    filters.status = query.filterStatus as QueueStatus;
+    filters.resubmitted = query.resubmitted === 'true';
   }
 
   if (query.overdue !== undefined && query.overdue !== 'false') {
@@ -77,24 +76,29 @@ export function checkQueueQuery(query: QueueQuery): QueueFilters {
 /** What the ordering needs to know about one queued draft. */
 export interface QueueEntry {
   submissionId: string;
-  status: QueueStatus;
+  /** Hand-ins after the first one; above zero the draft is a resubmit. */
+  revisionCount: number;
   deadline: Date;
   /** When the latest hand-in arrived. */
   submittedAt: Date;
 }
 
+/** A draft the creator has handed in again after a revision request. */
+export function isResubmit(revisionCount: number): boolean {
+  return revisionCount > 0;
+}
+
 // A resubmitted draft has already been through one round with the creator, so it is the most
-// time-sensitive decision (PRD 3.11 user story). The rank is spelled out here instead of
-// sorting on the enum column, whose order would silently change if the enum were reordered.
-const STATUS_RANK: Record<QueueStatus, number> = {
-  draft_revised: 0,
-  draft_review: 1,
-};
+// time-sensitive decision (PRD 3.11 user story). It is yes or no: a third hand-in does not
+// outrank a second.
+function rank(entry: QueueEntry): number {
+  return isResubmit(entry.revisionCount) ? 0 : 1;
+}
 
 /** Resubmits first, then nearest deadline, then longest waiting, then id for a stable page. */
 export function compareQueueEntries(a: QueueEntry, b: QueueEntry): number {
   return (
-    STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
+    rank(a) - rank(b) ||
     a.deadline.getTime() - b.deadline.getTime() ||
     a.submittedAt.getTime() - b.submittedAt.getTime() ||
     a.submissionId.localeCompare(b.submissionId)

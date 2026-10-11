@@ -1,69 +1,93 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SubmissionQueueTable } from "./submission-queue-table";
 import type { SubmissionQueueItem } from "@/lib/submissions";
+import type { ContentDetail } from "@/lib/content-detail";
 
-const { fetchDraftPreview, approveSubmission, refresh } = vi.hoisted(() => ({
-  fetchDraftPreview: vi.fn(),
+const { fetchContentDetail, approveSubmission, reviseSubmission, refresh } = vi.hoisted(() => ({
+  fetchContentDetail: vi.fn(),
   approveSubmission: vi.fn(),
+  reviseSubmission: vi.fn(),
   refresh: vi.fn(),
 }));
 
-vi.mock("@/lib/draft-preview", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/draft-preview")>()),
-  fetchDraftPreview: (id: string) => fetchDraftPreview(id),
+vi.mock("@/lib/content-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content-detail")>()),
+  fetchContentDetail: (id: string, role: "admin" | "creator") =>
+    fetchContentDetail(id, role),
 }));
 
 vi.mock("@/lib/draft-review-actions", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/draft-review-actions")>()),
   approveSubmission: (id: string) => approveSubmission(id),
+  reviseSubmission: (id: string, note: string) => reviseSubmission(id, note),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
 }));
 
-function previewOf(submissionId: string, contentName: string) {
+function detailOf(contentId: string, name: string): ContentDetail {
   return {
-    submissionId,
-    contentName,
-    creatorName: "Dimas Putra",
-    type: "specific" as const,
+    id: contentId,
+    name,
+    type: "specific",
     brief: "Tunjukkan fitur jadwal",
     deadline: "2026-09-20",
-    status: "draft_revised" as const,
-    draftLink: "https://drive.example.com/draft",
-    revisions: [],
+    status: "draft_review",
+    creatorName: "Dimas Putra",
+    tags: [],
+    waitingOn: "admin",
+    latestSubmissionId: "111",
+    creatorActions: [],
+    events: [
+      {
+        id: `${contentId}:scheduled`,
+        type: "scheduled",
+        at: "2026-09-01T03:00:00.000Z",
+        actor: { name: null, role: "admin" },
+      },
+    ],
   };
 }
 
 const ITEMS: SubmissionQueueItem[] = [
   {
     submissionId: "111",
+    contentId: "content-1",
     creatorName: "Salsa Wijaya",
     contentName: "Evg_1_Salsa_15Sep2026",
     type: "Evergreen",
     deadline: "2026-09-15",
     status: "draft_review",
+    revisionCount: 0,
   },
   {
     submissionId: "222",
+    contentId: "content-2",
     creatorName: "Dimas Putra",
     contentName: "Product Review iPhone",
     type: "Specific",
     deadline: "2026-09-20",
-    status: "draft_revised",
+    status: "draft_review",
+    revisionCount: 2,
   },
   {
     submissionId: "333",
+    contentId: "content-3",
     creatorName: "Test Unknown",
     contentName: "Unknown Type",
     type: "unknown_type",
     deadline: "2026-09-25",
     status: "draft_review",
+    revisionCount: 0,
   },
 ];
 
 describe("SubmissionQueueTable", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders all five columns plus the action column", () => {
     render(<SubmissionQueueTable items={ITEMS} />);
 
@@ -96,10 +120,18 @@ describe("SubmissionQueueTable", () => {
     expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
   });
 
-  it("shows 'Draft Revised' for draft_revised status", () => {
+  it("marks a resubmitted draft beside its status, now that the status no longer says so", () => {
     render(<SubmissionQueueTable items={[ITEMS[1]]} />);
 
-    expect(screen.getByText("Draft Revised")).toBeInTheDocument();
+    expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
+    expect(screen.getByText("Dikirim ulang")).toBeInTheDocument();
+    expect(screen.queryByText("Draft Revised")).not.toBeInTheDocument();
+  });
+
+  it("does not mark a first hand-in as resubmitted", () => {
+    render(<SubmissionQueueTable items={[ITEMS[0]]} />);
+
+    expect(screen.queryByText("Dikirim ulang")).not.toBeInTheDocument();
   });
 
   it("falls back to raw type string for unknown types", () => {
@@ -158,21 +190,21 @@ describe("SubmissionQueueTable", () => {
     expect(screen.queryByText(/TODO/)).not.toBeInTheDocument();
   });
 
-  it("opens the Draft Preview of the row whose Lihat Detail was clicked", async () => {
-    fetchDraftPreview.mockResolvedValue(previewOf("222", "Product Review iPhone"));
+  it("opens the content detail panel of the row whose Lihat Detail was clicked, as the admin", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-2", "Product Review iPhone"));
     render(<SubmissionQueueTable items={ITEMS} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[1]);
 
     const dialog = await screen.findByRole("dialog");
-    expect(fetchDraftPreview).toHaveBeenCalledWith("222");
+    expect(fetchContentDetail).toHaveBeenCalledWith("content-2", "admin");
     expect(dialog).toHaveTextContent("Product Review iPhone");
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Minta Revisi" })).toBeInTheDocument();
   });
 
-  it("closes the Draft Preview from Tutup", async () => {
-    fetchDraftPreview.mockResolvedValue(previewOf("111", "Evg_1_Salsa_15Sep2026"));
+  it("closes the panel from Tutup", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
     render(<SubmissionQueueTable items={ITEMS} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
@@ -184,7 +216,7 @@ describe("SubmissionQueueTable", () => {
 
   // UAT: with the note form open, Tutup wrapped onto its own line under Batal and Kirim Revisi.
   it("drops Tutup while the revision note is open and brings it back on Batal", async () => {
-    fetchDraftPreview.mockResolvedValue(previewOf("111", "Evg_1_Salsa_15Sep2026"));
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
     render(<SubmissionQueueTable items={ITEMS} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
@@ -197,8 +229,8 @@ describe("SubmissionQueueTable", () => {
     expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
   });
 
-  it("opens the next draft with Tutup even if the last one was closed mid-revision", async () => {
-    fetchDraftPreview.mockResolvedValue(previewOf("111", "Evg_1_Salsa_15Sep2026"));
+  it("opens the next content with Tutup even if the last one was closed mid-revision", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
     render(<SubmissionQueueTable items={ITEMS} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
@@ -209,8 +241,19 @@ describe("SubmissionQueueTable", () => {
     expect(await screen.findByRole("button", { name: "Tutup" })).toBeInTheDocument();
   });
 
-  it("closes the Draft Preview and refreshes the queue once the draft is approved", async () => {
-    fetchDraftPreview.mockResolvedValue(previewOf("111", "Evg_1_Salsa_15Sep2026"));
+  it("names each row's Lihat Detail after its content, so a screen reader can tell the rows apart", () => {
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    const names = screen
+      .getAllByRole("button", { name: /lihat detail/i })
+      .map((button) => button.getAttribute("aria-label"));
+
+    expect(names).toEqual(ITEMS.map((item) => `Lihat Detail: ${item.contentName}`));
+    expect(new Set(names).size).toBe(ITEMS.length);
+  });
+
+  it("closes the panel and refreshes the queue once the draft is approved", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
     approveSubmission.mockResolvedValue(undefined);
     render(<SubmissionQueueTable items={ITEMS} />);
 
@@ -220,5 +263,34 @@ describe("SubmissionQueueTable", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(approveSubmission).toHaveBeenCalledWith("111");
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("confirms an approval with a toast once the panel has closed", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
+    approveSubmission.mockResolvedValue(undefined);
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Draft di-approve. Kreator bisa kirim link video.",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("confirms a sent revision with its own toast", async () => {
+    fetchContentDetail.mockResolvedValue(detailOf("content-1", "Evg_1_Salsa_15Sep2026"));
+    reviseSubmission.mockResolvedValue(undefined);
+    render(<SubmissionQueueTable items={ITEMS} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /lihat detail/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Audio pelan." } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Permintaan revisi terkirim ke kreator.",
+    );
   });
 });

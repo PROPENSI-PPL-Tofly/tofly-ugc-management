@@ -44,6 +44,48 @@ describe("/api/* proxy", () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe("http://backend:3001/posts/42");
   });
 
+  it("keeps a decoded slash inside one segment instead of letting it climb to another route", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 400 }));
+
+    // The browser sent /api/me/contents/..%2F..%2Fauth%2Fsession; Next hands the
+    // segment over decoded.
+    await GET(
+      new Request("http://localhost:3000/api/me/contents/..%2F..%2Fauth%2Fsession"),
+      params("me", "contents", "../../auth/session"),
+    );
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "http://backend:3001/me/contents/..%2F..%2Fauth%2Fsession",
+    );
+  });
+
+  it.each([[".."], ["."]])(
+    "refuses a %s segment with 400 without calling the backend",
+    async (segment) => {
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+
+      const response = await GET(
+        new Request("http://localhost:3000/api/me/contents/x"),
+        params("me", segment, "creators"),
+      );
+
+      expect(response.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("still forwards a segment that only contains dots among other characters", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await GET(new Request("http://localhost:3000/api/files/a..b"), params("files", "a..b"));
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe("http://backend:3001/files/a..b");
+  });
+
   it("passes the method and body through", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

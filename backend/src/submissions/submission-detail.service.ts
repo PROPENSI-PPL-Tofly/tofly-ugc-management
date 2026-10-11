@@ -1,6 +1,7 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { submissionNotFound } from './review-errors.js';
 
 interface SubmissionDetailRow {
   id: string;
@@ -136,10 +137,7 @@ export class SubmissionDetailService {
     });
 
     if (!submission) {
-      throw new NotFoundException({
-        code: 'SUBMISSION_NOT_FOUND',
-        message: 'Draft tidak ditemukan',
-      });
+      throw submissionNotFound();
     }
 
     return {

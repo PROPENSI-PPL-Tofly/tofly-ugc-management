@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import type { Variant } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -38,17 +39,37 @@ function actionVariant(task: MyTask, action: MyTaskAction): Variant {
 
 /** What an action-less row says instead of a button. */
 function idleText(task: MyTask): string {
-  return task.status === "draft_review" || task.status === "draft_revised"
-    ? "Menunggu review admin"
-    : EMPTY;
+  return task.status === "draft_review" ? "Menunggu review admin" : EMPTY;
 }
 
 function ActionCell({
   task,
   onAction,
-}: Readonly<{ task: MyTask; onAction?: (task: MyTask, action: MyTaskAction) => void }>) {
+  onDetail,
+}: Readonly<{
+  task: MyTask;
+  onAction?: (task: MyTask, action: MyTaskAction) => void;
+  onDetail?: (task: MyTask) => void;
+}>) {
+  const detailButton = onDetail ? (
+    <Button
+      key="detail"
+      variant="ghost"
+      className="whitespace-nowrap"
+      aria-label={`Detail: ${task.name}`}
+      onClick={() => onDetail(task)}
+    >
+      Detail
+    </Button>
+  ) : null;
+
   if (task.actions.length === 0) {
-    return <span className="text-xs text-muted">{idleText(task)}</span>;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted">{idleText(task)}</span>
+        {detailButton}
+      </div>
+    );
   }
 
   return (
@@ -67,6 +88,7 @@ function ActionCell({
           {ACTION_LABELS[action]}
         </Button>
       ))}
+      {detailButton}
     </div>
   );
 }
@@ -80,11 +102,14 @@ function ActionCell({
 export function MyTaskTable({
   tasks,
   onAction,
+  onDetail,
   emptyMessage = "Belum ada tugas untuk kamu.",
   emptyAction,
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
+  /** Opens the row's content detail panel; every row can show its journey. */
+  onDetail?: (task: MyTask) => void;
   /** What an empty list means, e.g. that a status filter matched nothing. */
   emptyMessage?: string;
   /** The way out of an empty list, e.g. clearing the filter that emptied it. */
@@ -135,12 +160,16 @@ export function MyTaskTable({
                 {formatDate(task.deadline)}
               </td>
               <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} lg:whitespace-nowrap`}>
-                <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
-                  {taskStatusLabel(task.status)}
-                </StatusDot>
+                {/* The tags sit beside the status, apart from it, as in the admin's views. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
+                    {taskStatusLabel(task.status)}
+                  </StatusDot>
+                  <ContentTags tags={task.tags} />
+                </div>
               </td>
               <td role="cell" className={`${CELL} max-lg:pt-2`}>
-                <ActionCell task={task} onAction={onAction} />
+                <ActionCell task={task} onAction={onAction} onDetail={onDetail} />
               </td>
             </tr>
           ))}

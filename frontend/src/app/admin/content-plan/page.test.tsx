@@ -24,7 +24,7 @@ function queueOf(total: number): SubmissionQueueResponse {
 /** Answers the whole queue with `waiting` and the resubmitted slice with `resubmitted`. */
 function queueCounts(waiting: number, resubmitted: number) {
   mockedFetch.mockImplementation(async (_page, filters) =>
-      queueOf(filters?.status === "draft_revised" ? resubmitted : waiting),
+      queueOf(filters?.resubmitted === "true" ? resubmitted : waiting),
   );
 }
 
@@ -56,11 +56,11 @@ describe("Content Plan (All) page", () => {
     await renderPage();
 
     expect(mockedFetch).toHaveBeenCalledWith(1, {});
-    expect(mockedFetch).toHaveBeenCalledWith(1, { status: "draft_revised" });
+    expect(mockedFetch).toHaveBeenCalledWith(1, { resubmitted: "true" });
     expect(within(draftQueueEntry()).getByText("22 draft menunggu review")).toBeInTheDocument();
     expect(
         within(draftQueueEntry()).getByRole("link", { name: "2 dikirim ulang" }),
-    ).toHaveAttribute("href", "/admin/submissions?status=draft_revised");
+    ).toHaveAttribute("href", "/admin/submissions?resubmitted=true");
   });
 
   it("opens the draft queue from its entry", async () => {

@@ -104,4 +104,82 @@ describe('checkRevisionRequest', () => {
       }),
     );
   });
+
+  describe('the limits of a revision note', () => {
+    const notText = expect.objectContaining({
+      status: 422,
+      response: {
+        message: 'Data revisi tidak valid',
+        errors: { revisionNotes: 'Catatan revisi harus berupa teks' },
+      },
+    });
+    const empty = expect.objectContaining({
+      status: 422,
+      response: {
+        message: 'Data revisi tidak valid',
+        errors: { revisionNotes: 'Catatan revisi tidak boleh kosong' },
+      },
+    });
+    const tooLong = expect.objectContaining({
+      status: 422,
+      response: {
+        message: 'Data revisi tidak valid',
+        errors: { revisionNotes: 'Catatan revisi maksimal 1000 karakter' },
+      },
+    });
+
+    it('accepts the shortest note, a single character', () => {
+      expect(checkRevisionRequest({ revisionNotes: 'a' })).toEqual({
+        revisionNotes: 'a',
+      });
+    });
+
+    it('measures the limit after trimming, so spaces around a full-length note do not count', () => {
+      const note = 'a'.repeat(MAX_REVISION_NOTES_LENGTH);
+
+      expect(checkRevisionRequest({ revisionNotes: `  ${note}\n` })).toEqual({
+        revisionNotes: note,
+      });
+    });
+
+    it('refuses a note one character over the limit even when spaces surround it', () => {
+      const note = 'a'.repeat(MAX_REVISION_NOTES_LENGTH + 1);
+
+      expect(() => checkRevisionRequest({ revisionNotes: `  ${note}  ` })).toThrow(
+        tooLong,
+      );
+    });
+
+    it('keeps the line breaks inside a note', () => {
+      expect(
+        checkRevisionRequest({ revisionNotes: 'Perbaiki intro.\nGanti musik.' }),
+      ).toEqual({ revisionNotes: 'Perbaiki intro.\nGanti musik.' });
+    });
+
+    it.each([
+      ['an empty string', ''],
+      ['tabs and line breaks only', '\t\n\r\n'],
+    ])('refuses %s as an empty note', (_label, revisionNotes) => {
+      expect(() => checkRevisionRequest({ revisionNotes })).toThrow(empty);
+    });
+
+    it.each([
+      ['a missing note', {}],
+      ['a null note', { revisionNotes: null }],
+      ['a boolean note', { revisionNotes: true }],
+      ['a list as the note', { revisionNotes: ['Perbaiki intro.'] }],
+      ['an object as the note', { revisionNotes: { text: 'Perbaiki intro.' } }],
+    ])('refuses %s as not text', (_label, body) => {
+      expect(() => checkRevisionRequest(body)).toThrow(notText);
+    });
+
+    it.each([
+      ['a bare string', 'Perbaiki intro.'],
+      ['a number', 42],
+      ['a boolean', false],
+      ['a list', [{ revisionNotes: 'Perbaiki intro.' }]],
+    ])('refuses a body that is %s, not an object, with 422 rather than a crash', (_label, body) => {
+      expect(() => checkRevisionRequest(body)).toThrow(notText);
+    });
+  });
 });

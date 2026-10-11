@@ -32,19 +32,19 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
           {
             deadline: day(-30),
             video_submitted_at: day(-31),
-            is_proposal: false,
+            status: 'link_submitted',
             _count: { submissions: 1 },
           },
           {
             deadline: day(-10),
             video_submitted_at: day(-8),
-            is_proposal: false,
+            status: 'link_submitted',
             _count: { submissions: 2 },
           },
           {
             deadline: day(20),
             video_submitted_at: null,
-            is_proposal: false,
+            status: 'scheduled',
             _count: { submissions: 0 },
           },
         ],
@@ -67,9 +67,9 @@ type DetailContentRow = {
   type: string;
   deadline: Date;
   status: string;
-  is_proposal: boolean;
   video_link: string | null;
   video_submitted_at: Date | null;
+  approval_bypassed: boolean;
   _count: { submissions: number };
   submissions: DetailSubmissionRow[];
 };
@@ -137,9 +137,9 @@ function detailRow(): DetailCreatorRow {
             type: 'evergreen',
             deadline: day(-30),
             status: 'link_submitted',
-            is_proposal: false,
             video_link: 'https://example.com/video-1',
             video_submitted_at: day(-31),
+            approval_bypassed: false,
             _count: {
               submissions: 2,
             },
@@ -164,9 +164,9 @@ function detailRow(): DetailCreatorRow {
             type: 'specific',
             deadline: day(2),
             status: 'draft_review',
-            is_proposal: false,
             video_link: null,
             video_submitted_at: null,
+            approval_bypassed: false,
             _count: {
               submissions: 0,
             },
@@ -260,6 +260,130 @@ describe('CreatorsService', () => {
       pageSize: 10,
       total: 1,
       totalPages: 1,
+    });
+  });
+
+  it('leaves a pending proposal out of progress and performance', async () => {
+    const withProposal = row();
+    withProposal.contracts[0].contents.push({
+      // Past its deadline with nothing handed in: counted, it would drag every number down.
+      deadline: day(-5),
+      video_submitted_at: null,
+      status: 'pending',
+      _count: { submissions: 0 },
+    });
+    prisma.creators.findMany.mockResolvedValue([withProposal]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(result.items[0].progress).toEqual({
+      submitted: 2,
+      total: 3,
+      percent: 67,
+    });
+    expect(result.items[0].performance).toMatchObject({
+      onTimeRate: 50,
+      avgRevisions: 0.5,
+    });
+  });
+
+  it('reads each content status, which is what marks a proposal', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(0);
+
+    await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    const { select } = prisma.creators.findMany.mock.calls[0][0];
+    expect(select.contracts.select.contents.select).toEqual({
+      deadline: true,
+      video_submitted_at: true,
+      status: true,
+      _count: { select: { submissions: true } },
+    });
+  });
+
+  it('leaves a pending proposal out of a contract period’s totals in the detail', async () => {
+    const detail = detailRow();
+    detail.contracts[0].contents.push({
+      id: 'content-proposal',
+      name: 'Ide konten dari kreator',
+      type: 'specific',
+      deadline: day(10),
+      status: 'pending',
+      video_link: null,
+      video_submitted_at: null,
+      approval_bypassed: false,
+      _count: { submissions: 0 },
+      submissions: [],
+    });
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(result.contractHistory[0]).toMatchObject({ completed: 1, total: 2 });
+  });
+
+  it('tags each content in the detail as late, overdue or approval bypassed', async () => {
+    const detail = detailRow();
+    detail.contracts[0].contents.push(
+      {
+        id: 'content-late-bypassed',
+        name: 'Link telat tanpa approval',
+        type: 'evergreen',
+        deadline: day(-10),
+        status: 'link_submitted',
+        video_link: 'https://example.com/video-late',
+        video_submitted_at: day(-8),
+        approval_bypassed: true,
+        _count: { submissions: 0 },
+        submissions: [],
+      },
+      {
+        id: 'content-overdue',
+        name: 'Draft telat, belum ada link',
+        type: 'evergreen',
+        deadline: day(-5),
+        status: 'draft_revision',
+        video_link: null,
+        video_submitted_at: null,
+        approval_bypassed: false,
+        _count: { submissions: 2 },
+        submissions: [
+          { id: 'submission-early', link: 'https://example.com/d1', revision_notes: null, created_at: day(-6) },
+          { id: 'submission-late', link: 'https://example.com/d2', revision_notes: 'Ulang', created_at: day(-3) },
+        ],
+      },
+    );
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(
+      Object.fromEntries(result.contents.map((content) => [content.id, content.tags])),
+    ).toEqual({
+      'content-1': [],
+      'content-2': [],
+      'content-late-bypassed': ['late_submission', 'approval_bypassed'],
+      'content-overdue': ['late_submission', 'overdue'],
+    });
+  });
+
+  it('reads the bypass flag and every draft hand-in time with the detail, in the same query', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    await service.findOne('creator-1', TODAY);
+
+    expect(prisma.creators.findUnique).toHaveBeenCalledTimes(1);
+    const contents =
+      prisma.creators.findUnique.mock.calls[0][0].select.contracts.select.contents;
+    expect(contents.select).toMatchObject({
+      approval_bypassed: true,
+      video_submitted_at: true,
+      submissions: {
+        orderBy: { created_at: 'asc' },
+        select: expect.objectContaining({ created_at: true }),
+      },
     });
   });
 
@@ -426,7 +550,7 @@ describe('CreatorsService', () => {
             end_date: day(80),
             content_quota: 1,
             contract_type: 'regular',
-            contents: [{ deadline: day(-30), video_submitted_at: null, is_proposal: false, _count: { submissions: 0 } }],
+            contents: [{ deadline: day(-30), video_submitted_at: null, status: 'scheduled', _count: { submissions: 0 } }],
           },
         ],
       }),
@@ -584,5 +708,18 @@ describe('CreatorsService', () => {
     await expect(
       findOne.call(service, 'missing-creator', TODAY),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns empty current-period details when no contract covers the date', async () => {
+    const detail = detailRow();
+    detail.contracts = [];
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(result.contractHistory).toEqual([]);
+    expect(result.contents).toEqual([]);
+    expect(result.drafts).toEqual([]);
+    expect(result.contract.status).toBe('none');
   });
 });

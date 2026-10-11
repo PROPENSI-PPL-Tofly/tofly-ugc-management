@@ -1,7 +1,9 @@
-// A draft waits for an Admin decision only in these content statuses: the first hand-in
-// (draft_review) and a hand-in after a revision request (draft_revised). Approve and revise
-// both start from here, so they share this list with the review queue.
-export const REVIEWABLE_STATUSES = ['draft_review', 'draft_revised'] as const;
+import { REVIEWABLE_STATUSES } from '../contents/content-lifecycle.js';
+
+// A draft waits for an Admin decision only while its content is reviewable, whether it is a
+// first hand-in or a resubmit. Approve and revise both start from here, so they share the
+// lifecycle's list with the review queue.
+export { REVIEWABLE_STATUSES };
 
 export type ReviewRejection = 'DRAFT_NOT_REVIEWABLE' | 'SUBMISSION_SUPERSEDED';
 

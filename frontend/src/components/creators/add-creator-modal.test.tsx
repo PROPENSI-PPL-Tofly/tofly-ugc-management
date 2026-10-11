@@ -681,4 +681,46 @@ describe("AddCreatorModal", () => {
       expect(screen.getByText(message)).toBeInTheDocument();
     }
   });
+
+  describe("edges of the fields", () => {
+    it("empties a numeric field when its last digit is deleted, instead of leaving a 0", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const quota = screen.getByLabelText(/jumlah konten/i);
+
+      fireEvent.change(quota, { target: { value: "5" } });
+      fireEvent.change(quota, { target: { value: "" } });
+
+      expect(quota).toHaveValue("");
+    });
+
+    it("says nothing about the email length one character below the limit", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const email = screen.getByLabelText(/^email/i);
+
+      fireEvent.change(email, { target: { value: "a".repeat(253) } });
+
+      expect(screen.queryByText("Maksimal 254 karakter")).not.toBeInTheDocument();
+      expect(email).not.toHaveAttribute("aria-describedby");
+    });
+
+    it("says the email is full at exactly 254 characters and ties the counter to the field", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const email = screen.getByLabelText(/^email/i);
+
+      fireEvent.change(email, { target: { value: "a".repeat(254) } });
+
+      const counter = screen.getByText("Maksimal 254 karakter");
+      expect(counter).toHaveAttribute("role", "alert");
+      expect(email.getAttribute("aria-describedby")).toBe(counter.parentElement?.id);
+    });
+
+    it("shows the contract end's error once it is blurred while still empty", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      expect(screen.queryByText("Tanggal berakhir wajib diisi")).not.toBeInTheDocument();
+      fireEvent.blur(screen.getByLabelText(/akhir kontrak/i));
+
+      expect(screen.getByText("Tanggal berakhir wajib diisi")).toBeInTheDocument();
+    });
+  });
 });

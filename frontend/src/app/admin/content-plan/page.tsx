@@ -21,7 +21,7 @@ async function loadDraftCounts(): Promise<DraftCounts | null> {
   try {
     const [all, resubmitted] = await Promise.all([
       fetchSubmissionQueue(1, {}),
-      fetchSubmissionQueue(1, { status: "draft_revised" }),
+      fetchSubmissionQueue(1, { resubmitted: "true" }),
     ]);
     return { waiting: all.total, resubmitted: resubmitted.total };
   } catch {
@@ -44,7 +44,7 @@ function DraftQueueSummary({ counts }: { counts: DraftCounts | null }) {
       {counts.resubmitted > 0 ? (
         // Resubmitted drafts are the most time-sensitive decisions, so they get their own way in.
         <Link
-          href="/admin/submissions?status=draft_revised"
+          href="/admin/submissions?resubmitted=true"
           className="rounded-(--radius-control) text-ink-2 underline-offset-2 hover:text-ink hover:underline"
         >
           <StatusDot tone="amber">{counts.resubmitted} dikirim ulang</StatusDot>

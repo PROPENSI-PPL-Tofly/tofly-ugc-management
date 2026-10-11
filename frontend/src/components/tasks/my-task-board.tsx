@@ -2,15 +2,41 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
-import { Toast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import type { MyTask, MyTaskAction } from "@/lib/my-tasks";
 import { MyTaskTable } from "./my-task-table";
 
 interface Opened {
   task: MyTask;
   action: MyTaskAction;
+}
+
+/** The search parameter a notification or a bookmark uses to open one content's panel. */
+const CONTENT_PARAM = "content";
+
+/**
+ * Puts the open panel's content in the address, so it can be copied, shared or reopened like
+ * the link a notification sends. Replaced rather than pushed: Back leaves the page instead of
+ * walking through every panel opened on it. Other parameters (the status filter, the page) stay.
+ */
+function rememberContentParam(contentId: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(CONTENT_PARAM, contentId);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+/**
+ * Takes the deep link back out of the address once its panel has closed, so a reload or a
+ * Back does not open the panel again. Other parameters (the status filter, the page) stay.
+ * replaceState keeps Next's router in sync without a navigation or a server round trip.
+ */
+function forgetContentParam() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(CONTENT_PARAM);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 const SUBMITTED: Record<MyTaskAction, string> = {
@@ -33,10 +59,25 @@ export function MyTaskBoard({
 }: Readonly<{ tasks: MyTask[]; emptyMessage?: string; emptyAction?: ReactNode }>) {
   const router = useRouter();
   const [opened, setOpened] = useState<Opened | null>(null);
-  // The id is the Toast key: a second hand-in remounts it, restarting its countdown.
-  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  // The content whose detail panel is open; keyed by content so a ?content= link can
+  // deep-link into it the way a notification would.
+  const [detailContentId, setDetailContentId] = useState<string | null>(null);
+  const { show: confirm, toast } = useToast();
   const listRef = useRef<HTMLElement>(null);
   const focusListOnClose = useRef(false);
+
+  // A notification (or a bookmarked link) opens the panel straight from the URL; read on
+  // the client because the search string only carries the real address after hydration.
+  // One read on mount, then the URL is never consulted again — this is the effect doing
+  // exactly what the rule asks of an effect (syncing with an external system), not a
+  // cascading render.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get(CONTENT_PARAM);
+    if (id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot URL read on mount
+      setDetailContentId(id);
+    }
+  }, []);
 
   // Runs after the modal's own cleanup has handed focus back to its opener, so this wins.
   useEffect(() => {
@@ -48,12 +89,26 @@ export function MyTaskBoard({
 
   const close = () => setOpened(null);
 
+  function closeDetail() {
+    setDetailContentId(null);
+    forgetContentParam();
+  }
+
+  /** A command inside the panel hands its action back here: the row's submit modal owns it. */
+  function openSubmitFromPanel(contentId: string, action: MyTaskAction) {
+    const task = tasks.find((candidate) => candidate.id === contentId);
+    closeDetail();
+    if (task) {
+      setOpened({ task, action });
+    }
+  }
+
   function renderModal(current: Opened) {
     const { id, name, deadline, brief, revisionNotes } = current.task;
     const content = { id, name, deadline, brief, revisionNotes };
     const submitted = () => {
       focusListOnClose.current = true;
-      setToast((last) => ({ id: (last?.id ?? 0) + 1, message: SUBMITTED[current.action] }));
+      confirm(SUBMITTED[current.action]);
       router.refresh();
     };
     // Keyed by task and action so opening another row starts from an empty form.
@@ -94,12 +149,25 @@ export function MyTaskBoard({
           emptyMessage={emptyMessage}
           emptyAction={emptyAction}
           onAction={(task, action) => setOpened({ task, action })}
+          onDetail={(task) => {
+            setDetailContentId(task.id);
+            rememberContentParam(task.id);
+          }}
         />
       </section>
       {opened ? renderModal(opened) : null}
-      {toast ? (
-        <Toast key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />
+      {detailContentId ? (
+        <ContentDetailPanel
+          key={detailContentId}
+          contentId={detailContentId}
+          role="creator"
+          onClose={closeDetail}
+          ports={{
+            onCreatorAction: (action) => openSubmitFromPanel(detailContentId, action),
+          }}
+        />
       ) : null}
+      {toast}
     </>
   );
 }

@@ -1,17 +1,11 @@
-// The status filter on Task Saya (PRD 3.16), in the creator's vocabulary. A creator does not
-// tell a first hand-in from a revised one: both wait for the admin, so draft_review stands for
-// draft_revised too, and draft_revised is not a filter of its own.
+// The status filter on Task Saya (PRD 3.16), in the creator's vocabulary. Pending is not a
+// filter: a proposal is not assigned work until an admin accepts it.
 
 import { BadRequestException } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
+import { COMMITTED_STATUSES } from '../contents/content-lifecycle.js';
 
-export const TASK_STATUS_FILTERS = [
-  'scheduled',
-  'draft_review',
-  'draft_revision',
-  'draft_approved',
-  'link_submitted',
-] as const;
+export const TASK_STATUS_FILTERS = COMMITTED_STATUSES;
 
 export type TaskStatusFilter = (typeof TASK_STATUS_FILTERS)[number];
 
@@ -37,5 +31,5 @@ export function checkTaskStatus(value: unknown): TaskStatusFilter | undefined {
 
 /** The stored statuses a filter matches. */
 export function statusesFor(filter: TaskStatusFilter): content_status[] {
-  return filter === 'draft_review' ? ['draft_review', 'draft_revised'] : [filter];
+  return [filter];
 }
