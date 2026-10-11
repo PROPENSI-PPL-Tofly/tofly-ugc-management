@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot } from "@/components/ui/pill";
@@ -79,7 +80,17 @@ export function ContentPlanTable({
               className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
             >
               <td className="px-5 py-3">{row.name}</td>
-              <td className="px-5 py-3">{row.creatorName}</td>
+              <td className="px-5 py-3">
+                {/* The way to this creator's own Content Plan, as in the prototype. It is a
+                    link of its own, so the row must not open the panel on the same press. */}
+                <Link
+                  href={`/admin/creators/${encodeURIComponent(row.creatorId)}/content-plan`}
+                  onClick={(event) => event.stopPropagation()}
+                  className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
+                >
+                  {row.creatorName}
+                </Link>
+              </td>
               <td className="px-5 py-3">{CONTENT_TYPE_LABELS[row.type]}</td>
               <td className="px-5 py-3 whitespace-nowrap">{formatDate(row.deadline)}</td>
               <td className="px-5 py-3 whitespace-nowrap">
