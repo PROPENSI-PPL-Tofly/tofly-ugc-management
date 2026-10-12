@@ -3,7 +3,7 @@
 import { ContentTags } from "@/components/contents/content-tags";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import { Pill, type Tone } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
@@ -65,7 +65,8 @@ export function CreatorContentTable({
               Status
             </th>
             <th scope="col" className={HEAD}>
-              Aksi
+              {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
+              <span className="sr-only">Aksi</span>
             </th>
           </tr>
         </thead>
@@ -94,9 +95,10 @@ export function CreatorContentTable({
                 <td className={`${CELL} whitespace-nowrap`}>{formatDate(row.deadline)}</td>
                 <td className={CELL}>
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
+                    {/* A pill, as the prototype draws a status on this page. */}
+                    <Pill tone={CONTENT_STATUS_TONES[row.status]}>
                       {CONTENT_STATUS_LABELS[row.status]}
-                    </StatusDot>
+                    </Pill>
                     <ContentTags tags={row.tags} />
                     {row.revisionCount > 0 ? (
                       <span className="text-xs font-semibold text-amber-ink">

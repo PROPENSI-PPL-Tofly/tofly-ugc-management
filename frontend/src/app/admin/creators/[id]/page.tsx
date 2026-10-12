@@ -53,7 +53,7 @@ export default async function CreatorDetailPage({
   return (
     <AppShell
       title="Detail Creator"
-      subtitle="Profil, riwayat kontrak, dan content plan satu creator"
+      subtitle="Data, jadwal, dan content plan satu creator"
     >
       <Link
         href="/admin/creators"
