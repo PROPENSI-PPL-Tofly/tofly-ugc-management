@@ -136,7 +136,7 @@ describe("fetchCreatorDetail", () => {
 
     expect(urls()).toEqual([
       `${BACKEND}/creators/${CREATOR}`,
-      `${BACKEND}/contents?contract=${NEWEST}&page=1`,
+      `${BACKEND}/contents?contract=${NEWEST}&sort=deadline_asc&page=1`,
     ]);
   });
 
@@ -149,7 +149,7 @@ describe("fetchCreatorDetail", () => {
     });
 
     expect(urls()[1]).toBe(
-      `${BACKEND}/contents?contract=${OLDER}&type=evergreen&type=specific&status=scheduled&page=2`,
+      `${BACKEND}/contents?contract=${OLDER}&type=evergreen&type=specific&status=scheduled&sort=deadline_asc&page=2`,
     );
   });
 
@@ -159,7 +159,7 @@ describe("fetchCreatorDetail", () => {
       contract: SOMEONE_ELSES,
     });
 
-    expect(urls()[1]).toBe(`${BACKEND}/contents?contract=${NEWEST}&page=1`);
+    expect(urls()[1]).toBe(`${BACKEND}/contents?contract=${NEWEST}&sort=deadline_asc&page=1`);
     expect(urls().join(" ")).not.toContain(SOMEONE_ELSES);
   });
 
@@ -203,7 +203,7 @@ describe("fetchCreatorDetail", () => {
 
     expect(urls()).toEqual([
       `${BACKEND}/creators/${CREATOR}`,
-      `${BACKEND}/contents?contract=${NEWEST}&page=1`,
+      `${BACKEND}/contents?contract=${NEWEST}&sort=deadline_asc&page=1`,
     ]);
   });
 
@@ -285,8 +285,8 @@ describe("fetchCreatorDetail", () => {
 
       expect(urls()).toEqual([
         `${BACKEND}/creators/${CREATOR}`,
-        `${BACKEND}/contents?contract=${NEWEST}&page=99`,
-        `${BACKEND}/contents?contract=${NEWEST}&page=1`,
+        `${BACKEND}/contents?contract=${NEWEST}&sort=deadline_asc&page=99`,
+        `${BACKEND}/contents?contract=${NEWEST}&sort=deadline_asc&page=1`,
       ]);
       expect(view?.rows).toHaveLength(4);
       expect(view?.page).toBe(1);
@@ -305,7 +305,7 @@ describe("fetchCreatorDetail", () => {
       });
 
       expect(urls()[2]).toBe(
-        `${BACKEND}/contents?contract=${OLDER}&type=evergreen&status=scheduled&status=pending&page=2`,
+        `${BACKEND}/contents?contract=${OLDER}&type=evergreen&status=scheduled&status=pending&sort=deadline_asc&page=2`,
       );
       expect(view?.page).toBe(2);
       expect(view?.rows).toHaveLength(4);

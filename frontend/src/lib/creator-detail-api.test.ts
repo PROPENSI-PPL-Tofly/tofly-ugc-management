@@ -114,8 +114,24 @@ describe("openContractId", () => {
 });
 
 describe("toCreatorContentsQuery", () => {
-  it("asks for the first page of the contract on the bare view", () => {
-    expect(toCreatorContentsQuery(NEWEST, BARE).toString()).toBe(`contract=${NEWEST}&page=1`);
+  it("asks for the first page of the contract, nearest deadline first, on the bare view", () => {
+    expect(toCreatorContentsQuery(NEWEST, BARE).toString()).toBe(
+      `contract=${NEWEST}&sort=deadline_asc&page=1`,
+    );
+  });
+
+  // The per-creator Content Plan this page replaces listed the earliest deadline first, so what
+  // is due today or overdue is on the first page. The API's own default is the latest first.
+  it("always asks for the earliest deadline first, whatever the page or the filters", () => {
+    const filtered = toCreatorContentsQuery(MIDDLE, {
+      contract: MIDDLE,
+      type: ["specific"],
+      status: ["draft_review"],
+      page: 4,
+    });
+
+    expect(toCreatorContentsQuery(NEWEST, BARE).getAll("sort")).toEqual(["deadline_asc"]);
+    expect(filtered.getAll("sort")).toEqual(["deadline_asc"]);
   });
 
   it("names the contract, one parameter per pick, and the page", () => {
@@ -150,10 +166,10 @@ describe("toCreatorContentsQuery", () => {
     expect(query.getAll("status")).toEqual(["scheduled", "pending"]);
   });
 
-  it("sends nothing the Content Plan's own filters would: no tab, search or sort", () => {
+  it("sends nothing else the Content Plan's own filters would: no tab and no search", () => {
     const query = toCreatorContentsQuery(NEWEST, { ...BARE, type: ["specific"], page: 2 });
 
-    expect([...query.keys()].sort()).toEqual(["contract", "page", "type"]);
+    expect([...query.keys()].sort()).toEqual(["contract", "page", "sort", "type"]);
   });
 });
 
