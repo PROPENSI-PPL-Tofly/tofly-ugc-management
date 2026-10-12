@@ -35,6 +35,7 @@ function isMyTasksResponse(body: unknown): body is MyTasksResponse {
 export async function fetchMyTasks(
     page: number,
     status: TaskStatusFilter | null = null,
+    pageSize: number = MY_TASKS_PAGE_SIZE,
 ): Promise<MyTasksResponse> {
     const backendUrl = process.env.BACKEND_URL;
 
@@ -45,7 +46,7 @@ export async function fetchMyTasks(
     const base = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
     const query = new URLSearchParams({
         page: String(page),
-        pageSize: String(MY_TASKS_PAGE_SIZE),
+        pageSize: String(pageSize),
     });
 
     if (status) query.set("status", status);

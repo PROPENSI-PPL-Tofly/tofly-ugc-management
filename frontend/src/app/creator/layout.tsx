@@ -1,4 +1,5 @@
 import { AccessDenied } from "@/components/shell/access-denied";
+import { homeFor } from "@/lib/session";
 import { currentRole } from "@/lib/session.server";
 
 // Every creator page renders per request behind the signed-in role, never from a static build.
@@ -24,7 +25,7 @@ export default async function CreatorLayout({ children }: LayoutProps<"/creator"
     return (
       <AccessDenied
         reason="Halaman ini hanya untuk creator."
-        home="/admin/creators"
+        home={homeFor("admin")}
         homeLabel="Kembali ke Creator Database"
       />
     );

@@ -206,6 +206,39 @@ describe("fetchMyTasks with a status filter", () => {
   });
 });
 
+describe("fetchMyTasks with a page size", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  function respond() {
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
+  }
+
+  it("asks the backend for as many rows a page as it is told to", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    const fetchSpy = respond();
+
+    await fetchMyTasks(1, null, 50);
+
+    expect(fetchSpy.mock.calls[0][0]).toBe("http://backend:3001/me/contents?page=1&pageSize=50");
+  });
+
+  it("sends the page size and the status filter together", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    const fetchSpy = respond();
+
+    await fetchMyTasks(3, "scheduled", 50);
+
+    expect(fetchSpy.mock.calls[0][0]).toBe(
+      "http://backend:3001/me/contents?page=3&pageSize=50&status=scheduled",
+    );
+  });
+});
+
 describe("parseTaskStatus", () => {
   it("reads no filter when the URL names none", () => {
     expect(parseTaskStatus({})).toEqual({

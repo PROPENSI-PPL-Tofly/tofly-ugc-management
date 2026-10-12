@@ -1,16 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { homeFor, type Role } from "@/lib/session";
 import { AdminNav } from "./admin-nav";
 import { CreatorNav } from "./creator-nav";
 import { LogoutButton } from "./logout-button";
 import { SessionActivity } from "./session-activity";
 
-type Role = "admin" | "creator";
-
-// What changes between the two frames: where the wordmark leads, the menu, and the label.
-const FRAMES: Record<Role, { home: string; nav: ReactNode; label: string }> = {
-  admin: { home: "/admin/creators", nav: <AdminNav />, label: "Admin" },
-  creator: { home: "/creator/tasks", nav: <CreatorNav />, label: "Creator" },
+// What changes between the two frames: the menu and the label. Where the wordmark leads is the
+// role's home, which lib/session.ts owns, so sign-in and the wordmark cannot disagree.
+const FRAMES: Record<Role, { nav: ReactNode; label: string }> = {
+  admin: { nav: <AdminNav />, label: "Admin" },
+  creator: { nav: <CreatorNav />, label: "Creator" },
 };
 
 /**
@@ -36,7 +36,7 @@ export function AppShell({
       <SessionActivity />
       <aside className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-rule bg-surface px-4 py-3 md:sticky md:top-0 md:h-dvh md:flex-col md:flex-nowrap md:items-stretch md:gap-8 md:border-b-0 md:border-r md:px-4 md:py-6">
         <Link
-          href={frame.home}
+          href={homeFor(role)}
           className="inline-flex items-center gap-2 rounded-(--radius-control) text-base font-bold tracking-tight text-ink"
         >
           <span aria-hidden="true" className="size-2 rounded-[3px] bg-accent" />
