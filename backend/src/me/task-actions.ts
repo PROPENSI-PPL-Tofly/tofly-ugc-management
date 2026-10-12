@@ -16,6 +16,11 @@ function daysBefore(day: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** The furthest deadline whose grace window is open today: the same rule, read from today. */
+export function lastGraceDeadline(today: string): string {
+  return daysBefore(today, -GRACE_DAYS);
+}
+
 /** Open from H-1 onward, including after the deadline: a late link is still a link. */
 export function inGraceWindow(deadline: string, today: string): boolean {
   // ISO days compare correctly as strings.

@@ -3,6 +3,7 @@ import type { content_status, content_type } from '@prisma/client';
 import type { ContentListType } from '../contents/content-list.js';
 import { contentTags, type ContentTag } from '../contents/content-tags.js';
 import {
+  asDate,
   compareByDeadline,
   deadlineWhere,
   isOverdue,
@@ -19,11 +20,12 @@ import {
   MY_TASK_TAB_STATUSES,
   PERIOD_FREE_MY_TAB,
   myTabOf,
+  type MyStatusTab,
   type MyTaskFilters,
   type MyTaskStatus,
   type MyTaskTab,
 } from './my-task-query.js';
-import { taskActions } from './task-actions.js';
+import { lastGraceDeadline, taskActions } from './task-actions.js';
 
 // Only what a row and its modals show. Selecting columns (rather than whole rows) keeps
 // performance numbers, video links and anything added later out of the response by construction.
@@ -68,7 +70,11 @@ interface MyContentsWhere {
   // Always named: a pending proposal, which is not assigned work yet, never reaches Task Saya.
   status: { in: MyTaskStatus[] };
   type?: { in: ContentListType[] };
-  OR?: [{ deadline: DeadlineRange }, { status: { in: MyTaskStatus[] } }];
+  OR?: [
+    { deadline: DeadlineRange },
+    { status: { in: MyTaskStatus[] } },
+    { status: MyTaskStatus; deadline: DeadlineRange },
+  ];
 }
 
 /** One page of the list, under the tab, filters and sort the query asked for. */
@@ -108,12 +114,25 @@ function tagsOf(row: MyContentRow, now: Date): ContentTag[] {
 }
 
 /**
- * What the query itself narrows by: the creator's own committed work, its type and its deadline
- * period. The period keeps every status of Perlu Dikerjakan whatever its deadline, because that
- * tab is never narrowed by it; which rows the period then leaves in each tab is decided row by
- * row in list().
+ * Whose turn a row is. A button waiting for the creator makes it theirs: a draft still in review
+ * joins Perlu Dikerjakan once its H-1 link can be sent, since from then on the creator can
+ * finish the content without the admin. Every other row follows its status.
  */
-function narrowing(creatorId: string, filters: MyTaskFilters): MyContentsWhere {
+function tabOf(item: MyContentItem): MyStatusTab {
+  return item.actions.length > 0 ? 'to_do' : myTabOf(item.status);
+}
+
+/**
+ * What the query itself narrows by: the creator's own committed work, its type and its deadline
+ * period. The period keeps everything Perlu Dikerjakan can hold whatever its deadline, because
+ * that tab is never narrowed by it: its statuses, and a draft in review whose H-1 link is open
+ * today. Which rows the period then leaves in each tab is decided row by row in list().
+ */
+function narrowing(
+  creatorId: string,
+  filters: MyTaskFilters,
+  today: string,
+): MyContentsWhere {
   const where: MyContentsWhere = {
     contracts: { creator_id: creatorId },
     status: { in: [...MY_TASK_TAB_STATUSES.all] },
@@ -126,6 +145,10 @@ function narrowing(creatorId: string, filters: MyTaskFilters): MyContentsWhere {
     where.OR = [
       { deadline },
       { status: { in: [...MY_TASK_TAB_STATUSES[PERIOD_FREE_MY_TAB]] } },
+      {
+        status: 'draft_review',
+        deadline: { lte: asDate(lastGraceDeadline(today)) },
+      },
     ];
   }
   return where;
@@ -155,18 +178,18 @@ export class MyContentsService implements MyContentsLister {
   //
   // Each counter is the size of its tab under the search and the type, overdue and period
   // filters, whichever tab is open. The status filter only narrows the rows, and the period
-  // never applies to Perlu Dikerjakan.
+  // never applies to Perlu Dikerjakan. A row is on one tab besides Semua: the one tabOf names.
   async list(
     creatorId: string,
     query: MyContentsQuery,
     now: Date,
   ): Promise<MyContentsResponse> {
+    const today = jakartaDay(now);
     const rows = await this.prisma.contents.findMany({
-      where: narrowing(creatorId, query),
+      where: narrowing(creatorId, query, today),
       select: MY_CONTENT_SELECT,
     });
 
-    const today = jakartaDay(now);
     const matches = matcher(query);
     const inPeriod = withinPeriod(query);
     const { statuses } = query;
@@ -183,7 +206,7 @@ export class MyContentsService implements MyContentsLister {
       if (!matches(item)) {
         continue;
       }
-      const tab = myTabOf(item.status);
+      const tab = tabOf(item);
       const dated = inPeriod(item.deadline);
       // Semua holds a row only inside the period; the row's own tab also holds it outside the
       // period when that tab is Perlu Dikerjakan.

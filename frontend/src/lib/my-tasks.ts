@@ -58,7 +58,9 @@ export interface MyTaskTabDef extends StatusTabDef<MyTaskTab> {
 /**
  * The four tabs, grouped by whose turn it is: the creator's (Perlu Dikerjakan, whose counter
  * turns red), the admin's, or nobody's. The backend groups them the same way
- * (my-task-query.ts), read off the admin's own tabs.
+ * (my-task-query.ts), read off the admin's own tabs, and also lists a draft in review under
+ * Perlu Dikerjakan once its H-1 link can be sent. `statuses` is what each tab's Status filter
+ * offers.
  */
 export const MY_TASK_TABS: readonly MyTaskTabDef[] = [
   { key: "all", label: "Semua", statuses: null, urgent: false, counter: false },
