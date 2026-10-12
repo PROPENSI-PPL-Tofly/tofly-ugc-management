@@ -91,7 +91,6 @@ const PERIOD: CreatorPeriod = {
   startDate: "2026-06-01",
   endDate: "2026-12-31",
   status: "active",
-  fixedRate: 4150000,
   contentQuota: 19,
   remainingEvergreenQuota: 1,
   daysBetween: 14,

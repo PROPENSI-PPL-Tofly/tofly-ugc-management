@@ -79,8 +79,6 @@ export interface CreatorPeriod {
   startDate: string;
   endDate: string;
   status: PeriodStatus;
-  /** Rupiah for the whole period; null when the API sent nothing that reads as an amount. */
-  fixedRate: number | null;
   contentQuota: number;
   remainingEvergreenQuota: number;
   /** The default interval between deadlines, in days. */
