@@ -20,6 +20,11 @@ const CONTENT_TYPES = Object.keys(CONTENT_TYPE_LABELS) as ContentType[];
 /** What an id looks like to the API: 8-4-4-4-12 hexadecimal, and nothing more. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Whether a value from the address could be an id at all, before anything is asked with it. */
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}
+
 export interface CreatorDetailParams {
   /** The contract whose content is on show; null for the newest one. */
   contract: string | null;
@@ -101,7 +106,7 @@ export function parseCreatorDetailParams(params: SearchParams): CreatorDetailPar
   const contract = single(params.contract);
 
   return {
-    contract: UUID.test(contract) ? contract : null,
+    contract: isUuid(contract) ? contract : null,
     type: listOf(CONTENT_TYPES, params.type),
     status: listOf(CONTENT_STATUSES, params.status),
     page: pageNumber(params.page),
