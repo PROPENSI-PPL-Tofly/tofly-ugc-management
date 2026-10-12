@@ -59,8 +59,8 @@ export interface MyTaskTabDef extends StatusTabDef<MyTaskTab> {
  * The four tabs, grouped by whose turn it is: the creator's (Perlu Dikerjakan, whose counter
  * turns red), the admin's, or nobody's. The backend groups them the same way
  * (my-task-query.ts), read off the admin's own tabs, and also lists a draft in review under
- * Perlu Dikerjakan once its H-1 link can be sent. `statuses` is what each tab's Status filter
- * offers.
+ * Perlu Dikerjakan once its H-1 link can be sent. `statuses` is each tab's own; what its Status
+ * filter offers is myStatusOptionsFor.
  */
 export const MY_TASK_TABS: readonly MyTaskTabDef[] = [
   { key: "all", label: "Semua", statuses: null, urgent: false, counter: false },
@@ -115,9 +115,20 @@ export function myTabOf(status: TaskStatusFilter): MyTaskTab {
   return STATUS_TAB[status];
 }
 
-/** The statuses the status filter offers on this tab. */
+/**
+ * What a tab can list beyond its own statuses: Perlu Dikerjakan also holds a draft in review
+ * once its H-1 link can be sent. Kept apart from MY_TASK_TABS, so a status still has one tab
+ * of its own (myTabOf) and only the filter's choices grow.
+ */
+const ALSO_LISTED: Partial<Record<MyTaskTab, readonly TaskStatusFilter[]>> = {
+  action: ["draft_review"],
+};
+
+/** The statuses the status filter offers on this tab: everything the tab can list. */
 export function myStatusOptionsFor(tab: MyTaskTab): readonly TaskStatusFilter[] {
-  return TAB_STATUSES[tab] ?? TASK_STATUS_FILTERS;
+  const own = TAB_STATUSES[tab];
+
+  return own ? [...own, ...(ALSO_LISTED[tab] ?? [])] : TASK_STATUS_FILTERS;
 }
 
 /** One view of Task Saya, every value checked. */
