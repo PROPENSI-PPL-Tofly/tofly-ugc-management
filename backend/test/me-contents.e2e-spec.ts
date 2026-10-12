@@ -221,6 +221,26 @@ describe('GET /me/contents (e2e)', () => {
     });
   });
 
+  it('moves a draft in review to Perlu Dikerjakan once its H-1 link is open, whatever the period', async () => {
+    const tari = await creator('tari');
+    await content(tari.contractId, 'Review due tomorrow', 'draft_review', 1);
+    await content(tari.contractId, 'Review due later', 'draft_review', 9);
+    const period = `deadlineFrom=${iso(5)}&deadlineTo=${iso(15)}`;
+
+    const toDo = await list(tari.creatorId, `?tab=to_do&${period}`);
+    const waiting = await list(tari.creatorId, `?tab=waiting_admin&${period}`);
+
+    expect(names(toDo)).toEqual(['Review due tomorrow']);
+    expect(toDo.body.items[0].actions).toEqual(['submit_video']);
+    expect(names(waiting)).toEqual(['Review due later']);
+    expect(toDo.body.tabCounts).toEqual({
+      all: 1,
+      to_do: 1,
+      waiting_admin: 1,
+      done: 0,
+    });
+  });
+
   it('searches the name whatever its case, and counts only what it finds', async () => {
     const response = await list(dina, '?q=REVIS');
 

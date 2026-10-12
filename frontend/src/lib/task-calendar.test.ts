@@ -62,6 +62,11 @@ describe("calendarGroup", () => {
     },
   );
 
+  it("puts a draft in review under Perlu Dikerjakan once it offers the creator its H-1 link", () => {
+    expect(calendarGroup({ ...task("draft_review"), actions: ["submit_video"] })).toBe("todo");
+    expect(calendarGroup({ ...task("draft_review"), actions: [] })).toBe("wait");
+  });
+
   it("puts a submitted link under Selesai", () => {
     expect(calendarGroup(task("link_submitted"))).toBe("done");
   });
