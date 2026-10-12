@@ -56,9 +56,10 @@ function setup(
 }
 
 describe('landingPath / loginErrorPath', () => {
-  it('sends an admin to the Creator Database and a creator to Task Saya', () => {
+  // The creator's home is the dashboard (PBI-7): the page `/` and the wordmark lead there too.
+  it('sends an admin to the Creator Database and a creator to their dashboard', () => {
     expect(landingPath(ADMIN)).toBe('/admin/creators');
-    expect(landingPath(CREATOR)).toBe('/creator/tasks');
+    expect(landingPath(CREATOR)).toBe('/creator/dashboard');
   });
 
   it.each(['not_authorized', 'sign_in_failed', 'cancelled'] as const)(
@@ -85,11 +86,11 @@ describe('GoogleSignInService.complete', () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it('lands a whitelisted creator on Task Saya', async () => {
+  it('lands a whitelisted creator on their dashboard', async () => {
     const { service } = setup({ resolve: () => Promise.resolve(CREATOR) });
 
     await expect(service.complete(CODE, FLOW, RESPONSE)).resolves.toBe(
-      '/creator/tasks',
+      '/creator/dashboard',
     );
   });
 
