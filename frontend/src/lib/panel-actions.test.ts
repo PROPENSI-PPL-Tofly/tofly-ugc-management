@@ -356,7 +356,11 @@ describe("actionsFor (creator)", () => {
 
     void commands[0]?.run();
 
-    expect(onCreatorAction).toHaveBeenCalledWith("submit_video");
+    // With the content the commands were chosen from, for a touchpoint that does not list it.
+    expect(onCreatorAction).toHaveBeenCalledExactlyOnceWith(
+      "submit_video",
+      expect.objectContaining({ id: CONTENT, creatorActions: ["submit_video"] }),
+    );
   });
 
   it("offers a creator nothing while the admin has the decision", () => {

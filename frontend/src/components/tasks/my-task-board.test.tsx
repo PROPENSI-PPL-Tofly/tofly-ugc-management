@@ -423,6 +423,81 @@ describe("MyTaskBoard content detail panel", () => {
     expect(screen.queryByRole("dialog", { name: /Detail Konten|Evg_1/ })).toBeNull();
   });
 
+  // A link can name a content the open tab or page does not list; its button has to work too.
+  it("opens the submit modal for a content the list does not hold, from what the panel shows", async () => {
+    window.history.pushState({}, "", "/creator/tasks?tab=done&content=content-9");
+    fetchContentDetail.mockResolvedValue({
+      ...panelDetail(),
+      id: "content-9",
+      name: "Konten dari tautan",
+      deadline: "2099-12-31",
+      brief: "Brief dari panel",
+      status: "draft_approved" as const,
+    });
+
+    render(<MyTaskBoard tasks={[task()]} tab="done" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link Video" }));
+
+    const modal = await screen.findByRole("dialog", { name: "video-modal" });
+    expect(modal).toHaveTextContent("content-9|Konten dari tautan|2099-12-31");
+    expect(modal).toHaveTextContent("brief:Brief dari panel|notes:-");
+    expect(window.location.search).toBe("?tab=done");
+  });
+
+  it("hands a resubmit from such a link the admin's latest revision note", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-9");
+    fetchContentDetail.mockResolvedValue({
+      ...panelDetail(),
+      id: "content-9",
+      name: "Konten dari tautan",
+      status: "draft_revision" as const,
+      creatorActions: ["resubmit_draft"] as const,
+      // Newest first, as the API sends them.
+      events: [
+        {
+          id: "e3",
+          type: "revision_requested" as const,
+          at: "2026-10-09T03:00:00.000Z",
+          actor: { name: "Admin", role: "admin" as const },
+          payload: { note: "Perbaiki hook" },
+        },
+        {
+          id: "e2",
+          type: "draft_submitted" as const,
+          at: "2026-10-08T03:00:00.000Z",
+          actor: { name: "Rangga Pratama", role: "creator" as const },
+          payload: { version: 2, link: "https://drive.google.com/file/d/x" },
+        },
+        {
+          id: "e1",
+          type: "revision_requested" as const,
+          at: "2026-10-07T03:00:00.000Z",
+          actor: { name: "Admin", role: "admin" as const },
+          payload: { note: "Catatan lama" },
+        },
+      ],
+    });
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Resubmit Draft" }));
+
+    const modal = await screen.findByRole("dialog", { name: "draft-modal" });
+    expect(modal).toHaveTextContent("action:resubmit_draft");
+    expect(modal).toHaveTextContent("notes:Perbaiki hook");
+  });
+
+  it("keeps the row's own facts when the list does hold the content", async () => {
+    fetchContentDetail.mockResolvedValue({ ...panelDetail(), name: "Nama dari panel" });
+    render(<MyTaskBoard tasks={[task({ brief: "Brief dari baris" })]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
+
+    const modal = await screen.findByRole("dialog", { name: "video-modal" });
+    expect(modal).toHaveTextContent("content-1|Evg_1_RanggaPratama_12102026|2026-10-12");
+    expect(modal).toHaveTextContent("brief:Brief dari baris");
+  });
+
   it("opens the panel straight from a ?content= link, the way a notification would", async () => {
     window.history.pushState({}, "", "/creator/tasks?content=content-1");
     fetchContentDetail.mockResolvedValue(panelDetail());
@@ -515,18 +590,6 @@ describe("MyTaskBoard content detail panel", () => {
     });
   });
 
-  it("closes the panel without a modal when the link points at a task the list does not hold", async () => {
-    window.history.pushState({}, "", "/creator/tasks?content=content-404");
-    fetchContentDetail.mockResolvedValue(panelDetail());
-
-    render(<MyTaskBoard tasks={[task()]} />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-  });
 });
 
 describe("MyTaskBoard as a calendar", () => {
