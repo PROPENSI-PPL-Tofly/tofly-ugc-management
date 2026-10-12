@@ -5,6 +5,7 @@
 import {
   buildCreatorsQuery,
   NO_FILTERS,
+  PAGE_SIZE,
   type CreatorFilterState,
   type CreatorListResponse,
 } from "./creators";
@@ -28,6 +29,7 @@ function withoutTrailingSlash(url: string): string {
 export async function fetchCreators(
   page: number,
   filters: CreatorFilterState = NO_FILTERS,
+  pageSize: number = PAGE_SIZE,
 ): Promise<CreatorListResponse> {
   const backendUrl = process.env.BACKEND_URL;
 
@@ -35,7 +37,7 @@ export async function fetchCreators(
     throw new Error("BACKEND_URL is not configured");
   }
 
-  const query = buildCreatorsQuery({ ...filters, page });
+  const query = buildCreatorsQuery({ ...filters, page, pageSize });
 
   // The Creator Database is admin-only: the request carries the browser's session, and only it.
   const cookie = await appSessionCookieHeader();

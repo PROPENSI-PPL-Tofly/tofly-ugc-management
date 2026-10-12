@@ -213,7 +213,12 @@ describe("ContentDetailPanel", () => {
     const button = await screen.findByRole("button", { name: "Submit Link (H-1)" });
     fireEvent.click(button);
 
-    expect(onCreatorAction).toHaveBeenCalledWith("submit_video");
+    // With the content it shows, so the touchpoint can open a modal for a content its own
+    // list does not hold.
+    expect(onCreatorAction).toHaveBeenCalledExactlyOnceWith(
+      "submit_video",
+      expect.objectContaining({ status: "draft_review", deadline: "2099-12-31" }),
+    );
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   });
 

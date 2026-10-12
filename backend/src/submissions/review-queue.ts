@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { MAX_SEARCH_LENGTH } from '../creators/filters.js';
 import { REVIEWABLE_STATUSES } from './draft-review.js';
 
 export type QueueStatus = (typeof REVIEWABLE_STATUSES)[number];
@@ -6,8 +7,8 @@ export type QueueContentType = 'evergreen' | 'specific';
 
 const CONTENT_TYPES: readonly string[] = ['evergreen', 'specific'];
 
-/** Nobody searches for a paragraph; a cap keeps a hostile query from driving the scan. */
-export const MAX_SEARCH_LENGTH = 100;
+// The same cap every list's search has, defined once beside the Creator Database's filters.
+export { MAX_SEARCH_LENGTH };
 
 /** The raw query values, straight from the request. */
 export interface QueueQuery {

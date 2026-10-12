@@ -429,11 +429,12 @@ describe('toContentDetail', () => {
 
   it('opens the H-1 video hand-in by the Jakarta day too', () => {
     // 18:00 UTC on the 28th is 01:00 on the 29th in Jakarta, the day before the deadline.
-    const before = toContentDetail(row(), on('2026-09-28'));
-    const dayBefore = toContentDetail(row(), new Date('2026-09-28T18:00:00.000Z'));
+    const inReview = row({ status: 'draft_review' });
+    const before = toContentDetail(inReview, on('2026-09-28'));
+    const dayBefore = toContentDetail(inReview, new Date('2026-09-28T18:00:00.000Z'));
 
-    expect(before.creatorActions).toEqual(['submit_draft']);
-    expect(dayBefore.creatorActions).toEqual(['submit_draft', 'submit_video']);
+    expect(before.creatorActions).toEqual([]);
+    expect(dayBefore.creatorActions).toEqual(['submit_video']);
   });
 
   it('offers the creator hand-in buttons a finished content no longer has', () => {

@@ -1,22 +1,23 @@
 import {
   actionsFor,
+  creatorActionLabel,
   submitRejection,
   submitRevision,
+  type PanelActionFacts,
   type PanelActionPorts,
 } from "./panel-actions";
-import type { ContentDetail } from "./content-detail";
 
 const SUBMISSION = "22222222-2222-2222-2222-222222222222";
 const CONTENT = "11111111-1111-1111-1111-111111111111";
 
-type Facts = Pick<
-  ContentDetail,
-  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status" | "deadline"
->;
+type Facts = PanelActionFacts;
 
 function facts(overrides: Partial<Facts> = {}): Facts {
   return {
     id: CONTENT,
+    name: "Tofly untuk UMKM",
+    brief: "",
+    events: [],
     deadline: "2026-10-11",
     waitingOn: "admin",
     latestSubmissionId: SUBMISSION,
@@ -253,7 +254,25 @@ describe("submitRejection", () => {
   });
 });
 
+describe("creatorActionLabel", () => {
+  // 10 Oct 2026, 12.00 WIB.
+  const NOW = new Date("2026-10-10T05:00:00.000Z");
+
+  it.each([
+    ["submit_draft", "scheduled", "2026-10-11", "Submit Draft"],
+    ["resubmit_draft", "draft_revision", "2026-10-01", "Resubmit Draft"],
+    ["submit_video", "draft_approved", "2026-10-01", "Submit Link Video"],
+    ["submit_video", "draft_review", "2026-10-11", "Submit Link (H-1)"],
+    ["submit_video", "draft_review", "2026-10-09", "Submit Link (Terlambat)"],
+  ] as const)("words %s on a %s content due %s as %s", (action, status, deadline, label) => {
+    expect(creatorActionLabel(action, { status, deadline }, NOW)).toBe(label);
+  });
+});
+
 describe("actionsFor (creator)", () => {
+  // 10 Oct 2026, 12.00 WIB: the default deadline (11 Oct) is H-1.
+  const NOW = new Date("2026-10-10T05:00:00.000Z");
+
   it("names the first hand-in, the resubmit and the link by what the backend allowed", () => {
     const cases = [
       { actions: ["submit_draft"] as const, status: "scheduled" as const, label: "Submit Draft" },
@@ -273,6 +292,7 @@ describe("actionsFor (creator)", () => {
         }),
         state: idle,
         ports: ports(),
+        now: NOW,
       });
 
       expect(commands.map((command) => [command.kind, command.label])).toEqual([
@@ -280,9 +300,6 @@ describe("actionsFor (creator)", () => {
       ]);
     }
   });
-
-  // 10 Oct 2026, 12.00 WIB: the default deadline (11 Oct) is H-1.
-  const NOW = new Date("2026-10-10T05:00:00.000Z");
 
   it.each([
     ["2026-10-11", "Submit Link (H-1)"],
@@ -339,7 +356,11 @@ describe("actionsFor (creator)", () => {
 
     void commands[0]?.run();
 
-    expect(onCreatorAction).toHaveBeenCalledWith("submit_video");
+    // With the content the commands were chosen from, for a touchpoint that does not list it.
+    expect(onCreatorAction).toHaveBeenCalledExactlyOnceWith(
+      "submit_video",
+      expect.objectContaining({ id: CONTENT, creatorActions: ["submit_video"] }),
+    );
   });
 
   it("offers a creator nothing while the admin has the decision", () => {

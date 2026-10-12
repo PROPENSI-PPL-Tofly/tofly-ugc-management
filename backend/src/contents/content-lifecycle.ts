@@ -26,13 +26,15 @@ export function isContentStatus(value: unknown): value is ContentStatus {
   return (CONTENT_STATUSES as readonly unknown[]).includes(value);
 }
 
-// Where each status may go next. A video link may skip the draft approval from H-1 onward
-// (task-actions.ts decides when), so every unfinished committed status reaches link_submitted.
+// Where each status may go next. A video link follows an approved draft; from H-1 onward
+// (task-actions.ts decides when) it may also skip the approval of a draft that is waiting for
+// review. It never skips the draft itself, so content with no draft handed in, or with a
+// revision still owed, has no arrow to link_submitted (PBI-7 7.2).
 const NEXT_STATUSES: Record<ContentStatus, readonly ContentStatus[]> = {
   pending: ['scheduled'],
-  scheduled: ['draft_review', 'link_submitted'],
+  scheduled: ['draft_review'],
   draft_review: ['draft_approved', 'draft_revision', 'link_submitted'],
-  draft_revision: ['draft_review', 'link_submitted'],
+  draft_revision: ['draft_review'],
   draft_approved: ['link_submitted'],
   // Stryker disable next-line ArrayDeclaration: equivalent mutant. The mutation puts a string that is not a status in this list, and canTransition only ever looks a status up in it, so no call can tell the difference.
   link_submitted: [],

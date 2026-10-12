@@ -4,10 +4,11 @@ import type { Principal } from './ports.js';
 export type SignInError = 'not_authorized' | 'sign_in_failed' | 'cancelled';
 
 // Fixed, same-origin paths only. Nothing from the request decides where a sign-in lands,
-// so the callback cannot be turned into an open redirect.
+// so the callback cannot be turned into an open redirect. Each is the role's home as the
+// frontend names it (lib/session.ts), so signing in lands where `/` and the wordmark lead.
 const LANDING: Record<Principal['role'], string> = {
   admin: '/admin/creators',
-  creator: '/creator/tasks',
+  creator: '/creator/dashboard',
 };
 
 /** Each role's first page after signing in (PRD 3.1: "the corresponding view loads"). */

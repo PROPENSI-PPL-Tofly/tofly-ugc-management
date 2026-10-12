@@ -54,14 +54,27 @@ export interface PanelActionPorts {
   rejectProposal?: (contentId: string, reason: string) => Promise<void>;
   /** Opens the rejection reason form; like revising, rejecting starts with a form. */
   openRejectForm?: () => void;
-  /** The touchpoint owns the Submit Draft / Submit Link Video modals. */
-  onCreatorAction?: (action: MyTaskAction) => void;
+  /**
+   * The touchpoint owns the Submit Draft / Submit Link Video modals. The panel hands over the
+   * content it shows, so a modal can open for a content the touchpoint's own list does not
+   * hold (a link to it, on another tab or page).
+   */
+  onCreatorAction?: (action: MyTaskAction, detail: PanelActionFacts) => void;
 }
 
 /** The step's facts the command list is chosen from. */
 export type PanelActionFacts = Pick<
   ContentDetail,
-  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status" | "deadline"
+  | "id"
+  | "waitingOn"
+  | "latestSubmissionId"
+  | "creatorActions"
+  | "status"
+  | "deadline"
+  // What a submit modal shows of the content, handed on with the creator's action.
+  | "name"
+  | "brief"
+  | "events"
 >;
 
 type CreatorLabelCase = "approved" | "grace" | "late";
@@ -79,11 +92,26 @@ const CREATOR_LABELS: Record<MyTaskAction, Record<CreatorLabelCase, string>> = {
   },
 };
 
+/** What a creator's command is named after: where the content stands and when it is due. */
+export type CreatorLabelFacts = Pick<ContentDetail, "status" | "deadline">;
+
 /** Which wording the creator's commands take for this step, on the given day. */
-function labelCase(detail: PanelActionFacts, now: Date): CreatorLabelCase {
+function labelCase(detail: CreatorLabelFacts, now: Date): CreatorLabelCase {
   if (detail.status === "draft_approved") return "approved";
   const days = daysUntil(detail.deadline, now);
   return days !== null && days < 0 ? "late" : "grace";
+}
+
+/**
+ * How a creator's action reads on the given day. The detail panel and the Task Saya table both
+ * name their buttons from here, so the same step is never offered under two names.
+ */
+export function creatorActionLabel(
+  action: MyTaskAction,
+  detail: CreatorLabelFacts,
+  now: Date,
+): string {
+  return CREATOR_LABELS[action][labelCase(detail, now)];
 }
 
 const CREATOR_VARIANTS: Record<MyTaskAction, Variant> = {
@@ -153,11 +181,11 @@ export function actionsFor(input: {
 
   return detail.creatorActions.map((action) => ({
     kind: action,
-    label: CREATOR_LABELS[action][labelCase(detail, now)],
+    label: creatorActionLabel(action, detail, now),
     variant: CREATOR_VARIANTS[action],
     canRun: () => !state().busy,
     run: () => {
-      ports.onCreatorAction?.(action);
+      ports.onCreatorAction?.(action, detail);
     },
   }));
 }

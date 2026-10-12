@@ -8,7 +8,7 @@ export const APP_NAME = "Tofly Creator Management System";
 
 const HOME: Record<Role, string> = {
   admin: "/admin/creators",
-  creator: "/creator/tasks",
+  creator: "/creator/dashboard",
 };
 
 /** Where each role starts: the page `/` and a signed-in visit to `/login` send them to. */

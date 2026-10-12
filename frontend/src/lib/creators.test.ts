@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { PAGE_SIZE, parsePage, parseFilters, buildCreatorsQuery } from "./creators";
+import { PAGE_SIZE, NO_FILTERS, parsePage, parseFilters, buildCreatorsQuery } from "./creators";
 import { fetchCreators } from "./creators.server";
 
 vi.mock("next/headers", () => ({
@@ -87,6 +87,20 @@ describe("fetchCreators", () => {
 
     expect(fetchSpy.mock.calls[0][0]).toBe(
       `http://backend:3001/creators?page=1&pageSize=${PAGE_SIZE}`,
+    );
+  });
+
+  it("takes a page size its caller asks for, still defaulting to the usual one", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
+
+    await fetchCreators(1, NO_FILTERS, 50);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://backend:3001/creators?page=1&pageSize=50",
+      { cache: "no-store" },
     );
   });
 

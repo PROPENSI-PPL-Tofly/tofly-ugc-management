@@ -126,7 +126,7 @@ insert into seed_contents values
   ('nabila@example.com', 105, 'Paket sampai cepat',            'evergreen', -47, 'link_submitted', -49, 1),
   ('nabila@example.com', 105, 'Kirim hadiah ke luar kota',     'specific',  -33, 'link_submitted', -30, 2),
   ('nabila@example.com', 105, 'Bungkus paket aman',            'evergreen', -19, 'link_submitted', -19, 1),
-  ('nabila@example.com', 105, 'Tofly COD',                     'specific',   -5, 'link_submitted',  -3, 0),
+  ('nabila@example.com', 105, 'Tofly COD',                     'specific',   -5, 'link_submitted',  -3, 1),
   ('nabila@example.com', 105, 'Jadwal pickup',                 'evergreen',  23, 'scheduled',      null, 0),
   -- Salsa: finished first period, plus a running second one with one delivery so far.
   ('salsa@example.com',  -40, 'Pengalaman pertama Tofly',      'evergreen', -380, 'link_submitted', -380, 1),
@@ -228,8 +228,8 @@ join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contra
 join contents n on n.contract_id = k.id and n.name = s.name
 cross join lateral generate_series(1, s.draft_count) as g (n);
 
--- Two links handed in inside the H-1 window without an approved draft: Nabila's Tofly COD late
--- and with no draft at all, Salsa's Paket ke pelosok on time after a single unreviewed draft.
+-- Two links handed in inside the H-1 window while their one draft still waited for review, the
+-- only way a link skips an approval: Nabila's Tofly COD late, Salsa's Paket ke pelosok on time.
 update contents n set approval_bypassed = true
 from contracts k
 join creators c on c.id = k.creator_id

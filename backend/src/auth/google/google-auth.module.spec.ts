@@ -149,7 +149,7 @@ describe('GoogleAuthModule', () => {
           newFlow(),
           response as unknown as Response,
         ),
-    ).resolves.toBe('/creator/tasks');
+    ).resolves.toBe('/creator/dashboard');
 
     expect(createSession).toHaveBeenCalledWith({
       data: expect.objectContaining({
