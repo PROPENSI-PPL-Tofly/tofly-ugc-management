@@ -6,6 +6,7 @@ import {
   PeriodFilter,
   ResetFilters,
   SearchBox,
+  offeredPicks,
 } from "@/components/filters/filter-controls";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
@@ -37,9 +38,12 @@ export function ContentPlanFilters({
     label: CONTENT_STATUS_LABELS[value],
   }));
 
-  /** A multi-select parameter as the array the chips hold, empty when it is not applied. */
-  function listParam(key: string): string[] {
-    const raw = param(key);
+  /**
+   * The picked creators as the address holds them. Not narrowed to the loaded names: the roster
+   * is capped, so a creator picked beyond it is still a pick.
+   */
+  function pickedCreators(): string[] {
+    const raw = param("creator");
     return raw === "all" ? [] : raw.split(",").filter((part) => part !== "");
   }
 
@@ -52,11 +56,12 @@ export function ContentPlanFilters({
     resetKeeping(state.tab === "all" ? {} : { tab: state.tab });
   }
 
+  // Read from what the address holds, offered or not, so Reset is there to clear it all.
   const isFilteredNow =
     search !== "" ||
-    listParam("creator").length > 0 ||
-    listParam("type").length > 0 ||
-    listParam("status").length > 0 ||
+    param("creator") !== "all" ||
+    param("type") !== "all" ||
+    param("status") !== "all" ||
     param("overdue") !== "all" ||
     param("period") !== "all";
 
@@ -70,14 +75,14 @@ export function ContentPlanFilters({
       <MultiSelect
         label="Creator"
         options={creatorOptions}
-        selected={listParam("creator")}
+        selected={pickedCreators()}
         onChange={(next) => setListParam("creator", next)}
       />
 
       <MultiSelect
         label="Tipe"
         options={typeOptions}
-        selected={listParam("type")}
+        selected={offeredPicks(param("type"), typeOptions)}
         onChange={(next) => setListParam("type", next)}
       />
 
@@ -85,7 +90,7 @@ export function ContentPlanFilters({
         <MultiSelect
           label="Status"
           options={statusOptions}
-          selected={listParam("status")}
+          selected={offeredPicks(param("status"), statusOptions)}
           onChange={(next) => setListParam("status", next)}
         />
       ) : null}

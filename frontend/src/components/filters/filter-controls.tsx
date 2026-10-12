@@ -26,6 +26,18 @@ const PERIOD_OPTIONS: readonly FilterOption[] = [
   { value: "custom", label: "Pilih tanggal…" },
 ];
 
+/**
+ * A comma-separated multi-select parameter as the picks its control offers. The address can
+ * name more (a typed or stale value, a status only another tab holds); the list ignores those,
+ * so they are no pick in the bar either: no chip, and the next change leaves them behind.
+ */
+export function offeredPicks(raw: string, options: readonly FilterOption[]): string[] {
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => options.some((option) => option.value === part));
+}
+
 export const FILTER_FIELD =
   "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink";
 

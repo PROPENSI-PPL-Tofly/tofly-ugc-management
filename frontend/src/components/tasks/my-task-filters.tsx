@@ -6,6 +6,7 @@ import {
   PeriodFilter,
   ResetFilters,
   SearchBox,
+  offeredPicks,
 } from "@/components/filters/filter-controls";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_TYPE_LABELS } from "@/lib/content-labels";
@@ -45,18 +46,6 @@ export function MyTaskFilters({
     label: taskStatusLabel(value),
   }));
 
-  /**
-   * A multi-select parameter as the picks its control offers. The address can name more (a
-   * typed or stale value, a status only another tab holds); the list ignores those, so they
-   * are no pick here either: no chip, and the next change leaves them behind.
-   */
-  function picked(key: string, options: readonly MultiSelectOption[]): string[] {
-    return param(key)
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => options.some((option) => option.value === part));
-  }
-
   // Read from what the address holds, offered or not, so Reset is there to clear it all.
   const isFilteredNow =
     search !== "" ||
@@ -74,7 +63,7 @@ export function MyTaskFilters({
       <MultiSelect
         label="Tipe"
         options={TYPE_OPTIONS}
-        selected={picked("type", TYPE_OPTIONS)}
+        selected={offeredPicks(param("type"), TYPE_OPTIONS)}
         onChange={(next) => setParam("type", next.join(","))}
       />
 
@@ -82,7 +71,7 @@ export function MyTaskFilters({
         <MultiSelect
           label="Status"
           options={statusOptions}
-          selected={picked("status", statusOptions)}
+          selected={offeredPicks(param("status"), statusOptions)}
           onChange={(next) => setParam("status", next.join(","))}
         />
       ) : null}
