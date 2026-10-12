@@ -70,7 +70,6 @@ type DetailContentRow = {
   video_link: string | null;
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
-  _count: { submissions: number };
   submissions: DetailSubmissionRow[];
 };
 
@@ -140,9 +139,6 @@ function detailRow(): DetailCreatorRow {
             video_link: 'https://example.com/video-1',
             video_submitted_at: day(-31),
             approval_bypassed: false,
-            _count: {
-              submissions: 2,
-            },
             submissions: [
               {
                 id: 'submission-1',
@@ -167,9 +163,6 @@ function detailRow(): DetailCreatorRow {
             video_link: null,
             video_submitted_at: null,
             approval_bypassed: false,
-            _count: {
-              submissions: 0,
-            },
             submissions: [],
           },
         ],
@@ -314,7 +307,6 @@ describe('CreatorsService', () => {
       video_link: null,
       video_submitted_at: null,
       approval_bypassed: false,
-      _count: { submissions: 0 },
       submissions: [],
     });
     prisma.creators.findUnique.mockResolvedValue(detail);
@@ -336,7 +328,6 @@ describe('CreatorsService', () => {
         video_link: 'https://example.com/video-late',
         video_submitted_at: day(-8),
         approval_bypassed: true,
-        _count: { submissions: 0 },
         submissions: [],
       },
       {
@@ -348,7 +339,6 @@ describe('CreatorsService', () => {
         video_link: null,
         video_submitted_at: null,
         approval_bypassed: false,
-        _count: { submissions: 2 },
         submissions: [
           { id: 'submission-early', link: 'https://example.com/d1', revision_notes: null, created_at: day(-6) },
           { id: 'submission-late', link: 'https://example.com/d2', revision_notes: 'Ulang', created_at: day(-3) },
@@ -385,6 +375,19 @@ describe('CreatorsService', () => {
         select: expect.objectContaining({ created_at: true }),
       },
     });
+  });
+
+  it('counts a detail content’s hand-ins from the drafts it loads, without a second count', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    const contents =
+      prisma.creators.findUnique.mock.calls[0][0].select.contracts.select.contents;
+    expect(contents.select).not.toHaveProperty('_count');
+    // content-1 has two hand-ins, content-2 none: one revision over one handed-in content.
+    expect(result.performance.avgRevisions).toBe(1);
+    expect(result.contractHistory[0].performance.avgRevisions).toBe(1);
   });
 
   it('joins the middle name into the display name', async () => {
@@ -729,7 +732,6 @@ describe('CreatorsService', () => {
           video_link: 'https://example.com/video-old',
           video_submitted_at: day(-151),
           approval_bypassed: false,
-          _count: { submissions: 1 },
           submissions: [
             { id: 'submission-old', link: 'https://example.com/draft-old', revision_notes: null, created_at: day(-152) },
           ],
