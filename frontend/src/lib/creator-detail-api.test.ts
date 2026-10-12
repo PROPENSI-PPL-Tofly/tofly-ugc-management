@@ -1,96 +1,146 @@
+import type { RawContentList } from "./content-list-api";
 import { DEFAULT_CREATOR_DETAIL_PARAMS, type CreatorDetailParams } from "./creator-detail";
 import {
-  toCreatorDetailQuery,
+  openContractId,
+  toCreatorContentsQuery,
   toCreatorDetailView,
-  type RawCreatorContract,
   type RawCreatorDetail,
+  type RawCreatorPeriod,
 } from "./creator-detail-api";
 
-const NEWEST = "33333333-3333-4333-8333-333333333333";
-const MIDDLE = "22222222-2222-4222-8222-222222222222";
 const OLDEST = "11111111-1111-4111-8111-111111111111";
+const MIDDLE = "22222222-2222-4222-8222-222222222222";
+const NEWEST = "33333333-3333-4333-8333-333333333333";
 const SOMEONE_ELSES = "99999999-9999-4999-8999-999999999999";
 
-function contract(id: string, extra: Partial<RawCreatorContract> = {}): RawCreatorContract {
+function period(id: string, extra: Partial<RawCreatorPeriod> = {}): RawCreatorPeriod {
   return {
     id,
+    periodNumber: 3,
     type: "regular",
     startDate: "2026-10-01",
     endDate: "2027-03-31",
     status: "active",
-    fixedRate: 3300000,
     contentQuota: 6,
-    remainingEvergreenQuota: 4,
     daysBetween: 14,
-    contents: { items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 },
+    contents: [{ type: "evergreen" }, { type: "evergreen" }, { type: "specific" }],
     ...extra,
   };
 }
 
-// GET /creators/:id as subtask 4.1 describes it (SCRUM-139): contracts newest first, each with
-// one page of its content nested inside.
+// GET /creators/:id as subtask 4.1 answers it (SCRUM-139, #91): every contract period, oldest
+// first, each with all of its contents.
 const RAW: RawCreatorDetail = {
   id: "creator-1",
   name: "Lestari Wulandari",
   email: "lestari@example.com",
-  instagramUsername: "lestariw",
-  tiktokUsername: "lestari.w",
-  contracts: [
-    contract(NEWEST, {
-      contents: {
-        items: [
-          {
-            id: "content-7",
-            name: "Evg_1_LestariWulandari_15102026",
-            type: "evergreen",
-            deadline: "2026-10-15",
-            status: "draft_revision",
-            tags: ["overdue"],
-            revisionCount: 2,
-          },
-        ],
-        page: 2,
-        pageSize: 10,
-        total: 11,
-        totalPages: 2,
-      },
+  socials: { instagram: "lestariw", tiktok: "lestari.w" },
+  contractHistory: [
+    period(OLDEST, {
+      periodNumber: 1,
+      startDate: "2025-09-01",
+      endDate: "2026-02-28",
+      status: "expired",
+      contents: [],
     }),
-    contract(MIDDLE, {
+    period(MIDDLE, {
+      periodNumber: 2,
       type: "probation",
       startDate: "2026-03-01",
       endDate: "2026-08-31",
       status: "expired",
-      fixedRate: 1350000,
       contentQuota: 3,
-      remainingEvergreenQuota: 0,
+      daysBetween: 7,
+      contents: [{ type: "evergreen" }, { type: "evergreen" }, { type: "evergreen" }],
     }),
-    contract(OLDEST, { startDate: "2025-09-01", endDate: "2026-02-28", status: "expired" }),
+    period(NEWEST),
   ],
+};
+
+// GET /contents?contract=… as subtask 5.1 answers it: one page of a period's contents.
+const CONTENTS: RawContentList = {
+  items: [
+    {
+      id: "content-7",
+      name: "Evg_1_LestariWulandari_15102026",
+      creatorId: "creator-1",
+      creatorName: "Lestari Wulandari",
+      type: "evergreen",
+      deadline: "2026-10-15",
+      status: "draft_revision",
+      tags: ["overdue"],
+      revisionCount: 2,
+    },
+  ],
+  page: 2,
+  pageSize: 10,
+  total: 11,
+  totalPages: 2,
+  tabCounts: { all: 11, needs_approval: 1, waiting_creator: 9, done: 1 },
 };
 
 const BARE: CreatorDetailParams = DEFAULT_CREATOR_DETAIL_PARAMS;
 
-describe("toCreatorDetailQuery", () => {
-  it("asks for the first page and nothing else on the bare view", () => {
-    expect(toCreatorDetailQuery(BARE).toString()).toBe("page=1");
+describe("openContractId", () => {
+  it("is the newest contract when the address names none", () => {
+    expect(openContractId(RAW, BARE)).toBe(NEWEST);
   });
 
-  it("names the open contract, one parameter per pick, and the page", () => {
-    const query = toCreatorDetailQuery({
-      contract: NEWEST,
+  it("is the contract the address names, when it is this creator's", () => {
+    expect(openContractId(RAW, { ...BARE, contract: MIDDLE })).toBe(MIDDLE);
+  });
+
+  it("finds the contract whichever case the address wrote its id in, and answers the API's own", () => {
+    const lower = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const raw = { ...RAW, contractHistory: [period(lower), period(NEWEST)] };
+
+    expect(openContractId(raw, { ...BARE, contract: lower.toUpperCase() })).toBe(lower);
+  });
+
+  it("falls back to the newest when the named contract is not this creator's", () => {
+    expect(openContractId(RAW, { ...BARE, contract: SOMEONE_ELSES })).toBe(NEWEST);
+  });
+
+  it("is the creator's only contract when there is one", () => {
+    expect(openContractId({ ...RAW, contractHistory: [period(OLDEST)] }, BARE)).toBe(OLDEST);
+  });
+
+  it("is nothing for a creator without any contract, whatever the address names", () => {
+    const raw = { ...RAW, contractHistory: [] };
+
+    expect(openContractId(raw, BARE)).toBeNull();
+    expect(openContractId(raw, { ...BARE, contract: NEWEST })).toBeNull();
+  });
+});
+
+describe("toCreatorContentsQuery", () => {
+  it("asks for the first page of the contract on the bare view", () => {
+    expect(toCreatorContentsQuery(NEWEST, BARE).toString()).toBe(`contract=${NEWEST}&page=1`);
+  });
+
+  it("names the contract, one parameter per pick, and the page", () => {
+    const query = toCreatorContentsQuery(MIDDLE, {
+      contract: MIDDLE,
       type: ["evergreen", "specific"],
       status: ["scheduled", "draft_review"],
       page: 3,
     });
 
-    expect(query.get("contract")).toBe(NEWEST);
+    expect(query.getAll("contract")).toEqual([MIDDLE]);
     expect(query.getAll("type")).toEqual(["evergreen", "specific"]);
     expect(query.getAll("status")).toEqual(["scheduled", "draft_review"]);
     expect(query.get("page")).toBe("3");
   });
 
+  it("asks for the contract it is handed, not the one the address named", () => {
+    const query = toCreatorContentsQuery(NEWEST, { ...BARE, contract: SOMEONE_ELSES });
+
+    expect(query.getAll("contract")).toEqual([NEWEST]);
+    expect(query.toString()).not.toContain(SOMEONE_ELSES);
+  });
+
   it("sends each pick once however often the address repeats it", () => {
-    const query = toCreatorDetailQuery({
+    const query = toCreatorContentsQuery(NEWEST, {
       ...BARE,
       type: ["evergreen", "evergreen"],
       status: ["scheduled", "scheduled", "pending"],
@@ -99,11 +149,17 @@ describe("toCreatorDetailQuery", () => {
     expect(query.getAll("type")).toEqual(["evergreen"]);
     expect(query.getAll("status")).toEqual(["scheduled", "pending"]);
   });
+
+  it("sends nothing the Content Plan's own filters would: no tab, search or sort", () => {
+    const query = toCreatorContentsQuery(NEWEST, { ...BARE, type: ["specific"], page: 2 });
+
+    expect([...query.keys()].sort()).toEqual(["contract", "page", "type"]);
+  });
 });
 
 describe("toCreatorDetailView", () => {
-  it("names the creator with the handles they have", () => {
-    expect(toCreatorDetailView(RAW, BARE).creator).toEqual({
+  it("names the creator with the accounts they have", () => {
+    expect(toCreatorDetailView(RAW, CONTENTS, BARE).creator).toEqual({
       id: "creator-1",
       name: "Lestari Wulandari",
       email: "lestari@example.com",
@@ -111,20 +167,37 @@ describe("toCreatorDetailView", () => {
     });
   });
 
-  it.each([null, "", undefined])("leaves out a handle that arrives as %j", (missing) => {
-    const raw = {
-      ...RAW,
-      instagramUsername: missing,
-      tiktokUsername: missing,
-    } as unknown as RawCreatorDetail;
-
-    expect(toCreatorDetailView(raw, BARE).creator.socials).toEqual({});
+  it.each([
+    ["only Instagram", { instagram: "lestariw" }, { instagram: "lestariw" }],
+    ["only TikTok", { tiktok: "lestari.w" }, { tiktok: "lestari.w" }],
+    ["no account", {}, {}],
+    ["an account left empty", { instagram: "", tiktok: "lestari.w" }, { tiktok: "lestari.w" }],
+  ])("lists what a creator with %s has", (_, socials, shown) => {
+    expect(toCreatorDetailView({ ...RAW, socials }, CONTENTS, BARE).creator.socials).toEqual(shown);
   });
 
-  it("lists the periods newest first, numbered from the oldest", () => {
-    const { periods } = toCreatorDetailView(RAW, BARE);
+  it("carries nothing but the profile's own fields, whatever else the API answers with", () => {
+    const answered = {
+      ...RAW,
+      phoneNumber: "+62811111111",
+      accessRevokeDate: null,
+      performance: { onTimeRate: 80 },
+      contents: [],
+      drafts: [],
+    } as unknown as RawCreatorDetail;
 
-    expect(periods.map((period) => [period.contractId, period.periodNumber])).toEqual([
+    expect(Object.keys(toCreatorDetailView(answered, CONTENTS, BARE).creator).sort()).toEqual([
+      "email",
+      "id",
+      "name",
+      "socials",
+    ]);
+  });
+
+  it("lists the periods newest first, under the numbers the API gave them", () => {
+    const { periods } = toCreatorDetailView(RAW, CONTENTS, BARE);
+
+    expect(periods.map((entry) => [entry.contractId, entry.periodNumber])).toEqual([
       [NEWEST, 3],
       [MIDDLE, 2],
       [OLDEST, 1],
@@ -132,48 +205,60 @@ describe("toCreatorDetailView", () => {
   });
 
   it("carries each contract's own terms", () => {
-    expect(toCreatorDetailView(RAW, BARE).periods[1]).toEqual({
+    expect(toCreatorDetailView(RAW, CONTENTS, BARE).periods[1]).toEqual({
       contractId: MIDDLE,
       periodNumber: 2,
       type: "probation",
       startDate: "2026-03-01",
       endDate: "2026-08-31",
       status: "expired",
-      fixedRate: 1350000,
       contentQuota: 3,
       remainingEvergreenQuota: 0,
-      daysBetween: 14,
+      daysBetween: 7,
     });
   });
 
-  it("opens the newest contract when the address names none", () => {
-    expect(toCreatorDetailView(RAW, BARE).selected?.contractId).toBe(NEWEST);
+  it.each([
+    ["some of the quota is planned", 6, ["evergreen", "evergreen", "specific"], 4],
+    ["none of it is planned", 6, ["specific", "specific"], 6],
+    ["the period has no content", 6, [], 6],
+    ["all of it is planned", 3, ["evergreen", "evergreen", "evergreen"], 0],
+    ["more Evergreen is planned than the quota holds", 2, ["evergreen", "evergreen", "evergreen"], 0],
+  ] as const)(
+    "counts the Evergreen quota still free when %s",
+    (_, contentQuota, types, remaining) => {
+      const raw = {
+        ...RAW,
+        contractHistory: [
+          period(NEWEST, { contentQuota, contents: types.map((type) => ({ type })) }),
+        ],
+      };
+
+      expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.remainingEvergreenQuota).toBe(
+        remaining,
+      );
+    },
+  );
+
+  it("opens the newest period when the address names none", () => {
+    expect(toCreatorDetailView(RAW, CONTENTS, BARE).selected?.contractId).toBe(NEWEST);
   });
 
-  it("opens the contract the address names", () => {
-    const view = toCreatorDetailView(RAW, { ...BARE, contract: MIDDLE });
+  it("opens the period the address names", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, { ...BARE, contract: MIDDLE });
 
     expect(view.selected?.contractId).toBe(MIDDLE);
     expect(view.selected?.periodNumber).toBe(2);
   });
 
-  it("finds the contract whichever case the address wrote its id in", () => {
-    const view = toCreatorDetailView(
-      { ...RAW, contracts: [contract("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), contract(OLDEST)] },
-      { ...BARE, contract: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA" },
-    );
+  it("opens the newest period when the named contract is not this creator's", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, { ...BARE, contract: SOMEONE_ELSES });
 
-    expect(view.selected?.periodNumber).toBe(2);
+    expect(view.selected?.contractId).toBe(NEWEST);
   });
 
-  it("falls back to the newest when the named contract is not this creator's", () => {
-    expect(
-      toCreatorDetailView(RAW, { ...BARE, contract: SOMEONE_ELSES }).selected?.contractId,
-    ).toBe(NEWEST);
-  });
-
-  it("shows the open contract's rows under the page's names, with its totals", () => {
-    const view = toCreatorDetailView(RAW, { ...BARE, page: 2 });
+  it("shows the content list's rows under the page's names, with its totals", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, { ...BARE, page: 2 });
 
     expect(view.rows).toEqual([
       {
@@ -191,8 +276,9 @@ describe("toCreatorDetailView", () => {
     expect(view.totalPages).toBe(2);
   });
 
-  it("counts an empty table as one page, so its pagination has a page to stand on", () => {
-    const view = toCreatorDetailView(RAW, { ...BARE, contract: MIDDLE });
+  it("counts an empty list as one page, so the pagination has a page to stand on", () => {
+    const empty: RawContentList = { ...CONTENTS, items: [], page: 1, total: 0, totalPages: 0 };
+    const view = toCreatorDetailView(RAW, empty, BARE);
 
     expect(view.rows).toEqual([]);
     expect(view.total).toBe(0);
@@ -201,7 +287,11 @@ describe("toCreatorDetailView", () => {
   });
 
   it("is a valid, empty page for a creator without any contract", () => {
-    const view = toCreatorDetailView({ ...RAW, contracts: [] }, { ...BARE, contract: NEWEST });
+    const view = toCreatorDetailView({ ...RAW, contractHistory: [] }, null, {
+      ...BARE,
+      contract: NEWEST,
+      page: 4,
+    });
 
     expect(view.periods).toEqual([]);
     expect(view.selected).toBeNull();
@@ -210,28 +300,4 @@ describe("toCreatorDetailView", () => {
     expect(view.totalPages).toBe(1);
     expect(view.page).toBe(1);
   });
-
-  it("reads a fixed rate sent as decimal text as the number it is", () => {
-    const view = toCreatorDetailView(
-      { ...RAW, contracts: [contract(NEWEST, { fixedRate: "1500000.00" })] },
-      BARE,
-    );
-
-    expect(view.selected?.fixedRate).toBe(1500000);
-  });
-
-  it.each(["", "gratis", null, undefined, Number.NaN])(
-    "has no fixed rate to show when it arrives as %j",
-    (fixedRate) => {
-      const view = toCreatorDetailView(
-        {
-          ...RAW,
-          contracts: [contract(NEWEST, { fixedRate } as unknown as Partial<RawCreatorContract>)],
-        },
-        BARE,
-      );
-
-      expect(view.selected?.fixedRate).toBeNull();
-    },
-  );
 });
