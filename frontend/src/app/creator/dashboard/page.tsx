@@ -63,7 +63,7 @@ export default async function CreatorDashboardPage() {
   const loaded = await load();
 
   return (
-    <AppShell role="creator" title="Dashboard" subtitle="Berikut ringkasan task kamu bulan ini.">
+    <AppShell role="creator" title="Dashboard" subtitle="Berikut ringkasan task yang perlu kamu kerjakan.">
       {loaded.kind === "ok" ? (
         <StatCards
           counts={loaded.dashboard.counts}
