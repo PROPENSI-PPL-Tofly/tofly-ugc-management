@@ -1,13 +1,12 @@
 "use client";
 
+import { ContentTags } from "@/components/contents/content-tags";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
-  CONTENT_TAG_LABELS,
-  CONTENT_TAG_TONES,
   CONTENT_TYPE_LABELS,
 } from "@/lib/content-labels";
 import { needsReview } from "@/lib/content-plan";
@@ -98,11 +97,7 @@ export function CreatorContentTable({
                     <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                       {CONTENT_STATUS_LABELS[row.status]}
                     </StatusDot>
-                    {row.tags.map((tag) => (
-                      <Pill key={tag} tone={CONTENT_TAG_TONES[tag]}>
-                        {CONTENT_TAG_LABELS[tag]}
-                      </Pill>
-                    ))}
+                    <ContentTags tags={row.tags} />
                     {row.revisionCount > 0 ? (
                       <span className="text-xs font-semibold text-amber-ink">
                         Revisi ke-{row.revisionCount}
