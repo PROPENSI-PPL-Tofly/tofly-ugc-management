@@ -710,6 +710,68 @@ describe('CreatorsService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('nests every period’s own contents in the detail, past periods included', async () => {
+    const detail = detailRow();
+    detail.contracts.unshift({
+      id: 'contract-0',
+      start_date: day(-300),
+      end_date: day(-101),
+      days_between: 14,
+      content_quota: 1,
+      contract_type: 'probation',
+      contents: [
+        {
+          id: 'content-old',
+          name: 'Evergreen - Periode Lalu',
+          type: 'evergreen',
+          deadline: day(-150),
+          status: 'link_submitted',
+          video_link: 'https://example.com/video-old',
+          video_submitted_at: day(-151),
+          approval_bypassed: false,
+          _count: { submissions: 1 },
+          submissions: [
+            { id: 'submission-old', link: 'https://example.com/draft-old', revision_notes: null, created_at: day(-152) },
+          ],
+        },
+      ],
+    });
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(
+      result.contractHistory.map((period) => ({
+        id: period.id,
+        periodNumber: period.periodNumber,
+        status: period.status,
+        isCurrent: period.isCurrent,
+        contents: period.contents.map((content) => content.id),
+      })),
+    ).toEqual([
+      { id: 'contract-0', periodNumber: 1, status: 'expired', isCurrent: false, contents: ['content-old'] },
+      { id: 'contract-1', periodNumber: 2, status: 'active', isCurrent: true, contents: ['content-1', 'content-2'] },
+    ]);
+    expect(result.contractHistory[0].contents[0]).toMatchObject({
+      waitingOn: null,
+      latestDraft: { link: 'https://example.com/draft-old' },
+      videoSubmittedAt: '2026-04-20',
+    });
+    expect(result.contractHistory[0].performance.productivity).toBe('good');
+    // The flat list the old modal reads still holds the current period only.
+    expect(result.contents.map((content) => content.id)).toEqual(['content-1', 'content-2']);
+  });
+
+  it('selects the social accounts without their access or refresh tokens', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    await service.findOne('creator-1', TODAY);
+
+    const select = prisma.creators.findUnique.mock.calls[0][0].select;
+    expect(select.social_accounts.select).toEqual({ platform: true, username: true });
+    expect(select.users.select).toEqual({ email: true });
+  });
+
   it('returns empty current-period details when no contract covers the date', async () => {
     const detail = detailRow();
     detail.contracts = [];
