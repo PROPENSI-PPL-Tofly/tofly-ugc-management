@@ -19,6 +19,7 @@ import {
   type ContentPlanTab,
   type DeadlineSort,
 } from "@/lib/content-plan";
+import { creatorDetailBase } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
 import { DeadlineSortTh } from "./deadline-sort";
 
@@ -85,10 +86,10 @@ export function ContentPlanTable({
             >
               <td className="px-5 py-3">{row.name}</td>
               <td className="px-5 py-3">
-                {/* The way to this creator's own Content Plan, as in the prototype. It is a
-                    link of its own, so the row must not open the panel on the same press. */}
+                {/* The way to this creator's detail page, which holds their content plan. It is
+                    a link of its own, so the row must not open the panel on the same press. */}
                 <Link
-                  href={`/admin/creators/${encodeURIComponent(row.creatorId)}/content-plan`}
+                  href={creatorDetailBase(row.creatorId)}
                   onClick={(event) => event.stopPropagation()}
                   className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
                 >
