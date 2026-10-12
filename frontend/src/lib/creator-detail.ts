@@ -3,6 +3,7 @@
 // be linked, bookmarked and reloaded. Pure module — no next/headers — so client components can
 // share it.
 
+import type { Tone } from "@/components/ui/pill";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
@@ -53,6 +54,20 @@ export interface CreatorProfile {
 
 /** A contract always has dates, so it is running, over or yet to start. */
 export type PeriodStatus = "active" | "expired" | "upcoming";
+
+/** Worded as the prototype words them, on the profile and on every period tab. */
+export const PERIOD_STATUS_LABELS: Record<PeriodStatus, string> = {
+  active: "Aktif",
+  expired: "Berakhir",
+  upcoming: "Belum Dimulai",
+};
+
+/** Always beside its label, so colour is never the only signal. */
+export const PERIOD_STATUS_TONES: Record<PeriodStatus, Tone> = {
+  active: "green",
+  expired: "neutral",
+  upcoming: "accent",
+};
 
 /** One contract of the creator's history, as one period tab and its terms. */
 export interface CreatorPeriod {
