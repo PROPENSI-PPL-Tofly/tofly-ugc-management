@@ -613,6 +613,12 @@ describe('ContentListService.list', () => {
       });
     });
 
+    it('narrows to the named contracts, so one period’s rows and counters stand alone', async () => {
+      expect(await where({ contracts: [other] })).toEqual({
+        contract_id: { in: [other] },
+      });
+    });
+
     it('narrows to the named types', async () => {
       expect(await where({ types: ['evergreen'] })).toEqual({
         type: { in: ['evergreen'] },
