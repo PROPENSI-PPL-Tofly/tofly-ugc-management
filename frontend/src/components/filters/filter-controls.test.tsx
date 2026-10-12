@@ -5,7 +5,25 @@ import {
   PeriodFilter,
   ResetFilters,
   SearchBox,
+  offeredPicks,
 } from "./filter-controls";
+
+describe("offeredPicks", () => {
+  const OPTIONS = [
+    { value: "evergreen", label: "Evergreen" },
+    { value: "specific", label: "Specific" },
+  ];
+
+  it("reads a comma-separated parameter as the picks the control offers, in the order given", () => {
+    expect(offeredPicks("specific,evergreen", OPTIONS)).toEqual(["specific", "evergreen"]);
+  });
+
+  it("leaves out what the control does not offer, blanks and the not-applied value included", () => {
+    expect(offeredPicks("foo, evergreen ,,bogus", OPTIONS)).toEqual(["evergreen"]);
+    expect(offeredPicks("all", OPTIONS)).toEqual([]);
+    expect(offeredPicks("", OPTIONS)).toEqual([]);
+  });
+});
 
 describe("SearchBox", () => {
   it("is a labelled search field capped at what the APIs take", () => {

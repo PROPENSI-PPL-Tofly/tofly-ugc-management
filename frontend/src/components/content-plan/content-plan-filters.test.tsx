@@ -135,6 +135,41 @@ describe("ContentPlanFilters", () => {
     expect(screen.getByRole("checkbox", { name: "Draft Menunggu Review" })).toBeInTheDocument();
   });
 
+  // A typed or stale address can name what the page does not hold. The list ignores it, so
+  // the bar must not draw it as a pick either.
+  it("shows no chip for a type or a status the address names but the filter does not offer", () => {
+    searchParams = new URLSearchParams({
+      type: "evergreen,foo",
+      status: "bogus, scheduled ,link_submitted",
+      tab: "waiting",
+    });
+    renderFilters({ tab: "waiting", type: ["evergreen"], status: ["scheduled"] });
+
+    expect(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(2);
+  });
+
+  it("leaves what a filter does not offer behind on the next pick", () => {
+    searchParams = new URLSearchParams({ type: "foo,evergreen" });
+    renderFilters({ type: ["evergreen"] });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Specific" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?type=evergreen%2Cspecific", {
+      scroll: false,
+    });
+  });
+
+  it("still offers Reset when the address holds only values a filter does not offer", () => {
+    searchParams = new URLSearchParams({ status: "bogus" });
+    renderFilters();
+
+    expect(screen.queryByRole("button", { name: /^Hapus filter/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument();
+  });
+
   it("keeps the status filter away from the Selesai tab, which holds one status", () => {
     renderFilters({ tab: "done" });
     expect(screen.queryByRole("button", { name: /^Status:/ })).not.toBeInTheDocument();
