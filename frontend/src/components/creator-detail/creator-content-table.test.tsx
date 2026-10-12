@@ -32,6 +32,12 @@ describe("CreatorContentTable", () => {
     ).toEqual(["Konten", "Deadline", "Status", "Aksi"]);
   });
 
+  it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {
+    renderTable();
+
+    expect(screen.getByText("Aksi")).toHaveClass("sr-only");
+  });
+
   it("fills a row with the content, its type under the name, and its formatted deadline", () => {
     renderTable();
 
@@ -60,6 +66,23 @@ describe("CreatorContentTable", () => {
     renderTable([{ ...ROW, status }]);
 
     expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  // The prototype draws a status as a pill. The colour is the one every admin view gives it.
+  it.each([
+    ["pending", "Pending", "bg-accent-wash"],
+    ["scheduled", "Scheduled", "bg-surface-2"],
+    ["draft_review", "Draft Menunggu Review", "bg-accent-wash"],
+    ["draft_revision", "Draft Perlu Revisi", "bg-amber-wash"],
+    ["draft_approved", "Draft Approved", "bg-green-wash"],
+    ["link_submitted", "Content Link Submitted", "bg-green-wash"],
+  ] as const)("draws the status %s as a pill in its own colour", (status, label, colour) => {
+    renderTable([{ ...ROW, status }]);
+
+    const pill = screen.getByText(label);
+    expect(pill).toHaveClass("rounded-full", colour);
+    // A pill carries its own colour: no separate dot beside the words.
+    expect(pill.querySelector('[aria-hidden="true"]')).toBeNull();
   });
 
   it("shows every tag the content carries beside its status", () => {

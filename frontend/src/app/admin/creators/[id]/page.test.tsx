@@ -108,6 +108,12 @@ describe("Creator Detail page", () => {
     expect(metadata.title).toBe("Detail Creator — Tofly");
   });
 
+  it("is subtitled as the prototype subtitles it", async () => {
+    await renderPage();
+
+    expect(screen.getByText("Data, jadwal, dan content plan satu creator")).toBeInTheDocument();
+  });
+
   it("offers the way back to the Creator Database", async () => {
     await renderPage();
 
