@@ -11,12 +11,7 @@ import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS } from "@/lib/content-labels"
 import type { DeadlineSort } from "@/lib/content-plan";
 import { formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
-
-const ACTION_LABELS: Record<MyTaskAction, string> = {
-  submit_draft: "Submit Draft",
-  resubmit_draft: "Resubmit Draft",
-  submit_video: "Submit Link Video",
-};
+import { creatorActionLabel } from "@/lib/panel-actions";
 
 // From lg up this is a plain table. Below it (where the sidebar leaves too little width for four
 // columns) each row stacks into a card so the deadline, status and action stay on screen instead
@@ -50,9 +45,11 @@ function idleText(task: MyTask): string | null {
 
 function ActionCell({
   task,
+  now,
   onAction,
 }: Readonly<{
   task: MyTask;
+  now: Date;
   onAction?: (task: MyTask, action: MyTaskAction) => void;
 }>) {
   if (task.actions.length === 0) {
@@ -63,20 +60,26 @@ function ActionCell({
   return (
     // Above the row-wide name button, so a press on an action is the action alone.
     <div className="relative z-10 flex flex-wrap gap-2">
-      {task.actions.map((action) => (
-        <Button
-          key={action}
-          variant={actionVariant(task, action)}
-          className="whitespace-nowrap"
-          // Every row repeats the same labels, so each button names its task for a screen
-          // reader, keeping the visible label at the front.
-          aria-label={`${ACTION_LABELS[action]}: ${task.name}`}
-          disabled={!onAction}
-          onClick={() => onAction?.(task, action)}
-        >
-          {ACTION_LABELS[action]}
-        </Button>
-      ))}
+      {task.actions.map((action) => {
+        // Worded as the detail panel words it: the link of a draft still in review is the H-1
+        // route, or a late one, not the planned step after an approval.
+        const label = creatorActionLabel(action, task, now);
+
+        return (
+          <Button
+            key={action}
+            variant={actionVariant(task, action)}
+            className="whitespace-nowrap"
+            // Every row repeats the same labels, so each button names its task for a screen
+            // reader, keeping the visible label at the front.
+            aria-label={`${label}: ${task.name}`}
+            disabled={!onAction}
+            onClick={() => onAction?.(task, action)}
+          >
+            {label}
+          </Button>
+        );
+      })}
     </div>
   );
 }
@@ -97,6 +100,7 @@ export function MyTaskTable({
   sort = "asc",
   onSortToggle,
   hideActions = false,
+  now = new Date(),
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
@@ -114,6 +118,8 @@ export function MyTaskTable({
   onSortToggle?: () => void;
   /** Leaves out the Aksi column, for a list that never has anything to do (Selesai). */
   hideActions?: boolean;
+  /** The moment the buttons are worded for; a test pins it. */
+  now?: Date;
 }>) {
   if (tasks.length === 0) {
     return (
@@ -202,7 +208,7 @@ export function MyTaskTable({
               </td>
               {hideActions ? null : (
                 <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
-                  <ActionCell task={task} onAction={onAction} />
+                  <ActionCell task={task} now={now} onAction={onAction} />
                 </td>
               )}
             </tr>
