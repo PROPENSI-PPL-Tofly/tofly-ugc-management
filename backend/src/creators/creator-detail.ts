@@ -15,6 +15,7 @@ import {
   contentOutcome,
   contractStatus,
   currentContract,
+  type MetricsContent,
   type MetricsContract,
 } from './creator-metrics.js';
 import type {
@@ -59,18 +60,22 @@ function calendarDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function toMetricsContent(row: DetailContentRow): MetricsContent {
+  return {
+    deadline: row.deadline,
+    videoSubmittedAt: row.video_submitted_at,
+    // A pending proposal is not a commitment until an admin accepts it.
+    isProposal: row.status === 'pending',
+    submissionCount: row.submissions.length,
+  };
+}
+
 function toMetricsContract(row: DetailContractRow): MetricsContract {
   return {
     id: row.id,
     startDate: row.start_date,
     endDate: row.end_date,
-    contents: row.contents.map((content) => ({
-      deadline: content.deadline,
-      videoSubmittedAt: content.video_submitted_at,
-      // A pending proposal is not a commitment until an admin accepts it.
-      isProposal: content.status === 'pending',
-      submissionCount: content.submissions.length,
-    })),
+    contents: row.contents.map(toMetricsContent),
   };
 }
 
@@ -83,15 +88,7 @@ function toPeriodContent(row: DetailContentRow, today: Date): PeriodContent {
     type: row.type,
     deadline: calendarDay(row.deadline),
     status: row.status,
-    outcome: contentOutcome(
-      {
-        deadline: row.deadline,
-        videoSubmittedAt: row.video_submitted_at,
-        isProposal: row.status === 'pending',
-        submissionCount: row.submissions.length,
-      },
-      today,
-    ),
+    outcome: contentOutcome(toMetricsContent(row), today),
     tags: contentTags(
       {
         deadline: row.deadline,
