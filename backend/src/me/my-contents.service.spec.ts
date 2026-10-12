@@ -171,19 +171,48 @@ describe('MyContentsService.list', () => {
     );
   });
 
-  // A creator could not tell what to do next from a list that put finished work in its own block.
-  it('lists the nearest deadline first by default, one flat list across every status', async () => {
+  // Finished work has the oldest deadlines, so sorted in with the rest it would fill the first
+  // page of Semua and push what the creator still has to deliver behind it.
+  it('lists open work first, nearest deadline first, and finished work after it', async () => {
     const { service } = stub([
       row({ id: 'later', deadline: '2026-11-15' }),
+      row({ id: 'done-old', deadline: '2026-09-01', status: 'link_submitted', linkDay: '2026-09-01' }),
       row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted', linkDay: '2026-10-01' }),
       row({ id: 'sooner', deadline: '2026-10-20', status: 'draft_review' }),
     ]);
 
     expect(ids(await service.list(CREATOR_ID, query(), NOW))).toEqual([
-      'done',
       'sooner',
       'later',
+      'done-old',
+      'done',
     ]);
+  });
+
+  it('keeps open work ahead of finished work when the furthest deadline is asked first', async () => {
+    const { service } = stub([
+      row({ id: 'done', deadline: '2026-12-01', status: 'link_submitted', linkDay: '2026-12-01' }),
+      row({ id: 'sooner', deadline: '2026-10-20' }),
+      row({ id: 'done-old', deadline: '2026-09-01', status: 'link_submitted', linkDay: '2026-09-01' }),
+      row({ id: 'later', deadline: '2026-11-15' }),
+    ]);
+
+    const response = await service.list(CREATOR_ID, query({ sort: 'deadline_desc' }), NOW);
+
+    expect(ids(response)).toEqual(['later', 'sooner', 'done', 'done-old']);
+  });
+
+  it('pages across the two blocks as one list', async () => {
+    const { service } = stub([
+      row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted', linkDay: '2026-10-01' }),
+      row({ id: 'open-a', deadline: '2026-10-20' }),
+      row({ id: 'open-b', deadline: '2026-10-21' }),
+    ]);
+
+    const second = await service.list(CREATOR_ID, query({}, { page: 2, pageSize: 2 }), NOW);
+
+    expect(ids(second)).toEqual(['done']);
+    expect(second).toMatchObject({ total: 3, totalPages: 2 });
   });
 
   it('turns the order around when the furthest deadline is asked first', async () => {
@@ -317,8 +346,8 @@ describe('MyContentsService.list', () => {
   });
 
   it.each([
-    [true, ['late', 'overdue']],
-    [false, ['on-time', 'open']],
+    [true, ['overdue', 'late']],
+    [false, ['open', 'on-time']],
   ])('keeps overdue=%s rows by the same tags the row shows', async (overdue, expected) => {
     const { service } = stub([
       row({ id: 'overdue', status: 'draft_revision', deadline: '2026-10-05' }),
@@ -377,7 +406,7 @@ describe('MyContentsService.list', () => {
       NOW,
     );
 
-    expect(ids(response)).toEqual(['first', 'last']);
+    expect(ids(response)).toEqual(['last', 'first']);
   });
 
   it('maps a row into API vocabulary with its actions for today in WIB', async () => {

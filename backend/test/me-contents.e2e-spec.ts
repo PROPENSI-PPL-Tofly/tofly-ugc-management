@@ -140,7 +140,7 @@ describe('GET /me/contents (e2e)', () => {
   const names = (response: { body: { items: { name: string }[] } }) =>
     response.body.items.map((item) => item.name);
 
-  it('lists every task in one flat list by nearest deadline, ten a page, each with its actions and every tab counted', async () => {
+  it('lists open work by nearest deadline and finished work after it, ten a page, each with its actions and every tab counted', async () => {
     const response = await list(dina);
 
     expect(response.status).toBe(200);
@@ -160,19 +160,19 @@ describe('GET /me/contents (e2e)', () => {
         ],
       ),
     ).toEqual([
-      ['Submitted long ago', iso(-20), []],
       ['Overdue', iso(-2), ['submit_draft']],
       ['Tomorrow', iso(1), ['submit_draft']],
       ['Revision', iso(12), ['resubmit_draft']],
       ['In review', iso(20), []],
       ['Approved', iso(30), ['submit_video']],
       ['Far away', iso(40), ['submit_draft']],
+      ['Submitted long ago', iso(-20), []],
     ]);
     expect(
       response.body.items.map(
         (item: { revisionNotes: string | null }) => item.revisionNotes,
       ),
-    ).toEqual([null, null, null, 'Perjelas intro', null, null, null]);
+    ).toEqual([null, null, 'Perjelas intro', null, null, null, null]);
   });
 
   it('turns the order around for the furthest deadline first', async () => {
@@ -281,7 +281,7 @@ describe('GET /me/contents (e2e)', () => {
   });
 
   // Finished in the opposite order to their deadlines: the list still follows the deadline.
-  it('orders finished tasks by deadline, not by when their link was sent', async () => {
+  it('orders finished tasks by deadline, not by when their link was sent, after what is still open', async () => {
     const sari = await creator('sari');
     const finished = (name: string, deadline: number, sent: number) =>
       prisma.contents.create({
@@ -303,7 +303,7 @@ describe('GET /me/contents (e2e)', () => {
 
     expect(
       response.body.items.map((item: { name: string }) => item.name),
-    ).toEqual(['Sent long ago', 'Sent recently', 'Still open']);
+    ).toEqual(['Still open', 'Sent long ago', 'Sent recently']);
   });
 
   it.each([
