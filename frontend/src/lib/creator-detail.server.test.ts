@@ -76,15 +76,37 @@ function answer(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
-/** Answers each endpoint by its path, as the backend would, whichever order they are asked in. */
+type Reply = Response | Error;
+
+/**
+ * Answers each endpoint by its path, as the backend would, whichever order they are asked in.
+ * A list of content replies is given out one request at a time, the last one from then on.
+ */
 function backend({
   detail = answer(200, DETAIL),
   contents = answer(200, CONTENTS),
-}: { detail?: Response | Error; contents?: Response | Error } = {}) {
+}: { detail?: Reply; contents?: Reply | Reply[] } = {}) {
+  const queue = Array.isArray(contents) ? [...contents] : [contents];
+
   vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
-    const reply = new URL(String(input)).pathname.startsWith("/contents") ? contents : detail;
+    const forContents = new URL(String(input)).pathname.startsWith("/contents");
+    const reply = forContents ? (queue.length > 1 ? queue.shift()! : queue[0]) : detail;
     if (reply instanceof Error) throw reply;
     return reply.clone();
+  });
+}
+
+/** The content list's answer for a page of a period that holds `total` contents. */
+function contentsOf(page: number, total: number, rows = 0): Response {
+  return answer(200, {
+    ...CONTENTS,
+    items: Array.from({ length: rows }, (_, index) => ({
+      ...CONTENTS.items[0],
+      id: `content-${index + 1}`,
+    })),
+    page,
+    total,
+    totalPages: Math.ceil(total / 10),
   });
 }
 
@@ -249,6 +271,98 @@ describe("fetchCreatorDetail", () => {
       );
     },
   );
+
+  // An old link, or a period that shrank as content was decided, can name a page past the end.
+  // The API answers it with no rows, which would read as a period without content.
+  describe("when the address names a page past the end", () => {
+    it("asks again for the last page and shows that one", async () => {
+      backend({ contents: [contentsOf(99, 4), contentsOf(1, 4, 4)] });
+
+      const view = await fetchCreatorDetail(CREATOR, {
+        ...DEFAULT_CREATOR_DETAIL_PARAMS,
+        page: 99,
+      });
+
+      expect(urls()).toEqual([
+        `${BACKEND}/creators/${CREATOR}`,
+        `${BACKEND}/contents?contract=${NEWEST}&page=99`,
+        `${BACKEND}/contents?contract=${NEWEST}&page=1`,
+      ]);
+      expect(view?.rows).toHaveLength(4);
+      expect(view?.page).toBe(1);
+      expect(view?.total).toBe(4);
+      expect(view?.totalPages).toBe(1);
+    });
+
+    it("asks for the last of several pages, on the same period and filters", async () => {
+      backend({ contents: [contentsOf(99, 14), contentsOf(2, 14, 4)] });
+
+      const view = await fetchCreatorDetail(CREATOR, {
+        contract: OLDER,
+        type: ["evergreen"],
+        status: ["scheduled", "pending"],
+        page: 99,
+      });
+
+      expect(urls()[2]).toBe(
+        `${BACKEND}/contents?contract=${OLDER}&type=evergreen&status=scheduled&status=pending&page=2`,
+      );
+      expect(view?.page).toBe(2);
+      expect(view?.rows).toHaveLength(4);
+    });
+
+    it("carries the session cookie on the second ask too", async () => {
+      sessionCookies.push({ name: "__session", value: "token" });
+      backend({ contents: [contentsOf(99, 4), contentsOf(1, 4, 4)] });
+
+      await fetchCreatorDetail(CREATOR, { ...DEFAULT_CREATOR_DETAIL_PARAMS, page: 99 });
+
+      expect(requests()).toHaveLength(3);
+      expect(requests()[2][1].headers).toEqual({ cookie: "__session=token" });
+    });
+
+    it("asks once for the last page itself, which is not past the end", async () => {
+      backend({ contents: contentsOf(2, 14, 4) });
+
+      await fetchCreatorDetail(CREATOR, { ...DEFAULT_CREATOR_DETAIL_PARAMS, page: 2 });
+
+      expect(urls()).toHaveLength(2);
+    });
+
+    it("leaves an empty period alone, which has no last page to fall back to", async () => {
+      backend({ contents: contentsOf(3, 0) });
+
+      const view = await fetchCreatorDetail(CREATOR, {
+        ...DEFAULT_CREATOR_DETAIL_PARAMS,
+        page: 3,
+      });
+
+      expect(urls()).toHaveLength(2);
+      expect(view?.rows).toEqual([]);
+      expect(view?.page).toBe(1);
+    });
+
+    it("stops after one more ask when the period shrank again in between", async () => {
+      backend({ contents: [contentsOf(99, 14), contentsOf(2, 4)] });
+
+      const view = await fetchCreatorDetail(CREATOR, {
+        ...DEFAULT_CREATOR_DETAIL_PARAMS,
+        page: 99,
+      });
+
+      expect(urls()).toHaveLength(3);
+      expect(view?.page).toBe(1);
+      expect(view?.totalPages).toBe(1);
+    });
+
+    it("throws when the last page cannot be read either, so the page can offer a retry", async () => {
+      backend({ contents: [contentsOf(99, 4), answer(503, {})] });
+
+      await expect(
+        fetchCreatorDetail(CREATOR, { ...DEFAULT_CREATOR_DETAIL_PARAMS, page: 99 }),
+      ).rejects.toThrow("Loading the creator's content failed with HTTP 503");
+    });
+  });
 
   it("throws when the backend cannot be reached", async () => {
     backend({ detail: new TypeError("fetch failed") });

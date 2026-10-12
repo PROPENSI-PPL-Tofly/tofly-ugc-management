@@ -286,6 +286,21 @@ describe("toCreatorDetailView", () => {
     expect(view.page).toBe(1);
   });
 
+  // The API answers a page past the end with the number it was asked for. The pagination can
+  // only name a page that exists.
+  it.each([
+    ["an empty period asked for page 3", 3, 0, 0, 1, 1],
+    ["a one-page period asked for page 99", 99, 4, 1, 1, 1],
+    ["a two-page period asked for page 5", 5, 14, 2, 2, 2],
+    ["a page within the period", 2, 25, 3, 2, 3],
+  ])("never names a page past the last one: %s", (_, page, total, totalPages, shown, pages) => {
+    const answered: RawContentList = { ...CONTENTS, items: [], page, total, totalPages };
+    const view = toCreatorDetailView(RAW, answered, BARE);
+
+    expect(view.page).toBe(shown);
+    expect(view.totalPages).toBe(pages);
+  });
+
   it("is a valid, empty page for a creator without any contract", () => {
     const view = toCreatorDetailView({ ...RAW, contractHistory: [] }, null, {
       ...BARE,
