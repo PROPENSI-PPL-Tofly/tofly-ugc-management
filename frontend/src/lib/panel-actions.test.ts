@@ -254,6 +254,9 @@ describe("submitRejection", () => {
 });
 
 describe("actionsFor (creator)", () => {
+  // 10 Oct 2026, 12.00 WIB: the default deadline (11 Oct) is H-1.
+  const NOW = new Date("2026-10-10T05:00:00.000Z");
+
   it("names the first hand-in, the resubmit and the link by what the backend allowed", () => {
     const cases = [
       { actions: ["submit_draft"] as const, status: "scheduled" as const, label: "Submit Draft" },
@@ -273,6 +276,7 @@ describe("actionsFor (creator)", () => {
         }),
         state: idle,
         ports: ports(),
+        now: NOW,
       });
 
       expect(commands.map((command) => [command.kind, command.label])).toEqual([
@@ -280,9 +284,6 @@ describe("actionsFor (creator)", () => {
       ]);
     }
   });
-
-  // 10 Oct 2026, 12.00 WIB: the default deadline (11 Oct) is H-1.
-  const NOW = new Date("2026-10-10T05:00:00.000Z");
 
   it.each([
     ["2026-10-11", "Submit Link (H-1)"],

@@ -1,10 +1,21 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import type { MyTask } from "@/lib/my-tasks";
-import { MyTaskBoard } from "./my-task-board";
+import { MyTaskBoard as Board } from "./my-task-board";
 
-const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
+const { refresh, replace } = vi.hoisted(() => ({ refresh: vi.fn(), replace: vi.fn() }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+// The address bar is the jsdom location, so a quiet write and the router agree on it.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh, replace }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+  usePathname: () => "/creator/tasks",
+}));
+
+/** The board on Semua, nearest deadline first, with nothing filtered unless a test says so. */
+function MyTaskBoard(props: Readonly<Partial<ComponentProps<typeof Board>> & { tasks: MyTask[] }>) {
+  return <Board tab="all" sort="asc" filtered={false} {...props} />;
+}
 
 const { fetchContentDetail } = vi.hoisted(() => ({
   fetchContentDetail: vi.fn(),
@@ -79,6 +90,8 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
 describe("MyTaskBoard", () => {
   beforeEach(() => {
     refresh.mockClear();
+    replace.mockClear();
+    window.history.pushState({}, "", "/creator/tasks");
   });
 
   it("lets the creator press the actions the table shows", () => {
@@ -200,7 +213,7 @@ describe("MyTaskBoard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
 
-    expect(screen.getByRole("region", { name: "Daftar Tugas Saya" })).toHaveFocus();
+    expect(screen.getByRole("tabpanel", { name: "Daftar Tugas Saya" })).toHaveFocus();
   });
 
   it("shows no toast when the creator cancels", () => {
@@ -232,16 +245,141 @@ describe("MyTaskBoard", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("says so when there are no tasks", () => {
+  it.each([
+    ["all", "Belum ada task."],
+    ["action", "Tidak ada yang perlu dikerjakan."],
+    ["waiting", "Tidak ada yang menunggu Admin."],
+    ["done", "Belum ada task selesai."],
+  ] as const)("says what an empty %s tab means", (tab, message) => {
+    render(<MyTaskBoard tasks={[]} tab={tab} />);
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset filter" })).not.toBeInTheDocument();
+  });
+
+  // Seen in the browser: an empty Selesai told the creator new tasks would appear there.
+  it.each([
+    ["all", true],
+    ["action", true],
+    ["waiting", false],
+    ["done", false],
+  ] as const)("on an empty %s tab, says new tasks arrive here only where they do (%s)", (tab, hinted) => {
+    render(<MyTaskBoard tasks={[]} tab={tab} />);
+
+    const hint = screen.queryByText("Tugas baru muncul di sini begitu admin menjadwalkannya.");
+    if (hinted) expect(hint).toBeInTheDocument();
+    else expect(hint).not.toBeInTheDocument();
+  });
+
+  // An empty filtered list is never a dead end: the way back sits where the rows would be.
+  it("says the filter matched nothing and offers to clear it, keeping the tab", () => {
+    window.history.pushState({}, "", "/creator/tasks?tab=action&q=serum&overdue=yes&sort=desc");
+    render(<MyTaskBoard tasks={[]} tab="action" filtered />);
+
+    expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/creator/tasks?tab=action", { scroll: false });
+  });
+
+  it("clears a filter on Semua back to the bare address", () => {
+    window.history.pushState({}, "", "/creator/tasks?q=serum");
+    render(<MyTaskBoard tasks={[]} filtered />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/creator/tasks", { scroll: false });
+  });
+
+  it("drops the Aksi column on Selesai, where nothing is left to do", () => {
+    render(<MyTaskBoard tasks={[task({ status: "link_submitted", actions: [] })]} tab="done" />);
+
+    expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the Aksi column on every other tab", () => {
+    render(<MyTaskBoard tasks={[task()]} tab="action" />);
+
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+  });
+
+  it("names the region the tabs switch", () => {
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    expect(screen.getByRole("tabpanel", { name: "Daftar Tugas Saya" })).toHaveAttribute(
+      "id",
+      "my-task-list",
+    );
+  });
+});
+
+describe("MyTaskBoard deadline sort", () => {
+  beforeEach(() => {
+    replace.mockClear();
+  });
+
+  it("shows the nearest deadline first by default, and says so to a screen reader", () => {
+    window.history.pushState({}, "", "/creator/tasks");
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    expect(screen.getByRole("columnheader", { name: /Deadline/ })).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  it("turns to the furthest deadline first on a press, keeping the filters and dropping the page", () => {
+    window.history.pushState({}, "", "/creator/tasks?tab=action&type=specific&page=2");
+    render(<MyTaskBoard tasks={[task()]} tab="action" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
+
+    expect(replace).toHaveBeenCalledWith("/creator/tasks?tab=action&type=specific&sort=desc", {
+      scroll: false,
+    });
+  });
+
+  // Below lg the rows stack into cards and the header row is only read aloud, so the sort
+  // needs its own visible control there.
+  it("offers the sort as its own button where the header row is hidden on small screens", () => {
+    window.history.pushState({}, "", "/creator/tasks");
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    const mobile = screen.getByRole("button", { name: "Urutkan deadline: terdekat dulu" });
+    expect(mobile).toHaveTextContent("Terdekat dulu");
+    expect(mobile.parentElement?.className).toContain("lg:hidden");
+    fireEvent.click(mobile);
+
+    expect(replace).toHaveBeenCalledWith("/creator/tasks?sort=desc", { scroll: false });
+  });
+
+  it("names the furthest-first order on the small-screen button too", () => {
+    window.history.pushState({}, "", "/creator/tasks?sort=desc");
+    render(<MyTaskBoard tasks={[task()]} sort="desc" />);
+
+    expect(screen.getByRole("button", { name: "Urutkan deadline: terjauh dulu" })).toHaveTextContent(
+      "Terjauh dulu",
+    );
+  });
+
+  it("offers no sort on an empty list, where there is nothing to order", () => {
     render(<MyTaskBoard tasks={[]} />);
 
-    expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Urutkan deadline/ })).not.toBeInTheDocument();
+  });
+
+  it("turns back to the default, which leaves the address bare", () => {
+    window.history.pushState({}, "", "/creator/tasks?sort=desc");
+    render(<MyTaskBoard tasks={[task()]} sort="desc" />);
+
+    expect(screen.getByRole("columnheader", { name: /Deadline/ })).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
+
+    expect(replace).toHaveBeenCalledWith("/creator/tasks", { scroll: false });
   });
 });
 
 describe("MyTaskBoard content detail panel", () => {
   beforeEach(() => {
     refresh.mockClear();
+    replace.mockClear();
     fetchContentDetail.mockReset();
     window.history.pushState({}, "", "/creator/tasks");
   });
@@ -252,7 +390,8 @@ describe("MyTaskBoard content detail panel", () => {
       name: "Evg_1_RanggaPratama_12102026",
       type: "evergreen" as const,
       brief: "",
-      deadline: "2026-10-12",
+      // Far ahead, so the link reads as the H-1 route whatever day the test runs.
+      deadline: "2099-12-31",
       status: "draft_review" as const,
       creatorName: "Rangga Pratama",
       tags: [],
@@ -267,7 +406,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
@@ -277,7 +416,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
 
     expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
@@ -324,7 +463,7 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
 
     render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(window.location.search).toBe("?status=scheduled&page=2&content=content-1");
@@ -342,18 +481,33 @@ describe("MyTaskBoard content detail panel", () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
 
     render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /detail:/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
 
     await screen.findByRole("dialog");
     expect(pushState).not.toHaveBeenCalled();
     pushState.mockRestore();
   });
 
+  // The same race the Content Plan had: a quiet address write would make the router drop a
+  // filter change still on its way, so while one is, the link goes out as a navigation.
+  it("keeps a filter ticked a moment before a row is opened", async () => {
+    fetchContentDetail.mockResolvedValue(panelDetail());
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
+
+    await screen.findByRole("dialog");
+    expect(replace).toHaveBeenLastCalledWith("/creator/tasks?sort=desc&content=content-1", {
+      scroll: false,
+    });
+  });
+
   it("closes the panel from Tutup without opening any modal", async () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /detail:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Tutup" }));
 
     await waitFor(() => {
@@ -378,6 +532,8 @@ describe("MyTaskBoard content detail panel", () => {
 describe("MyTaskBoard as a calendar", () => {
   const TODAY = "2026-10-09";
   const CHIP = "Evg_1_RanggaPratama_12102026 · Scheduled";
+  /** The table opens a row's panel from its name; the calendar from its chip. */
+  const ROW = "Evg_1_RanggaPratama_12102026";
 
   beforeEach(() => {
     refresh.mockClear();
@@ -404,7 +560,7 @@ describe("MyTaskBoard as a calendar", () => {
 
     expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: CHIP })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /detail:/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: ROW })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Submit Draft/ })).not.toBeInTheDocument();
   });
 
@@ -412,7 +568,7 @@ describe("MyTaskBoard as a calendar", () => {
     render(<MyTaskBoard tasks={[task()]} />);
 
     expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /detail:/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: ROW })).toBeInTheDocument();
   });
 
   it("opens the content detail panel from a chip, as the creator", async () => {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { TaskStatusFilter } from "@/lib/my-tasks";
+import type { MyTasksParams } from "@/lib/my-tasks";
 import { TASK_VIEWS, taskViewHref, type TaskView } from "@/lib/task-view";
 
 // A segmented control, as the prototype draws it: two halves in one rounded frame, the view
@@ -16,19 +16,19 @@ const OFF = "bg-surface text-ink-2 hover:bg-surface-2";
  */
 export function TaskViewToggle({
   view,
-  status,
+  state,
 }: Readonly<{
   /** The view being shown. */
   view: TaskView;
-  /** The status filter in effect, carried over to the other view. */
-  status: TaskStatusFilter | null;
+  /** The tab, search and filters in effect, carried over to the other view. */
+  state: MyTasksParams;
 }>) {
   return (
     <div role="group" aria-label="Tampilan tugas" className={FRAME}>
       {TASK_VIEWS.map(({ key, label }) => (
         <Link
           key={key}
-          href={taskViewHref(key, status)}
+          href={taskViewHref(key, state)}
           aria-current={key === view ? "page" : undefined}
           className={`${HALF} ${key === view ? ON : OFF}`}
         >

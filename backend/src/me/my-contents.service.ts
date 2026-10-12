@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { content_status, content_type } from '@prisma/client';
-import { COMMITTED_STATUSES } from '../contents/content-lifecycle.js';
+import type { ContentListType } from '../contents/content-list.js';
 import { contentTags, type ContentTag } from '../contents/content-tags.js';
+import {
+  compareByDeadline,
+  deadlineWhere,
+  isOverdue,
+  withinPeriod,
+} from '../contents/list-rows.js';
 import { jakartaDay } from '../creators/evergreen.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -9,9 +15,15 @@ import type {
   MyContentItem,
   MyContentsResponse,
 } from './dto/my-contents.dto.js';
-import { pageAcrossSegments, type Slice } from './page-segments.js';
+import {
+  MY_TASK_TAB_STATUSES,
+  PERIOD_FREE_MY_TAB,
+  myTabOf,
+  type MyTaskFilters,
+  type MyTaskStatus,
+  type MyTaskTab,
+} from './my-task-query.js';
 import { taskActions } from './task-actions.js';
-import { statusesFor, type TaskStatusFilter } from './task-status-filter.js';
 
 // Only what a row and its modals show. Selecting columns (rather than whole rows) keeps
 // performance numbers, video links and anything added later out of the response by construction.
@@ -34,15 +46,6 @@ const MY_CONTENT_SELECT = {
   },
 } as const;
 
-// Nearest deadline first, then name and id so rows sharing a deadline keep their place from one
-// page to the next. Open and finished work are read as two segments with this same order, so
-// the finished tasks sit after every open one and are themselves in deadline order too.
-const MY_CONTENT_ORDER = [
-  { deadline: 'asc' },
-  { name: 'asc' },
-  { id: 'asc' },
-] as const;
-
 export interface MyContentRow {
   id: string;
   name: string;
@@ -55,20 +58,21 @@ export interface MyContentRow {
   submissions: { revision_notes: string | null; created_at: Date }[];
 }
 
-interface MyContentsWhere {
-  contracts: { creator_id: string };
-  // Always named: without a filter it is every committed status, so a pending proposal, which
-  // is not assigned work yet, never reaches Task Saya.
-  status: { in: content_status[] };
-  // Only a submitted link has video_submitted_at (the video endpoint sets both together with
-  // link_submitted), so this is what tells finished work from open work.
-  video_submitted_at?: null | { not: null };
+interface DeadlineRange {
+  gte?: Date;
+  lte?: Date;
 }
 
-/** One page of the list, optionally narrowed to a Task Saya status. */
-export interface MyContentsQuery extends Paging {
-  status?: TaskStatusFilter;
+interface MyContentsWhere {
+  contracts: { creator_id: string };
+  // Always named: a pending proposal, which is not assigned work yet, never reaches Task Saya.
+  status: { in: MyTaskStatus[] };
+  type?: { in: ContentListType[] };
+  OR?: [{ deadline: DeadlineRange }, { status: { in: MyTaskStatus[] } }];
 }
+
+/** One page of the list, under the tab, filters and sort the query asked for. */
+export type MyContentsQuery = Paging & MyTaskFilters;
 
 /** The slice of Prisma this service touches, so tests can stub exactly that. */
 export interface MyContentsClient {
@@ -76,11 +80,7 @@ export interface MyContentsClient {
     findMany: (args: {
       where: MyContentsWhere;
       select: typeof MY_CONTENT_SELECT;
-      orderBy: typeof MY_CONTENT_ORDER;
-      skip: number;
-      take: number;
     }) => Promise<MyContentRow[]>;
-    count: (args: { where: MyContentsWhere }) => Promise<number>;
   };
 }
 
@@ -93,6 +93,54 @@ export interface MyContentsLister {
   ): Promise<MyContentsResponse>;
 }
 
+/** The tags a row shows, judged the same way the admin's list judges them. */
+function tagsOf(row: MyContentRow, now: Date): ContentTag[] {
+  return contentTags(
+    {
+      deadline: row.deadline,
+      status: row.status,
+      videoSubmittedAt: row.video_submitted_at,
+      latestDraftAt: row.submissions[0]?.created_at ?? null,
+      approvalBypassed: row.approval_bypassed,
+    },
+    now,
+  );
+}
+
+/**
+ * What the query itself narrows by: the creator's own committed work, its type and its deadline
+ * period. The period keeps every status of Perlu Dikerjakan whatever its deadline, because that
+ * tab is never narrowed by it; which rows the period then leaves in each tab is decided row by
+ * row in list().
+ */
+function narrowing(creatorId: string, filters: MyTaskFilters): MyContentsWhere {
+  const where: MyContentsWhere = {
+    contracts: { creator_id: creatorId },
+    status: { in: [...MY_TASK_TAB_STATUSES.all] },
+  };
+  if (filters.types) {
+    where.type = { in: filters.types };
+  }
+  const deadline = deadlineWhere(filters);
+  if (deadline) {
+    where.OR = [
+      { deadline },
+      { status: { in: [...MY_TASK_TAB_STATUSES[PERIOD_FREE_MY_TAB]] } },
+    ];
+  }
+  return where;
+}
+
+/** Whether a row passes the search and the overdue filter, judged on what the row shows. */
+function matcher(filters: MyTaskFilters) {
+  const { overdue } = filters;
+  const needle = filters.q?.toLowerCase();
+
+  return (item: MyContentItem): boolean =>
+    (overdue === undefined || isOverdue(item.tags) === overdue) &&
+    (!needle || item.name.toLowerCase().includes(needle));
+}
+
 @Injectable()
 export class MyContentsService implements MyContentsLister {
   constructor(
@@ -100,84 +148,77 @@ export class MyContentsService implements MyContentsLister {
     private readonly prisma: MyContentsClient,
   ) {}
 
-  // Sorting and paging run in the query, so a request reads only the rows of its page however
-  // many contents the creator holds. Open work comes first, then finished work, each by nearest
-  // deadline: two ordered segments, with the page cut across them.
+  // The query narrows by owner, type and period; what it returns is then searched, counted,
+  // sorted and paged in memory, the way the admin Content Plan does it. A creator holds at most
+  // a contract's worth of contents, so the read stays small, and the overdue filter is judged on
+  // the very tags a row shows, so a filter can never disagree with its row.
+  //
+  // Each counter is the size of its tab under the search and the type, overdue and period
+  // filters, whichever tab is open. The status filter only narrows the rows, and the period
+  // never applies to Perlu Dikerjakan.
   async list(
     creatorId: string,
     query: MyContentsQuery,
     now: Date,
   ): Promise<MyContentsResponse> {
-    const { page, pageSize, status } = query;
-    const where: MyContentsWhere = {
-      contracts: { creator_id: creatorId },
-      status: { in: status ? statusesFor(status) : [...COMMITTED_STATUSES] },
-    };
-    const open: MyContentsWhere = { ...where, video_submitted_at: null };
-    const finished: MyContentsWhere = {
-      ...where,
-      video_submitted_at: { not: null },
-    };
-
-    const [openTotal, finishedTotal] = await Promise.all([
-      this.prisma.contents.count({ where: open }),
-      this.prisma.contents.count({ where: finished }),
-    ]);
-    const slices = pageAcrossSegments(
-      (page - 1) * pageSize,
-      pageSize,
-      openTotal,
-    );
-
-    const [openRows, finishedRows] = await Promise.all([
-      this.read(open, slices.first),
-      this.read(finished, slices.second, finishedTotal),
-    ]);
+    const rows = await this.prisma.contents.findMany({
+      where: narrowing(creatorId, query),
+      select: MY_CONTENT_SELECT,
+    });
 
     const today = jakartaDay(now);
-    const tagsOf = (row: MyContentRow) =>
-      contentTags(
-        {
-          deadline: row.deadline,
-          status: row.status,
-          videoSubmittedAt: row.video_submitted_at,
-          latestDraftAt: row.submissions[0]?.created_at ?? null,
-          approvalBypassed: row.approval_bypassed,
-        },
-        now,
-      );
-    const total = openTotal + finishedTotal;
+    const matches = matcher(query);
+    const inPeriod = withinPeriod(query);
+    const { statuses } = query;
+    const tabCounts: Record<MyTaskTab, number> = {
+      all: 0,
+      to_do: 0,
+      waiting_admin: 0,
+      done: 0,
+    };
+    const listed: MyContentItem[] = [];
+
+    for (const row of rows) {
+      const item = this.toItem(row, today, tagsOf(row, now));
+      if (!matches(item)) {
+        continue;
+      }
+      const tab = myTabOf(item.status);
+      const dated = inPeriod(item.deadline);
+      // Semua holds a row only inside the period; the row's own tab also holds it outside the
+      // period when that tab is Perlu Dikerjakan.
+      const inOwnTab = dated || tab === PERIOD_FREE_MY_TAB;
+      if (dated) {
+        tabCounts.all += 1;
+      }
+      if (inOwnTab) {
+        tabCounts[tab] += 1;
+      }
+      const shown = query.tab === 'all' ? dated : query.tab === tab && inOwnTab;
+      if (shown && (!statuses || statuses.includes(item.status))) {
+        listed.push(item);
+      }
+    }
+    listed.sort(compareByDeadline(query.sort));
+
+    const { page, pageSize } = query;
+    const start = (page - 1) * pageSize;
 
     return {
-      items: [...openRows, ...finishedRows].map((row) =>
-        this.toItem(row, today, tagsOf(row)),
-      ),
+      items: listed.slice(start, start + pageSize),
       page,
       pageSize,
-      total,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      total: listed.length,
+      totalPages: Math.max(1, Math.ceil(listed.length / pageSize)),
+      tabCounts,
     };
   }
 
-  /** One segment's share of the page; no query when it has none, or nothing is left there. */
-  private async read(
-    where: MyContentsWhere,
-    slice: Slice | null,
-    available = Number.POSITIVE_INFINITY,
-  ): Promise<MyContentRow[]> {
-    if (slice === null || slice.skip >= available) {
-      return [];
-    }
-    return this.prisma.contents.findMany({
-      where,
-      select: MY_CONTENT_SELECT,
-      orderBy: MY_CONTENT_ORDER,
-      skip: slice.skip,
-      take: slice.take,
-    });
-  }
-
-  private toItem(row: MyContentRow, today: string, tags: ContentTag[]): MyContentItem {
+  private toItem(
+    row: MyContentRow,
+    today: string,
+    tags: ContentTag[],
+  ): MyContentItem {
     // Postgres `date` arrives as midnight UTC, so the ISO day is its first ten characters.
     const deadline = row.deadline.toISOString().slice(0, 10);
     return {
@@ -186,7 +227,7 @@ export class MyContentsService implements MyContentsLister {
       type: row.type,
       brief: row.brief,
       deadline,
-      status: row.status,
+      status: row.status as MyTaskStatus,
       tags,
       actions: taskActions(row.status, deadline, today),
       // Stale once the revision is handed in, so only a row awaiting a resubmit carries them.

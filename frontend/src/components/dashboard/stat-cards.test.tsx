@@ -33,10 +33,10 @@ describe("StatCards", () => {
   });
 
   it.each([
-    ["Draft Perlu Disubmit", "/creator/tasks?status=scheduled"],
-    ["Draft Perlu Direvisi", "/creator/tasks?status=draft_revision"],
-    ["Link Konten Perlu Diupload", "/creator/tasks?status=draft_approved"],
-  ])("makes %s a link to Task Saya for its status", (label, href) => {
+    ["Draft Perlu Disubmit", "/creator/tasks?tab=action&status=scheduled"],
+    ["Draft Perlu Direvisi", "/creator/tasks?tab=action&status=draft_revision"],
+    ["Link Konten Perlu Diupload", "/creator/tasks?tab=action&status=draft_approved"],
+  ])("makes %s a link to its status on Task Saya's Perlu Dikerjakan tab", (label, href) => {
     renderCards();
 
     expect(screen.getByRole("link", { name: new RegExp(label) })).toHaveAttribute("href", href);
