@@ -390,7 +390,8 @@ describe("MyTaskBoard content detail panel", () => {
       name: "Evg_1_RanggaPratama_12102026",
       type: "evergreen" as const,
       brief: "",
-      deadline: "2026-10-12",
+      // Far ahead, so the link reads as the H-1 route whatever day the test runs.
+      deadline: "2099-12-31",
       status: "draft_review" as const,
       creatorName: "Rangga Pratama",
       tags: [],
