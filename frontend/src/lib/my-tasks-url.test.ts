@@ -6,6 +6,7 @@ import {
   MY_TASKS_PAGE_SIZE,
   buildMyTasksQuery,
   isMyTasksFiltered,
+  myTabOf,
   myTasksAfterTabChange,
   parseMyTasksParams,
   myStatusOptionsFor,
@@ -210,5 +211,25 @@ describe("myTasksAfterTabChange", () => {
       sort: "asc",
       page: 1,
     });
+  });
+});
+
+describe("myTabOf", () => {
+  it.each([
+    ["scheduled", "action"],
+    ["draft_revision", "action"],
+    ["draft_approved", "action"],
+    ["draft_review", "waiting"],
+    ["link_submitted", "done"],
+  ] as const)("finds %s on the %s tab", (status, tab) => {
+    expect(myTabOf(status)).toBe(tab);
+  });
+
+  it("names a tab that offers the status in its own filter", () => {
+    for (const def of MY_TASK_TABS) {
+      for (const status of def.statuses ?? []) {
+        expect(myStatusOptionsFor(myTabOf(status))).toContain(status);
+      }
+    }
   });
 });

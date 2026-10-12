@@ -40,11 +40,19 @@ describe("STAT_CARDS", () => {
 
 describe("statCardHref", () => {
   it.each([
-    ["scheduled", "/creator/tasks?status=scheduled"],
-    ["draft_revision", "/creator/tasks?status=draft_revision"],
-    ["draft_approved", "/creator/tasks?status=draft_approved"],
-  ] as const)("opens Task Saya on %s", (status, href) => {
+    ["scheduled", "/creator/tasks?tab=action&status=scheduled"],
+    ["draft_revision", "/creator/tasks?tab=action&status=draft_revision"],
+    ["draft_approved", "/creator/tasks?tab=action&status=draft_approved"],
+  ] as const)("opens the tab that holds %s, narrowed to it", (status, href) => {
     expect(statCardHref(status)).toBe(href);
+  });
+
+  it("opens every card on Perlu Dikerjakan, where its count is part of the tab's own", () => {
+    for (const card of STAT_CARDS) {
+      expect(new URL(statCardHref(card.status), "http://localhost").searchParams.get("tab")).toBe(
+        "action",
+      );
+    }
   });
 
   it("gives every card its own address", () => {
