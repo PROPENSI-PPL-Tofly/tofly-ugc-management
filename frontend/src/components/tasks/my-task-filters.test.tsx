@@ -57,14 +57,16 @@ describe("MyTaskFilters", () => {
     expect(screen.queryByRole("checkbox", { name: "Pending" })).not.toBeInTheDocument();
   });
 
-  it("offers only Perlu Dikerjakan's statuses on that tab", () => {
+  it("offers only what Perlu Dikerjakan can list on that tab, an H-1 draft in review included", () => {
     renderOn({ tab: "action" }, { tab: "action" });
 
     fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
 
     expect(screen.getByRole("checkbox", { name: "Scheduled" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Draft Perlu Revisi" })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Draft Menunggu Review" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Draft Approved" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Draft Menunggu Review" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Content Link Submitted" })).not.toBeInTheDocument();
   });
 
   // One status is no choice: Menunggu Admin holds only drafts in review, Selesai only links.
@@ -124,7 +126,7 @@ describe("MyTaskFilters", () => {
   });
 
   it("shows no chip for a status another tab holds", () => {
-    renderOn({ tab: "action", status: "draft_review,scheduled" }, { tab: "action", status: ["scheduled"] });
+    renderOn({ tab: "action", status: "link_submitted,scheduled" }, { tab: "action", status: ["scheduled"] });
 
     expect(screen.getAllByRole("button", { name: /^Hapus filter Status/ })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" })).toBeInTheDocument();

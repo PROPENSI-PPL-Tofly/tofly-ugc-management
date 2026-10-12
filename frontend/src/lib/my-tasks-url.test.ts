@@ -52,8 +52,23 @@ describe("myStatusOptionsFor", () => {
       "draft_approved",
       "link_submitted",
     ]);
-    expect(myStatusOptionsFor("action")).toEqual(["scheduled", "draft_revision", "draft_approved"]);
     expect(myStatusOptionsFor("waiting")).toEqual(["draft_review"]);
+    expect(myStatusOptionsFor("done")).toEqual(["link_submitted"]);
+  });
+
+  // Perlu Dikerjakan also lists a draft in review once its H-1 link can be sent, so its filter
+  // has to be able to name that row's status, after the tab's own.
+  it("offers Draft Menunggu Review on Perlu Dikerjakan too, where an H-1 draft is listed", () => {
+    expect(myStatusOptionsFor("action")).toEqual([
+      "scheduled",
+      "draft_revision",
+      "draft_approved",
+      "draft_review",
+    ]);
+  });
+
+  it("keeps a draft in review's own tab Menunggu Admin, whatever else can list it", () => {
+    expect(myTabOf("draft_review")).toBe("waiting");
   });
 });
 
@@ -117,6 +132,12 @@ describe("parseMyTasksParams", () => {
 
   // A hand-typed or stale address could pair a tab with a status it never holds, which would
   // empty the list for no visible reason; the status filter cannot even offer it there.
+  it("keeps Draft Menunggu Review on Perlu Dikerjakan, which lists an H-1 draft", () => {
+    expect(
+      parseMyTasksParams({ tab: "action", status: "draft_review,link_submitted" }).status,
+    ).toEqual(["draft_review"]);
+  });
+
   it("drops a status the open tab cannot hold", () => {
     expect(parseMyTasksParams({ tab: "waiting", status: "scheduled,draft_review" }).status).toEqual([
       "draft_review",
