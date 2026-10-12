@@ -105,7 +105,6 @@ describe("PeriodTabs", () => {
   it("shows the open period's terms", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
-    expect(term("Fixed Rate")).toHaveTextContent("Rp4.150.000");
     expect(term("Kuota Konten")).toHaveTextContent("19 konten");
     expect(term("Sisa Kuota Evergreen")).toHaveTextContent("1 konten");
     expect(term("Jarak Antar-Deadline")).toHaveTextContent("14 hari");
@@ -114,25 +113,21 @@ describe("PeriodTabs", () => {
   it("shows the terms of whichever period is open", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={OLDEST} />);
 
-    expect(term("Fixed Rate")).toHaveTextContent("Rp1.350.000");
     expect(term("Kuota Konten")).toHaveTextContent("3 konten");
     expect(term("Sisa Kuota Evergreen")).toHaveTextContent("0 konten");
     expect(term("Jarak Antar-Deadline")).toHaveTextContent("7 hari");
   });
 
-  it("shows a dash for a fixed rate that could not be read, never Rp0", () => {
-    const unread = period({ fixedRate: null });
-    render(<PeriodTabs creatorId={CREATOR} periods={[unread]} selected={unread} />);
+  // The creator detail endpoint (4.1) sends no fixed rate, so the terms do not offer one.
+  it("shows three terms and no fixed rate", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
-    expect(term("Fixed Rate")).toHaveTextContent("—");
+    expect(screen.getAllByRole("term").map((label) => label.textContent)).toEqual([
+      "Kuota Konten",
+      "Sisa Kuota Evergreen",
+      "Jarak Antar-Deadline",
+    ]);
     expect(screen.queryByText(/Rp/)).toBeNull();
-  });
-
-  it("writes a fixed rate of nothing as Rp0, which is an amount", () => {
-    const free = period({ fixedRate: 0 });
-    render(<PeriodTabs creatorId={CREATOR} periods={[free]} selected={free} />);
-
-    expect(term("Fixed Rate")).toHaveTextContent("Rp0");
   });
 
   it("shows a creator's only period as one tab, open", () => {
@@ -149,6 +144,6 @@ describe("PeriodTabs", () => {
     expect(screen.getByRole("heading", { name: "Periode Kontrak" })).toBeInTheDocument();
     expect(screen.getByText("Belum ada kontrak")).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).toBeNull();
-    expect(screen.queryByText("Fixed Rate")).toBeNull();
+    expect(screen.queryByRole("term")).toBeNull();
   });
 });
