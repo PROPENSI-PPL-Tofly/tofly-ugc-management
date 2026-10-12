@@ -99,11 +99,7 @@ const DETAIL_SELECT = {
           video_link: true,
           video_submitted_at: true,
           approval_bypassed: true,
-          _count: {
-            select: {
-              submissions: true,
-            },
-          },
+          // Every hand-in is loaded anyway, so their count is read from this list.
           submissions: {
             orderBy: {
               created_at: 'asc',
@@ -120,6 +116,21 @@ const DETAIL_SELECT = {
     },
   },
 } satisfies Prisma.creatorsSelect;
+
+type DetailRow = Prisma.creatorsGetPayload<{
+  select: typeof DETAIL_SELECT;
+}>;
+
+/** Either selection carries what the summary reads; only how hand-ins are counted differs. */
+type SummaryRow = CreatorRow | DetailRow;
+
+type SummaryContent = SummaryRow['contracts'][number]['contents'][number];
+
+function submissionCount(content: SummaryContent): number {
+  return '_count' in content
+    ? content._count.submissions
+    : content.submissions.length;
+}
 
 const NO_CONTRACT: ContractSummary = {
   status: 'none',
@@ -147,19 +158,21 @@ type ContractWithQuota = MetricsContract & {
 };
 
 function toMetricsContract(
-  contract: CreatorRow['contracts'][number],
+  contract: SummaryRow['contracts'][number],
 ): ContractWithQuota {
+  const contents: SummaryContent[] = contract.contents;
+
   return {
     id: contract.id,
     contentQuota: contract.content_quota,
     contractType: contract.contract_type,
     startDate: contract.start_date,
     endDate: contract.end_date,
-    contents: contract.contents.map((content) => ({
+    contents: contents.map((content) => ({
       deadline: content.deadline,
       videoSubmittedAt: content.video_submitted_at,
       isProposal: isProposal(content.status),
-      submissionCount: content._count.submissions,
+      submissionCount: submissionCount(content),
     })),
   };
 }
@@ -279,10 +292,7 @@ export class CreatorsService implements CreatorLister {
       });
     }
 
-    const summary = this.toSummary(
-      row as unknown as CreatorRow,
-      today,
-    );
+    const summary = this.toSummary(row, today);
 
     const periods = toContractPeriods(row.contracts, today);
     // Both lists keep the database order, so a period's index is its row's index.
@@ -371,7 +381,7 @@ export class CreatorsService implements CreatorLister {
   }
 
   private toSummary(
-    row: CreatorRow,
+    row: SummaryRow,
     today: Date,
   ): CreatorSummary {
     const contracts = row.contracts.map(toMetricsContract);
