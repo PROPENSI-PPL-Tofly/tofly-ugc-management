@@ -213,20 +213,21 @@ describe("toCreatorDetailView", () => {
       endDate: "2026-08-31",
       status: "expired",
       contentQuota: 3,
+      evergreenCount: 3,
       remainingEvergreenQuota: 0,
       daysBetween: 7,
     });
   });
 
   it.each([
-    ["some of the quota is planned", 6, ["evergreen", "evergreen", "specific"], 4],
-    ["none of it is planned", 6, ["specific", "specific"], 6],
-    ["the period has no content", 6, [], 6],
-    ["all of it is planned", 3, ["evergreen", "evergreen", "evergreen"], 0],
-    ["more Evergreen is planned than the quota holds", 2, ["evergreen", "evergreen", "evergreen"], 0],
+    ["some of the quota is planned", 6, ["evergreen", "evergreen", "specific"], 2, 4],
+    ["none of it is planned", 6, ["specific", "specific"], 0, 6],
+    ["the period has no content", 6, [], 0, 6],
+    ["all of it is planned", 3, ["evergreen", "evergreen", "evergreen"], 3, 0],
+    ["more Evergreen is planned than the quota holds", 2, ["evergreen", "evergreen", "evergreen"], 3, 0],
   ] as const)(
-    "counts the Evergreen quota still free when %s",
-    (_, contentQuota, types, remaining) => {
+    "counts the Evergreen planned, and the quota still free, when %s",
+    (_, contentQuota, types, planned, remaining) => {
       const raw = {
         ...RAW,
         contractHistory: [
@@ -234,9 +235,11 @@ describe("toCreatorDetailView", () => {
         ],
       };
 
-      expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.remainingEvergreenQuota).toBe(
-        remaining,
-      );
+      const { selected } = toCreatorDetailView(raw, CONTENTS, BARE);
+
+      // The count is carried as it is, also past the quota; only what is left stops at nothing.
+      expect(selected?.evergreenCount).toBe(planned);
+      expect(selected?.remainingEvergreenQuota).toBe(remaining);
     },
   );
 

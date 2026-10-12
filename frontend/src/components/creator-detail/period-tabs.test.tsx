@@ -16,6 +16,7 @@ function period(overrides: Partial<CreatorPeriod> = {}): CreatorPeriod {
     endDate: "2026-12-31",
     status: "active",
     contentQuota: 19,
+    evergreenCount: 18,
     remainingEvergreenQuota: 1,
     daysBetween: 14,
     ...overrides,
@@ -31,6 +32,7 @@ const OLDEST = period({
   endDate: "2026-05-31",
   status: "expired",
   contentQuota: 3,
+  evergreenCount: 3,
   remainingEvergreenQuota: 0,
   daysBetween: 7,
 });

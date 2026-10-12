@@ -92,6 +92,7 @@ const PERIOD: CreatorPeriod = {
   endDate: "2026-12-31",
   status: "active",
   contentQuota: 19,
+  evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
 };
@@ -292,19 +293,22 @@ describe("CreatorContentBoard", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "+ Tambah Konten" }));
 
-      // Nineteen in the quota with one left over: eighteen Evergreen are already planned.
+      // The period's own count of planned Evergreen, handed on as it is.
       expect(screen.getByRole("dialog", { name: "Tambah Konten" })).toHaveTextContent(
         `${CONTRACT} · evergreen 18/19 · 2026-06-01 s.d. 2026-12-31`,
       );
     });
 
-    it("never counts fewer than no Evergreen, whatever the API says is left", () => {
-      renderBoard(viewOf(3, 1, { ...PERIOD, contentQuota: 3, remainingEvergreenQuota: 5 }));
+    it("hands the modal the count itself, not one worked back from what is left", () => {
+      renderBoard(
+        viewOf(3, 1, { ...PERIOD, contentQuota: 3, evergreenCount: 5, remainingEvergreenQuota: 0 }),
+      );
 
       fireEvent.click(screen.getByRole("button", { name: "+ Tambah Konten" }));
 
+      // Five planned against a quota of three: worked back from "none left" it would read 3/3.
       expect(screen.getByRole("dialog", { name: "Tambah Konten" })).toHaveTextContent(
-        "evergreen 0/3",
+        "evergreen 5/3",
       );
     });
 

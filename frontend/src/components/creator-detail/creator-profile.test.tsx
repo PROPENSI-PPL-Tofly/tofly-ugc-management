@@ -17,6 +17,7 @@ const PERIOD: CreatorPeriod = {
   endDate: "2026-12-31",
   status: "active",
   contentQuota: 19,
+  evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
 };
