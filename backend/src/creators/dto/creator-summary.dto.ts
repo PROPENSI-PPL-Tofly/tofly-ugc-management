@@ -109,8 +109,48 @@ export interface DraftEntry {
   lastSubmittedAt: string;
 }
 
+/** One content inside a contract period, with where it stands in its lifecycle. */
+export interface PeriodContent {
+  id: string;
+  name: string;
+  type: 'evergreen' | 'specific';
+  /** ISO calendar day. */
+  deadline: string;
+  status: ContentStatus;
+  outcome: ContentOutcome;
+  tags: ContentTag[];
+
+  /** Whose turn the step is on; null once the link has closed the content. */
+  waitingOn: 'admin' | 'creator' | null;
+
+  /** Hand-ins an admin asked to revise, the same count the Content Plan list shows. */
+  revisionCount: number;
+
+  /** The newest draft; submittedAt is an ISO instant. Null before any hand-in. */
+  latestDraft: { link: string; submittedAt: string } | null;
+
+  videoLink: string | null;
+
+  /** ISO calendar day. */
+  videoSubmittedAt: string | null;
+}
+
+/**
+ * One contract period with its own numbers and contents. The full timeline of a content is
+ * not repeated here: the Content Detail panel loads it by id (GET /contents/:id).
+ */
+export interface ContractPeriod extends ContractHistoryEntry {
+  status: Exclude<ContractSummary['status'], 'none'>;
+  progress: CreatorSummary['progress'];
+  performance: CreatorSummary['performance'];
+
+  /** The contract's contents, deadline first; pending proposals are listed but not counted. */
+  contents: PeriodContent[];
+}
+
 export interface CreatorDetail extends CreatorSummary {
   phoneNumber: string | null;
+
   contractHistory: ContractHistoryEntry[];
 
   /** Content belonging to the current contract. */
