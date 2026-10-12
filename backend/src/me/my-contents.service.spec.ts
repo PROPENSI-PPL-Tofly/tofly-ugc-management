@@ -142,6 +142,11 @@ describe('MyContentsService.list', () => {
               },
             },
             { status: { in: ['scheduled', 'draft_revision', 'draft_approved'] } },
+            // Today is 10 October in WIB, so the H-1 link is open on a deadline up to the 11th.
+            {
+              status: 'draft_review',
+              deadline: { lte: new Date('2026-10-11T00:00:00.000Z') },
+            },
           ],
         },
       }),
@@ -159,25 +164,55 @@ describe('MyContentsService.list', () => {
           OR: [
             { deadline: { lte: new Date('2026-10-31T00:00:00.000Z') } },
             expect.anything(),
+            expect.anything(),
           ],
         }),
       }),
     );
   });
 
-  // A creator could not tell what to do next from a list that put finished work in its own block.
-  it('lists the nearest deadline first by default, one flat list across every status', async () => {
+  // Finished work has the oldest deadlines, so sorted in with the rest it would fill the first
+  // page of Semua and push what the creator still has to deliver behind it.
+  it('lists open work first, nearest deadline first, and finished work after it', async () => {
     const { service } = stub([
       row({ id: 'later', deadline: '2026-11-15' }),
+      row({ id: 'done-old', deadline: '2026-09-01', status: 'link_submitted', linkDay: '2026-09-01' }),
       row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted', linkDay: '2026-10-01' }),
       row({ id: 'sooner', deadline: '2026-10-20', status: 'draft_review' }),
     ]);
 
     expect(ids(await service.list(CREATOR_ID, query(), NOW))).toEqual([
-      'done',
       'sooner',
       'later',
+      'done-old',
+      'done',
     ]);
+  });
+
+  it('keeps open work ahead of finished work when the furthest deadline is asked first', async () => {
+    const { service } = stub([
+      row({ id: 'done', deadline: '2026-12-01', status: 'link_submitted', linkDay: '2026-12-01' }),
+      row({ id: 'sooner', deadline: '2026-10-20' }),
+      row({ id: 'done-old', deadline: '2026-09-01', status: 'link_submitted', linkDay: '2026-09-01' }),
+      row({ id: 'later', deadline: '2026-11-15' }),
+    ]);
+
+    const response = await service.list(CREATOR_ID, query({ sort: 'deadline_desc' }), NOW);
+
+    expect(ids(response)).toEqual(['later', 'sooner', 'done', 'done-old']);
+  });
+
+  it('pages across the two blocks as one list', async () => {
+    const { service } = stub([
+      row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted', linkDay: '2026-10-01' }),
+      row({ id: 'open-a', deadline: '2026-10-20' }),
+      row({ id: 'open-b', deadline: '2026-10-21' }),
+    ]);
+
+    const second = await service.list(CREATOR_ID, query({}, { page: 2, pageSize: 2 }), NOW);
+
+    expect(ids(second)).toEqual(['done']);
+    expect(second).toMatchObject({ total: 3, totalPages: 2 });
   });
 
   it('turns the order around when the furthest deadline is asked first', async () => {
@@ -226,6 +261,40 @@ describe('MyContentsService.list', () => {
     expect(ids(await service.list(CREATOR_ID, query({ tab }), NOW))).toEqual(
       expected,
     );
+  });
+
+  // The H-1 link skips the approval, so from then on the next move is the creator's too.
+  it.each([
+    ['the day before its deadline', '2026-10-11'],
+    ['on its deadline', '2026-10-10'],
+    ['past its deadline', '2026-10-08'],
+  ])('moves a draft in review to Perlu Dikerjakan %s, when its link can be sent', async (_label, deadline) => {
+    const { service } = stub([
+      row({ id: 'review-h1', status: 'draft_review', deadline }),
+      row({ id: 'review-far', status: 'draft_review', deadline: '2026-10-12' }),
+    ]);
+
+    const toDo = await service.list(CREATOR_ID, query({ tab: 'to_do' }), NOW);
+    const waiting = await service.list(CREATOR_ID, query({ tab: 'waiting_admin' }), NOW);
+
+    expect(ids(toDo)).toEqual(['review-h1']);
+    expect(toDo.items[0].actions).toEqual(['submit_video']);
+    expect(ids(waiting)).toEqual(['review-far']);
+    expect(toDo.tabCounts).toEqual({ all: 2, to_do: 1, waiting_admin: 1, done: 0 });
+  });
+
+  it('keeps a draft in review whose link can be sent in Perlu Dikerjakan whatever the period', async () => {
+    const { service } = stub([
+      row({ id: 'review-h1', status: 'draft_review', deadline: '2026-10-11' }),
+    ]);
+    const period = { deadlineFrom: '2026-11-01', deadlineTo: '2026-11-30' };
+
+    const semua = await service.list(CREATOR_ID, query(period), NOW);
+    const toDo = await service.list(CREATOR_ID, query({ ...period, tab: 'to_do' }), NOW);
+
+    expect(ids(semua)).toEqual([]);
+    expect(ids(toDo)).toEqual(['review-h1']);
+    expect(toDo.tabCounts).toEqual({ all: 0, to_do: 1, waiting_admin: 0, done: 0 });
   });
 
   it('counts every tab whichever is open, so the badges never change with the tab', async () => {
@@ -277,8 +346,8 @@ describe('MyContentsService.list', () => {
   });
 
   it.each([
-    [true, ['late', 'overdue']],
-    [false, ['on-time', 'open']],
+    [true, ['overdue', 'late']],
+    [false, ['open', 'on-time']],
   ])('keeps overdue=%s rows by the same tags the row shows', async (overdue, expected) => {
     const { service } = stub([
       row({ id: 'overdue', status: 'draft_revision', deadline: '2026-10-05' }),
@@ -312,7 +381,7 @@ describe('MyContentsService.list', () => {
   it('keeps every other tab to the period, rows and counter alike', async () => {
     // A row the database would not return, handed back anyway: the period still decides.
     const { service } = stub([
-      row({ id: 'review-old', status: 'draft_review', deadline: '2026-09-01' }),
+      row({ id: 'review-later', status: 'draft_review', deadline: '2026-12-01' }),
       row({ id: 'done-old', status: 'link_submitted', deadline: '2026-09-02', linkDay: '2026-09-02' }),
     ]);
     const period = { deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' };
@@ -337,7 +406,7 @@ describe('MyContentsService.list', () => {
       NOW,
     );
 
-    expect(ids(response)).toEqual(['first', 'last']);
+    expect(ids(response)).toEqual(['last', 'first']);
   });
 
   it('maps a row into API vocabulary with its actions for today in WIB', async () => {

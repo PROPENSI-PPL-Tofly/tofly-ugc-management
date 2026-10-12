@@ -1,5 +1,6 @@
 import {
   actionsFor,
+  creatorActionLabel,
   submitRejection,
   submitRevision,
   type PanelActionPorts,
@@ -250,6 +251,21 @@ describe("submitRejection", () => {
     const command = submitRejection({ contentId: CONTENT, state: idle, ports: {} });
 
     await expect(command.run()).resolves.toBeUndefined();
+  });
+});
+
+describe("creatorActionLabel", () => {
+  // 10 Oct 2026, 12.00 WIB.
+  const NOW = new Date("2026-10-10T05:00:00.000Z");
+
+  it.each([
+    ["submit_draft", "scheduled", "2026-10-11", "Submit Draft"],
+    ["resubmit_draft", "draft_revision", "2026-10-01", "Resubmit Draft"],
+    ["submit_video", "draft_approved", "2026-10-01", "Submit Link Video"],
+    ["submit_video", "draft_review", "2026-10-11", "Submit Link (H-1)"],
+    ["submit_video", "draft_review", "2026-10-09", "Submit Link (Terlambat)"],
+  ] as const)("words %s on a %s content due %s as %s", (action, status, deadline, label) => {
+    expect(creatorActionLabel(action, { status, deadline }, NOW)).toBe(label);
   });
 });
 

@@ -4,6 +4,7 @@
 import type { Tone } from "@/components/ui/pill";
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
+import type { MyTaskAction } from "./my-tasks";
 
 export type CalendarGroup = "todo" | "wait" | "done" | "overdue";
 
@@ -34,12 +35,19 @@ const STATUS_GROUP: Record<ContentStatus, Exclude<CalendarGroup, "overdue">> = {
   link_submitted: "done",
 };
 
-/** A task past its deadline with no link is overdue first; otherwise it follows its status. */
+/**
+ * A task past its deadline with no link is overdue first; otherwise it follows its status. A
+ * draft in review that offers the creator its H-1 link is theirs to finish, as on the tabs.
+ */
 export function calendarGroup(task: {
   status: ContentStatus;
   tags: readonly ContentTag[];
+  actions?: readonly MyTaskAction[];
 }): CalendarGroup {
-  return task.tags.includes("overdue") ? "overdue" : STATUS_GROUP[task.status];
+  if (task.tags.includes("overdue")) return "overdue";
+  if (task.status === "draft_review" && task.actions?.includes("submit_video")) return "todo";
+
+  return STATUS_GROUP[task.status];
 }
 
 // "Evg_10_RanggaPratama_07112026": the number between the prefix and the creator's name.

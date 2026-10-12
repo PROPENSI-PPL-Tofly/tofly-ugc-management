@@ -140,7 +140,7 @@ describe('GET /me/contents (e2e)', () => {
   const names = (response: { body: { items: { name: string }[] } }) =>
     response.body.items.map((item) => item.name);
 
-  it('lists every task in one flat list by nearest deadline, ten a page, each with its actions and every tab counted', async () => {
+  it('lists open work by nearest deadline and finished work after it, ten a page, each with its actions and every tab counted', async () => {
     const response = await list(dina);
 
     expect(response.status).toBe(200);
@@ -160,19 +160,19 @@ describe('GET /me/contents (e2e)', () => {
         ],
       ),
     ).toEqual([
-      ['Submitted long ago', iso(-20), []],
       ['Overdue', iso(-2), ['submit_draft']],
       ['Tomorrow', iso(1), ['submit_draft']],
       ['Revision', iso(12), ['resubmit_draft']],
       ['In review', iso(20), []],
       ['Approved', iso(30), ['submit_video']],
       ['Far away', iso(40), ['submit_draft']],
+      ['Submitted long ago', iso(-20), []],
     ]);
     expect(
       response.body.items.map(
         (item: { revisionNotes: string | null }) => item.revisionNotes,
       ),
-    ).toEqual([null, null, null, 'Perjelas intro', null, null, null]);
+    ).toEqual([null, null, 'Perjelas intro', null, null, null, null]);
   });
 
   it('turns the order around for the furthest deadline first', async () => {
@@ -221,6 +221,26 @@ describe('GET /me/contents (e2e)', () => {
     });
   });
 
+  it('moves a draft in review to Perlu Dikerjakan once its H-1 link is open, whatever the period', async () => {
+    const tari = await creator('tari');
+    await content(tari.contractId, 'Review due tomorrow', 'draft_review', 1);
+    await content(tari.contractId, 'Review due later', 'draft_review', 9);
+    const period = `deadlineFrom=${iso(5)}&deadlineTo=${iso(15)}`;
+
+    const toDo = await list(tari.creatorId, `?tab=to_do&${period}`);
+    const waiting = await list(tari.creatorId, `?tab=waiting_admin&${period}`);
+
+    expect(names(toDo)).toEqual(['Review due tomorrow']);
+    expect(toDo.body.items[0].actions).toEqual(['submit_video']);
+    expect(names(waiting)).toEqual(['Review due later']);
+    expect(toDo.body.tabCounts).toEqual({
+      all: 1,
+      to_do: 1,
+      waiting_admin: 1,
+      done: 0,
+    });
+  });
+
   it('searches the name whatever its case, and counts only what it finds', async () => {
     const response = await list(dina, '?q=REVIS');
 
@@ -261,7 +281,7 @@ describe('GET /me/contents (e2e)', () => {
   });
 
   // Finished in the opposite order to their deadlines: the list still follows the deadline.
-  it('orders finished tasks by deadline, not by when their link was sent', async () => {
+  it('orders finished tasks by deadline, not by when their link was sent, after what is still open', async () => {
     const sari = await creator('sari');
     const finished = (name: string, deadline: number, sent: number) =>
       prisma.contents.create({
@@ -283,7 +303,7 @@ describe('GET /me/contents (e2e)', () => {
 
     expect(
       response.body.items.map((item: { name: string }) => item.name),
-    ).toEqual(['Sent long ago', 'Sent recently', 'Still open']);
+    ).toEqual(['Still open', 'Sent long ago', 'Sent recently']);
   });
 
   it.each([

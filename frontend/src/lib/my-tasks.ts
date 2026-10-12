@@ -58,7 +58,9 @@ export interface MyTaskTabDef extends StatusTabDef<MyTaskTab> {
 /**
  * The four tabs, grouped by whose turn it is: the creator's (Perlu Dikerjakan, whose counter
  * turns red), the admin's, or nobody's. The backend groups them the same way
- * (my-task-query.ts), read off the admin's own tabs.
+ * (my-task-query.ts), read off the admin's own tabs, and also lists a draft in review under
+ * Perlu Dikerjakan once its H-1 link can be sent. `statuses` is what each tab's Status filter
+ * offers.
  */
 export const MY_TASK_TABS: readonly MyTaskTabDef[] = [
   { key: "all", label: "Semua", statuses: null, urgent: false, counter: false },
@@ -78,7 +80,7 @@ const MY_TASK_TAB_KEYS: readonly MyTaskTab[] = ["all", "action", "waiting", "don
 /** The tab the period filter never narrows, so no work to do hides behind a date range. */
 export const PERIOD_FREE_MY_TAB: MyTaskTab = "action";
 
-/** The nearest deadline first: what a creator has to deliver next. */
+/** The nearest deadline first: what a creator has to deliver next. Finished work follows it. */
 export const DEFAULT_MY_TASKS_SORT: DeadlineSort = "asc";
 
 const CONTENT_TYPES: readonly ContentType[] = ["evergreen", "specific"];

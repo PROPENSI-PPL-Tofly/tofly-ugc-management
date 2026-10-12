@@ -44,8 +44,10 @@ function committed(statuses: readonly ContentStatus[]): MyTaskStatus[] {
 }
 
 /**
- * Whose turn a content is, read off the admin's tabs so the two sides cannot disagree: what
- * waits for the creator is Perlu Dikerjakan, what waits for the admin is Menunggu Admin.
+ * Whose turn a content is by its status, read off the admin's tabs so the two sides cannot
+ * disagree: what waits for the creator is Perlu Dikerjakan, what waits for the admin is
+ * Menunggu Admin. One row leaves its status's tab: a draft in review whose H-1 link is open is
+ * the creator's to finish too, and the service lists it under Perlu Dikerjakan.
  */
 export const MY_TASK_TAB_STATUSES: Record<MyTaskTab, readonly MyTaskStatus[]> = {
   all: COMMITTED_STATUSES,

@@ -23,9 +23,9 @@ export interface CreatorDashboard {
 
 /**
  * One round of requests: each card's status for its total, and the unfinished tasks for the
- * nearest deadline. The API lists the nearest deadline first whatever the status, so finished
- * tasks are left out of that request: its first row is then the one, and none means nothing is
- * open at all.
+ * nearest deadline. Finished tasks are left out of that request by name, so its first row is
+ * the nearest open deadline whatever order the API gives finished work, and none means nothing
+ * is open at all.
  */
 export async function fetchCreatorDashboard(): Promise<CreatorDashboard> {
   const today = jakartaDay();

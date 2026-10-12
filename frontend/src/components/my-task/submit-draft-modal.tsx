@@ -133,6 +133,8 @@ export function SubmitDraftModal({
     }
   }
 
+  const cannotSend = isSubmitting || notDrive;
+
   return (
     <>
     <Modal
@@ -153,7 +155,7 @@ export function SubmitDraftModal({
             type="button"
             variant="accent"
             onClick={handleSubmit}
-            disabled={isSubmitting || notDrive}
+            disabled={cannotSend}
           >
             {isSubmitting ? "Mengirim..." : wording.submit}
           </Button>
@@ -180,6 +182,13 @@ export function SubmitDraftModal({
               setDraftLink(event.target.value);
               // The message described the old value; a new one is checked again on submit.
               setDraftLinkError("");
+            }}
+            // Enter sends from the link as the button would, and nothing the button would not.
+            // The notes keep Enter for a new line.
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              if (!cannotSend) void handleSubmit();
             }}
             className={FIELD}
           />

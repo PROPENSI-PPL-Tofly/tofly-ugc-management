@@ -17,6 +17,9 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
   };
 }
 
+// 11 Oct 2026, 12.00 WIB: the default deadline (12 Oct) is tomorrow, inside the H-1 window.
+const NOW = new Date("2026-10-11T05:00:00.000Z");
+
 function rows() {
   // The first row is the header.
   return screen.getAllByRole("row").slice(1);
@@ -171,16 +174,54 @@ describe("MyTaskTable", () => {
       ["scheduled", ["submit_draft"], ["Submit Draft"]],
       ["draft_revision", ["resubmit_draft"], ["Resubmit Draft"]],
       ["draft_approved", ["submit_video"], ["Submit Link Video"]],
-      ["scheduled", ["submit_draft", "submit_video"], ["Submit Draft", "Submit Link Video"]],
+      ["draft_review", ["submit_video"], ["Submit Link (H-1)"]],
     ] as const)("offers %s with %j as %j", (status, actions, labels) => {
       render(
-        <MyTaskTable tasks={[task({ status, actions: [...actions] })]} onAction={vi.fn()} />,
+        <MyTaskTable
+          tasks={[task({ status, actions: [...actions] })]}
+          onAction={vi.fn()}
+          now={NOW}
+        />,
       );
 
       const [row] = rows();
       expect(within(row).getAllByRole("button").map((button) => button.textContent)).toEqual(
         labels,
       );
+    });
+
+    // The same wording as the detail panel's button for the same action, so a creator who
+    // opens the row is not offered a differently named step.
+    it.each([
+      ["the day before the deadline", "2026-10-12", "Submit Link (H-1)"],
+      ["on the deadline", "2026-10-11", "Submit Link (H-1)"],
+      ["past the deadline", "2026-10-10", "Submit Link (Terlambat)"],
+    ])("names the link of a draft still in review %s (due %s) as %s", (_label, deadline, label) => {
+      render(
+        <MyTaskTable
+          tasks={[task({ status: "draft_review", actions: ["submit_video"], deadline })]}
+          onAction={vi.fn()}
+          now={NOW}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: `${label}: Evg_1_RanggaPratama_12102026` }),
+      ).toHaveTextContent(label);
+    });
+
+    it("keeps an approved draft's link named as the planned step, however late", () => {
+      render(
+        <MyTaskTable
+          tasks={[
+            task({ status: "draft_approved", actions: ["submit_video"], deadline: "2026-09-01" }),
+          ]}
+          onAction={vi.fn()}
+          now={NOW}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /^Submit Link Video:/ })).toBeInTheDocument();
     });
 
     it("names each button after its task, since every row has the same labels", () => {
@@ -253,19 +294,19 @@ describe("MyTaskTable", () => {
 
     // Inside H-1 without an approved draft the link skips the approval: allowed, but not the
     // path the creator should take by default, so it does not look like the main action.
-    it("keeps an H-1 Submit Link Video secondary while a draft is still due", () => {
+    it("keeps the H-1 link secondary while its draft is still in review", () => {
       render(
         <MyTaskTable
-          tasks={[task({ status: "scheduled", actions: ["submit_draft", "submit_video"] })]}
+          tasks={[task({ status: "draft_review", actions: ["submit_video"] })]}
           onAction={vi.fn()}
+          now={NOW}
         />,
       );
 
-      expect(screen.getByRole("button", { name: /Submit Draft/ })).toHaveClass("bg-accent");
-      expect(screen.getByRole("button", { name: /Submit Link Video/ })).not.toHaveClass(
+      expect(screen.getByRole("button", { name: /Submit Link \(H-1\)/ })).not.toHaveClass(
         "bg-accent",
       );
-      expect(screen.getByRole("button", { name: /Submit Link Video/ })).not.toHaveClass(
+      expect(screen.getByRole("button", { name: /Submit Link \(H-1\)/ })).not.toHaveClass(
         "bg-green-wash",
       );
     });
@@ -296,9 +337,9 @@ describe("MyTaskTable", () => {
     it("tells apart two actions on the same row", () => {
       const onAction = vi.fn();
       const both = task({ actions: ["submit_draft", "submit_video"] });
-      render(<MyTaskTable tasks={[both]} onAction={onAction} />);
+      render(<MyTaskTable tasks={[both]} onAction={onAction} now={NOW} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /Submit Link Video/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Submit Link/ }));
 
       expect(onAction).toHaveBeenCalledWith(both, "submit_video");
     });

@@ -45,10 +45,10 @@ export class MyContentsController {
   ) {}
 
   /**
-   * The creator's Task Saya list under one tab, its filters and a deadline sort, each row with
-   * the actions it allows today, plus every tab's counter. The pipes turn a non-integer page
-   * into a 400, checkPaging bounds it and checkMyTaskQuery refuses anything else Task Saya
-   * cannot hold (OWASP A03).
+   * The creator's Task Saya list under one tab, its filters and a deadline sort (open work
+   * ahead of finished), each row with the actions it allows today, plus every tab's counter.
+   * The pipes turn a non-integer page into a 400, checkPaging bounds it and checkMyTaskQuery
+   * refuses anything else Task Saya cannot hold (OWASP A03).
    */
   @Get('contents')
   async list(
