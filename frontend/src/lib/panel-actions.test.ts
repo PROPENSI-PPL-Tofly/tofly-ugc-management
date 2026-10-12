@@ -3,21 +3,21 @@ import {
   creatorActionLabel,
   submitRejection,
   submitRevision,
+  type PanelActionFacts,
   type PanelActionPorts,
 } from "./panel-actions";
-import type { ContentDetail } from "./content-detail";
 
 const SUBMISSION = "22222222-2222-2222-2222-222222222222";
 const CONTENT = "11111111-1111-1111-1111-111111111111";
 
-type Facts = Pick<
-  ContentDetail,
-  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status" | "deadline"
->;
+type Facts = PanelActionFacts;
 
 function facts(overrides: Partial<Facts> = {}): Facts {
   return {
     id: CONTENT,
+    name: "Tofly untuk UMKM",
+    brief: "",
+    events: [],
     deadline: "2026-10-11",
     waitingOn: "admin",
     latestSubmissionId: SUBMISSION,

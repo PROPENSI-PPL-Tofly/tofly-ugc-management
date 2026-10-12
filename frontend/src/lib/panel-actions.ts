@@ -54,14 +54,27 @@ export interface PanelActionPorts {
   rejectProposal?: (contentId: string, reason: string) => Promise<void>;
   /** Opens the rejection reason form; like revising, rejecting starts with a form. */
   openRejectForm?: () => void;
-  /** The touchpoint owns the Submit Draft / Submit Link Video modals. */
-  onCreatorAction?: (action: MyTaskAction) => void;
+  /**
+   * The touchpoint owns the Submit Draft / Submit Link Video modals. The panel hands over the
+   * content it shows, so a modal can open for a content the touchpoint's own list does not
+   * hold (a link to it, on another tab or page).
+   */
+  onCreatorAction?: (action: MyTaskAction, detail: PanelActionFacts) => void;
 }
 
 /** The step's facts the command list is chosen from. */
 export type PanelActionFacts = Pick<
   ContentDetail,
-  "id" | "waitingOn" | "latestSubmissionId" | "creatorActions" | "status" | "deadline"
+  | "id"
+  | "waitingOn"
+  | "latestSubmissionId"
+  | "creatorActions"
+  | "status"
+  | "deadline"
+  // What a submit modal shows of the content, handed on with the creator's action.
+  | "name"
+  | "brief"
+  | "events"
 >;
 
 type CreatorLabelCase = "approved" | "grace" | "late";
@@ -172,7 +185,7 @@ export function actionsFor(input: {
     variant: CREATOR_VARIANTS[action],
     canRun: () => !state().busy,
     run: () => {
-      ports.onCreatorAction?.(action);
+      ports.onCreatorAction?.(action, detail);
     },
   }));
 }

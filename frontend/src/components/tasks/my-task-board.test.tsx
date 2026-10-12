@@ -486,6 +486,29 @@ describe("MyTaskBoard content detail panel", () => {
     expect(modal).toHaveTextContent("notes:Perbaiki hook");
   });
 
+  it("hands such a resubmit no note when the admin's request carried none", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-9");
+    fetchContentDetail.mockResolvedValue({
+      ...panelDetail(),
+      id: "content-9",
+      status: "draft_revision" as const,
+      creatorActions: ["resubmit_draft"] as const,
+      events: [
+        {
+          id: "e1",
+          type: "revision_requested" as const,
+          at: "2026-10-09T03:00:00.000Z",
+          actor: { name: "Admin", role: "admin" as const },
+        },
+      ],
+    });
+
+    render(<MyTaskBoard tasks={[task()]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Resubmit Draft" }));
+
+    expect(await screen.findByRole("dialog", { name: "draft-modal" })).toHaveTextContent("notes:-");
+  });
+
   it("keeps the row's own facts when the list does hold the content", async () => {
     fetchContentDetail.mockResolvedValue({ ...panelDetail(), name: "Nama dari panel" });
     render(<MyTaskBoard tasks={[task({ brief: "Brief dari baris" })]} />);
