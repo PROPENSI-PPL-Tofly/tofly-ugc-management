@@ -86,6 +86,11 @@ const DETAIL_SELECT = {
       days_between: true,
       content_quota: true,
       contract_type: true,
+      // Deliberately no `take`: each period's progress and performance are computed from all
+      // of its contents, so a cut list would report wrong numbers. The list stays small
+      // because onboarding caps a contract's quota at MAX_CONTENT_QUOTA (100), plus any
+      // proposals. If periods outgrow that, move the metrics into SQL aggregates and page the
+      // contents instead.
       contents: {
         orderBy: {
           deadline: 'asc',
