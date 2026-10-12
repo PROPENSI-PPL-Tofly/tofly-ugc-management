@@ -1,3 +1,4 @@
+import type { MyTaskFilters } from './my-task-query.js';
 import {
   MyContentsService,
   type MyContentRow,
@@ -7,7 +8,15 @@ import {
 const CREATOR_ID = '5b0c8a4e-2f1d-4c3b-9a8e-7d6f5e4c3b2a';
 // 09:30 WIB on 10 October, still 9 October in UTC.
 const NOW = new Date('2026-10-10T02:30:00.000Z');
-const PAGE = { page: 1, pageSize: 5 };
+const PAGE = { page: 1, pageSize: 10 };
+const ALL: MyTaskFilters = { tab: 'all', sort: 'deadline_asc' };
+
+/** One page of Semua, nearest deadline first, with whatever the test narrows by. */
+const query = (filters: Partial<MyTaskFilters> = {}, paging = PAGE) => ({
+  ...paging,
+  ...ALL,
+  ...filters,
+});
 
 let seq = 0;
 
@@ -43,31 +52,13 @@ function row(
   };
 }
 
-type Where = Parameters<MyContentsClient['contents']['count']>[0]['where'];
+type Where = Parameters<MyContentsClient['contents']['findMany']>[0]['where'];
 
-const isOpen = (where: Where) => where.video_submitted_at === null;
-
-/**
- * A client holding open rows and finished rows apart, as the two segment queries see them.
- * Totals default to the rows given; pass larger ones to stand for rows on other pages.
- */
-function stub(
-  openRows: MyContentRow[],
-  finishedRows: MyContentRow[] = [],
-  totals: { open?: number; finished?: number } = {},
-) {
+/** A client holding the creator's rows, as the one read sees them. */
+function stub(rows: MyContentRow[]) {
   const client = {
     contents: {
-      findMany: vi.fn(({ where }: { where: Where }) =>
-        Promise.resolve(isOpen(where) ? openRows : finishedRows),
-      ),
-      count: vi.fn(({ where }: { where: Where }) =>
-        Promise.resolve(
-          isOpen(where)
-            ? (totals.open ?? openRows.length)
-            : (totals.finished ?? finishedRows.length),
-        ),
-      ),
+      findMany: vi.fn((_args: { where: Where }) => Promise.resolve(rows)),
     },
   } satisfies MyContentsClient;
   return { client, service: new MyContentsService(client) };
@@ -86,19 +77,22 @@ const OWN = {
   contracts: { creator_id: CREATOR_ID },
 };
 
+const ids = (response: { items: { id: string }[] }) =>
+  response.items.map((item) => item.id);
+
 describe('MyContentsService.list', () => {
   beforeEach(() => {
     seq = 0;
   });
 
-  it("reads one page of the creator's own committed open contents by nearest deadline, and only the columns a row shows", async () => {
-    const { client, service } = stub([row({})], [], { open: 9 });
+  it("reads only the creator's own committed contents, and only the columns a row shows", async () => {
+    const { client, service } = stub([row({})]);
 
-    await service.list(CREATOR_ID, PAGE, NOW);
+    await service.list(CREATOR_ID, query(), NOW);
 
     expect(client.contents.findMany).toHaveBeenCalledTimes(1);
     expect(client.contents.findMany).toHaveBeenCalledWith({
-      where: { ...OWN, video_submitted_at: null },
+      where: OWN,
       select: {
         id: true,
         name: true,
@@ -114,81 +108,236 @@ describe('MyContentsService.list', () => {
           take: 1,
         },
       },
-      orderBy: [{ deadline: 'asc' }, { name: 'asc' }, { id: 'asc' }],
-      skip: 0,
-      take: 5,
-    });
-    expect(client.contents.count).toHaveBeenCalledWith({
-      where: { ...OWN, video_submitted_at: null },
-    });
-    expect(client.contents.count).toHaveBeenCalledWith({
-      where: { ...OWN, video_submitted_at: { not: null } },
     });
   });
 
-  // UAT: finished tasks came back most-recently-finished first, out of deadline order.
-  it('puts finished work after all open work, also by nearest deadline', async () => {
-    const { client, service } = stub(
-      [row({ id: 'open-a' }), row({ id: 'open-b' })],
-      [row({ id: 'done-a', status: 'link_submitted' })],
+  it('lets the database narrow by type', async () => {
+    const { client, service } = stub([]);
+
+    await service.list(CREATOR_ID, query({ types: ['specific'] }), NOW);
+
+    expect(client.contents.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...OWN, type: { in: ['specific'] } } }),
+    );
+  });
+
+  it('lets the database narrow by period, but keeps every row of Perlu Dikerjakan whatever its deadline', async () => {
+    const { client, service } = stub([]);
+
+    await service.list(
+      CREATOR_ID,
+      query({ deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' }),
+      NOW,
     );
 
-    const response = await service.list(CREATOR_ID, PAGE, NOW);
+    expect(client.contents.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          ...OWN,
+          OR: [
+            {
+              deadline: {
+                gte: new Date('2026-10-01T00:00:00.000Z'),
+                lte: new Date('2026-10-31T00:00:00.000Z'),
+              },
+            },
+            { status: { in: ['scheduled', 'draft_revision', 'draft_approved'] } },
+          ],
+        },
+      }),
+    );
+  });
 
-    expect(response.items.map((item) => item.id)).toEqual([
-      'open-a',
-      'open-b',
-      'done-a',
+  it('reads an open-ended period with only the end it was given', async () => {
+    const { client, service } = stub([]);
+
+    await service.list(CREATOR_ID, query({ deadlineTo: '2026-10-31' }), NOW);
+
+    expect(client.contents.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { deadline: { lte: new Date('2026-10-31T00:00:00.000Z') } },
+            expect.anything(),
+          ],
+        }),
+      }),
+    );
+  });
+
+  // A creator could not tell what to do next from a list that put finished work in its own block.
+  it('lists the nearest deadline first by default, one flat list across every status', async () => {
+    const { service } = stub([
+      row({ id: 'later', deadline: '2026-11-15' }),
+      row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted', linkDay: '2026-10-01' }),
+      row({ id: 'sooner', deadline: '2026-10-20', status: 'draft_review' }),
     ]);
-    expect(client.contents.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { ...OWN, video_submitted_at: { not: null } },
-        orderBy: [{ deadline: 'asc' }, { name: 'asc' }, { id: 'asc' }],
-        skip: 0,
-        take: 3,
-      }),
-    );
-    expect(response.total).toBe(3);
+
+    expect(ids(await service.list(CREATOR_ID, query(), NOW))).toEqual([
+      'done',
+      'sooner',
+      'later',
+    ]);
   });
 
-  it('cuts a page across the two groups where the open work runs out', async () => {
-    const { client, service } = stub([row({})], [row({}), row({})], {
-      open: 6,
-      finished: 9,
+  it('turns the order around when the furthest deadline is asked first', async () => {
+    const { service } = stub([
+      row({ id: 'sooner', deadline: '2026-10-20' }),
+      row({ id: 'later', deadline: '2026-11-15' }),
+    ]);
+
+    const response = await service.list(
+      CREATOR_ID,
+      query({ sort: 'deadline_desc' }),
+      NOW,
+    );
+
+    expect(ids(response)).toEqual(['later', 'sooner']);
+  });
+
+  it('keeps rows sharing a deadline in name then id order, so a page never reshuffles', async () => {
+    const { service } = stub([
+      row({ id: 'b', name: 'Unboxing' }),
+      row({ id: 'c', name: 'Haul' }),
+      row({ id: 'a', name: 'Unboxing' }),
+    ]);
+
+    expect(ids(await service.list(CREATOR_ID, query(), NOW))).toEqual([
+      'c',
+      'a',
+      'b',
+    ]);
+  });
+
+  it.each([
+    ['to_do', ['s', 'rev', 'ok']],
+    ['waiting_admin', ['review']],
+    ['done', ['link']],
+    ['all', ['s', 'review', 'rev', 'ok', 'link']],
+  ] as const)('shows only the %s tab’s rows', async (tab, expected) => {
+    const { service } = stub([
+      row({ id: 's', status: 'scheduled', deadline: '2026-10-21' }),
+      row({ id: 'review', status: 'draft_review', deadline: '2026-10-22' }),
+      row({ id: 'rev', status: 'draft_revision', deadline: '2026-10-23' }),
+      row({ id: 'ok', status: 'draft_approved', deadline: '2026-10-24' }),
+      row({ id: 'link', status: 'link_submitted', deadline: '2026-10-25', linkDay: '2026-10-25' }),
+    ]);
+
+    expect(ids(await service.list(CREATOR_ID, query({ tab }), NOW))).toEqual(
+      expected,
+    );
+  });
+
+  it('counts every tab whichever is open, so the badges never change with the tab', async () => {
+    const { service } = stub([
+      row({ status: 'scheduled' }),
+      row({ status: 'draft_revision' }),
+      row({ status: 'draft_review' }),
+      row({ status: 'link_submitted', linkDay: '2026-10-01' }),
+    ]);
+
+    const response = await service.list(CREATOR_ID, query({ tab: 'done' }), NOW);
+
+    expect(response.tabCounts).toEqual({
+      all: 4,
+      to_do: 2,
+      waiting_admin: 1,
+      done: 1,
     });
-
-    await service.list(CREATOR_ID, { page: 2, pageSize: 5 }, NOW);
-
-    expect(client.contents.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { ...OWN, video_submitted_at: null },
-        skip: 5,
-        take: 1,
-      }),
-    );
-    expect(client.contents.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { ...OWN, video_submitted_at: { not: null } },
-        skip: 0,
-        take: 4,
-      }),
-    );
+    expect(response.total).toBe(1);
   });
 
-  it('narrows the list and its total to the statuses a filter stands for', async () => {
-    const { client, service } = stub([row({})], [], { open: 1 });
+  it('narrows the rows by status, but counts the tabs without it', async () => {
+    const { service } = stub([
+      row({ id: 's', status: 'scheduled' }),
+      row({ id: 'rev', status: 'draft_revision' }),
+    ]);
 
-    await service.list(CREATOR_ID, { ...PAGE, status: 'draft_review' }, NOW);
-
-    const where = {
-      ...OWN,
-      status: { in: ['draft_review'] },
-      video_submitted_at: null,
-    };
-    expect(client.contents.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where }),
+    const response = await service.list(
+      CREATOR_ID,
+      query({ tab: 'to_do', statuses: ['draft_revision'] }),
+      NOW,
     );
-    expect(client.contents.count).toHaveBeenCalledWith({ where });
+
+    expect(ids(response)).toEqual(['rev']);
+    expect(response.total).toBe(1);
+    expect(response.tabCounts.to_do).toBe(2);
+  });
+
+  it('searches the content name whatever its case, and counts only what it finds', async () => {
+    const { service } = stub([
+      row({ id: 'hit', name: 'Unboxing Serum' }),
+      row({ id: 'brief-only', name: 'Haul', brief: 'unboxing serum' }),
+    ]);
+
+    const response = await service.list(CREATOR_ID, query({ q: 'UNBOX' }), NOW);
+
+    expect(ids(response)).toEqual(['hit']);
+    expect(response.tabCounts.all).toBe(1);
+  });
+
+  it.each([
+    [true, ['late', 'overdue']],
+    [false, ['on-time', 'open']],
+  ])('keeps overdue=%s rows by the same tags the row shows', async (overdue, expected) => {
+    const { service } = stub([
+      row({ id: 'overdue', status: 'draft_revision', deadline: '2026-10-05' }),
+      row({ id: 'late', status: 'link_submitted', deadline: '2026-10-04', linkDay: '2026-10-07' }),
+      row({ id: 'on-time', status: 'link_submitted', deadline: '2026-10-06', linkDay: '2026-10-05' }),
+      row({ id: 'open', status: 'scheduled', deadline: '2026-10-30' }),
+    ]);
+
+    const response = await service.list(CREATOR_ID, query({ overdue }), NOW);
+
+    expect(ids(response)).toEqual(expected);
+    expect(response.tabCounts.all).toBe(2);
+  });
+
+  it('leaves a row outside the period out of Semua and its counter, but keeps work to do in Perlu Dikerjakan', async () => {
+    // The database hands back the to-do row outside the period because of the OR above.
+    const { service } = stub([
+      row({ id: 'todo-old', status: 'scheduled', deadline: '2026-09-01' }),
+      row({ id: 'review-in', status: 'draft_review', deadline: '2026-10-15' }),
+    ]);
+    const period = { deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' };
+
+    const semua = await service.list(CREATOR_ID, query(period), NOW);
+    const toDo = await service.list(CREATOR_ID, query({ ...period, tab: 'to_do' }), NOW);
+
+    expect(ids(semua)).toEqual(['review-in']);
+    expect(ids(toDo)).toEqual(['todo-old']);
+    expect(semua.tabCounts).toEqual({ all: 1, to_do: 1, waiting_admin: 1, done: 0 });
+  });
+
+  it('keeps every other tab to the period, rows and counter alike', async () => {
+    // A row the database would not return, handed back anyway: the period still decides.
+    const { service } = stub([
+      row({ id: 'review-old', status: 'draft_review', deadline: '2026-09-01' }),
+      row({ id: 'done-old', status: 'link_submitted', deadline: '2026-09-02', linkDay: '2026-09-02' }),
+    ]);
+    const period = { deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' };
+
+    const waiting = await service.list(CREATOR_ID, query({ ...period, tab: 'waiting_admin' }), NOW);
+
+    expect(ids(waiting)).toEqual([]);
+    expect(waiting.tabCounts).toEqual({ all: 0, to_do: 0, waiting_admin: 0, done: 0 });
+  });
+
+  it('keeps both ends of the period inclusive', async () => {
+    const { service } = stub([
+      row({ id: 'before', status: 'link_submitted', deadline: '2026-09-30', linkDay: '2026-09-30' }),
+      row({ id: 'first', status: 'link_submitted', deadline: '2026-10-01', linkDay: '2026-10-01' }),
+      row({ id: 'last', status: 'draft_review', deadline: '2026-10-31' }),
+      row({ id: 'after', status: 'draft_review', deadline: '2026-11-01' }),
+    ]);
+
+    const response = await service.list(
+      CREATOR_ID,
+      query({ deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' }),
+      NOW,
+    );
+
+    expect(ids(response)).toEqual(['first', 'last']);
   });
 
   it('maps a row into API vocabulary with its actions for today in WIB', async () => {
@@ -203,7 +352,7 @@ describe('MyContentsService.list', () => {
       }),
     ]);
 
-    const response = await service.list(CREATOR_ID, PAGE, NOW);
+    const response = await service.list(CREATOR_ID, query(), NOW);
 
     // In WIB today is 10 October, so an 11 October deadline is already H-1; in UTC it would not be.
     expect(response.items).toEqual([
@@ -222,21 +371,19 @@ describe('MyContentsService.list', () => {
   });
 
   it('flags each row with the same tags the admin sees, judged on today in WIB', async () => {
-    const { service } = stub(
-      [row({ id: 'overdue', status: 'draft_revision', deadline: '2026-10-05' })],
-      [
-        row({
-          id: 'late-bypassed',
-          status: 'link_submitted',
-          deadline: '2026-10-05',
-          linkDay: '2026-10-07',
-          approval_bypassed: true,
-        }),
-        row({ id: 'on-time', status: 'link_submitted', deadline: '2026-10-05', linkDay: '2026-10-05' }),
-      ],
-    );
+    const { service } = stub([
+      row({ id: 'overdue', status: 'draft_revision', deadline: '2026-10-05' }),
+      row({
+        id: 'late-bypassed',
+        status: 'link_submitted',
+        deadline: '2026-10-06',
+        linkDay: '2026-10-07',
+        approval_bypassed: true,
+      }),
+      row({ id: 'on-time', status: 'link_submitted', deadline: '2026-10-07', linkDay: '2026-10-07' }),
+    ]);
 
-    const { items } = await service.list(CREATOR_ID, PAGE, NOW);
+    const { items } = await service.list(CREATOR_ID, query(), NOW);
 
     expect(items.map((item) => [item.id, item.tags])).toEqual([
       ['overdue', ['overdue']],
@@ -250,7 +397,7 @@ describe('MyContentsService.list', () => {
       row({ id: 'c1', status: 'draft_revision', revisionNotes: 'Perjelas intro' }),
     ]);
 
-    const [item] = (await service.list(CREATOR_ID, PAGE, NOW)).items;
+    const [item] = (await service.list(CREATOR_ID, query(), NOW)).items;
 
     expect(item.revisionNotes).toBe('Perjelas intro');
   });
@@ -261,7 +408,7 @@ describe('MyContentsService.list', () => {
       row({ id: 'c2', status: 'draft_approved', revisionNotes: 'Perjelas intro' }),
     ]);
 
-    const { items } = await service.list(CREATOR_ID, PAGE, NOW);
+    const { items } = await service.list(CREATOR_ID, query(), NOW);
 
     expect(items.map((item) => item.revisionNotes)).toEqual([null, null]);
   });
@@ -272,75 +419,64 @@ describe('MyContentsService.list', () => {
       row({ id: 'c2', status: 'draft_revision' }),
     ]);
 
-    const { items } = await service.list(CREATOR_ID, PAGE, NOW);
+    const { items } = await service.list(CREATOR_ID, query(), NOW);
 
     expect(items.map((item) => item.revisionNotes)).toEqual([null, null]);
   });
 
-  it('keeps the order each query returns, submitted links last and without actions', async () => {
-    const { service } = stub(
-      [
-        row({ id: 'sooner', deadline: '2026-10-20', status: 'draft_review' }),
-        row({ id: 'later', deadline: '2026-11-15' }),
-      ],
-      [row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted' })],
-    );
-
-    const response = await service.list(CREATOR_ID, PAGE, NOW);
-
-    expect(response.items.map((item) => item.id)).toEqual([
-      'sooner',
-      'later',
-      'done',
+  it('gives a submitted link no actions', async () => {
+    const { service } = stub([
+      row({ status: 'link_submitted', linkDay: '2026-10-01' }),
     ]);
-    expect(response.items[2].actions).toEqual([]);
+
+    const [item] = (await service.list(CREATOR_ID, query(), NOW)).items;
+
+    expect(item.actions).toEqual([]);
   });
 
-  it('asks the query for the requested page and reports totals across every page', async () => {
-    const rows = [row({}), row({})];
-    const { client, service } = stub(rows, [], { open: 7 });
+  it('cuts the requested page out of the sorted rows and reports totals across every page', async () => {
+    const rows = Array.from({ length: 12 }, (_, i) =>
+      row({ id: `c${String(i).padStart(2, '0')}`, deadline: `2026-10-${String(i + 11)}` }),
+    );
+    const { service } = stub(rows);
 
     const second = await service.list(
       CREATOR_ID,
-      { page: 2, pageSize: 5 },
+      query({}, { page: 2, pageSize: 10 }),
       NOW,
     );
 
-    // Only two of the seven are left for page 2, so only two are asked for.
-    expect(client.contents.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 5, take: 2 }),
-    );
-    expect(second.items.map((item) => item.id)).toEqual(rows.map((r) => r.id));
+    expect(ids(second)).toEqual(['c10', 'c11']);
     expect(second).toMatchObject({
       page: 2,
-      pageSize: 5,
-      total: 7,
+      pageSize: 10,
+      total: 12,
       totalPages: 2,
     });
   });
 
-  it('answers an empty list with one empty page', async () => {
+  it('answers an empty list with one empty page and every counter at zero', async () => {
     const { service } = stub([]);
 
-    expect(await service.list(CREATOR_ID, PAGE, NOW)).toEqual({
+    expect(await service.list(CREATOR_ID, query(), NOW)).toEqual({
       items: [],
       page: 1,
-      pageSize: 5,
+      pageSize: 10,
       total: 0,
       totalPages: 1,
+      tabCounts: { all: 0, to_do: 0, waiting_admin: 0, done: 0 },
     });
   });
 
-  it('answers a page past the end with no rows rather than an error, without reading any', async () => {
-    const { client, service } = stub([], [], { open: 1 });
+  it('answers a page past the end with no rows rather than an error', async () => {
+    const { service } = stub([row({})]);
 
     const response = await service.list(
       CREATOR_ID,
-      { page: 3, pageSize: 5 },
+      query({}, { page: 3, pageSize: 10 }),
       NOW,
     );
 
-    expect(client.contents.findMany).not.toHaveBeenCalled();
     expect(response).toMatchObject({
       items: [],
       page: 3,

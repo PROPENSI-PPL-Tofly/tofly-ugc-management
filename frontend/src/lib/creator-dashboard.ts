@@ -3,7 +3,7 @@
 // place it leads to both come from its status.
 
 import { daysUntil, EMPTY, formatDaysLeft } from "./format";
-import type { TaskStatusFilter } from "./my-tasks";
+import { DEFAULT_MY_TASKS_PARAMS, type TaskStatusFilter } from "./my-tasks";
 import { taskViewHref } from "./task-view";
 
 export interface StatCard {
@@ -23,7 +23,7 @@ export const STAT_CARDS: readonly StatCard[] = [
  * the one module that owns Task Saya's addresses, so a change to them is made in one place.
  */
 export function statCardHref(status: TaskStatusFilter): string {
-  return taskViewHref("table", status);
+  return taskViewHref("table", { ...DEFAULT_MY_TASKS_PARAMS, status: [status] });
 }
 
 /**

@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import type { Variant } from "@/components/ui/button-classes";
+import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
-import { CONTENT_STATUS_TONES } from "@/lib/content-labels";
-import { EMPTY, formatDate } from "@/lib/format";
+import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
+import type { DeadlineSort } from "@/lib/content-plan";
+import { formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
 
 const ACTION_LABELS: Record<MyTaskAction, string> = {
@@ -21,7 +23,11 @@ const ACTION_LABELS: Record<MyTaskAction, string> = {
 // of behind a sideways scroll: the header row is visually hidden, and the deadline and status
 // cells print their column name from data-label.
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+
+/** Column widths from lg up: Nama Konten, Deadline, Status, Aksi; without Aksi on Selesai. */
+const COLUMNS = ["w-[30%]", "w-[13%]", "w-[29%]", "w-[28%]"];
+const COLUMNS_WITHOUT_ACTIONS = ["w-[46%]", "w-[20%]", "w-[34%]"];
+const CELL = "px-5 py-3 align-middle max-lg:block max-lg:px-0 max-lg:py-1";
 const LABELLED =
   "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
@@ -37,43 +43,26 @@ function actionVariant(task: MyTask, action: MyTaskAction): Variant {
   return task.status === "draft_approved" ? "positive" : "default";
 }
 
-/** What an action-less row says instead of a button. */
-function idleText(task: MyTask): string {
-  return task.status === "draft_review" ? "Menunggu review admin" : EMPTY;
+/** What an action-less row says instead of a button; nothing once the work is done. */
+function idleText(task: MyTask): string | null {
+  return task.status === "draft_review" ? "Menunggu review admin" : null;
 }
 
 function ActionCell({
   task,
   onAction,
-  onDetail,
 }: Readonly<{
   task: MyTask;
   onAction?: (task: MyTask, action: MyTaskAction) => void;
-  onDetail?: (task: MyTask) => void;
 }>) {
-  const detailButton = onDetail ? (
-    <Button
-      key="detail"
-      variant="ghost"
-      className="whitespace-nowrap"
-      aria-label={`Detail: ${task.name}`}
-      onClick={() => onDetail(task)}
-    >
-      Detail
-    </Button>
-  ) : null;
-
   if (task.actions.length === 0) {
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted">{idleText(task)}</span>
-        {detailButton}
-      </div>
-    );
+    const idle = idleText(task);
+    return idle ? <span className="text-xs text-muted">{idle}</span> : null;
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    // Above the row-wide name button, so a press on an action is the action alone.
+    <div className="relative z-10 flex flex-wrap gap-2">
       {task.actions.map((action) => (
         <Button
           key={action}
@@ -88,7 +77,6 @@ function ActionCell({
           {ACTION_LABELS[action]}
         </Button>
       ))}
-      {detailButton}
     </div>
   );
 }
@@ -105,6 +93,10 @@ export function MyTaskTable({
   onDetail,
   emptyMessage = "Belum ada tugas untuk kamu.",
   emptyAction,
+  emptyHint = "Tugas baru muncul di sini begitu admin menjadwalkannya.",
+  sort = "asc",
+  onSortToggle,
+  hideActions = false,
 }: Readonly<{
   tasks: MyTask[];
   onAction?: (task: MyTask, action: MyTaskAction) => void;
@@ -114,12 +106,20 @@ export function MyTaskTable({
   emptyMessage?: string;
   /** The way out of an empty list, e.g. clearing the filter that emptied it. */
   emptyAction?: ReactNode;
+  /** The line under an empty list's message; null where it would not be true (a finished tab). */
+  emptyHint?: string | null;
+  /** Which way the deadline runs; only shown when the page can turn it over. */
+  sort?: DeadlineSort;
+  /** Turns the deadline order over; given, the Deadline header becomes its button. */
+  onSortToggle?: () => void;
+  /** Leaves out the Aksi column, for a list that never has anything to do (Selesai). */
+  hideActions?: boolean;
 }>) {
   if (tasks.length === 0) {
     return (
       <EmptyState
         title={emptyMessage}
-        hint={emptyAction ? undefined : "Tugas baru muncul di sini begitu admin menjadwalkannya."}
+        hint={emptyAction ? undefined : (emptyHint ?? undefined)}
         action={emptyAction}
       />
     );
@@ -128,38 +128,70 @@ export function MyTaskTable({
   return (
     <div className="overflow-x-auto">
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
-      <table role="table" className="w-full text-[13px] max-lg:block">
+      <table role="table" className="w-full text-[13px] max-lg:block lg:table-fixed">
         <caption className="sr-only">Daftar Tugas Saya</caption>
+        {/* Fixed widths, as in the prototype: a page of short names or no buttons keeps the
+            columns where they were. Hidden below lg, where the rows are cards. */}
+        <colgroup className="max-lg:hidden">
+          {(hideActions ? COLUMNS_WITHOUT_ACTIONS : COLUMNS).map((width) => (
+            <col key={width} className={width} />
+          ))}
+        </colgroup>
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-left text-muted">
             <th role="columnheader" scope="col" className={HEAD}>
               Nama Konten
             </th>
-            <th role="columnheader" scope="col" className={HEAD}>
-              Deadline
-            </th>
+            {onSortToggle ? (
+              <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
+            ) : (
+              <th role="columnheader" scope="col" className={HEAD}>
+                Deadline
+              </th>
+            )}
             <th role="columnheader" scope="col" className={HEAD}>
               Status
             </th>
-            <th role="columnheader" scope="col" className={HEAD}>
-              Aksi
-            </th>
+            {hideActions ? null : (
+              <th role="columnheader" scope="col" className={HEAD}>
+                Aksi
+              </th>
+            )}
           </tr>
         </thead>
         <tbody role="rowgroup" className="max-lg:block">
           {tasks.map((task) => (
+            // A press anywhere on the row opens its detail, as in the prototype: the name's button
+            // is stretched over the row (relative here), so the press lands on a real button and
+            // the keyboard and screen readers reach it the same way.
             <tr
               key={task.id}
               role="row"
-              className="border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3"
+              className={`border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3 lg:h-16 ${
+                onDetail ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
+              }`}
             >
-              <td role="cell" className={`${CELL} min-w-48 wrap-anywhere max-lg:min-w-0 max-lg:font-semibold`}>
-                {task.name}
+              <td role="cell" className={`${CELL} wrap-anywhere max-lg:font-semibold`}>
+                {/* Reads as plain text; its ::after covers the row, and a keyboard focus rings the row. */}
+                {onDetail ? (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => onDetail(task)}
+                    className="cursor-pointer border-none bg-transparent p-0 text-left text-inherit after:absolute after:inset-0 focus-visible:outline-none! focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-focus"
+                  >
+                    {task.name}
+                  </button>
+                ) : (
+                  task.name
+                )}
+                {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
+                <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
               </td>
               <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 {formatDate(task.deadline)}
               </td>
-              <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} lg:whitespace-nowrap`}>
+              <td role="cell" data-label="Status" className={`${CELL} ${LABELLED}`}>
                 {/* The tags sit beside the status, apart from it, as in the admin's views. */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
@@ -168,9 +200,11 @@ export function MyTaskTable({
                   <ContentTags tags={task.tags} />
                 </div>
               </td>
-              <td role="cell" className={`${CELL} max-lg:pt-2`}>
-                <ActionCell task={task} onAction={onAction} onDetail={onDetail} />
-              </td>
+              {hideActions ? null : (
+                <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
+                  <ActionCell task={task} onAction={onAction} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

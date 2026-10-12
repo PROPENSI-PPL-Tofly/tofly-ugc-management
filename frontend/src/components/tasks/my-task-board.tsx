@@ -1,12 +1,23 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import type { MyTask, MyTaskAction } from "@/lib/my-tasks";
+import type { DeadlineSort } from "@/lib/content-plan";
+import {
+  DEFAULT_MY_TASKS_SORT,
+  MY_TASKS_EMPTY,
+  MY_TASKS_FILTERED_EMPTY,
+  type MyTask,
+  type MyTaskAction,
+  type MyTaskTab,
+} from "@/lib/my-tasks";
+import { latestQuery, useUrlQuery } from "@/lib/url-query";
+import { MY_TASK_LIST_ID } from "./my-task-tab-bar";
 import { MyTaskTable } from "./my-task-table";
 import { TaskCalendar } from "./task-calendar";
 
@@ -18,27 +29,8 @@ interface Opened {
 /** The search parameter a notification or a bookmark uses to open one content's panel. */
 const CONTENT_PARAM = "content";
 
-/**
- * Puts the open panel's content in the address, so it can be copied, shared or reopened like
- * the link a notification sends. Replaced rather than pushed: Back leaves the page instead of
- * walking through every panel opened on it. Other parameters (the status filter, the page) stay.
- */
-function rememberContentParam(contentId: string) {
-  const url = new URL(window.location.href);
-  url.searchParams.set(CONTENT_PARAM, contentId);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
-/**
- * Takes the deep link back out of the address once its panel has closed, so a reload or a
- * Back does not open the panel again. Other parameters (the status filter, the page) stay.
- * replaceState keeps Next's router in sync without a navigation or a server round trip.
- */
-function forgetContentParam() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(CONTENT_PARAM);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-}
+/** What each deadline order means, as the header's own title says it. */
+const SORT_HINTS: Record<DeadlineSort, string> = { asc: "Terdekat dulu", desc: "Terjauh dulu" };
 
 const SUBMITTED: Record<MyTaskAction, string> = {
   submit_draft: "Draft terkirim. Admin akan meninjaunya.",
@@ -47,25 +39,31 @@ const SUBMITTED: Record<MyTaskAction, string> = {
 };
 
 /**
- * Task Saya's interactive part: the table plus the modal its buttons open. The page fetches on
- * the server and cannot hold "which task is open", so this client component does. After a
- * hand-in the page is refreshed, which re-fetches the list with the row's new status, and a toast
- * confirms it. Focus then goes to the list: the button that opened the modal usually disappears
- * with the new status, which would otherwise drop focus to the page body.
+ * Task Saya's interactive part: the table, or the month calendar, plus the modal its buttons
+ * open and the deadline sort. The page fetches on the server and cannot hold "which task is
+ * open", so this client component does. After a hand-in the page is refreshed, which re-fetches
+ * the list with the row's new status, and a toast confirms it. Focus then goes to the list: the
+ * button that opened the modal usually disappears with the new status, which would otherwise
+ * drop focus to the page body.
  */
 export function MyTaskBoard({
   tasks,
-  emptyMessage,
-  emptyAction,
+  tab,
+  sort,
+  filtered,
   calendarToday,
 }: Readonly<{
   tasks: MyTask[];
-  emptyMessage?: string;
-  emptyAction?: ReactNode;
+  tab: MyTaskTab;
+  sort: DeadlineSort;
+  /** Whether a search or filter narrowed the list, which changes what an empty list means. */
+  filtered: boolean;
   /** Today in Jakarta, "YYYY-MM-DD": given, the tasks are shown as a month, not as the table. */
   calendarToday?: string;
 }>) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { replaceQuery, replaceQuietly } = useUrlQuery();
   const [opened, setOpened] = useState<Opened | null>(null);
   // The content whose detail panel is open; keyed by content so a ?content= link can
   // deep-link into it the way a notification would.
@@ -87,6 +85,23 @@ export function MyTaskBoard({
     }
   }, []);
 
+  // The address names the open panel's content for as long as the panel is open, so it can be
+  // copied, shared or reopened like the link a notification sends. It replaces the entry
+  // rather than adding one: Back leaves the page instead of walking through every panel
+  // opened on it. Written here and not in the press that opens the panel: a filter change
+  // already on its way then lands as an address without ?content=, and the link has to come
+  // back then too. It builds on what was last sent, so a filter ticked a moment ago is kept.
+  const linked = searchParams.get(CONTENT_PARAM);
+  useEffect(() => {
+    if (!detailContentId) return;
+
+    const next = new URLSearchParams(latestQuery());
+    if (next.get(CONTENT_PARAM) === detailContentId) return;
+
+    next.set(CONTENT_PARAM, detailContentId);
+    replaceQuietly(next.toString());
+  }, [detailContentId, linked, replaceQuietly]);
+
   // Runs after the modal's own cleanup has handed focus back to its opener, so this wins.
   useEffect(() => {
     if (opened === null && focusListOnClose.current) {
@@ -97,15 +112,32 @@ export function MyTaskBoard({
 
   const close = () => setOpened(null);
 
-  /** A table row's Detail and a calendar chip open the panel the same way. */
-  function openDetail(contentId: string) {
-    setDetailContentId(contentId);
-    rememberContentParam(contentId);
-  }
-
+  /** Closing takes the link back out, so a reload or a Back does not open the panel again. */
   function closeDetail() {
     setDetailContentId(null);
-    forgetContentParam();
+
+    const next = new URLSearchParams(latestQuery());
+    next.delete(CONTENT_PARAM);
+    replaceQuietly(next.toString());
+  }
+
+  /**
+   * The deadline order turns over and the old page no longer means anything. Both the rest of
+   * the query and the direction come from what was last sent, so the press keeps a filter
+   * ticked a moment ago and a second quick press turns back.
+   */
+  function toggleSort() {
+    const next = new URLSearchParams(latestQuery());
+    const flipped = next.get("sort") === "desc" ? "asc" : "desc";
+    if (flipped === DEFAULT_MY_TASKS_SORT) next.delete("sort");
+    else next.set("sort", flipped);
+    next.delete("page");
+    replaceQuery(next.toString());
+  }
+
+  /** The empty filtered list's way back: every filter goes, the tab stays. */
+  function resetFilters() {
+    replaceQuery(tab === "all" ? "" : new URLSearchParams({ tab }).toString());
   }
 
   /** A command inside the panel hands its action back here: the row's submit modal owns it. */
@@ -152,21 +184,50 @@ export function MyTaskBoard({
 
   return (
     <>
+      {/* Below lg the rows stack into cards and the header row is only read aloud, so the sort
+          gets its own button there. A month has no order to turn over. */}
+      {tasks.length > 0 && !calendarToday ? (
+        <div className="flex justify-end px-5 pt-3 lg:hidden">
+          <Button
+            variant="ghost"
+            className="inline-flex items-center gap-1.5"
+            aria-label={`Urutkan deadline: ${SORT_HINTS[sort].toLowerCase()}`}
+            onClick={toggleSort}
+          >
+            <span className="text-muted">Deadline</span>
+            <span>{SORT_HINTS[sort]}</span>
+            <span aria-hidden="true">{sort === "asc" ? "↑" : "↓"}</span>
+          </Button>
+        </div>
+      ) : null}
+
+      {/* The region the tabs switch, named by the tabs' aria-controls. */}
       <section
         ref={listRef}
+        id={MY_TASK_LIST_ID}
+        role="tabpanel"
         aria-label="Daftar Tugas Saya"
         tabIndex={-1}
         className="outline-none"
       >
         {calendarToday ? (
-          <TaskCalendar tasks={tasks} today={calendarToday} onOpen={openDetail} />
+          <TaskCalendar tasks={tasks} today={calendarToday} onOpen={setDetailContentId} />
         ) : (
           <MyTaskTable
             tasks={tasks}
-            emptyMessage={emptyMessage}
-            emptyAction={emptyAction}
+            emptyMessage={filtered ? MY_TASKS_FILTERED_EMPTY : MY_TASKS_EMPTY[tab]}
+            emptyAction={
+              filtered ? (
+                <Button onClick={resetFilters}>Reset filter</Button>
+              ) : undefined
+            }
+            // New work lands in Semua and Perlu Dikerjakan, never straight in the other two tabs.
+            emptyHint={tab === "all" || tab === "action" ? undefined : null}
+            sort={sort}
+            onSortToggle={toggleSort}
+            hideActions={tab === "done"}
             onAction={(task, action) => setOpened({ task, action })}
-            onDetail={(task) => openDetail(task.id)}
+            onDetail={(task) => setDetailContentId(task.id)}
           />
         )}
       </section>

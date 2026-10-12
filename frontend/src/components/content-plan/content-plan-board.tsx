@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { DEFAULT_SORT, type ContentPlanRow, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
 import { latestQuery, useUrlQuery } from "@/lib/url-query";
 import { ContentPlanTable } from "./content-plan-table";
+import { CONTENT_PLAN_LIST_ID } from "./content-plan-tabs";
 
 /** The search parameter a notification or a bookmark uses to open one content's panel. */
 const CONTENT_PARAM = "content";
@@ -96,14 +97,17 @@ export function ContentPlanBoard({
 
   return (
     <>
-      <ContentPlanTable
-        items={items}
-        filtered={filtered}
-        tab={tab}
-        sort={sort}
-        onSortToggle={toggleSort}
-        onOpen={setOpenContentId}
-      />
+      {/* The region the tabs switch, named by the tabs' aria-controls. */}
+      <div id={CONTENT_PLAN_LIST_ID} role="tabpanel" aria-label="Daftar konten">
+        <ContentPlanTable
+          items={items}
+          filtered={filtered}
+          tab={tab}
+          sort={sort}
+          onSortToggle={toggleSort}
+          onOpen={setOpenContentId}
+        />
+      </div>
       {openContentId ? (
         // Keyed by content so switching rows remounts the panel rather than leaving the
         // previous item on screen while the next loads. A decision refreshes the plan

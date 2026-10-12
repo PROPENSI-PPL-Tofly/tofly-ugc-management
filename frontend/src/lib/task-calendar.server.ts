@@ -2,25 +2,33 @@
 // reads one small page; a month needs them all. It goes through fetchMyTasks, which carries the
 // browser's session, so it lives apart from the task-calendar module client code imports.
 
-import type { MyTask, TaskStatusFilter } from "./my-tasks";
+import type { MyTask, MyTasksCounts, MyTasksParams } from "./my-tasks";
 import { fetchMyTasks } from "./my-tasks.server";
 
 /** The most rows GET /me/contents hands out in one request. */
 export const CALENDAR_PAGE_SIZE = 50;
 
+export interface AllMyTasks {
+  tasks: MyTask[];
+  /** Every tab's size under the search and filters, for the tabs above the calendar. */
+  counts: MyTasksCounts;
+}
+
 /**
+ * Every task of the open tab under the search and filters, whatever page the address names.
  * Reads the first page, which says how many there are, then the rest together. Most creators
  * fit in one request. A failure on any page fails the whole read: a calendar missing some of
  * its tasks would look complete and be wrong.
  */
-export async function fetchAllMyTasks(status: TaskStatusFilter | null): Promise<MyTask[]> {
-  const first = await fetchMyTasks(1, status, CALENDAR_PAGE_SIZE);
+export async function fetchAllMyTasks(state: MyTasksParams, today: string): Promise<AllMyTasks> {
+  const page = (number: number) =>
+    fetchMyTasks({ ...state, page: number }, today, CALENDAR_PAGE_SIZE);
+
+  const first = await page(1);
 
   const rest = await Promise.all(
-    Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) =>
-      fetchMyTasks(index + 2, status, CALENDAR_PAGE_SIZE),
-    ),
+    Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => page(index + 2)),
   );
 
-  return [first, ...rest].flatMap((page) => page.items);
+  return { tasks: [first, ...rest].flatMap((answer) => answer.items), counts: first.counts };
 }

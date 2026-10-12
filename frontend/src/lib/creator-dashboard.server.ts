@@ -3,8 +3,16 @@
 // shared creator-dashboard module that client components may import.
 
 import { STAT_CARDS } from "./creator-dashboard";
-import type { TaskStatusFilter } from "./my-tasks";
+import { jakartaDay } from "./format";
+import {
+  DEFAULT_MY_TASKS_PARAMS,
+  TASK_STATUS_FILTERS,
+  type TaskStatusFilter,
+} from "./my-tasks";
 import { fetchMyTasks } from "./my-tasks.server";
+
+/** Everything not finished yet: the statuses a deadline is still open in. */
+const OPEN_STATUSES = TASK_STATUS_FILTERS.filter((status) => status !== "link_submitted");
 
 export interface CreatorDashboard {
   /** Tasks per stat card status. */
@@ -14,22 +22,25 @@ export interface CreatorDashboard {
 }
 
 /**
- * One round of requests: each card's status for its total, and the first page of the whole
- * list for the nearest deadline. The API lists open work first by nearest deadline, so the
- * first row is the one, unless it is already finished and nothing is open at all.
+ * One round of requests: each card's status for its total, and the unfinished tasks for the
+ * nearest deadline. The API lists the nearest deadline first whatever the status, so finished
+ * tasks are left out of that request: its first row is then the one, and none means nothing is
+ * open at all.
  */
 export async function fetchCreatorDashboard(): Promise<CreatorDashboard> {
-  const [all, ...perStatus] = await Promise.all([
-    fetchMyTasks(1),
-    ...STAT_CARDS.map((card) => fetchMyTasks(1, card.status)),
-  ]);
+  const today = jakartaDay();
+  const only = (status: readonly TaskStatusFilter[]) =>
+    fetchMyTasks({ ...DEFAULT_MY_TASKS_PARAMS, status: [...status] }, today);
 
-  const first = all.items[0];
+  const [open, ...perStatus] = await Promise.all([
+    only(OPEN_STATUSES),
+    ...STAT_CARDS.map((card) => only([card.status])),
+  ]);
 
   return {
     counts: Object.fromEntries(
       STAT_CARDS.map((card, index) => [card.status, perStatus[index].total]),
     ),
-    nearestDeadline: first && first.status !== "link_submitted" ? first.deadline : null,
+    nearestDeadline: open.items[0]?.deadline ?? null,
   };
 }

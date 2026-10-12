@@ -2,9 +2,17 @@
 // may send. Every value is checked here, at the edge, so the service only ever filters by
 // values a content can actually hold.
 
-import { BadRequestException } from '@nestjs/common';
-import { isCalendarDay } from '../creators/evergreen.js';
 import { MAX_SEARCH_LENGTH } from '../creators/filters.js';
+import {
+  MAX_FILTER_VALUES,
+  deadlineRange,
+  isOneOf,
+  listOf,
+  oneOf,
+  overdueOrNot,
+  searchText,
+  withoutUnset,
+} from '../list-query.js';
 import { isUuid } from '../uuid.js';
 import {
   CONTENT_STATUSES,
@@ -25,15 +33,12 @@ export const CONTENT_LIST_SORTS = ['deadline_asc', 'deadline_desc'] as const;
 
 export type ContentListSort = (typeof CONTENT_LIST_SORTS)[number];
 
-const CONTENT_TYPES = ['evergreen', 'specific'] as const;
+export const CONTENT_TYPES = ['evergreen', 'specific'] as const;
 
 export type ContentListType = (typeof CONTENT_TYPES)[number];
 
-// The same cap every list's search has, defined once beside the Creator Database's filters.
-export { MAX_SEARCH_LENGTH };
-
-/** No filter has a reason to name more values than this, so a longer list is refused. */
-export const MAX_FILTER_VALUES = 50;
+// The same caps every list's search and multi-selects have, defined once with the shared checks.
+export { MAX_FILTER_VALUES, MAX_SEARCH_LENGTH };
 
 /**
  * Who a content waits for decides its tab: the admin (a proposal to answer, a draft to review),
@@ -97,99 +102,8 @@ export interface ContentListFilters {
   sort: ContentListSort;
 }
 
-function reject(message: string): never {
-  throw new BadRequestException(message);
-}
-
-function isOneOf<T extends string>(
-  allowed: readonly T[],
-  value: unknown,
-): value is T {
-  return (allowed as readonly unknown[]).includes(value);
-}
-
-/** A value that may be sent once only: left out it takes the fallback, a list is refused. */
-function oneOf<T extends string>(
-  name: string,
-  allowed: readonly T[],
-  value: unknown,
-  fallback: T,
-): T {
-  if (value === undefined) {
-    return fallback;
-  }
-  if (!isOneOf(allowed, value)) {
-    reject(`${name} must be one of ${allowed.join(', ')}`);
-  }
-  return value;
-}
-
-/**
- * A multi-select filter. `?type=a` arrives as text and `?type=a&type=b` as a list, so both are
- * read as a list; anything else the query parser can build (an object, a nested list) fails the
- * element check. Each value is kept once.
- */
-function listOf<T extends string>(
-  name: string,
-  value: unknown,
-  accepts: (element: unknown) => element is T,
-  problem: string,
-): T[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  const elements: unknown[] = Array.isArray(value) ? value : [value];
-  if (elements.length > MAX_FILTER_VALUES) {
-    reject(`${name} takes at most ${MAX_FILTER_VALUES} values`);
-  }
-  if (!elements.every(accepts)) {
-    reject(problem);
-  }
-  return [...new Set(elements)];
-}
-
-function isContentType(value: unknown): value is ContentListType {
+export function isContentType(value: unknown): value is ContentListType {
   return isOneOf(CONTENT_TYPES, value);
-}
-
-function searchText(value: unknown): string | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== 'string') {
-    reject('q must be a single text value');
-  }
-  if (value.length > MAX_SEARCH_LENGTH) {
-    reject(`q must be ${MAX_SEARCH_LENGTH} characters or fewer`);
-  }
-  return value.trim() || undefined;
-}
-
-function calendarDay(name: string, value: unknown): string | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== 'string' || !isCalendarDay(value)) {
-    reject(`${name} must be a day written as YYYY-MM-DD`);
-  }
-  return value;
-}
-
-function overdueOrNot(value: unknown): boolean | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value !== 'true' && value !== 'false') {
-    reject('overdue must be true or false');
-  }
-  return value === 'true';
-}
-
-/** Drops the filters nobody asked for, so the result names only what narrows the list. */
-function withoutUnset<T extends object>(filters: T): T {
-  return Object.fromEntries(
-    Object.entries(filters).filter(([, value]) => value !== undefined),
-  ) as T;
 }
 
 /**
@@ -199,13 +113,10 @@ function withoutUnset<T extends object>(filters: T): T {
 export function checkContentListQuery(
   query: ContentListQuery,
 ): ContentListFilters {
-  const deadlineFrom = calendarDay('deadlineFrom', query.deadlineFrom);
-  const deadlineTo = calendarDay('deadlineTo', query.deadlineTo);
-  // ISO days order the same as text and as dates.
-  // Stryker disable next-line ConditionalExpression,LogicalOperator: equivalent mutants. A day left out is undefined, and undefined is neither above nor below any text, so the two presence checks only satisfy the type checker and no input can tell them apart from `true` or from `||`.
-  if (deadlineFrom && deadlineTo && deadlineFrom > deadlineTo) {
-    reject('deadlineFrom must not be after deadlineTo');
-  }
+  const { deadlineFrom, deadlineTo } = deadlineRange(
+    query.deadlineFrom,
+    query.deadlineTo,
+  );
 
   return withoutUnset({
     tab: oneOf('tab', CONTENT_LIST_TABS, query.tab, 'all'),

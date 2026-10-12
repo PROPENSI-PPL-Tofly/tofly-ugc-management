@@ -3,7 +3,7 @@
 // bookmarked and reloaded. The month the calendar is turned to is not in the address: it is
 // kept by the calendar itself and starts again from today.
 
-import type { TaskStatusFilter } from "./my-tasks";
+import { MY_TASKS_BASE, buildMyTasksQuery, type MyTasksParams } from "./my-tasks";
 
 export type TaskView = "table" | "calendar";
 
@@ -13,7 +13,6 @@ export const TASK_VIEWS: readonly { key: TaskView; label: string }[] = [
   { key: "calendar", label: "Kalender" },
 ];
 
-const TASKS_PATH = "/creator/tasks";
 const VIEW_PARAM = "view";
 const DEFAULT_VIEW: TaskView = "table";
 
@@ -28,16 +27,22 @@ export function parseTaskView(params: Record<string, string | string[] | undefin
 }
 
 /**
- * Where a view's button leads. The status filter comes along; the page number does not, since
- * a page of the table means nothing on the calendar and the other way round.
+ * The view as the parameters that keep it open: none for the table, which is what the bare
+ * address shows. For a control that rebuilds the query and must not close the calendar.
  */
-export function taskViewHref(view: TaskView, status: TaskStatusFilter | null): string {
-  const query = new URLSearchParams();
+export function taskViewParams(view: TaskView): Record<string, string> {
+  return view === DEFAULT_VIEW ? {} : { [VIEW_PARAM]: view };
+}
 
-  if (status) query.set("status", status);
-  if (view !== DEFAULT_VIEW) query.set(VIEW_PARAM, view);
+/**
+ * Where a view's button leads. The tab, the search and the filters come along; the page number
+ * does not, since a page of the table means nothing on the calendar and the other way round.
+ */
+export function taskViewHref(view: TaskView, state: MyTasksParams): string {
+  const search = new URLSearchParams({
+    ...buildMyTasksQuery({ ...state, page: 1 }),
+    ...taskViewParams(view),
+  }).toString();
 
-  const search = query.toString();
-
-  return search ? `${TASKS_PATH}?${search}` : TASKS_PATH;
+  return search ? `${MY_TASKS_BASE}?${search}` : MY_TASKS_BASE;
 }

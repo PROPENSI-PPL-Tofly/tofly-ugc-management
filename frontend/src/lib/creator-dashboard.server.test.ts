@@ -1,5 +1,11 @@
 import { fetchCreatorDashboard } from "./creator-dashboard.server";
-import { MyTasksError, type MyTask, type MyTasksResponse, type TaskStatusFilter } from "./my-tasks";
+import {
+  DEFAULT_MY_TASKS_PARAMS,
+  MyTasksError,
+  type MyTask,
+  type MyTasksResponse,
+  type TaskStatusFilter,
+} from "./my-tasks";
 import { fetchMyTasks } from "./my-tasks.server";
 
 vi.mock("./my-tasks.server", () => ({ fetchMyTasks: vi.fn() }));
@@ -21,22 +27,39 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
   };
 }
 
+/** Everything a creator has not finished yet, which is what the nearest deadline is read from. */
+const OPEN: TaskStatusFilter[] = ["scheduled", "draft_review", "draft_revision", "draft_approved"];
+
 function listOf(items: MyTask[], total = items.length): MyTasksResponse {
-  return { items, page: 1, pageSize: 5, total, totalPages: Math.max(1, Math.ceil(total / 5)) };
+  return {
+    items,
+    page: 1,
+    pageSize: 10,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / 10)),
+    counts: { all: total, action: 0, waiting: 0, done: 0 },
+  };
 }
 
-/** Answers each status with its own total, and the unfiltered list with `all`. */
+/** Answers each single status with its own total, and the unfinished tasks with `open`. */
 function tasksApi(
   totals: Partial<Record<TaskStatusFilter, number>>,
-  all: MyTasksResponse = listOf([]),
+  open: MyTasksResponse = listOf([]),
 ) {
-  mockedFetch.mockImplementation(async (_page, status = null) =>
-    status === null ? all : listOf([], totals[status] ?? 0),
+  mockedFetch.mockImplementation(async ({ status }) =>
+    status.length === 1 ? listOf([], totals[status[0]] ?? 0) : open,
   );
 }
 
 beforeEach(() => {
   mockedFetch.mockReset();
+  // Midday in Jakarta on 9 Oct 2026, so "today" is the same day whatever zone the test runs in.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-09T05:00:00Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("fetchCreatorDashboard", () => {
@@ -56,23 +79,34 @@ describe("fetchCreatorDashboard", () => {
     expect(dashboard.counts.scheduled).toBe(23);
   });
 
-  it("asks only for the first page of each card's status, and of the whole list", async () => {
+  it("asks only for the first page of each card's status, and of the unfinished tasks", async () => {
     tasksApi({});
 
     await fetchCreatorDashboard();
 
-    expect(mockedFetch.mock.calls.map(([page, status]) => [page, status ?? null])).toEqual(
+    expect(mockedFetch.mock.calls.map(([state]) => [state.page, state.status])).toEqual(
       expect.arrayContaining([
-        [1, "scheduled"],
-        [1, "draft_revision"],
-        [1, "draft_approved"],
-        [1, null],
+        [1, ["scheduled"]],
+        [1, ["draft_revision"]],
+        [1, ["draft_approved"]],
+        [1, OPEN],
       ]),
     );
     expect(mockedFetch).toHaveBeenCalledTimes(4);
   });
 
-  it("takes the nearest deadline from the first row of the list, which the API orders open work first", async () => {
+  it("asks across every tab with no other filter, counted from today in Jakarta", async () => {
+    tasksApi({});
+
+    await fetchCreatorDashboard();
+
+    for (const [state, today] of mockedFetch.mock.calls) {
+      expect({ ...state, status: [] }).toEqual(DEFAULT_MY_TASKS_PARAMS);
+      expect(today).toBe("2026-10-09");
+    }
+  });
+
+  it("takes the nearest deadline from the first unfinished row, which the API lists nearest first", async () => {
     tasksApi(
       {},
       listOf([
@@ -94,12 +128,13 @@ describe("fetchCreatorDashboard", () => {
     expect(dashboard.nearestDeadline).toBeNull();
   });
 
-  it("has no nearest deadline when the first row is already finished, so nothing is open", async () => {
-    tasksApi({}, listOf([task({ status: "link_submitted", actions: [] })]));
+  it("never reads the nearest deadline off a finished task, however early its deadline was", async () => {
+    tasksApi({});
 
-    const dashboard = await fetchCreatorDashboard();
+    await fetchCreatorDashboard();
 
-    expect(dashboard.nearestDeadline).toBeNull();
+    const statuses = mockedFetch.mock.calls.flatMap(([state]) => state.status);
+    expect(statuses).not.toContain("link_submitted");
   });
 
   it("sends its requests together, not one after another", async () => {
