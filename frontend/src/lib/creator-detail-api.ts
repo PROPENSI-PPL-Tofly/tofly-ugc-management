@@ -133,15 +133,18 @@ export function toCreatorDetailView(
   // The tabs and the profile read the periods newest first.
   const periods = raw.contractHistory.map(toPeriod).reverse();
   const open = openContractId(raw, state);
+  // An empty table is still one page: the pagination stays on show and needs a page to name.
+  const totalPages = Math.max(1, contents?.totalPages ?? 1);
 
   return {
     creator: toProfile(raw),
     periods,
     selected: periods.find((period) => period.contractId === open) ?? null,
     rows: contents ? contents.items.map(toRow) : [],
-    page: contents?.page ?? 1,
+    // The API answers a page past the end with the number it was asked for; the page shown is
+    // never past the last one.
+    page: Math.min(contents?.page ?? 1, totalPages),
     total: contents?.total ?? 0,
-    // An empty table is still one page: the pagination stays on show and needs a page to name.
-    totalPages: Math.max(1, contents?.totalPages ?? 1),
+    totalPages,
   };
 }

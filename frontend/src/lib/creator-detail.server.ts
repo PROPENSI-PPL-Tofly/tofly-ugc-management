@@ -76,11 +76,24 @@ export async function fetchCreatorDetail(
 
   if (contract === null) return toCreatorDetailView(raw, null, state);
 
-  const contents = await read(`/contents?${toCreatorContentsQuery(contract, state)}`);
+  const readContents = async (wanted: CreatorDetailParams): Promise<RawContentList> => {
+    const response = await read(`/contents?${toCreatorContentsQuery(contract, wanted)}`);
 
-  if (!contents.ok) {
-    throw new Error(`Loading the creator's content failed with HTTP ${contents.status}`);
+    if (!response.ok) {
+      throw new Error(`Loading the creator's content failed with HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as RawContentList;
+  };
+
+  let contents = await readContents(state);
+
+  // A page past the end (an old link, or a period that shrank as content was decided) comes
+  // back with no rows, which would read as a period without content. Its last page is asked
+  // for instead, once: if the period shrank again meanwhile, the answer is shown as it is.
+  if (contents.total > 0 && contents.page > contents.totalPages) {
+    contents = await readContents({ ...state, page: contents.totalPages });
   }
 
-  return toCreatorDetailView(raw, (await contents.json()) as RawContentList, state);
+  return toCreatorDetailView(raw, contents, state);
 }
