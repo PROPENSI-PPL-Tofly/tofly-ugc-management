@@ -103,6 +103,16 @@ const TAB_STATUSES = Object.fromEntries(MY_TASK_TABS.map((def) => [def.key, def.
   readonly TaskStatusFilter[] | null
 >;
 
+/** Each status's own tab, read off MY_TASK_TABS too; Semua holds them all and is nobody's own. */
+const STATUS_TAB = Object.fromEntries(
+  MY_TASK_TABS.flatMap((def) => (def.statuses ?? []).map((status) => [status, def.key])),
+) as Record<TaskStatusFilter, MyTaskTab>;
+
+/** The one tab besides Semua that lists a status. */
+export function myTabOf(status: TaskStatusFilter): MyTaskTab {
+  return STATUS_TAB[status];
+}
+
 /** The statuses the status filter offers on this tab. */
 export function myStatusOptionsFor(tab: MyTaskTab): readonly TaskStatusFilter[] {
   return TAB_STATUSES[tab] ?? TASK_STATUS_FILTERS;

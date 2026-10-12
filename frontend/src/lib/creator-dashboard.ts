@@ -3,7 +3,7 @@
 // place it leads to both come from its status.
 
 import { daysUntil, EMPTY, formatDaysLeft } from "./format";
-import { DEFAULT_MY_TASKS_PARAMS, type TaskStatusFilter } from "./my-tasks";
+import { DEFAULT_MY_TASKS_PARAMS, myTabOf, type TaskStatusFilter } from "./my-tasks";
 import { taskViewHref } from "./task-view";
 
 export interface StatCard {
@@ -19,11 +19,16 @@ export const STAT_CARDS: readonly StatCard[] = [
 ];
 
 /**
- * Where a card leads: Task Saya's table, narrowed to the card's status. The address is built by
- * the one module that owns Task Saya's addresses, so a change to them is made in one place.
+ * Where a card leads: Task Saya's table on the tab that holds the card's status, narrowed to
+ * that status. The address is built by the one module that owns Task Saya's addresses, so a
+ * change to them is made in one place.
  */
 export function statCardHref(status: TaskStatusFilter): string {
-  return taskViewHref("table", { ...DEFAULT_MY_TASKS_PARAMS, status: [status] });
+  return taskViewHref("table", {
+    ...DEFAULT_MY_TASKS_PARAMS,
+    tab: myTabOf(status),
+    status: [status],
+  });
 }
 
 /**
