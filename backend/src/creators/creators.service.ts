@@ -1,11 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { content_status, Prisma } from '@prisma/client';
-import { contentTags } from '../contents/content-tags.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   computePerformance,
   computeProgress,
-  contentOutcome,
   contractStatus,
   currentContract,
   daysRemaining,
@@ -14,11 +12,13 @@ import {
 } from './creator-metrics.js';
 import { toContractPeriods } from './creator-detail.js';
 import type {
+  ContentEntry,
   ContractSummary,
   ContractType,
   CreatorDetail,
   CreatorListResponse,
   CreatorSummary,
+  PeriodContent,
 } from './dto/creator-summary.dto.js';
 import type { Filters } from './filters.js';
 import type { Paging } from './paging.js';
@@ -164,6 +164,20 @@ function toMetricsContract(
   };
 }
 
+/** The flat entry the old detail modal reads, cut from the period's richer content. */
+function toContentEntry(content: PeriodContent): ContentEntry {
+  return {
+    id: content.id,
+    name: content.name,
+    type: content.type,
+    deadline: content.deadline,
+    status: content.status,
+    outcome: content.outcome,
+    tags: content.tags,
+    videoLink: content.videoLink,
+  };
+}
+
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
 export type CreatorsClient = Pick<PrismaService, 'creators'>;
 
@@ -270,63 +284,20 @@ export class CreatorsService implements CreatorLister {
       today,
     );
 
-    const contracts = row.contracts.map(
-      (contract): MetricsContract => ({
-        id: contract.id,
-        startDate: contract.start_date,
-        endDate: contract.end_date,
-        contents: contract.contents.map((content) => ({
-          deadline: content.deadline,
-          videoSubmittedAt: content.video_submitted_at,
-          isProposal: isProposal(content.status),
-          submissionCount: content._count.submissions,
-        })),
-      }),
-    );
-
-    const current = currentContract(contracts, today);
-
-    const currentRow =
-      row.contracts.find(
-        (contract) => contract.id === current?.id,
-      ) ?? null;
+    const periods = toContractPeriods(row.contracts, today);
+    // Both lists keep the database order, so a period's index is its row's index.
+    const currentIndex = periods.findIndex((period) => period.isCurrent);
+    const currentRow = row.contracts[currentIndex] ?? null;
 
     return {
       ...summary,
 
       phoneNumber: row.phone_number,
 
-      contractHistory: toContractPeriods(row.contracts, today),
+      contractHistory: periods,
 
       contents: currentRow
-        ? currentRow.contents.map((content) => ({
-          id: content.id,
-          name: content.name,
-          type: content.type,
-          deadline: calendarDay(content.deadline),
-          status: content.status,
-          outcome: contentOutcome(
-            {
-              deadline: content.deadline,
-              videoSubmittedAt: content.video_submitted_at,
-              isProposal: isProposal(content.status),
-              submissionCount: content._count.submissions,
-            },
-            today,
-          ),
-          tags: contentTags(
-            {
-              deadline: content.deadline,
-              status: content.status,
-              videoSubmittedAt: content.video_submitted_at,
-              // Submissions arrive oldest first, so the last one is the latest draft.
-              latestDraftAt: content.submissions.at(-1)?.created_at ?? null,
-              approvalBypassed: content.approval_bypassed,
-            },
-            today,
-          ),
-          videoLink: content.video_link,
-        }))
+        ? periods[currentIndex].contents.map(toContentEntry)
         : [],
 
       drafts: currentRow
