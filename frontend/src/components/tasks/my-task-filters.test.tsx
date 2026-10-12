@@ -108,6 +108,48 @@ describe("MyTaskFilters", () => {
     expect(replace).toHaveBeenLastCalledWith("/creator/tasks?status=draft_revision", { scroll: false });
   });
 
+  // A typed or stale address can name what the page does not hold. The list ignores it, so
+  // the bar must not draw it as a pick either.
+  it("shows no chip for a type or a status the address names but the filter does not offer", () => {
+    renderOn(
+      { type: "evergreen,foo", status: "pending, scheduled ,bogus" },
+      { type: ["evergreen"], status: ["scheduled"] },
+    );
+
+    expect(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("Evergreen");
+    expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Scheduled");
+  });
+
+  it("shows no chip for a status another tab holds", () => {
+    renderOn({ tab: "action", status: "draft_review,scheduled" }, { tab: "action", status: ["scheduled"] });
+
+    expect(screen.getAllByRole("button", { name: /^Hapus filter Status/ })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" })).toBeInTheDocument();
+  });
+
+  it("leaves what it does not offer behind on the next pick", () => {
+    renderOn({ status: "pending,scheduled,bogus" }, { status: ["scheduled"] });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Draft Approved" }));
+
+    expect(replace).toHaveBeenLastCalledWith("/creator/tasks?status=scheduled%2Cdraft_approved", {
+      scroll: false,
+    });
+  });
+
+  it("still offers Reset when the address holds only values it does not offer, to clear them", () => {
+    renderOn({ status: "bogus" });
+
+    expect(screen.queryByRole("button", { name: /^Hapus filter/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(replace).toHaveBeenLastCalledWith("/creator/tasks", { scroll: false });
+  });
+
   it("narrows by overdue under the page's own word for it", () => {
     renderOn();
 

@@ -180,8 +180,23 @@ describe("Task Saya page", () => {
 
     expect(mockedFetch).toHaveBeenCalledWith(DEFAULT_MY_TASKS_PARAMS, TODAY);
     expect(screen.getByRole("status")).toHaveTextContent(
-        "Status “pending” tidak dikenal, menampilkan semua tugas.",
+        "Status “pending” tidak dikenal dan diabaikan.",
     );
+  });
+
+  // The statuses it does know still narrow the list, so the notice must not claim otherwise.
+  it("names every status it does not know, and keeps the ones it does", async () => {
+    mockedFetch.mockResolvedValue(answer());
+
+    await renderPage({ status: "pending,scheduled,bogus" });
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+        { ...DEFAULT_MY_TASKS_PARAMS, status: ["scheduled"] },
+        TODAY,
+    );
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent("Status “pending”, “bogus” tidak dikenal dan diabaikan.");
+    expect(notice).not.toHaveTextContent("semua tugas");
   });
 
   it("says the filter matched nothing, keeping the tabs and the bar to change it, without a pager", async () => {
