@@ -80,7 +80,7 @@ const MY_TASK_TAB_KEYS: readonly MyTaskTab[] = ["all", "action", "waiting", "don
 /** The tab the period filter never narrows, so no work to do hides behind a date range. */
 export const PERIOD_FREE_MY_TAB: MyTaskTab = "action";
 
-/** The nearest deadline first: what a creator has to deliver next. */
+/** The nearest deadline first: what a creator has to deliver next. Finished work follows it. */
 export const DEFAULT_MY_TASKS_SORT: DeadlineSort = "asc";
 
 const CONTENT_TYPES: readonly ContentType[] = ["evergreen", "specific"];

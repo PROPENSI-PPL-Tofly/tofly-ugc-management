@@ -122,6 +122,23 @@ function tabOf(item: MyContentItem): MyStatusTab {
   return item.actions.length > 0 ? 'to_do' : myTabOf(item.status);
 }
 
+/** Finished work: nothing is left for anyone to do on it. */
+function isDone(item: MyContentItem): boolean {
+  return MY_TASK_TAB_STATUSES.done.includes(item.status);
+}
+
+/**
+ * Open work first, then finished work, each block by deadline in the order asked. Finished
+ * work holds the oldest deadlines, so sorted in with the rest it would fill the first page of
+ * Semua and push what the creator still has to deliver behind it. The other tabs hold one block
+ * each, so for them this is the deadline order alone.
+ */
+function openFirst(sort: MyTaskFilters['sort']) {
+  const byDeadline = compareByDeadline(sort);
+  return (a: MyContentItem, b: MyContentItem): number =>
+    Number(isDone(a)) - Number(isDone(b)) || byDeadline(a, b);
+}
+
 /**
  * What the query itself narrows by: the creator's own committed work, its type and its deadline
  * period. The period keeps everything Perlu Dikerjakan can hold whatever its deadline, because
@@ -172,7 +189,8 @@ export class MyContentsService implements MyContentsLister {
   ) {}
 
   // The query narrows by owner, type and period; what it returns is then searched, counted,
-  // sorted and paged in memory, the way the admin Content Plan does it. A creator holds at most
+  // sorted (open work ahead of finished) and paged in memory, the way the admin Content Plan
+  // does it. A creator holds at most
   // a contract's worth of contents, so the read stays small, and the overdue filter is judged on
   // the very tags a row shows, so a filter can never disagree with its row.
   //
@@ -222,7 +240,7 @@ export class MyContentsService implements MyContentsLister {
         listed.push(item);
       }
     }
-    listed.sort(compareByDeadline(query.sort));
+    listed.sort(openFirst(query.sort));
 
     const { page, pageSize } = query;
     const start = (page - 1) * pageSize;
