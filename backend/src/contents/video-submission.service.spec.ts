@@ -228,15 +228,11 @@ describe('VideoSubmissionService.submit', () => {
     );
   });
 
-  it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-  ] as const)('allows %s during the H-1 grace window', async (status) => {
+  it('allows a draft waiting for review during the H-1 grace window', async () => {
     const { transaction, service } = stub({
       content: {
         id: CONTENT_ID,
-        status,
+        status: 'draft_review',
         deadline: GRACE_DEADLINE,
       },
     });
@@ -252,13 +248,42 @@ describe('VideoSubmissionService.submit', () => {
     expect(transaction.contents.updateMany).toHaveBeenCalledOnce();
   });
 
+  it('marks a link handed in from a draft waiting for review inside H-1 as approval bypassed, guarded on that same status', async () => {
+    const { transaction, service } = stub({
+      content: {
+        id: CONTENT_ID,
+        status: 'draft_review',
+        deadline: GRACE_DEADLINE,
+      },
+    });
+
+    await service.submit(CONTENT_ID, CREATOR_ID, {
+      videoLink: REEL,
+    });
+
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: CONTENT_ID,
+        status: 'draft_review',
+      },
+      data: {
+        status: 'link_submitted',
+        video_link: REEL,
+        video_submitted_at: SUBMITTED_AT,
+        platform: 'instagram',
+        approval_bypassed: true,
+      },
+    });
+  });
+
+  // PBI-7 7.2: H-1 skips the approval of a draft, not the draft. Nothing is stored and nothing
+  // is recorded for a link that arrives before one, or while a revision is still owed.
   it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
+    ['scheduled', 'Kirim draft dulu sebelum mengirim link video'],
+    ['draft_revision', 'Kirim ulang draft dulu sebelum mengirim link video'],
   ] as const)(
-    'marks a link handed in from %s inside H-1 as approval bypassed, guarded on that same status',
-    async (status) => {
+    'refuses %s inside the H-1 grace window, naming the draft as the next step, and leaves the content as it was',
+    async (status, message) => {
       const { transaction, service } = stub({
         content: {
           id: CONTENT_ID,
@@ -267,23 +292,19 @@ describe('VideoSubmissionService.submit', () => {
         },
       });
 
-      await service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      });
+      const error = await failure(
+        service.submit(CONTENT_ID, CREATOR_ID, {
+          videoLink: REEL,
+        }),
+      );
 
-      expect(transaction.contents.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: CONTENT_ID,
-          status,
-        },
-        data: {
-          status: 'link_submitted',
-          video_link: REEL,
-          video_submitted_at: SUBMITTED_AT,
-          platform: 'instagram',
-          approval_bypassed: true,
-        },
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toEqual({
+        code: 'VIDEO_NOT_ELIGIBLE',
+        message,
       });
+      expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+      expect(transaction.content_events.create).not.toHaveBeenCalled();
     },
   );
 
@@ -307,31 +328,39 @@ describe('VideoSubmissionService.submit', () => {
     );
   });
 
+  // Each refusal tells the creator what opens the link, which depends on where the draft is.
   it.each([
-    'scheduled',
-    'draft_review',
-    'draft_revision',
-  ] as const)('rejects %s before the H-1 grace window', async (status) => {
-    const { transaction, service } = stub({
-      content: {
-        id: CONTENT_ID,
-        status,
-        deadline: APPROVED_DEADLINE,
-      },
-    });
+    ['scheduled', 'Kirim draft dulu sebelum mengirim link video'],
+    ['draft_revision', 'Kirim ulang draft dulu sebelum mengirim link video'],
+    [
+      'draft_review',
+      'Link video bisa dikirim setelah draft disetujui, atau mulai H-1 deadline',
+    ],
+  ] as const)(
+    'rejects %s before the H-1 grace window with its own next step',
+    async (status, message) => {
+      const { transaction, service } = stub({
+        content: {
+          id: CONTENT_ID,
+          status,
+          deadline: APPROVED_DEADLINE,
+        },
+      });
 
-    const error = await failure(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      }),
-    );
+      const error = await failure(
+        service.submit(CONTENT_ID, CREATOR_ID, {
+          videoLink: REEL,
+        }),
+      );
 
-    expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toMatchObject({
-      code: 'VIDEO_NOT_ELIGIBLE',
-    });
-    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
-  });
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toEqual({
+        code: 'VIDEO_NOT_ELIGIBLE',
+        message,
+      });
+      expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+    },
+  );
 
   it('allows draft-approved content before the grace window', async () => {
     const { service } = stub({
@@ -418,7 +447,8 @@ describe('VideoSubmissionService.submit', () => {
     expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
-  it('answers 409 when another request changed the status first', async () => {
+  // The status read a moment ago allowed the link, so no next step can be named from it.
+  it('answers 409 when another request changed the status first, asking for a reload and recording nothing', async () => {
     const { transaction, service } = stub({
       updated: 0,
     });
@@ -430,8 +460,30 @@ describe('VideoSubmissionService.submit', () => {
     );
 
     expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toMatchObject({
+    expect((error as ConflictException).getResponse()).toEqual({
       code: 'VIDEO_NOT_ELIGIBLE',
+      message: 'Status konten ini baru saja berubah. Muat ulang lalu coba lagi',
+    });
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  // A link pasted with a space or a newline around it is the same link: what is stored, what
+  // the timeline shows and what the creator gets back all leave the padding out.
+  it('stores, records and answers with the link without the spaces pasted around it', async () => {
+    const { transaction, service } = stub({});
+
+    const submitted = await service.submit(CONTENT_ID, CREATOR_ID, {
+      videoLink: `  ${REEL}\n`,
+    });
+
+    expect(submitted.videoLink).toBe(REEL);
+    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ video_link: REEL }),
+      }),
+    );
+    expect(transaction.content_events.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ event_data: { link: REEL } }),
     });
   });
 
@@ -445,6 +497,10 @@ describe('VideoSubmissionService.submit', () => {
     );
 
     expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as BadRequestException).getResponse()).toEqual({
+      code: 'INVALID_VIDEO_LINK',
+      message: 'Link harus berupa URL Instagram atau TikTok',
+    });
     expect(client.$transaction).not.toHaveBeenCalled();
   });
 });

@@ -99,14 +99,22 @@ function isoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function notEligible(status: content_status): ConflictException {
-  return new ConflictException({
-    code: 'VIDEO_NOT_ELIGIBLE',
-    message:
-      status === 'link_submitted'
-        ? 'Link video untuk konten ini sudah dikirim'
-        : 'Link video hanya bisa dikirim setelah draft disetujui atau mulai H-1',
-  });
+/** The row moved between being read and being updated, so the status read says nothing now. */
+const CONTENT_CHANGED =
+  'Status konten ini baru saja berubah. Muat ulang lalu coba lagi';
+
+// What opens the link for content in each status that task-actions.ts can refuse. H-1 skips
+// an approval and never the draft, so before a draft the next step is the draft (PBI-7 7.2).
+const NEXT_STEPS: Partial<Record<content_status, string>> = {
+  scheduled: 'Kirim draft dulu sebelum mengirim link video',
+  draft_revision: 'Kirim ulang draft dulu sebelum mengirim link video',
+  draft_review:
+    'Link video bisa dikirim setelah draft disetujui, atau mulai H-1 deadline',
+  link_submitted: 'Link video untuk konten ini sudah dikirim',
+};
+
+function notEligible(message: string): ConflictException {
+  return new ConflictException({ code: 'VIDEO_NOT_ELIGIBLE', message });
 }
 
 @Injectable()
@@ -163,7 +171,7 @@ export class VideoSubmissionService implements VideoSubmitter {
       }
 
       if (!canSubmitVideo(content.status, isoDay(content.deadline), today)) {
-        throw notEligible(content.status);
+        throw notEligible(NEXT_STEPS[content.status] ?? CONTENT_CHANGED);
       }
 
       const submittedAt = new Date(`${today}T00:00:00.000Z`);
@@ -186,7 +194,7 @@ export class VideoSubmissionService implements VideoSubmitter {
       });
 
       if (count === 0) {
-        throw notEligible(content.status);
+        throw notEligible(CONTENT_CHANGED);
       }
 
       const creator = await transaction.creators.findUnique({

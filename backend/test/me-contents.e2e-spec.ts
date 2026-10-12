@@ -156,8 +156,8 @@ describe('GET /me/contents (e2e)', () => {
         ],
       ),
     ).toEqual([
-      ['Overdue', iso(-2), ['submit_draft', 'submit_video']],
-      ['Tomorrow', iso(1), ['submit_draft', 'submit_video']],
+      ['Overdue', iso(-2), ['submit_draft']],
+      ['Tomorrow', iso(1), ['submit_draft']],
       ['Revision', iso(12), ['resubmit_draft']],
       ['In review', iso(20), []],
       ['Approved', iso(30), ['submit_video']],
