@@ -5,7 +5,8 @@
 
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
-import type { ContentStatus } from "./creators";
+import type { ContractType } from "./creator-form";
+import type { ContentStatus, ContentTag } from "./creators";
 import { listOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
@@ -33,6 +34,63 @@ export const DEFAULT_CREATOR_DETAIL_PARAMS: CreatorDetailParams = {
   status: [],
   page: 1,
 };
+
+// What the page shows, in the page's own names. Components read these and never the API's
+// answer, so a change to the endpoint stops at creator-detail-api.
+
+export interface CreatorProfile {
+  id: string;
+  name: string;
+  email: string;
+  /** Only the handles the creator has. */
+  socials: Partial<Record<"instagram" | "tiktok", string>>;
+}
+
+/** A contract always has dates, so it is running, over or yet to start. */
+export type PeriodStatus = "active" | "expired" | "upcoming";
+
+/** One contract of the creator's history, as one period tab and its terms. */
+export interface CreatorPeriod {
+  contractId: string;
+  /** 1 for the first contract, counting up with every renewal. */
+  periodNumber: number;
+  type: ContractType;
+  /** Plain calendar day, "YYYY-MM-DD". */
+  startDate: string;
+  endDate: string;
+  status: PeriodStatus;
+  /** Rupiah for the whole period; null when the API sent nothing that reads as an amount. */
+  fixedRate: number | null;
+  contentQuota: number;
+  remainingEvergreenQuota: number;
+  /** The default interval between deadlines, in days. */
+  daysBetween: number;
+}
+
+export interface CreatorContentRow {
+  contentId: string;
+  name: string;
+  type: ContentType;
+  /** Plain calendar day, "YYYY-MM-DD". */
+  deadline: string;
+  status: ContentStatus;
+  tags: ContentTag[];
+  /** How many times an admin asked for a revision. */
+  revisionCount: number;
+}
+
+export interface CreatorDetailView {
+  creator: CreatorProfile;
+  /** Newest first, as the tabs are laid out. */
+  periods: CreatorPeriod[];
+  /** The period whose content is on show; null for a creator without a contract. */
+  selected: CreatorPeriod | null;
+  rows: CreatorContentRow[];
+  page: number;
+  /** The open period's content across every page, after the filters. */
+  total: number;
+  totalPages: number;
+}
 
 /**
  * The URL's values as the page's state, every one checked. The address bar takes anything, so
