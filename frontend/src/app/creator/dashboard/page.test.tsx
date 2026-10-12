@@ -49,7 +49,9 @@ describe("Creator dashboard page", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeInTheDocument();
-    expect(screen.getByText("Berikut ringkasan task kamu bulan ini.")).toBeInTheDocument();
+    // The cards count every open task, whatever month it is due in.
+    expect(screen.getByText("Berikut ringkasan task yang perlu kamu kerjakan.")).toBeInTheDocument();
+    expect(screen.queryByText(/bulan ini/)).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
