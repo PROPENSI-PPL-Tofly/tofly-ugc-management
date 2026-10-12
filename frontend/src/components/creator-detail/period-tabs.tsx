@@ -10,9 +10,7 @@ import {
   creatorDetailHref,
   type CreatorPeriod,
 } from "@/lib/creator-detail";
-import { EMPTY, formatContractWindow } from "@/lib/format";
-
-const RUPIAH_FORMAT = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
+import { formatContractWindow } from "@/lib/format";
 
 const TAB_BASE =
   "flex min-w-44 flex-col gap-1 rounded-(--radius-control) border px-3 py-2 text-left transition-colors";
@@ -21,11 +19,6 @@ const TAB_BASE =
 // same property resolve by stylesheet order, not by which one was meant.
 const TAB = `${TAB_BASE} border-rule bg-surface-2 hover:border-ink-2`;
 const TAB_ON = `${TAB_BASE} border-accent bg-accent-wash`;
-
-/** An amount in rupiah; a dash when there is none to show, which is not the same as Rp0. */
-function rupiah(amount: number | null): string {
-  return amount === null ? EMPTY : `Rp${RUPIAH_FORMAT.format(amount)}`;
-}
 
 function Term({ label, children }: Readonly<{ label: string; children: string }>) {
   return (
@@ -97,8 +90,7 @@ export function PeriodTabs({
             })}
           </nav>
 
-          <dl className="mt-4 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
-            <Term label="Fixed Rate">{rupiah(selected.fixedRate)}</Term>
+          <dl className="mt-4 grid grid-cols-3 gap-3 max-sm:grid-cols-1">
             <Term label="Kuota Konten">{`${selected.contentQuota} konten`}</Term>
             <Term label="Sisa Kuota Evergreen">{`${selected.remainingEvergreenQuota} konten`}</Term>
             <Term label="Jarak Antar-Deadline">{`${selected.daysBetween} hari`}</Term>
