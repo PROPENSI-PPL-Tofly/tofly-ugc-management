@@ -102,6 +102,7 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     endDate: period.endDate,
     status: period.status,
     contentQuota: period.contentQuota,
+    evergreenCount: planned,
     // The quota less the Evergreen already planned; never below nothing.
     remainingEvergreenQuota: Math.max(period.contentQuota - planned, 0),
     daysBetween: period.daysBetween,

@@ -121,8 +121,7 @@ export function CreatorContentBoard({
       {adding ? (
         <AddContentModal
           contractId={period.contractId}
-          // The quota less what is still free is what has been planned; never below nothing.
-          evergreenCount={Math.max(period.contentQuota - period.remainingEvergreenQuota, 0)}
+          evergreenCount={period.evergreenCount}
           quota={period.contentQuota}
           contractStart={period.startDate}
           contractEnd={period.endDate}

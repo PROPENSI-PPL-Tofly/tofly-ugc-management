@@ -80,6 +80,9 @@ export interface CreatorPeriod {
   endDate: string;
   status: PeriodStatus;
   contentQuota: number;
+  /** The Evergreen contents already planned in the period; can pass the quota. */
+  evergreenCount: number;
+  /** The quota less the Evergreen planned; never below nothing. */
   remainingEvergreenQuota: number;
   /** The default interval between deadlines, in days. */
   daysBetween: number;
