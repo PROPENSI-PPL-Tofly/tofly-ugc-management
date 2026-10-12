@@ -12,6 +12,7 @@ import {
   periodNumber,
   type MetricsContract,
 } from './creator-metrics.js';
+import { toContractPeriods } from './creator-detail.js';
 import type {
   ContractSummary,
   ContractType,
@@ -295,26 +296,7 @@ export class CreatorsService implements CreatorLister {
 
       phoneNumber: row.phone_number,
 
-      contractHistory: row.contracts.map((contract, index) => {
-        const committed = contract.contents.filter(
-          (content) => !isProposal(content.status),
-        );
-
-        return {
-          id: contract.id,
-          periodNumber: index + 1,
-          startDate: calendarDay(contract.start_date),
-          endDate: calendarDay(contract.end_date),
-          daysBetween: contract.days_between,
-          contentQuota: contract.content_quota,
-          type: contract.contract_type,
-          completed: committed.filter(
-            (content) => content.video_submitted_at !== null,
-          ).length,
-          total: committed.length,
-          isCurrent: contract.id === current?.id,
-        };
-      }),
+      contractHistory: toContractPeriods(row.contracts, today),
 
       contents: currentRow
         ? currentRow.contents.map((content) => ({

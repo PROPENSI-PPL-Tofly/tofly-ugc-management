@@ -151,10 +151,15 @@ export interface ContractPeriod extends ContractHistoryEntry {
 export interface CreatorDetail extends CreatorSummary {
   phoneNumber: string | null;
 
-  contractHistory: ContractHistoryEntry[];
+  /** Every contract period, oldest first, each with its own contents. */
+  contractHistory: ContractPeriod[];
 
-  /** Content belonging to the current contract. */
+  /**
+   * Content belonging to the current contract.
+   * @deprecated Read contractHistory[].contents; kept until the old detail modal is removed.
+   */
   contents: ContentEntry[];
 
+  /** @deprecated Read contractHistory[].contents[].latestDraft; kept until the old detail modal is removed. */
   drafts: DraftEntry[];
 }
