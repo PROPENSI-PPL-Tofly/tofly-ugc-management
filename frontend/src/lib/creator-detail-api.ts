@@ -77,6 +77,10 @@ export function toCreatorContentsQuery(
   for (const type of new Set(state.type)) query.append("type", type);
   for (const status of new Set(state.status)) query.append("status", status);
 
+  // Earliest deadline first, as the per-creator Content Plan this page replaces listed it: what
+  // is due today or overdue belongs on the first page. The API's own default is latest first.
+  query.set("sort", "deadline_asc");
+
   // The API counts on a page number whichever page is asked for, page one included.
   query.set("page", String(state.page));
 
