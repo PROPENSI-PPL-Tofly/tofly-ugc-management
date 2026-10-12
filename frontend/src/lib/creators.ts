@@ -82,22 +82,58 @@ export interface CreatorListResponse {
   totalPages: number;
 }
 
+/** Whose turn a content's next step is; null once the link has closed it. */
+export type WaitingOn = "admin" | "creator" | null;
+
+/** One content inside a contract period, with where it stands in its lifecycle. */
+export interface PeriodContent {
+  id: string;
+  name: string;
+  type: "evergreen" | "specific";
+  /** ISO calendar day. */
+  deadline: string;
+  status: ContentStatus;
+  outcome: ContentOutcome;
+  tags: ContentTag[];
+  waitingOn: WaitingOn;
+  /** Hand-ins an admin asked to revise, the count the Content Plan list shows. */
+  revisionCount: number;
+  /** submittedAt is an ISO instant; null before any hand-in. */
+  latestDraft: { link: string; submittedAt: string } | null;
+  videoLink: string | null;
+  /** ISO calendar day. */
+  videoSubmittedAt: string | null;
+}
+
+/**
+ * One contract period with its own numbers and contents. A content's full timeline is not
+ * repeated here: the Content Detail panel loads it by id.
+ */
+export interface ContractPeriod {
+  id: string;
+  periodNumber: number;
+  startDate: string;
+  endDate: string;
+  daysBetween: number;
+  contentQuota: number;
+  type: ContractType;
+  status: Exclude<ContractStatus, "none">;
+  completed: number;
+  total: number;
+  isCurrent: boolean;
+  progress: CreatorSummary["progress"];
+  performance: CreatorSummary["performance"];
+  /** Deadline first; pending proposals are listed but not counted. */
+  contents: PeriodContent[];
+}
+
 export interface CreatorDetail extends CreatorSummary {
   phoneNumber: string | null;
 
-  contractHistory: {
-    id: string;
-    periodNumber: number;
-    startDate: string;
-    endDate: string;
-    daysBetween: number;
-    contentQuota: number;
-    type: ContractType;
-    completed: number;
-    total: number;
-    isCurrent: boolean;
-  }[];
+  /** Every contract period, oldest first. */
+  contractHistory: ContractPeriod[];
 
+  /** @deprecated Read contractHistory[].contents; kept until the old detail modal is removed. */
   contents: {
     id: string;
     name: string;
@@ -109,6 +145,7 @@ export interface CreatorDetail extends CreatorSummary {
     videoLink: string | null;
   }[];
 
+  /** @deprecated Read contractHistory[].contents[].latestDraft; kept until the old detail modal is removed. */
   drafts: {
     contentId: string;
     contentName: string;
