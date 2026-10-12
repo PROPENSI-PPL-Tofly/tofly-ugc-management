@@ -110,7 +110,7 @@ export default async function TaskSayaPage({
   const params = await searchParams;
   const { invalid } = parsePage(params);
   const state = parseMyTasksParams(params);
-  const [invalidStatus] = unknownStatuses(params);
+  const invalidStatuses = unknownStatuses(params);
   const view = parseTaskView(params);
   const loaded = await load(state, view);
   const firstPage = buildMyTasksQuery({ ...state, page: 1 });
@@ -131,9 +131,11 @@ export default async function TaskSayaPage({
             </p>
         )}
 
-        {invalidStatus === undefined ? null : (
+        {/* Ignored, not "showing everything": a status the page does know still narrows. */}
+        {invalidStatuses.length === 0 ? null : (
             <p role="status" className={NOTICE}>
-              Status &#8220;{invalidStatus}&#8221; tidak dikenal, menampilkan semua tugas.
+              Status {invalidStatuses.map((status) => `\u201c${status}\u201d`).join(", ")} tidak
+              dikenal dan diabaikan.
             </p>
         )}
 

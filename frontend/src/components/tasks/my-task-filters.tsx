@@ -45,16 +45,23 @@ export function MyTaskFilters({
     label: taskStatusLabel(value),
   }));
 
-  /** A multi-select parameter as the array the chips hold, empty when it is not applied. */
-  function listParam(key: string): string[] {
-    const raw = param(key);
-    return raw === "all" ? [] : raw.split(",").filter((part) => part !== "");
+  /**
+   * A multi-select parameter as the picks its control offers. The address can name more (a
+   * typed or stale value, a status only another tab holds); the list ignores those, so they
+   * are no pick here either: no chip, and the next change leaves them behind.
+   */
+  function picked(key: string, options: readonly MultiSelectOption[]): string[] {
+    return param(key)
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => options.some((option) => option.value === part));
   }
 
+  // Read from what the address holds, offered or not, so Reset is there to clear it all.
   const isFilteredNow =
     search !== "" ||
-    listParam("type").length > 0 ||
-    listParam("status").length > 0 ||
+    param("type") !== "all" ||
+    param("status") !== "all" ||
     param("overdue") !== "all" ||
     param("period") !== "all";
 
@@ -67,7 +74,7 @@ export function MyTaskFilters({
       <MultiSelect
         label="Tipe"
         options={TYPE_OPTIONS}
-        selected={listParam("type")}
+        selected={picked("type", TYPE_OPTIONS)}
         onChange={(next) => setParam("type", next.join(","))}
       />
 
@@ -75,7 +82,7 @@ export function MyTaskFilters({
         <MultiSelect
           label="Status"
           options={statusOptions}
-          selected={listParam("status")}
+          selected={picked("status", statusOptions)}
           onChange={(next) => setParam("status", next.join(","))}
         />
       ) : null}
