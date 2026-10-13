@@ -39,7 +39,7 @@ export function MyTaskFilters({
   /** The view being shown, kept when the filters are reset. */
   view?: TaskView;
 }>) {
-  const { search, setSearch, param, setParam, resetKeeping, pending } = useUrlFilters();
+  const { search, setSearch, param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
 
   const statusOptions: MultiSelectOption[] = myStatusOptionsFor(state.tab).map((value) => ({
     value,
@@ -63,7 +63,7 @@ export function MyTaskFilters({
       <MultiSelect
         label="Tipe"
         options={TYPE_OPTIONS}
-        selected={offeredPicks(param("type"), TYPE_OPTIONS)}
+        selected={offeredPicks(listParam("type"), TYPE_OPTIONS)}
         onChange={(next) => setParam("type", next.join(","))}
       />
 
@@ -71,7 +71,7 @@ export function MyTaskFilters({
         <MultiSelect
           label="Status"
           options={statusOptions}
-          selected={offeredPicks(param("status"), statusOptions)}
+          selected={offeredPicks(listParam("status"), statusOptions)}
           onChange={(next) => setParam("status", next.join(","))}
         />
       ) : null}

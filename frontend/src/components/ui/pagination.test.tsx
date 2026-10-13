@@ -219,4 +219,20 @@ describe("Pagination", () => {
     expect(screen.queryByText(/1–0/)).toBeNull();
     expect(screen.getByText("Halaman 1 dari 1")).toBeInTheDocument();
   });
+
+  it("lets its controls wrap, so on a 320 px phone Berikutnya stays inside the panel", () => {
+    render(
+      <Pagination
+        {...CREATORS}
+        page={2}
+        pageSize={10}
+        total={35}
+        totalPages={4}
+      />,
+    );
+
+    // The page count and both buttons need about 300 px; a 320 px panel leaves them 246.
+    const controls = screen.getByText("Halaman 2 dari 4").parentElement;
+    expect(controls).toHaveClass("flex-wrap");
+  });
 });

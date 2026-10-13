@@ -99,6 +99,13 @@ describe("CreatorContentFilters", () => {
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("2 dipilih");
   });
 
+  it("shows every pick of a filter the address repeats, as the table is narrowed by all of them", () => {
+    searchParams = new URLSearchParams("status=scheduled&status=pending");
+    render(<CreatorContentFilters />);
+
+    expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("2 dipilih");
+  });
+
   it("drops the old page number on a pick, as the narrowed table starts over", () => {
     renderOn({ page: "3" });
 

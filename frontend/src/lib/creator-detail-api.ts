@@ -8,35 +8,33 @@
 // Pure module: no next/headers, so it runs anywhere.
 
 import type { RawContentList, RawContentListItem } from "./content-list-api";
-import type { ContentType } from "./contents";
-import type { ContractType } from "./creator-form";
 import type {
   CreatorContentRow,
   CreatorDetailParams,
   CreatorDetailView,
   CreatorPeriod,
   CreatorProfile,
-  PeriodStatus,
 } from "./creator-detail";
+import type { ContractPeriod } from "./creators";
 
 /**
- * One contract period as GET /creators/:id sends it. The API answers with more (progress,
- * performance, each content in full); only what the page reads is named here.
+ * One contract period as GET /creators/:id sends it, picked from the mirror of the backend's
+ * DTO rather than spelled out again: a field the API drops or renames fails to compile here,
+ * not at runtime on the page. The API answers with more (fixed rate, progress, performance);
+ * only what the page reads is picked.
  */
-export interface RawCreatorPeriod {
-  id: string;
-  /** 1 for the first contract, counting up with every renewal. */
-  periodNumber: number;
-  type: ContractType;
-  /** Plain calendar day, "YYYY-MM-DD". */
-  startDate: string;
-  endDate: string;
-  status: PeriodStatus;
-  contentQuota: number;
-  daysBetween: number;
-  /** Every content of the period, unpaged; the page only counts them by type. */
-  contents: { type: ContentType }[];
-}
+export type RawCreatorPeriod = Pick<
+  ContractPeriod,
+  | "id"
+  | "periodNumber"
+  | "type"
+  | "startDate"
+  | "endDate"
+  | "status"
+  | "contentQuota"
+  | "daysBetween"
+  | "remainingEvergreenQuota"
+>;
 
 export interface RawCreatorDetail {
   id: string;
@@ -96,7 +94,9 @@ function toProfile(raw: RawCreatorDetail): CreatorProfile {
 }
 
 function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
-  const planned = period.contents.filter((content) => content.type === "evergreen").length;
+  // The API counts the room left; it no longer lists a period's contents to count them here.
+  // Kept within the quota, so a stray number never opens a slot the contract does not have.
+  const remaining = Math.min(Math.max(period.remainingEvergreenQuota, 0), period.contentQuota);
 
   return {
     contractId: period.id,
@@ -106,9 +106,9 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     endDate: period.endDate,
     status: period.status,
     contentQuota: period.contentQuota,
-    evergreenCount: planned,
-    // The quota less the Evergreen already planned; never below nothing.
-    remainingEvergreenQuota: Math.max(period.contentQuota - planned, 0),
+    // What Tambah Konten checks against the quota: full exactly when no room is left.
+    evergreenCount: period.contentQuota - remaining,
+    remainingEvergreenQuota: remaining,
     daysBetween: period.daysBetween,
   };
 }

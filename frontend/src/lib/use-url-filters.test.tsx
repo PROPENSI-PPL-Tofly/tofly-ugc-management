@@ -60,6 +60,27 @@ describe("useUrlFilters", () => {
     expect(result.current.param("contractStatus")).toBe("all");
   });
 
+  it("reads a multi-select repeated in the URL as every pick, comma-separated like the UI writes it", () => {
+    searchParams = new URLSearchParams("status=scheduled&status=pending&type=evergreen");
+    const { result } = renderHook(() => useUrlFilters());
+
+    expect(result.current.listParam("status")).toBe("scheduled,pending");
+    expect(result.current.listParam("type")).toBe("evergreen");
+    expect(result.current.listParam("overdue")).toBe("all");
+  });
+
+  it("writes a repeated multi-select back as one parameter on the next pick", () => {
+    searchParams = new URLSearchParams("status=scheduled&status=pending");
+    const { result } = renderHook(() => useUrlFilters());
+
+    act(() => result.current.setParam("status", "scheduled,pending,draft_review"));
+
+    expect(replace).toHaveBeenCalledWith(
+      "/admin/creators?status=scheduled%2Cpending%2Cdraft_review",
+      { scroll: false },
+    );
+  });
+
   it("removes a filter set back to all", () => {
     searchParams = new URLSearchParams({ contractStatus: "active", q: "ra" });
     const { result } = renderHook(() => useUrlFilters());

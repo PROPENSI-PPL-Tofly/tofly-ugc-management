@@ -11,10 +11,14 @@ export function single(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
-/** A comma-separated multi-select, trimmed and emptied of blanks. */
+/**
+ * A multi-select, trimmed and emptied of blanks. The UI writes it comma-separated; a link from
+ * elsewhere may repeat the parameter instead, and every value of it counts.
+ */
 export function list(value: string | string[] | undefined): string[] {
-  return single(value)
-    .split(",")
+  return [value ?? ""]
+    .flat()
+    .flatMap((part) => part.split(","))
     .map((part) => part.trim())
     .filter((part) => part !== "");
 }

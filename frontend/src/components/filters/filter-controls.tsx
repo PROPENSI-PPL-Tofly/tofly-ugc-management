@@ -1,5 +1,6 @@
 "use client";
 
+import { list } from "@/lib/search-params";
 import { MAX_SEARCH_LENGTH } from "@/lib/use-url-filters";
 
 // The pieces every list's filter bar is built from: the search box, a labelled select, the
@@ -32,10 +33,8 @@ const PERIOD_OPTIONS: readonly FilterOption[] = [
  * so they are no pick in the bar either: no chip, and the next change leaves them behind.
  */
 export function offeredPicks(raw: string, options: readonly FilterOption[]): string[] {
-  return raw
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => options.some((option) => option.value === part));
+  // Split and trimmed as the server splits it, so the bar and the list never read it apart.
+  return list(raw).filter((part) => options.some((option) => option.value === part));
 }
 
 export const FILTER_FIELD =
