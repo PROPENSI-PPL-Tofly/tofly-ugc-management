@@ -1,8 +1,10 @@
+import { Prisma } from '@prisma/client';
 import {
+  toContentEntries,
   toContractPeriods,
+  toDraftEntries,
   type DetailContentRow,
   type DetailContractRow,
-  type DetailSubmissionRow,
 } from './creator-detail.js';
 
 // 2026-09-18 00:00 in Jakarta (UTC+7): the last instant of the 17th in UTC.
@@ -13,15 +15,15 @@ function day(offset: number): Date {
   return new Date(Date.UTC(2026, 8, 18 + offset));
 }
 
-function submission(
-  overrides: Partial<DetailSubmissionRow> = {},
-): DetailSubmissionRow {
+/** `count` hand-ins, the newest made at `at` and sharing `link`. */
+function handedIn(
+  count: number,
+  at = new Date('2026-09-01T03:00:00Z'),
+  link = 'https://drive.example.com/draft-1',
+): Pick<DetailContentRow, '_count' | 'submissions'> {
   return {
-    id: 'sub-1',
-    link: 'https://drive.example.com/draft-1',
-    revision_notes: null,
-    created_at: new Date('2026-09-01T03:00:00Z'),
-    ...overrides,
+    _count: { submissions: count },
+    submissions: count > 0 ? [{ link, created_at: at }] : [],
   };
 }
 
@@ -35,7 +37,7 @@ function content(overrides: Partial<DetailContentRow> = {}): DetailContentRow {
     video_link: null,
     video_submitted_at: null,
     approval_bypassed: false,
-    submissions: [],
+    ...handedIn(0),
     ...overrides,
   };
 }
@@ -52,6 +54,7 @@ function contract(
     end_date: day(end),
     days_between: 14,
     content_quota: contents.length,
+    fixed_rate: new Prisma.Decimal('1500000'),
     contract_type: 'regular',
     contents,
   };
@@ -62,15 +65,9 @@ describe('toContractPeriods', () => {
     expect(toContractPeriods([], TODAY)).toEqual([]);
   });
 
-  it('nests each contract’s own contents under its period, numbered oldest first', () => {
+  it('numbers the periods oldest first', () => {
     const periods = toContractPeriods(
-      [
-        contract('first', -200, -20, [content({ id: 'old' })]),
-        contract('second', -19, 160, [
-          content({ id: 'new-a', deadline: day(5) }),
-          content({ id: 'new-b', deadline: day(19) }),
-        ]),
-      ],
+      [contract('first', -200, -20), contract('second', -19, 160)],
       TODAY,
     );
 
@@ -78,15 +75,13 @@ describe('toContractPeriods', () => {
       ['first', 1],
       ['second', 2],
     ]);
-    expect(periods[0].contents.map((c) => c.id)).toEqual(['old']);
-    expect(periods[1].contents.map((c) => c.id)).toEqual(['new-a', 'new-b']);
   });
 
-  it('describes the terms of each period in API vocabulary', () => {
-    const [period] = toContractPeriods(
-      [contract('only', -30, 150, [content()])],
-      TODAY,
-    );
+  it('describes the terms of each period in API vocabulary, its fixed rate as a number', () => {
+    const row = contract('only', -30, 150, [content()]);
+    row.fixed_rate = new Prisma.Decimal('3250000.50');
+
+    const [period] = toContractPeriods([row], TODAY);
 
     expect(period).toMatchObject({
       id: 'only',
@@ -94,10 +89,41 @@ describe('toContractPeriods', () => {
       endDate: '2027-02-15',
       daysBetween: 14,
       contentQuota: 1,
+      fixedRate: 3250000.5,
       type: 'regular',
       status: 'active',
       isCurrent: true,
     });
+  });
+
+  it('leaves the content list to GET /contents?contract=, which pages and filters it', () => {
+    const [period] = toContractPeriods(
+      [contract('only', -30, 150, [content()])],
+      TODAY,
+    );
+
+    expect(period).not.toHaveProperty('contents');
+  });
+
+  it('counts the Evergreen slots a period still has, Specific content aside', () => {
+    const row = contract('only', -30, 150, [
+      content({ id: 'a' }),
+      content({ id: 'b', status: 'link_submitted' }),
+      content({ id: 'c', type: 'specific' }),
+    ]);
+    row.content_quota = 4;
+
+    expect(toContractPeriods([row], TODAY)[0].remainingEvergreenQuota).toBe(2);
+  });
+
+  it('never reports fewer than zero Evergreen slots left', () => {
+    const row = contract('only', -30, 150, [
+      content({ id: 'a' }),
+      content({ id: 'b' }),
+    ]);
+    row.content_quota = 1;
+
+    expect(toContractPeriods([row], TODAY)[0].remainingEvergreenQuota).toBe(0);
   });
 
   it('derives each period’s status from today in Jakarta', () => {
@@ -150,17 +176,14 @@ describe('toContractPeriods', () => {
             status: 'link_submitted',
             deadline: day(-30),
             video_submitted_at: day(-31),
-            submissions: [submission()],
+            ...handedIn(1),
           }),
           content({
             id: 'late',
             status: 'link_submitted',
             deadline: day(-40),
             video_submitted_at: day(-38),
-            submissions: [
-              submission({ id: 's1', revision_notes: 'Ganti musik' }),
-              submission({ id: 's2' }),
-            ],
+            ...handedIn(2),
           }),
         ]),
         contract('running', -19, 160, [
@@ -184,8 +207,6 @@ describe('toContractPeriods', () => {
     expect(running.progress).toEqual({ submitted: 0, total: 1, percent: 0 });
     expect(running.total).toBe(1);
     expect(running.performance.productivity).toBe('no_data');
-    // Excluded from the numbers, but still listed so the admin can answer it.
-    expect(running.contents.map((c) => c.id)).toEqual(['open', 'proposal']);
   });
 
   it('reads an upcoming period with nothing resolved as having no data yet', () => {
@@ -201,130 +222,132 @@ describe('toContractPeriods', () => {
       productivityLabel: 'Belum Ada Data',
     });
   });
+});
 
-  describe('each content', () => {
-    function only(row: DetailContentRow) {
-      return toContractPeriods([contract('c', -30, 150, [row])], TODAY)[0]
-        .contents[0];
-    }
+describe('toContentEntries', () => {
+  function only(row: DetailContentRow) {
+    return toContentEntries(contract('c', -30, 150, [row]), TODAY)[0];
+  }
 
-    it('summarises where the content is in its lifecycle', () => {
-      expect(
-        only(
-          content({
-            id: 'x',
-            name: 'Spc_Launch',
-            type: 'specific',
-            deadline: day(3),
-            status: 'draft_review',
-            submissions: [
-              submission({
-                id: 'a',
-                link: 'https://drive.example.com/v1',
-                revision_notes: 'Perjelas logo',
-                created_at: new Date('2026-09-10T02:00:00Z'),
-              }),
-              submission({
-                id: 'b',
-                link: 'https://drive.example.com/v2',
-                created_at: new Date('2026-09-12T09:30:00Z'),
-              }),
-            ],
-          }),
-        ),
-      ).toEqual({
-        id: 'x',
-        name: 'Spc_Launch',
-        type: 'specific',
-        deadline: '2026-09-21',
-        status: 'draft_review',
-        outcome: 'open',
-        tags: [],
-        waitingOn: 'admin',
-        revisionCount: 1,
-        latestDraft: {
-          link: 'https://drive.example.com/v2',
-          submittedAt: '2026-09-12T09:30:00.000Z',
-        },
-        videoLink: null,
-        videoSubmittedAt: null,
-      });
+  it('lists a contract’s contents in the flat shape the old detail modal reads', () => {
+    expect(
+      only(
+        content({
+          id: 'x',
+          name: 'Spc_Launch',
+          type: 'specific',
+          deadline: day(3),
+          status: 'draft_review',
+          ...handedIn(2, new Date('2026-09-12T09:30:00Z')),
+        }),
+      ),
+    ).toEqual({
+      id: 'x',
+      name: 'Spc_Launch',
+      type: 'specific',
+      deadline: '2026-09-21',
+      status: 'draft_review',
+      outcome: 'open',
+      tags: [],
+      videoLink: null,
     });
+  });
 
-    it('has no latest draft before anything was handed in', () => {
-      const row = only(content());
-
-      expect(row.latestDraft).toBeNull();
-      expect(row.revisionCount).toBe(0);
-      expect(row.waitingOn).toBe('creator');
-    });
-
-    it('carries the final video and waits on nobody once the link is in', () => {
-      const row = only(
+  it('carries the final video and judges a late link', () => {
+    expect(
+      only(
         content({
           status: 'link_submitted',
           deadline: day(-2),
           video_link: 'https://www.tiktok.com/@ayu/video/1',
           video_submitted_at: day(-1),
         }),
-      );
-
-      expect(row).toMatchObject({
-        videoLink: 'https://www.tiktok.com/@ayu/video/1',
-        videoSubmittedAt: '2026-09-17',
-        outcome: 'submitted_late',
-        tags: ['late_submission'],
-        waitingOn: null,
-      });
+      ),
+    ).toMatchObject({
+      videoLink: 'https://www.tiktok.com/@ayu/video/1',
+      outcome: 'submitted_late',
+      tags: ['late_submission'],
     });
+  });
 
-    it('flags a missed deadline as overdue and late', () => {
-      const row = only(content({ deadline: day(-1) }));
+  it('flags a missed deadline as overdue and late', () => {
+    const row = only(content({ deadline: day(-1) }));
 
-      expect(row.outcome).toBe('late');
-      expect(row.tags).toEqual(['overdue']);
-    });
+    expect(row.outcome).toBe('late');
+    expect(row.tags).toEqual(['overdue']);
+  });
 
-    it('keeps the deadline day itself open', () => {
-      const row = only(content({ deadline: day(0) }));
+  it('flags a draft handed in after the deadline from the newest hand-in', () => {
+    const row = only(
+      content({
+        status: 'draft_review',
+        deadline: day(-5),
+        ...handedIn(2, day(-3)),
+      }),
+    );
 
-      expect(row.outcome).toBe('open');
-      expect(row.tags).toEqual([]);
-    });
+    expect(row.tags).toEqual(['late_submission', 'overdue']);
+  });
 
-    it('reports a stored approval bypass', () => {
-      expect(only(content({ approval_bypassed: true })).tags).toContain(
-        'approval_bypassed',
-      );
-    });
+  it('keeps the deadline day itself open', () => {
+    const row = only(content({ deadline: day(0) }));
 
-    it('counts only the hand-ins an admin asked to revise', () => {
-      const row = only(
+    expect(row.outcome).toBe('open');
+    expect(row.tags).toEqual([]);
+  });
+
+  it('reports a stored approval bypass', () => {
+    expect(only(content({ approval_bypassed: true })).tags).toContain(
+      'approval_bypassed',
+    );
+  });
+
+  it('keeps several contents due the same day in the order they arrive', () => {
+    const rows = toContentEntries(
+      contract('c', -30, 150, [
+        content({ id: 'a', deadline: day(4) }),
+        content({ id: 'b', deadline: day(4) }),
+      ]),
+      TODAY,
+    );
+
+    expect(rows.map((c) => c.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('toDraftEntries', () => {
+  it('lists only handed-in contents, each with its newest draft and revisions', () => {
+    const drafts = toDraftEntries(
+      contract('c', -30, 150, [
         content({
-          status: 'draft_revision',
-          submissions: [
-            submission({ id: 'a', revision_notes: 'Satu' }),
-            submission({ id: 'b', revision_notes: 'Dua' }),
-            submission({ id: 'c' }),
-          ],
+          id: 'a',
+          name: 'Evg_1',
+          ...handedIn(3, new Date('2026-09-12T09:30:00Z'), 'https://d/v3'),
         }),
-      );
+        content({ id: 'b', name: 'Evg_2' }),
+        content({
+          id: 'c',
+          name: 'Evg_3',
+          ...handedIn(1, new Date('2026-09-02T01:00:00Z'), 'https://d/v1'),
+        }),
+      ]),
+    );
 
-      expect(row.revisionCount).toBe(2);
-    });
-
-    it('lists several contents due the same day in the order they arrive', () => {
-      const periods = toContractPeriods(
-        [
-          contract('c', -30, 150, [
-            content({ id: 'a', deadline: day(4) }),
-            content({ id: 'b', deadline: day(4) }),
-          ]),
-        ],
-        TODAY,
-      );
-
-      expect(periods[0].contents.map((c) => c.id)).toEqual(['a', 'b']);
-    });
+    expect(drafts).toEqual([
+      {
+        contentId: 'a',
+        contentName: 'Evg_1',
+        revisionCount: 2,
+        latestLink: 'https://d/v3',
+        lastSubmittedAt: '2026-09-12',
+      },
+      {
+        contentId: 'c',
+        contentName: 'Evg_3',
+        revisionCount: 0,
+        latestLink: 'https://d/v1',
+        lastSubmittedAt: '2026-09-02',
+      },
+    ]);
   });
 });

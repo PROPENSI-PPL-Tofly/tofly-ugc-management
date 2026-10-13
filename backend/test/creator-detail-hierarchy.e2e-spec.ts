@@ -22,6 +22,8 @@ describe('Creator detail hierarchy (e2e)', () => {
   let creatorId: string;
   let pastContract: string;
   let currentContract: string;
+  let busyCreatorId: string;
+  let busyContract: string;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -78,7 +80,11 @@ describe('Creator detail hierarchy (e2e)', () => {
               fixed_rate: 3000000,
               contents: {
                 create: [
-                  { name: 'Periode kini', type: 'evergreen', deadline: day(10) },
+                  {
+                    name: 'Periode kini',
+                    type: 'evergreen',
+                    deadline: day(10),
+                  },
                   {
                     name: 'Usulan kreator',
                     type: 'specific',
@@ -113,16 +119,73 @@ describe('Creator detail hierarchy (e2e)', () => {
             content_quota: 1,
             fixed_rate: 1000000,
             contents: {
-              create: { name: 'Milik orang lain', type: 'evergreen', deadline: day(10) },
+              create: {
+                name: 'Milik orang lain',
+                type: 'evergreen',
+                deadline: day(10),
+              },
             },
           },
         },
       },
     });
 
+    // A period at the size the detail is promised to stay fast for: 30 contents, each with a
+    // couple of hand-ins.
+    const busyUser = await prisma.users.create({
+      data: { email: `${MARKER}-ramai@example.com` },
+    });
+    const busy = await prisma.creators.create({
+      data: {
+        user_id: busyUser.id,
+        first_name: `${MARKER} Ramai`,
+        contracts: {
+          create: {
+            start_date: day(-19),
+            end_date: day(160),
+            contract_type: 'regular',
+            days_between: 5,
+            content_quota: 30,
+            fixed_rate: 2000000,
+          },
+        },
+      },
+      include: { contracts: true },
+    });
+    busyCreatorId = busy.id;
+    busyContract = busy.contracts[0].id;
+    for (let index = 0; index < 30; index += 1) {
+      await prisma.contents.create({
+        data: {
+          contract_id: busyContract,
+          name: `${MARKER} Konten ${String(index + 1).padStart(2, '0')}`,
+          type: 'evergreen',
+          deadline: day(index * 5 - 15),
+          status: 'draft_review',
+          submissions: {
+            create: [
+              {
+                creator_id: busyCreatorId,
+                link: `https://example.com/${index}/v1`,
+                revision_notes: 'Ulang',
+              },
+              {
+                creator_id: busyCreatorId,
+                link: `https://example.com/${index}/v2`,
+              },
+            ],
+          },
+        },
+      });
+    }
+
     creatorSession = as(
       app,
-      await signIn(app, { userId: otherUser.id, role: 'creator', creatorId: other.id }),
+      await signIn(app, {
+        userId: otherUser.id,
+        role: 'creator',
+        creatorId: other.id,
+      }),
     );
   });
 
@@ -147,8 +210,9 @@ describe('Creator detail hierarchy (e2e)', () => {
           type: period.type,
           status: period.status,
           isCurrent: period.isCurrent,
+          fixedRate: period.fixedRate,
+          remainingEvergreenQuota: period.remainingEvergreenQuota,
           progress: period.progress,
-          contents: period.contents.map((content) => content.name),
         })),
       ).toEqual([
         {
@@ -157,8 +221,9 @@ describe('Creator detail hierarchy (e2e)', () => {
           type: 'probation',
           status: 'expired',
           isCurrent: false,
+          fixedRate: 1000000,
+          remainingEvergreenQuota: 0,
           progress: { submitted: 1, total: 1, percent: 100 },
-          contents: ['Periode lalu'],
         },
         {
           id: currentContract,
@@ -166,17 +231,41 @@ describe('Creator detail hierarchy (e2e)', () => {
           type: 'regular',
           status: 'active',
           isCurrent: true,
-          // The pending proposal is listed, but owes nothing yet.
+          fixedRate: 3000000,
+          // One Evergreen scheduled out of two; the Specific proposal takes no slot.
+          remainingEvergreenQuota: 1,
+          // The pending proposal owes nothing yet.
           progress: { submitted: 0, total: 1, percent: 0 },
-          contents: ['Periode kini', 'Usulan kreator'],
         },
       ]);
       expect(detail.contractHistory[0].performance.productivity).toBe('good');
-      expect(detail.contractHistory[1].contents[1].waitingOn).toBe('admin');
+    });
+
+    it('leaves each period’s contents to GET /contents?contract=', async () => {
+      const detail = (await admin.get(`/creators/${creatorId}`))
+        .body as CreatorDetail;
+
+      for (const period of detail.contractHistory) {
+        expect(period).not.toHaveProperty('contents');
+      }
+    });
+
+    it('answers within 300 ms for a period of 30 contents', async () => {
+      // The first request warms the connection pool; the promise is about the ones after.
+      await admin.get(`/creators/${busyCreatorId}`);
+
+      const started = performance.now();
+      const response = await admin.get(`/creators/${busyCreatorId}`);
+      const elapsed = performance.now() - started;
+
+      expect(response.status).toBe(200);
+      expect((response.body as CreatorDetail).contents).toHaveLength(30);
+      expect(elapsed).toBeLessThan(300);
     });
 
     it('keeps the flat current-period list the old modal reads', async () => {
-      const detail = (await admin.get(`/creators/${creatorId}`)).body as CreatorDetail;
+      const detail = (await admin.get(`/creators/${creatorId}`))
+        .body as CreatorDetail;
 
       expect(detail.contents.map((content) => content.name)).toEqual([
         'Periode kini',
@@ -200,7 +289,9 @@ describe('Creator detail hierarchy (e2e)', () => {
     });
 
     it('answers 401 when signed out', async () => {
-      const response = await request(app.getHttpServer()).get(`/creators/${creatorId}`);
+      const response = await request(app.getHttpServer()).get(
+        `/creators/${creatorId}`,
+      );
 
       expect(response.status).toBe(401);
     });
@@ -208,15 +299,20 @@ describe('Creator detail hierarchy (e2e)', () => {
     it.each([
       ['not an id', 'sari'],
       ['an injection attempt', `${'0'.repeat(8)}' OR '1'='1`],
-    ])('answers 400 without detail when the id is %s (OWASP A03)', async (_, id) => {
-      const response = await admin.get(`/creators/${encodeURIComponent(id)}`);
+    ])(
+      'answers 400 without detail when the id is %s (OWASP A03)',
+      async (_, id) => {
+        const response = await admin.get(`/creators/${encodeURIComponent(id)}`);
 
-      expect(response.status).toBe(400);
-      expect(response.text).not.toMatch(/prisma|stack|at \w+ \(/i);
-    });
+        expect(response.status).toBe(400);
+        expect(response.text).not.toMatch(/prisma|stack|at \w+ \(/i);
+      },
+    );
 
     it('answers 404 with the same body for any unknown creator', async () => {
-      const response = await admin.get('/creators/00000000-0000-4000-8000-000000000000');
+      const response = await admin.get(
+        '/creators/00000000-0000-4000-8000-000000000000',
+      );
 
       expect(response.status).toBe(404);
       expect(response.body).toMatchObject({ code: 'CREATOR_NOT_FOUND' });
@@ -241,6 +337,17 @@ describe('Creator detail hierarchy (e2e)', () => {
       });
     });
 
+    it('pages a period’s contents ten at a time and counts them all', async () => {
+      const response = await admin.get(
+        `/contents?contract=${busyContract}&pageSize=10`,
+      );
+
+      const list = response.body as ContentListResponse;
+      expect(list.items).toHaveLength(10);
+      expect(list.total).toBe(30);
+      expect(list.totalPages).toBe(3);
+    });
+
     it('keeps an earlier period apart from the current one', async () => {
       const list = (await admin.get(`/contents?contract=${pastContract}`))
         .body as ContentListResponse;
@@ -258,7 +365,9 @@ describe('Creator detail hierarchy (e2e)', () => {
     });
 
     it('answers 403 to a creator (OWASP A01)', async () => {
-      const response = await creatorSession.get(`/contents?contract=${currentContract}`);
+      const response = await creatorSession.get(
+        `/contents?contract=${currentContract}`,
+      );
 
       expect(response.status).toBe(403);
     });
