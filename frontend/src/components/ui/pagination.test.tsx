@@ -173,4 +173,50 @@ describe("Pagination", () => {
       "/admin/submissions?q=100%25+asli&type=specific&page=3",
     );
   });
+
+  it("stays on show for a single page when asked to, with nowhere to go", () => {
+    render(
+      <Pagination
+        basePath="/admin/creators/creator-1"
+        noun="konten"
+        always
+        page={1}
+        pageSize={10}
+        total={7}
+        totalPages={1}
+      />,
+    );
+
+    expect(
+      screen.getByText("Menampilkan 1–7 dari 7 konten"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Halaman 1 dari 1")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("Sebelumnya")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByText("Berikutnya")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("counts an empty list as nothing rather than as a slice from 1 to 0", () => {
+    render(
+      <Pagination
+        basePath="/admin/creators/creator-1"
+        noun="konten"
+        always
+        page={1}
+        pageSize={10}
+        total={0}
+        totalPages={1}
+      />,
+    );
+
+    expect(screen.getByText("Menampilkan 0 konten")).toBeInTheDocument();
+    expect(screen.queryByText(/1–0/)).toBeNull();
+    expect(screen.getByText("Halaman 1 dari 1")).toBeInTheDocument();
+  });
 });
