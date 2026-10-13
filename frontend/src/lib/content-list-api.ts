@@ -6,6 +6,10 @@
 //
 // Pure module: no next/headers and no clock of its own, so it runs anywhere and tests pin
 // "today" by passing it in.
+//
+// Adapter pattern and Single Responsibility: the page and the API were built apart and named
+// their tabs, sort and filters differently. Translating is this module's one job, so a
+// renamed parameter is fixed here without touching the filter bar, the table or the page.
 
 import type { ContentType } from "./contents";
 import type {
@@ -32,6 +36,8 @@ type ApiTab = "all" | "needs_approval" | "waiting_creator" | "done";
 
 // One line per tab, so a tab added to the page fails to compile here until the API's name for
 // it is given.
+// Open/Closed Principle: these three tables are data, so a new tab, sort or overdue choice is
+// a new line in a table and toContentListQuery below is not edited.
 const API_TAB: Record<ContentPlanTab, ApiTab> = {
   all: "all",
   action: "needs_approval",

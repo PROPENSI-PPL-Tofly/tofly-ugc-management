@@ -20,6 +20,10 @@ const SIZES = {
 // that is read next to the list it was opened from; it has its own width, so `size` is ignored.
 // A centred dialog scrolls as a whole; a sheet keeps its header in place and scrolls its body,
 // so the subject stays in view however long the detail under it runs.
+//
+// Open/Closed Principle: a placement is a row of class names in this table. The side sheet
+// was added as a second row; the focus trap, Escape and the stacking below were not touched,
+// and every dialog that names no placement kept the centred one.
 const PLACEMENTS = {
   center: {
     backdrop: "items-center justify-center p-5",
