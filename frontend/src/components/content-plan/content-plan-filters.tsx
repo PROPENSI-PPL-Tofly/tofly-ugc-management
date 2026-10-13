@@ -26,7 +26,7 @@ export function ContentPlanFilters({
   state,
   creators,
 }: Readonly<{ state: ContentPlanParams; creators: readonly ContentPlanCreatorOption[] }>) {
-  const { search, setSearch, param, setParam, resetKeeping, pending } = useUrlFilters();
+  const { search, setSearch, param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
 
   const statusChoices = statusOptionsFor(state.tab);
   const creatorOptions: MultiSelectOption[] = creators.map((c) => ({ value: c.id, label: c.name }));
@@ -43,7 +43,7 @@ export function ContentPlanFilters({
    * is capped, so a creator picked beyond it is still a pick.
    */
   function pickedCreators(): string[] {
-    const raw = param("creator");
+    const raw = listParam("creator");
     return raw === "all" ? [] : raw.split(",").filter((part) => part !== "");
   }
 
@@ -82,7 +82,7 @@ export function ContentPlanFilters({
       <MultiSelect
         label="Tipe"
         options={typeOptions}
-        selected={offeredPicks(param("type"), typeOptions)}
+        selected={offeredPicks(listParam("type"), typeOptions)}
         onChange={(next) => setListParam("type", next)}
       />
 
@@ -90,7 +90,7 @@ export function ContentPlanFilters({
         <MultiSelect
           label="Status"
           options={statusOptions}
-          selected={offeredPicks(param("status"), statusOptions)}
+          selected={offeredPicks(listParam("status"), statusOptions)}
           onChange={(next) => setListParam("status", next)}
         />
       ) : null}

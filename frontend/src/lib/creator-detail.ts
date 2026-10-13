@@ -80,7 +80,7 @@ export interface CreatorPeriod {
   endDate: string;
   status: PeriodStatus;
   contentQuota: number;
-  /** The Evergreen contents already planned in the period; can pass the quota. */
+  /** The Evergreen contents planned in the period, up to its quota: the quota less the room left. */
   evergreenCount: number;
   /** The quota less the Evergreen planned; never below nothing. */
   remainingEvergreenQuota: number;

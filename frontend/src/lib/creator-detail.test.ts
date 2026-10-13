@@ -82,14 +82,25 @@ describe("parseCreatorDetailParams", () => {
     },
   );
 
-  it("takes the first value of a parameter that arrives twice", () => {
+  it("takes the first value of a single-valued parameter that arrives twice", () => {
     expect(
       parseCreatorDetailParams({
         contract: [CONTRACT, OTHER_CONTRACT],
-        type: ["specific", "evergreen"],
         page: ["2", "9"],
       }),
-    ).toEqual({ ...BARE, contract: CONTRACT, type: ["specific"], page: 2 });
+    ).toEqual({ ...BARE, contract: CONTRACT, page: 2 });
+  });
+
+  it("keeps every pick of a filter that arrives repeated, as it keeps comma-separated ones", () => {
+    const repeated = parseCreatorDetailParams({
+      type: ["specific", "evergreen"],
+      status: ["scheduled", "pending"],
+    });
+
+    expect(repeated).toEqual(
+      parseCreatorDetailParams({ type: "specific,evergreen", status: "scheduled,pending" }),
+    );
+    expect(repeated.status).toEqual(["scheduled", "pending"]);
   });
 });
 

@@ -20,7 +20,7 @@ const STATUS_OPTIONS = optionsOf(CONTENT_STATUS_LABELS);
  * page number and leaves the open period where it is.
  */
 export function CreatorContentFilters() {
-  const { param, setParam, resetKeeping, pending } = useUrlFilters();
+  const { param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
 
   function setListParam(key: string, values: string[]) {
     setParam(key, values.join(","));
@@ -40,14 +40,14 @@ export function CreatorContentFilters() {
       <MultiSelect
         label="Tipe"
         options={TYPE_OPTIONS}
-        selected={offeredPicks(param("type"), TYPE_OPTIONS)}
+        selected={offeredPicks(listParam("type"), TYPE_OPTIONS)}
         onChange={(next) => setListParam("type", next)}
       />
 
       <MultiSelect
         label="Status"
         options={STATUS_OPTIONS}
-        selected={offeredPicks(param("status"), STATUS_OPTIONS)}
+        selected={offeredPicks(listParam("status"), STATUS_OPTIONS)}
         onChange={(next) => setListParam("status", next)}
       />
 

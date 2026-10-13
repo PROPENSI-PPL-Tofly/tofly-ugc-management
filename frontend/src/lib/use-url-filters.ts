@@ -83,5 +83,14 @@ export function useUrlFilters() {
   /** The current value of a filter, "all" when it is not applied. */
   const param = useCallback((key: string) => filters.get(key) ?? "all", [filters]);
 
-  return { search, setSearch, param, setParam, reset, resetKeeping, pending };
+  /**
+   * A multi-select's picks, comma-separated as the bar writes them, "all" when none. A link
+   * from elsewhere may repeat the parameter instead; the list reads every value, so the bar does.
+   */
+  const listParam = useCallback(
+    (key: string) => filters.getAll(key).join(",") || "all",
+    [filters],
+  );
+
+  return { search, setSearch, param, listParam, setParam, reset, resetKeeping, pending };
 }
