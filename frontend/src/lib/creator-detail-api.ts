@@ -8,34 +8,33 @@
 // Pure module: no next/headers, so it runs anywhere.
 
 import type { RawContentList, RawContentListItem } from "./content-list-api";
-import type { ContractType } from "./creator-form";
 import type {
   CreatorContentRow,
   CreatorDetailParams,
   CreatorDetailView,
   CreatorPeriod,
   CreatorProfile,
-  PeriodStatus,
 } from "./creator-detail";
+import type { ContractPeriod } from "./creators";
 
 /**
- * One contract period as GET /creators/:id sends it. The API answers with more (progress,
- * performance, each content in full); only what the page reads is named here.
+ * One contract period as GET /creators/:id sends it, picked from the mirror of the backend's
+ * DTO rather than spelled out again: a field the API drops or renames fails to compile here,
+ * not at runtime on the page. The API answers with more (fixed rate, progress, performance);
+ * only what the page reads is picked.
  */
-export interface RawCreatorPeriod {
-  id: string;
-  /** 1 for the first contract, counting up with every renewal. */
-  periodNumber: number;
-  type: ContractType;
-  /** Plain calendar day, "YYYY-MM-DD". */
-  startDate: string;
-  endDate: string;
-  status: PeriodStatus;
-  contentQuota: number;
-  daysBetween: number;
-  /** Evergreen contents the period can still take before its quota is full. */
-  remainingEvergreenQuota: number;
-}
+export type RawCreatorPeriod = Pick<
+  ContractPeriod,
+  | "id"
+  | "periodNumber"
+  | "type"
+  | "startDate"
+  | "endDate"
+  | "status"
+  | "contentQuota"
+  | "daysBetween"
+  | "remainingEvergreenQuota"
+>;
 
 export interface RawCreatorDetail {
   id: string;
