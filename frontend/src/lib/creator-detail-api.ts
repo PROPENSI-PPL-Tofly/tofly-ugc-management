@@ -8,7 +8,6 @@
 // Pure module: no next/headers, so it runs anywhere.
 
 import type { RawContentList, RawContentListItem } from "./content-list-api";
-import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
 import type {
   CreatorContentRow,
@@ -34,8 +33,8 @@ export interface RawCreatorPeriod {
   status: PeriodStatus;
   contentQuota: number;
   daysBetween: number;
-  /** Every content of the period, unpaged; the page only counts them by type. */
-  contents: { type: ContentType }[];
+  /** Evergreen contents the period can still take before its quota is full. */
+  remainingEvergreenQuota: number;
 }
 
 export interface RawCreatorDetail {
@@ -96,7 +95,9 @@ function toProfile(raw: RawCreatorDetail): CreatorProfile {
 }
 
 function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
-  const planned = period.contents.filter((content) => content.type === "evergreen").length;
+  // The API counts the room left; it no longer lists a period's contents to count them here.
+  // Kept within the quota, so a stray number never opens a slot the contract does not have.
+  const remaining = Math.min(Math.max(period.remainingEvergreenQuota, 0), period.contentQuota);
 
   return {
     contractId: period.id,
@@ -106,9 +107,9 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     endDate: period.endDate,
     status: period.status,
     contentQuota: period.contentQuota,
-    evergreenCount: planned,
-    // The quota less the Evergreen already planned; never below nothing.
-    remainingEvergreenQuota: Math.max(period.contentQuota - planned, 0),
+    // What Tambah Konten checks against the quota: full exactly when no room is left.
+    evergreenCount: period.contentQuota - remaining,
+    remainingEvergreenQuota: remaining,
     daysBetween: period.daysBetween,
   };
 }
