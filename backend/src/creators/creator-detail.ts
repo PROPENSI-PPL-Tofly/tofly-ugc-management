@@ -1,13 +1,13 @@
-// A creator's contract periods, each with its own contents: the creator → contract → content →
-// lifecycle tree the Creator Detail page reads.
+// A creator's contract periods: the creator → contract part of the tree the Creator Detail page
+// reads. Each period carries its terms and its own numbers; its contents are not repeated here,
+// because GET /contents?contract=<id> already pages, filters and counts them for the table.
 //
 // Pure, like creator-metrics.ts: the rows come in already loaded and `today` is passed in, so
-// the service is left with loading and the tree can be tested without a database. Contents
+// the service is left with loading and the periods can be tested without a database. Contents
 // belong to a period through their contract, never through their deadline, so a deadline moved
-// across a period's edge cannot make a content appear under the wrong contract.
+// across a period's edge cannot make a content count under the wrong contract.
 
-import type { content_status } from '@prisma/client';
-import { waitingOnFor } from '../contents/content-detail.js';
+import type { content_status, Prisma } from '@prisma/client';
 import { contentTags } from '../contents/content-tags.js';
 import {
   computePerformance,
@@ -19,15 +19,14 @@ import {
   type MetricsContract,
 } from './creator-metrics.js';
 import type {
+  ContentEntry,
   ContractPeriod,
   ContractType,
-  PeriodContent,
+  DraftEntry,
 } from './dto/creator-summary.dto.js';
 
 export interface DetailSubmissionRow {
-  id: string;
   link: string;
-  revision_notes: string | null;
   created_at: Date;
 }
 
@@ -40,7 +39,8 @@ export interface DetailContentRow {
   video_link: string | null;
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
-  /** Oldest first, so the last one is the latest draft. */
+  _count: { submissions: number };
+  /** The newest hand-in only, or none before the first. */
   submissions: DetailSubmissionRow[];
 }
 
@@ -50,6 +50,7 @@ export interface DetailContractRow {
   end_date: Date;
   days_between: number;
   content_quota: number;
+  fixed_rate: Prisma.Decimal;
   contract_type: ContractType;
   /** Deadline first. */
   contents: DetailContentRow[];
@@ -66,7 +67,7 @@ function toMetricsContent(row: DetailContentRow): MetricsContent {
     videoSubmittedAt: row.video_submitted_at,
     // A pending proposal is not a commitment until an admin accepts it.
     isProposal: row.status === 'pending',
-    submissionCount: row.submissions.length,
+    submissionCount: row._count.submissions,
   };
 }
 
@@ -79,39 +80,13 @@ function toMetricsContract(row: DetailContractRow): MetricsContract {
   };
 }
 
-function toPeriodContent(row: DetailContentRow, today: Date): PeriodContent {
-  const latest = row.submissions.at(-1);
+/** The same count Tambah Konten checks a new Evergreen slot against (evergreen-slot.ts). */
+function remainingEvergreenQuota(row: DetailContractRow): number {
+  const evergreen = row.contents.filter(
+    (content) => content.type === 'evergreen',
+  ).length;
 
-  return {
-    id: row.id,
-    name: row.name,
-    type: row.type,
-    deadline: calendarDay(row.deadline),
-    status: row.status,
-    outcome: contentOutcome(toMetricsContent(row), today),
-    tags: contentTags(
-      {
-        deadline: row.deadline,
-        status: row.status,
-        videoSubmittedAt: row.video_submitted_at,
-        latestDraftAt: latest?.created_at ?? null,
-        approvalBypassed: row.approval_bypassed,
-      },
-      today,
-    ),
-    waitingOn: waitingOnFor(row.status),
-    // The rule GET /contents counts by, so a row reads the same on every screen.
-    revisionCount: row.submissions.filter(
-      (submission) => submission.revision_notes !== null,
-    ).length,
-    latestDraft: latest
-      ? { link: latest.link, submittedAt: latest.created_at.toISOString() }
-      : null,
-    videoLink: row.video_link,
-    videoSubmittedAt: row.video_submitted_at
-      ? calendarDay(row.video_submitted_at)
-      : null,
-  };
+  return Math.max(0, row.content_quota - evergreen);
 }
 
 /** Every contract as a period, in the order given (oldest first), numbered from 1. */
@@ -133,6 +108,9 @@ export function toContractPeriods(
       endDate: calendarDay(row.end_date),
       daysBetween: row.days_between,
       contentQuota: row.content_quota,
+      // numeric(14, 2) holds at most 14 significant digits, within what a JS number keeps exact.
+      fixedRate: row.fixed_rate.toNumber(),
+      remainingEvergreenQuota: remainingEvergreenQuota(row),
       type: row.contract_type,
       // A contract is never 'none'; that status only describes a creator without one.
       status: contractStatus(metrics, today) as ContractPeriod['status'],
@@ -141,7 +119,54 @@ export function toContractPeriods(
       isCurrent: metrics === current,
       progress,
       performance: computePerformance(metrics, today),
-      contents: row.contents.map((content) => toPeriodContent(content, today)),
     };
+  });
+}
+
+/** A contract's contents in the flat shape the old detail modal reads, deadline first. */
+export function toContentEntries(
+  row: DetailContractRow,
+  today: Date,
+): ContentEntry[] {
+  return row.contents.map((content) => ({
+    id: content.id,
+    name: content.name,
+    type: content.type,
+    deadline: calendarDay(content.deadline),
+    status: content.status,
+    outcome: contentOutcome(toMetricsContent(content), today),
+    tags: contentTags(
+      {
+        deadline: content.deadline,
+        status: content.status,
+        videoSubmittedAt: content.video_submitted_at,
+        latestDraftAt: content.submissions[0]?.created_at ?? null,
+        approvalBypassed: content.approval_bypassed,
+      },
+      today,
+    ),
+    videoLink: content.video_link,
+  }));
+}
+
+/** The contract's handed-in contents with their newest draft, as the old detail modal reads them. */
+export function toDraftEntries(row: DetailContractRow): DraftEntry[] {
+  return row.contents.flatMap((content) => {
+    const [latest] = content.submissions;
+
+    if (!latest) {
+      return [];
+    }
+
+    return [
+      {
+        contentId: content.id,
+        contentName: content.name,
+        // Every hand-in after the first is a revision.
+        revisionCount: content._count.submissions - 1,
+        latestLink: latest.link,
+        lastSubmittedAt: calendarDay(latest.created_at),
+      },
+    ];
   });
 }
