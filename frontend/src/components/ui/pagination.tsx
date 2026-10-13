@@ -79,7 +79,8 @@ export function Pagination({
         {/* An empty list has no slice to name: "1–0 dari 0" would describe rows that are not there. */}
         {total === 0 ? `Menampilkan 0 ${noun}` : `Menampilkan ${first}–${last} dari ${total} ${noun}`}
       </p>
-      <div className="flex items-center gap-2">
+      {/* Wraps on the narrowest phones rather than pushing Berikutnya out of its panel. */}
+      <div className="flex flex-wrap items-center gap-2">
         <span className="mr-1 whitespace-nowrap text-xs text-muted tabular-nums">
           Halaman {page} dari {totalPages}
         </span>
