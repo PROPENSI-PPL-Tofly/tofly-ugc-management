@@ -4,12 +4,12 @@ import { InvoiceFilters } from "./invoice-filters";
 const hook = vi.hoisted(() => ({
   current: {
     search: "",
-    setSearch: vi.fn(),
-    param: vi.fn(() => "all"),
-    listParam: vi.fn(() => "all"),
-    setParam: vi.fn(),
+    setSearch: vi.fn<(value: string) => void>(),
+    param: vi.fn<(key: string) => string>(),
+    listParam: vi.fn<(key: string) => string>(),
+    setParam: vi.fn<(key: string, value: string) => void>(),
     reset: vi.fn(),
-    resetKeeping: vi.fn(),
+    resetKeeping: vi.fn<(keep: Record<string, string>) => void>(),
     pending: false,
   },
 }));
@@ -25,7 +25,7 @@ describe("InvoiceFilters", () => {
     vi.clearAllMocks();
     hook.current.search = "";
     hook.current.pending = false;
-    hook.current.param = vi.fn(() => "all");
+    hook.current.param.mockReturnValue("all");
   });
 
   it("offers the search box the prototype offers", () => {
@@ -97,7 +97,7 @@ describe("InvoiceFilters", () => {
   });
 
   it("offers Reset once a filter is applied", () => {
-    hook.current.param = vi.fn((key: string) => (key === "contract" ? "active" : "all"));
+    hook.current.param.mockImplementation((key) => (key === "contract" ? "active" : "all"));
     render(<InvoiceFilters />);
 
     expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
@@ -111,7 +111,7 @@ describe("InvoiceFilters", () => {
   });
 
   it("clears the filters in one step", () => {
-    hook.current.param = vi.fn(() => "active");
+    hook.current.param.mockReturnValue("active");
     render(<InvoiceFilters />);
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
@@ -120,7 +120,7 @@ describe("InvoiceFilters", () => {
   });
 
   it("holds Reset while a change is still on its way", () => {
-    hook.current.param = vi.fn(() => "active");
+    hook.current.param.mockReturnValue("active");
     hook.current.pending = true;
     render(<InvoiceFilters />);
 

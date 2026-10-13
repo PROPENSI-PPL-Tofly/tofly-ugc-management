@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { InvoiceList } from "@/lib/invoice";
 import RateInvoicingPage from "./page";
 
@@ -102,7 +102,8 @@ describe("Rate & Invoicing page", () => {
     expect(screen.getByText("Kontrak Aktif")).toBeInTheDocument();
     expect(screen.getByText("Rp5.000.000")).toBeInTheDocument();
     expect(screen.getByText("-Rp250.000")).toBeInTheDocument();
-    expect(screen.getByText("Berjalan")).toBeInTheDocument();
+    // Inside the table: the filter bar offers the same word as a choice.
+    expect(within(screen.getByRole("table")).getByText("Berjalan")).toBeInTheDocument();
   });
 
   it("counts the creators in the footer", async () => {
