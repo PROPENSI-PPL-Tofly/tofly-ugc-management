@@ -34,7 +34,7 @@ const DETAIL: RawCreatorDetail = {
       status: "expired",
       contentQuota: 3,
       daysBetween: 7,
-      contents: [{ type: "evergreen" }],
+      remainingEvergreenQuota: 2,
     },
     {
       id: NEWEST,
@@ -45,7 +45,7 @@ const DETAIL: RawCreatorDetail = {
       status: "active",
       contentQuota: 6,
       daysBetween: 14,
-      contents: [{ type: "evergreen" }, { type: "specific" }],
+      remainingEvergreenQuota: 5,
     },
   ],
 };

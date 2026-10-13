@@ -23,13 +23,14 @@ function period(id: string, extra: Partial<RawCreatorPeriod> = {}): RawCreatorPe
     status: "active",
     contentQuota: 6,
     daysBetween: 14,
-    contents: [{ type: "evergreen" }, { type: "evergreen" }, { type: "specific" }],
+    remainingEvergreenQuota: 4,
     ...extra,
   };
 }
 
 // GET /creators/:id as subtask 4.1 answers it (SCRUM-139, #91): every contract period, oldest
-// first, each with all of its contents.
+// first, each with its terms and the Evergreen it can still take, but none of its contents
+// (#91 left those to GET /contents?contract=).
 const RAW: RawCreatorDetail = {
   id: "creator-1",
   name: "Lestari Wulandari",
@@ -41,7 +42,7 @@ const RAW: RawCreatorDetail = {
       startDate: "2025-09-01",
       endDate: "2026-02-28",
       status: "expired",
-      contents: [],
+      remainingEvergreenQuota: 6,
     }),
     period(MIDDLE, {
       periodNumber: 2,
@@ -51,7 +52,7 @@ const RAW: RawCreatorDetail = {
       status: "expired",
       contentQuota: 3,
       daysBetween: 7,
-      contents: [{ type: "evergreen" }, { type: "evergreen" }, { type: "evergreen" }],
+      remainingEvergreenQuota: 0,
     }),
     period(NEWEST),
   ],
@@ -235,25 +236,64 @@ describe("toCreatorDetailView", () => {
     });
   });
 
+  it("reads a period as GET /creators/:id answers it today: its own numbers and no contents", () => {
+    // Copied from the live answer for a creator in their second period, extra fields included.
+    const answered = {
+      ...RAW,
+      contractHistory: [
+        {
+          id: NEWEST,
+          periodNumber: 2,
+          startDate: "2026-02-13",
+          endDate: "2026-08-12",
+          daysBetween: 14,
+          contentQuota: 6,
+          fixedRate: 400000,
+          remainingEvergreenQuota: 4,
+          type: "regular",
+          status: "expired",
+          completed: 2,
+          total: 4,
+          isCurrent: true,
+          progress: { submitted: 2, total: 4, percent: 50 },
+          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk" },
+        },
+      ],
+    } as unknown as RawCreatorDetail;
+
+    expect(toCreatorDetailView(answered, CONTENTS, BARE).selected).toEqual({
+      contractId: NEWEST,
+      periodNumber: 2,
+      type: "regular",
+      startDate: "2026-02-13",
+      endDate: "2026-08-12",
+      status: "expired",
+      contentQuota: 6,
+      evergreenCount: 2,
+      remainingEvergreenQuota: 4,
+      daysBetween: 14,
+    });
+  });
+
   it.each([
-    ["some of the quota is planned", 6, ["evergreen", "evergreen", "specific"], 2, 4],
-    ["none of it is planned", 6, ["specific", "specific"], 0, 6],
-    ["the period has no content", 6, [], 0, 6],
-    ["all of it is planned", 3, ["evergreen", "evergreen", "evergreen"], 3, 0],
-    ["more Evergreen is planned than the quota holds", 2, ["evergreen", "evergreen", "evergreen"], 3, 0],
+    ["some of the quota is planned", 6, 4, 2, 4],
+    ["none of it is planned", 6, 6, 0, 6],
+    ["all of it is planned, so Tambah Konten finds Evergreen full", 3, 0, 3, 0],
+    ["a quota of nothing", 0, 0, 0, 0],
+    // The API never answers these, but a stray number must not open more slots than the quota
+    // holds, nor count Evergreen past it.
+    ["the API answers more room than the quota holds", 3, 5, 0, 3],
+    ["the API answers less than no room", 3, -1, 3, 0],
   ] as const)(
-    "counts the Evergreen planned, and the quota still free, when %s",
-    (_, contentQuota, types, planned, remaining) => {
+    "takes the room the API leaves for Evergreen, and the Evergreen planned, when %s",
+    (_, contentQuota, remainingEvergreenQuota, planned, remaining) => {
       const raw = {
         ...RAW,
-        contractHistory: [
-          period(NEWEST, { contentQuota, contents: types.map((type) => ({ type })) }),
-        ],
+        contractHistory: [period(NEWEST, { contentQuota, remainingEvergreenQuota })],
       };
 
       const { selected } = toCreatorDetailView(raw, CONTENTS, BARE);
 
-      // The count is carried as it is, also past the quota; only what is left stops at nothing.
       expect(selected?.evergreenCount).toBe(planned);
       expect(selected?.remainingEvergreenQuota).toBe(remaining);
     },
