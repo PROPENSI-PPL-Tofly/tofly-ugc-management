@@ -125,6 +125,15 @@ describe("MyTaskFilters", () => {
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Scheduled");
   });
 
+  it("shows every pick of a type the address repeats, as the list is narrowed by all of them", () => {
+    searchParams = new URLSearchParams("type=evergreen&type=specific");
+    render(
+      <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, type: ["evergreen", "specific"] }} />,
+    );
+
+    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("2 dipilih");
+  });
+
   it("shows no chip for a status another tab holds", () => {
     renderOn({ tab: "action", status: "link_submitted,scheduled" }, { tab: "action", status: ["scheduled"] });
 
