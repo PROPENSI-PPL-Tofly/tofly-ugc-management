@@ -51,7 +51,8 @@ export function CreatorContentTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    // Positioned, so the sr-only heading below is laid out inside the scroll area, not the page.
+    <div className="relative overflow-x-auto">
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-rule text-left text-muted">
