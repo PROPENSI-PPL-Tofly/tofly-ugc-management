@@ -8,6 +8,7 @@ import {
   formatDue,
   formatPercent,
   formatRevisions,
+  formatRupiah,
   formatTimestamp,
   jakartaDay,
 } from "./format";
@@ -264,5 +265,20 @@ describe("jakartaDay", () => {
     const now = new Date("2026-10-10T17:30:00Z");
 
     expect(daysUntil(jakartaDay(now), now)).toBe(0);
+  });
+});
+
+describe("formatRupiah", () => {
+  it("writes rupiah the way the prototype writes it", () => {
+    expect(formatRupiah(500000)).toBe("Rp500.000");
+    expect(formatRupiah(1250000)).toBe("Rp1.250.000");
+  });
+
+  it("keeps the minus outside the rupiah sign", () => {
+    expect(formatRupiah(-250000)).toBe("-Rp250.000");
+  });
+
+  it("writes a plain zero", () => {
+    expect(formatRupiah(0)).toBe("Rp0");
   });
 });
