@@ -38,6 +38,15 @@ describe("CreatorContentTable", () => {
     expect(screen.getByText("Aksi")).toHaveClass("sr-only");
   });
 
+  it("keeps that hidden heading inside the table's own scroll area, so a phone never scrolls the page sideways", () => {
+    renderTable();
+
+    // sr-only is position:absolute. Unless the scroll area is positioned, the heading is laid
+    // out against the page and widens it by however far the table overflows (117 px at 375 px).
+    const scrollArea = screen.getByText("Aksi").closest(".overflow-x-auto");
+    expect(scrollArea).toHaveClass("relative");
+  });
+
   it("fills a row with the content, its type under the name, and its formatted deadline", () => {
     renderTable();
 
