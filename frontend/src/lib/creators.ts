@@ -82,32 +82,9 @@ export interface CreatorListResponse {
   totalPages: number;
 }
 
-/** Whose turn a content's next step is; null once the link has closed it. */
-export type WaitingOn = "admin" | "creator" | null;
-
-/** One content inside a contract period, with where it stands in its lifecycle. */
-export interface PeriodContent {
-  id: string;
-  name: string;
-  type: "evergreen" | "specific";
-  /** ISO calendar day. */
-  deadline: string;
-  status: ContentStatus;
-  outcome: ContentOutcome;
-  tags: ContentTag[];
-  waitingOn: WaitingOn;
-  /** Hand-ins an admin asked to revise, the count the Content Plan list shows. */
-  revisionCount: number;
-  /** submittedAt is an ISO instant; null before any hand-in. */
-  latestDraft: { link: string; submittedAt: string } | null;
-  videoLink: string | null;
-  /** ISO calendar day. */
-  videoSubmittedAt: string | null;
-}
-
 /**
- * One contract period with its own numbers and contents. A content's full timeline is not
- * repeated here: the Content Detail panel loads it by id.
+ * One contract period with its terms and its own numbers. Its contents are not listed here:
+ * the table reads them from GET /contents?contract=<id>, which pages, filters and counts them.
  */
 export interface ContractPeriod {
   id: string;
@@ -116,15 +93,19 @@ export interface ContractPeriod {
   endDate: string;
   daysBetween: number;
   contentQuota: number;
+  /** In rupiah. */
+  fixedRate: number;
+  /** Evergreen contents the period can still take before its quota is full; never below 0. */
+  remainingEvergreenQuota: number;
   type: ContractType;
   status: Exclude<ContractStatus, "none">;
+  /** Committed contents handed in; the same number as progress.submitted. */
   completed: number;
+  /** Committed contents, pending proposals left out; not a page size or a list length. */
   total: number;
   isCurrent: boolean;
   progress: CreatorSummary["progress"];
   performance: CreatorSummary["performance"];
-  /** Deadline first; pending proposals are listed but not counted. */
-  contents: PeriodContent[];
 }
 
 export interface CreatorDetail extends CreatorSummary {
@@ -133,7 +114,10 @@ export interface CreatorDetail extends CreatorSummary {
   /** Every contract period, oldest first. */
   contractHistory: ContractPeriod[];
 
-  /** @deprecated Read contractHistory[].contents; kept until the old detail modal is removed. */
+  /**
+   * @deprecated Read GET /contents?contract=<id>.
+   * TODO(SCRUM-141): remove once the Creator Detail page replaces the old detail modal.
+   */
   contents: {
     id: string;
     name: string;
@@ -145,7 +129,10 @@ export interface CreatorDetail extends CreatorSummary {
     videoLink: string | null;
   }[];
 
-  /** @deprecated Read contractHistory[].contents[].latestDraft; kept until the old detail modal is removed. */
+  /**
+   * @deprecated Read GET /contents/:id.
+   * TODO(SCRUM-141): remove once the Creator Detail page replaces the old detail modal.
+   */
   drafts: {
     contentId: string;
     contentName: string;
