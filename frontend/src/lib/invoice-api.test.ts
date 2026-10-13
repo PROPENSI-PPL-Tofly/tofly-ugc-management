@@ -1,4 +1,4 @@
-import { INVOICE_FIXTURE_ROWS } from "./invoice.fixture";
+import { INVOICE_FIXTURE_ROWS, invoiceFixture } from "./invoice.fixture";
 import { toInvoiceList, toInvoiceListQuery, type RawInvoiceRow } from "./invoice-api";
 import { DEFAULT_INVOICE_PARAMS, type InvoiceParams } from "./invoice";
 
@@ -91,5 +91,19 @@ describe("the fixture standing in for GET /invoices", () => {
     expect(INVOICE_FIXTURE_ROWS.some((row) => row.penaltyAmount > 0)).toBe(true);
     expect(INVOICE_FIXTURE_ROWS.some((row) => row.extraAmount === 0)).toBe(true);
     expect(INVOICE_FIXTURE_ROWS.some((row) => row.bonusAmount === 0)).toBe(true);
+  });
+
+  it("takes the first page and the table's page size when a query names neither", () => {
+    const answer = invoiceFixture(new URLSearchParams());
+
+    expect(answer.page).toBe(1);
+    expect(answer.pageSize).toBe(10);
+  });
+
+  it("takes the first page and the table's page size when a query names nonsense", () => {
+    const answer = invoiceFixture(new URLSearchParams("page=abc&pageSize=0"));
+
+    expect(answer.page).toBe(1);
+    expect(answer.pageSize).toBe(10);
   });
 });
