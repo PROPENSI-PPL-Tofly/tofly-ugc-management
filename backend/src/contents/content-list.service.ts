@@ -88,6 +88,7 @@ interface DeadlineRange {
 /** The filters the database can decide by itself, on columns it can index. */
 export interface ContentListWhere {
   contracts?: { creator_id: { in: string[] } };
+  contract_id?: { in: string[] };
   type?: { in: ContentListType[] };
   OR?: [{ deadline: DeadlineRange }, { status: { in: ContentStatus[] } }];
 }
@@ -136,15 +137,18 @@ function matcher(filters: ContentListFilters) {
 }
 
 /**
- * What the query itself narrows by: creator, type and deadline period. The period keeps every
+ * What the query itself narrows by: creator, contract, type and deadline period. The period keeps every
  * status of Perlu Approval whatever its deadline, because that tab is never narrowed by it;
  * which rows the period then leaves in each tab is decided row by row in list().
  */
 function narrowing(filters: ContentListFilters): ContentListWhere {
-  const { creators, types, deadlineFrom, deadlineTo } = filters;
+  const { creators, contracts, types, deadlineFrom, deadlineTo } = filters;
   const where: ContentListWhere = {};
   if (creators) {
     where.contracts = { creator_id: { in: creators } };
+  }
+  if (contracts) {
+    where.contract_id = { in: contracts };
   }
   if (types) {
     where.type = { in: types };

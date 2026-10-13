@@ -142,6 +142,17 @@ describe('ContentListController', () => {
     });
   });
 
+  it('reads the contract filter by the name contract', async () => {
+    await get(`?creator=${CREATOR_A}&contract=${CREATOR_B}`);
+
+    expect(contents.list.mock.calls[0][2]).toEqual({
+      tab: 'all',
+      creators: [CREATOR_A],
+      contracts: [CREATOR_B],
+      sort: 'deadline_desc',
+    });
+  });
+
   it('never turns a bracketed key into a filter', async () => {
     // The query parser keeps `creator[id]` as a key of that literal name, so no object can be
     // built from the address; the list is simply not narrowed.

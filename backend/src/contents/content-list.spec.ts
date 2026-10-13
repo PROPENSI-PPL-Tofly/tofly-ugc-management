@@ -177,6 +177,46 @@ describe('checkContentListQuery', () => {
     });
   });
 
+  describe('contract', () => {
+    it('reads one contract as a list of one', () => {
+      expect(checkContentListQuery({ contract: CREATOR_A }).contracts).toEqual(
+        [CREATOR_A],
+      );
+    });
+
+    it('reads repeated contracts as a list', () => {
+      expect(
+        checkContentListQuery({ contract: [CREATOR_A, CREATOR_B] }).contracts,
+      ).toEqual([CREATOR_A, CREATOR_B]);
+    });
+
+    it('leaves contracts out when none is named', () => {
+      expect(checkContentListQuery({})).not.toHaveProperty('contracts');
+    });
+
+    it.each([
+      ['not an id', 'periode-1'],
+      ['an injection attempt', `${CREATOR_A}' or 1=1--`],
+      ['an object', { id: CREATOR_A }],
+    ])('answers 400 when contract is %s', (_, contract) => {
+      expect(message(() => checkContentListQuery({ contract }))).toBe(
+        'contract must be a contract id',
+      );
+    });
+
+    it('answers 400 for more contracts than the cap', () => {
+      const contract = Array.from(
+        { length: MAX_FILTER_VALUES + 1 },
+        (_, index) =>
+          `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      );
+
+      expect(message(() => checkContentListQuery({ contract }))).toBe(
+        `contract takes at most ${MAX_FILTER_VALUES} values`,
+      );
+    });
+  });
+
   describe('type', () => {
     it('reads one type as a list of one', () => {
       expect(checkContentListQuery({ type: 'evergreen' }).types).toEqual([
