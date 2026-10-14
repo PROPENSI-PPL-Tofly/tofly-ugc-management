@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
+import type { BreakdownStatus } from "./breakdown-popup";
 import { BreakdownPopup } from "./breakdown-popup";
 
 const BREAKDOWN: InvoiceBreakdown = {
@@ -36,7 +37,10 @@ type Kind = Parameters<typeof BreakdownPopup>[0]["kind"];
 
 function renderPopup(
   kind: Kind = "fixed",
-  { breakdown = BREAKDOWN, failed = false }: { breakdown?: InvoiceBreakdown | null; failed?: boolean } = {},
+  {
+    breakdown = BREAKDOWN,
+    status = breakdown ? "ready" : "loading",
+  }: { breakdown?: InvoiceBreakdown | null; status?: BreakdownStatus } = {},
 ) {
   const onClose = vi.fn();
   const onOpenContent = vi.fn();
@@ -46,7 +50,7 @@ function renderPopup(
       kind={kind}
       creatorName="Rangga Pratama"
       breakdown={breakdown}
-      failed={failed}
+      status={status}
       onRetry={onRetry}
       onClose={onClose}
       onOpenContent={onOpenContent}
@@ -172,7 +176,7 @@ describe("BreakdownPopup", () => {
             total: 1,
           },
         }}
-        failed={false}
+        status="ready"
         onRetry={vi.fn()}
         onClose={vi.fn()}
         onOpenContent={onOpenContent}
@@ -201,7 +205,7 @@ describe("BreakdownPopup", () => {
 
   describe("when the breakdown could not be loaded", () => {
     it("says so, rather than an empty column that would claim there is nothing", () => {
-      const { dialog } = renderPopup("fixed", { breakdown: null, failed: true });
+      const { dialog } = renderPopup("fixed", { breakdown: null, status: "failed" });
 
       expect(within(dialog).getByRole("alert")).toHaveTextContent("Rincian tidak bisa dimuat.");
       expect(dialog).not.toHaveTextContent("Belum ada konten yang selesai.");
@@ -209,7 +213,7 @@ describe("BreakdownPopup", () => {
     });
 
     it("offers to try again", () => {
-      const { onRetry } = renderPopup("fixed", { breakdown: null, failed: true });
+      const { onRetry } = renderPopup("fixed", { breakdown: null, status: "failed" });
 
       fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
 
@@ -217,9 +221,20 @@ describe("BreakdownPopup", () => {
     });
 
     it("titles the failure with the column and the creator too", () => {
-      const { dialog } = renderPopup("bonus", { breakdown: null, failed: true });
+      const { dialog } = renderPopup("bonus", { breakdown: null, status: "failed" });
 
       expect(dialog).toHaveAccessibleName("Bonus · Rangga Pratama");
+    });
+  });
+
+  describe("when there is no breakdown to show", () => {
+    it("says so plainly, without an error or a retry that could never succeed", () => {
+      const { dialog } = renderPopup("fixed", { breakdown: null, status: "missing" });
+
+      expect(dialog).toHaveTextContent("Tidak ada rincian untuk creator ini.");
+      expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("status")).not.toBeInTheDocument();
     });
   });
 });

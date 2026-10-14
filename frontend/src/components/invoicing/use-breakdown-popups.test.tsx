@@ -179,12 +179,14 @@ describe("useBreakdownPopups", () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
-  it("treats a creator the loader does not know as a breakdown it could not load", async () => {
+  it("says there is nothing to show for a creator the loader has no breakdown of, with no retry", async () => {
     render(<Table load={vi.fn<BreakdownLoader>(async () => null)} />);
 
     fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Rincian tidak bisa dimuat.");
+    expect(await screen.findByText("Tidak ada rincian untuk creator ini.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
   });
 
   it("drops an answer that arrives after another breakdown was opened", async () => {
@@ -326,5 +328,62 @@ describe("useBreakdownPopups without a loader", () => {
 
     expect(await screen.findByRole("list")).toHaveTextContent("Evg_1_Rangga_01102026");
     expect(loadInvoiceBreakdown).toHaveBeenCalledWith("creator-rangga");
+  });
+});
+
+describe("useBreakdownPopups after the table is read again", () => {
+  /** One row whose amounts the test can change, as a refreshed page would. */
+  function Row({ row, load }: Readonly<{ row: InvoiceRow; load: BreakdownLoader }>) {
+    const { open, layers } = useBreakdownPopups({ load });
+    return (
+      <>
+        <BreakdownAmount kind="penalty" row={row} onOpen={open} />
+        {layers}
+      </>
+    );
+  }
+
+  it("asks again once the row's amounts have changed, so a popup never disagrees with its cell", async () => {
+    const later: InvoiceBreakdown = {
+      ...RANGGA,
+      penalty: {
+        lines: [
+          {
+            contentId: "c-3",
+            name: "Evg_3_Rangga_15102026",
+            daysLate: 4,
+            ratePerDay: 50000,
+            amount: 200000,
+            ongoing: true,
+          },
+        ],
+        total: 200000,
+      },
+    };
+    const load = vi.fn<BreakdownLoader>().mockResolvedValueOnce(RANGGA).mockResolvedValueOnce(later);
+    const view = render(<Row row={RANGGA_ROW} load={load} />);
+    fireEvent.click(cell(/^Penalti Rangga Pratama/));
+    await screen.findByRole("list");
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+
+    view.rerender(<Row row={{ ...RANGGA_ROW, penaltyAmount: 200000 }} load={load} />);
+    fireEvent.click(cell(/^Penalti Rangga Pratama/));
+
+    expect(await screen.findByText("Telat 4 hari × Rp50.000 · masih berjalan")).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps what it read while the row's amounts stay the same", async () => {
+    const load = answering();
+    const view = render(<Row row={RANGGA_ROW} load={load} />);
+    fireEvent.click(cell(/^Penalti Rangga Pratama/));
+    await screen.findByRole("list");
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+
+    view.rerender(<Row row={{ ...RANGGA_ROW }} load={load} />);
+    fireEvent.click(cell(/^Penalti Rangga Pratama/));
+
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(1);
   });
 });
