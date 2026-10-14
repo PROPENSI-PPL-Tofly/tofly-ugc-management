@@ -209,6 +209,28 @@ describe("useBreakdownPopups", () => {
     expect(popup()).not.toHaveTextContent("Evg_1_Rangga_01102026");
   });
 
+  it("drops a failure that arrives after another breakdown was opened", async () => {
+    let failRangga: (reason: Error) => void = () => undefined;
+    const load = vi.fn<BreakdownLoader>((creatorId) =>
+      creatorId === "creator-rangga"
+        ? new Promise((_resolve, reject) => {
+            failRangga = reject;
+          })
+        : Promise.resolve(SALSA),
+    );
+    render(<Table load={load} />);
+
+    fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+    fireEvent.click(cell(/^Fixed Rate Salsa Amelia/));
+    await screen.findByRole("list");
+
+    await act(async () => failRangga(new Error("late")));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(popup()).toHaveTextContent("Evg_1_Salsa_02102026");
+  });
+
   it("closes the breakdown from its Tutup button", async () => {
     await openCell(/^Fixed Rate Rangga Pratama/);
 
