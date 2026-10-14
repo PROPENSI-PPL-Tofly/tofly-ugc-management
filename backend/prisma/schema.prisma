@@ -135,6 +135,8 @@ model rate_formula {
   id                   Boolean  @id @default(true)
   specific_bonus       Decimal  @db.Decimal
   late_penalty_per_day Decimal  @db.Decimal
+  /// The most days one late content is penalised for; null for a formula saved before it existed.
+  max_penalty_days     Int?
   /// The admin who saved the formula last; the API never answers it.
   updated_by           String?  @db.Uuid
   created_at           DateTime @default(now()) @db.Timestamptz(6)
