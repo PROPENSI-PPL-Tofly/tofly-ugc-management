@@ -135,4 +135,17 @@ describe("InvoiceTable", () => {
       expect(screen.getByText("Berjalan")).toBeInTheDocument();
     });
   });
+
+  it("gives every column its own key, so React never warns that two are the same", () => {
+    // Several columns share a width, so a width cannot be what tells them apart.
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      render(<InvoiceTable rows={[FULL]} />);
+
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
 });
