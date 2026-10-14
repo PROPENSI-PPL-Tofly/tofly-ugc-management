@@ -12,11 +12,17 @@ import { RateFormulaService } from './rate-formula.service.js';
 const ADMIN_USER_ID = '99999999-9999-4999-8999-999999999999';
 
 const BODY = {
-  specificBonus: 250000,
+  specificBonus: 100000,
   latePenaltyPerDay: 50000,
-  performanceBonusTiers: {
-    instagram: [{ threshold: 10000, bonus: 100000 }],
-    tiktok: [],
+  performanceBonus: {
+    instagram: {
+      metric: 'views',
+      tiers: [{ threshold: 10000, bonus: 150000 }],
+    },
+    tiktok: {
+      metric: 'likes',
+      tiers: [{ threshold: 5000, bonus: 100000 }],
+    },
   },
 };
 

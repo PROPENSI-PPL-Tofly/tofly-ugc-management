@@ -9,33 +9,44 @@ import { as, signInAsAdmin } from './sessions.js';
 const MARKER = 'e2e-rate-formula';
 
 const FORMULA = {
-  specificBonus: 250000,
-  latePenaltyPerDay: 50000.5,
-  performanceBonusTiers: {
-    instagram: [
-      { threshold: 10000, bonus: 100000 },
-      { threshold: 50000, bonus: 300000 },
-    ],
-    tiktok: [{ threshold: 20000, bonus: 150000 }],
+  specificBonus: 100000,
+  latePenaltyPerDay: 50000,
+  performanceBonus: {
+    instagram: {
+      metric: 'views',
+      tiers: [
+        { threshold: 10000, bonus: 150000 },
+        { threshold: 40000, bonus: 400000 },
+      ],
+    },
+    tiktok: {
+      metric: 'likes',
+      tiers: [{ threshold: 5000, bonus: 100000 }],
+    },
   },
 };
 
 interface FormulaRow {
-  specific_bonus: string;
-  late_penalty_per_day: string;
+  specific_bonus: number;
+  late_penalty_per_day: number;
   updated_by: string | null;
+}
+
+interface MetricRow {
+  platform: string;
+  metric: string;
 }
 
 interface TierRow {
   platform: string;
   position: number;
-  threshold: string;
-  bonus: string;
+  threshold: number;
+  bonus: number;
 }
 
 /**
- * The formula is one shared row, so the suite empties both tables before each test and puts back
- * whatever the developer had configured once it is done.
+ * The formula is one shared row, so the suite empties the rate tables before each test and puts
+ * back whatever the developer had configured once it is done.
  */
 describe('/rate-formula (e2e)', () => {
   let app: INestApplication<App>;
@@ -43,9 +54,10 @@ describe('/rate-formula (e2e)', () => {
   let admin: ReturnType<typeof as>;
   let adminId: string;
   let savedFormula: Record<string, unknown>[];
+  let savedMetrics: Record<string, unknown>[];
   let savedTiers: Record<string, unknown>[];
-  // Set only once both tables are copied: until then the suite must not empty them, or a setup
-  // failure would lose the developer's formula with nothing to put back.
+  // Set only once every rate table is copied: until then the suite must not empty them, or a
+  // setup failure would lose the developer's formula with nothing to put back.
   let snapshotTaken = false;
 
   async function clear(): Promise<void> {
@@ -53,19 +65,31 @@ describe('/rate-formula (e2e)', () => {
       throw new Error('Rate tables were not snapshotted; refusing to clear them');
     }
     await prisma.$executeRaw`delete from performance_bonus_tiers`;
+    await prisma.$executeRaw`delete from performance_bonus_metrics`;
     await prisma.$executeRaw`delete from rate_formula`;
   }
 
   async function storedFormula(): Promise<FormulaRow[]> {
     return prisma.$queryRaw<FormulaRow[]>`
-      select specific_bonus::text, late_penalty_per_day::text, updated_by::text
+      select specific_bonus::int, late_penalty_per_day::int, updated_by::text
       from rate_formula`;
+  }
+
+  async function storedMetrics(): Promise<MetricRow[]> {
+    return prisma.$queryRaw<MetricRow[]>`
+      select platform::text, metric::text from performance_bonus_metrics order by platform`;
   }
 
   async function storedTiers(): Promise<TierRow[]> {
     return prisma.$queryRaw<TierRow[]>`
-      select platform::text, position::int, threshold::text, bonus::text
+      select platform::text, position::int, threshold::int, bonus::int
       from performance_bonus_tiers order by platform, position`;
+  }
+
+  /** A tier belongs to its platform's metric row, so a raw tier insert needs one first. */
+  async function instagramMetric(): Promise<void> {
+    await prisma.$executeRaw`
+      insert into performance_bonus_metrics (platform, metric) values ('instagram', 'views')`;
   }
 
   beforeAll(async () => {
@@ -77,6 +101,7 @@ describe('/rate-formula (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     savedFormula = await prisma.$queryRaw`select * from rate_formula`;
+    savedMetrics = await prisma.$queryRaw`select * from performance_bonus_metrics`;
     savedTiers = await prisma.$queryRaw`select * from performance_bonus_tiers`;
     snapshotTaken = true;
     admin = as(app, await signInAsAdmin(app, prisma, MARKER));
@@ -101,6 +126,11 @@ describe('/rate-formula (e2e)', () => {
                     ${row.updated_by}::uuid, ${row.created_at}::timestamptz,
                     ${row.updated_at}::timestamptz)`;
         }
+        for (const row of savedMetrics) {
+          await prisma.$executeRaw`
+            insert into performance_bonus_metrics (platform, metric)
+            values (${row.platform}::social_platform, ${row.metric}::performance_metric)`;
+        }
         for (const row of savedTiers) {
           await prisma.$executeRaw`
             insert into performance_bonus_tiers (platform, position, threshold, bonus)
@@ -114,7 +144,7 @@ describe('/rate-formula (e2e)', () => {
   });
 
   describe('GET', () => {
-    it('answers a formula nobody has saved as unconfigured, not as zeros', async () => {
+    it('answers a formula nobody has saved as unconfigured, not as zeros or a default metric', async () => {
       const response = await admin.get('/rate-formula');
 
       expect(response.status).toBe(200);
@@ -122,7 +152,10 @@ describe('/rate-formula (e2e)', () => {
         configured: false,
         specificBonus: null,
         latePenaltyPerDay: null,
-        performanceBonusTiers: { instagram: [], tiktok: [] },
+        performanceBonus: {
+          instagram: { metric: null, tiers: [] },
+          tiktok: { metric: null, tiers: [] },
+        },
         updatedAt: null,
       });
     });
@@ -140,39 +173,83 @@ describe('/rate-formula (e2e)', () => {
       expect(read.body).toEqual(saved.body);
     });
 
-    it('stores the amounts with their cents, the tiers in order, and the admin who saved them', async () => {
+    it('stores the amounts, each metric, the tiers in order, and the admin who saved them', async () => {
       await admin.put('/rate-formula').send(FORMULA);
 
       expect(await storedFormula()).toEqual([
-        {
-          specific_bonus: '250000.00',
-          late_penalty_per_day: '50000.50',
-          updated_by: adminId,
-        },
+        { specific_bonus: 100000, late_penalty_per_day: 50000, updated_by: adminId },
+      ]);
+      expect(await storedMetrics()).toEqual([
+        { platform: 'instagram', metric: 'views' },
+        { platform: 'tiktok', metric: 'likes' },
       ]);
       expect(await storedTiers()).toEqual([
-        { platform: 'instagram', position: 1, threshold: '10000.00', bonus: '100000.00' },
-        { platform: 'instagram', position: 2, threshold: '50000.00', bonus: '300000.00' },
-        { platform: 'tiktok', position: 1, threshold: '20000.00', bonus: '150000.00' },
+        { platform: 'instagram', position: 1, threshold: 10000, bonus: 150000 },
+        { platform: 'instagram', position: 2, threshold: 40000, bonus: 400000 },
+        { platform: 'tiktok', position: 1, threshold: 5000, bonus: 100000 },
       ]);
     });
 
-    it('replaces the whole formula, leaving none of the earlier tiers behind', async () => {
+    it('stores tiers sent out of order sorted by minimum', async () => {
+      await admin.put('/rate-formula').send({
+        ...FORMULA,
+        performanceBonus: {
+          ...FORMULA.performanceBonus,
+          instagram: {
+            metric: 'views',
+            tiers: [
+              { threshold: 40000, bonus: 400000 },
+              { threshold: 10000, bonus: 150000 },
+            ],
+          },
+        },
+      });
+
+      expect((await storedTiers()).filter((t) => t.platform === 'instagram')).toEqual([
+        { platform: 'instagram', position: 1, threshold: 10000, bonus: 150000 },
+        { platform: 'instagram', position: 2, threshold: 40000, bonus: 400000 },
+      ]);
+    });
+
+    it('stores more than five tiers, as the prototype sets no cap', async () => {
+      const tiers = Array.from({ length: 7 }, (_, index) => ({
+        threshold: (index + 1) * 1000,
+        bonus: (index + 1) * 10000,
+      }));
+
+      const response = await admin.put('/rate-formula').send({
+        ...FORMULA,
+        performanceBonus: {
+          ...FORMULA.performanceBonus,
+          tiktok: { metric: 'shares', tiers },
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.performanceBonus.tiktok).toEqual({ metric: 'shares', tiers });
+    });
+
+    it('replaces the whole formula, leaving none of the earlier metrics or tiers behind', async () => {
       await admin.put('/rate-formula').send(FORMULA);
       const second = {
-        specificBonus: 100000,
+        specificBonus: 0,
         latePenaltyPerDay: 0,
-        performanceBonusTiers: {
-          instagram: [],
-          tiktok: [{ threshold: 1, bonus: 2 }],
+        performanceBonus: {
+          instagram: { metric: 'comments', tiers: [{ threshold: 1, bonus: 2 }] },
+          tiktok: { metric: 'shares', tiers: [{ threshold: 3, bonus: 4 }] },
         },
       };
 
       await admin.put('/rate-formula').send(second);
 
       expect(await storedFormula()).toHaveLength(1);
+      expect(await storedMetrics()).toEqual([
+        { platform: 'instagram', metric: 'comments' },
+        { platform: 'tiktok', metric: 'shares' },
+      ]);
       expect(await storedTiers()).toEqual([
-        { platform: 'tiktok', position: 1, threshold: '1.00', bonus: '2.00' },
+        { platform: 'instagram', position: 1, threshold: 1, bonus: 2 },
+        { platform: 'tiktok', position: 1, threshold: 3, bonus: 4 },
       ]);
       expect((await admin.get('/rate-formula')).body).toMatchObject({
         configured: true,
@@ -180,31 +257,18 @@ describe('/rate-formula (e2e)', () => {
       });
     });
 
-    it('keeps a formula of zeros apart from an unconfigured one', async () => {
-      const zeros = {
-        specificBonus: 0,
-        latePenaltyPerDay: 0,
-        performanceBonusTiers: { instagram: [], tiktok: [] },
-      };
-
-      await admin.put('/rate-formula').send(zeros);
-
-      expect((await admin.get('/rate-formula')).body).toMatchObject({
-        configured: true,
-        ...zeros,
-      });
-    });
-
     it('stores none of the fields the formula does not have', async () => {
       const response = await admin.put('/rate-formula').send({
         ...FORMULA,
         contentFee: 75000,
+        maxPenaltyDays: 10,
         updated_by: '00000000-0000-4000-8000-000000000000',
         updatedBy: '00000000-0000-4000-8000-000000000000',
       });
 
       expect(response.status).toBe(200);
       expect(response.body).not.toHaveProperty('contentFee');
+      expect(response.body).not.toHaveProperty('maxPenaltyDays');
       expect(response.body).not.toHaveProperty('updatedBy');
       expect((await storedFormula())[0].updated_by).toBe(adminId);
     });
@@ -215,12 +279,15 @@ describe('/rate-formula (e2e)', () => {
       const response = await admin.put('/rate-formula').send({
         ...FORMULA,
         specificBonus: -1,
-        performanceBonusTiers: {
-          instagram: [
-            { threshold: 200, bonus: 1 },
-            { threshold: 100, bonus: 1 },
-          ],
-          tiktok: [],
+        performanceBonus: {
+          instagram: {
+            metric: 'views',
+            tiers: [
+              { threshold: 100, bonus: 500000 },
+              { threshold: 200, bonus: 100000 },
+            ],
+          },
+          tiktok: { metric: 'reach', tiers: [] },
         },
       });
 
@@ -228,14 +295,17 @@ describe('/rate-formula (e2e)', () => {
       expect(response.body).toEqual({
         message: 'Formula rate tidak valid',
         errors: {
-          specificBonus: 'Bonus Specific tidak boleh negatif',
-          'performanceBonusTiers.instagram.1.threshold':
-            'Threshold harus lebih besar dari tier sebelumnya',
+          specificBonus: 'Bonus Specific harus antara Rp0 dan Rp10.000.000',
+          'performanceBonus.instagram.tiers': 'Bonus harus naik seiring minimum.',
+          'performanceBonus.tiktok.metric':
+            'Metrik harus views, likes, comments, atau shares',
+          'performanceBonus.tiktok.tiers': 'Minimal 1 tier.',
         },
       });
       expect(await storedFormula()).toEqual([
-        expect.objectContaining({ specific_bonus: '250000.00' }),
+        expect.objectContaining({ specific_bonus: 100000 }),
       ]);
+      expect(await storedMetrics()).toHaveLength(2);
       expect(await storedTiers()).toHaveLength(3);
     });
 
@@ -262,45 +332,121 @@ describe('/rate-formula (e2e)', () => {
         values (false, 1, 1)`).rejects.toThrow();
     });
 
+    it('accepts the largest Specific bonus and daily penalty', async () => {
+      await expect(prisma.$executeRaw`
+        insert into rate_formula (specific_bonus, late_penalty_per_day)
+        values (10000000, 1000000)`).resolves.toBe(1);
+    });
+
     it.each([
-      ['a negative specific bonus', -1, 1],
+      ['a negative Specific bonus', -1, 1],
+      ['a Specific bonus past Rp10.000.000', 10_000_001, 1],
+      ['a fractional Specific bonus', 1.5, 1],
       ['a negative daily penalty', 1, -1],
-      ['an amount past ten integer digits', 10_000_000_000, 1],
+      ['a daily penalty past Rp1.000.000', 1, 1_000_001],
+      ['a fractional daily penalty', 1, 1.5],
     ])('refuses %s', async (_, specificBonus, penalty) => {
       await expect(prisma.$executeRaw`
         insert into rate_formula (specific_bonus, late_penalty_per_day)
         values (${specificBonus}, ${penalty})`).rejects.toThrow();
     });
 
+    it('refuses a metric the prototype does not offer', async () => {
+      await expect(prisma.$executeRaw`
+        insert into performance_bonus_metrics (platform, metric)
+        values ('instagram', 'reach')`).rejects.toThrow();
+    });
+
+    it('holds one metric per platform', async () => {
+      await instagramMetric();
+
+      await expect(prisma.$executeRaw`
+        insert into performance_bonus_metrics (platform, metric)
+        values ('instagram', 'likes')`).rejects.toThrow();
+    });
+
+    it('refuses a tier for a platform with no metric', async () => {
+      await expect(prisma.$executeRaw`
+        insert into performance_bonus_tiers (platform, position, threshold, bonus)
+        values ('tiktok', 1, 1, 1)`).rejects.toThrow();
+    });
+
+    it('accepts a tier at position 6 and at the largest minimum and bonus', async () => {
+      await instagramMetric();
+
+      await expect(prisma.$executeRaw`
+        insert into performance_bonus_tiers (platform, position, threshold, bonus)
+        values ('instagram', 6, 999999999, 999999999)`).resolves.toBe(1);
+    });
+
     it.each([
       ['position 0', 0, 1, 1],
-      ['position 6', 6, 1, 1],
-      ['a negative threshold', 1, -1, 1],
-      ['a negative bonus', 1, 1, -1],
-    ])('refuses a tier at %s', async (_, position, threshold, bonus) => {
+      ['a zero minimum', 1, 0, 1],
+      ['a zero bonus', 1, 1, 0],
+      ['a minimum past 999.999.999', 1, 1_000_000_000, 1],
+      ['a bonus past 999.999.999', 1, 1, 1_000_000_000],
+      ['a fractional minimum', 1, 1.5, 1],
+      ['a fractional bonus', 1, 1, 1.5],
+    ])('refuses a tier with %s', async (_, position, threshold, bonus) => {
+      await instagramMetric();
+
       await expect(prisma.$executeRaw`
         insert into performance_bonus_tiers (platform, position, threshold, bonus)
         values ('instagram', ${position}, ${threshold}, ${bonus})`).rejects.toThrow();
     });
 
     it('refuses two tiers at the same position of one platform', async () => {
+      await instagramMetric();
       await prisma.$executeRaw`
         insert into performance_bonus_tiers (platform, position, threshold, bonus)
         values ('instagram', 1, 100, 1)`;
 
       await expect(prisma.$executeRaw`
         insert into performance_bonus_tiers (platform, position, threshold, bonus)
-        values ('instagram', 1, 200, 1)`).rejects.toThrow();
+        values ('instagram', 1, 200, 2)`).rejects.toThrow();
     });
 
-    it('has no content fee column', async () => {
+    it('refuses two tiers with the same minimum on one platform', async () => {
+      await instagramMetric();
+      await prisma.$executeRaw`
+        insert into performance_bonus_tiers (platform, position, threshold, bonus)
+        values ('instagram', 1, 100, 1)`;
+
+      await expect(prisma.$executeRaw`
+        insert into performance_bonus_tiers (platform, position, threshold, bonus)
+        values ('instagram', 2, 100, 2)`).rejects.toThrow();
+    });
+
+    it('has no content fee or maximum penalty days column', async () => {
       const columns = await prisma.$queryRaw<{ column_name: string }[]>`
         select column_name from information_schema.columns
         where table_schema = 'public'
-          and table_name in ('rate_formula', 'performance_bonus_tiers')
-          and column_name like '%fee%'`;
+          and table_name in ('rate_formula', 'performance_bonus_metrics', 'performance_bonus_tiers')
+          and (column_name like '%fee%' or column_name like '%max%')`;
 
       expect(columns).toEqual([]);
+    });
+  });
+
+  // Subtask 8.1 keeps the fixed rate in contracts.fixed_rate, at most ten digits before the point.
+  describe('fixed rate', () => {
+    it('stores contracts.fixed_rate as numeric(12, 2)', async () => {
+      const [column] = await prisma.$queryRaw<
+        { numeric_precision: number; numeric_scale: number }[]
+      >`
+        select numeric_precision::int, numeric_scale::int from information_schema.columns
+        where table_schema = 'public' and table_name = 'contracts'
+          and column_name = 'fixed_rate'`;
+
+      expect(column).toEqual({ numeric_precision: 12, numeric_scale: 2 });
+    });
+
+    it('has no second fixed rate column', async () => {
+      const columns = await prisma.$queryRaw<{ table_name: string }[]>`
+        select table_name from information_schema.columns
+        where table_schema = 'public' and column_name like '%fixed_rate%'`;
+
+      expect(columns).toEqual([{ table_name: 'contracts' }]);
     });
   });
 });
