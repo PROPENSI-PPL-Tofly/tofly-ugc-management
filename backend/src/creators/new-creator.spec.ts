@@ -439,34 +439,29 @@ describe('checkNewCreator', () => {
       expect(checkNewCreator(body({ interval: 1 }), TODAY).interval).toBe(1);
     });
 
-    it('accepts a fixed rate with cents', () => {
-      expect(
-        checkNewCreator(body({ fixedRate: 750000.5 }), TODAY).fixedRate,
-      ).toBe(750000.5);
-    });
-
-    it('rejects a fixed rate with more than two decimals', () => {
-      expect(errorsFor(body({ fixedRate: 0.001 }))).toEqual({
-        fixedRate: 'Fixed rate maksimal 2 angka desimal',
-      });
-    });
-
-    // Subtask 8.1: contracts.fixed_rate is numeric(12, 2), ten digits before the decimal point.
-    it('caps the fixed rate at ten integer digits and two decimals', () => {
-      expect(MAX_FIXED_RATE).toBe(9_999_999_999.99);
-    });
-
-    it.each([9_999_999_999, 9_999_999_999.99])(
-      'accepts the largest numeric(12, 2) (%s)',
+    // Subtask 8.1: the prototype's Add Creator form takes the fixed rate in whole rupiah, from
+    // Rp1 to Rp10.000.000 (FV.fAccFixedRate).
+    it.each([750000.5, 0.001, 10_000_000.01])(
+      'rejects a fixed rate with cents (%s)',
       (fixedRate) => {
-        expect(checkNewCreator(body({ fixedRate }), TODAY).fixedRate).toBe(
-          fixedRate,
-        );
+        expect(errorsFor(body({ fixedRate }))).toEqual({
+          fixedRate: 'Fixed rate harus bilangan bulat',
+        });
       },
     );
 
-    it.each([10_000_000_000, 10_000_000_000.01, 999_999_999_999.99])(
-      'rejects a fixed rate past ten integer digits (%s)',
+    it('caps the fixed rate at Rp10.000.000', () => {
+      expect(MAX_FIXED_RATE).toBe(10_000_000);
+    });
+
+    it.each([1, 10_000_000])('accepts a fixed rate of %s', (fixedRate) => {
+      expect(checkNewCreator(body({ fixedRate }), TODAY).fixedRate).toBe(
+        fixedRate,
+      );
+    });
+
+    it.each([10_000_001, 9_999_999_999, 999_999_999_999])(
+      'rejects a fixed rate past Rp10.000.000 (%s)',
       (fixedRate) => {
         expect(errorsFor(body({ fixedRate }))).toEqual({
           fixedRate: 'Fixed rate terlalu besar',
