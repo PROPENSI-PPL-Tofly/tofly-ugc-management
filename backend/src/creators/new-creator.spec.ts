@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { checkNewCreator } from './new-creator.js';
+import { checkNewCreator, MAX_FIXED_RATE } from './new-creator.js';
 
 const TODAY = new Date('2026-09-23T00:00:00Z');
 
@@ -451,16 +451,28 @@ describe('checkNewCreator', () => {
       });
     });
 
-    // contracts.fixed_rate is numeric(14, 2): twelve digits before the decimal point.
-    it('accepts the largest numeric(14, 2) and rejects one more', () => {
-      expect(
-        checkNewCreator(body({ fixedRate: 999_999_999_999.99 }), TODAY)
-          .fixedRate,
-      ).toBe(999_999_999_999.99);
-      expect(errorsFor(body({ fixedRate: 1_000_000_000_000 }))).toEqual({
-        fixedRate: 'Fixed rate terlalu besar',
-      });
+    // Subtask 8.1: contracts.fixed_rate is numeric(12, 2), ten digits before the decimal point.
+    it('caps the fixed rate at ten integer digits and two decimals', () => {
+      expect(MAX_FIXED_RATE).toBe(9_999_999_999.99);
     });
+
+    it.each([9_999_999_999, 9_999_999_999.99])(
+      'accepts the largest numeric(12, 2) (%s)',
+      (fixedRate) => {
+        expect(checkNewCreator(body({ fixedRate }), TODAY).fixedRate).toBe(
+          fixedRate,
+        );
+      },
+    );
+
+    it.each([10_000_000_000, 10_000_000_000.01, 999_999_999_999.99])(
+      'rejects a fixed rate past ten integer digits (%s)',
+      (fixedRate) => {
+        expect(errorsFor(body({ fixedRate }))).toEqual({
+          fixedRate: 'Fixed rate terlalu besar',
+        });
+      },
+    );
   });
 
   // PRD 3.4 (Simpan only once exactly the quota is allocated) and 3.6 (every new deadline on
