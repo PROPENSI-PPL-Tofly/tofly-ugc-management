@@ -33,10 +33,13 @@ export type RateFormulaView =
       updatedAt: null;
     };
 
-/** The columns of the rate_formula row the service reads. */
+/**
+ * The columns of the rate_formula row the service reads. The amounts are unconstrained numeric,
+ * so the database can refuse a fraction instead of rounding it; Prisma reads them as Decimal.
+ */
 export interface RateFormulaRow {
-  specific_bonus: number;
-  late_penalty_per_day: number;
+  specific_bonus: Prisma.Decimal;
+  late_penalty_per_day: Prisma.Decimal;
   updated_at: Date;
 }
 
@@ -50,8 +53,8 @@ export interface PerformanceBonusMetricRow {
 export interface PerformanceBonusTierRow {
   platform: social_platform;
   position: number;
-  threshold: number;
-  bonus: number;
+  threshold: Prisma.Decimal;
+  bonus: Prisma.Decimal;
 }
 
 /** The three tables, as Prisma's client and its transaction client both reach them. */
@@ -182,13 +185,16 @@ export class RateFormulaService {
       performanceBonus[platform].metric = metric;
     }
     for (const { platform, threshold, bonus } of tierRows) {
-      performanceBonus[platform].tiers.push({ threshold, bonus });
+      performanceBonus[platform].tiers.push({
+        threshold: Number(threshold),
+        bonus: Number(bonus),
+      });
     }
 
     return {
       configured: true,
-      specificBonus: row.specific_bonus,
-      latePenaltyPerDay: row.late_penalty_per_day,
+      specificBonus: Number(row.specific_bonus),
+      latePenaltyPerDay: Number(row.late_penalty_per_day),
       performanceBonus,
       updatedAt: row.updated_at.toISOString(),
     };

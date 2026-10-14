@@ -133,8 +133,8 @@ model users {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model rate_formula {
   id                   Boolean  @id @default(true)
-  specific_bonus       Int
-  late_penalty_per_day Int
+  specific_bonus       Decimal  @db.Decimal
+  late_penalty_per_day Decimal  @db.Decimal
   /// The admin who saved the formula last; the API never answers it.
   updated_by           String?  @db.Uuid
   created_at           DateTime @default(now()) @db.Timestamptz(6)
@@ -155,8 +155,8 @@ model performance_bonus_tiers {
   platform                  social_platform
   position                  Int
   /// The minimum count of the platform's metric that earns the bonus.
-  threshold                 Int
-  bonus                     Int
+  threshold                 Decimal                   @db.Decimal
+  bonus                     Decimal                   @db.Decimal
   performance_bonus_metrics performance_bonus_metrics @relation(fields: [platform], references: [platform], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([platform, position])
