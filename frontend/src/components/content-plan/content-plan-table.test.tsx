@@ -154,14 +154,14 @@ describe("ContentPlanTable", () => {
     });
   });
 
-  // In the prototype a creator's name leads to that creator's own Content Plan.
+  // A creator's name leads to that creator's detail page (PBI-4), which holds their content plan.
   describe("the creator's name", () => {
-    it("links to that creator's own Content Plan", () => {
+    it("links to that creator's detail page", () => {
       renderTable();
 
       expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(
         "href",
-        "/admin/creators/id-1/content-plan",
+        "/admin/creators/id-1",
       );
     });
 
@@ -170,7 +170,7 @@ describe("ContentPlanTable", () => {
 
       expect(screen.getByRole("link", { name: "Rangga" })).toHaveAttribute(
         "href",
-        "/admin/creators/id-2/content-plan",
+        "/admin/creators/id-2",
       );
     });
 
@@ -179,7 +179,7 @@ describe("ContentPlanTable", () => {
 
       expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(
         "href",
-        "/admin/creators/a%2Fb/content-plan",
+        "/admin/creators/a%2Fb",
       );
     });
 

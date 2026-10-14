@@ -150,6 +150,13 @@ describe("ContentPlanFilters", () => {
     expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(2);
   });
 
+  it("shows every pick of a type the address repeats, as the list is narrowed by all of them", () => {
+    searchParams = new URLSearchParams("type=evergreen&type=specific");
+    renderFilters({ type: ["evergreen", "specific"] });
+
+    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("2 dipilih");
+  });
+
   it("leaves what a filter does not offer behind on the next pick", () => {
     searchParams = new URLSearchParams({ type: "foo,evergreen" });
     renderFilters({ type: ["evergreen"] });

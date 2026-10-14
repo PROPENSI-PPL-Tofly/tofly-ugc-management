@@ -1,17 +1,20 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { content_status, Prisma } from '@prisma/client';
-import { contentTags } from '../contents/content-tags.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   computePerformance,
   computeProgress,
-  contentOutcome,
   contractStatus,
   currentContract,
   daysRemaining,
   periodNumber,
   type MetricsContract,
 } from './creator-metrics.js';
+import {
+  toContentEntries,
+  toContractPeriods,
+  toDraftEntries,
+} from './creator-detail.js';
 import type {
   ContractSummary,
   ContractType,
@@ -84,7 +87,14 @@ const DETAIL_SELECT = {
       end_date: true,
       days_between: true,
       content_quota: true,
+      fixed_rate: true,
       contract_type: true,
+      // Deliberately no `take`: each period's progress, performance and remaining Evergreen
+      // slots are computed from all of its contents, so a cut list would report wrong numbers.
+      // Only the few columns those need are read; the table pages the contents themselves
+      // through GET /contents?contract=. The list stays small because onboarding caps a
+      // contract's quota at MAX_CONTENT_QUOTA (100), plus any proposals. If periods outgrow
+      // that, move the metrics into SQL aggregates.
       contents: {
         orderBy: {
           deadline: 'asc',
@@ -98,19 +108,15 @@ const DETAIL_SELECT = {
           video_link: true,
           video_submitted_at: true,
           approval_bypassed: true,
-          _count: {
-            select: {
-              submissions: true,
-            },
-          },
+          _count: { select: { submissions: true } },
+          // Only the newest hand-in: its time flags a late draft, its link is the latest draft.
           submissions: {
             orderBy: {
-              created_at: 'asc',
+              created_at: 'desc',
             },
+            take: 1,
             select: {
-              id: true,
               link: true,
-              revision_notes: true,
               created_at: true,
             },
           },
@@ -119,6 +125,15 @@ const DETAIL_SELECT = {
     },
   },
 } satisfies Prisma.creatorsSelect;
+
+type DetailRow = Prisma.creatorsGetPayload<{
+  select: typeof DETAIL_SELECT;
+}>;
+
+/** Either selection carries what the summary reads. */
+type SummaryRow = CreatorRow | DetailRow;
+
+type SummaryContent = SummaryRow['contracts'][number]['contents'][number];
 
 const NO_CONTRACT: ContractSummary = {
   status: 'none',
@@ -146,15 +161,17 @@ type ContractWithQuota = MetricsContract & {
 };
 
 function toMetricsContract(
-  contract: CreatorRow['contracts'][number],
+  contract: SummaryRow['contracts'][number],
 ): ContractWithQuota {
+  const contents: SummaryContent[] = contract.contents;
+
   return {
     id: contract.id,
     contentQuota: contract.content_quota,
     contractType: contract.contract_type,
     startDate: contract.start_date,
     endDate: contract.end_date,
-    contents: contract.contents.map((content) => ({
+    contents: contents.map((content) => ({
       deadline: content.deadline,
       videoSubmittedAt: content.video_submitted_at,
       isProposal: isProposal(content.status),
@@ -198,9 +215,7 @@ export interface CreatorLister {
 
 @Injectable()
 export class CreatorsService implements CreatorLister {
-  constructor(
-    @Inject(PrismaService) private readonly prisma: CreatorsClient,
-  ) {}
+  constructor(@Inject(PrismaService) private readonly prisma: CreatorsClient) {}
 
   async list(
     { page, pageSize }: Paging,
@@ -246,10 +261,7 @@ export class CreatorsService implements CreatorLister {
     );
   }
 
-  async findOne(
-    id: string,
-    today = new Date(),
-  ): Promise<CreatorDetail> {
+  async findOne(id: string, today = new Date()): Promise<CreatorDetail> {
     const row = await this.prisma.creators.findUnique({
       where: {
         id,
@@ -264,108 +276,19 @@ export class CreatorsService implements CreatorLister {
       });
     }
 
-    const summary = this.toSummary(
-      row as unknown as CreatorRow,
-      today,
-    );
+    const summary = this.toSummary(row, today);
 
-    const contracts = row.contracts.map(
-      (contract): MetricsContract => ({
-        id: contract.id,
-        startDate: contract.start_date,
-        endDate: contract.end_date,
-        contents: contract.contents.map((content) => ({
-          deadline: content.deadline,
-          videoSubmittedAt: content.video_submitted_at,
-          isProposal: isProposal(content.status),
-          submissionCount: content._count.submissions,
-        })),
-      }),
-    );
-
-    const current = currentContract(contracts, today);
-
+    const periods = toContractPeriods(row.contracts, today);
+    // Both lists keep the database order, so a period's index is its row's index.
     const currentRow =
-      row.contracts.find(
-        (contract) => contract.id === current?.id,
-      ) ?? null;
+      row.contracts[periods.findIndex((period) => period.isCurrent)];
 
     return {
       ...summary,
-
       phoneNumber: row.phone_number,
-
-      contractHistory: row.contracts.map((contract, index) => {
-        const committed = contract.contents.filter(
-          (content) => !isProposal(content.status),
-        );
-
-        return {
-          id: contract.id,
-          periodNumber: index + 1,
-          startDate: calendarDay(contract.start_date),
-          endDate: calendarDay(contract.end_date),
-          daysBetween: contract.days_between,
-          contentQuota: contract.content_quota,
-          type: contract.contract_type,
-          completed: committed.filter(
-            (content) => content.video_submitted_at !== null,
-          ).length,
-          total: committed.length,
-          isCurrent: contract.id === current?.id,
-        };
-      }),
-
-      contents: currentRow
-        ? currentRow.contents.map((content) => ({
-          id: content.id,
-          name: content.name,
-          type: content.type,
-          deadline: calendarDay(content.deadline),
-          status: content.status,
-          outcome: contentOutcome(
-            {
-              deadline: content.deadline,
-              videoSubmittedAt: content.video_submitted_at,
-              isProposal: isProposal(content.status),
-              submissionCount: content._count.submissions,
-            },
-            today,
-          ),
-          tags: contentTags(
-            {
-              deadline: content.deadline,
-              status: content.status,
-              videoSubmittedAt: content.video_submitted_at,
-              // Submissions arrive oldest first, so the last one is the latest draft.
-              latestDraftAt: content.submissions.at(-1)?.created_at ?? null,
-              approvalBypassed: content.approval_bypassed,
-            },
-            today,
-          ),
-          videoLink: content.video_link,
-        }))
-        : [],
-
-      drafts: currentRow
-        ? currentRow.contents
-          .filter((content) => content.submissions.length > 0)
-          .map((content) => {
-            const latest =
-              content.submissions[
-              content.submissions.length - 1
-                ];
-
-            return {
-              contentId: content.id,
-              contentName: content.name,
-              revisionCount:
-                content.submissions.length - 1,
-              latestLink: latest.link,
-              lastSubmittedAt: calendarDay(latest.created_at),
-            };
-          })
-        : [],
+      contractHistory: periods,
+      contents: currentRow ? toContentEntries(currentRow, today) : [],
+      drafts: currentRow ? toDraftEntries(currentRow) : [],
     };
   }
 
@@ -385,10 +308,7 @@ export class CreatorsService implements CreatorLister {
     };
   }
 
-  private matches(
-    item: CreatorSummary,
-    filters: Filters,
-  ): boolean {
+  private matches(item: CreatorSummary, filters: Filters): boolean {
     if (filters.q) {
       const q = filters.q.toLowerCase();
 
@@ -417,10 +337,7 @@ export class CreatorsService implements CreatorLister {
     return true;
   }
 
-  private toSummary(
-    row: CreatorRow,
-    today: Date,
-  ): CreatorSummary {
+  private toSummary(row: SummaryRow, today: Date): CreatorSummary {
     const contracts = row.contracts.map(toMetricsContract);
     const current = currentContract(contracts, today);
 
@@ -447,19 +364,17 @@ export class CreatorsService implements CreatorLister {
 
       contract: current
         ? {
-          status: contractStatus(current, today),
-          startDate: calendarDay(current.startDate),
-          endDate: calendarDay(current.endDate),
-          daysRemaining: daysRemaining(current, today),
-          periodNumber: periodNumber(contracts, current),
-          contentQuota: current.contentQuota,
-          type: current.contractType,
-        }
+            status: contractStatus(current, today),
+            startDate: calendarDay(current.startDate),
+            endDate: calendarDay(current.endDate),
+            daysRemaining: daysRemaining(current, today),
+            periodNumber: periodNumber(contracts, current),
+            contentQuota: current.contentQuota,
+            type: current.contractType,
+          }
         : NO_CONTRACT,
 
-      progress: computeProgress(
-        current ? current.contents : [],
-      ),
+      progress: computeProgress(current ? current.contents : []),
 
       performance: computePerformance(current, today),
     };

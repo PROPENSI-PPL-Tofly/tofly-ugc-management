@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatorsService, type CreatorRow } from './creators.service.js';
@@ -55,9 +56,7 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
 }
 
 type DetailSubmissionRow = {
-  id: string;
   link: string;
-  revision_notes: string | null;
   created_at: Date;
 };
 
@@ -71,6 +70,7 @@ type DetailContentRow = {
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
   _count: { submissions: number };
+  /** The newest hand-in only. */
   submissions: DetailSubmissionRow[];
 };
 
@@ -80,6 +80,7 @@ type DetailContractRow = {
   end_date: Date;
   days_between: number;
   content_quota: number;
+  fixed_rate: Prisma.Decimal;
   contract_type: 'probation' | 'regular';
   contents: DetailContentRow[];
 };
@@ -129,6 +130,7 @@ function detailRow(): DetailCreatorRow {
         end_date: day(80),
         days_between: 180,
         content_quota: 6,
+        fixed_rate: new Prisma.Decimal('2500000'),
         contract_type: 'regular',
         contents: [
           {
@@ -140,20 +142,10 @@ function detailRow(): DetailCreatorRow {
             video_link: 'https://example.com/video-1',
             video_submitted_at: day(-31),
             approval_bypassed: false,
-            _count: {
-              submissions: 2,
-            },
+            _count: { submissions: 2 },
             submissions: [
               {
-                id: 'submission-1',
-                link: 'https://example.com/draft-v1',
-                revision_notes: null,
-                created_at: day(-32),
-              },
-              {
-                id: 'submission-2',
                 link: 'https://example.com/draft-v2',
-                revision_notes: 'Perbaiki opening',
                 created_at: day(-31),
               },
             ],
@@ -167,9 +159,7 @@ function detailRow(): DetailCreatorRow {
             video_link: null,
             video_submitted_at: null,
             approval_bypassed: false,
-            _count: {
-              submissions: 0,
-            },
+            _count: { submissions: 0 },
             submissions: [],
           },
         ],
@@ -349,10 +339,7 @@ describe('CreatorsService', () => {
         video_submitted_at: null,
         approval_bypassed: false,
         _count: { submissions: 2 },
-        submissions: [
-          { id: 'submission-early', link: 'https://example.com/d1', revision_notes: null, created_at: day(-6) },
-          { id: 'submission-late', link: 'https://example.com/d2', revision_notes: 'Ulang', created_at: day(-3) },
-        ],
+        submissions: [{ link: 'https://example.com/d2', created_at: day(-3) }],
       },
     );
     prisma.creators.findUnique.mockResolvedValue(detail);
@@ -360,7 +347,9 @@ describe('CreatorsService', () => {
     const result = await service.findOne('creator-1', TODAY);
 
     expect(
-      Object.fromEntries(result.contents.map((content) => [content.id, content.tags])),
+      Object.fromEntries(
+        result.contents.map((content) => [content.id, content.tags]),
+      ),
     ).toEqual({
       'content-1': [],
       'content-2': [],
@@ -369,22 +358,38 @@ describe('CreatorsService', () => {
     });
   });
 
-  it('reads the bypass flag and every draft hand-in time with the detail, in the same query', async () => {
+  it('reads the bypass flag and only the newest hand-in with the detail, in the same query', async () => {
     prisma.creators.findUnique.mockResolvedValue(detailRow());
 
     await service.findOne('creator-1', TODAY);
 
     expect(prisma.creators.findUnique).toHaveBeenCalledTimes(1);
-    const contents =
-      prisma.creators.findUnique.mock.calls[0][0].select.contracts.select.contents;
-    expect(contents.select).toMatchObject({
+    const contracts =
+      prisma.creators.findUnique.mock.calls[0][0].select.contracts;
+    expect(contracts.select.fixed_rate).toBe(true);
+    expect(contracts.select.contents.select).toMatchObject({
       approval_bypassed: true,
       video_submitted_at: true,
       submissions: {
-        orderBy: { created_at: 'asc' },
-        select: expect.objectContaining({ created_at: true }),
+        orderBy: { created_at: 'desc' },
+        take: 1,
+        select: { link: true, created_at: true },
       },
     });
+  });
+
+  it('counts a detail content’s hand-ins in the database instead of loading every draft', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    const contents =
+      prisma.creators.findUnique.mock.calls[0][0].select.contracts.select
+        .contents;
+    expect(contents.select._count).toEqual({ select: { submissions: true } });
+    // content-1 has two hand-ins, content-2 none: one revision over one handed-in content.
+    expect(result.performance.avgRevisions).toBe(1);
+    expect(result.contractHistory[0].performance.avgRevisions).toBe(1);
   });
 
   it('joins the middle name into the display name', async () => {
@@ -511,12 +516,24 @@ describe('CreatorsService', () => {
 
   it('searches the whole roster by name or email when q is given', async () => {
     prisma.creators.findMany.mockResolvedValue([
-      row({ id: 'creator-1', first_name: 'Nadia', last_name: 'Putri', users: { email: 'nadia@example.com' } }),
-      row({ id: 'creator-2', first_name: 'Budi', last_name: 'Santoso', users: { email: 'budi@example.com' } }),
+      row({
+        id: 'creator-1',
+        first_name: 'Nadia',
+        last_name: 'Putri',
+        users: { email: 'nadia@example.com' },
+      }),
+      row({
+        id: 'creator-2',
+        first_name: 'Budi',
+        last_name: 'Santoso',
+        users: { email: 'budi@example.com' },
+      }),
     ]);
     prisma.creators.count.mockResolvedValue(2);
 
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+      q: 'nadia',
+    });
 
     expect(result.items.map((item) => item.id)).toEqual(['creator-1']);
     expect(result.total).toBe(1);
@@ -527,12 +544,23 @@ describe('CreatorsService', () => {
       row({ id: 'creator-1' }),
       row({
         id: 'creator-2',
-        contracts: [{ id: 'c2', start_date: day(-400), end_date: day(-40), content_quota: 4, contract_type: 'regular', contents: [] }],
+        contracts: [
+          {
+            id: 'c2',
+            start_date: day(-400),
+            end_date: day(-40),
+            content_quota: 4,
+            contract_type: 'regular',
+            contents: [],
+          },
+        ],
       }),
     ]);
     prisma.creators.count.mockResolvedValue(2);
 
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { contractStatus: 'expired' });
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+      contractStatus: 'expired',
+    });
 
     expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
     expect(result.total).toBe(1);
@@ -550,14 +578,23 @@ describe('CreatorsService', () => {
             end_date: day(80),
             content_quota: 1,
             contract_type: 'regular',
-            contents: [{ deadline: day(-30), video_submitted_at: null, status: 'scheduled', _count: { submissions: 0 } }],
+            contents: [
+              {
+                deadline: day(-30),
+                video_submitted_at: null,
+                status: 'scheduled',
+                _count: { submissions: 0 },
+              },
+            ],
           },
         ],
       }),
     ]);
     prisma.creators.count.mockResolvedValue(2);
 
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { productivity: 'risk' });
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+      productivity: 'risk',
+    });
 
     expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
     expect(result.total).toBe(1);
@@ -571,7 +608,9 @@ describe('CreatorsService', () => {
     ]);
     prisma.creators.count.mockResolvedValue(2);
 
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { productivity: 'no_data' });
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+      productivity: 'no_data',
+    });
 
     expect(result.items.map((item) => item.id)).toEqual(['creator-2']);
   });
@@ -581,15 +620,20 @@ describe('CreatorsService', () => {
       // Matches the search and the contract status, but not the productivity band.
       row({ id: 'creator-1', first_name: 'Nadia' }),
       // Matches nothing: wrong name entirely.
-      row({ id: 'creator-2', first_name: 'Budi', last_name: 'Santoso', users: { email: 'budi@example.com' } }),
+      row({
+        id: 'creator-2',
+        first_name: 'Budi',
+        last_name: 'Santoso',
+        users: { email: 'budi@example.com' },
+      }),
     ]);
     prisma.creators.count.mockResolvedValue(2);
 
-    const result = await service.list(
-      { page: 1, pageSize: 10 },
-      TODAY,
-      { q: 'nadia', contractStatus: 'active', productivity: 'risk' },
-    );
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+      q: 'nadia',
+      contractStatus: 'active',
+      productivity: 'risk',
+    });
 
     expect(result.items).toEqual([]);
   });
@@ -674,6 +718,8 @@ describe('CreatorsService', () => {
           id: 'contract-1',
           periodNumber: 1,
           contentQuota: 6,
+          fixedRate: 2500000,
+          remainingEvergreenQuota: 5,
           type: 'regular',
           completed: 1,
           total: 2,
@@ -708,6 +754,88 @@ describe('CreatorsService', () => {
     await expect(
       findOne.call(service, 'missing-creator', TODAY),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('lists every period’s terms and numbers, past periods included, but no contents', async () => {
+    const detail = detailRow();
+    detail.contracts.unshift({
+      id: 'contract-0',
+      start_date: day(-300),
+      end_date: day(-101),
+      days_between: 14,
+      content_quota: 1,
+      fixed_rate: new Prisma.Decimal('1000000'),
+      contract_type: 'probation',
+      contents: [
+        {
+          id: 'content-old',
+          name: 'Evergreen - Periode Lalu',
+          type: 'evergreen',
+          deadline: day(-150),
+          status: 'link_submitted',
+          video_link: 'https://example.com/video-old',
+          video_submitted_at: day(-151),
+          approval_bypassed: false,
+          _count: { submissions: 1 },
+          submissions: [
+            { link: 'https://example.com/draft-old', created_at: day(-152) },
+          ],
+        },
+      ],
+    });
+    prisma.creators.findUnique.mockResolvedValue(detail);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(
+      result.contractHistory.map((period) => ({
+        id: period.id,
+        periodNumber: period.periodNumber,
+        status: period.status,
+        isCurrent: period.isCurrent,
+        fixedRate: period.fixedRate,
+        hasContents: 'contents' in period,
+      })),
+    ).toEqual([
+      {
+        id: 'contract-0',
+        periodNumber: 1,
+        status: 'expired',
+        isCurrent: false,
+        fixedRate: 1000000,
+        hasContents: false,
+      },
+      {
+        id: 'contract-1',
+        periodNumber: 2,
+        status: 'active',
+        isCurrent: true,
+        fixedRate: 2500000,
+        hasContents: false,
+      },
+    ]);
+    expect(result.contractHistory[0].performance.productivity).toBe('good');
+    // The flat lists the old modal reads still hold the current period only.
+    expect(result.contents.map((content) => content.id)).toEqual([
+      'content-1',
+      'content-2',
+    ]);
+    expect(result.drafts.map((draft) => draft.contentId)).toEqual([
+      'content-1',
+    ]);
+  });
+
+  it('selects the social accounts without their access or refresh tokens', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    await service.findOne('creator-1', TODAY);
+
+    const select = prisma.creators.findUnique.mock.calls[0][0].select;
+    expect(select.social_accounts.select).toEqual({
+      platform: true,
+      username: true,
+    });
+    expect(select.users.select).toEqual({ email: true });
   });
 
   it('returns empty current-period details when no contract covers the date', async () => {

@@ -78,6 +78,7 @@ export interface ContentListQuery {
   tab?: unknown;
   q?: unknown;
   creator?: unknown;
+  contract?: unknown;
   type?: unknown;
   status?: unknown;
   overdue?: unknown;
@@ -90,6 +91,8 @@ export interface ContentListFilters {
   tab: ContentListTab;
   q?: string;
   creators?: string[];
+  /** One contract period's contents; scopes the rows and every counter. */
+  contracts?: string[];
   types?: ContentListType[];
   /** Narrows the rows only; the tab counters are counted without it. */
   statuses?: ContentStatus[];
@@ -126,6 +129,12 @@ export function checkContentListQuery(
       query.creator,
       isUuid,
       'creator must be a creator id',
+    ),
+    contracts: listOf(
+      'contract',
+      query.contract,
+      isUuid,
+      'contract must be a contract id',
     ),
     types: listOf(
       'type',

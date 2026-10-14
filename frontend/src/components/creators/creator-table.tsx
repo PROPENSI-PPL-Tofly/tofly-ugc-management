@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { CreatorDetailModal } from "./creator-detail-modal";
+import { useRouter } from "next/navigation";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import { creatorDetailBase } from "@/lib/creator-detail";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
@@ -116,7 +116,7 @@ export function CreatorTable({
   /** Whether a search or filter narrowed the list, which changes what an empty list means. */
   filtered?: boolean;
 }) {
-  const [selectedCreator, setSelectedCreator] = useState<CreatorSummary | null>(null);
+  const router = useRouter();
 
   if (creators.length === 0) {
     return <EmptyRoster total={total} filtered={filtered} />;
@@ -150,7 +150,17 @@ export function CreatorTable({
 
           <tbody>
             {creators.map((creator) => (
-              <tr key={creator.id} className="transition-colors hover:bg-surface-2">
+              // A press anywhere on the row opens the creator's page (PBI-4). The link in the
+              // last cell is the same door for the keyboard and for screen readers.
+              <tr
+                key={creator.id}
+                onClick={() => {
+                  // Dragging across a name to copy it ends in a click here: copying, not opening.
+                  if (window.getSelection()?.toString()) return;
+                  router.push(creatorDetailBase(creator.id));
+                }}
+                className="cursor-pointer transition-colors hover:bg-surface-2"
+              >
                 <td className={`${CELL} min-w-52`}>
                   <p className="text-sm font-semibold text-ink">{creator.name}</p>
 
@@ -213,39 +223,22 @@ export function CreatorTable({
                 </td>
 
                 <td className={`${CELL} whitespace-nowrap`}>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCreator(creator)}
-                      className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
-                    >
-                      Detail
-                    </button>
-
-                    <Link
-                      href={`/admin/creators/${encodeURIComponent(creator.id)}/content-plan`}
-                      className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
-                    >
-                      Content Plan
-                    </Link>
-                  </div>
+                  <Link
+                    href={creatorDetailBase(creator.id)}
+                    // Every row has one; the creator's name tells them apart when heard.
+                    aria-label={`Detail ${creator.name}`}
+                    // The row would hear this press too and open the page a second time.
+                    onClick={(event) => event.stopPropagation()}
+                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
+                  >
+                    Detail
+                  </Link>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      {selectedCreator ? (
-        // Keyed by creator so switching rows remounts the modal rather than
-        // leaving the previous creator's detail on screen while the next loads.
-        <CreatorDetailModal
-          key={selectedCreator.id}
-          creatorId={selectedCreator.id}
-          name={selectedCreator.name}
-          onClose={() => setSelectedCreator(null)}
-        />
-      ) : null}
     </>
   );
 }

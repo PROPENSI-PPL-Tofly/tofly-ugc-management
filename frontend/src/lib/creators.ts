@@ -82,22 +82,42 @@ export interface CreatorListResponse {
   totalPages: number;
 }
 
+/**
+ * One contract period with its terms and its own numbers. Its contents are not listed here:
+ * the table reads them from GET /contents?contract=<id>, which pages, filters and counts them.
+ */
+export interface ContractPeriod {
+  id: string;
+  periodNumber: number;
+  startDate: string;
+  endDate: string;
+  daysBetween: number;
+  contentQuota: number;
+  /** In rupiah. */
+  fixedRate: number;
+  /** Evergreen contents the period can still take before its quota is full; never below 0. */
+  remainingEvergreenQuota: number;
+  type: ContractType;
+  status: Exclude<ContractStatus, "none">;
+  /** Committed contents handed in; the same number as progress.submitted. */
+  completed: number;
+  /** Committed contents, pending proposals left out; not a page size or a list length. */
+  total: number;
+  isCurrent: boolean;
+  progress: CreatorSummary["progress"];
+  performance: CreatorSummary["performance"];
+}
+
 export interface CreatorDetail extends CreatorSummary {
   phoneNumber: string | null;
 
-  contractHistory: {
-    id: string;
-    periodNumber: number;
-    startDate: string;
-    endDate: string;
-    daysBetween: number;
-    contentQuota: number;
-    type: ContractType;
-    completed: number;
-    total: number;
-    isCurrent: boolean;
-  }[];
+  /** Every contract period, oldest first. */
+  contractHistory: ContractPeriod[];
 
+  /**
+   * @deprecated Read GET /contents?contract=<id>.
+   * TODO(SCRUM-141): remove once the Creator Detail page replaces the old detail modal.
+   */
   contents: {
     id: string;
     name: string;
@@ -109,6 +129,10 @@ export interface CreatorDetail extends CreatorSummary {
     videoLink: string | null;
   }[];
 
+  /**
+   * @deprecated Read GET /contents/:id.
+   * TODO(SCRUM-141): remove once the Creator Detail page replaces the old detail modal.
+   */
   drafts: {
     contentId: string;
     contentName: string;

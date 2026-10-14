@@ -18,6 +18,16 @@ describe("list", () => {
 
   it("reads nothing as an empty list", () => {
     expect(list(undefined)).toEqual([]);
+    expect(list([])).toEqual([]);
+  });
+
+  it("reads every value of a repeated parameter, not only the first", () => {
+    // ?status=scheduled&status=pending, as a link from outside the app may write it.
+    expect(list(["scheduled", "pending"])).toEqual(["scheduled", "pending"]);
+  });
+
+  it("reads repeated and comma-separated picks together, dropping blanks in either", () => {
+    expect(list(["a,b", " ", "c, ,d"])).toEqual(["a", "b", "c", "d"]);
   });
 });
 
@@ -31,6 +41,13 @@ describe("oneOf", () => {
 describe("listOf", () => {
   it("keeps only the allowed picks, in the order given", () => {
     expect(listOf(["evergreen", "specific"], "specific,optional,evergreen")).toEqual([
+      "specific",
+      "evergreen",
+    ]);
+  });
+
+  it("keeps the allowed picks of a repeated parameter too", () => {
+    expect(listOf(["evergreen", "specific"], ["specific", "optional", "evergreen"])).toEqual([
       "specific",
       "evergreen",
     ]);
