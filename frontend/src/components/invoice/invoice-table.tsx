@@ -34,8 +34,20 @@ const INVOICE_TONES: Record<InvoiceStatus, Tone> = {
   paid: "green",
 };
 
-/** The prototype's column widths, so the table lays out exactly as the prototype laid it. */
-const WIDTHS = ["17%", "11%", "11%", "11%", "13%", "11%", "13%", "13%"];
+/**
+ * The prototype's column widths, so the table lays out exactly as the prototype laid it. Each
+ * width is named by its column: several columns share a width, so a width alone cannot key one.
+ */
+const COLUMNS = [
+  ["creator", "17%"],
+  ["fixed", "11%"],
+  ["extra", "11%"],
+  ["bonus", "11%"],
+  ["penalty", "13%"],
+  ["final", "11%"],
+  ["invoice", "13%"],
+  ["actions", "13%"],
+] as const;
 
 function amountCell(amount: number, label: string) {
   return amount === 0 ? <span className="text-muted">{DASH}</span> : label;
@@ -86,8 +98,8 @@ export function InvoiceTable({
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
         <colgroup>
-          {WIDTHS.map((width) => (
-            <col key={width} style={{ width }} />
+          {COLUMNS.map(([column, width]) => (
+            <col key={column} style={{ width }} />
           ))}
         </colgroup>
         <thead>
@@ -122,7 +134,7 @@ export function InvoiceTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={WIDTHS.length} className="px-5 py-14 text-center text-muted">
+              <td colSpan={COLUMNS.length} className="px-5 py-14 text-center text-muted">
                 Tidak ada creator sesuai filter.
               </td>
             </tr>
