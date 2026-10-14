@@ -133,8 +133,8 @@ model users {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model rate_formula {
   id                   Boolean  @id @default(true)
-  specific_bonus       Decimal  @db.Decimal(12, 2)
-  late_penalty_per_day Decimal  @db.Decimal(12, 2)
+  specific_bonus       Int
+  late_penalty_per_day Int
   /// The admin who saved the formula last; the API never answers it.
   updated_by           String?  @db.Uuid
   created_at           DateTime @default(now()) @db.Timestamptz(6)
@@ -142,16 +142,25 @@ model rate_formula {
   users                users?   @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
 }
 
-/// A platform's performance bonus tiers, numbered 1 to 5 in threshold order.
+/// What a platform's tier minimums count: one row per platform.
+model performance_bonus_metrics {
+  platform                social_platform           @id
+  metric                  performance_metric
+  performance_bonus_tiers performance_bonus_tiers[]
+}
+
+/// A platform's performance bonus tiers, numbered from 1 in minimum order.
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model performance_bonus_tiers {
-  platform  social_platform
-  position  Int
-  /// Provisional: what the threshold counts, and in which unit, is for PBI-19 to settle.
-  threshold Decimal         @db.Decimal(12, 2)
-  bonus     Decimal         @db.Decimal(12, 2)
+  platform                  social_platform
+  position                  Int
+  /// The minimum count of the platform's metric that earns the bonus.
+  threshold                 Int
+  bonus                     Int
+  performance_bonus_metrics performance_bonus_metrics @relation(fields: [platform], references: [platform], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([platform, position])
+  @@unique([platform, threshold])
 }
 
 model app_sessions {
@@ -186,6 +195,13 @@ enum content_type {
 enum social_platform {
   instagram
   tiktok
+}
+
+enum performance_metric {
+  views
+  likes
+  comments
+  shares
 }
 
 enum contract_type {
