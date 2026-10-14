@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
-  BREAKDOWN_LABELS,
+  BREAKDOWN_TITLES,
   breakdownPopup,
   type BreakdownKind,
   type BreakdownTone,
@@ -40,6 +40,21 @@ function Lines({
 
   return (
     <>
+      {/* The bonus states its tiers first, as the prototype does, even when nothing earned one. */}
+      {view.info === null ? null : (
+        <div
+          role="group"
+          aria-label="Aturan bonus"
+          className="rounded-(--radius-control) border border-rule bg-surface-2 px-2.5 py-2 text-xs"
+        >
+          {view.info.map((line, index) => (
+            <p key={line} className={index === 0 ? "text-ink" : "mt-0.5 text-muted"}>
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
+
       {view.lines.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-muted">{view.empty}</p>
       ) : (
@@ -142,7 +157,7 @@ export function BreakdownPopup({
 
   return (
     <Modal
-      title={`${BREAKDOWN_LABELS[kind]} · ${creatorName}`}
+      title={`${BREAKDOWN_TITLES[kind]} · ${creatorName}`}
       onClose={onClose}
       footer={<Button onClick={onClose}>Tutup</Button>}
     >

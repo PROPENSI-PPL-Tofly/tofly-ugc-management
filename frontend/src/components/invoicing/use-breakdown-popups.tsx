@@ -33,8 +33,8 @@ function readKey(row: InvoiceRow): string {
 /**
  * The breakdown popups of the Rate & Invoicing table (PBI-8, subtask 8.5), held once for every
  * row: `open` is what a BreakdownAmount cell calls, and `layers` is rendered once beside the
- * table. A content's name in a popup opens the shared Content Detail panel over it, so closing
- * the panel returns to the breakdown it was opened from.
+ * table. A content's name in a popup opens the shared Content Detail panel in its place, so one
+ * layer is on screen at a time, as in the prototype; closing the panel brings the breakdown back.
  *
  * The breakdown is read when a popup opens, not with the table: the table needs four numbers a
  * row, a popup needs every content behind one of them. It is read once per creator and amounts
@@ -93,8 +93,25 @@ export function useBreakdownPopups({
     setPopup(null);
   }
 
-  const layers = popup ? (
-    <>
+  let layers: ReactNode = null;
+  if (popup && contentId) {
+    // Keyed by content so another name remounts the panel rather than leaving the previous
+    // content on screen while the next loads.
+    layers = (
+      <ContentDetailPanel
+        key={contentId}
+        contentId={contentId}
+        role="admin"
+        onClose={() => setContentId(null)}
+        onDecided={(decision) => {
+          read.current.clear();
+          closeAll();
+          onDecided?.(decision);
+        }}
+      />
+    );
+  } else if (popup) {
+    layers = (
       <BreakdownPopup
         kind={popup.kind}
         creatorName={popup.row.creatorName}
@@ -104,24 +121,8 @@ export function useBreakdownPopups({
         onClose={closeAll}
         onOpenContent={setContentId}
       />
-
-      {contentId ? (
-        // Keyed by content so another name remounts the panel rather than leaving the previous
-        // content on screen while the next loads.
-        <ContentDetailPanel
-          key={contentId}
-          contentId={contentId}
-          role="admin"
-          onClose={() => setContentId(null)}
-          onDecided={(decision) => {
-            read.current.clear();
-            closeAll();
-            onDecided?.(decision);
-          }}
-        />
-      ) : null}
-    </>
-  ) : null;
+    );
+  }
 
   return { open, layers };
 }
