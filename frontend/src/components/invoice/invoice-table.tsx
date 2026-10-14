@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import {
   amountLabel,
@@ -11,6 +12,7 @@ import {
   type InvoiceRow,
   type InvoiceStatus,
 } from "@/lib/invoice";
+import type { BreakdownKind } from "@/lib/invoice-breakdown";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
 const NUM_HEAD = "px-5 py-3 text-right font-semibold";
@@ -69,9 +71,17 @@ function finalCell(row: InvoiceRow) {
  * The Rate & Invoicing table (PBI-8, subtask 8.4): one row per creator, the four amounts the
  * invoice is built from and where the invoice stands. Structured as the prototype structures
  * it — columns, widths and cell anatomy — in the app's own colours. Amounts are plain text
- * here; the breakdown popups (8.5) put their triggers in these cells.
+ * here; the breakdown popups (8.5) put their triggers in these cells through `amount`, which
+ * draws a money cell in place of the plain text. Final Rate and the invoice are never replaced.
  */
-export function InvoiceTable({ rows }: Readonly<{ rows: readonly InvoiceRow[] }>) {
+export function InvoiceTable({
+  rows,
+  amount,
+}: Readonly<{
+  rows: readonly InvoiceRow[];
+  /** Draws one money cell; the plain amounts when it is not given. */
+  amount?: (kind: BreakdownKind, row: InvoiceRow) => ReactNode;
+}>) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
@@ -129,10 +139,16 @@ export function InvoiceTable({ rows }: Readonly<{ rows: readonly InvoiceRow[] }>
                     </StatusDot>
                   </p>
                 </td>
-                <td className={NUM}>{amountCell(row.fixedAmount, amountLabel(row.fixedAmount))}</td>
-                <td className={NUM}>{amountCell(row.extraAmount, amountLabel(row.extraAmount))}</td>
-                <td className={NUM}>{bonusCell(row)}</td>
-                <td className={NUM}>{penaltyCell(row.penaltyAmount)}</td>
+                <td className={NUM}>
+                  {amount ? amount("fixed", row) : amountCell(row.fixedAmount, amountLabel(row.fixedAmount))}
+                </td>
+                <td className={NUM}>
+                  {amount ? amount("extra", row) : amountCell(row.extraAmount, amountLabel(row.extraAmount))}
+                </td>
+                <td className={NUM}>{amount ? amount("bonus", row) : bonusCell(row)}</td>
+                <td className={NUM}>
+                  {amount ? amount("penalty", row) : penaltyCell(row.penaltyAmount)}
+                </td>
                 <td className={NUM}>{finalCell(row)}</td>
                 <td className={CELL}>
                   <Pill tone={INVOICE_TONES[row.invoiceStatus]}>
