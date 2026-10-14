@@ -32,18 +32,27 @@ const BREAKDOWN: InvoiceBreakdown = {
   },
 };
 
-function renderPopup(kind: Parameters<typeof BreakdownPopup>[0]["kind"] = "fixed") {
+type Kind = Parameters<typeof BreakdownPopup>[0]["kind"];
+
+function renderPopup(
+  kind: Kind = "fixed",
+  { breakdown = BREAKDOWN, failed = false }: { breakdown?: InvoiceBreakdown | null; failed?: boolean } = {},
+) {
   const onClose = vi.fn();
   const onOpenContent = vi.fn();
+  const onRetry = vi.fn();
   render(
     <BreakdownPopup
       kind={kind}
-      breakdown={BREAKDOWN}
+      creatorName="Rangga Pratama"
+      breakdown={breakdown}
+      failed={failed}
+      onRetry={onRetry}
       onClose={onClose}
       onOpenContent={onOpenContent}
     />,
   );
-  return { onClose, onOpenContent, dialog: screen.getByRole("dialog") };
+  return { onClose, onOpenContent, onRetry, dialog: screen.getByRole("dialog") };
 }
 
 describe("BreakdownPopup", () => {
@@ -153,6 +162,7 @@ describe("BreakdownPopup", () => {
     render(
       <BreakdownPopup
         kind="extra"
+        creatorName="Rangga Pratama"
         breakdown={{
           ...BREAKDOWN,
           extra: {
@@ -162,6 +172,8 @@ describe("BreakdownPopup", () => {
             total: 1,
           },
         }}
+        failed={false}
+        onRetry={vi.fn()}
         onClose={vi.fn()}
         onOpenContent={onOpenContent}
       />,
@@ -169,5 +181,45 @@ describe("BreakdownPopup", () => {
 
     expect(screen.getByRole("button", { name: "<img src=x onerror=alert(1)>" })).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
+  });
+
+  describe("while the breakdown is on its way", () => {
+    it("is already titled with the column and the creator", () => {
+      const { dialog } = renderPopup("penalty", { breakdown: null });
+
+      expect(dialog).toHaveAccessibleName("Penalti · Rangga Pratama");
+    });
+
+    it("says it is loading, to a screen reader as well, and lists nothing yet", () => {
+      const { dialog } = renderPopup("fixed", { breakdown: null });
+
+      expect(within(dialog).getByRole("status")).toHaveTextContent("Memuat rincian…");
+      expect(within(dialog).queryByRole("list")).not.toBeInTheDocument();
+      expect(screen.queryByText("Total")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("when the breakdown could not be loaded", () => {
+    it("says so, rather than an empty column that would claim there is nothing", () => {
+      const { dialog } = renderPopup("fixed", { breakdown: null, failed: true });
+
+      expect(within(dialog).getByRole("alert")).toHaveTextContent("Rincian tidak bisa dimuat.");
+      expect(dialog).not.toHaveTextContent("Belum ada konten yang selesai.");
+      expect(within(dialog).queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("offers to try again", () => {
+      const { onRetry } = renderPopup("fixed", { breakdown: null, failed: true });
+
+      fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
+
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it("titles the failure with the column and the creator too", () => {
+      const { dialog } = renderPopup("bonus", { breakdown: null, failed: true });
+
+      expect(dialog).toHaveAccessibleName("Bonus · Rangga Pratama");
+    });
   });
 });

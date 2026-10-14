@@ -1,18 +1,21 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
+import type { InvoiceRow } from "@/lib/invoice";
 import { BreakdownAmount } from "./breakdown-amount";
 
-const BREAKDOWN: InvoiceBreakdown = {
+const ROW: InvoiceRow = {
+  creatorId: "creator-rangga",
   creatorName: "Rangga Pratama",
-  fixed: { lines: [], total: 1000000 },
-  extra: { lines: [], total: 0 },
-  bonus: { lines: [], total: 100000, performance: "ready" },
-  penalty: { lines: [], total: 150000 },
+  contractStatus: "active",
+  fixedAmount: 1000000,
+  extraAmount: 0,
+  bonusAmount: 100000,
+  penaltyAmount: 150000,
+  invoiceStatus: "accruing",
 };
 
 function renderAmount(
   kind: Parameters<typeof BreakdownAmount>[0]["kind"],
-  breakdown: InvoiceBreakdown = BREAKDOWN,
+  row: InvoiceRow = ROW,
 ) {
   const onOpen = vi.fn();
   const onRowClick = vi.fn();
@@ -20,14 +23,14 @@ function renderAmount(
     // Stands in for the table row, which is pressable too in the prototype: the amount must
     // not press it.
     <div role="presentation" onClick={onRowClick}>
-      <BreakdownAmount kind={kind} breakdown={breakdown} onOpen={onOpen} />
+      <BreakdownAmount kind={kind} row={row} onOpen={onOpen} />
     </div>,
   );
   return { onOpen, onRowClick };
 }
 
 describe("BreakdownAmount", () => {
-  it("shows the column's amount as a button that opens its breakdown", () => {
+  it("shows the column's amount as the table writes it, as a button that opens its breakdown", () => {
     const { onOpen } = renderAmount("fixed");
 
     const button = screen.getByRole("button");
@@ -36,7 +39,16 @@ describe("BreakdownAmount", () => {
     fireEvent.click(button);
 
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith("fixed", BREAKDOWN);
+    expect(onOpen).toHaveBeenCalledWith("fixed", ROW);
+  });
+
+  it.each([
+    ["extra", { extraAmount: 750000 }, "Rp750.000"],
+    ["bonus", { bonusAmount: 300000 }, "Rp300.000"],
+  ] as const)("reads %s from its own field of the row", (kind, patch, text) => {
+    renderAmount(kind, { ...ROW, ...patch });
+
+    expect(screen.getByRole("button")).toHaveTextContent(text);
   });
 
   it("names the column and the creator for a screen reader, which hears the cell alone", () => {
@@ -62,11 +74,11 @@ describe("BreakdownAmount", () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
-  it("writes a penalty as money taken away, in red", () => {
+  it("writes a penalty as money taken away, in red, the way the table does", () => {
     renderAmount("penalty");
 
     const button = screen.getByRole("button");
-    expect(button).toHaveTextContent("−Rp150.000");
+    expect(button).toHaveTextContent("-Rp150.000");
     expect(button).toHaveClass("text-red-ink");
   });
 
@@ -76,50 +88,34 @@ describe("BreakdownAmount", () => {
     expect(screen.getByRole("button")).not.toHaveClass("text-red-ink");
   });
 
-  it.each(["fixed", "extra", "penalty"] as const)(
-    "shows a dash with nothing to press when %s is zero",
-    (kind) => {
-      renderAmount(kind, {
-        ...BREAKDOWN,
-        fixed: { lines: [], total: 0 },
-        penalty: { lines: [], total: 0 },
-      });
-
-      expect(screen.queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getByText("—")).toBeInTheDocument();
-    },
-  );
-
-  describe("a bonus still waiting for performance data", () => {
-    const waiting = (total: number): InvoiceBreakdown => ({
-      ...BREAKDOWN,
-      bonus: { lines: [], total, performance: "waiting" },
-    });
-
-    it("reads Menunggu data rather than a zero or a dash, and still opens its breakdown", () => {
-      const breakdown = waiting(0);
-      const { onOpen } = renderAmount("bonus", breakdown);
-
-      const button = screen.getByRole("button");
-      expect(button).toHaveTextContent("Menunggu data");
-      expect(screen.queryByText("—")).not.toBeInTheDocument();
-      expect(screen.queryByText("Rp0")).not.toBeInTheDocument();
-
-      fireEvent.click(button);
-      expect(onOpen).toHaveBeenCalledWith("bonus", breakdown);
-    });
-
-    it("shows the bonus already known when there is one", () => {
-      renderAmount("bonus", waiting(100000));
-
-      expect(screen.getByRole("button")).toHaveTextContent("Rp100.000");
-    });
-  });
-
-  it("shows a dash for a bonus of zero once the performance data is in", () => {
-    renderAmount("bonus", { ...BREAKDOWN, bonus: { lines: [], total: 0, performance: "ready" } });
+  it.each([
+    ["fixed", { fixedAmount: 0 }],
+    ["extra", { extraAmount: 0 }],
+    ["bonus", { bonusAmount: 0 }],
+    ["penalty", { penaltyAmount: 0 }],
+  ] as const)("shows the table's dash with nothing to press when %s is zero", (kind, patch) => {
+    renderAmount(kind, { ...ROW, ...patch });
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("–")).toHaveClass("text-muted");
+  });
+
+  it("reads Menunggu data for a bonus whose data is not in, and still opens it for the reason", () => {
+    const row = { ...ROW, bonusAmount: null };
+    const { onOpen } = renderAmount("bonus", row);
+
+    const button = screen.getByRole("button");
+    expect(button).toHaveTextContent("Menunggu data");
+    expect(button).toHaveAccessibleName("Bonus Rangga Pratama: Menunggu data, lihat rincian");
+    expect(screen.queryByText("Rp0")).not.toBeInTheDocument();
+
+    fireEvent.click(button);
+    expect(onOpen).toHaveBeenCalledWith("bonus", row);
+  });
+
+  it("keeps a waiting bonus in the muted tone the table gives it", () => {
+    renderAmount("bonus", { ...ROW, bonusAmount: null });
+
+    expect(screen.getByRole("button")).toHaveClass("text-muted");
   });
 });
