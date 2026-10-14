@@ -10,6 +10,7 @@ const UPDATED_AT = new Date('2026-10-14T03:00:00Z');
 const FORMULA: RateFormula = {
   specificBonus: 100000,
   latePenaltyPerDay: 50000,
+  maxPenaltyDays: 3,
   performanceBonus: {
     instagram: {
       metric: 'views',
@@ -30,6 +31,7 @@ const FORMULA_ROW = {
   id: true,
   specific_bonus: 100000,
   late_penalty_per_day: 50000,
+  max_penalty_days: 3,
   updated_by: ADMIN_USER_ID,
   created_at: UPDATED_AT,
   updated_at: UPDATED_AT,
@@ -98,6 +100,7 @@ describe('RateFormulaService', () => {
         configured: false,
         specificBonus: null,
         latePenaltyPerDay: null,
+        maxPenaltyDays: null,
         performanceBonus: {
           instagram: { metric: null, tiers: [] },
           tiktok: { metric: null, tiers: [] },
@@ -113,6 +116,20 @@ describe('RateFormulaService', () => {
         configured: true,
         ...FORMULA,
         updatedAt: UPDATED_AT.toISOString(),
+      });
+    });
+
+    it('answers the day cap as null for a formula saved before it existed, never as 0', async () => {
+      const client = fakeClient(
+        { ...FORMULA_ROW, max_penalty_days: null },
+        METRIC_ROWS,
+        TIER_ROWS,
+      );
+      const service = new RateFormulaService(client satisfies RateFormulaClient);
+
+      await expect(service.read()).resolves.toMatchObject({
+        configured: true,
+        maxPenaltyDays: null,
       });
     });
 
@@ -147,6 +164,7 @@ describe('RateFormulaService', () => {
       const amounts = {
         specific_bonus: 100000,
         late_penalty_per_day: 50000,
+        max_penalty_days: 3,
         updated_by: ADMIN_USER_ID,
       };
       expect(client.rate_formula.upsert).toHaveBeenCalledWith(

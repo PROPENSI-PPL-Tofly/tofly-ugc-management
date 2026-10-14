@@ -2,6 +2,7 @@ import { UnprocessableEntityException } from '@nestjs/common';
 import {
   checkRateFormula,
   MAX_LATE_PENALTY_PER_DAY,
+  MAX_PENALTY_DAYS,
   MAX_SPECIFIC_BONUS,
   MAX_TIER_AMOUNT,
   PERFORMANCE_METRICS,
@@ -10,6 +11,7 @@ import {
 // The rules follow the Atur Formula Rate modal of the Tofly Module 1 prototype:
 //   Bonus Specific: whole rupiah, Rp0 to Rp10.000.000 (FV.fFormulaSpecific)
 //   Penalti per hari: whole rupiah, Rp0 to Rp1.000.000 (FV.fFormulaPenalty)
+//   Maks hari penalti: whole days, 0 to 365 (Subtask 8.2's Atur Formula Rate modal)
 //   per platform (bonusError): one metric of views/likes/comments/shares, at least one tier,
 //     minimum and bonus whole and above 0, neither above 999.999.999, minimums distinct, and the
 //     bonus rising with the minimum; saveRateFormula sorts the tiers by minimum, with no tier cap.
@@ -24,6 +26,7 @@ import {
 const VALID = {
   specificBonus: 100000,
   latePenaltyPerDay: 50000,
+  maxPenaltyDays: 3,
   performanceBonus: {
     instagram: {
       metric: 'views',
@@ -106,8 +109,13 @@ describe('checkRateFormula', () => {
       },
     );
 
-    it('accepts zero for the Specific bonus and the daily penalty', () => {
-      const zero = { ...VALID, specificBonus: 0, latePenaltyPerDay: 0 };
+    it('accepts zero for the Specific bonus, the daily penalty and its day cap', () => {
+      const zero = {
+        ...VALID,
+        specificBonus: 0,
+        latePenaltyPerDay: 0,
+        maxPenaltyDays: 0,
+      };
 
       expect(checkRateFormula(zero)).toEqual(zero);
     });
@@ -116,10 +124,12 @@ describe('checkRateFormula', () => {
       expect(MAX_SPECIFIC_BONUS).toBe(10_000_000);
       expect(MAX_LATE_PENALTY_PER_DAY).toBe(1_000_000);
       expect(MAX_TIER_AMOUNT).toBe(999_999_999);
+      expect(MAX_PENALTY_DAYS).toBe(365);
 
       const largest = {
         specificBonus: MAX_SPECIFIC_BONUS,
         latePenaltyPerDay: MAX_LATE_PENALTY_PER_DAY,
+        maxPenaltyDays: MAX_PENALTY_DAYS,
         performanceBonus: {
           ...VALID.performanceBonus,
           instagram: {
@@ -164,7 +174,7 @@ describe('checkRateFormula', () => {
       const result = checkRateFormula({
         ...VALID,
         contentFee: 75000,
-        maxPenaltyDays: 10,
+        maxDays: 10,
         id: false,
         updatedBy: '00000000-0000-4000-8000-000000000000',
         configured: false,
@@ -173,6 +183,7 @@ describe('checkRateFormula', () => {
       expect(result).toEqual(VALID);
       expect(Object.keys(result).sort()).toEqual([
         'latePenaltyPerDay',
+        'maxPenaltyDays',
         'performanceBonus',
         'specificBonus',
       ]);
@@ -203,7 +214,7 @@ describe('checkRateFormula', () => {
 
     it('rejects a __proto__ platform key without touching Object.prototype', () => {
       const body: unknown = JSON.parse(
-        '{"specificBonus":1,"latePenaltyPerDay":1,"performanceBonus":{' +
+        '{"specificBonus":1,"latePenaltyPerDay":1,"maxPenaltyDays":1,"performanceBonus":{' +
           '"instagram":{"metric":"views","tiers":[{"threshold":1,"bonus":1}]},' +
           '"tiktok":{"metric":"views","tiers":[{"threshold":1,"bonus":1}]},' +
           '"__proto__":{"metric":"views","tiers":[{"threshold":1,"bonus":1}]}}}',
@@ -254,6 +265,49 @@ describe('checkRateFormula', () => {
       expect(errorsFor(withField(field, maxValue + 1))).toEqual({
         [field]: range,
       });
+    });
+  });
+
+  describe('maxPenaltyDays', () => {
+    const range = 'Maks hari penalti harus antara 0 hari dan 365 hari';
+
+    it.each([undefined, null, ''])('is required (%s)', (value) => {
+      expect(errorsFor(withField('maxPenaltyDays', value))).toEqual({
+        maxPenaltyDays: 'Maks hari penalti wajib diisi',
+      });
+    });
+
+    it.each(['3', true, {}, [], NaN, Infinity])(
+      'must be a JSON number (%s)',
+      (value) => {
+        expect(errorsFor(withField('maxPenaltyDays', value))).toEqual({
+          maxPenaltyDays: 'Maks hari penalti harus berupa angka',
+        });
+      },
+    );
+
+    it.each([0.5, 2.25, -0.5])('must be whole days (%s)', (value) => {
+      expect(errorsFor(withField('maxPenaltyDays', value))).toEqual({
+        maxPenaltyDays: 'Maks hari penalti harus angka bulat',
+      });
+    });
+
+    it.each([-1, -30])('rejects a negative number of days (%s)', (value) => {
+      expect(errorsFor(withField('maxPenaltyDays', value))).toEqual({
+        maxPenaltyDays: range,
+      });
+    });
+
+    it('rejects one day past the maximum', () => {
+      expect(
+        errorsFor(withField('maxPenaltyDays', MAX_PENALTY_DAYS + 1)),
+      ).toEqual({ maxPenaltyDays: range });
+    });
+
+    it.each([0, 1, 3, MAX_PENALTY_DAYS])('accepts %s days', (value) => {
+      expect(
+        checkRateFormula(withField('maxPenaltyDays', value)).maxPenaltyDays,
+      ).toBe(value);
     });
   });
 
@@ -406,6 +460,7 @@ describe('checkRateFormula', () => {
         expect(errorsFor(body)).toEqual({
           specificBonus: 'Bonus Specific wajib diisi',
           latePenaltyPerDay: 'Penalti wajib diisi',
+          maxPenaltyDays: 'Maks hari penalti wajib diisi',
           performanceBonus: 'Bonus performa wajib diisi',
         });
       },
@@ -417,6 +472,7 @@ describe('checkRateFormula', () => {
       errorsFor({
         specificBonus: -1,
         latePenaltyPerDay: '5',
+        maxPenaltyDays: 400,
         performanceBonus: {
           instagram: { metric: 'reach', tiers: [] },
           tiktok: { metric: 'views', tiers: [{ threshold: 1, bonus: 0 }] },
@@ -425,6 +481,7 @@ describe('checkRateFormula', () => {
     ).toEqual({
       specificBonus: 'Bonus Specific harus antara Rp0 dan Rp10.000.000',
       latePenaltyPerDay: 'Penalti harus berupa angka',
+      maxPenaltyDays: 'Maks hari penalti harus antara 0 hari dan 365 hari',
       'performanceBonus.instagram.metric':
         'Metrik harus views, likes, comments, atau shares',
       [INSTAGRAM_TIERS]: 'Minimal 1 tier.',
