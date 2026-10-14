@@ -1,4 +1,3 @@
-import { COMMITTED_STATUSES } from '../contents/content-lifecycle.js';
 import { jakartaDay } from '../creators/evergreen.js';
 import { contractLastDay, daysBetween, daysLate } from './invoice-days.js';
 import {
@@ -7,6 +6,7 @@ import {
   type InvoiceComponent,
   type InvoiceContext,
   type InvoiceLine,
+  isCommitted,
 } from './invoice-component.js';
 
 /**
@@ -32,8 +32,7 @@ export class PenaltyComponent implements InvoiceComponent {
     const lines: InvoiceLine[] = [];
     for (const content of contents) {
       if (content.type !== 'evergreen') continue;
-      if (!(COMMITTED_STATUSES as readonly string[]).includes(content.status))
-        continue;
+      if (!isCommitted(content)) continue;
 
       const late =
         content.videoSubmittedAt !== null

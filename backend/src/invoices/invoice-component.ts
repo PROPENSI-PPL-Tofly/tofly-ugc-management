@@ -3,7 +3,10 @@
 // whatever components it is given: a new kind of pay is a new component, not an edit to the
 // calculator.
 
-import type { ContentStatus } from '../contents/content-lifecycle.js';
+import {
+  COMMITTED_STATUSES,
+  type ContentStatus,
+} from '../contents/content-lifecycle.js';
 import type { RateFormula } from './rate-formula.js';
 
 export type SocialPlatform = 'instagram' | 'tiktok';
@@ -71,6 +74,13 @@ export interface InvoiceComponent {
   /** +1 adds to the total, -1 subtracts from it. */
   readonly sign: 1 | -1;
   calculate(context: InvoiceContext): ComponentResult;
+}
+
+/** Whether an admin committed to the content; a pending proposal is not work anyone owes yet. */
+export function isCommitted(content: Pick<InvoiceContent, 'status'>): boolean {
+  return (COMMITTED_STATUSES as readonly ContentStatus[]).includes(
+    content.status,
+  );
 }
 
 /** A component result with a known amount, from its lines. */

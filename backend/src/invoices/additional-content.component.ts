@@ -1,17 +1,10 @@
-import { COMMITTED_STATUSES } from '../contents/content-lifecycle.js';
 import { onTime } from './invoice-days.js';
 import {
   calculated,
   type ComponentResult,
   type InvoiceComponent,
-  type InvoiceContent,
   type InvoiceContext,
 } from './invoice-component.js';
-
-/** Committed means an admin accepted it; a pending proposal is not work anyone owes yet. */
-function committed(content: InvoiceContent): boolean {
-  return (COMMITTED_STATUSES as readonly string[]).includes(content.status);
-}
 
 /**
  * Additional content is Specific content, outside the contract quota. Each item delivered on
@@ -23,10 +16,10 @@ export class AdditionalContentComponent implements InvoiceComponent {
   readonly sign = 1 as const;
 
   calculate({ contents, formula }: InvoiceContext): ComponentResult {
+    // Delivered (link_submitted) content is committed by definition, so a pending proposal never counts.
     const paid = contents.filter(
       (content) =>
         content.type === 'specific' &&
-        committed(content) &&
         content.status === 'link_submitted' &&
         onTime(content.deadline, content.videoSubmittedAt),
     );
