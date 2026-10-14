@@ -49,9 +49,15 @@ function isMissing(value: unknown): boolean {
   return value === undefined || value === null || value === '';
 }
 
+/** Whole rupiah grouped in thousands with dots, as id-ID writes them. */
+const RUPIAH_DIGITS = new Intl.NumberFormat('id-ID', {
+  maximumFractionDigits: 0,
+  useGrouping: true,
+});
+
 /** Rupiah as the prototype writes it: Rp10.000.000. */
 function rupiah(value: number): string {
-  return `Rp${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
+  return `Rp${RUPIAH_DIGITS.format(value)}`;
 }
 
 /**
