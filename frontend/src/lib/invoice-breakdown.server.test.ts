@@ -8,8 +8,11 @@ vi.mock("./session.server", () => ({ currentRole: vi.fn() }));
 
 const asRole = (role: "admin" | "creator" | null) => vi.mocked(currentRole).mockResolvedValue(role);
 
+/** The columns that list contents; the fixed rate is the contract period's, one amount. */
+const LISTED = BREAKDOWN_KINDS.filter((kind) => kind !== "fixed") as ("extra" | "bonus" | "penalty")[];
+
 /** What the lines of one column add up to. */
-function sumOf(breakdown: InvoiceBreakdown, kind: (typeof BREAKDOWN_KINDS)[number]): number {
+function sumOf(breakdown: InvoiceBreakdown, kind: (typeof LISTED)[number]): number {
   return breakdown[kind].lines.reduce((sum, line) => sum + line.amount, 0);
 }
 
@@ -40,7 +43,7 @@ describe("loadInvoiceBreakdown", () => {
       async (_name, creatorId) => {
         const breakdown = (await loadInvoiceBreakdown(creatorId)) as InvoiceBreakdown;
 
-        for (const kind of BREAKDOWN_KINDS) {
+        for (const kind of LISTED) {
           expect(sumOf(breakdown, kind)).toBe(breakdown[kind].total);
         }
       },
@@ -58,9 +61,7 @@ describe("loadInvoiceBreakdown", () => {
   it("lists every content once, so a line opens the content it names", async () => {
     for (const row of INVOICE_FIXTURE_ROWS) {
       const breakdown = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
-      const ids = BREAKDOWN_KINDS.flatMap((kind) =>
-        breakdown[kind].lines.map((line) => line.contentId),
-      );
+      const ids = LISTED.flatMap((kind) => breakdown[kind].lines.map((line) => line.contentId));
 
       expect(ids.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
     }
@@ -97,5 +98,46 @@ describe("loadInvoiceBreakdown", () => {
         await expect(loadInvoiceBreakdown("creator-rangga")).resolves.toBeNull();
       },
     );
+  });
+
+  describe("follows the prototype's rules", () => {
+    it("bills the fixed rate per contract period, with the quota done out of the quota", async () => {
+      for (const row of INVOICE_FIXTURE_ROWS) {
+        const { fixed } = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
+
+        expect(fixed.period.number).toBeGreaterThanOrEqual(1);
+        expect(fixed.period.quotaDone).toBeLessThanOrEqual(fixed.period.quotaTotal);
+        expect(fixed.notStarted).toBe(row.fixedAmount === 0 && row.contractStatus === "upcoming");
+      }
+    });
+
+    it("charges no content more days than the cap of three", async () => {
+      for (const row of INVOICE_FIXTURE_ROWS) {
+        const { penalty } = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
+
+        for (const line of penalty.lines) {
+          expect(line.chargedDays).toBeLessThanOrEqual(3);
+          expect(line.chargedDays).toBeLessThanOrEqual(line.daysLate);
+          expect(line.amount).toBe(line.chargedDays * line.ratePerDay);
+        }
+      }
+    });
+
+    it("pays each performance bonus at its tier's amount", async () => {
+      for (const row of INVOICE_FIXTURE_ROWS) {
+        const { bonus } = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
+
+        for (const line of bonus.lines) {
+          if (line.kind !== "performance") continue;
+          const rule = bonus.rules.tiers.find(
+            (candidate) => candidate.platform === line.platform && candidate.metric === line.metric,
+          );
+          const steps = [...(rule?.steps ?? [])].sort((a, b) => a.min - b.min);
+
+          expect(steps[line.tier - 1]?.bonus).toBe(line.amount);
+          expect(line.value).toBeGreaterThanOrEqual(steps[line.tier - 1]?.min ?? Infinity);
+        }
+      }
+    });
   });
 });

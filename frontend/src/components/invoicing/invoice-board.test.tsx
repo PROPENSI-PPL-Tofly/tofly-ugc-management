@@ -24,7 +24,7 @@ const ROW: InvoiceRow = {
   creatorName: "Rangga Pratama",
   contractStatus: "active",
   fixedAmount: 500000,
-  extraAmount: 0,
+  extraAmount: 500000,
   bonusAmount: null,
   penaltyAmount: 0,
   invoiceStatus: "accruing",
@@ -33,11 +33,15 @@ const ROW: InvoiceRow = {
 const BREAKDOWN: InvoiceBreakdown = {
   creatorName: "Rangga Pratama",
   fixed: {
+    period: { number: 1, start: "2026-09-01", end: "2026-11-30", quotaDone: 1, quotaTotal: 10 },
+    total: 500000,
+    notStarted: false,
+  },
+  extra: {
     lines: [{ contentId: "c-1", name: "Evg_1_Rangga", rate: 500000, amount: 500000 }],
     total: 500000,
   },
-  extra: { lines: [], total: 0 },
-  bonus: { lines: [], total: 0, performance: "waiting" },
+  bonus: { lines: [], total: 0, performance: "waiting", rules: { tiers: [], specificBonus: 0 } },
   penalty: { lines: [], total: 0 },
 };
 
@@ -62,16 +66,16 @@ describe("InvoiceBoard", () => {
   it("opens a column's breakdown from its cell", async () => {
     render(<InvoiceBoard rows={[ROW]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /^Fixed Rate Rangga Pratama/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Konten Tambahan Rangga Pratama/ }));
 
-    expect(screen.getByRole("dialog")).toHaveAccessibleName("Fixed Rate · Rangga Pratama");
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Fee Konten Tambahan · Rangga Pratama");
     expect(await screen.findByRole("list")).toHaveTextContent("Evg_1_Rangga");
     expect(load).toHaveBeenCalledWith("creator-rangga");
   });
 
   it("reads the invoices again after a decision taken from a breakdown", async () => {
     render(<InvoiceBoard rows={[ROW]} />);
-    fireEvent.click(screen.getByRole("button", { name: /^Fixed Rate Rangga Pratama/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Konten Tambahan Rangga Pratama/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Evg_1_Rangga" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Setujui" }));

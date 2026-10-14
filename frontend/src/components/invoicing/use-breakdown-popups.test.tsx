@@ -38,7 +38,7 @@ function rowOf(creatorId: string, creatorName: string): InvoiceRow {
     creatorName,
     contractStatus: "active",
     fixedAmount: 1000000,
-    extraAmount: 0,
+    extraAmount: 1000000,
     bonusAmount: null,
     penaltyAmount: 150000,
     invoiceStatus: "accruing",
@@ -51,20 +51,25 @@ const SALSA_ROW = rowOf("creator-salsa", "Salsa Amelia");
 const RANGGA: InvoiceBreakdown = {
   creatorName: "Rangga Pratama",
   fixed: {
+    period: { number: 1, start: "2026-09-01", end: "2026-11-30", quotaDone: 2, quotaTotal: 10 },
+    total: 1000000,
+    notStarted: false,
+  },
+  extra: {
     lines: [
       { contentId: "c-1", name: "Evg_1_Rangga_01102026", rate: 500000, amount: 500000 },
       { contentId: "c-2", name: "Evg_2_Rangga_08102026", rate: 500000, amount: 500000 },
     ],
     total: 1000000,
   },
-  extra: { lines: [], total: 0 },
-  bonus: { lines: [], total: 0, performance: "waiting" },
+  bonus: { lines: [], total: 0, performance: "waiting", rules: { tiers: [], specificBonus: 0 } },
   penalty: {
     lines: [
       {
         contentId: "c-3",
         name: "Evg_3_Rangga_15102026",
         daysLate: 3,
+        chargedDays: 3,
         ratePerDay: 50000,
         amount: 150000,
         ongoing: true,
@@ -77,7 +82,7 @@ const RANGGA: InvoiceBreakdown = {
 const SALSA: InvoiceBreakdown = {
   ...RANGGA,
   creatorName: "Salsa Amelia",
-  fixed: {
+  extra: {
     lines: [{ contentId: "s-1", name: "Evg_1_Salsa_02102026", rate: 400000, amount: 400000 }],
     total: 400000,
   },
@@ -102,9 +107,9 @@ function Table({
 
   return (
     <>
-      <BreakdownAmount kind="fixed" row={RANGGA_ROW} onOpen={open} />
+      <BreakdownAmount kind="extra" row={RANGGA_ROW} onOpen={open} />
       <BreakdownAmount kind="penalty" row={RANGGA_ROW} onOpen={open} />
-      <BreakdownAmount kind="fixed" row={SALSA_ROW} onOpen={open} />
+      <BreakdownAmount kind="extra" row={SALSA_ROW} onOpen={open} />
       {layers}
     </>
   );
@@ -146,15 +151,15 @@ describe("useBreakdownPopups", () => {
   });
 
   it("keeps each creator's breakdown apart", async () => {
-    await openCell(/^Fixed Rate Salsa Amelia/);
+    await openCell(/^Konten Tambahan Salsa Amelia/);
 
-    expect(popup()).toHaveAccessibleName("Fixed Rate · Salsa Amelia");
+    expect(popup()).toHaveAccessibleName("Fee Konten Tambahan · Salsa Amelia");
     expect(popup()).toHaveTextContent("Evg_1_Salsa_02102026");
     expect(popup()).not.toHaveTextContent("Evg_1_Rangga_01102026");
   });
 
   it("asks once per creator, reading a second column of the same creator from what it has", async () => {
-    const { load } = await openCell(/^Fixed Rate Rangga Pratama/);
+    const { load } = await openCell(/^Konten Tambahan Rangga Pratama/);
     fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
 
     fireEvent.click(cell(/^Penalti Rangga Pratama/));
@@ -169,7 +174,7 @@ describe("useBreakdownPopups", () => {
       .mockRejectedValueOnce(new Error("down"))
       .mockResolvedValueOnce(RANGGA);
     render(<Table load={load} />);
-    fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Rincian tidak bisa dimuat.");
 
@@ -182,7 +187,7 @@ describe("useBreakdownPopups", () => {
   it("says there is nothing to show for a creator the loader has no breakdown of, with no retry", async () => {
     render(<Table load={vi.fn<BreakdownLoader>(async () => null)} />);
 
-    fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
 
     expect(await screen.findByText("Tidak ada rincian untuk creator ini.")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -200,14 +205,14 @@ describe("useBreakdownPopups", () => {
     );
     render(<Table load={load} />);
 
-    fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
     fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
-    fireEvent.click(cell(/^Fixed Rate Salsa Amelia/));
+    fireEvent.click(cell(/^Konten Tambahan Salsa Amelia/));
     await screen.findByRole("list");
 
     await act(async () => answerRangga(RANGGA));
 
-    expect(popup()).toHaveAccessibleName("Fixed Rate · Salsa Amelia");
+    expect(popup()).toHaveAccessibleName("Fee Konten Tambahan · Salsa Amelia");
     expect(popup()).not.toHaveTextContent("Evg_1_Rangga_01102026");
   });
 
@@ -222,9 +227,9 @@ describe("useBreakdownPopups", () => {
     );
     render(<Table load={load} />);
 
-    fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
     fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
-    fireEvent.click(cell(/^Fixed Rate Salsa Amelia/));
+    fireEvent.click(cell(/^Konten Tambahan Salsa Amelia/));
     await screen.findByRole("list");
 
     await act(async () => failRangga(new Error("late")));
@@ -234,7 +239,7 @@ describe("useBreakdownPopups", () => {
   });
 
   it("closes the breakdown from its Tutup button", async () => {
-    await openCell(/^Fixed Rate Rangga Pratama/);
+    await openCell(/^Konten Tambahan Rangga Pratama/);
 
     fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
 
@@ -242,7 +247,7 @@ describe("useBreakdownPopups", () => {
   });
 
   it("opens the Content Detail panel of the content whose name is pressed, as an admin", async () => {
-    await openCell(/^Fixed Rate Rangga Pratama/);
+    await openCell(/^Konten Tambahan Rangga Pratama/);
 
     fireEvent.click(screen.getByRole("button", { name: "Evg_2_Rangga_08102026" }));
 
@@ -250,20 +255,20 @@ describe("useBreakdownPopups", () => {
     expect(panel()).toHaveAttribute("data-role", "admin");
   });
 
-  it("keeps the breakdown open under the panel, to come back to", async () => {
-    await openCell(/^Fixed Rate Rangga Pratama/);
+  it("hides the breakdown while the panel is open, so one layer is on screen, and brings it back", async () => {
+    await openCell(/^Konten Tambahan Rangga Pratama/);
     fireEvent.click(screen.getByRole("button", { name: "Evg_1_Rangga_01102026" }));
 
-    expect(popup()).toBeInTheDocument();
+    expect(popup()).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Tutup panel" }));
 
     expect(panel()).not.toBeInTheDocument();
-    expect(popup()).toHaveAccessibleName("Fixed Rate · Rangga Pratama");
+    expect(popup()).toHaveAccessibleName("Fee Konten Tambahan · Rangga Pratama");
   });
 
   it("opens another content from the same breakdown after the first is closed", async () => {
-    await openCell(/^Fixed Rate Rangga Pratama/);
+    await openCell(/^Konten Tambahan Rangga Pratama/);
     fireEvent.click(screen.getByRole("button", { name: "Evg_1_Rangga_01102026" }));
     fireEvent.click(screen.getByRole("button", { name: "Tutup panel" }));
 
@@ -273,7 +278,7 @@ describe("useBreakdownPopups", () => {
   });
 
   it("closes the panel and the breakdown after a decision, whose numbers may now be stale", async () => {
-    const { onDecided } = await openCell(/^Fixed Rate Rangga Pratama/);
+    const { onDecided } = await openCell(/^Konten Tambahan Rangga Pratama/);
     fireEvent.click(screen.getByRole("button", { name: "Evg_1_Rangga_01102026" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Setujui" }));
@@ -285,7 +290,7 @@ describe("useBreakdownPopups", () => {
   });
 
   it("asks again after a decision, rather than showing what it held from before", async () => {
-    const { load } = await openCell(/^Fixed Rate Rangga Pratama/);
+    const { load } = await openCell(/^Konten Tambahan Rangga Pratama/);
     fireEvent.click(screen.getByRole("button", { name: "Evg_1_Rangga_01102026" }));
     fireEvent.click(screen.getByRole("button", { name: "Setujui" }));
 
@@ -298,7 +303,7 @@ describe("useBreakdownPopups", () => {
 
   it("takes a decision without a listener", async () => {
     render(<Table load={answering()} />);
-    fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
     await screen.findByRole("list");
     fireEvent.click(screen.getByRole("button", { name: "Evg_1_Rangga_01102026" }));
 
@@ -317,14 +322,14 @@ describe("useBreakdownPopups without a loader", () => {
       const { open, layers } = useBreakdownPopups();
       return (
         <>
-          <BreakdownAmount kind="fixed" row={RANGGA_ROW} onOpen={open} />
+          <BreakdownAmount kind="extra" row={RANGGA_ROW} onOpen={open} />
           {layers}
         </>
       );
     }
     render(<DefaultTable />);
 
-    fireEvent.click(cell(/^Fixed Rate Rangga Pratama/));
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
 
     expect(await screen.findByRole("list")).toHaveTextContent("Evg_1_Rangga_01102026");
     expect(loadInvoiceBreakdown).toHaveBeenCalledWith("creator-rangga");
@@ -352,6 +357,7 @@ describe("useBreakdownPopups after the table is read again", () => {
             contentId: "c-3",
             name: "Evg_3_Rangga_15102026",
             daysLate: 4,
+            chargedDays: 3,
             ratePerDay: 50000,
             amount: 200000,
             ongoing: true,
@@ -369,7 +375,7 @@ describe("useBreakdownPopups after the table is read again", () => {
     view.rerender(<Row row={{ ...RANGGA_ROW, penaltyAmount: 200000 }} load={load} />);
     fireEvent.click(cell(/^Penalti Rangga Pratama/));
 
-    expect(await screen.findByText("Telat 4 hari × Rp50.000 · masih berjalan")).toBeInTheDocument();
+    expect(await screen.findByText("Telat 4 hari · dihitung 3 hari × Rp50.000 · berjalan")).toBeInTheDocument();
     expect(load).toHaveBeenCalledTimes(2);
   });
 

@@ -6,9 +6,18 @@ import {
 
 const EMPTY_BREAKDOWN: InvoiceBreakdown = {
   creatorName: "Rangga Pratama",
-  fixed: { lines: [], total: 0 },
+  fixed: {
+    period: { number: 2, start: "2026-09-01", end: "2026-11-30", quotaDone: 0, quotaTotal: 12 },
+    total: 0,
+    notStarted: false,
+  },
   extra: { lines: [], total: 0 },
-  bonus: { lines: [], total: 0, performance: "ready" },
+  bonus: {
+    lines: [],
+    total: 0,
+    performance: "ready",
+    rules: { tiers: [], specificBonus: 0 },
+  },
   penalty: { lines: [], total: 0 },
 };
 
@@ -25,11 +34,11 @@ describe("BREAKDOWN_KINDS", () => {
 describe("breakdownPopup", () => {
   describe("title", () => {
     it.each([
-      ["fixed", "Fixed Rate · Rangga Pratama"],
-      ["extra", "Konten Tambahan · Rangga Pratama"],
-      ["bonus", "Bonus · Rangga Pratama"],
+      ["fixed", "Fixed Rate Kontrak · Rangga Pratama"],
+      ["extra", "Fee Konten Tambahan · Rangga Pratama"],
+      ["bonus", "Bonus Performa · Rangga Pratama"],
       ["penalty", "Penalti · Rangga Pratama"],
-    ] as const)("names the %s column and the creator", (kind, title) => {
+    ] as const)("names the %s column as the prototype's popup does, and the creator", (kind, title) => {
       expect(breakdownPopup(kind, breakdown()).title).toBe(title);
     });
   });
@@ -39,42 +48,63 @@ describe("breakdownPopup", () => {
       "fixed",
       breakdown({
         fixed: {
-          lines: [
-            { contentId: "c-1", name: "Evg_1_Rangga_01102026", rate: 500000, amount: 500000 },
-            { contentId: "c-2", name: "Evg_2_Rangga_08102026", rate: 500000, amount: 500000 },
-          ],
-          total: 1000000,
+          period: { number: 2, start: "2026-09-01", end: "2026-11-30", quotaDone: 7, quotaTotal: 12 },
+          total: 5000000,
+          notStarted: false,
         },
       }),
     );
 
-    it("lists each finished content with the rate it was counted at", () => {
+    it("is one line for the contract period, paid in full, never a list of contents", () => {
       expect(view.lines).toEqual([
         {
-          key: "c-1",
-          contentId: "c-1",
-          name: "Evg_1_Rangga_01102026",
-          detail: "1 konten × Rp500.000",
-          amount: "Rp500.000",
-          tone: "plain",
-        },
-        {
-          key: "c-2",
-          contentId: "c-2",
-          name: "Evg_2_Rangga_08102026",
-          detail: "1 konten × Rp500.000",
-          amount: "Rp500.000",
+          key: "Kontrak Periode 2",
+          contentId: null,
+          name: "Kontrak Periode 2",
+          detail: "1 Sep 2026 – 30 Nov 2026 · Kuota selesai 7/12",
+          amount: "Rp5.000.000",
           tone: "plain",
         },
       ]);
     });
 
-    it("totals the column as the invoice counted it", () => {
-      expect(view.total).toBe("Rp1.000.000");
+    it("totals the column as the invoice counted it, with no tier info and no note", () => {
+      expect(view.total).toBe("Rp5.000.000");
+      expect(view.info).toBeNull();
+      expect(view.note).toBeNull();
     });
 
-    it("has no note", () => {
-      expect(view.note).toBeNull();
+    it("leaves the dates out of a period that has none, keeping the quota", () => {
+      const undated = breakdownPopup(
+        "fixed",
+        breakdown({
+          fixed: {
+            period: { number: 1, start: null, end: null, quotaDone: 0, quotaTotal: 10 },
+            total: 3000000,
+            notStarted: false,
+          },
+        }),
+      );
+
+      expect(undated.lines[0].detail).toBe("Kuota selesai 0/10");
+    });
+
+    it("says a contract has not started yet, rather than that nothing is filled in", () => {
+      const view = breakdownPopup(
+        "fixed",
+        breakdown({ fixed: { ...EMPTY_BREAKDOWN.fixed, total: 0, notStarted: true } }),
+      );
+
+      expect(view.lines).toEqual([]);
+      expect(view.empty).toBe("Kontrak belum dimulai.");
+      expect(view.total).toBeNull();
+    });
+
+    it("says the contract's fixed rate is not filled in when a running contract has none", () => {
+      const view = breakdownPopup("fixed", breakdown());
+
+      expect(view.lines).toEqual([]);
+      expect(view.empty).toBe("Fixed rate kontrak belum diisi.");
     });
   });
 
@@ -102,6 +132,12 @@ describe("breakdownPopup", () => {
       ]);
       expect(view.total).toBe("Rp300.000");
     });
+
+    it("says no extra content is finished yet when there is none", () => {
+      expect(breakdownPopup("extra", breakdown()).empty).toBe(
+        "Belum ada konten tambahan yang selesai.",
+      );
+    });
   });
 
   describe("bonus", () => {
@@ -110,9 +146,9 @@ describe("breakdownPopup", () => {
         "bonus",
         breakdown({
           bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
             lines: [{ kind: "specific", contentId: "c-9", name: "Promo 10.10", amount: 100000 }],
             total: 100000,
-            performance: "ready",
           },
         }),
       );
@@ -130,11 +166,12 @@ describe("breakdownPopup", () => {
       expect(view.total).toBe("Rp100.000");
     });
 
-    it("words a performance bonus by its platform, the number reached and the tier it passed", () => {
+    it("words a performance bonus by its platform, the number reached and the tier it earned", () => {
       const view = breakdownPopup(
         "bonus",
         breakdown({
           bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
             lines: [
               {
                 kind: "performance",
@@ -143,29 +180,29 @@ describe("breakdownPopup", () => {
                 platform: "tiktok",
                 metric: "views",
                 value: 12500,
-                threshold: 10000,
+                tier: 2,
                 amount: 250000,
               },
             ],
             total: 250000,
-            performance: "ready",
           },
         }),
       );
 
-      expect(view.lines[0].detail).toBe("TikTok · 12.500 Views (min. 10.000)");
+      expect(view.lines[0].detail).toBe("TikTok · 12.500 Views · Tier 2");
       expect(view.lines[0].amount).toBe("+ Rp250.000");
     });
 
     it.each([
-      ["instagram", "likes", "Instagram · 900 Likes (min. 500)"],
-      ["instagram", "comments", "Instagram · 900 Comments (min. 500)"],
-      ["tiktok", "shares", "TikTok · 900 Shares (min. 500)"],
+      ["instagram", "likes", "Instagram · 900 Likes · Tier 1"],
+      ["instagram", "comments", "Instagram · 900 Comments · Tier 1"],
+      ["tiktok", "shares", "TikTok · 900 Shares · Tier 1"],
     ] as const)("words %s %s", (platform, metric, detail) => {
       const view = breakdownPopup(
         "bonus",
         breakdown({
           bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
             lines: [
               {
                 kind: "performance",
@@ -174,12 +211,11 @@ describe("breakdownPopup", () => {
                 platform,
                 metric,
                 value: 900,
-                threshold: 500,
+                tier: 1,
                 amount: 1,
               },
             ],
             total: 1,
-            performance: "ready",
           },
         }),
       );
@@ -187,10 +223,59 @@ describe("breakdownPopup", () => {
       expect(view.lines[0].detail).toBe(detail);
     });
 
+    describe("the tier info above the lines", () => {
+      const rules = {
+        tiers: [
+          {
+            platform: "instagram" as const,
+            metric: "views" as const,
+            steps: [
+              { min: 50000, bonus: 150000 },
+              { min: 10000, bonus: 50000 },
+            ],
+          },
+          { platform: "tiktok" as const, metric: "likes" as const, steps: [{ min: 2000, bonus: 75000 }] },
+          { platform: "tiktok" as const, metric: "shares" as const, steps: [] },
+        ],
+        specificBonus: 100000,
+      };
+
+      it("states the rule, each platform's tiers lowest first, and the Specific bonus", () => {
+        const view = breakdownPopup(
+          "bonus",
+          breakdown({ bonus: { ...EMPTY_BREAKDOWN.bonus, rules } }),
+        );
+
+        expect(view.info).toEqual([
+          "Per konten, dipakai tier tertinggi yang tercapai.",
+          "Instagram (Views) — Tier 1: ≥10.000 → Rp50.000 · Tier 2: ≥50.000 → Rp150.000",
+          "TikTok (Likes) — Tier 1: ≥2.000 → Rp75.000",
+          "Specific — Rp100.000 per konten Specific yang selesai tepat waktu",
+        ]);
+      });
+
+      it("is there even when no content has earned a bonus, so the admin sees what would", () => {
+        const view = breakdownPopup(
+          "bonus",
+          breakdown({ bonus: { ...EMPTY_BREAKDOWN.bonus, rules } }),
+        );
+
+        expect(view.lines).toEqual([]);
+        expect(view.info).not.toBeNull();
+        expect(view.empty).toBe("Belum ada konten yang mendapat bonus.");
+      });
+
+      it("leaves out the Specific bonus when it is not set, keeping the rule", () => {
+        const view = breakdownPopup("bonus", breakdown());
+
+        expect(view.info).toEqual(["Per konten, dipakai tier tertinggi yang tercapai."]);
+      });
+    });
+
     it("says the performance bonus is waiting for data, never that it is zero", () => {
       const view = breakdownPopup(
         "bonus",
-        breakdown({ bonus: { lines: [], total: 0, performance: "waiting" } }),
+        breakdown({ bonus: { ...EMPTY_BREAKDOWN.bonus, performance: "waiting" } }),
       );
 
       expect(view.note).toBe("Bonus performa: Menunggu data");
@@ -201,6 +286,7 @@ describe("breakdownPopup", () => {
         "bonus",
         breakdown({
           bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
             lines: [{ kind: "specific", contentId: "c-9", name: "Promo 10.10", amount: 100000 }],
             total: 100000,
             performance: "waiting",
@@ -226,7 +312,8 @@ describe("breakdownPopup", () => {
             {
               contentId: "c-3",
               name: "Evg_3_Rangga_15102026",
-              daysLate: 3,
+              daysLate: 5,
+              chargedDays: 3,
               ratePerDay: 50000,
               amount: 150000,
               ongoing: true,
@@ -235,6 +322,7 @@ describe("breakdownPopup", () => {
               contentId: "c-4",
               name: "Evg_4_Rangga_22102026",
               daysLate: 1,
+              chargedDays: 1,
               ratePerDay: 50000,
               amount: 50000,
               ongoing: false,
@@ -245,11 +333,11 @@ describe("breakdownPopup", () => {
       }),
     );
 
-    it("counts a late content by its days late, and says when the count is still running", () => {
-      expect(view.lines[0].detail).toBe("Telat 3 hari × Rp50.000 · masih berjalan");
+    it("says how many of the days late are charged once the cap is reached, and that it still runs", () => {
+      expect(view.lines[0].detail).toBe("Telat 5 hari · dihitung 3 hari × Rp50.000 · berjalan");
     });
 
-    it("leaves a content that was handed in late at the days it was late by", () => {
+    it("leaves out the charged days when every day late is charged", () => {
       expect(view.lines[1].detail).toBe("Telat 1 hari × Rp50.000");
     });
 
@@ -260,20 +348,9 @@ describe("breakdownPopup", () => {
       ]);
       expect(view.total).toBe("− Rp200.000");
     });
-  });
 
-  describe("an empty column", () => {
-    it.each([
-      ["fixed", "Belum ada konten yang selesai."],
-      ["extra", "Belum ada konten tambahan yang selesai."],
-      ["bonus", "Belum ada konten yang mendapat bonus."],
-      ["penalty", "Tidak ada keterlambatan."],
-    ] as const)("says why %s has nothing to list, with no total under it", (kind, empty) => {
-      const view = breakdownPopup(kind, breakdown());
-
-      expect(view.lines).toEqual([]);
-      expect(view.empty).toBe(empty);
-      expect(view.total).toBeNull();
+    it("says there is no lateness when there is none", () => {
+      expect(breakdownPopup("penalty", breakdown()).empty).toBe("Tidak ada keterlambatan.");
     });
   });
 
@@ -283,9 +360,9 @@ describe("breakdownPopup", () => {
         "bonus",
         breakdown({
           bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
             lines: [{ kind: "specific", contentId: null, name: "Konten lama", amount: 1000 }],
             total: 1000,
-            performance: "ready",
           },
         }),
       );
@@ -299,6 +376,7 @@ describe("breakdownPopup", () => {
         "bonus",
         breakdown({
           bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
             lines: [
               { kind: "specific", contentId: "c-9", name: "Promo 10.10", amount: 100000 },
               {
@@ -308,14 +386,13 @@ describe("breakdownPopup", () => {
                 platform: "instagram",
                 metric: "views",
                 value: 20000,
-                threshold: 10000,
+                tier: 1,
                 amount: 50000,
               },
               { kind: "specific", contentId: null, name: "Tanpa id", amount: 1 },
               { kind: "specific", contentId: null, name: "Tanpa id", amount: 1 },
             ],
             total: 150002,
-            performance: "ready",
           },
         }),
       );
@@ -326,10 +403,10 @@ describe("breakdownPopup", () => {
 
     it("shows the invoice's own total, not a sum worked out again in the browser", () => {
       const view = breakdownPopup(
-        "fixed",
+        "extra",
         breakdown({
-          fixed: {
-            lines: [{ contentId: "c-1", name: "Evg_1", rate: 500000, amount: 500000 }],
+          extra: {
+            lines: [{ contentId: "c-1", name: "Promo", rate: 500000, amount: 500000 }],
             total: 499999,
           },
         }),
@@ -338,20 +415,28 @@ describe("breakdownPopup", () => {
       expect(view.total).toBe("Rp499.999");
     });
 
-    it("writes a penalty of a single day and of no days at all", () => {
+    it("writes a penalty of no days at all", () => {
       const view = breakdownPopup(
         "penalty",
         breakdown({
           penalty: {
             lines: [
-              { contentId: "c-1", name: "A", daysLate: 0, ratePerDay: 50000, amount: 0, ongoing: true },
+              {
+                contentId: "c-1",
+                name: "A",
+                daysLate: 0,
+                chargedDays: 0,
+                ratePerDay: 50000,
+                amount: 0,
+                ongoing: true,
+              },
             ],
             total: 0,
           },
         }),
       );
 
-      expect(view.lines[0].detail).toBe("Telat 0 hari × Rp50.000 · masih berjalan");
+      expect(view.lines[0].detail).toBe("Telat 0 hari × Rp50.000 · berjalan");
       expect(view.lines[0].amount).toBe("− Rp0");
       expect(view.total).toBe("− Rp0");
     });
