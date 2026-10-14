@@ -15,6 +15,12 @@ const TONES: Record<BreakdownTone, string> = {
   danger: "text-red-ink",
 };
 
+/**
+ * Where a breakdown stands: on its way, shown, failed to load (worth a retry), or not there to
+ * show at all (no retry would bring it).
+ */
+export type BreakdownStatus = "loading" | "ready" | "failed" | "missing";
+
 const ROW = "flex items-start justify-between gap-4 py-2 text-[12.5px]";
 
 const NAME =
@@ -91,37 +97,39 @@ function Lines({
  *
  * It opens before its breakdown has arrived, titled already, and says so while it waits; a
  * breakdown that could not be read says that too, with a retry, rather than an empty column
- * that would claim there is nothing in it. One dialog throughout, so focus stays put when the
+ * that would claim there is nothing in it. A breakdown that is not there to show says that,
+ * without a retry that could never succeed. One dialog throughout, so focus stays put when the
  * lines arrive.
  */
 export function BreakdownPopup({
   kind,
   creatorName,
   breakdown,
-  failed,
+  status,
   onRetry,
   onClose,
   onOpenContent,
 }: Readonly<{
   kind: BreakdownKind;
   creatorName: string;
-  /** Null until it has been read. */
+  /** Null until it has been read, and when there is none. */
   breakdown: InvoiceBreakdown | null;
-  /** True when reading it failed. */
-  failed: boolean;
+  status: BreakdownStatus;
   onRetry: () => void;
   onClose: () => void;
   /** Called with the id of the content whose name was pressed. */
   onOpenContent: (contentId: string) => void;
 }>) {
   let body;
-  if (failed) {
+  if (status === "failed") {
     body = (
       <div role="alert" className="flex flex-col items-center gap-3 py-6 text-center text-[13px]">
         <p>Rincian tidak bisa dimuat.</p>
         <Button onClick={onRetry}>Coba lagi</Button>
       </div>
     );
+  } else if (status === "missing") {
+    body = <p className="py-6 text-center text-[13px] text-muted">Tidak ada rincian untuk creator ini.</p>;
   } else if (breakdown === null) {
     body = (
       <p role="status" className="py-6 text-center text-[13px] text-muted">
