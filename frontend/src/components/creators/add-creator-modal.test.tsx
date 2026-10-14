@@ -20,10 +20,11 @@ describe("AddCreatorModal", () => {
   });
 
   // The fixed rate is agreed for the whole contract, not paid per content.
-  it("labels the fee as the contract's fixed rate", () => {
+  it("labels the fee as the contract's fixed rate, with an ⓘ explaining it", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-    expect(screen.getByLabelText(/^contract fixed rate \(rp\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^fixed rate kontrak \(rp\)/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Info Fixed Rate Kontrak" })).toBeInTheDocument();
     expect(screen.queryByText(/per konten/i)).not.toBeInTheDocument();
   });
 
@@ -40,7 +41,7 @@ describe("AddCreatorModal", () => {
     expect(names(creator)).toEqual(["Nama Creator", "Email", "Platform", "Username Social Media"]);
     expect(names(contract)).toEqual([
       "Jenis Kontrak",
-      "Contract Fixed Rate (Rp)",
+      "Fixed Rate Kontrak (Rp)",
       "Mulai Kontrak",
       "Akhir Kontrak",
       "Jumlah konten yang disepakati",
@@ -143,7 +144,7 @@ describe("AddCreatorModal", () => {
 
     const fixedRateInput = screen.getByLabelText(/fixed rate/i);
     expect(fixedRateInput).toHaveValue("");
-    expect(fixedRateInput).toHaveAttribute("placeholder", "mis. 500000");
+    expect(fixedRateInput).toHaveAttribute("placeholder", "mis. 5000000");
   });
 
   it("starts the content quota field empty with a placeholder", () => {
@@ -355,15 +356,51 @@ describe("AddCreatorModal", () => {
       expect(simpanButton()).toBeDisabled();
     });
 
-    // Manual UI review: 0 must not be mistaken for "not filled in yet" — it is a filled-in,
-    // invalid value, same treatment as a negative fixed rate.
-    it("stays disabled when the fixed rate is zero", () => {
+    // Subtask 8.2: the fixed rate may be 0 (min. 0); only an empty field is "not filled in yet".
+    it("becomes enabled when the fixed rate is zero", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
       fillValidForm();
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "0" } });
 
+      expect(screen.getByLabelText(/fixed rate/i)).toHaveValue("0");
+      expect(simpanButton()).toBeEnabled();
+    });
+
+    it("stays disabled when the fixed rate is emptied", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "" } });
+
       expect(simpanButton()).toBeDisabled();
+    });
+
+    it("takes at most ten digits in the fixed rate", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "12345678901234" } });
+
+      expect(screen.getByLabelText(/fixed rate/i)).toHaveValue("1234567890");
+    });
+
+    it("drops anything but digits from the fixed rate", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "Rp 7a5" } });
+
+      expect(screen.getByLabelText(/fixed rate/i)).toHaveValue("75");
+    });
+
+    it("saves a fixed rate of zero as 0, not as empty", () => {
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "0" } });
+      fireEvent.click(simpanButton());
+
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fixedRate: 0 }));
     });
 
     it("stays disabled when the content quota is zero", () => {
@@ -675,7 +712,7 @@ describe("AddCreatorModal", () => {
       "Jenis kontrak wajib dipilih",
       "Tanggal mulai wajib diisi",
       "Jarak antar-deadline minimal 1 hari",
-      "Fixed rate harus lebih dari 0",
+      "Fixed rate wajib diisi",
       "Jumlah konten harus lebih dari 0",
     ]) {
       expect(screen.getByText(message)).toBeInTheDocument();
