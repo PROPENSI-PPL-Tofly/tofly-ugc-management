@@ -70,4 +70,26 @@ describe("AdminNav", () => {
       "aria-current",
     );
   });
+
+  it("marks Rate & Invoicing as current on its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/invoicing");
+
+    render(<AdminNav />);
+
+    expect(screen.getByRole("link", { name: "Rate & Invoicing" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("links Rate & Invoicing to its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    expect(screen.getByRole("link", { name: "Rate & Invoicing" })).toHaveAttribute(
+      "href",
+      "/admin/invoicing",
+    );
+  });
 });

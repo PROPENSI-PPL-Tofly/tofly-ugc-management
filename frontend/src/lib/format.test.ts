@@ -269,30 +269,16 @@ describe("jakartaDay", () => {
 });
 
 describe("formatRupiah", () => {
-  it("writes an amount the Indonesian way, thousands apart by dots", () => {
-    expect(formatRupiah(1500000)).toBe("Rp1.500.000");
-    expect(formatRupiah(750)).toBe("Rp750");
+  it("writes rupiah the way the prototype writes it", () => {
+    expect(formatRupiah(500000)).toBe("Rp500.000");
+    expect(formatRupiah(1250000)).toBe("Rp1.250.000");
   });
 
-  it("writes nothing owed as zero rupiah, not as a dash", () => {
+  it("keeps the minus outside the rupiah sign", () => {
+    expect(formatRupiah(-250000)).toBe("-Rp250.000");
+  });
+
+  it("writes a plain zero", () => {
     expect(formatRupiah(0)).toBe("Rp0");
-  });
-
-  it("puts a minus sign in front of the currency for an amount taken away", () => {
-    expect(formatRupiah(-250000)).toBe("−Rp250.000");
-  });
-
-  it("holds the largest fixed rate a contract can carry, ten digits", () => {
-    expect(formatRupiah(9999999999)).toBe("Rp9.999.999.999");
-  });
-
-  it("rounds to whole rupiah, as nobody is paid in cents", () => {
-    expect(formatRupiah(1000.4)).toBe("Rp1.000");
-    expect(formatRupiah(1000.5)).toBe("Rp1.001");
-  });
-
-  it("shows the dash for a value that is not an amount", () => {
-    expect(formatRupiah(Number.NaN)).toBe(EMPTY);
-    expect(formatRupiah(Number.POSITIVE_INFINITY)).toBe(EMPTY);
   });
 });

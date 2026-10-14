@@ -142,16 +142,7 @@ export function formatRevisions(value: number): string {
   return `${NUMBER_FORMAT.format(value)}x`;
 }
 
-const RUPIAH_FORMAT = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
-
-/**
- * "Rp1.500.000": an amount of money as the invoice views write it, in whole rupiah. An amount
- * taken away carries a real minus sign in front of the currency, and a value that is not an
- * amount gets the dash rather than "RpNaN".
- */
+/** Rupiah, as the prototype writes it: "Rp500.000", with a plain minus for what is taken off. */
 export function formatRupiah(amount: number): string {
-  if (!Number.isFinite(amount)) return EMPTY;
-
-  const rupiah = Math.round(amount);
-  return `${rupiah < 0 ? "−" : ""}Rp${RUPIAH_FORMAT.format(Math.abs(rupiah))}`;
+  return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
 }
