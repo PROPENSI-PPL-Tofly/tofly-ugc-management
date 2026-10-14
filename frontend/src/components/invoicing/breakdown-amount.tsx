@@ -1,63 +1,76 @@
 "use client";
 
-import { formatRupiah } from "@/lib/format";
 import {
-  BREAKDOWN_LABELS,
-  WAITING_FOR_DATA,
-  type BreakdownKind,
-  type InvoiceBreakdown,
-} from "@/lib/invoice-breakdown";
+  amountLabel,
+  bonusLabel,
+  DASH,
+  penaltyLabel,
+  type InvoiceRow,
+} from "@/lib/invoice";
+import { BREAKDOWN_LABELS, type BreakdownKind } from "@/lib/invoice-breakdown";
 
 const AMOUNT =
   "cursor-pointer whitespace-nowrap border-none bg-transparent p-0 tabular-nums transition-colors hover:text-accent-deep focus-visible:text-accent-deep";
 
+interface Cell {
+  amount: number | null;
+  text: string;
+  tone: string;
+}
+
 /**
- * How a column reads in its table cell, or null when there is nothing in it to open. A bonus
- * whose performance data has not come in is unknown, not zero, so it says so and can still be
- * opened for the reason; a penalty reads as money taken away.
+ * A column of the row as the table writes it, through the table's own labels so a cell and its
+ * button can never read differently. A bonus still waiting for its data is not a zero: it says
+ * so, and can be opened for the reason.
  */
-function cellText(kind: BreakdownKind, breakdown: InvoiceBreakdown): string | null {
-  const { total } = breakdown[kind];
-
-  if (total === 0) {
-    const waiting = kind === "bonus" && breakdown.bonus.performance === "waiting";
-    return waiting ? WAITING_FOR_DATA : null;
+function cellOf(kind: BreakdownKind, row: InvoiceRow): Cell {
+  switch (kind) {
+    case "fixed":
+      return { amount: row.fixedAmount, text: amountLabel(row.fixedAmount), tone: "text-inherit" };
+    case "extra":
+      return { amount: row.extraAmount, text: amountLabel(row.extraAmount), tone: "text-inherit" };
+    case "bonus":
+      return {
+        amount: row.bonusAmount,
+        text: bonusLabel(row.bonusAmount),
+        tone: row.bonusAmount === null ? "text-muted" : "text-inherit",
+      };
+    case "penalty":
+      return { amount: row.penaltyAmount, text: penaltyLabel(row.penaltyAmount), tone: "text-red-ink" };
   }
-
-  return formatRupiah(kind === "penalty" ? -total : total);
 }
 
 /**
  * One money cell of the Rate & Invoicing table (PBI-8, subtask 8.5): the column's amount as a
- * button that opens its breakdown, or a dash when the column is empty. It reports the press and
- * holds no popup itself, so a table of many rows shares one.
+ * button that opens its breakdown, or the table's dash when there is nothing in it. It reports
+ * the press and holds no popup itself, so a table of many rows shares one.
  */
 export function BreakdownAmount({
   kind,
-  breakdown,
+  row,
   onOpen,
 }: Readonly<{
   kind: BreakdownKind;
-  breakdown: InvoiceBreakdown;
-  onOpen: (kind: BreakdownKind, breakdown: InvoiceBreakdown) => void;
+  row: InvoiceRow;
+  onOpen: (kind: BreakdownKind, row: InvoiceRow) => void;
 }>) {
-  const text = cellText(kind, breakdown);
+  const cell = cellOf(kind, row);
 
-  if (text === null) return <span className="text-muted">—</span>;
+  if (cell.amount === 0) return <span className="text-muted">{DASH}</span>;
 
   return (
     <button
       type="button"
       title="Lihat detail"
-      aria-label={`${BREAKDOWN_LABELS[kind]} ${breakdown.creatorName}: ${text}, lihat rincian`}
-      className={`${AMOUNT} ${kind === "penalty" ? "text-red-ink" : "text-inherit"}`}
+      aria-label={`${BREAKDOWN_LABELS[kind]} ${row.creatorName}: ${cell.text}, lihat rincian`}
+      className={`${AMOUNT} ${cell.tone}`}
       onClick={(event) => {
-        // The row around the cell opens the whole invoice; this press is for the column only.
+        // The row around the cell may open the whole invoice; this press is for the column only.
         event.stopPropagation();
-        onOpen(kind, breakdown);
+        onOpen(kind, row);
       }}
     >
-      {text}
+      {cell.text}
     </button>
   );
 }
