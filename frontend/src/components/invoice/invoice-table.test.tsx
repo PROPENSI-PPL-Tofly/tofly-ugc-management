@@ -111,4 +111,28 @@ describe("InvoiceTable", () => {
 
     expect(screen.getByText("Tidak ada creator sesuai filter.")).toBeInTheDocument();
   });
+
+  describe("with the breakdown triggers of 8.5", () => {
+    const trigger = (kind: string, row: InvoiceRow) => (
+      <button type="button">{`${kind} of ${row.creatorName}`}</button>
+    );
+
+    it("puts the trigger it is handed in each of the four money cells, in their order", () => {
+      render(<InvoiceTable rows={[FULL]} amount={trigger} />);
+
+      expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+        "fixed of Rangga Pratama",
+        "extra of Rangga Pratama",
+        "bonus of Rangga Pratama",
+        "penalty of Rangga Pratama",
+      ]);
+    });
+
+    it("leaves the final rate and the invoice as they are, as neither opens a breakdown", () => {
+      render(<InvoiceTable rows={[FULL]} amount={trigger} />);
+
+      expect(screen.getByText("Rp5.800.000")).toBeInTheDocument();
+      expect(screen.getByText("Berjalan")).toBeInTheDocument();
+    });
+  });
 });
