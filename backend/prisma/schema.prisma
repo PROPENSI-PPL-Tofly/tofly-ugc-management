@@ -126,6 +126,32 @@ model users {
   creators       creators?
   app_sessions   app_sessions[]
   content_events content_events[]
+  rate_formula   rate_formula[]
+}
+
+/// The one Atur Formula Rate row (PBI-8); its id can only be true.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rate_formula {
+  id                   Boolean  @id @default(true)
+  specific_bonus       Decimal  @db.Decimal(12, 2)
+  late_penalty_per_day Decimal  @db.Decimal(12, 2)
+  /// The admin who saved the formula last; the API never answers it.
+  updated_by           String?  @db.Uuid
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+  users                users?   @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
+/// A platform's performance bonus tiers, numbered 1 to 5 in threshold order.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model performance_bonus_tiers {
+  platform  social_platform
+  position  Int
+  /// Provisional: what the threshold counts, and in which unit, is for PBI-19 to settle.
+  threshold Decimal         @db.Decimal(12, 2)
+  bonus     Decimal         @db.Decimal(12, 2)
+
+  @@id([platform, position])
 }
 
 model app_sessions {
