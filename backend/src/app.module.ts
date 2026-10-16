@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
 import { GoogleAuthModule } from './auth/google/google-auth.module.js';
 import { SessionModule } from './auth/session/session.module.js';
@@ -40,7 +38,6 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
         SessionModule,
         GoogleAuthModule,
     ],
-    controllers: [AppController, HealthController],
-    providers: [AppService],
+    controllers: [HealthController],
 })
 export class AppModule {}
