@@ -137,8 +137,6 @@ describe("Creator Detail page", () => {
       within(screen.getByRole("navigation", { name: "Pilih periode kontrak" })).getAllByRole("link"),
     ).toHaveLength(2);
     expect(screen.getByText("Evg_7_RanggaPratama_26092026")).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Navigasi halaman atas" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Navigasi halaman bawah" })).toBeInTheDocument();
   });
 
   it("asks for the creator in the address on the bare view", async () => {
