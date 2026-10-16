@@ -3,14 +3,18 @@ import { vi } from "vitest";
 import { CreatorTable } from "./creator-table";
 import { creator } from "./creator.fixture";
 
-const { push } = vi.hoisted(() => ({
+const { push, replace } = vi.hoisted(() => ({
   push: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push,
+    replace,
   }),
+  usePathname: () => "/admin/creators",
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 describe("CreatorTable", () => {
@@ -234,6 +238,16 @@ describe("CreatorTable", () => {
       screen.getByText("Tidak ada creator yang cocok dengan pencarian atau filter."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Belum ada creator yang terdaftar.")).toBeNull();
+  });
+
+  it("offers the same way out of an empty search as every other list: the hint and Reset filter", () => {
+    window.history.pushState({}, "", "/admin/creators?q=zzz&contractStatus=active");
+    render(<CreatorTable creators={[]} total={0} filtered />);
+
+    expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/admin/creators", { scroll: false });
   });
 
   it("points back to the first page when the page is past the end", () => {

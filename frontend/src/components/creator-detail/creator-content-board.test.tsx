@@ -206,6 +206,15 @@ describe("CreatorContentBoard", () => {
       );
     });
 
+    it("clears the filters from an empty filtered period but stays on that period", () => {
+      window.history.pushState({}, "", `${PAGE}?contract=${CONTRACT}&status=pending`);
+      renderBoard(viewOf(0), { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: CONTRACT, status: ["pending"] });
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+      expect(replace).toHaveBeenCalledWith(`${PAGE}?contract=${CONTRACT}`, { scroll: false });
+    });
+
     it("says an unfiltered period has no content yet", () => {
       renderBoard(viewOf(0));
 

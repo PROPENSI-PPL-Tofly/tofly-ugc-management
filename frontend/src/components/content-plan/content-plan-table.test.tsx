@@ -20,6 +20,7 @@ function renderTable(
 ) {
   const onOpen = vi.fn();
   const onSortToggle = vi.fn();
+  const onReset = vi.fn();
   render(
     <ContentPlanTable
       items={rows}
@@ -28,9 +29,10 @@ function renderTable(
       sort="desc"
       onSortToggle={onSortToggle}
       onOpen={onOpen}
+      onReset={onReset}
     />,
   );
-  return { onOpen, onSortToggle };
+  return { onOpen, onSortToggle, onReset };
 }
 
 describe("ContentPlanTable", () => {
@@ -232,9 +234,18 @@ describe("ContentPlanTable", () => {
   });
 
   it("says the filter found nothing when a filter narrowed the view", () => {
-    renderTable([], { filtered: true });
+    const { onReset } = renderTable([], { filtered: true });
     expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
+    expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
     expect(screen.queryByText("Belum ada konten.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+    expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no Reset filter on a list that is simply empty", () => {
+    renderTable([]);
+    expect(screen.queryByRole("button", { name: "Reset filter" })).toBeNull();
   });
 
   it("hands the deadline press back so the page can turn the direction over", () => {

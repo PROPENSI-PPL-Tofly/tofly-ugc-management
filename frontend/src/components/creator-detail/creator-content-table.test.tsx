@@ -14,8 +14,9 @@ const ROW: CreatorContentRow = {
 
 function renderTable(rows: CreatorContentRow[] = [ROW], { filtered = false } = {}) {
   const onOpen = vi.fn();
-  render(<CreatorContentTable rows={rows} filtered={filtered} onOpen={onOpen} />);
-  return { onOpen };
+  const onReset = vi.fn();
+  render(<CreatorContentTable rows={rows} filtered={filtered} onOpen={onOpen} onReset={onReset} />);
+  return { onOpen, onReset };
 }
 
 /** The table row a content's name sits in. */
@@ -238,11 +239,14 @@ describe("CreatorContentTable", () => {
     });
 
     it("says nothing matches when a filter hid them all, and how to get them back", () => {
-      renderTable([], { filtered: true });
+      const { onReset } = renderTable([], { filtered: true });
 
       expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
-      expect(screen.getByText("Longgarkan filternya atau tekan Reset.")).toBeInTheDocument();
+      expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
       expect(screen.queryByText("Belum ada konten pada periode kontrak ini.")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+      expect(onReset).toHaveBeenCalledTimes(1);
     });
   });
 
