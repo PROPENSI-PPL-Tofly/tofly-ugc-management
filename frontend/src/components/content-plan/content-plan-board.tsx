@@ -95,6 +95,11 @@ export function ContentPlanBoard({
     replaceQuery(next.toString());
   }
 
+  /** The empty filtered list's way back: every filter goes, the tab stays. */
+  function resetFilters() {
+    replaceQuery(tab === "all" ? "" : new URLSearchParams({ tab }).toString());
+  }
+
   return (
     <>
       {/* The region the tabs switch, named by the tabs' aria-controls. */}
@@ -106,6 +111,7 @@ export function ContentPlanBoard({
           sort={sort}
           onSortToggle={toggleSort}
           onOpen={setOpenContentId}
+          onReset={resetFilters}
         />
       </div>
       {openContentId ? (

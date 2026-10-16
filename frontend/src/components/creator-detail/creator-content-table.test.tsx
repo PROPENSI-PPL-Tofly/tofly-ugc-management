@@ -256,6 +256,7 @@ describe("CreatorContentTable", () => {
         rows={[{ ...ROW, name: '<img src=x onerror="alert(1)">' }]}
         filtered={false}
         onOpen={vi.fn()}
+        onReset={vi.fn()}
       />,
     );
 

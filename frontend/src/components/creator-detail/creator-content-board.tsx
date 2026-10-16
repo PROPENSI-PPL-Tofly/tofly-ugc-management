@@ -15,6 +15,7 @@ import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import {
   CREATOR_DETAIL_PAGE_SIZE,
+  DEFAULT_CREATOR_DETAIL_PARAMS,
   PERIOD_STATUS_LABELS,
   buildCreatorDetailQuery,
   creatorDetailBase,
@@ -22,6 +23,7 @@ import {
   type CreatorDetailParams,
   type CreatorDetailView,
 } from "@/lib/creator-detail";
+import { useUrlQuery } from "@/lib/url-query";
 import { CreatorContentFilters } from "./creator-content-filters";
 import { CreatorContentTable } from "./creator-content-table";
 
@@ -48,8 +50,15 @@ export function CreatorContentBoard({
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const { show: confirm, toast } = useToast();
+  const { replaceQuery } = useUrlQuery();
 
   const period = view.selected;
+
+  /** The empty filtered table's way back: every filter goes, the open period stays. */
+  function resetFilters() {
+    const query = buildCreatorDetailQuery({ ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: state.contract });
+    replaceQuery(new URLSearchParams(query).toString());
+  }
 
   /** What the list shows has changed: say so, and read it again. */
   function confirmAndRefresh(message: string) {
@@ -96,6 +105,7 @@ export function CreatorContentBoard({
           rows={view.rows}
           filtered={isCreatorDetailFiltered(state)}
           onOpen={setOpenContentId}
+          onReset={resetFilters}
         />
 
         <Pagination

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
+import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot } from "@/components/ui/pill";
 import {
@@ -34,6 +35,7 @@ export function ContentPlanTable({
   sort,
   onSortToggle,
   onOpen,
+  onReset,
 }: Readonly<{
   items: readonly ContentPlanRow[];
   /** Whether a search or filter narrowed the list, which changes what an empty list means. */
@@ -42,17 +44,14 @@ export function ContentPlanTable({
   sort: DeadlineSort;
   onSortToggle: () => void;
   onOpen: (contentId: string) => void;
+  /** Clears the search and filters that emptied the list. */
+  onReset: () => void;
 }>) {
   if (items.length === 0) {
-    return (
-      <EmptyState
-        title={filtered ? CONTENT_PLAN_FILTERED_EMPTY : CONTENT_PLAN_EMPTY[tab]}
-        hint={
-          filtered
-            ? "Longgarkan pencarian atau filternya."
-            : undefined
-        }
-      />
+    return filtered ? (
+      <FilteredEmpty title={CONTENT_PLAN_FILTERED_EMPTY} onReset={onReset} />
+    ) : (
+      <EmptyState title={CONTENT_PLAN_EMPTY[tab]} />
     );
   }
 

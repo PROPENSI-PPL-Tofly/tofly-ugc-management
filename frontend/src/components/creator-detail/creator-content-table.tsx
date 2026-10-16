@@ -2,6 +2,7 @@
 
 import { ContentTags } from "@/components/contents/content-tags";
 import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
+import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
 import {
@@ -25,18 +26,18 @@ export function CreatorContentTable({
   rows,
   filtered,
   onOpen,
+  onReset,
 }: Readonly<{
   rows: readonly CreatorContentRow[];
   /** Whether a filter narrowed the table, which changes what an empty table means. */
   filtered: boolean;
   onOpen: (contentId: string) => void;
+  /** Clears the filters that emptied the table. */
+  onReset: () => void;
 }>) {
   if (rows.length === 0) {
     return filtered ? (
-      <EmptyState
-        title="Tidak ada konten sesuai filter."
-        hint="Longgarkan filternya atau tekan Reset."
-      />
+      <FilteredEmpty title="Tidak ada konten sesuai filter." onReset={onReset} />
     ) : (
       <EmptyState title="Belum ada konten pada periode kontrak ini." />
     );

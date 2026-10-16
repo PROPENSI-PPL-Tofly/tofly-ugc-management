@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useUrlQuery } from "@/lib/url-query";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import { creatorDetailBase } from "@/lib/creator-detail";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
@@ -70,7 +72,15 @@ const LINK_BUTTON = buttonClasses();
  * Why the table is empty. Three different situations, three different next steps: nobody has
  * been added yet, the search or filters matched nobody, or the page number is past the end.
  */
-function EmptyRoster({ total, filtered }: { total: number; filtered: boolean }) {
+function EmptyRoster({
+  total,
+  filtered,
+  onReset,
+}: {
+  total: number;
+  filtered: boolean;
+  onReset: () => void;
+}) {
   if (total > 0) {
     return (
       <EmptyState
@@ -87,9 +97,9 @@ function EmptyRoster({ total, filtered }: { total: number; filtered: boolean }) 
 
   if (filtered) {
     return (
-      <EmptyState
+      <FilteredEmpty
         title="Tidak ada creator yang cocok dengan pencarian atau filter."
-        hint="Periksa ejaan nama atau email, atau longgarkan filternya."
+        onReset={onReset}
       />
     );
   }
@@ -117,9 +127,11 @@ export function CreatorTable({
   filtered?: boolean;
 }) {
   const router = useRouter();
+  const { replaceQuery } = useUrlQuery();
 
   if (creators.length === 0) {
-    return <EmptyRoster total={total} filtered={filtered} />;
+    // The way back from an empty search clears it and every filter, as the bar's Reset does.
+    return <EmptyRoster total={total} filtered={filtered} onReset={() => replaceQuery("")} />;
   }
 
   return (

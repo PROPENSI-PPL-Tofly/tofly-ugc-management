@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { list } from "@/lib/search-params";
 import { MAX_SEARCH_LENGTH } from "@/lib/use-url-filters";
 
@@ -167,5 +169,23 @@ export function ResetFilters({
     >
       Reset
     </button>
+  );
+}
+
+/**
+ * What a list says when its search or filters matched nothing: the list's own words for that,
+ * one hint every list shares, and the way back. Reset filter clears what the caller says to
+ * clear and keeps the rest (the tab, the period), as the bar's own Reset does.
+ */
+export function FilteredEmpty({
+  title,
+  onReset,
+}: Readonly<{ title: string; onReset: () => void }>) {
+  return (
+    <EmptyState
+      title={title}
+      hint="Longgarkan pencarian atau filternya."
+      action={<Button onClick={onReset}>Reset filter</Button>}
+    />
   );
 }
