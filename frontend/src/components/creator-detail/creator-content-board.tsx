@@ -31,8 +31,8 @@ import { CreatorContentTable } from "./creator-content-table";
  * does. A decision or a new content refreshes the page, which re-fetches the rows and the
  * period's terms.
  *
- * The pagination stands above and below the table and stays there on a single page (4.2), so
- * where the admin is in the list reads the same wherever they have scrolled to.
+ * The pagination sits once below the table and steps aside when everything fits on one page,
+ * as it does on Content Plan and Task Saya.
  */
 export function CreatorContentBoard({
   creatorId,
@@ -74,7 +74,6 @@ export function CreatorContentBoard({
       noun="konten"
       // The filters and the period, without the page: each link names its own.
       query={buildCreatorDetailQuery({ ...state, page: 1 })}
-      always
       page={view.page}
       pageSize={CREATOR_DETAIL_PAGE_SIZE}
       total={view.total}
@@ -103,10 +102,6 @@ export function CreatorContentBoard({
           )}
         </div>
 
-        <nav aria-label="Navigasi halaman atas" className="border-t border-rule">
-          {pages}
-        </nav>
-
         <CreatorContentFilters />
 
         <CreatorContentTable
@@ -115,7 +110,7 @@ export function CreatorContentBoard({
           onOpen={setOpenContentId}
         />
 
-        <nav aria-label="Navigasi halaman bawah">{pages}</nav>
+        {pages}
       </Panel>
 
       {adding ? (
