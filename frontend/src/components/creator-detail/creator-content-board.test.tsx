@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   type CreatorContentRow,
@@ -131,14 +131,6 @@ function renderBoard(
   return render(<CreatorContentBoard creatorId={CREATOR} view={view} state={state} />);
 }
 
-function topPages() {
-  return within(screen.getByRole("navigation", { name: "Navigasi halaman atas" }));
-}
-
-function bottomPages() {
-  return within(screen.getByRole("navigation", { name: "Navigasi halaman bawah" }));
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -159,20 +151,27 @@ describe("CreatorContentBoard", () => {
   });
 
   describe("pagination", () => {
+    it("pages a longer period once, below the table, like every other list", () => {
+      renderBoard(viewOf(25));
+
+      expect(screen.getAllByText("Menampilkan 1–10 dari 25 konten")).toHaveLength(1);
+      expect(screen.getByText("Halaman 1 dari 3")).toBeInTheDocument();
+      // Below the table: the slice comes after the last row in the page.
+      const slice = screen.getByText("Menampilkan 1–10 dari 25 konten");
+      expect(
+        screen.getByRole("table").compareDocumentPosition(slice) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
     it.each([
-      ["several pages", 25, "Menampilkan 1–10 dari 25 konten", "Halaman 1 dari 3"],
-      ["exactly one full page", 10, "Menampilkan 1–10 dari 10 konten", "Halaman 1 dari 1"],
-      ["less than a page", 3, "Menampilkan 1–3 dari 3 konten", "Halaman 1 dari 1"],
-      ["no content at all", 0, "Menampilkan 0 konten", "Halaman 1 dari 1"],
-    ])("stays on show above and below the table with %s", (_, total, slice, where) => {
+      ["exactly one full page", 10],
+      ["less than a page", 3],
+      ["no content at all", 0],
+    ])("has nothing to page through with %s", (_, total) => {
       renderBoard(viewOf(total));
 
-      for (const pages of [topPages(), bottomPages()]) {
-        expect(pages.getByText(slice)).toBeInTheDocument();
-        expect(pages.getByText(where)).toBeInTheDocument();
-        expect(pages.getByText("Sebelumnya")).toBeInTheDocument();
-        expect(pages.getByText("Berikutnya")).toBeInTheDocument();
-      }
+      expect(screen.queryByText(/^Menampilkan/)).toBeNull();
+      expect(screen.queryByText("Berikutnya")).toBeNull();
     });
 
     it("shows ten rows of a longer period, and the rest behind Berikutnya", () => {
@@ -180,16 +179,14 @@ describe("CreatorContentBoard", () => {
 
       // The heading row and the ten of this page.
       expect(screen.getAllByRole("row")).toHaveLength(11);
-      for (const pages of [topPages(), bottomPages()]) {
-        expect(pages.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
-          "href",
-          `${PAGE}?page=2`,
-        );
-        expect(pages.queryByRole("link", { name: "Sebelumnya" })).toBeNull();
-      }
+      expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
+        "href",
+        `${PAGE}?page=2`,
+      );
+      expect(screen.queryByRole("link", { name: "Sebelumnya" })).toBeNull();
     });
 
-    it("carries the open period and the filters into both sets of links", () => {
+    it("carries the open period and the filters into the page links", () => {
       const state: CreatorDetailParams = {
         contract: CONTRACT,
         type: [],
@@ -198,25 +195,15 @@ describe("CreatorContentBoard", () => {
       };
       renderBoard(viewOf(25, 2), state);
 
-      for (const pages of [topPages(), bottomPages()]) {
-        expect(pages.getByText("Menampilkan 11–20 dari 25 konten")).toBeInTheDocument();
-        expect(pages.getByRole("link", { name: "Sebelumnya" })).toHaveAttribute(
-          "href",
-          `${PAGE}?contract=${CONTRACT}&status=scheduled`,
-        );
-        expect(pages.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
-          "href",
-          `${PAGE}?contract=${CONTRACT}&status=scheduled&page=3`,
-        );
-      }
-    });
-
-    it("stays on show while a filter hides every row", () => {
-      renderBoard(viewOf(0), { ...DEFAULT_CREATOR_DETAIL_PARAMS, status: ["pending"] });
-
-      expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
-      expect(topPages().getByText("Menampilkan 0 konten")).toBeInTheDocument();
-      expect(bottomPages().getByText("Menampilkan 0 konten")).toBeInTheDocument();
+      expect(screen.getByText("Menampilkan 11–20 dari 25 konten")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Sebelumnya" })).toHaveAttribute(
+        "href",
+        `${PAGE}?contract=${CONTRACT}&status=scheduled`,
+      );
+      expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
+        "href",
+        `${PAGE}?contract=${CONTRACT}&status=scheduled&page=3`,
+      );
     });
 
     it("says an unfiltered period has no content yet", () => {
