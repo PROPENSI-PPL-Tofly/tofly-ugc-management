@@ -201,11 +201,18 @@ describe("ContentPlanTable", () => {
     });
   });
 
-  it("keeps the detail button quiet for a row the creator holds", () => {
-    renderTable([{ ...ROW, status: "scheduled" }]);
-    const detail = screen.getByRole("button", { name: "Detail Video Review Kopi" });
-    expect(detail).toBeInTheDocument();
-    expect(detail.className).toContain("border-transparent");
+  it("offers no Detail button for a row the creator holds; its name opens it", () => {
+    const { onOpen } = renderTable([{ ...ROW, status: "scheduled" }]);
+
+    expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+  });
+
+  it("lets the keyboard reach a row through its name, a real button", () => {
+    renderTable();
+
+    expect(screen.getByRole("button", { name: "Video Review Kopi" })).toHaveAttribute("type", "button");
   });
 
   it("reads each tag as a coloured pill beside the status", () => {

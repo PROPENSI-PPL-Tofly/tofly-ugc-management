@@ -154,20 +154,24 @@ describe("CreatorContentTable", () => {
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
     });
 
-    it.each([
-      ["pending", "Tinjau"],
-      ["draft_review", "Tinjau"],
-      ["scheduled", "Detail"],
-      ["draft_revision", "Detail"],
-      ["draft_approved", "Detail"],
-      ["link_submitted", "Detail"],
-    ] as const)("words the button for a %s content as %s", (status, label) => {
+    it.each(["pending", "draft_review"] as const)("offers Tinjau for a %s content", (status) => {
       renderTable([{ ...ROW, status }]);
 
       expect(
-        screen.getByRole("button", { name: `${label} Evg_7_RanggaPratama_26092026` }),
-      ).toHaveTextContent(label);
+        screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }),
+      ).toHaveTextContent("Tinjau");
     });
+
+    it.each(["scheduled", "draft_revision", "draft_approved", "link_submitted"] as const)(
+      "offers no Detail button for a %s content; its name opens it",
+      (status) => {
+        const { onOpen } = renderTable([{ ...ROW, status }]);
+
+        expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Evg_7_RanggaPratama_26092026" }));
+        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+      },
+    );
 
     it("opens the content that was pressed, among several", () => {
       const { onOpen } = renderTable([ROW, { ...ROW, contentId: "c-2", name: "Konten Kedua" }]);

@@ -68,7 +68,6 @@ describe("CreatorTable", () => {
       "Tepat waktu",
       "Rata-rata revisi",
       "Produktivitas",
-      "Aksi",
     ]);
   });
 
@@ -252,17 +251,23 @@ describe("CreatorTable", () => {
   // PBI-4: the Creator Detail page takes the place of the Detail dialog and of the creator's
   // own Content Plan page, so a row has one way in.
   describe("opening a creator", () => {
-    it("offers one Detail link per row, to the creator's own page", () => {
+    it("makes the creator's name the row's one link, to the creator's own page", () => {
       render(<CreatorTable creators={[creator({ id: "creator-123" })]} total={1} />);
 
       const row = screen.getAllByRole("row")[1];
 
       expect(within(row).getAllByRole("link")).toHaveLength(1);
-      expect(within(row).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+      expect(within(row).getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
         "href",
         "/admin/creators/creator-123",
       );
-      expect(within(row).getByRole("link")).toHaveTextContent("Detail");
+    });
+
+    it("offers no separate Detail button, since the row already opens the creator", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      expect(screen.queryByText("Detail")).toBeNull();
+      expect(screen.queryByRole("link", { name: /^Detail/ })).toBeNull();
     });
 
     it("no longer offers the creator's own Content Plan page", () => {
@@ -290,14 +295,14 @@ describe("CreatorTable", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Salsa Amelia"));
+      fireEvent.click(screen.getByText("salsa@example.com"));
 
       expect(push).toHaveBeenCalledExactlyOnceWith("/admin/creators/creator-2");
     });
 
     it("leaves the link to open the page itself, not once for the link and once for the row", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
-      const link = screen.getByRole("link", { name: "Detail Rangga Pratama" });
+      const link = screen.getByRole("link", { name: "Rangga Pratama" });
       // The link's own navigation is the browser's; here only the row's share is watched.
       link.addEventListener("click", (event) => event.preventDefault());
 
