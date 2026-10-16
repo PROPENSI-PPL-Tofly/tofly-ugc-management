@@ -62,10 +62,10 @@ export const PERIOD_STATUS_LABELS: Record<PeriodStatus, string> = {
   upcoming: "Belum Dimulai",
 };
 
-/** Always beside its label, so colour is never the only signal. */
+/** The dot beside the label, as Creator Database colours a contract; never the only signal. */
 export const PERIOD_STATUS_TONES: Record<PeriodStatus, Tone> = {
   active: "green",
-  expired: "neutral",
+  expired: "red",
   upcoming: "accent",
 };
 

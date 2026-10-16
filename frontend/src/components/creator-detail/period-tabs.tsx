@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Panel, PanelHead } from "@/components/ui/panel";
-import { Pill } from "@/components/ui/pill";
+import { StatusDot } from "@/components/ui/pill";
 import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
@@ -78,9 +78,9 @@ export function PeriodTabs({
                     <span className="text-[13px] font-semibold">
                       Periode {period.periodNumber} · {CONTRACT_TYPE_LABELS[period.type]}
                     </span>
-                    <Pill tone={PERIOD_STATUS_TONES[period.status]}>
+                    <StatusDot tone={PERIOD_STATUS_TONES[period.status]}>
                       {PERIOD_STATUS_LABELS[period.status]}
-                    </Pill>
+                    </StatusDot>
                   </span>
                   <span className="text-xs text-muted">
                     {formatContractWindow(period.startDate, period.endDate)}

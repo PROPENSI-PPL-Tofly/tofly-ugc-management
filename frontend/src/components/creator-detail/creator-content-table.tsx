@@ -3,25 +3,18 @@
 import { ContentTags } from "@/components/contents/content-tags";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Pill, type Tone } from "@/components/ui/pill";
+import { StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
 } from "@/lib/content-labels";
 import { needsReview } from "@/lib/content-plan";
-import type { ContentType } from "@/lib/contents";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
 
 const HEAD = "px-5 py-3 font-semibold";
 const CELL = "px-5 py-3 align-top";
-
-/** The type sits under the name as a small pill, coloured apart as the prototype colours them. */
-const TYPE_TONES: Record<ContentType, Tone> = {
-  evergreen: "accent",
-  specific: "red",
-};
 
 /**
  * One period's content: a row per piece, its status and tags worded the way every other admin
@@ -89,17 +82,15 @@ export function CreatorContentTable({
               >
                 <td className={`${CELL} min-w-52`}>
                   <p className="font-semibold text-ink wrap-anywhere">{row.name}</p>
-                  <p className="mt-1">
-                    <Pill tone={TYPE_TONES[row.type]}>{CONTENT_TYPE_LABELS[row.type]}</Pill>
-                  </p>
+                  {/* The type as quiet text, as Content Plan and Task Saya show it: a fact, not a judgment. */}
+                  <span className="mt-0.5 block text-xs text-muted">{CONTENT_TYPE_LABELS[row.type]}</span>
                 </td>
                 <td className={`${CELL} whitespace-nowrap`}>{formatDate(row.deadline)}</td>
                 <td className={CELL}>
                   <span className="flex flex-wrap items-center gap-1.5">
-                    {/* A pill, as the prototype draws a status on this page. */}
-                    <Pill tone={CONTENT_STATUS_TONES[row.status]}>
+                    <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                       {CONTENT_STATUS_LABELS[row.status]}
-                    </Pill>
+                    </StatusDot>
                     <ContentTags tags={row.tags} />
                     {row.revisionCount > 0 ? (
                       <span className="text-xs font-semibold text-amber-ink">
