@@ -68,18 +68,6 @@ export function CreatorContentBoard({
     );
   }
 
-  const pages = (
-    <Pagination
-      basePath={creatorDetailBase(creatorId)}
-      noun="konten"
-      // The filters and the period, without the page: each link names its own.
-      query={buildCreatorDetailQuery({ ...state, page: 1 })}
-      page={view.page}
-      pageSize={CREATOR_DETAIL_PAGE_SIZE}
-      total={view.total}
-      totalPages={view.totalPages}
-    />
-  );
 
   return (
     <>
@@ -110,7 +98,16 @@ export function CreatorContentBoard({
           onOpen={setOpenContentId}
         />
 
-        {pages}
+        <Pagination
+          basePath={creatorDetailBase(creatorId)}
+          noun="konten"
+          // The filters and the period, without the page: each link names its own.
+          query={buildCreatorDetailQuery({ ...state, page: 1 })}
+          page={view.page}
+          pageSize={CREATOR_DETAIL_PAGE_SIZE}
+          total={view.total}
+          totalPages={view.totalPages}
+        />
       </Panel>
 
       {adding ? (
