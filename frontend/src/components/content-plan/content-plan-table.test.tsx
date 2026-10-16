@@ -20,6 +20,7 @@ function renderTable(
 ) {
   const onOpen = vi.fn();
   const onSortToggle = vi.fn();
+  const onReset = vi.fn();
   render(
     <ContentPlanTable
       items={rows}
@@ -28,9 +29,10 @@ function renderTable(
       sort="desc"
       onSortToggle={onSortToggle}
       onOpen={onOpen}
+      onReset={onReset}
     />,
   );
-  return { onOpen, onSortToggle };
+  return { onOpen, onSortToggle, onReset };
 }
 
 describe("ContentPlanTable", () => {
@@ -201,11 +203,18 @@ describe("ContentPlanTable", () => {
     });
   });
 
-  it("keeps the detail button quiet for a row the creator holds", () => {
-    renderTable([{ ...ROW, status: "scheduled" }]);
-    const detail = screen.getByRole("button", { name: "Detail Video Review Kopi" });
-    expect(detail).toBeInTheDocument();
-    expect(detail.className).toContain("border-transparent");
+  it("offers no Detail button for a row the creator holds; its name opens it", () => {
+    const { onOpen } = renderTable([{ ...ROW, status: "scheduled" }]);
+
+    expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+  });
+
+  it("lets the keyboard reach a row through its name, a real button", () => {
+    renderTable();
+
+    expect(screen.getByRole("button", { name: "Video Review Kopi" })).toHaveAttribute("type", "button");
   });
 
   it("reads each tag as a coloured pill beside the status", () => {
@@ -225,9 +234,18 @@ describe("ContentPlanTable", () => {
   });
 
   it("says the filter found nothing when a filter narrowed the view", () => {
-    renderTable([], { filtered: true });
+    const { onReset } = renderTable([], { filtered: true });
     expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
+    expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
     expect(screen.queryByText("Belum ada konten.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+    expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no Reset filter on a list that is simply empty", () => {
+    renderTable([]);
+    expect(screen.queryByRole("button", { name: "Reset filter" })).toBeNull();
   });
 
   it("hands the deadline press back so the page can turn the direction over", () => {

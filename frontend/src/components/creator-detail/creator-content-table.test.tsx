@@ -14,8 +14,9 @@ const ROW: CreatorContentRow = {
 
 function renderTable(rows: CreatorContentRow[] = [ROW], { filtered = false } = {}) {
   const onOpen = vi.fn();
-  render(<CreatorContentTable rows={rows} filtered={filtered} onOpen={onOpen} />);
-  return { onOpen };
+  const onReset = vi.fn();
+  render(<CreatorContentTable rows={rows} filtered={filtered} onOpen={onOpen} onReset={onReset} />);
+  return { onOpen, onReset };
 }
 
 /** The table row a content's name sits in. */
@@ -77,21 +78,32 @@ describe("CreatorContentTable", () => {
     expect(screen.getByText(label)).toBeInTheDocument();
   });
 
-  // The prototype draws a status as a pill. The colour is the one every admin view gives it.
+  // A status is a fact, so it reads as a dot beside its words, as Content Plan, Task Saya and
+  // Creator Database draw it. The dot takes the colour every admin view gives the status.
   it.each([
-    ["pending", "Pending", "bg-accent-wash"],
-    ["scheduled", "Scheduled", "bg-surface-2"],
-    ["draft_review", "Draft Menunggu Review", "bg-accent-wash"],
-    ["draft_revision", "Draft Perlu Revisi", "bg-amber-wash"],
-    ["draft_approved", "Draft Approved", "bg-green-wash"],
-    ["link_submitted", "Content Link Submitted", "bg-green-wash"],
-  ] as const)("draws the status %s as a pill in its own colour", (status, label, colour) => {
+    ["pending", "Pending", "bg-accent"],
+    ["scheduled", "Scheduled", "bg-rule"],
+    ["draft_review", "Draft Menunggu Review", "bg-accent"],
+    ["draft_revision", "Draft Perlu Revisi", "bg-amber"],
+    ["draft_approved", "Draft Approved", "bg-green"],
+    ["link_submitted", "Content Link Submitted", "bg-green"],
+  ] as const)("draws the status %s as a dot and its words, not a pill", (status, label, colour) => {
     renderTable([{ ...ROW, status }]);
 
-    const pill = screen.getByText(label);
-    expect(pill).toHaveClass("rounded-full", colour);
-    // A pill carries its own colour: no separate dot beside the words.
-    expect(pill.querySelector('[aria-hidden="true"]')).toBeNull();
+    const status_ = screen.getByText(label);
+    expect(status_).not.toHaveClass("rounded-full");
+    expect(status_.querySelector('[aria-hidden="true"]')).toHaveClass(colour);
+  });
+
+  it.each([
+    ["evergreen", "Evergreen"],
+    ["specific", "Specific"],
+  ] as const)("writes a %s content's type as quiet text, not a coloured pill", (type, label) => {
+    renderTable([{ ...ROW, type }]);
+
+    const typeLabel = screen.getByText(label);
+    expect(typeLabel).not.toHaveClass("rounded-full");
+    expect(typeLabel).toHaveClass("text-muted");
   });
 
   it("shows every tag the content carries beside its status", () => {
@@ -143,20 +155,24 @@ describe("CreatorContentTable", () => {
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
     });
 
-    it.each([
-      ["pending", "Tinjau"],
-      ["draft_review", "Tinjau"],
-      ["scheduled", "Detail"],
-      ["draft_revision", "Detail"],
-      ["draft_approved", "Detail"],
-      ["link_submitted", "Detail"],
-    ] as const)("words the button for a %s content as %s", (status, label) => {
+    it.each(["pending", "draft_review"] as const)("offers Tinjau for a %s content", (status) => {
       renderTable([{ ...ROW, status }]);
 
       expect(
-        screen.getByRole("button", { name: `${label} Evg_7_RanggaPratama_26092026` }),
-      ).toHaveTextContent(label);
+        screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }),
+      ).toHaveTextContent("Tinjau");
     });
+
+    it.each(["scheduled", "draft_revision", "draft_approved", "link_submitted"] as const)(
+      "offers no Detail button for a %s content; its name opens it",
+      (status) => {
+        const { onOpen } = renderTable([{ ...ROW, status }]);
+
+        expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Evg_7_RanggaPratama_26092026" }));
+        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+      },
+    );
 
     it("opens the content that was pressed, among several", () => {
       const { onOpen } = renderTable([ROW, { ...ROW, contentId: "c-2", name: "Konten Kedua" }]);
@@ -223,11 +239,14 @@ describe("CreatorContentTable", () => {
     });
 
     it("says nothing matches when a filter hid them all, and how to get them back", () => {
-      renderTable([], { filtered: true });
+      const { onReset } = renderTable([], { filtered: true });
 
       expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
-      expect(screen.getByText("Longgarkan filternya atau tekan Reset.")).toBeInTheDocument();
+      expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
       expect(screen.queryByText("Belum ada konten pada periode kontrak ini.")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+      expect(onReset).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -237,6 +256,7 @@ describe("CreatorContentTable", () => {
         rows={[{ ...ROW, name: '<img src=x onerror="alert(1)">' }]}
         filtered={false}
         onOpen={vi.fn()}
+        onReset={vi.fn()}
       />,
     );
 

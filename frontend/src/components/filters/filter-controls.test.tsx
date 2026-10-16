@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import {
+  FilteredEmpty,
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
@@ -117,6 +118,18 @@ describe("PeriodFilter", () => {
   it("stays quiet when the period applies", () => {
     renderPeriod("month", false);
     expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
+  });
+});
+
+describe("FilteredEmpty", () => {
+  it("says the filters found nothing, how to widen them, and offers Reset filter", () => {
+    const onReset = vi.fn();
+    render(<FilteredEmpty title="Tidak ada konten sesuai filter." onReset={onReset} />);
+
+    expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
+    expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+    expect(onReset).toHaveBeenCalledTimes(1);
   });
 });
 

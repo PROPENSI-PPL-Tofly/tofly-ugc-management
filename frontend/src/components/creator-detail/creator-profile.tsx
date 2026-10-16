@@ -1,5 +1,5 @@
 import { Panel } from "@/components/ui/panel";
-import { Pill } from "@/components/ui/pill";
+import { StatusDot } from "@/components/ui/pill";
 import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
 import {
   PERIOD_STATUS_LABELS,
@@ -60,15 +60,13 @@ export function CreatorProfilePanel({
         {current ? (
           <dl className="grid shrink-0 grid-cols-[auto_auto] items-center gap-x-4 gap-y-2">
             <dt className={CAPTION}>Tipe</dt>
-            <dd>
-              <Pill>{CONTRACT_TYPE_LABELS[current.type]}</Pill>
-            </dd>
+            <dd className="text-[13px] font-semibold">{CONTRACT_TYPE_LABELS[current.type]}</dd>
 
             <dt className={CAPTION}>Kontrak</dt>
             <dd>
-              <Pill tone={PERIOD_STATUS_TONES[current.status]}>
+              <StatusDot tone={PERIOD_STATUS_TONES[current.status]}>
                 {PERIOD_STATUS_LABELS[current.status]}
-              </Pill>
+              </StatusDot>
             </dd>
           </dl>
         ) : null}

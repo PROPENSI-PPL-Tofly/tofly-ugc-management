@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useUrlQuery } from "@/lib/url-query";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import { creatorDetailBase } from "@/lib/creator-detail";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
@@ -70,7 +72,15 @@ const LINK_BUTTON = buttonClasses();
  * Why the table is empty. Three different situations, three different next steps: nobody has
  * been added yet, the search or filters matched nobody, or the page number is past the end.
  */
-function EmptyRoster({ total, filtered }: { total: number; filtered: boolean }) {
+function EmptyRoster({
+  total,
+  filtered,
+  onReset,
+}: {
+  total: number;
+  filtered: boolean;
+  onReset: () => void;
+}) {
   if (total > 0) {
     return (
       <EmptyState
@@ -87,9 +97,9 @@ function EmptyRoster({ total, filtered }: { total: number; filtered: boolean }) 
 
   if (filtered) {
     return (
-      <EmptyState
+      <FilteredEmpty
         title="Tidak ada creator yang cocok dengan pencarian atau filter."
-        hint="Periksa ejaan nama atau email, atau longgarkan filternya."
+        onReset={onReset}
       />
     );
   }
@@ -117,9 +127,11 @@ export function CreatorTable({
   filtered?: boolean;
 }) {
   const router = useRouter();
+  const { replaceQuery } = useUrlQuery();
 
   if (creators.length === 0) {
-    return <EmptyRoster total={total} filtered={filtered} />;
+    // The way back from an empty search clears it and every filter, as the bar's Reset does.
+    return <EmptyRoster total={total} filtered={filtered} onReset={() => replaceQuery("")} />;
   }
 
   return (
@@ -142,16 +154,13 @@ export function CreatorTable({
                 </th>
               ))}
 
-              <th scope="col" className={HEAD}>
-                <span className="sr-only">Aksi</span>
-              </th>
             </tr>
           </thead>
 
           <tbody>
             {creators.map((creator) => (
-              // A press anywhere on the row opens the creator's page (PBI-4). The link in the
-              // last cell is the same door for the keyboard and for screen readers.
+              // A press anywhere on the row opens the creator's page (PBI-4). The name is the
+              // same door as a link, for the keyboard and for screen readers.
               <tr
                 key={creator.id}
                 onClick={() => {
@@ -162,7 +171,16 @@ export function CreatorTable({
                 className="cursor-pointer transition-colors hover:bg-surface-2"
               >
                 <td className={`${CELL} min-w-52`}>
-                  <p className="text-sm font-semibold text-ink">{creator.name}</p>
+                  <p className="text-sm font-semibold text-ink">
+                    <Link
+                      href={creatorDetailBase(creator.id)}
+                      // The row would hear this press too and open the page a second time.
+                      onClick={(event) => event.stopPropagation()}
+                      className="hover:underline"
+                    >
+                      {creator.name}
+                    </Link>
+                  </p>
 
                   <p className="mt-0.5 text-xs text-muted">{creator.email}</p>
 
@@ -222,18 +240,6 @@ export function CreatorTable({
                   </Pill>
                 </td>
 
-                <td className={`${CELL} whitespace-nowrap`}>
-                  <Link
-                    href={creatorDetailBase(creator.id)}
-                    // Every row has one; the creator's name tells them apart when heard.
-                    aria-label={`Detail ${creator.name}`}
-                    // The row would hear this press too and open the page a second time.
-                    onClick={(event) => event.stopPropagation()}
-                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
-                  >
-                    Detail
-                  </Link>
-                </td>
               </tr>
             ))}
           </tbody>

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { buttonClasses } from "@/components/ui/button-classes";
+import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
+import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot } from "@/components/ui/pill";
 import {
@@ -14,7 +15,6 @@ import {
 import {
   CONTENT_PLAN_EMPTY,
   CONTENT_PLAN_FILTERED_EMPTY,
-  needsReview,
   type ContentPlanRow,
   type ContentPlanTab,
   type DeadlineSort,
@@ -25,8 +25,8 @@ import { DeadlineSortTh } from "./deadline-sort";
 
 /**
  * The Content Plan's table: one row per piece, its status and tags read the same way every
- * other admin view words them, and the row that awaits a decision gets the review button
- * rather than the quiet detail one.
+ * other admin view words them, its name opens its panel, and the row that awaits a decision
+ * also gets the review button.
  */
 export function ContentPlanTable({
   items,
@@ -35,6 +35,7 @@ export function ContentPlanTable({
   sort,
   onSortToggle,
   onOpen,
+  onReset,
 }: Readonly<{
   items: readonly ContentPlanRow[];
   /** Whether a search or filter narrowed the list, which changes what an empty list means. */
@@ -43,17 +44,14 @@ export function ContentPlanTable({
   sort: DeadlineSort;
   onSortToggle: () => void;
   onOpen: (contentId: string) => void;
+  /** Clears the search and filters that emptied the list. */
+  onReset: () => void;
 }>) {
   if (items.length === 0) {
-    return (
-      <EmptyState
-        title={filtered ? CONTENT_PLAN_FILTERED_EMPTY : CONTENT_PLAN_EMPTY[tab]}
-        hint={
-          filtered
-            ? "Longgarkan pencarian atau filternya."
-            : undefined
-        }
-      />
+    return filtered ? (
+      <FilteredEmpty title={CONTENT_PLAN_FILTERED_EMPTY} onReset={onReset} />
+    ) : (
+      <EmptyState title={CONTENT_PLAN_EMPTY[tab]} />
     );
   }
 
@@ -73,8 +71,8 @@ export function ContentPlanTable({
         </thead>
         <tbody>
           {items.map((row) => (
-            // A press anywhere on the row opens its panel, as in the prototype. The button in
-            // the last cell is the same door for the keyboard and for screen readers.
+            // A press anywhere on the row opens its panel, as in the prototype. The name is a
+            // real button, the same door for the keyboard and for screen readers.
             <tr
               key={row.contentId}
               onClick={() => {
@@ -84,7 +82,9 @@ export function ContentPlanTable({
               }}
               className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
             >
-              <td className="px-5 py-3">{row.name}</td>
+              <td className="px-5 py-3">
+                <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
+              </td>
               <td className="px-5 py-3">
                 {/* The way to this creator's detail page, which holds their content plan. It is
                     a link of its own, so the row must not open the panel on the same press. */}
@@ -118,19 +118,7 @@ export function ContentPlanTable({
                 </span>
               </td>
               <td className="px-5 py-3">
-                <button
-                  type="button"
-                  // Every row has one; the content's name tells them apart when heard.
-                  aria-label={`${needsReview(row.status) ? "Tinjau" : "Detail"} ${row.name}`}
-                  onClick={(event) => {
-                    // The row would hear this press too and open the panel a second time.
-                    event.stopPropagation();
-                    onOpen(row.contentId);
-                  }}
-                  className={`${buttonClasses(needsReview(row.status) ? "accent" : "ghost")} px-2 py-1`}
-                >
-                  {needsReview(row.status) ? "Tinjau" : "Detail"}
-                </button>
+                <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
               </td>
             </tr>
           ))}

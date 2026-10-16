@@ -3,14 +3,18 @@ import { vi } from "vitest";
 import { CreatorTable } from "./creator-table";
 import { creator } from "./creator.fixture";
 
-const { push } = vi.hoisted(() => ({
+const { push, replace } = vi.hoisted(() => ({
   push: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push,
+    replace,
   }),
+  usePathname: () => "/admin/creators",
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 describe("CreatorTable", () => {
@@ -68,7 +72,6 @@ describe("CreatorTable", () => {
       "Tepat waktu",
       "Rata-rata revisi",
       "Produktivitas",
-      "Aksi",
     ]);
   });
 
@@ -237,6 +240,16 @@ describe("CreatorTable", () => {
     expect(screen.queryByText("Belum ada creator yang terdaftar.")).toBeNull();
   });
 
+  it("offers the same way out of an empty search as every other list: the hint and Reset filter", () => {
+    window.history.pushState({}, "", "/admin/creators?q=zzz&contractStatus=active");
+    render(<CreatorTable creators={[]} total={0} filtered />);
+
+    expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/admin/creators", { scroll: false });
+  });
+
   it("points back to the first page when the page is past the end", () => {
     render(<CreatorTable creators={[]} total={12} />);
 
@@ -252,17 +265,23 @@ describe("CreatorTable", () => {
   // PBI-4: the Creator Detail page takes the place of the Detail dialog and of the creator's
   // own Content Plan page, so a row has one way in.
   describe("opening a creator", () => {
-    it("offers one Detail link per row, to the creator's own page", () => {
+    it("makes the creator's name the row's one link, to the creator's own page", () => {
       render(<CreatorTable creators={[creator({ id: "creator-123" })]} total={1} />);
 
       const row = screen.getAllByRole("row")[1];
 
       expect(within(row).getAllByRole("link")).toHaveLength(1);
-      expect(within(row).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+      expect(within(row).getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
         "href",
         "/admin/creators/creator-123",
       );
-      expect(within(row).getByRole("link")).toHaveTextContent("Detail");
+    });
+
+    it("offers no separate Detail button, since the row already opens the creator", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      expect(screen.queryByText("Detail")).toBeNull();
+      expect(screen.queryByRole("link", { name: /^Detail/ })).toBeNull();
     });
 
     it("no longer offers the creator's own Content Plan page", () => {
@@ -290,14 +309,14 @@ describe("CreatorTable", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Salsa Amelia"));
+      fireEvent.click(screen.getByText("salsa@example.com"));
 
       expect(push).toHaveBeenCalledExactlyOnceWith("/admin/creators/creator-2");
     });
 
     it("leaves the link to open the page itself, not once for the link and once for the row", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
-      const link = screen.getByRole("link", { name: "Detail Rangga Pratama" });
+      const link = screen.getByRole("link", { name: "Rangga Pratama" });
       // The link's own navigation is the browser's; here only the row's share is watched.
       link.addEventListener("click", (event) => event.preventDefault());
 
@@ -337,7 +356,7 @@ describe("CreatorTable", () => {
     it("encodes an id that could otherwise step out of the address", () => {
       render(<CreatorTable creators={[creator({ id: "a/b?c" })]} total={1} />);
 
-      expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
         "href",
         "/admin/creators/a%2Fb%3Fc",
       );

@@ -6,6 +6,7 @@ import { ContentDetailPanel } from "@/components/content-detail/content-detail-p
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
 import type { TaskContent } from "@/components/my-task/task-summary";
+import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import type { DeadlineSort } from "@/lib/content-plan";
@@ -234,15 +235,12 @@ export function MyTaskBoard({
       >
         {calendarToday ? (
           <TaskCalendar tasks={tasks} today={calendarToday} onOpen={setDetailContentId} />
+        ) : filtered && tasks.length === 0 ? (
+          <FilteredEmpty title={MY_TASKS_FILTERED_EMPTY} onReset={resetFilters} />
         ) : (
           <MyTaskTable
             tasks={tasks}
-            emptyMessage={filtered ? MY_TASKS_FILTERED_EMPTY : MY_TASKS_EMPTY[tab]}
-            emptyAction={
-              filtered ? (
-                <Button onClick={resetFilters}>Reset filter</Button>
-              ) : undefined
-            }
+            emptyMessage={MY_TASKS_EMPTY[tab]}
             // New work lands in Semua and Perlu Dikerjakan, never straight in the other two tabs.
             emptyHint={tab === "all" || tab === "action" ? undefined : null}
             sort={sort}

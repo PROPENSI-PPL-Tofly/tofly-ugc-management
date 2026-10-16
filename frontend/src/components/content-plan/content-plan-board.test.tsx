@@ -77,6 +77,15 @@ function renderBoard(sort: "asc" | "desc" = "desc") {
 }
 
 describe("ContentPlanBoard", () => {
+  it("clears the search and filters from an empty filtered list but stays on its tab", () => {
+    window.history.pushState({}, "", "/admin/content-plan?tab=waiting&q=kopi&type=specific&page=2");
+    render(<ContentPlanBoard items={[]} filtered tab="waiting" sort="desc" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/admin/content-plan?tab=waiting", { scroll: false });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();

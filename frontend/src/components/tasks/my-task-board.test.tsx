@@ -277,6 +277,7 @@ describe("MyTaskBoard", () => {
     render(<MyTaskBoard tasks={[]} tab="action" filtered />);
 
     expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
+    expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
 
     expect(replace).toHaveBeenCalledWith("/creator/tasks?tab=action", { scroll: false });

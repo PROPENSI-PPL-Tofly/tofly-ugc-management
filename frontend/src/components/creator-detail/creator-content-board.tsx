@@ -15,6 +15,7 @@ import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import {
   CREATOR_DETAIL_PAGE_SIZE,
+  DEFAULT_CREATOR_DETAIL_PARAMS,
   PERIOD_STATUS_LABELS,
   buildCreatorDetailQuery,
   creatorDetailBase,
@@ -22,6 +23,7 @@ import {
   type CreatorDetailParams,
   type CreatorDetailView,
 } from "@/lib/creator-detail";
+import { useUrlQuery } from "@/lib/url-query";
 import { CreatorContentFilters } from "./creator-content-filters";
 import { CreatorContentTable } from "./creator-content-table";
 
@@ -31,8 +33,8 @@ import { CreatorContentTable } from "./creator-content-table";
  * does. A decision or a new content refreshes the page, which re-fetches the rows and the
  * period's terms.
  *
- * The pagination stands above and below the table and stays there on a single page (4.2), so
- * where the admin is in the list reads the same wherever they have scrolled to.
+ * The pagination sits once below the table and steps aside when everything fits on one page,
+ * as it does on Content Plan and Task Saya.
  */
 export function CreatorContentBoard({
   creatorId,
@@ -48,8 +50,15 @@ export function CreatorContentBoard({
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const { show: confirm, toast } = useToast();
+  const { replaceQuery } = useUrlQuery();
 
   const period = view.selected;
+
+  /** The empty filtered table's way back: every filter goes, the open period stays. */
+  function resetFilters() {
+    const query = buildCreatorDetailQuery({ ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: state.contract });
+    replaceQuery(new URLSearchParams(query).toString());
+  }
 
   /** What the list shows has changed: say so, and read it again. */
   function confirmAndRefresh(message: string) {
@@ -68,19 +77,6 @@ export function CreatorContentBoard({
     );
   }
 
-  const pages = (
-    <Pagination
-      basePath={creatorDetailBase(creatorId)}
-      noun="konten"
-      // The filters and the period, without the page: each link names its own.
-      query={buildCreatorDetailQuery({ ...state, page: 1 })}
-      always
-      page={view.page}
-      pageSize={CREATOR_DETAIL_PAGE_SIZE}
-      total={view.total}
-      totalPages={view.totalPages}
-    />
-  );
 
   return (
     <>
@@ -103,19 +99,25 @@ export function CreatorContentBoard({
           )}
         </div>
 
-        <nav aria-label="Navigasi halaman atas" className="border-t border-rule">
-          {pages}
-        </nav>
-
         <CreatorContentFilters />
 
         <CreatorContentTable
           rows={view.rows}
           filtered={isCreatorDetailFiltered(state)}
           onOpen={setOpenContentId}
+          onReset={resetFilters}
         />
 
-        <nav aria-label="Navigasi halaman bawah">{pages}</nav>
+        <Pagination
+          basePath={creatorDetailBase(creatorId)}
+          noun="konten"
+          // The filters and the period, without the page: each link names its own.
+          query={buildCreatorDetailQuery({ ...state, page: 1 })}
+          page={view.page}
+          pageSize={CREATOR_DETAIL_PAGE_SIZE}
+          total={view.total}
+          totalPages={view.totalPages}
+        />
       </Panel>
 
       {adding ? (
