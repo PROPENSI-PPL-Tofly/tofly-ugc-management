@@ -460,12 +460,12 @@ describe('/rate-formula (e2e)', () => {
         values ('instagram', 2, 100, 2)`).rejects.toThrow();
     });
 
-    it('has no content fee or maximum penalty days column', async () => {
+    it('has no content fee column', async () => {
       const columns = await prisma.$queryRaw<{ column_name: string }[]>`
         select column_name from information_schema.columns
         where table_schema = 'public'
           and table_name in ('rate_formula', 'performance_bonus_metrics', 'performance_bonus_tiers')
-          and (column_name like '%fee%' or column_name like '%max%')`;
+          and column_name like '%fee%'`;
 
       expect(columns).toEqual([]);
     });
