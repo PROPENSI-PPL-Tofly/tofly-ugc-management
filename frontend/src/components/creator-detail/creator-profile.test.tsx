@@ -80,6 +80,15 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByText("Kontrak").nextElementSibling).toHaveTextContent(label);
   });
 
+  it("writes the contract type as text and the contract state as a dot and its words, not pills", () => {
+    render(<CreatorProfilePanel creator={CREATOR} current={{ ...PERIOD, type: "regular", status: "active" }} />);
+
+    expect(screen.getByText("Regular")).not.toHaveClass("rounded-full");
+    const state = screen.getByText("Aktif");
+    expect(state).not.toHaveClass("rounded-full");
+    expect(state.querySelector('[aria-hidden="true"]')).toHaveClass("bg-green");
+  });
+
   it("shows neither the type nor the contract state for a creator without a contract", () => {
     render(<CreatorProfilePanel creator={CREATOR} current={null} />);
 

@@ -77,6 +77,17 @@ describe("PeriodTabs", () => {
     expect(second).toHaveTextContent("1 Jun – 31 Des 2026");
   });
 
+  it.each([
+    [0, "Berakhir", "bg-red"],
+    [1, "Aktif", "bg-green"],
+  ])("draws tab %i's state as a dot and its words, as Creator Database draws a contract", (index, label, colour) => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    const state = within(tabs()[index]).getByText(label);
+    expect(state).not.toHaveClass("rounded-full");
+    expect(state.querySelector('[aria-hidden="true"]')).toHaveClass(colour);
+  });
+
   it("words a period that has not started yet", () => {
     const upcoming = period({ contractId: THIRD, periodNumber: 3, status: "upcoming" });
     render(<PeriodTabs creatorId={CREATOR} periods={[upcoming, ...PERIODS]} selected={upcoming} />);

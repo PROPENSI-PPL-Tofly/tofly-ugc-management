@@ -77,21 +77,32 @@ describe("CreatorContentTable", () => {
     expect(screen.getByText(label)).toBeInTheDocument();
   });
 
-  // The prototype draws a status as a pill. The colour is the one every admin view gives it.
+  // A status is a fact, so it reads as a dot beside its words, as Content Plan, Task Saya and
+  // Creator Database draw it. The dot takes the colour every admin view gives the status.
   it.each([
-    ["pending", "Pending", "bg-accent-wash"],
-    ["scheduled", "Scheduled", "bg-surface-2"],
-    ["draft_review", "Draft Menunggu Review", "bg-accent-wash"],
-    ["draft_revision", "Draft Perlu Revisi", "bg-amber-wash"],
-    ["draft_approved", "Draft Approved", "bg-green-wash"],
-    ["link_submitted", "Content Link Submitted", "bg-green-wash"],
-  ] as const)("draws the status %s as a pill in its own colour", (status, label, colour) => {
+    ["pending", "Pending", "bg-accent"],
+    ["scheduled", "Scheduled", "bg-rule"],
+    ["draft_review", "Draft Menunggu Review", "bg-accent"],
+    ["draft_revision", "Draft Perlu Revisi", "bg-amber"],
+    ["draft_approved", "Draft Approved", "bg-green"],
+    ["link_submitted", "Content Link Submitted", "bg-green"],
+  ] as const)("draws the status %s as a dot and its words, not a pill", (status, label, colour) => {
     renderTable([{ ...ROW, status }]);
 
-    const pill = screen.getByText(label);
-    expect(pill).toHaveClass("rounded-full", colour);
-    // A pill carries its own colour: no separate dot beside the words.
-    expect(pill.querySelector('[aria-hidden="true"]')).toBeNull();
+    const status_ = screen.getByText(label);
+    expect(status_).not.toHaveClass("rounded-full");
+    expect(status_.querySelector('[aria-hidden="true"]')).toHaveClass(colour);
+  });
+
+  it.each([
+    ["evergreen", "Evergreen"],
+    ["specific", "Specific"],
+  ] as const)("writes a %s content's type as quiet text, not a coloured pill", (type, label) => {
+    renderTable([{ ...ROW, type }]);
+
+    const typeLabel = screen.getByText(label);
+    expect(typeLabel).not.toHaveClass("rounded-full");
+    expect(typeLabel).toHaveClass("text-muted");
   });
 
   it("shows every tag the content carries beside its status", () => {
