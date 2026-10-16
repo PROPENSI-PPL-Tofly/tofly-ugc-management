@@ -1,7 +1,7 @@
 "use client";
 
 import { ContentTags } from "@/components/contents/content-tags";
-import { buttonClasses } from "@/components/ui/button-classes";
+import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
 import {
@@ -9,7 +9,6 @@ import {
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
 } from "@/lib/content-labels";
-import { needsReview } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
 
@@ -18,8 +17,8 @@ const CELL = "px-5 py-3 align-top";
 
 /**
  * One period's content: a row per piece, its status and tags worded the way every other admin
- * view words them, and the row that awaits a decision given the review button rather than the
- * quiet detail one. Names are rendered as text, so what was typed into one is shown and never
+ * view words them, its name opens its panel, and the row that awaits a decision also gets the
+ * review button. Names are rendered as text, so what was typed into one is shown and never
  * run (OWASP A03).
  */
 export function CreatorContentTable({
@@ -79,19 +78,7 @@ export function CreatorContentTable({
             >
               <td className={`${CELL} min-w-52`}>
                 <p className="font-semibold text-ink wrap-anywhere">
-                  <button
-                    type="button"
-                    aria-haspopup="dialog"
-                    onClick={(event) => {
-                      // The row would hear this press too and open the panel a second time.
-                      event.stopPropagation();
-                      if (window.getSelection()?.toString()) return;
-                      onOpen(row.contentId);
-                    }}
-                    className="cursor-pointer border-none bg-transparent p-0 text-left font-inherit text-inherit hover:underline"
-                  >
-                    {row.name}
-                  </button>
+                  <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
                 </p>
                 {/* The type as quiet text, as Content Plan and Task Saya show it: a fact, not a judgment. */}
                 <span className="mt-0.5 block text-xs text-muted">{CONTENT_TYPE_LABELS[row.type]}</span>
@@ -111,22 +98,7 @@ export function CreatorContentTable({
                 </span>
               </td>
               <td className={CELL}>
-                {/* Only a decision due is worth its own button; the name opens everything else. */}
-                {needsReview(row.status) ? (
-                  <button
-                    type="button"
-                    // The content's name tells one row's Tinjau from another's when heard.
-                    aria-label={`Tinjau ${row.name}`}
-                    onClick={(event) => {
-                      // The row would hear this press too and open the panel a second time.
-                      event.stopPropagation();
-                      onOpen(row.contentId);
-                    }}
-                    className={`${buttonClasses("accent")} px-2 py-1`}
-                  >
-                    Tinjau
-                  </button>
-                ) : null}
+                <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
               </td>
             </tr>
           ))}

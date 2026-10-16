@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { buttonClasses } from "@/components/ui/button-classes";
+import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot } from "@/components/ui/pill";
 import {
@@ -14,7 +14,6 @@ import {
 import {
   CONTENT_PLAN_EMPTY,
   CONTENT_PLAN_FILTERED_EMPTY,
-  needsReview,
   type ContentPlanRow,
   type ContentPlanTab,
   type DeadlineSort,
@@ -25,8 +24,8 @@ import { DeadlineSortTh } from "./deadline-sort";
 
 /**
  * The Content Plan's table: one row per piece, its status and tags read the same way every
- * other admin view words them, and the row that awaits a decision gets the review button
- * rather than the quiet detail one.
+ * other admin view words them, its name opens its panel, and the row that awaits a decision
+ * also gets the review button.
  */
 export function ContentPlanTable({
   items,
@@ -85,19 +84,7 @@ export function ContentPlanTable({
               className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
             >
               <td className="px-5 py-3">
-                <button
-                  type="button"
-                  aria-haspopup="dialog"
-                  onClick={(event) => {
-                    // The row would hear this press too and open the panel a second time.
-                    event.stopPropagation();
-                    if (window.getSelection()?.toString()) return;
-                    onOpen(row.contentId);
-                  }}
-                  className="cursor-pointer border-none bg-transparent p-0 text-left font-inherit text-inherit hover:underline"
-                >
-                  {row.name}
-                </button>
+                <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
               </td>
               <td className="px-5 py-3">
                 {/* The way to this creator's detail page, which holds their content plan. It is
@@ -132,22 +119,7 @@ export function ContentPlanTable({
                 </span>
               </td>
               <td className="px-5 py-3">
-                {/* Only a decision due is worth its own button; the name opens everything else. */}
-                {needsReview(row.status) ? (
-                  <button
-                    type="button"
-                    // The content's name tells one row's Tinjau from another's when heard.
-                    aria-label={`Tinjau ${row.name}`}
-                    onClick={(event) => {
-                      // The row would hear this press too and open the panel a second time.
-                      event.stopPropagation();
-                      onOpen(row.contentId);
-                    }}
-                    className={`${buttonClasses("accent")} px-2 py-1`}
-                  >
-                    Tinjau
-                  </button>
-                ) : null}
+                <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
               </td>
             </tr>
           ))}
