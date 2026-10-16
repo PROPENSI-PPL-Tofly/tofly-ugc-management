@@ -5,7 +5,7 @@ import type { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
 import { applySecurityHeaders } from './../src/security-headers.js';
 
-describe('AppController (e2e)', () => {
+describe('App (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -18,11 +18,11 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  it('/ (GET) is not a route: the scaffold page is gone and the answer is JSON', async () => {
+    const response = await request(app.getHttpServer()).get('/').expect(404);
+
+    expect(response.headers['content-type']).toMatch(/^application\/json/);
+    expect(response.body).toMatchObject({ statusCode: 404 });
   });
 
   it('/health (GET) reports the DB is reachable', () => {
@@ -40,8 +40,8 @@ describe('AppController (e2e)', () => {
     expect(response.headers['x-powered-by']).toBeUndefined();
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-frame-options']).toBe('SAMEORIGIN');
-    expect(response.headers['content-security-policy']).toContain(
-      "default-src 'self'",
+    expect(response.headers['content-security-policy']).toBe(
+      "default-src 'none';frame-ancestors 'none'",
     );
     expect(response.headers['referrer-policy']).toBeDefined();
   });
