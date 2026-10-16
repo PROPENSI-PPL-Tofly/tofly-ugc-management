@@ -230,10 +230,10 @@ describe("CreatorContentBoard", () => {
       );
     });
 
-    it("opens from the row's button as well", () => {
+    it("opens from the content's name, a button, as well", () => {
       renderBoard();
 
-      fireEvent.click(screen.getByRole("button", { name: "Detail Konten 3" }));
+      fireEvent.click(screen.getByRole("button", { name: "Konten 3" }));
 
       expect(screen.getByRole("dialog", { name: "Detail konten" })).toHaveTextContent("content-3");
     });

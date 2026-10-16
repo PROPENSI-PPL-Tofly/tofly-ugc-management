@@ -65,58 +65,71 @@ export function CreatorContentTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
-            const action = needsReview(row.status) ? "Tinjau" : "Detail";
-
-            return (
-              // A press anywhere on the row opens its panel, as in the prototype. The button
-              // in the last cell is the same door for the keyboard and for screen readers.
-              <tr
-                key={row.contentId}
-                onClick={() => {
-                  // Dragging across a name to copy it ends in a click here: copying, not opening.
-                  if (window.getSelection()?.toString()) return;
-                  onOpen(row.contentId);
-                }}
-                className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
-              >
-                <td className={`${CELL} min-w-52`}>
-                  <p className="font-semibold text-ink wrap-anywhere">{row.name}</p>
-                  {/* The type as quiet text, as Content Plan and Task Saya show it: a fact, not a judgment. */}
-                  <span className="mt-0.5 block text-xs text-muted">{CONTENT_TYPE_LABELS[row.type]}</span>
-                </td>
-                <td className={`${CELL} whitespace-nowrap`}>{formatDate(row.deadline)}</td>
-                <td className={CELL}>
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
-                      {CONTENT_STATUS_LABELS[row.status]}
-                    </StatusDot>
-                    <ContentTags tags={row.tags} />
-                    {row.revisionCount > 0 ? (
-                      <span className="text-xs font-semibold text-amber-ink">
-                        Revisi ke-{row.revisionCount}
-                      </span>
-                    ) : null}
-                  </span>
-                </td>
-                <td className={CELL}>
+          {rows.map((row) => (
+            // A press anywhere on the row opens its panel, as in the prototype. The name is a
+            // real button, the same door for the keyboard and for screen readers.
+            <tr
+              key={row.contentId}
+              onClick={() => {
+                // Dragging across a name to copy it ends in a click here: copying, not opening.
+                if (window.getSelection()?.toString()) return;
+                onOpen(row.contentId);
+              }}
+              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
+            >
+              <td className={`${CELL} min-w-52`}>
+                <p className="font-semibold text-ink wrap-anywhere">
                   <button
                     type="button"
-                    // Every row has one; the content's name tells them apart when heard.
-                    aria-label={`${action} ${row.name}`}
+                    aria-haspopup="dialog"
+                    onClick={(event) => {
+                      // The row would hear this press too and open the panel a second time.
+                      event.stopPropagation();
+                      if (window.getSelection()?.toString()) return;
+                      onOpen(row.contentId);
+                    }}
+                    className="cursor-pointer border-none bg-transparent p-0 text-left font-inherit text-inherit hover:underline"
+                  >
+                    {row.name}
+                  </button>
+                </p>
+                {/* The type as quiet text, as Content Plan and Task Saya show it: a fact, not a judgment. */}
+                <span className="mt-0.5 block text-xs text-muted">{CONTENT_TYPE_LABELS[row.type]}</span>
+              </td>
+              <td className={`${CELL} whitespace-nowrap`}>{formatDate(row.deadline)}</td>
+              <td className={CELL}>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
+                    {CONTENT_STATUS_LABELS[row.status]}
+                  </StatusDot>
+                  <ContentTags tags={row.tags} />
+                  {row.revisionCount > 0 ? (
+                    <span className="text-xs font-semibold text-amber-ink">
+                      Revisi ke-{row.revisionCount}
+                    </span>
+                  ) : null}
+                </span>
+              </td>
+              <td className={CELL}>
+                {/* Only a decision due is worth its own button; the name opens everything else. */}
+                {needsReview(row.status) ? (
+                  <button
+                    type="button"
+                    // The content's name tells one row's Tinjau from another's when heard.
+                    aria-label={`Tinjau ${row.name}`}
                     onClick={(event) => {
                       // The row would hear this press too and open the panel a second time.
                       event.stopPropagation();
                       onOpen(row.contentId);
                     }}
-                    className={`${buttonClasses(needsReview(row.status) ? "accent" : "ghost")} px-2 py-1`}
+                    className={`${buttonClasses("accent")} px-2 py-1`}
                   >
-                    {action}
+                    Tinjau
                   </button>
-                </td>
-              </tr>
-            );
-          })}
+                ) : null}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

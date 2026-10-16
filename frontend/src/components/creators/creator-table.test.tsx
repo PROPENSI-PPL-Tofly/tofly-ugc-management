@@ -342,7 +342,7 @@ describe("CreatorTable", () => {
     it("encodes an id that could otherwise step out of the address", () => {
       render(<CreatorTable creators={[creator({ id: "a/b?c" })]} total={1} />);
 
-      expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
         "href",
         "/admin/creators/a%2Fb%3Fc",
       );

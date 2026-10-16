@@ -73,8 +73,8 @@ export function ContentPlanTable({
         </thead>
         <tbody>
           {items.map((row) => (
-            // A press anywhere on the row opens its panel, as in the prototype. The button in
-            // the last cell is the same door for the keyboard and for screen readers.
+            // A press anywhere on the row opens its panel, as in the prototype. The name is a
+            // real button, the same door for the keyboard and for screen readers.
             <tr
               key={row.contentId}
               onClick={() => {
@@ -84,7 +84,21 @@ export function ContentPlanTable({
               }}
               className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
             >
-              <td className="px-5 py-3">{row.name}</td>
+              <td className="px-5 py-3">
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={(event) => {
+                    // The row would hear this press too and open the panel a second time.
+                    event.stopPropagation();
+                    if (window.getSelection()?.toString()) return;
+                    onOpen(row.contentId);
+                  }}
+                  className="cursor-pointer border-none bg-transparent p-0 text-left font-inherit text-inherit hover:underline"
+                >
+                  {row.name}
+                </button>
+              </td>
               <td className="px-5 py-3">
                 {/* The way to this creator's detail page, which holds their content plan. It is
                     a link of its own, so the row must not open the panel on the same press. */}
@@ -118,19 +132,22 @@ export function ContentPlanTable({
                 </span>
               </td>
               <td className="px-5 py-3">
-                <button
-                  type="button"
-                  // Every row has one; the content's name tells them apart when heard.
-                  aria-label={`${needsReview(row.status) ? "Tinjau" : "Detail"} ${row.name}`}
-                  onClick={(event) => {
-                    // The row would hear this press too and open the panel a second time.
-                    event.stopPropagation();
-                    onOpen(row.contentId);
-                  }}
-                  className={`${buttonClasses(needsReview(row.status) ? "accent" : "ghost")} px-2 py-1`}
-                >
-                  {needsReview(row.status) ? "Tinjau" : "Detail"}
-                </button>
+                {/* Only a decision due is worth its own button; the name opens everything else. */}
+                {needsReview(row.status) ? (
+                  <button
+                    type="button"
+                    // The content's name tells one row's Tinjau from another's when heard.
+                    aria-label={`Tinjau ${row.name}`}
+                    onClick={(event) => {
+                      // The row would hear this press too and open the panel a second time.
+                      event.stopPropagation();
+                      onOpen(row.contentId);
+                    }}
+                    className={`${buttonClasses("accent")} px-2 py-1`}
+                  >
+                    Tinjau
+                  </button>
+                ) : null}
               </td>
             </tr>
           ))}
