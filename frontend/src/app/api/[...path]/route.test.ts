@@ -44,6 +44,28 @@ describe("/api/* proxy", () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe("http://backend:3001/posts/42");
   });
 
+  it("strips every trailing slash on BACKEND_URL, however many, and keeps one inside its path", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001/v1///");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await GET(new Request("http://localhost:3000/api/posts/42"), params("posts", "42"));
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe("http://backend:3001/v1/posts/42");
+  });
+
+  it("reads a BACKEND_URL made of thousands of slashes in one pass", async () => {
+    vi.stubEnv("BACKEND_URL", `http://backend:3001${"/".repeat(50_000)}`);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await GET(new Request("http://localhost:3000/api/health"), params("health"));
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe("http://backend:3001/health");
+  });
+
   it("keeps a decoded slash inside one segment instead of letting it climb to another route", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

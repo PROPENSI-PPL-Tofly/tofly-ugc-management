@@ -22,6 +22,13 @@ const STRIP_RESPONSE_HEADERS = new Set([
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
+/** Drops every trailing "/" in one backward pass, where a /\/+$/ regex backtracks on a long run. */
+function withoutTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end -= 1;
+  return url.slice(0, end);
+}
+
 async function proxy(request: Request, context: RouteContext): Promise<Response> {
   // Read inside the handler, not at module scope: BACKEND_URL is a plain
   // runtime env var on the Cloud Run service, so a module-scope read would bake
@@ -43,7 +50,7 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   }
   const target = new URL(
     path.map(encodeURIComponent).join("/"),
-    `${backendUrl.replace(/\/+$/, "")}/`,
+    `${withoutTrailingSlashes(backendUrl)}/`,
   );
   target.search = new URL(request.url).search;
 

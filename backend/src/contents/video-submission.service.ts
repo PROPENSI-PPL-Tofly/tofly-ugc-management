@@ -105,11 +105,16 @@ const CONTENT_CHANGED =
 
 // What opens the link for content in each status that task-actions.ts can refuse. H-1 skips
 // an approval and never the draft, so before a draft the next step is the draft (PBI-7 7.2).
-const NEXT_STEPS: Partial<Record<content_status, string>> = {
+// Every status has an entry, so a new status does not compile until it has its answer. The
+// lookup never returns a pending proposal and never refuses an approved draft, so for those
+// two a refusal can only mean the row moved.
+const NEXT_STEPS: Record<content_status, string> = {
+  pending: CONTENT_CHANGED,
   scheduled: 'Kirim draft dulu sebelum mengirim link video',
   draft_revision: 'Kirim ulang draft dulu sebelum mengirim link video',
   draft_review:
     'Link video bisa dikirim setelah draft disetujui, atau mulai H-1 deadline',
+  draft_approved: CONTENT_CHANGED,
   link_submitted: 'Link video untuk konten ini sudah dikirim',
 };
 
@@ -171,7 +176,7 @@ export class VideoSubmissionService implements VideoSubmitter {
       }
 
       if (!canSubmitVideo(content.status, isoDay(content.deadline), today)) {
-        throw notEligible(NEXT_STEPS[content.status] ?? CONTENT_CHANGED);
+        throw notEligible(NEXT_STEPS[content.status]);
       }
 
       const submittedAt = new Date(`${today}T00:00:00.000Z`);
