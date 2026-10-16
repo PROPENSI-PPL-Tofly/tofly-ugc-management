@@ -37,6 +37,16 @@ describe("TaskViewToggle", () => {
     expect(container.querySelectorAll("[aria-current]")).toHaveLength(1);
   });
 
+  it("fills the view being shown in brand blue, as every other current selection is", () => {
+    render(<TaskViewToggle view="calendar" state={BARE} />);
+
+    const on = screen.getByRole("link", { name: "Kalender" });
+    const off = screen.getByRole("link", { name: "Tabel" });
+    expect(on).toHaveClass("bg-accent", "text-accent-ink");
+    expect(on).not.toHaveClass("bg-ink");
+    expect(off).not.toHaveClass("bg-accent");
+  });
+
   it("leads each link to its view of Task Saya", () => {
     render(<TaskViewToggle view="table" state={BARE} />);
 
