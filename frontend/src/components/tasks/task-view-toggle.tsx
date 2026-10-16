@@ -3,10 +3,10 @@ import type { MyTasksParams } from "@/lib/my-tasks";
 import { TASK_VIEWS, taskViewHref, type TaskView } from "@/lib/task-view";
 
 // A segmented control, as the prototype draws it: two halves in one rounded frame, the view
-// being shown filled in.
+// being shown filled in brand blue, the colour every current selection in the app takes.
 const FRAME = "inline-flex overflow-hidden rounded-(--radius-control) border border-rule";
 const HALF = "px-3 py-1.5 text-[12.5px] font-semibold";
-const ON = "bg-ink text-surface";
+const ON = "bg-accent text-accent-ink";
 const OFF = "bg-surface text-ink-2 hover:bg-surface-2";
 
 /**
