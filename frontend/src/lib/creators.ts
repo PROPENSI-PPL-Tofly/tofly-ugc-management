@@ -22,7 +22,6 @@ export type ContentStatus =
   | "link_submitted";
 
 export type Productivity = "good" | "watch" | "risk" | "no_data";
-export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
 
 /** Facts the backend flags on a content beside its status, always in this order. */
 export type ContentTag = "late_submission" | "overdue" | "approval_bypassed";
@@ -106,40 +105,6 @@ export interface ContractPeriod {
   isCurrent: boolean;
   progress: CreatorSummary["progress"];
   performance: CreatorSummary["performance"];
-}
-
-export interface CreatorDetail extends CreatorSummary {
-  phoneNumber: string | null;
-
-  /** Every contract period, oldest first. */
-  contractHistory: ContractPeriod[];
-
-  /**
-   * @deprecated Read GET /contents?contract=<id>.
-   * TODO(SCRUM-141): remove once the Creator Detail page replaces the old detail modal.
-   */
-  contents: {
-    id: string;
-    name: string;
-    type: string;
-    deadline: string;
-    status: ContentStatus;
-    outcome: ContentOutcome;
-    tags: ContentTag[];
-    videoLink: string | null;
-  }[];
-
-  /**
-   * @deprecated Read GET /contents/:id.
-   * TODO(SCRUM-141): remove once the Creator Detail page replaces the old detail modal.
-   */
-  drafts: {
-    contentId: string;
-    contentName: string;
-    revisionCount: number;
-    latestLink: string;
-    lastSubmittedAt: string;
-  }[];
 }
 
 export interface PageRequest {
@@ -228,22 +193,6 @@ export const NO_FILTERS: CreatorFilterState = {
   contractStatus: "all",
   productivity: "all",
 };
-
-/**
- * Browser-side: the same-origin Next.js API proxy forwards this request to the backend.
- * Keeping the backend address out of the browser avoids exposing BACKEND_URL.
- */
-export async function fetchCreatorDetail(id: string): Promise<CreatorDetail> {
-  const response = await apiFetch(`/api/creators/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Loading creator detail failed with HTTP ${response.status}`);
-  }
-
-  return (await response.json()) as CreatorDetail;
-}
 
 /** What Add Creator sends: the form as the admin filled it, plus the deadlines it scheduled. */
 export interface NewCreatorRequest extends CreatorFormInput {
