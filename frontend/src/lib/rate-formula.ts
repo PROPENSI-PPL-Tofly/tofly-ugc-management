@@ -7,6 +7,9 @@ import { amountProblem } from "./amount";
 /** Most tiers one platform takes. */
 export const MAX_TIERS = 5;
 
+/** Most days a late content is penalised for; the backend refuses a cap above this (8.1). */
+export const MAX_PENALTY_DAYS = 365;
+
 export type BonusPlatform = "instagram" | "tiktok";
 
 /** The platforms a bonus is set for, in the order the modal lists them. */
@@ -169,19 +172,30 @@ export function tiersProblem(tiers: TierDraft[]): string | undefined {
   return undefined;
 }
 
+/** What is wrong with the day cap: an amount that is filled in, whole, and no more than a year. */
+function penaltyDaysProblem(value: number | null): string | undefined {
+  const problem = amountProblem(value, "Maks hari penalti");
+  if (problem) return problem;
+  return (value ?? 0) > MAX_PENALTY_DAYS
+    ? `Maks hari penalti harus antara 0 hari dan ${MAX_PENALTY_DAYS} hari`
+    : undefined;
+}
+
 /** Every problem in the form, each under the key of the field it belongs to. */
 export function validateRateFormula(draft: RateFormulaDraft): RateFormulaErrors {
   const errors: RateFormulaErrors = {};
 
   const amounts = [
     ["latePenaltyPerDay", "Penalti per hari"],
-    ["maxPenaltyDays", "Maks hari penalti"],
     ["specificBonus", "Bonus Specific"],
   ] as const;
   for (const [field, label] of amounts) {
     const problem = amountProblem(draft[field], label);
     if (problem) errors[field] = problem;
   }
+
+  const days = penaltyDaysProblem(draft.maxPenaltyDays);
+  if (days) errors.maxPenaltyDays = days;
 
   for (const platform of BONUS_PLATFORMS) {
     const problem = tiersProblem(draft.performanceBonus[platform].tiers);
