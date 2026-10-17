@@ -73,7 +73,7 @@ describe('/rate-formula (e2e)', () => {
 
   async function storedFormula(): Promise<FormulaRow[]> {
     return prisma.$queryRaw<FormulaRow[]>`
-      select specific_bonus::int, late_penalty_per_day::int, max_penalty_days,
+      select specific_bonus::int, late_penalty_per_day::int, max_penalty_days::int,
              updated_by::text
       from rate_formula`;
   }
@@ -375,7 +375,7 @@ describe('/rate-formula (e2e)', () => {
         values (1, 1, ${days})`).resolves.toBe(1);
     });
 
-    it.each([-1, 366])('refuses a day cap of %s', async (days) => {
+    it.each([-1, 366, 1.5])('refuses a day cap of %s', async (days) => {
       await expect(prisma.$executeRaw`
         insert into rate_formula (specific_bonus, late_penalty_per_day, max_penalty_days)
         values (1, 1, ${days})`).rejects.toThrow();

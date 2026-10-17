@@ -43,7 +43,7 @@ export type RateFormulaView =
 export interface RateFormulaRow {
   specific_bonus: Prisma.Decimal;
   late_penalty_per_day: Prisma.Decimal;
-  max_penalty_days: number | null;
+  max_penalty_days: Prisma.Decimal | null;
   updated_at: Date;
 }
 
@@ -201,7 +201,8 @@ export class RateFormulaService {
       configured: true,
       specificBonus: Number(row.specific_bonus),
       latePenaltyPerDay: Number(row.late_penalty_per_day),
-      maxPenaltyDays: row.max_penalty_days,
+      maxPenaltyDays:
+        row.max_penalty_days === null ? null : Number(row.max_penalty_days),
       performanceBonus,
       updatedAt: row.updated_at.toISOString(),
     };
