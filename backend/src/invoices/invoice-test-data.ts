@@ -17,18 +17,18 @@ export function day(offset: number): Date {
 }
 
 export const FORMULA: RateFormula = {
-  penaltyPerDay: 15_000,
+  latePenaltyPerDay: 15_000,
   maxPenaltyDays: 3,
-  specificContentFee: 100_000,
+  specificBonus: 100_000,
   performanceBonus: {
     instagram: {
       metric: 'views',
       tiers: [
-        { minimum: 40_000, bonus: 400_000 },
-        { minimum: 10_000, bonus: 150_000 },
+        { threshold: 40_000, bonus: 400_000 },
+        { threshold: 10_000, bonus: 150_000 },
       ],
     },
-    tiktok: { metric: 'likes', tiers: [{ minimum: 1_000, bonus: 50_000 }] },
+    tiktok: { metric: 'likes', tiers: [{ threshold: 1_000, bonus: 50_000 }] },
   },
 };
 

@@ -129,4 +129,20 @@ describe('PenaltyComponent', () => {
 
     expect(result.lines).toEqual([]);
   });
+
+  it('waits for a formula, with no amount, while none is saved', () => {
+    const result = component.calculate(
+      context({
+        formula: null,
+        contents: [content({ status: 'scheduled', deadline: day(-5) })],
+      }),
+    );
+
+    expect(result).toEqual({
+      key: 'penalty',
+      amount: null,
+      status: 'waiting_for_data',
+      lines: [],
+    });
+  });
 });

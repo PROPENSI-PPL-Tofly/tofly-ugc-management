@@ -123,4 +123,46 @@ describe('PerformanceBonusComponent', () => {
 
     expect(result.status).toBe('waiting_for_data');
   });
+
+  it('waits for data on a metric the contents table has no column for yet', () => {
+    const result = component.calculate(
+      context({
+        formula: {
+          ...FORMULA,
+          performanceBonus: {
+            instagram: {
+              metric: 'comments',
+              tiers: [{ threshold: 10, bonus: 50_000 }],
+            },
+          },
+        },
+        contents: [delivered({ views: 50_000, likes: 5_000 })],
+      }),
+    );
+
+    expect(result).toMatchObject({ amount: null, status: 'waiting_for_data' });
+  });
+
+  it('waits for data while one delivered item is still unmeasured, keeping the known lines', () => {
+    const result = component.calculate(
+      context({
+        contents: [
+          delivered({ id: 'measured', views: 50_000 }),
+          delivered({ id: 'pending', views: null }),
+        ],
+      }),
+    );
+
+    expect(result.status).toBe('waiting_for_data');
+    expect(result.amount).toBeNull();
+    expect(result.lines.map((line) => line.contentId)).toEqual(['measured']);
+  });
+
+  it('waits for a formula while none is saved', () => {
+    const result = component.calculate(
+      context({ formula: null, contents: [delivered({ views: 50_000 })] }),
+    );
+
+    expect(result.status).toBe('waiting_for_data');
+  });
 });

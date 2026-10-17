@@ -1,10 +1,10 @@
 import { calculateInvoice, DEFAULT_COMPONENTS } from './invoice-calculator.js';
-import type { InvoiceComponent } from './invoice-component.js';
+import type { InvoiceComponentKey } from './invoice-component.js';
 import { content, context, contract, day } from './invoice-test-data.js';
 
 describe('calculateInvoice', () => {
   it('runs the four components in the order they are shown', () => {
-    expect(DEFAULT_COMPONENTS.map((component) => component.key)).toEqual([
+    expect(Object.keys(DEFAULT_COMPONENTS)).toEqual([
       'fixedRate',
       'additionalContent',
       'performanceBonus',
@@ -44,7 +44,7 @@ describe('calculateInvoice', () => {
   it('adds nothing for a component still waiting for data', () => {
     const breakdown = calculateInvoice(context());
 
-    expect(breakdown.components.performanceBonus?.status).toBe(
+    expect(breakdown.components.performanceBonus.status).toBe(
       'waiting_for_data',
     );
     expect(breakdown.total).toBe(5_500_000);
@@ -64,33 +64,45 @@ describe('calculateInvoice', () => {
   });
 
   it('adds up whatever components it is given, so a new kind of pay needs no change here', () => {
-    const bonus: InvoiceComponent = {
-      key: 'performanceBonus',
-      sign: 1,
+    const fixed = (key: InvoiceComponentKey, sign: 1 | -1, amount: number) => ({
+      key,
+      sign,
       calculate: () => ({
-        key: 'performanceBonus',
-        amount: 1_000,
-        status: 'calculated',
+        key,
+        amount,
+        status: 'calculated' as const,
         lines: [],
       }),
-    };
-    const charge: InvoiceComponent = {
-      key: 'penalty',
-      sign: -1,
-      calculate: () => ({
-        key: 'penalty',
-        amount: 300,
-        status: 'calculated',
-        lines: [],
-      }),
-    };
+    });
 
-    const breakdown = calculateInvoice(context(), [bonus, charge]);
+    const breakdown = calculateInvoice(context(), {
+      fixedRate: fixed('fixedRate', 1, 0),
+      additionalContent: fixed('additionalContent', 1, 0),
+      performanceBonus: fixed('performanceBonus', 1, 1_000),
+      penalty: fixed('penalty', -1, 300),
+    });
 
     expect(breakdown.total).toBe(700);
     expect(Object.keys(breakdown.components)).toEqual([
+      'fixedRate',
+      'additionalContent',
       'performanceBonus',
       'penalty',
     ]);
+  });
+
+  it('pays only the fixed rate while no formula is saved, waiting on the rest', () => {
+    const breakdown = calculateInvoice(
+      context({
+        formula: null,
+        contents: [content({ status: 'scheduled', deadline: day(-5) })],
+      }),
+    );
+
+    expect(breakdown.total).toBe(5_500_000);
+    expect(breakdown.components.penalty.status).toBe('waiting_for_data');
+    expect(breakdown.components.additionalContent.status).toBe(
+      'waiting_for_data',
+    );
   });
 });

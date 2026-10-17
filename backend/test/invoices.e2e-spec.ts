@@ -5,11 +5,32 @@ import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { jakartaMidnight } from '../src/creators/evergreen.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import {
+  RateFormulaService,
+  type RateFormulaView,
+} from '../src/rate-formula/rate-formula.service.js';
 import { as, signInAsAdmin } from './sessions.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, seeded or not.
 const MARKER = 'e2e-invoices';
+
+/**
+ * The formula the invoices here are calculated with. maxPenaltyDays is sent for #100, which
+ * requires it; a backend without that column yet drops it and caps at the default 3 anyway.
+ */
+const FORMULA = {
+  latePenaltyPerDay: 50_000,
+  maxPenaltyDays: 3,
+  specificBonus: 100_000,
+  performanceBonus: {
+    instagram: {
+      metric: 'views',
+      tiers: [{ threshold: 10_000, bonus: 150_000 }],
+    },
+    tiktok: { metric: 'views', tiers: [{ threshold: 10_000, bonus: 150_000 }] },
+  },
+} as const;
 
 /** A calendar day relative to today in Jakarta, the day the app counts from. */
 function day(offset: number): Date {
@@ -27,6 +48,8 @@ describe('GET /invoices (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let admin: ReturnType<typeof as>;
+  // The developer's own formula, put back once these tests are done with the singleton row.
+  let savedFormula: RateFormulaView | undefined;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -37,6 +60,8 @@ describe('GET /invoices (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     admin = as(app, await signInAsAdmin(app, prisma, MARKER));
+    savedFormula = await app.get(RateFormulaService).read();
+    await admin.put('/rate-formula').send(FORMULA).expect(200);
 
     const nadia = await prisma.users.create({
       data: { email: `${MARKER}-nadia@example.com` },
@@ -101,6 +126,19 @@ describe('GET /invoices (e2e)', () => {
   });
 
   afterAll(async () => {
+    if (savedFormula?.configured) {
+      const { configured: _, updatedAt: __, ...formula } = savedFormula;
+      await app
+        .get(RateFormulaService)
+        .replace(
+          formula as Parameters<RateFormulaService['replace']>[0],
+          undefined,
+        );
+    } else if (savedFormula) {
+      await prisma.$executeRaw`delete from performance_bonus_tiers`;
+      await prisma.$executeRaw`delete from performance_bonus_metrics`;
+      await prisma.$executeRaw`delete from rate_formula`;
+    }
     await prisma.creators.deleteMany({
       where: { first_name: { startsWith: MARKER } },
     });
@@ -121,7 +159,7 @@ describe('GET /invoices (e2e)', () => {
   it('calculates the running invoice from the database rows', async () => {
     const [nadia] = await ours();
 
-    // Placeholder formula: Rp50.000 a day for at most 3 days, Rp100.000 per on-time Specific item.
+    // FORMULA: Rp50.000 a day for at most 3 days, Rp100.000 per on-time Specific item.
     expect(nadia.components.fixedRate.amount).toBe(2_000_000);
     expect(nadia.components.additionalContent).toMatchObject({
       amount: 100_000,

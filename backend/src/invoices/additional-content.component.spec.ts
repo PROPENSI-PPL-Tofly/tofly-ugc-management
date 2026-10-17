@@ -79,4 +79,17 @@ describe('AdditionalContentComponent', () => {
 
     expect(result.amount).toBe(0);
   });
+
+  it('waits for a formula, with no amount, while none is saved', () => {
+    const result = component.calculate(
+      context({
+        formula: null,
+        contents: [
+          specific({ status: 'link_submitted', videoSubmittedAt: day(-6) }),
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({ amount: null, status: 'waiting_for_data' });
+  });
 });
