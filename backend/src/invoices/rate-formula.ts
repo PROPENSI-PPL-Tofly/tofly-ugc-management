@@ -1,16 +1,16 @@
-// The rate formula an invoice is calculated with (PBI-8). Admins set it in "Atur Formula Rate";
-// storing it is subtask 8.1. Until that lands, the calculator reads a placeholder through the
-// same RateFormulaSource port, so swapping in the stored formula changes one provider and no
-// calculation code.
+// The rate formula an invoice is calculated with (PBI-8). Admins set it in "Atur Formula Rate",
+// which 8.1 stores; the calculator reads it through the RateFormulaSource port, so where the
+// formula comes from is one provider and no calculation code. The field names are the ones 8.1
+// stores, so nothing is renamed between the two.
 
 import type { SocialPlatform } from './invoice-component.js';
 
-/** A performance metric a bonus tier is measured on; the columns the contents table keeps. */
-export type PerformanceMetric = 'views' | 'likes';
+/** What a platform's tier thresholds count; the metrics 8.1 lets an admin pick. */
+export type PerformanceMetric = 'views' | 'likes' | 'comments' | 'shares';
 
 export interface BonusTier {
   /** The metric value a content item must reach for this tier. */
-  minimum: number;
+  threshold: number;
   /** Rupiah paid for reaching it. */
   bonus: number;
 }
@@ -23,41 +23,28 @@ export interface PlatformBonus {
 
 export interface RateFormula {
   /** Rupiah charged per day an Evergreen content item is late. */
-  penaltyPerDay: number;
-  /** Lateness stops counting after this many days, so one item costs at most penaltyPerDay × this. */
+  latePenaltyPerDay: number;
+  /** Lateness stops counting after this many days, so one item costs at most latePenaltyPerDay × this. */
   maxPenaltyDays: number;
   /** Rupiah paid per Specific (additional) content item delivered on time. */
-  specificContentFee: number;
+  specificBonus: number;
   /** Tiers per platform; a platform without an entry pays no performance bonus. */
   performanceBonus: Partial<Record<SocialPlatform, PlatformBonus>>;
 }
 
-/** Where the current formula comes from. 8.1 provides the stored one; the placeholder fills in until then. */
+/**
+ * Where the current formula comes from. Null while no admin has saved one yet: the parts of the
+ * invoice that need it then wait, rather than reading a zero nobody set.
+ */
 export interface RateFormulaSource {
-  current(): Promise<RateFormula>;
+  current(): Promise<RateFormula | null>;
 }
 
 /** Nest injection token for RateFormulaSource, since an interface does not exist at runtime. */
 export const RATE_FORMULA_SOURCE = Symbol('RATE_FORMULA_SOURCE');
 
-const VIEW_TIERS: readonly BonusTier[] = [
-  { minimum: 10_000, bonus: 150_000 },
-  { minimum: 40_000, bonus: 400_000 },
-];
-
-/** Placeholder values (proposed), used only until the stored formula from 8.1 exists. */
-export const PLACEHOLDER_RATE_FORMULA: RateFormula = {
-  penaltyPerDay: 50_000,
-  maxPenaltyDays: 3,
-  specificContentFee: 100_000,
-  performanceBonus: {
-    instagram: { metric: 'views', tiers: VIEW_TIERS },
-    tiktok: { metric: 'views', tiers: VIEW_TIERS },
-  },
-};
-
-export class PlaceholderRateFormulaSource implements RateFormulaSource {
-  current(): Promise<RateFormula> {
-    return Promise.resolve(PLACEHOLDER_RATE_FORMULA);
-  }
-}
+/**
+ * The penalty cap (decided 12 Oct 2026) for a formula that does not carry its own: one saved
+ * before rate_formula.max_penalty_days existed (#100), whose column reads null.
+ */
+export const DEFAULT_MAX_PENALTY_DAYS = 3;

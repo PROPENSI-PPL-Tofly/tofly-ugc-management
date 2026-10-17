@@ -7,13 +7,14 @@ import {
   type InvoiceContext,
   type InvoiceLine,
   isCommitted,
+  waitingForData,
 } from './invoice-component.js';
 
 /**
  * Lateness on Evergreen content only (a late Specific item is not penalised; it loses its fee).
  * A late hand-in counts the days up to the hand-in. Content still not handed in counts up to
  * today, but never past the contract's last day. Either way an item is charged for at most
- * maxPenaltyDays (decided 12 Oct 2026).
+ * maxPenaltyDays (decided 12 Oct 2026). With no formula saved yet the penalty waits for one.
  */
 export class PenaltyComponent implements InvoiceComponent {
   readonly key = 'penalty' as const;
@@ -25,6 +26,8 @@ export class PenaltyComponent implements InvoiceComponent {
     formula,
     today,
   }: InvoiceContext): ComponentResult {
+    if (formula === null) return waitingForData(this.key);
+
     const lastDay = contractLastDay(contract);
     const todayDay = jakartaDay(today);
     const countUntil = todayDay < lastDay ? todayDay : lastDay;
@@ -44,11 +47,11 @@ export class PenaltyComponent implements InvoiceComponent {
       lines.push({
         contentId: content.id,
         contentName: content.name,
-        amount: charged * formula.penaltyPerDay,
+        amount: charged * formula.latePenaltyPerDay,
         basis: {
           daysLate: late,
           chargedDays: charged,
-          perDay: formula.penaltyPerDay,
+          perDay: formula.latePenaltyPerDay,
           handedIn: content.videoSubmittedAt === null ? 'no' : 'yes',
         },
       });

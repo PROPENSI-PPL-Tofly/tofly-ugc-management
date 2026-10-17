@@ -42,7 +42,8 @@ export interface InvoiceContract {
 export interface InvoiceContext {
   contract: InvoiceContract;
   contents: readonly InvoiceContent[];
-  formula: RateFormula;
+  /** Null while no admin has saved a formula; the parts that need one wait for it. */
+  formula: RateFormula | null;
   /** The calculation has no clock of its own; the caller passes today in. */
   today: Date;
 }
@@ -94,4 +95,15 @@ export function calculated(
     status: 'calculated',
     lines,
   };
+}
+
+/**
+ * A component result whose amount is not known yet: no formula saved, or content still without
+ * the data it is measured on. `lines` keeps whatever is already known, so it can still be traced.
+ */
+export function waitingForData(
+  key: InvoiceComponentKey,
+  lines: InvoiceLine[] = [],
+): ComponentResult {
+  return { key, amount: null, status: 'waiting_for_data', lines };
 }

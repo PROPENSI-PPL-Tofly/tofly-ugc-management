@@ -13,16 +13,21 @@ import type {
 import { PenaltyComponent } from './penalty.component.js';
 import { PerformanceBonusComponent } from './performance-bonus.component.js';
 
+/** One component per part of the invoice, so every part always has a result. */
+export type InvoiceComponents = Readonly<
+  Record<InvoiceComponentKey, InvoiceComponent>
+>;
+
 /** The components a running invoice adds up, in the order they are shown. */
-export const DEFAULT_COMPONENTS: readonly InvoiceComponent[] = [
-  new FixedRateComponent(),
-  new AdditionalContentComponent(),
-  new PerformanceBonusComponent(),
-  new PenaltyComponent(),
-];
+export const DEFAULT_COMPONENTS: InvoiceComponents = {
+  fixedRate: new FixedRateComponent(),
+  additionalContent: new AdditionalContentComponent(),
+  performanceBonus: new PerformanceBonusComponent(),
+  penalty: new PenaltyComponent(),
+};
 
 export interface InvoiceBreakdown {
-  components: Partial<Record<InvoiceComponentKey, ComponentResult>>;
+  components: Record<InvoiceComponentKey, ComponentResult>;
   /** What the components add up to, which may be below zero. */
   rawTotal: number;
   /** The amount owed; never below zero, since a creator cannot end up owing Tofly. */
@@ -33,17 +38,22 @@ export interface InvoiceBreakdown {
 
 export function calculateInvoice(
   context: InvoiceContext,
-  components: readonly InvoiceComponent[] = DEFAULT_COMPONENTS,
+  components: InvoiceComponents = DEFAULT_COMPONENTS,
 ): InvoiceBreakdown {
-  const results: Partial<Record<InvoiceComponentKey, ComponentResult>> = {};
   let rawTotal = 0;
-
-  for (const component of components) {
+  const calculate = (component: InvoiceComponent): ComponentResult => {
     const result = component.calculate(context);
-    results[component.key] = result;
     // A component still waiting for data adds nothing yet; it is not counted as zero earned.
     rawTotal += component.sign * (result.amount ?? 0);
-  }
+    return result;
+  };
+
+  const results = {
+    fixedRate: calculate(components.fixedRate),
+    additionalContent: calculate(components.additionalContent),
+    performanceBonus: calculate(components.performanceBonus),
+    penalty: calculate(components.penalty),
+  };
 
   return {
     components: results,
