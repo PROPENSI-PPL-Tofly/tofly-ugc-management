@@ -4,6 +4,7 @@ import {
   draftFromView,
   EMPTY_TIER,
   isRateFormulaDirty,
+  MAX_PENALTY_DAYS,
   MAX_TIERS,
   removeTier,
   tiersProblem,
@@ -161,6 +162,26 @@ describe("validateRateFormula", () => {
       maxPenaltyDays: "Maks hari penalti wajib diisi",
       specificBonus: "Bonus Specific wajib diisi",
     });
+  });
+
+  it("accepts 365 days as the day cap, the highest allowed", () => {
+    const draft = { ...validDraft(), maxPenaltyDays: MAX_PENALTY_DAYS };
+
+    expect(validateRateFormula(draft)).toEqual({});
+  });
+
+  it.each([366, 1000, 9_999_999_999])("rejects a day cap of %s, above a year", (days) => {
+    const draft = { ...validDraft(), maxPenaltyDays: days };
+
+    expect(validateRateFormula(draft).maxPenaltyDays).toBe(
+      "Maks hari penalti harus antara 0 hari dan 365 hari",
+    );
+  });
+
+  it("still asks for a day cap that is empty", () => {
+    const draft = { ...validDraft(), maxPenaltyDays: null };
+
+    expect(validateRateFormula(draft).maxPenaltyDays).toBe("Maks hari penalti wajib diisi");
   });
 
   it("rejects an amount of more than ten digits", () => {

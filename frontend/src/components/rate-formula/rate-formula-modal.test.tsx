@@ -125,6 +125,26 @@ describe("RateFormulaModal", () => {
     expect(simpan()).toBeDisabled();
   });
 
+  it("rejects a day cap above 365 right below the field, and disables Simpan", () => {
+    setup();
+
+    type("Maks Hari Penalti*", "1000");
+    fireEvent.blur(screen.getByLabelText("Maks Hari Penalti*"));
+
+    expect(screen.getByLabelText("Maks Hari Penalti*")).toHaveAccessibleDescription(
+      "Maks hari penalti harus antara 0 hari dan 365 hari",
+    );
+    expect(simpan()).toBeDisabled();
+  });
+
+  it("accepts a day cap of exactly 365", () => {
+    setup();
+
+    type("Maks Hari Penalti*", "365");
+
+    expect(simpan()).toBeEnabled();
+  });
+
   it("does not show a message for an amount the admin has not left yet", () => {
     setup();
 
