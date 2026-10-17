@@ -136,3 +136,8 @@ export function formatPercent(value: number | null): string {
 export function formatRevisions(value: number): string {
   return `${NUMBER_FORMAT.format(value)}x`;
 }
+
+/** Rupiah, as the prototype writes it: "Rp500.000", with a plain minus for what is taken off. */
+export function formatRupiah(amount: number): string {
+  return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
+}
