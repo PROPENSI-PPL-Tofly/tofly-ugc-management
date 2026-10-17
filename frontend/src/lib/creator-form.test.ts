@@ -98,16 +98,35 @@ describe("validateCreatorForm", () => {
   // Stricter than the database's `fixed_rate >= 0` check constraint: a new creator's rate
   // is a business amount, not a counter like quota, so exactly 0 makes no sense either.
   // (Manual UI review: a numeric field pre-filled with "0" made typing "1" produce "01".)
-  it("rejects a fixed rate of zero", () => {
+  // Subtask 8.2: required, numeric, min. 0, at most ten digits.
+  it("accepts a fixed rate of zero", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 0 });
 
-    expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
+    expect(errors.fixedRate).toBeUndefined();
+  });
+
+  it("requires a fixed rate", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: null });
+
+    expect(errors.fixedRate).toBe("Fixed rate wajib diisi");
   });
 
   it("rejects a negative fixed rate", () => {
     const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: -1 });
 
-    expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
+    expect(errors.fixedRate).toBe("Fixed rate minimal 0");
+  });
+
+  it("accepts a fixed rate of ten digits", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 9_999_999_999 });
+
+    expect(errors.fixedRate).toBeUndefined();
+  });
+
+  it("rejects a fixed rate of eleven digits", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 10_000_000_000 });
+
+    expect(errors.fixedRate).toBe("Fixed rate maksimal 10 digit");
   });
 
   // A new creator needs at least one connected account before Tofly can pull performance

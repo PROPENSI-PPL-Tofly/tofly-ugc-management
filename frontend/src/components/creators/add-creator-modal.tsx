@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
+import { InfoTip } from "@/components/ui/info-tip";
 import { NUMERIC_INPUT, digitsOnly } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
@@ -31,6 +32,7 @@ import {
   toggleAutoDeadline,
   type SlotPicks,
 } from "@/lib/deadline-allocation";
+import { amountText, parseAmount } from "@/lib/amount";
 import { getBufferWindow } from "@/lib/deadline-schedule";
 import { formatDate } from "@/lib/format";
 import type { NewCreatorRequest } from "@/lib/creators";
@@ -47,17 +49,26 @@ function Field({
   label,
   error,
   note,
+  hint,
   children,
 }: {
   label: string;
   error?: string;
   /** Rendered outside the label so it stays out of the control's accessible name. */
   note?: React.ReactNode;
+  /** What the field means, behind an ⓘ at the end of the label row; outside the label so the
+   *  explanation stays out of the control's accessible name. */
+  hint?: { label: string; text: string };
   children: React.ReactNode;
 }) {
   return (
     // The message sits outside the label so it never becomes part of the input's name.
-    <div className="flex flex-col gap-1 text-[13px]">
+    <div className="relative flex flex-col gap-1 text-[13px]">
+      {hint ? (
+        <span className="absolute right-0 top-0">
+          <InfoTip label={hint.label} text={hint.text} align="end" />
+        </span>
+      ) : null}
       <label className="flex flex-col gap-1">
         <span className="font-semibold">
           {label}
@@ -95,7 +106,7 @@ const INITIAL_FORM: CreatorFormInput = {
   contractEnd: "",
   interval: 14,
   quota: 0,
-  fixedRate: 0,
+  fixedRate: null,
   socialPlatform: "",
   contractType: "",
   socialUsername: "",
@@ -209,7 +220,8 @@ export function AddCreatorModal({
   const deadlines = allocation?.deadlines ?? [];
 
   function handleSubmit() {
-    onSubmit({ ...form, deadlines });
+    // Simpan stays disabled until the form validates, so the fixed rate is filled in by now.
+    onSubmit({ ...form, fixedRate: form.fixedRate ?? 0, deadlines });
   }
 
   return (
@@ -340,14 +352,21 @@ export function AddCreatorModal({
             </select>
           </Field>
 
-          <Field label="Contract Fixed Rate (Rp)" error={fieldError("fixedRate")}>
+          <Field
+            label="Fixed Rate Kontrak (Rp)"
+            error={fieldError("fixedRate")}
+            hint={{
+              label: "Info Fixed Rate Kontrak",
+              text: "Rate tetap untuk periode kontrak pertama creator ini. Tidak ada biaya default untuk tiap konten.",
+            }}
+          >
             <input
               {...NUMERIC_INPUT}
               className={FIELD}
               required
-              placeholder="mis. 500000"
-              value={emptyIfZero(form.fixedRate)}
-              onChange={(event) => change("fixedRate", wholeNumber(event.target.value))}
+              placeholder="mis. 5000000"
+              value={amountText(form.fixedRate)}
+              onChange={(event) => change("fixedRate", parseAmount(event.target.value))}
               onBlur={() => markTouched("fixedRate")}
             />
           </Field>

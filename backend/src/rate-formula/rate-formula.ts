@@ -8,6 +8,8 @@ import { SOCIAL_PLATFORMS } from '../creators/new-creator.js';
 export const MAX_SPECIFIC_BONUS = 10_000_000;
 /** Penalti per hari, in whole rupiah (FV.fFormulaPenalty). */
 export const MAX_LATE_PENALTY_PER_DAY = 1_000_000;
+/** Maks hari penalti, in whole days: a late content is penalised for at most this many. */
+export const MAX_PENALTY_DAYS = 365;
 /** The largest tier minimum or bonus the prototype takes. */
 export const MAX_TIER_AMOUNT = 999_999_999;
 
@@ -35,6 +37,7 @@ export interface PlatformPerformanceBonus {
 export interface RateFormula {
   specificBonus: number;
   latePenaltyPerDay: number;
+  maxPenaltyDays: number;
   performanceBonus: Record<social_platform, PlatformPerformanceBonus>;
 }
 
@@ -55,6 +58,11 @@ const RUPIAH_DIGITS = new Intl.NumberFormat('id-ID', {
   useGrouping: true,
 });
 
+/** Days as the form writes them: 365 hari. */
+function days(value: number): string {
+  return `${value} hari`;
+}
+
 /** Rupiah as the prototype writes it: Rp10.000.000. */
 function rupiah(value: number): string {
   return `Rp${RUPIAH_DIGITS.format(value)}`;
@@ -71,6 +79,7 @@ function checkAmount(
   max: number,
   value: unknown,
   errors: RateFormulaErrors,
+  format: (value: number) => string = rupiah,
 ): void {
   if (isMissing(value)) {
     errors[key] = `${label} wajib diisi`;
@@ -79,7 +88,7 @@ function checkAmount(
   } else if (!Number.isInteger(value)) {
     errors[key] = `${label} harus angka bulat`;
   } else if (value < 0 || value > max) {
-    errors[key] = `${label} harus antara ${rupiah(0)} dan ${rupiah(max)}`;
+    errors[key] = `${label} harus antara ${format(0)} dan ${format(max)}`;
   }
 }
 
@@ -211,7 +220,7 @@ export function checkRateFormula(input: unknown): RateFormula {
   const body = isRecord(input) ? input : {};
   const errors: RateFormulaErrors = {};
 
-  const { specificBonus, latePenaltyPerDay } = body;
+  const { specificBonus, latePenaltyPerDay, maxPenaltyDays } = body;
   checkAmount(
     'specificBonus',
     'Bonus Specific',
@@ -226,6 +235,14 @@ export function checkRateFormula(input: unknown): RateFormula {
     latePenaltyPerDay,
     errors,
   );
+  checkAmount(
+    'maxPenaltyDays',
+    'Maks hari penalti',
+    MAX_PENALTY_DAYS,
+    maxPenaltyDays,
+    errors,
+    days,
+  );
   const performanceBonus = checkPerformanceBonus(body.performanceBonus, errors);
 
   if (Object.keys(errors).length > 0) {
@@ -238,6 +255,7 @@ export function checkRateFormula(input: unknown): RateFormula {
   return {
     specificBonus: specificBonus as number,
     latePenaltyPerDay: latePenaltyPerDay as number,
+    maxPenaltyDays: maxPenaltyDays as number,
     performanceBonus,
   };
 }

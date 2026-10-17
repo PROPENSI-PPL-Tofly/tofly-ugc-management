@@ -1,6 +1,7 @@
 // Pure validation for the Add Creator form. Kept apart from the modal component so each
 // rule is testable without rendering anything, one RED/GREEN cycle at a time.
 
+import { amountProblem } from "./amount";
 import { getBufferWindow, getDeadlinePreview, type DeadlinePreview } from "./deadline-schedule";
 import { formatDate } from "./format";
 
@@ -39,7 +40,8 @@ export interface CreatorFormInput {
   contractEnd: string;
   interval: number;
   quota: number;
-  fixedRate: number;
+  /** In rupiah; null until the admin fills it in, since 0 is a rate they may choose. */
+  fixedRate: number | null;
   socialPlatform: SocialPlatform | "";
   socialUsername: string;
   contractType: ContractType | "";
@@ -192,9 +194,8 @@ export function validateCreatorForm(
     errors.quota = `Jumlah konten maksimal ${MAX_CONTENT_QUOTA}`;
   }
 
-  if (input.fixedRate <= 0) {
-    errors.fixedRate = "Fixed rate harus lebih dari 0";
-  }
+  const fixedRate = amountProblem(input.fixedRate, "Fixed rate");
+  if (fixedRate) errors.fixedRate = fixedRate;
 
   if (input.socialPlatform === "") {
     errors.socialPlatform = "Platform wajib dipilih";

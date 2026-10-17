@@ -84,6 +84,13 @@ describe("Rate & Invoicing page", () => {
     expect(screen.getByTitle(FORMULA)).toBeInTheDocument();
   });
 
+  // Subtask 8.2: the Atur Formula Rate button sits in the panel head, beside the title.
+  it("has the Atur Formula Rate button in the panel head", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: /atur formula rate/i })).toBeInTheDocument();
+  });
+
   it("asks the list for the URL's own parsed state, filters and page", async () => {
     await renderPage({ q: "pw", contract: "active", status: "paid", page: "2" });
 
