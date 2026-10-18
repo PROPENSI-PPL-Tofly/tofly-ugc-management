@@ -177,7 +177,10 @@ describe('GET /invoices (e2e)', () => {
     expect(nadia.components.fixedRate.amount).toBe(2_000_000);
     expect(nadia.components.additionalContent).toMatchObject({
       amount: 100_000,
-      lines: [{ contentName: 'Specific on time', amount: 100_000 }],
+      lines: [
+        { contentName: 'Specific on time', amount: 100_000 },
+        { contentName: 'Specific late', amount: 0, basis: { late: 'yes' } },
+      ],
     });
     expect(nadia.components.penalty.amount).toBe(250_000);
     expect(nadia.components.performanceBonus.status).toBe('waiting_for_data');
