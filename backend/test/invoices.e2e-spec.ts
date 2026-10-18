@@ -423,4 +423,92 @@ describe('Invoices API (e2e)', () => {
       else process.env.DEV_AUTH_ENABLED = priorDevAuth;
     }
   });
+
+  // OWASP Top 10:2025 A06 (Insecure Design) and A08 (Software and Data Integrity Failures).
+  it('finalizes an ended invoice with a complete persisted calculation snapshot', async () => {
+    const user = await prisma.users.create({
+      data: { email: `${MARKER}-finalization@example.com` },
+    });
+    const creatorRow = await prisma.creators.create({
+      data: {
+        user_id: user.id,
+        first_name: `${MARKER} Finalization`,
+        contracts: {
+          create: {
+            start_date: day(-30),
+            end_date: day(-1),
+            contract_type: 'regular',
+            days_between: 14,
+            content_quota: 1,
+            fixed_rate: 1_000_000,
+            contents: {
+              create: [
+                {
+                  name: `${MARKER} submitted evergreen`,
+                  type: 'evergreen',
+                  deadline: day(-2),
+                  status: 'link_submitted',
+                  video_link: 'https://example.com/finalization-evergreen',
+                  video_submitted_at: day(-2),
+                  platform: 'instagram',
+                  views: 0,
+                },
+                {
+                  name: `${MARKER} on-time specific`,
+                  type: 'specific',
+                  deadline: day(-3),
+                  status: 'link_submitted',
+                  video_link: 'https://example.com/finalization-specific',
+                  video_submitted_at: day(-3),
+                },
+              ],
+            },
+          },
+        },
+      },
+      select: { contracts: { select: { id: true } } },
+    });
+    const endedContractId = creatorRow.contracts[0].id;
+    const reason = 'Finalization adjustment';
+
+    await admin
+      .post(`/invoices/${endedContractId}/adjustments`)
+      .send({ amount: 25_000, reason })
+      .expect(201);
+
+    const { body: finalized } = await admin
+      .post(`/invoices/${endedContractId}/finalize`)
+      .expect(201);
+
+    expect(finalized).toMatchObject({
+      invoiceStatus: 'finalized',
+      snapshot: {
+        fixedRate: { amount: 1_000_000, status: 'calculated' },
+        additionalContent: { amount: 100_000, status: 'calculated' },
+        performanceBonus: { amount: 0, status: 'calculated' },
+        penalty: { amount: 0, status: 'calculated' },
+        adjustments: [
+          { amount: 25_000, reason, actorId: adminId },
+        ],
+        rawTotal: 1_125_000,
+        total: 1_125_000,
+        floored: false,
+      },
+    });
+
+    const { body: listed } = await admin
+      .get('/invoices')
+      .query({ pageSize: 50 })
+      .expect(200);
+    const invoice = listed.items.find(
+      (item: { contract: { id: string } }) =>
+        item.contract.id === endedContractId,
+    );
+    expect(invoice).toMatchObject({
+      invoiceStatus: 'finalized',
+      snapshot: finalized.snapshot,
+      adjustments: [{ amount: 25_000, reason, actorId: adminId }],
+      total: 1_125_000,
+    });
+  });
 });
