@@ -1,5 +1,6 @@
-// Server-side only: a GET to the backend on the signed-in browser's behalf. The invoice loaders
-// share it; it reads the session through next/headers, which client components cannot import.
+// Server-side only: a call to the backend on the signed-in browser's behalf. The invoice loaders
+// and the invoice actions share it; it reads the session through next/headers, which client
+// components cannot import.
 
 import { appSessionCookieHeader } from "./session-cookie";
 
@@ -30,5 +31,25 @@ export async function backendGet(path: string): Promise<Response> {
   return fetch(`${withoutTrailingSlash(backendUrl)}${path}`, {
     cache: "no-store",
     ...(cookie && { headers: { cookie } }),
+  });
+}
+
+/** The same request as a POST with a JSON body, for the two invoice actions. */
+export async function backendPost(path: string, body: unknown = {}): Promise<Response> {
+  const backendUrl = process.env.BACKEND_URL;
+
+  if (!backendUrl) {
+    throw new Error("BACKEND_URL is not configured");
+  }
+
+  const cookie = await appSessionCookieHeader();
+  return fetch(`${withoutTrailingSlash(backendUrl)}${path}`, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "content-type": "application/json",
+      ...(cookie && { cookie }),
+    },
+    body: JSON.stringify(body),
   });
 }
