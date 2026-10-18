@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import { SortableTh } from "@/components/ui/sortable-th";
+import { formatRupiah } from "@/lib/format";
 import {
   amountLabel,
   bonusLabel,
@@ -8,8 +11,11 @@ import {
   finalLabel,
   INVOICE_STATUS_LABELS,
   penaltyLabel,
+  TOTAL_FORMULA,
   type ContractStatus,
   type InvoiceRow,
+  type InvoiceSortKey,
+  type InvoiceSortOrder,
   type InvoiceStatus,
 } from "@/lib/invoice";
 import type { BreakdownKind } from "@/lib/invoice-breakdown";
@@ -20,13 +26,13 @@ const CELL = "px-5 py-3 align-top";
 const NUM = `${CELL} whitespace-nowrap text-right tabular-nums`;
 
 /** The contract dot, coloured apart with the app's own tones where the prototype used its. */
-const CONTRACT_TONES: Record<ContractStatus, Tone> = {
+export const CONTRACT_TONES: Record<ContractStatus, Tone> = {
   active: "green",
   upcoming: "accent",
   expired: "neutral",
 };
 
-const INVOICE_TONES: Record<InvoiceStatus, Tone> = {
+export const INVOICE_TONES: Record<InvoiceStatus, Tone> = {
   accruing: "neutral",
   finalized: "amber",
   creator_acked: "accent",
@@ -34,10 +40,25 @@ const INVOICE_TONES: Record<InvoiceStatus, Tone> = {
   paid: "green",
 };
 
+/** What each sortable column's two directions mean, for the header's title. */
+const SORT_HINTS = {
+  name: { asc: "Nama A–Z", desc: "Nama Z–A" },
+  fixed: { asc: "Fixed rate terkecil dulu", desc: "Fixed rate terbesar dulu" },
+  penalty: { asc: "Penalti terkecil dulu", desc: "Penalti terbesar dulu" },
+  total: { asc: "Total terkecil dulu", desc: "Total terbesar dulu" },
+} as const;
+
+/** The table's order and where a press on a sortable header goes; the board keeps it in the URL. */
+export interface InvoiceTableSort {
+  key: InvoiceSortKey;
+  order: InvoiceSortOrder;
+  onSort: (key: InvoiceSortKey) => void;
+}
+
 /**
- * The column widths, the prototype's spread over the seven columns there are until Finalize
- * (PBI-12) brings an action column. Classes, not inline styles, which the CSP refuses; each is
+ * The column widths, the prototype's. Classes, not inline styles, which the CSP refuses; each is
  * named by its column, since several columns share a width and a width alone cannot key one.
+ * The action column joins them only when the board hands one in.
  */
 const COLUMNS = [
   ["creator", "w-[20%]"],
@@ -70,6 +91,36 @@ function bonusCell(row: InvoiceRow) {
   return amountCell(row.bonusAmount, bonusLabel(row.bonusAmount));
 }
 
+/** A header that sorts when the board hands in an order, and a plain one otherwise. */
+function headerCell(
+  label: string,
+  key: Exclude<InvoiceSortKey, "action">,
+  sort: InvoiceTableSort | undefined,
+  align: "left" | "right",
+  beside?: ReactNode,
+) {
+  if (!sort) {
+    return (
+      <th scope="col" className={align === "right" ? NUM_HEAD : HEAD}>
+        <span className={`inline-flex items-center gap-1 ${align === "right" ? "justify-end" : ""}`}>
+          {label}
+          {beside}
+        </span>
+      </th>
+    );
+  }
+  return (
+    <SortableTh
+      label={label}
+      direction={sort.key === key ? sort.order : null}
+      hints={SORT_HINTS[key]}
+      align={align}
+      beside={beside}
+      onToggle={() => sort.onSort(key)}
+    />
+  );
+}
+
 function finalCell(row: InvoiceRow) {
   // The backend's running total; while the bonus waits the Bonus cell says so beside it.
   return (
@@ -89,55 +140,73 @@ function finalCell(row: InvoiceRow) {
  * invoice is built from and where the invoice stands. Structured as the prototype structures
  * it — columns, widths and cell anatomy — in the app's own colours. Amounts are plain text
  * here; the breakdown popups (8.5) put their triggers in these cells through `amount`, which
- * draws a money cell in place of the plain text. Final Rate and the invoice are never replaced.
+ * draws a money cell in place of the plain text. Total and the invoice are never replaced.
+ *
+ * What the board adds is optional, so the table stays one table: `sort` turns four headers
+ * into sort buttons, `summary` adds a footer with what every creator the filters keep is owed,
+ * and `action` adds a column of per-row actions (Rincian now, Finalize with PBI-12).
  */
 export function InvoiceTable({
   rows,
   amount,
+  sort,
+  summary,
+  action,
 }: Readonly<{
   rows: readonly InvoiceRow[];
   /** Draws one money cell; the plain amounts when it is not given. */
   amount?: (kind: BreakdownKind, row: InvoiceRow) => ReactNode;
+  sort?: InvoiceTableSort;
+  /** Every creator the filters keep, across pages: how many and what they are owed together. */
+  summary?: { total: number; count: number };
+  /** Draws the actions of one row. */
+  action?: (row: InvoiceRow) => ReactNode;
 }>) {
+  const columns = action ? [...COLUMNS, ["actions", "w-[9%]"] as const] : COLUMNS;
+
   return (
     // relative: the scroll region is the containing block of anything absolutely placed inside
     // it, so nothing escapes it and widens the page.
     <div className="relative overflow-x-auto">
       <table className="w-full text-[13px]">
         <colgroup>
-          {COLUMNS.map(([column, width]) => (
+          {columns.map(([column, width]) => (
             <col key={column} className={width} />
           ))}
         </colgroup>
         <thead>
           <tr className="border-b border-rule text-muted">
-            <th scope="col" className={HEAD}>
-              Creator
-            </th>
-            <th scope="col" className={NUM_HEAD}>
-              Fixed Rate
-            </th>
+            {headerCell("Creator", "name", sort, "left")}
+            {headerCell("Fixed Rate", "fixed", sort, "right")}
             <th scope="col" className={NUM_HEAD}>
               Fee Konten Tambahan
             </th>
             <th scope="col" className={NUM_HEAD}>
               Bonus Performa
             </th>
-            <th scope="col" className={NUM_HEAD}>
-              Penalti
-            </th>
-            <th scope="col" className={NUM_HEAD}>
-              Total
-            </th>
+            {headerCell("Penalti", "penalty", sort, "right")}
+            {headerCell(
+              "Total",
+              "total",
+              sort,
+              "right",
+              <InfoTip label="Info rumus Total" text={TOTAL_FORMULA} align="end" />,
+            )}
             <th scope="col" className={HEAD}>
               Status Invoice
             </th>
+            {action ? (
+              <th scope="col" className={HEAD}>
+                {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
+                <span className="sr-only">Aksi</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={COLUMNS.length} className="px-5 py-14 text-center text-muted">
+              <td colSpan={columns.length} className="px-5 py-14 text-center text-muted">
                 Tidak ada creator sesuai filter.
               </td>
             </tr>
@@ -170,10 +239,24 @@ export function InvoiceTable({
                     {INVOICE_STATUS_LABELS[row.invoiceStatus]}
                   </Pill>
                 </td>
+                {action ? <td className={`${CELL} text-right`}>{action(row)}</td> : null}
               </tr>
             ))
           )}
         </tbody>
+        {summary && rows.length > 0 ? (
+          <tfoot>
+            <tr className="border-t border-rule bg-surface-2">
+              <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold`}>
+                {`Total ${summary.count} creator`}
+              </th>
+              <td className={NUM}>
+                <strong>{formatRupiah(summary.total)}</strong>
+              </td>
+              <td colSpan={columns.length - 6} className={CELL} />
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );

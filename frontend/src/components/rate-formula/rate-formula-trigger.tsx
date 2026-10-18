@@ -25,7 +25,12 @@ const NO_FAILURE: SaveFailure = { errors: {} };
  * now rather than on what the page loaded with; if it cannot be read the button says so beside
  * itself instead of opening a blank form that would overwrite it.
  */
-export function RateFormulaTrigger() {
+export function RateFormulaTrigger({
+  runningInvoices = 0,
+}: Readonly<{
+  /** Running invoices a saved change recalculates, said in the dialog before saving. */
+  runningInvoices?: number;
+}> = {}) {
   const [opened, setOpened] = useState<RateFormulaDraft | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -88,6 +93,7 @@ export function RateFormulaTrigger() {
           loading={saving}
           serverErrors={failure.errors}
           formError={failure.message}
+          runningInvoices={runningInvoices}
         />
       ) : null}
 

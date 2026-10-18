@@ -45,7 +45,8 @@ describe("InvoiceTable", () => {
   it("heads the columns in the prototype's order and widths", () => {
     const { container } = render(<InvoiceTable rows={[FULL]} />);
 
-    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+    // The ⓘ beside Total carries its own label and tooltip; the heading is the text before it.
+    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent?.split("ⓘ")[0])).toEqual([
       "Creator",
       "Fixed Rate",
       "Fee Konten Tambahan",
@@ -154,7 +155,8 @@ describe("InvoiceTable", () => {
     it("puts the trigger it is handed in each of the four money cells, in their order", () => {
       render(<InvoiceTable rows={[FULL]} amount={trigger} />);
 
-      expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      const body = screen.getAllByRole("rowgroup")[1];
+      expect(within(body).getAllByRole("button").map((button) => button.textContent)).toEqual([
         "fixed of Rangga Pratama",
         "extra of Rangga Pratama",
         "bonus of Rangga Pratama",
@@ -193,7 +195,7 @@ describe("InvoiceTable", () => {
     it("lets Creator, Fixed Rate, Penalti and Total be sorted, the others not", () => {
       render(<InvoiceTable rows={[FULL]} sort={sortProps("action")} />);
 
-      expect(screen.getAllByRole("columnheader").filter((th) => th.querySelector("button[title]")).map((th) => th.textContent?.replace(/[↑↓]/g, "").trim())).toEqual([
+      expect(screen.getAllByRole("columnheader").filter((th) => th.querySelector("button[title]")).map((th) => th.querySelector("button[title]")?.textContent)).toEqual([
         "Creator",
         "Fixed Rate",
         "Penalti",

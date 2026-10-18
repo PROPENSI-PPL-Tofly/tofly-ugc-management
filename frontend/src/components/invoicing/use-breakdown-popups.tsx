@@ -9,12 +9,16 @@ import type { InvoiceRow } from "@/lib/invoice";
 import type { BreakdownKind, InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { loadInvoiceBreakdown } from "@/lib/invoice-breakdown.server";
 import { BreakdownPopup, type BreakdownStatus } from "./breakdown-popup";
+import { InvoiceRincian } from "./invoice-rincian";
+
+/** One money column, or "all" for the whole invoice in one panel (Rincian). */
+export type BreakdownView = BreakdownKind | "all";
 
 /** Where a creator's breakdown comes from: null when there is none to show. */
 export type BreakdownLoader = (creatorId: string) => Promise<InvoiceBreakdown | null>;
 
 interface OpenBreakdown {
-  kind: BreakdownKind;
+  kind: BreakdownView;
   row: InvoiceRow;
   /** Null until it arrives, and when there is none. */
   breakdown: InvoiceBreakdown | null;
@@ -50,7 +54,7 @@ export function useBreakdownPopups({
   load = loadInvoiceBreakdown,
   onDecided,
 }: Readonly<{ load?: BreakdownLoader; onDecided?: (decision: Decision) => void }> = {}): {
-  open: (kind: BreakdownKind, row: InvoiceRow) => void;
+  open: (kind: BreakdownView, row: InvoiceRow) => void;
   layers: ReactNode;
 } {
   const [popup, setPopup] = useState<OpenBreakdown | null>(null);
@@ -59,7 +63,7 @@ export function useBreakdownPopups({
   // Only the latest request may fill the popup: an answer for a popup since closed is dropped.
   const latest = useRef(0);
 
-  function fetchFor(kind: BreakdownKind, row: InvoiceRow) {
+  function fetchFor(kind: BreakdownView, row: InvoiceRow) {
     const request = ++latest.current;
     setPopup({ kind, row, breakdown: null, status: "loading" });
 
@@ -77,7 +81,7 @@ export function useBreakdownPopups({
     );
   }
 
-  function open(kind: BreakdownKind, row: InvoiceRow) {
+  function open(kind: BreakdownView, row: InvoiceRow) {
     const known = read.current.get(readKey(row));
     if (known) {
       latest.current += 1;
@@ -108,6 +112,17 @@ export function useBreakdownPopups({
           closeAll();
           onDecided?.(decision);
         }}
+      />
+    );
+  } else if (popup?.kind === "all") {
+    layers = (
+      <InvoiceRincian
+        row={popup.row}
+        breakdown={popup.breakdown}
+        status={popup.status}
+        onRetry={() => fetchFor("all", popup.row)}
+        onClose={closeAll}
+        onOpenContent={setContentId}
       />
     );
   } else if (popup) {

@@ -40,6 +40,7 @@ export function RateFormulaModal({
   loading = false,
   serverErrors = NO_ERRORS,
   formError,
+  runningInvoices = 0,
 }: {
   initial: RateFormulaDraft;
   onClose: () => void;
@@ -49,6 +50,8 @@ export function RateFormulaModal({
   serverErrors?: RateFormulaErrors;
   /** A save failure that belongs to no single field. */
   formError?: string;
+  /** Running invoices a saved change recalculates at once. */
+  runningInvoices?: number;
 }) {
   const [draft, setDraft] = useState(initial);
   // Which messages the admin has earned: a field shows its error once it was left (or, for a
@@ -165,6 +168,15 @@ export function RateFormulaModal({
             onChange={(next) => changePlatform(platform, next)}
           />
         ))}
+
+        {runningInvoices > 0 ? (
+          <p
+            role="note"
+            className="rounded-(--radius-control) border border-amber bg-amber-wash px-3 py-2 text-[13px] text-amber-ink"
+          >
+            {`Perubahan langsung menghitung ulang ${runningInvoices} invoice yang masih berjalan.`}
+          </p>
+        ) : null}
 
         {formError ? (
           <p role="alert" className={ALERT}>

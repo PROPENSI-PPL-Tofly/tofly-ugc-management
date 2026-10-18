@@ -430,6 +430,17 @@ describe("useBreakdownPopups after the table is read again", () => {
       expect(load).toHaveBeenCalledTimes(1);
     });
 
+    it("offers a retry in the panel when the breakdown could not be read, and shows it once it is", async () => {
+      const load = vi.fn<BreakdownLoader>().mockRejectedValueOnce(new Error("down")).mockResolvedValue(RANGGA);
+      render(<Whole load={load} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Coba lagi" }));
+
+      expect(await screen.findByRole("region", { name: "Penalti" })).toBeInTheDocument();
+      expect(load).toHaveBeenCalledTimes(2);
+    });
+
     it("opens a content from the panel and comes back to the panel when it closes", async () => {
       render(<Whole load={answering()} />);
 

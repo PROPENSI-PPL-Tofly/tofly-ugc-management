@@ -12,6 +12,20 @@ export const INVOICE_PAGE_SIZE = 10;
 /** The list's own address. */
 export const INVOICE_PATH = "/admin/invoicing";
 
+/** What the ⓘ beside Total says: how the total is made, and that a bonus still waiting is not in it. */
+export const TOTAL_FORMULA =
+  "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti. Bonus yang masih menunggu data belum dihitung.";
+
+/**
+ * The orders the table can be read in. "action" is the default: ended contracts first, as their
+ * invoices are ready to finalize, then running, then not started.
+ */
+export const INVOICE_SORT_KEYS = ["action", "name", "fixed", "penalty", "total"] as const;
+
+export type InvoiceSortKey = (typeof INVOICE_SORT_KEYS)[number];
+
+export type InvoiceSortOrder = "asc" | "desc";
+
 /** The longest search word GET /invoices reads; a longer one would be refused with a 400. */
 export const MAX_INVOICE_SEARCH_LENGTH = 100;
 
@@ -70,18 +84,30 @@ export interface InvoiceRow {
   invoiceStatus: InvoiceStatus;
 }
 
+/** What the page says about every invoice, not only the ones on this page. */
+export interface InvoiceSummary {
+  /** What every invoice the filters keep adds up to. */
+  total: number;
+  /** Running invoices across the whole roster: what a formula change recalculates. */
+  runningInvoices: number;
+  formulaSet: boolean;
+}
+
 /** One page of the table, with the whole list's count so the pagination can name the pages. */
 export interface InvoiceList {
   rows: InvoiceRow[];
   page: number;
   total: number;
   totalPages: number;
+  summary: InvoiceSummary;
 }
 
 export interface InvoiceParams {
   q: string;
   contract: ContractStatus | "all";
   status: InvoiceStatus | "all";
+  sort: InvoiceSortKey;
+  order: InvoiceSortOrder;
   page: number;
 }
 
@@ -89,6 +115,8 @@ export const DEFAULT_INVOICE_PARAMS: InvoiceParams = {
   q: "",
   contract: "all",
   status: "all",
+  sort: "action",
+  order: "asc",
   page: 1,
 };
 
@@ -102,6 +130,8 @@ export function parseInvoiceParams(params: SearchParams): InvoiceParams {
     q: single(params.q).trim().slice(0, MAX_INVOICE_SEARCH_LENGTH).trim(),
     contract: oneOf(["all", ...CONTRACT_STATUSES], single(params.contract), "all"),
     status: oneOf(["all", ...INVOICE_STATUSES], single(params.status), "all"),
+    sort: oneOf(INVOICE_SORT_KEYS, single(params.sort), "action"),
+    order: oneOf(["asc", "desc"] as const, single(params.order), "asc"),
     page: pageNumber(params.page),
   };
 }
@@ -115,8 +145,32 @@ export function buildInvoiceQuery(state: InvoiceParams): Record<string, string> 
   if (state.q) query.q = state.q;
   if (state.contract !== "all") query.contract = state.contract;
   if (state.status !== "all") query.status = state.status;
+  if (state.sort !== "action") query.sort = state.sort;
+  if (state.order !== "asc") query.order = state.order;
   if (state.page > 1) query.page = String(state.page);
   return query;
+}
+
+/**
+ * The order after a column is pressed: the same column turns around; another starts the way it
+ * reads best, names A to Z and amounts largest first.
+ */
+export function nextInvoiceSort(
+  current: { sort: InvoiceSortKey; order: InvoiceSortOrder },
+  key: InvoiceSortKey,
+): { sort: InvoiceSortKey; order: InvoiceSortOrder } {
+  if (current.sort === key) return { sort: key, order: current.order === "asc" ? "desc" : "asc" };
+  return { sort: key, order: key === "name" || key === "action" ? "asc" : "desc" };
+}
+
+/**
+ * Where the CSV of what is on show downloads from: the same filters and order, every page, through
+ * the app's own /api so the session stays a same-origin cookie.
+ */
+export function invoiceExportHref(state: InvoiceParams): string {
+  // Page one leaves the page out of the query; the export is every page.
+  const search = new URLSearchParams(buildInvoiceQuery({ ...state, page: 1 })).toString();
+  return search ? `/api/invoices/export?${search}` : "/api/invoices/export";
 }
 
 /** The list's own address for a state: the bare path, or the path with its query. */

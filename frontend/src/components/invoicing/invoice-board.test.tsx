@@ -114,7 +114,7 @@ describe("InvoiceBoard", () => {
       searchParams = new URLSearchParams("sort=name&order=desc");
       render(<InvoiceBoard rows={[ROW]} sort={{ key: "name", order: "desc" }} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Fixed Rate/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Fixed Rate" }));
 
       expect(replace).toHaveBeenCalledWith("/admin/invoicing?sort=fixed&order=desc", { scroll: false });
     });

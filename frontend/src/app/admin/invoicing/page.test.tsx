@@ -105,6 +105,8 @@ describe("Rate & Invoicing page", () => {
       q: "pw",
       contract: "active",
       status: "paid",
+      sort: "action",
+      order: "asc",
       page: 2,
     });
   });

@@ -14,6 +14,7 @@ import {
   INVOICE_PAGE_SIZE,
   type ContractStatus,
   type InvoiceList,
+  type InvoiceSummary,
   type InvoiceParams,
   type InvoiceRow,
   type InvoiceStatus,
@@ -66,6 +67,7 @@ export interface RawInvoiceList {
   pageSize: number;
   total: number;
   totalPages: number;
+  summary: InvoiceSummary;
 }
 
 /** The rate formula as the backend stores it (8.1). */
@@ -92,6 +94,10 @@ export function toInvoiceListQuery(state: InvoiceParams): URLSearchParams {
   if (state.q) query.set("q", state.q);
   if (state.contract !== "all") query.set("contract", state.contract);
   if (state.status !== "all") query.set("status", state.status);
+  if (state.sort !== "action" || state.order !== "asc") {
+    query.set("sort", state.sort);
+    query.set("order", state.order);
+  }
   query.set("page", String(state.page));
   query.set("pageSize", String(INVOICE_PAGE_SIZE));
   return query;
@@ -128,6 +134,7 @@ export function toInvoiceList(raw: RawInvoiceList): InvoiceList {
     page: Math.min(raw.page, totalPages),
     total: raw.total,
     totalPages,
+    summary: raw.summary,
   };
 }
 
@@ -183,6 +190,8 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
         name: line.contentName,
         rate: basisNumber(line, "fee"),
         amount: line.amount,
+        // A Specific item handed in late earns nothing; the backend still lists it, at Rp0.
+        late: line.basis.late === "yes",
       })),
       total: additionalContent.amount ?? 0,
     },

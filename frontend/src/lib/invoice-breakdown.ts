@@ -19,6 +19,8 @@ export interface RatedLine {
   name: string;
   rate: number;
   amount: number;
+  /** Handed in after its deadline: listed so the missing fee is traced, at Rp0. */
+  late?: boolean;
 }
 
 /**
@@ -191,7 +193,7 @@ function rated(line: RatedLine): Described {
   return {
     contentId: line.contentId,
     name: line.name,
-    detail: `1 konten × ${formatRupiah(line.rate)}`,
+    detail: line.late ? "Telat — tidak dibayar" : `1 konten × ${formatRupiah(line.rate)}`,
     amount: formatRupiah(line.amount),
     tone: "plain",
   };

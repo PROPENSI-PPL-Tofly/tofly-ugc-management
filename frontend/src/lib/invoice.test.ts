@@ -124,7 +124,7 @@ describe("invoiceHref", () => {
   });
 
   it("names the filters and the page on the address", () => {
-    expect(invoiceHref({ q: "pw", contract: "all", status: "accruing", page: 2 })).toBe(
+    expect(invoiceHref({ ...DEFAULT_INVOICE_PARAMS, q: "pw", status: "accruing", page: 2 })).toBe(
       "/admin/invoicing?q=pw&status=accruing&page=2",
     );
   });
