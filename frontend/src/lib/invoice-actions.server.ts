@@ -1,3 +1,5 @@
+"use server";
+
 // Server-side only: the two moves an admin makes on a running invoice (PBI-12, subtask 12.2):
 // add a manual adjustment and freeze the amounts. Both go to 12.1's endpoints with the browser's
 // session and nothing else, and both answer in a result the form can render — a refusal is an
