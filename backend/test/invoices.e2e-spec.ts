@@ -332,8 +332,20 @@ describe('Invoices API (e2e)', () => {
   });
 
   it('rejects an unsupported contract status and an overlong search', async () => {
-    await admin.get('/invoices?contract=none').expect(400);
-    await admin.get(`/invoices?q=${'a'.repeat(101)}`).expect(400);
+    const status = await admin.get('/invoices?contract=none').expect(400);
+    const search = await admin
+      .get(`/invoices?q=${'a'.repeat(101)}`)
+      .expect(400);
+
+    // Each 400 names the query value that was refused, not some other failure.
+    expect(status.body).toMatchObject({
+      statusCode: 400,
+      message: 'contract must be one of active, upcoming, expired',
+    });
+    expect(search.body).toMatchObject({
+      statusCode: 400,
+      message: 'q must be 100 characters or fewer',
+    });
   });
 
   it('filters by invoice pipeline status', async () => {
