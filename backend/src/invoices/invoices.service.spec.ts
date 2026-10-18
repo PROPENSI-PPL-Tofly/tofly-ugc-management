@@ -69,273 +69,196 @@ describe('InvoicesService', () => {
     service = module.get(InvoicesService);
   });
 
-  it('asks for one page of creators that have a contract, ordered by name', async () => {
-    // Arrange
-    prisma.creators.findMany.mockResolvedValue([]);
-    prisma.creators.count.mockResolvedValue(30);
-
-    // Act
-    await service.list({ page: 3, pageSize: 10 }, TODAY);
-
-    // Assert
-    expect(prisma.creators.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { contracts: { some: {} } },
-        skip: 20,
-        take: 10,
-        orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
-      }),
-    );
-    expect(prisma.creators.count).toHaveBeenCalledWith({
-      where: { contracts: { some: {} } },
-    });
+  const contractFor = (id: string, start: number, end: number, rate = '5500000') => ({
+    id,
+    start_date: day(start),
+    end_date: day(end),
+    content_quota: 11,
+    fixed_rate: new Prisma.Decimal(rate),
   });
+  // Ordered by name, as the database answers: Kevin (upcoming), Nadia (ended), Rangga (running).
+  const roster = [
+    row({ id: 'kevin', first_name: 'Kevin', last_name: 'Pranata', contracts: [contractFor('kevin-c', 10, 100, '1000000')] }),
+    row({ id: 'nadia', first_name: 'Nadia', last_name: 'Putri', contracts: [contractFor('nadia-c', -200, -10, '2000000')] }),
+    row({ id: 'rangga', first_name: 'Rangga', last_name: 'Pratama', contracts: [contractFor('rangga-c', -60, 60, '5500000')] }),
+  ];
+  const ids = (result: { items: { creatorId: string }[] }) => result.items.map((item) => item.creatorId);
 
-  it('calculates each creator with the current formula from the source', async () => {
-    prisma.creators.findMany.mockResolvedValue([row()]);
-    prisma.creators.count.mockResolvedValue(1);
-    formulas.current.mockResolvedValue({ ...FORMULA, specificBonus: 0 });
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
-
-    expect(formulas.current).toHaveBeenCalledTimes(1);
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toMatchObject({
-      creatorId: 'creator-1',
-      creatorName: 'Rangga Pratama',
-      total: 5_500_000,
-    });
-  });
-
-  it('tells each item where its invoice stands, asking the pipeline about the page alone', async () => {
-    prisma.creators.findMany.mockResolvedValue([row()]);
-    prisma.creators.count.mockResolvedValue(1);
-    pipeline = { 'contract-1': 'finalized' };
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
-
-    expect(statuses.statuses).toHaveBeenCalledWith(['contract-1']);
-    expect(result.items[0].invoiceStatus).toBe('finalized');
-  });
-
-  it('wraps the page in the paging envelope the table reads', async () => {
-    prisma.creators.findMany.mockResolvedValue([row()]);
-    prisma.creators.count.mockResolvedValue(21);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
-
-    expect(result).toMatchObject({
-      page: 1,
-      pageSize: 10,
-      total: 21,
-      totalPages: 3,
-    });
-  });
-
-  it('reports one page for an empty roster', async () => {
-    prisma.creators.findMany.mockResolvedValue([]);
-    prisma.creators.count.mockResolvedValue(0);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
-
-    expect(result).toEqual({
-      items: [],
-      page: 1,
-      pageSize: 10,
-      total: 0,
-      totalPages: 1,
-    });
-  });
-
-  it('lets a failing formula source fail the request instead of invoicing with no formula', async () => {
-    prisma.creators.findMany.mockResolvedValue([row()]);
-    prisma.creators.count.mockResolvedValue(1);
-    formulas.current.mockRejectedValue(new Error('formula unavailable'));
-
-    await expect(
-      service.list({ page: 1, pageSize: 10 }, TODAY),
-    ).rejects.toThrow('formula unavailable');
-  });
-
-  it('answers the last page when asked for one past it', async () => {
-    prisma.creators.findMany.mockResolvedValue([row()]);
-    prisma.creators.count.mockResolvedValue(3);
-
-    const result = await service.list({ page: 5, pageSize: 10 }, TODAY);
-
-    expect(prisma.creators.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 0, take: 10 }),
-    );
-    expect(result).toMatchObject({ page: 1, totalPages: 1 });
-    expect(result.items).toHaveLength(1);
-  });
-
-  it('loads content only for the contract each creator is invoiced on', async () => {
-    const running = row({
-      contracts: [
-        {
-          id: 'old',
-          start_date: day(-200),
-          end_date: day(-61),
-          content_quota: 11,
-          fixed_rate: new Prisma.Decimal('5000000'),
-        },
-        {
-          id: 'running',
-          start_date: day(-60),
-          end_date: day(60),
-          content_quota: 11,
-          fixed_rate: new Prisma.Decimal('5500000'),
-        },
-      ],
-    });
-    prisma.creators.findMany.mockResolvedValue([running]);
-    prisma.creators.count.mockResolvedValue(1);
-    prisma.contents.findMany.mockResolvedValue([
-      {
-        id: 'late',
-        contract_id: 'running',
-        name: 'Evg_1',
-        type: 'evergreen',
-        status: 'link_submitted',
-        deadline: day(-10),
-        video_submitted_at: day(-8),
-        platform: null,
-        views: null,
-        likes: null,
-      },
-    ]);
-
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
-
-    expect(prisma.contents.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { contract_id: { in: ['running'] } } }),
-    );
-    expect(result.items[0].contract.id).toBe('running');
-    expect(result.items[0].components.penalty.lines[0].contentId).toBe('late');
-  });
-
-  describe('with filters', () => {
-    const contractFor = (id: string, start: number, end: number) => ({
-      id,
-      start_date: day(start),
-      end_date: day(end),
-      content_quota: 11,
-      fixed_rate: new Prisma.Decimal('5500000'),
-    });
-    const roster = [
-      row({ id: 'rangga', first_name: 'Rangga', last_name: 'Pratama' }),
-      row({
-        id: 'nadia',
-        first_name: 'Nadia',
-        last_name: 'Putri',
-        contracts: [contractFor('nadia-c', -200, -10)],
-      }),
-      row({
-        id: 'kevin',
-        first_name: 'Kevin',
-        last_name: 'Pranata',
-        contracts: [contractFor('kevin-c', 10, 100)],
-      }),
-    ];
-
+  describe('list', () => {
     beforeEach(() => {
       prisma.creators.findMany.mockResolvedValue(roster);
     });
 
-    it('reads the whole roster without content, then filters before paging', async () => {
-      await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
+    it('reads the whole roster of creators with a contract, by name, in one query', async () => {
+      await service.list({ page: 1, pageSize: 10 }, TODAY);
 
-      const [args] = prisma.creators.findMany.mock.calls[0];
-      expect(args).not.toHaveProperty('skip');
-      expect(args).not.toHaveProperty('take');
+      expect(prisma.creators.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.creators.findMany).toHaveBeenCalledWith({
+        where: { contracts: { some: {} } },
+        select: expect.objectContaining({ id: true, contracts: expect.any(Object) }),
+        orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
+      });
       expect(prisma.creators.count).not.toHaveBeenCalled();
     });
 
-    it('finds a creator by any part of the name, in any case', async () => {
-      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-        q: 'GA PRA',
-      });
+    it('loads the content of every listed contract once, in deadline order', async () => {
+      await service.list({ page: 1, pageSize: 1 }, TODAY);
 
-      expect(result.items.map((item) => item.creatorId)).toEqual(['rangga']);
-      expect(result).toMatchObject({ total: 1, totalPages: 1 });
+      expect(prisma.contents.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.contents.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { contract_id: { in: ['kevin-c', 'nadia-c', 'rangga-c'] } },
+          orderBy: { deadline: 'asc' },
+        }),
+      );
+    });
+
+    it('puts what needs action first by default: ended, then running, then not started', async () => {
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+      expect(ids(result)).toEqual(['nadia', 'rangga', 'kevin']);
+    });
+
+    it('sorts by what it is asked to', async () => {
+      const byTotal = await service.list({ page: 1, pageSize: 10 }, TODAY, {}, { key: 'total', order: 'desc' });
+      const byName = await service.list({ page: 1, pageSize: 10 }, TODAY, {}, { key: 'name', order: 'desc' });
+
+      expect(ids(byTotal)).toEqual(['rangga', 'nadia', 'kevin']);
+      expect(ids(byName)).toEqual(['rangga', 'nadia', 'kevin']);
+    });
+
+    it('sorts the whole filtered list before it cuts the page', async () => {
+      const result = await service.list({ page: 2, pageSize: 1 }, TODAY, {}, { key: 'total', order: 'desc' });
+
+      expect(ids(result)).toEqual(['nadia']);
+      expect(result).toMatchObject({ page: 2, pageSize: 1, total: 3, totalPages: 3 });
+    });
+
+    it('calculates each creator with the current formula, and says what their invoice stands at', async () => {
+      pipeline = { 'rangga-c': 'finalized' };
+
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
+
+      expect(formulas.current).toHaveBeenCalledTimes(1);
+      expect(result.items[0]).toMatchObject({
+        creatorName: 'Rangga Pratama',
+        total: 5_500_000,
+        invoiceStatus: 'finalized',
+      });
+    });
+
+    it('finds a creator by any part of the name, in any case', async () => {
+      expect(ids(await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'GA PRA' }))).toEqual(['rangga']);
     });
 
     it.each([
       ['active', 'rangga'],
       ['expired', 'nadia'],
       ['upcoming', 'kevin'],
-    ] as const)(
-      'keeps only creators whose invoiced contract is %s',
-      async (contract, creatorId) => {
-        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-          contract,
-        });
-
-        expect(result.items.map((item) => item.creatorId)).toEqual([creatorId]);
-      },
-    );
-
-    it('combines the search word and the contract status', async () => {
-      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-        q: 'pra',
-        contract: 'upcoming',
-      });
-
-      expect(result.items.map((item) => item.creatorId)).toEqual(['kevin']);
-    });
-
-    it('pages the filtered creators and clamps a page past them', async () => {
-      const result = await service.list({ page: 9, pageSize: 1 }, TODAY, {
-        q: 'pra',
-      });
-
-      expect(result).toMatchObject({ page: 2, total: 2, totalPages: 2 });
-      expect(result.items.map((item) => item.creatorId)).toEqual(['kevin']);
+    ] as const)('keeps only creators whose invoiced contract is %s', async (contract, creatorId) => {
+      expect(ids(await service.list({ page: 1, pageSize: 10 }, TODAY, { contract }))).toEqual([creatorId]);
     });
 
     it('keeps only creators whose invoice is at the asked status', async () => {
       pipeline = { 'nadia-c': 'paid' };
 
-      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-        status: 'paid',
-      });
+      const paid = await service.list({ page: 1, pageSize: 10 }, TODAY, { status: 'paid' });
+      const none = await service.list({ page: 1, pageSize: 10 }, TODAY, { status: 'finalized' });
 
-      expect(result.items.map((item) => item.creatorId)).toEqual(['nadia']);
-      expect(result.items[0].invoiceStatus).toBe('paid');
-      expect(result).toMatchObject({ total: 1, totalPages: 1 });
+      expect(ids(paid)).toEqual(['nadia']);
+      expect(none).toMatchObject({ items: [], total: 0, totalPages: 1, page: 1 });
     });
 
-    it('answers an empty page for a status no invoice has reached', async () => {
-      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
-        status: 'finalized',
-      });
-
-      expect(result).toMatchObject({ items: [], total: 0, totalPages: 1 });
-    });
-
-    it('combines the invoice status with the other filters', async () => {
+    it('combines the filters', async () => {
       const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
         q: 'pra',
+        contract: 'upcoming',
         status: 'accruing',
       });
 
-      expect(result.items.map((item) => item.creatorId)).toEqual([
-        'rangga',
-        'kevin',
-      ]);
+      expect(ids(result)).toEqual(['kevin']);
     });
 
-    it('loads content only for the creators on the page', async () => {
-      await service.list({ page: 1, pageSize: 10 }, TODAY, {
-        contract: 'expired',
+    it('answers the last page when asked for one past it', async () => {
+      const result = await service.list({ page: 9, pageSize: 2 }, TODAY);
+
+      expect(result).toMatchObject({ page: 2, totalPages: 2, total: 3 });
+      expect(ids(result)).toEqual(['kevin']);
+    });
+
+    it('skips a creator left without a contract', async () => {
+      prisma.creators.findMany.mockResolvedValue([...roster, row({ id: 'none', first_name: 'Nina', contracts: [] })]);
+
+      expect((await service.list({ page: 1, pageSize: 10 }, TODAY)).total).toBe(3);
+    });
+
+    it('reports one page for an empty roster', async () => {
+      prisma.creators.findMany.mockResolvedValue([]);
+
+      await expect(service.list({ page: 1, pageSize: 10 }, TODAY)).resolves.toEqual({
+        items: [],
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        summary: { total: 0, runningInvoices: 0, formulaSet: true },
+      });
+    });
+
+    describe('summary', () => {
+      it('adds up what every listed creator is owed, across pages', async () => {
+        const result = await service.list({ page: 1, pageSize: 1 }, TODAY);
+
+        // Rangga's running Rp5.500.000 and Nadia's ended Rp2.000.000; Kevin has not started.
+        expect(result.summary.total).toBe(7_500_000);
       });
 
-      expect(prisma.contents.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { contract_id: { in: ['nadia-c'] } },
-        }),
-      );
+      it('adds up only what the filters keep', async () => {
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { contract: 'active' });
+
+        expect(result.summary.total).toBe(5_500_000);
+      });
+
+      it('counts every running invoice a formula change would reach, whatever the filters', async () => {
+        pipeline = { 'nadia-c': 'paid' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
+
+        expect(result.summary.runningInvoices).toBe(2);
+      });
+
+      it('says whether an admin has saved a formula', async () => {
+        formulas.current.mockResolvedValue(null);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(result.summary.formulaSet).toBe(false);
+      });
+    });
+
+    it('lets a failing formula source fail the request instead of invoicing with no formula', async () => {
+      formulas.current.mockRejectedValue(new Error('formula unavailable'));
+
+      await expect(service.list({ page: 1, pageSize: 10 }, TODAY)).rejects.toThrow('formula unavailable');
+    });
+  });
+
+  describe('exportAll', () => {
+    beforeEach(() => {
+      prisma.creators.findMany.mockResolvedValue(roster);
+    });
+
+    it('answers every invoice the filters keep, in the asked order, without paging', async () => {
+      const items = await service.exportAll(TODAY, {}, { key: 'name', order: 'asc' });
+
+      expect(items.map((item) => item.creatorId)).toEqual(['kevin', 'nadia', 'rangga']);
+    });
+
+    it('applies the filters and the default order', async () => {
+      const items = await service.exportAll(TODAY, { q: 'pr' });
+
+      // "pr" is in Rangga Pratama and Kevin Pranata, not Nadia Putri.
+      expect(items.map((item) => item.creatorId)).toEqual(['rangga', 'kevin']);
     });
   });
 
@@ -421,47 +344,6 @@ describe('InvoicesService', () => {
 
       await expect(service.detail('creator-1', TODAY)).resolves.toBeNull();
       expect(prisma.contents.findMany).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('reading from the database', () => {
-    it('loads content in deadline order', async () => {
-      prisma.creators.findMany.mockResolvedValue([row()]);
-      prisma.creators.count.mockResolvedValue(1);
-
-      await service.list({ page: 1, pageSize: 10 }, TODAY);
-
-      expect(prisma.contents.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ orderBy: { deadline: 'asc' } }),
-      );
-    });
-
-    it('reads the filtered roster with contracts, by name, without paging', async () => {
-      prisma.creators.findMany.mockResolvedValue([row()]);
-
-      await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
-
-      expect(prisma.creators.findMany).toHaveBeenCalledWith({
-        where: { contracts: { some: {} } },
-        select: expect.objectContaining({ id: true, contracts: expect.any(Object) }),
-        orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
-      });
-    });
-
-    it('cuts a filtered page by page and size, and skips a creator left without a contract', async () => {
-      prisma.creators.findMany.mockResolvedValue([
-        row({ id: 'a', first_name: 'Ana' }),
-        row({ id: 'b', first_name: 'Ani' }),
-        row({ id: 'gone', first_name: 'Anya', contracts: [] }),
-        row({ id: 'c', first_name: 'Anu' }),
-      ]);
-
-      const result = await service.list({ page: 2, pageSize: 2 }, TODAY, {
-        q: 'an',
-      });
-
-      expect(result).toMatchObject({ total: 3, totalPages: 2, page: 2 });
-      expect(result.items.map((item) => item.creatorId)).toEqual(['c']);
     });
   });
 });

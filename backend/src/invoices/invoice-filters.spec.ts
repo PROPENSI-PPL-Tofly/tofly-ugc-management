@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { MAX_SEARCH_LENGTH } from '../creators/filters.js';
-import { checkInvoiceFilters, hasInvoiceFilters } from './invoice-filters.js';
+import { checkInvoiceFilters } from './invoice-filters.js';
 
 describe('checkInvoiceFilters', () => {
   it('reads no filter from an empty query', () => {
@@ -74,15 +74,6 @@ describe('checkInvoiceFilters, invoice status', () => {
       contract: 'expired',
       status: 'paid',
     });
-  });
-});
-
-describe('hasInvoiceFilters', () => {
-  it('says whether any filter is set', () => {
-    expect(hasInvoiceFilters({})).toBe(false);
-    expect(hasInvoiceFilters({ q: 'a' })).toBe(true);
-    expect(hasInvoiceFilters({ contract: 'expired' })).toBe(true);
-    expect(hasInvoiceFilters({ status: 'accruing' })).toBe(true);
   });
 });
 

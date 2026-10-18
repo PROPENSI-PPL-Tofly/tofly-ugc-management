@@ -13,7 +13,7 @@ describe('InvoicesController', () => {
   });
 
   let controller: InvoicesController;
-  const service = { list: vi.fn(), detail: vi.fn() };
+  const service = { list: vi.fn(), detail: vi.fn(), exportAll: vi.fn() };
   const response = {
     items: [],
     page: 1,
@@ -40,6 +40,7 @@ describe('InvoicesController', () => {
       { page: 2, pageSize: 25 },
       expect.any(Date),
       {},
+      { key: 'action', order: 'asc' },
     );
   });
 
@@ -49,6 +50,7 @@ describe('InvoicesController', () => {
       { page: 1, pageSize: 10 },
       expect.any(Date),
       { q: 'Rangga', contract: 'active' },
+      { key: 'action', order: 'asc' },
     );
   });
 
@@ -79,6 +81,7 @@ describe('InvoicesController', () => {
       { page: 1, pageSize: 10 },
       expect.any(Date),
       { status: 'paid' },
+      { key: 'action', order: 'asc' },
     );
   });
 
@@ -113,6 +116,70 @@ describe('InvoicesController', () => {
 
     await expect(controller.detail('creator-1')).rejects.toMatchObject({
       response: { message: 'Creator tidak ditemukan atau belum punya kontrak' },
+    });
+  });
+
+  it('hands the asked order on, checked', async () => {
+    await controller.list(1, 10, undefined, undefined, undefined, 'total', 'desc');
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      {},
+      { key: 'total', order: 'desc' },
+    );
+  });
+
+  it('rejects an order the table does not offer without asking the service', async () => {
+    await expect(
+      controller.list(1, 10, undefined, undefined, undefined, 'bonus'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      controller.list(1, 10, undefined, undefined, undefined, 'name', 'sideways'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.list).not.toHaveBeenCalled();
+  });
+
+  describe('export', () => {
+    const res = { setHeader: vi.fn() };
+
+    beforeEach(() => {
+      res.setHeader.mockClear();
+      service.exportAll.mockResolvedValue([]);
+    });
+
+    it('answers the filtered, ordered invoices as a CSV file named after today in Jakarta', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-18T20:00:00Z')); // 03:00 on 19 Oct in Jakarta
+      try {
+        const csv = await controller.exportCsv('rangga', 'active', 'accruing', 'total', 'desc', res as never);
+
+        expect(service.exportAll).toHaveBeenCalledWith(
+          expect.any(Date),
+          { q: 'rangga', contract: 'active', status: 'accruing' },
+          { key: 'total', order: 'desc' },
+        );
+        expect(csv.startsWith('﻿Creator,Kontrak')).toBe(true);
+        expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+        expect(res.setHeader).toHaveBeenCalledWith(
+          'Content-Disposition',
+          'attachment; filename="rate-invoicing-2026-10-19.csv"',
+        );
+        // A file of who is owed what is not something a shared cache should keep.
+        expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('checks its filters and order like the list, refusing before reading anything', async () => {
+      await expect(
+        controller.exportCsv(undefined, 'none', undefined, undefined, undefined, res as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        controller.exportCsv(undefined, undefined, undefined, 'bonus', undefined, res as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(service.exportAll).not.toHaveBeenCalled();
+      expect(res.setHeader).not.toHaveBeenCalled();
     });
   });
 });
