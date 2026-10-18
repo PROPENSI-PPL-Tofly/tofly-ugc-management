@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AdminGuard } from '../auth/admin.guard.js';
@@ -13,7 +13,7 @@ describe('InvoicesController', () => {
   });
 
   let controller: InvoicesController;
-  const service = { list: vi.fn() };
+  const service = { list: vi.fn(), detail: vi.fn() };
   const response = {
     items: [],
     page: 1,
@@ -71,5 +71,40 @@ describe('InvoicesController', () => {
       BadRequestException,
     );
     await expect(controller.list(1, 50)).resolves.toBe(response);
+  });
+
+  it('hands the invoice status filter on, checked', async () => {
+    await controller.list(1, 10, undefined, undefined, 'paid');
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      { status: 'paid' },
+    );
+  });
+
+  it('rejects an invoice status outside the pipeline without asking the service', async () => {
+    await expect(
+      controller.list(1, 10, undefined, undefined, 'hacked'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.list).not.toHaveBeenCalled();
+  });
+
+  it("answers one creator's invoice as of today", async () => {
+    const detail = { creatorId: 'creator-1' };
+    service.detail.mockResolvedValue(detail);
+
+    await expect(controller.detail('creator-1')).resolves.toBe(detail);
+    expect(service.detail).toHaveBeenCalledWith('creator-1', expect.any(Date));
+  });
+
+  it('answers 404 with a code the frontend can read for a creator with nothing to invoice', async () => {
+    service.detail.mockResolvedValue(null);
+
+    const failure = controller.detail('creator-1');
+
+    await expect(failure).rejects.toBeInstanceOf(NotFoundException);
+    await expect(failure).rejects.toMatchObject({
+      response: { code: 'INVOICE_NOT_FOUND' },
+    });
   });
 });

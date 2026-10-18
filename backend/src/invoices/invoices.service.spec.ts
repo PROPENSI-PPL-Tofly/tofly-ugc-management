@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceCreatorRow } from './invoice-rows.js';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
+import { INVOICE_STATUS_SOURCE, type InvoiceStatus } from './invoice-status.js';
 import { InvoicesService } from './invoices.service.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 
@@ -32,6 +33,7 @@ describe('InvoicesService', () => {
   const prisma = {
     creators: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
       count: vi.fn(),
     },
     contents: {
@@ -39,9 +41,19 @@ describe('InvoicesService', () => {
     },
   };
   const formulas = { current: vi.fn() };
+  // A stub of the invoice pipeline: every contract is running unless a test says otherwise.
+  let pipeline: Record<string, InvoiceStatus> = {};
+  const statuses = {
+    statuses: vi.fn((ids: readonly string[]) =>
+      Promise.resolve(
+        new Map(ids.map((id) => [id, pipeline[id] ?? ('accruing' as const)])),
+      ),
+    ),
+  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    pipeline = {};
     formulas.current.mockResolvedValue(FORMULA);
     prisma.contents.findMany.mockResolvedValue([]);
 
@@ -50,6 +62,7 @@ describe('InvoicesService', () => {
         InvoicesService,
         { provide: PrismaService, useValue: prisma },
         { provide: RATE_FORMULA_SOURCE, useValue: formulas },
+        { provide: INVOICE_STATUS_SOURCE, useValue: statuses },
       ],
     }).compile();
 
@@ -92,6 +105,17 @@ describe('InvoicesService', () => {
       creatorName: 'Rangga Pratama',
       total: 5_500_000,
     });
+  });
+
+  it('tells each item where its invoice stands, asking the pipeline about the page alone', async () => {
+    prisma.creators.findMany.mockResolvedValue([row()]);
+    prisma.creators.count.mockResolvedValue(1);
+    pipeline = { 'contract-1': 'finalized' };
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(statuses.statuses).toHaveBeenCalledWith(['contract-1']);
+    expect(result.items[0].invoiceStatus).toBe('finalized');
   });
 
   it('wraps the page in the paging envelope the table reads', async () => {
@@ -270,6 +294,38 @@ describe('InvoicesService', () => {
       expect(result.items.map((item) => item.creatorId)).toEqual(['kevin']);
     });
 
+    it('keeps only creators whose invoice is at the asked status', async () => {
+      pipeline = { 'nadia-c': 'paid' };
+
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        status: 'paid',
+      });
+
+      expect(result.items.map((item) => item.creatorId)).toEqual(['nadia']);
+      expect(result.items[0].invoiceStatus).toBe('paid');
+      expect(result).toMatchObject({ total: 1, totalPages: 1 });
+    });
+
+    it('answers an empty page for a status no invoice has reached', async () => {
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        status: 'finalized',
+      });
+
+      expect(result).toMatchObject({ items: [], total: 0, totalPages: 1 });
+    });
+
+    it('combines the invoice status with the other filters', async () => {
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        q: 'pra',
+        status: 'accruing',
+      });
+
+      expect(result.items.map((item) => item.creatorId)).toEqual([
+        'rangga',
+        'kevin',
+      ]);
+    });
+
     it('loads content only for the creators on the page', async () => {
       await service.list({ page: 1, pageSize: 10 }, TODAY, {
         contract: 'expired',
@@ -280,6 +336,91 @@ describe('InvoicesService', () => {
           where: { contract_id: { in: ['nadia-c'] } },
         }),
       );
+    });
+  });
+
+  describe('detail', () => {
+    const renewed = row({
+      contracts: [
+        {
+          id: 'renewal',
+          start_date: day(-60),
+          end_date: day(60),
+          content_quota: 11,
+          fixed_rate: new Prisma.Decimal('5500000'),
+        },
+        {
+          id: 'first',
+          start_date: day(-200),
+          end_date: day(-61),
+          content_quota: 11,
+          fixed_rate: new Prisma.Decimal('5000000'),
+        },
+      ],
+    });
+
+    it('reads the one creator by id, with the columns an invoice is calculated from', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+
+      await service.detail('creator-1', TODAY);
+
+      expect(prisma.creators.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'creator-1' } }),
+      );
+      expect(prisma.contents.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { contract_id: { in: ['contract-1'] } },
+        }),
+      );
+    });
+
+    it('answers the invoice, its status, the formula it was worked out with and which period it pays', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+      pipeline = { renewal: 'creator_acked' };
+
+      const detail = await service.detail('creator-1', TODAY);
+
+      expect(statuses.statuses).toHaveBeenCalledWith(['renewal']);
+      expect(detail).toMatchObject({
+        creatorId: 'creator-1',
+        creatorName: 'Rangga Pratama',
+        contract: { id: 'renewal', status: 'active' },
+        invoiceStatus: 'creator_acked',
+        periodNumber: 2,
+        formula: FORMULA,
+        total: 5_500_000,
+      });
+    });
+
+    it('counts the first contract as period 1', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+
+      await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
+        periodNumber: 1,
+      });
+    });
+
+    it('answers no formula while no admin has saved one, so the popup states no rules', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+      formulas.current.mockResolvedValue(null);
+
+      await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
+        formula: null,
+      });
+    });
+
+    it('answers null for a creator that does not exist', async () => {
+      prisma.creators.findUnique.mockResolvedValue(null);
+
+      await expect(service.detail('missing', TODAY)).resolves.toBeNull();
+      expect(prisma.contents.findMany).not.toHaveBeenCalled();
+    });
+
+    it('answers null for a creator with no contract, who has nothing to invoice', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row({ contracts: [] }));
+
+      await expect(service.detail('creator-1', TODAY)).resolves.toBeNull();
+      expect(prisma.contents.findMany).not.toHaveBeenCalled();
     });
   });
 });
