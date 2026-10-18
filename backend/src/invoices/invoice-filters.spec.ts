@@ -40,10 +40,48 @@ describe('checkInvoiceFilters', () => {
   );
 });
 
+describe('checkInvoiceFilters, invoice status', () => {
+  it.each([
+    'accruing',
+    'finalized',
+    'creator_acked',
+    'payment_uploaded',
+    'paid',
+  ])('reads the invoice status %s', (status) => {
+    expect(checkInvoiceFilters(undefined, undefined, status)).toEqual({
+      status,
+    });
+  });
+
+  it.each(['all', 'PAID', '', '<script>', 'running'])(
+    'rejects the invoice status %j, naming the ones it takes',
+    (status) => {
+      expect(() => checkInvoiceFilters(undefined, undefined, status)).toThrow(
+        'status must be one of accruing, finalized, creator_acked, payment_uploaded, paid',
+      );
+    },
+  );
+
+  it('rejects a status sent twice rather than picking one', () => {
+    expect(() =>
+      checkInvoiceFilters(undefined, undefined, ['paid', 'accruing']),
+    ).toThrow(BadRequestException);
+  });
+
+  it('reads every filter together', () => {
+    expect(checkInvoiceFilters(' Salsa ', 'expired', 'paid')).toEqual({
+      q: 'Salsa',
+      contract: 'expired',
+      status: 'paid',
+    });
+  });
+});
+
 describe('hasInvoiceFilters', () => {
   it('says whether any filter is set', () => {
     expect(hasInvoiceFilters({})).toBe(false);
     expect(hasInvoiceFilters({ q: 'a' })).toBe(true);
     expect(hasInvoiceFilters({ contract: 'expired' })).toBe(true);
+    expect(hasInvoiceFilters({ status: 'accruing' })).toBe(true);
   });
 });
