@@ -139,7 +139,7 @@ describe("bonusLabel", () => {
 
 describe("penaltyLabel", () => {
   it("reads a penalty as what is taken off", () => {
-    expect(penaltyLabel(250000)).toBe("-Rp250.000");
+    expect(penaltyLabel(250000)).toBe("− Rp250.000");
   });
 
   it("dashes a period without penalties", () => {

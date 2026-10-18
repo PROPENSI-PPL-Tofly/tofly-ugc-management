@@ -79,7 +79,7 @@ describe("BreakdownAmount", () => {
     renderAmount("penalty");
 
     const button = screen.getByRole("button");
-    expect(button).toHaveTextContent("-Rp150.000");
+    expect(button).toHaveTextContent("− Rp150.000");
     expect(button).toHaveClass("text-red-ink");
   });
 

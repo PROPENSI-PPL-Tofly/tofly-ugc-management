@@ -45,16 +45,31 @@ describe("InvoiceTable", () => {
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
       "Creator",
       "Fixed Rate",
-      "Tambahan",
-      "Bonus",
+      "Fee Konten Tambahan",
+      "Bonus Performa",
       "Penalti",
-      "Final Rate",
-      "Invoice",
-      "Aksi",
+      "Total",
+      "Status Invoice",
     ]);
-    expect(
-      Array.from(container.querySelectorAll("col")).map((col) => (col as HTMLElement).style.width),
-    ).toEqual(["17%", "11%", "11%", "11%", "13%", "11%", "13%", "13%"]);
+    const cols = Array.from(container.querySelectorAll("col"));
+    expect(cols.map((col) => col.className)).toEqual([
+      "w-[20%]",
+      "w-[12%]",
+      "w-[13%]",
+      "w-[13%]",
+      "w-[13%]",
+      "w-[13%]",
+      "w-[16%]",
+    ]);
+    // Widths come from classes: the CSP refuses inline styles.
+    expect(cols.some((col) => col.hasAttribute("style"))).toBe(false);
+  });
+
+  it("keeps the table's overflow inside its own scroll region", () => {
+    const { container } = render(<InvoiceTable rows={[FULL]} />);
+
+    // An absolutely placed child (a screen-reader label) would otherwise widen the whole page.
+    expect(container.firstElementChild).toHaveClass("relative", "overflow-x-auto");
   });
 
   it("names the creator, and says where their contract stands under it", () => {
@@ -70,7 +85,7 @@ describe("InvoiceTable", () => {
     expect(screen.getByText("Rp5.000.000")).toBeInTheDocument();
     expect(screen.getByText("Rp750.000")).toBeInTheDocument();
     expect(screen.getByText("Rp300.000")).toBeInTheDocument();
-    expect(screen.getByText("-Rp250.000")).toBeInTheDocument();
+    expect(screen.getByText("− Rp250.000")).toBeInTheDocument();
   });
 
   it("reads the final rate as the strong number at the end of the row", () => {
@@ -83,7 +98,7 @@ describe("InvoiceTable", () => {
   it("shows a penalty as what is taken off, in the danger colour", () => {
     render(<InvoiceTable rows={[FULL]} />);
 
-    expect(screen.getByText("-Rp250.000").className).toContain("text-red-ink");
+    expect(screen.getByText("− Rp250.000").className).toContain("text-red-ink");
   });
 
   it("draws the invoice's state as a pill worded as the prototype words it", () => {

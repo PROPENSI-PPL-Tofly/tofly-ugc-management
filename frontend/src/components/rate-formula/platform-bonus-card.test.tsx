@@ -34,6 +34,28 @@ describe("PlatformBonusCard", () => {
     expect(screen.getByText("2/5 tier")).toBeInTheDocument();
   });
 
+  it("lets the platform name and metric wrap, and the tier inputs shrink, on a narrow screen", () => {
+    setup();
+
+    const group = screen.getByRole("group", { name: "Bonus performa Instagram" });
+    expect(screen.getByRole("heading", { name: "Instagram" }).parentElement).toHaveClass("flex-wrap");
+    expect(
+      Array.from(group.querySelectorAll("div")).some((div) =>
+        div.className.includes("grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"),
+      ),
+    ).toBe(true);
+    expect(screen.getByLabelText("Instagram tier 1 minimum Views")).toHaveClass("min-w-0");
+  });
+
+  it("shows where focus is on the metric picker, which draws no outline of its own", () => {
+    setup();
+
+    expect(screen.getByLabelText(/metrik/i).closest("label")).toHaveClass(
+      "focus-within:outline-2",
+      "focus-within:outline-focus",
+    );
+  });
+
   it("names the minimum column after the chosen metric", () => {
     setup({ value: { metric: "shares", tiers: [EMPTY_TIER] } });
 

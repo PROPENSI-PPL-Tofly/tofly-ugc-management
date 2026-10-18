@@ -78,11 +78,14 @@ describe("Rate & Invoicing page", () => {
     fetchList.mockResolvedValue(listOf());
   });
 
-  it("titles the page and keeps the formula behind the question mark", async () => {
+  it("titles the page and explains the formula behind an ⓘ a keyboard can reach", async () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Rate & Invoicing" })).toBeInTheDocument();
-    expect(screen.getByTitle(FORMULA)).toBeInTheDocument();
+    const tip = screen.getByRole("button", { name: "Info rumus Total" });
+    expect(tip).toHaveAccessibleDescription(FORMULA);
+    // Not a title: a hover-only hint no keyboard or touch can open.
+    expect(screen.queryByTitle(FORMULA)).not.toBeInTheDocument();
   });
 
   // Subtask 8.2: the Atur Formula Rate button sits in the panel head, beside the title.
@@ -109,7 +112,7 @@ describe("Rate & Invoicing page", () => {
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Kontrak Aktif")).toBeInTheDocument();
     expect(screen.getByText("Rp5.000.000")).toBeInTheDocument();
-    expect(screen.getByText("-Rp250.000")).toBeInTheDocument();
+    expect(screen.getByText("− Rp250.000")).toBeInTheDocument();
     // Inside the table: the filter bar offers the same word as a choice.
     expect(within(screen.getByRole("table")).getByText("Berjalan")).toBeInTheDocument();
   });
