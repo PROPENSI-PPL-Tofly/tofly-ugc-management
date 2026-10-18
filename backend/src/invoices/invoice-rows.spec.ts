@@ -176,4 +176,32 @@ describe('toInvoiceItem', () => {
     });
     expect(item.total).toBe(item.components.fixedRate.amount);
   });
+
+  // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): adjustment sums stay exact to the sen.
+  it('adds two-decimal adjustments to the total without floating-point drift', () => {
+    const unpaid = contractRow({ fixed_rate: new Prisma.Decimal('0') });
+    const adjustment = {
+      reason: 'Koreksi',
+      actorId: 'admin-1',
+      createdAt: '2026-09-17T00:00:00.000Z',
+    };
+    const item = toInvoiceItem(
+      creatorRow({ contracts: [unpaid] }),
+      unpaid,
+      [],
+      FORMULA,
+      TODAY,
+      {
+        status: 'running',
+        adjustments: [
+          { ...adjustment, id: 'adj-1', amount: 0.7 },
+          { ...adjustment, id: 'adj-2', amount: 0.1 },
+        ],
+        snapshot: null,
+      },
+    );
+
+    expect(item.components.fixedRate.amount).toBe(0);
+    expect(item).toMatchObject({ rawTotal: 0.8, total: 0.8, floored: false });
+  });
 });
