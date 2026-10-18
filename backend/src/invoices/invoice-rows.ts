@@ -2,7 +2,7 @@
 // apart from the service so the mapping is tested on plain objects, without Nest or a mock
 // database, and the service is left with loading rows and paging.
 
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   contractStatus,
   currentContract,
@@ -136,6 +136,26 @@ export function pickContract(
   return row.contracts.find((contract) => contract.id === picked?.id) ?? null;
 }
 
+/**
+ * The calculated total plus the manual adjustments, added as decimals so two-decimal amounts
+ * never drift, and floored at zero. Numbers again only for the response and the snapshot.
+ */
+export function adjustedTotals(
+  calculatedRawTotal: number,
+  adjustments: readonly InvoiceAdjustmentDto[],
+): { rawTotal: number; total: number; floored: boolean } {
+  const raw = adjustments.reduce(
+    (sum, adjustment) => sum.plus(adjustment.amount),
+    new Prisma.Decimal(calculatedRawTotal),
+  );
+  const floored = raw.lessThan(0);
+  return {
+    rawTotal: raw.toNumber(),
+    total: floored ? 0 : raw.toNumber(),
+    floored,
+  };
+}
+
 /** The invoice of `contractRow`, one of the creator's contracts, from its content. */
 export function toInvoiceItem(
   row: InvoiceCreatorRow,
@@ -158,10 +178,8 @@ export function toInvoiceItem(
         formula,
         today,
       });
-  const adjustmentTotal = lifecycle.adjustments.reduce(
-    (sum, adjustment) => sum + adjustment.amount,
-    0,
-  );
+  const totals =
+    snapshot ?? adjustedTotals(breakdown!.rawTotal, lifecycle.adjustments);
   return {
     creatorId: row.id,
     creatorName: creatorName(row),
@@ -182,8 +200,8 @@ export function toInvoiceItem(
           penalty: snapshot.penalty,
         }
       : breakdown!.components,
-    rawTotal: snapshot?.rawTotal ?? breakdown!.rawTotal + adjustmentTotal,
-    total: snapshot?.total ?? Math.max(0, breakdown!.rawTotal + adjustmentTotal),
-    floored: snapshot?.floored ?? breakdown!.rawTotal + adjustmentTotal < 0,
+    rawTotal: totals.rawTotal,
+    total: totals.total,
+    floored: totals.floored,
   };
 }

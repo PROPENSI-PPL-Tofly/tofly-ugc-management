@@ -16,6 +16,7 @@ import type {
   InvoiceSnapshotDto,
 } from './dto/invoice-list.dto.js';
 import {
+  adjustedTotals,
   CONTENT_SELECT,
   creatorName,
   INVOICE_SELECT,
@@ -379,17 +380,11 @@ export class InvoicesService implements InvoiceLister {
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       });
       const adjustments = adjustmentRows.map(adjustmentDto);
-      const rawTotal = breakdown.rawTotal + adjustments.reduce(
-        (sum, adjustment) => sum + adjustment.amount,
-        0,
-      );
       const finalizedAt = new Date();
       const snapshot: InvoiceSnapshotDto = {
         ...breakdown.components,
         adjustments,
-        rawTotal,
-        total: Math.max(0, rawTotal),
-        floored: rawTotal < 0,
+        ...adjustedTotals(breakdown.rawTotal, adjustments),
         finalizedAt: finalizedAt.toISOString(),
       };
       const updated = await tx.invoices.updateMany({
