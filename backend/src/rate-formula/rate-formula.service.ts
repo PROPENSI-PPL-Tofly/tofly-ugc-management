@@ -21,14 +21,17 @@ export type StoredPerformanceBonus = Record<
 export type RateFormulaView =
   | ({ configured: true; updatedAt: string } & Omit<
       RateFormula,
-      'performanceBonus'
+      'performanceBonus' | 'maxPenaltyDays'
     > & {
+        /** Null for a formula saved before the cap existed. */
+        maxPenaltyDays: number | null;
         performanceBonus: StoredPerformanceBonus;
       })
   | {
       configured: false;
       specificBonus: null;
       latePenaltyPerDay: null;
+      maxPenaltyDays: null;
       performanceBonus: StoredPerformanceBonus;
       updatedAt: null;
     };
@@ -40,6 +43,7 @@ export type RateFormulaView =
 export interface RateFormulaRow {
   specific_bonus: Prisma.Decimal;
   late_penalty_per_day: Prisma.Decimal;
+  max_penalty_days: Prisma.Decimal | null;
   updated_at: Date;
 }
 
@@ -109,6 +113,7 @@ const UNCONFIGURED = {
   configured: false,
   specificBonus: null,
   latePenaltyPerDay: null,
+  maxPenaltyDays: null,
   updatedAt: null,
 } as const;
 
@@ -138,6 +143,7 @@ export class RateFormulaService {
     const amounts = {
       specific_bonus: formula.specificBonus,
       late_penalty_per_day: formula.latePenaltyPerDay,
+      max_penalty_days: formula.maxPenaltyDays,
       updated_by: adminUserId ?? null,
     };
     const metrics = SOCIAL_PLATFORMS.map((platform) => ({
@@ -195,6 +201,8 @@ export class RateFormulaService {
       configured: true,
       specificBonus: Number(row.specific_bonus),
       latePenaltyPerDay: Number(row.late_penalty_per_day),
+      maxPenaltyDays:
+        row.max_penalty_days === null ? null : Number(row.max_penalty_days),
       performanceBonus,
       updatedAt: row.updated_at.toISOString(),
     };

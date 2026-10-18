@@ -11,6 +11,7 @@ const MARKER = 'e2e-rate-formula';
 const FORMULA = {
   specificBonus: 100000,
   latePenaltyPerDay: 50000,
+  maxPenaltyDays: 3,
   performanceBonus: {
     instagram: {
       metric: 'views',
@@ -29,6 +30,7 @@ const FORMULA = {
 interface FormulaRow {
   specific_bonus: number;
   late_penalty_per_day: number;
+  max_penalty_days: number | null;
   updated_by: string | null;
 }
 
@@ -71,7 +73,8 @@ describe('/rate-formula (e2e)', () => {
 
   async function storedFormula(): Promise<FormulaRow[]> {
     return prisma.$queryRaw<FormulaRow[]>`
-      select specific_bonus::int, late_penalty_per_day::int, updated_by::text
+      select specific_bonus::int, late_penalty_per_day::int, max_penalty_days::int,
+             updated_by::text
       from rate_formula`;
   }
 
@@ -121,9 +124,10 @@ describe('/rate-formula (e2e)', () => {
         for (const row of savedFormula) {
           await prisma.$executeRaw`
             insert into rate_formula
-              (id, specific_bonus, late_penalty_per_day, updated_by, created_at, updated_at)
+              (id, specific_bonus, late_penalty_per_day, max_penalty_days, updated_by,
+               created_at, updated_at)
             values (${row.id}, ${row.specific_bonus}, ${row.late_penalty_per_day},
-                    ${row.updated_by}::uuid, ${row.created_at}::timestamptz,
+                    ${row.max_penalty_days}, ${row.updated_by}::uuid, ${row.created_at}::timestamptz,
                     ${row.updated_at}::timestamptz)`;
         }
         for (const row of savedMetrics) {
@@ -152,6 +156,7 @@ describe('/rate-formula (e2e)', () => {
         configured: false,
         specificBonus: null,
         latePenaltyPerDay: null,
+        maxPenaltyDays: null,
         performanceBonus: {
           instagram: { metric: null, tiers: [] },
           tiktok: { metric: null, tiers: [] },
@@ -177,7 +182,12 @@ describe('/rate-formula (e2e)', () => {
       await admin.put('/rate-formula').send(FORMULA);
 
       expect(await storedFormula()).toEqual([
-        { specific_bonus: 100000, late_penalty_per_day: 50000, updated_by: adminId },
+        {
+          specific_bonus: 100000,
+          late_penalty_per_day: 50000,
+          max_penalty_days: 3,
+          updated_by: adminId,
+        },
       ]);
       expect(await storedMetrics()).toEqual([
         { platform: 'instagram', metric: 'views' },
@@ -188,6 +198,20 @@ describe('/rate-formula (e2e)', () => {
         { platform: 'instagram', position: 2, threshold: 40000, bonus: 400000 },
         { platform: 'tiktok', position: 1, threshold: 5000, bonus: 100000 },
       ]);
+    });
+
+    it('rejects a day cap past 365 with a 422 under its field, and keeps the saved formula', async () => {
+      await admin.put('/rate-formula').send(FORMULA);
+
+      const response = await admin
+        .put('/rate-formula')
+        .send({ ...FORMULA, maxPenaltyDays: 366 });
+
+      expect(response.status).toBe(422);
+      expect(response.body.errors).toEqual({
+        maxPenaltyDays: 'Maks hari penalti harus antara 0 hari dan 365 hari',
+      });
+      expect((await storedFormula())[0].max_penalty_days).toBe(3);
     });
 
     it('stores tiers sent out of order sorted by minimum', async () => {
@@ -234,6 +258,7 @@ describe('/rate-formula (e2e)', () => {
       const second = {
         specificBonus: 0,
         latePenaltyPerDay: 0,
+        maxPenaltyDays: 0,
         performanceBonus: {
           instagram: { metric: 'comments', tiers: [{ threshold: 1, bonus: 2 }] },
           tiktok: { metric: 'shares', tiers: [{ threshold: 3, bonus: 4 }] },
@@ -261,14 +286,14 @@ describe('/rate-formula (e2e)', () => {
       const response = await admin.put('/rate-formula').send({
         ...FORMULA,
         contentFee: 75000,
-        maxPenaltyDays: 10,
+        maxDays: 10,
         updated_by: '00000000-0000-4000-8000-000000000000',
         updatedBy: '00000000-0000-4000-8000-000000000000',
       });
 
       expect(response.status).toBe(200);
       expect(response.body).not.toHaveProperty('contentFee');
-      expect(response.body).not.toHaveProperty('maxPenaltyDays');
+      expect(response.body).not.toHaveProperty('maxDays');
       expect(response.body).not.toHaveProperty('updatedBy');
       expect((await storedFormula())[0].updated_by).toBe(adminId);
     });
@@ -336,6 +361,24 @@ describe('/rate-formula (e2e)', () => {
       await expect(prisma.$executeRaw`
         insert into rate_formula (specific_bonus, late_penalty_per_day)
         values (10000000, 1000000)`).resolves.toBe(1);
+    });
+
+    it('accepts a formula saved before the day cap existed, with none', async () => {
+      await expect(prisma.$executeRaw`
+        insert into rate_formula (specific_bonus, late_penalty_per_day, max_penalty_days)
+        values (1, 1, null)`).resolves.toBe(1);
+    });
+
+    it.each([0, 365])('accepts a day cap of %s', async (days) => {
+      await expect(prisma.$executeRaw`
+        insert into rate_formula (specific_bonus, late_penalty_per_day, max_penalty_days)
+        values (1, 1, ${days})`).resolves.toBe(1);
+    });
+
+    it.each([-1, 366, 1.5])('refuses a day cap of %s', async (days) => {
+      await expect(prisma.$executeRaw`
+        insert into rate_formula (specific_bonus, late_penalty_per_day, max_penalty_days)
+        values (1, 1, ${days})`).rejects.toThrow();
     });
 
     it.each([
@@ -417,12 +460,12 @@ describe('/rate-formula (e2e)', () => {
         values ('instagram', 2, 100, 2)`).rejects.toThrow();
     });
 
-    it('has no content fee or maximum penalty days column', async () => {
+    it('has no content fee column', async () => {
       const columns = await prisma.$queryRaw<{ column_name: string }[]>`
         select column_name from information_schema.columns
         where table_schema = 'public'
           and table_name in ('rate_formula', 'performance_bonus_metrics', 'performance_bonus_tiers')
-          and (column_name like '%fee%' or column_name like '%max%')`;
+          and column_name like '%fee%'`;
 
       expect(columns).toEqual([]);
     });

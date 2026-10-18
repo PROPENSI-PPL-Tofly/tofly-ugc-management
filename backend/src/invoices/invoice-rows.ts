@@ -19,8 +19,8 @@ import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
 
 /**
- * Only the columns an invoice is calculated from. Content is left out: it is loaded afterwards
- * for the one contract per creator the table describes (CONTENT_SELECT), not for every contract.
+ * Only the columns an invoice is calculated from. Content is loaded afterwards
+ * for the one contract per creator the table describes.
  */
 export const INVOICE_SELECT = {
   id: true,
@@ -63,7 +63,7 @@ export type InvoiceContentRow = Prisma.contentsGetPayload<{
   select: typeof CONTENT_SELECT;
 }>;
 
-/** Postgres `date` columns arrive as midnight UTC; the first ten ISO characters are the day. */
+/** Postgres date columns arrive as midnight UTC; the first ten ISO characters are the day. */
 function calendarDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -125,8 +125,7 @@ export function invoiceContractStatus(
 
 /**
  * The contract the table describes: the one running today, else the most recently finished,
- * else the earliest upcoming (the same pick as the Creator Database). Null for a creator with no
- * contract at all.
+ * else the earliest upcoming. Null for a creator with no contract at all.
  */
 export function pickContract(
   row: InvoiceCreatorRow,
@@ -136,9 +135,22 @@ export function pickContract(
   return row.contracts.find((contract) => contract.id === picked?.id) ?? null;
 }
 
+/** Which of the creator's contracts this is, counted from 1 in the order they started. */
+export function periodNumber(
+  row: InvoiceCreatorRow,
+  contractRow: InvoiceContractRow,
+): number {
+  return (
+    1 +
+    row.contracts.filter(
+      (other) => other.start_date < contractRow.start_date,
+    ).length
+  );
+}
+
 /**
- * The calculated total plus the manual adjustments, added as decimals so two-decimal amounts
- * never drift, and floored at zero. Numbers again only for the response and the snapshot.
+ * The calculated total plus manual adjustments, added as decimals so amounts
+ * never drift, and floored at zero. Numbers are returned only for the DTO and snapshot.
  */
 export function adjustedTotals(
   calculatedRawTotal: number,
@@ -148,7 +160,9 @@ export function adjustedTotals(
     (sum, adjustment) => sum.plus(adjustment.amount),
     new Prisma.Decimal(calculatedRawTotal),
   );
+
   const floored = raw.lessThan(0);
+
   return {
     rawTotal: raw.toNumber(),
     total: floored ? 0 : raw.toNumber(),
@@ -156,7 +170,7 @@ export function adjustedTotals(
   };
 }
 
-/** The invoice of `contractRow`, one of the creator's contracts, from its content. */
+/** The invoice of contractRow, using either its live calculation or its persisted snapshot. */
 export function toInvoiceItem(
   row: InvoiceCreatorRow,
   contractRow: InvoiceContractRow,
@@ -170,20 +184,24 @@ export function toInvoiceItem(
   } = { status: 'running', adjustments: [], snapshot: null },
 ): InvoiceListItem {
   const snapshot = lifecycle.snapshot;
+
   const breakdown = snapshot
     ? null
     : calculateInvoice({
-        contract: toInvoiceContract(contractRow, row.access_revoke_date),
-        contents: contents.map(toInvoiceContent),
-        formula,
-        today,
-      });
+      contract: toInvoiceContract(contractRow, row.access_revoke_date),
+      contents: contents.map(toInvoiceContent),
+      formula,
+      today,
+    });
+
   const totals =
     snapshot ?? adjustedTotals(breakdown!.rawTotal, lifecycle.adjustments);
+
   return {
     creatorId: row.id,
     creatorName: creatorName(row),
-    invoiceStatus: lifecycle.status,
+    // The service may replace this with the authoritative pipeline status.
+    invoiceStatus: lifecycle.status === 'finalized' ? 'finalized' : 'accruing',
     adjustments: lifecycle.adjustments,
     snapshot,
     contract: {
@@ -194,11 +212,11 @@ export function toInvoiceItem(
     },
     components: snapshot
       ? {
-          fixedRate: snapshot.fixedRate,
-          additionalContent: snapshot.additionalContent,
-          performanceBonus: snapshot.performanceBonus,
-          penalty: snapshot.penalty,
-        }
+        fixedRate: snapshot.fixedRate,
+        additionalContent: snapshot.additionalContent,
+        performanceBonus: snapshot.performanceBonus,
+        penalty: snapshot.penalty,
+      }
       : breakdown!.components,
     rawTotal: totals.rawTotal,
     total: totals.total,

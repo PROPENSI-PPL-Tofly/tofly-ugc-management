@@ -12,14 +12,8 @@ import {
 } from '../src/rate-formula/rate-formula.service.js';
 import { as, signIn, signInAsAdmin } from './sessions.js';
 
-// Rows created here carry this marker so the cleanup never touches anything else in the
-// database, seeded or not.
 const MARKER = 'e2e-invoices';
 
-/**
- * The formula the invoices here are calculated with. maxPenaltyDays is sent for #100, which
- * requires it; a backend without that column yet drops it and caps at the default 3 anyway.
- */
 const FORMULA = {
   latePenaltyPerDay: 50_000,
   maxPenaltyDays: 3,
@@ -29,13 +23,17 @@ const FORMULA = {
       metric: 'views',
       tiers: [{ threshold: 10_000, bonus: 150_000 }],
     },
-    tiktok: { metric: 'views', tiers: [{ threshold: 10_000, bonus: 150_000 }] },
+    tiktok: {
+      metric: 'views',
+      tiers: [{ threshold: 10_000, bonus: 150_000 }],
+    },
   },
 } as const;
 
-/** A calendar day relative to today in Jakarta, the day the app counts from. */
+/** A calendar day relative to today in Jakarta. */
 function day(offset: number): Date {
   const today = jakartaMidnight(new Date());
+
   return new Date(
     Date.UTC(
       today.getUTCFullYear(),
@@ -52,30 +50,36 @@ describe('Invoices API (e2e)', () => {
   let creator: ReturnType<typeof as>;
   let contractId: string;
   let adminId: string;
-  // The developer's own formula, put back once these tests are done with the singleton row.
+  let nadiaId: string;
+  let kevinId: string;
   let savedFormula: RateFormulaView | undefined;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
+
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     await app.init();
+
     prisma = app.get(PrismaService);
     admin = as(app, await signInAsAdmin(app, prisma, MARKER));
+
     adminId = (
       await prisma.users.findUniqueOrThrow({
         where: { email: `${MARKER}-signed-in-admin@example.com` },
         select: { id: true },
       })
     ).id;
+
     savedFormula = await app.get(RateFormulaService).read();
     await admin.put('/rate-formula').send(FORMULA).expect(200);
 
     const nadia = await prisma.users.create({
       data: { email: `${MARKER}-nadia@example.com` },
     });
+
     const kevin = await prisma.users.create({
       data: { email: `${MARKER}-kevin@example.com` },
     });
@@ -130,7 +134,10 @@ describe('Invoices API (e2e)', () => {
       },
       select: { id: true, contracts: { select: { id: true } } },
     });
+
     contractId = nadiaCreator.contracts[0].id;
+    nadiaId = nadiaCreator.id;
+
     creator = as(
       app,
       await signIn(app, {
@@ -139,15 +146,19 @@ describe('Invoices API (e2e)', () => {
         creatorId: nadiaCreator.id,
       }),
     );
-    // A creator with no contract has nothing to invoice.
-    await prisma.creators.create({
+
+    const kevinCreator = await prisma.creators.create({
       data: { user_id: kevin.id, first_name: `${MARKER} Kevin` },
+      select: { id: true },
     });
+
+    kevinId = kevinCreator.id;
   });
 
   afterAll(async () => {
     if (savedFormula?.configured) {
       const { configured: _, updatedAt: __, ...formula } = savedFormula;
+
       await app
         .get(RateFormulaService)
         .replace(
@@ -159,10 +170,15 @@ describe('Invoices API (e2e)', () => {
       await prisma.$executeRaw`delete from performance_bonus_metrics`;
       await prisma.$executeRaw`delete from rate_formula`;
     }
+
     await prisma.creators.deleteMany({
       where: { first_name: { startsWith: MARKER } },
     });
-    await prisma.users.deleteMany({ where: { email: { startsWith: MARKER } } });
+
+    await prisma.users.deleteMany({
+      where: { email: { startsWith: MARKER } },
+    });
+
     await app.close();
   });
 
@@ -171,8 +187,9 @@ describe('Invoices API (e2e)', () => {
       .get('/invoices')
       .query({ pageSize: 50 })
       .expect(200);
+
     return body.items.filter((item: { creatorName: string }) =>
-      item.creatorName.startsWith(MARKER),
+      item.creatorName.startsWith(`${MARKER} `),
     );
   }
 
@@ -181,6 +198,7 @@ describe('Invoices API (e2e)', () => {
       (candidate: { contract: { id: string } }) =>
         candidate.contract.id === contractId,
     );
+
     expect(item).toBeDefined();
     return item;
   }
@@ -193,10 +211,12 @@ describe('Invoices API (e2e)', () => {
     expectedReason = reason,
   ) {
     const startedAt = Date.now();
+
     const { body } = await admin
       .post(adjustmentPath())
       .send({ amount, reason })
       .expect(201);
+
     const finishedAt = Date.now();
 
     expect(body).toMatchObject({
@@ -205,14 +225,18 @@ describe('Invoices API (e2e)', () => {
       actorId: adminId,
       invoiceStatus: 'running',
     });
+
     expect(typeof body.createdAt).toBe('string');
+
     const createdAt = new Date(body.createdAt).getTime();
+
     expect(Number.isNaN(createdAt)).toBe(false);
     expect(createdAt).toBeGreaterThanOrEqual(startedAt);
     expect(createdAt).toBeLessThanOrEqual(finishedAt);
 
     const current = await invoice();
-    expect(current.invoiceStatus).toBe('running');
+
+    expect(current.invoiceStatus).toBe('accruing');
     expect(current.adjustments).toContainEqual(
       expect.objectContaining({
         amount,
@@ -221,36 +245,52 @@ describe('Invoices API (e2e)', () => {
         createdAt: body.createdAt,
       }),
     );
+
     return body;
   }
 
-  async function expectAdjustmentStateUnchanged(action: () => Promise<unknown>) {
+  async function expectAdjustmentStateUnchanged(
+    action: () => Promise<unknown>,
+  ) {
     const before = (await invoice()).adjustments;
+
     await action();
+
     expect((await invoice()).adjustments).toEqual(before);
   }
 
   it('calculates the running invoice from the database rows', async () => {
     const [nadia] = await ours();
 
-    // FORMULA: Rp50.000 a day for at most 3 days, Rp100.000 per on-time Specific item.
     expect(nadia.components.fixedRate.amount).toBe(2_000_000);
-    expect(nadia.components.additionalContent).toMatchObject({
-      amount: 100_000,
-      lines: [{ contentName: 'Specific on time', amount: 100_000 }],
-    });
+    expect(nadia.components.additionalContent.amount).toBe(100_000);
+    expect(nadia.components.additionalContent.lines).toHaveLength(2);
+    expect(nadia.components.additionalContent.lines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contentName: 'Specific on time',
+          amount: 100_000,
+        }),
+        expect.objectContaining({
+          contentName: 'Specific late',
+          amount: 0,
+          basis: { fee: 100_000, late: 'yes' },
+        }),
+      ]),
+    );
     expect(nadia.components.penalty.amount).toBe(250_000);
-    expect(nadia.components.performanceBonus.status).toBe('waiting_for_data');
+    expect(nadia.components.performanceBonus.status).toBe(
+      'waiting_for_data',
+    );
     expect(nadia).toMatchObject({ total: 1_850_000, floored: false });
     expect(nadia.contract.status).toBe('active');
   });
 
-  it('returns the running lifecycle fields for an invoice not yet finalized', async () => {
+  it('returns the lifecycle fields for an invoice not yet finalized', async () => {
     const [nadia] = await ours();
 
-    expect(nadia).toBeDefined();
     expect(nadia).toMatchObject({
-      invoiceStatus: 'running',
+      invoiceStatus: 'accruing',
       adjustments: [],
       snapshot: null,
     });
@@ -276,21 +316,127 @@ describe('Invoices API (e2e)', () => {
         .get('/invoices')
         .query({ pageSize: 50, ...query })
         .expect(200);
+
       return body.items.map(
         (item: { creatorName: string }) => item.creatorName,
       );
     };
 
-    expect(await names({ q: `${MARKER} nad` })).toEqual([`${MARKER} Nadia`]);
+    expect(await names({ q: `${MARKER} nad` })).toEqual([
+      `${MARKER} Nadia`,
+    ]);
     expect(await names({ q: MARKER, contract: 'active' })).toEqual([
       `${MARKER} Nadia`,
     ]);
     expect(await names({ q: MARKER, contract: 'expired' })).toEqual([]);
   });
 
-  it('rejects a contract status the table does not offer and an overlong search', async () => {
+  it('rejects an unsupported contract status and an overlong search', async () => {
     await admin.get('/invoices?contract=none').expect(400);
     await admin.get(`/invoices?q=${'a'.repeat(101)}`).expect(400);
+  });
+
+  it('filters by invoice pipeline status', async () => {
+    const [nadia] = await ours();
+
+    expect(nadia.invoiceStatus).toBe('accruing');
+
+    const running = await admin
+      .get('/invoices')
+      .query({ q: `${MARKER} Nadia`, status: 'accruing' })
+      .expect(200);
+
+    expect(running.body.total).toBe(1);
+
+    const paid = await admin
+      .get('/invoices')
+      .query({ q: MARKER, status: 'paid' })
+      .expect(200);
+
+    expect(paid.body).toMatchObject({ items: [], total: 0 });
+    await admin.get('/invoices?status=hacked').expect(400);
+  });
+
+  it("answers one creator's invoice with the formula and period for its breakdown", async () => {
+    const { body } = await admin.get(`/invoices/${nadiaId}`).expect(200);
+
+    expect(body).toMatchObject({
+      creatorId: nadiaId,
+      creatorName: `${MARKER} Nadia`,
+      invoiceStatus: 'accruing',
+      periodNumber: 1,
+      total: 1_850_000,
+      formula: {
+        latePenaltyPerDay: 50_000,
+        specificBonus: 100_000,
+      },
+    });
+
+    expect(
+      body.components.penalty.lines.map(
+        (line: { contentName: string }) => line.contentName,
+      ),
+    ).toEqual(['Never handed in', 'Late by two days']);
+  });
+
+  it('answers 404 for a creator with no contract and for a nonexistent creator', async () => {
+    const none = await admin.get(`/invoices/${kevinId}`).expect(404);
+
+    expect(none.body).toMatchObject({ code: 'INVOICE_NOT_FOUND' });
+
+    await admin
+      .get('/invoices/00000000-0000-4000-8000-000000000000')
+      .expect(404);
+  });
+
+  it('rejects an id that is not a UUID before reading the database', async () => {
+    await admin.get('/invoices/not-a-uuid').expect(400);
+    await admin
+      .get(`/invoices/${encodeURIComponent("1' or '1'='1")}`)
+      .expect(400);
+  });
+
+  it('refuses a creator access to their own invoice', async () => {
+    const response = await creator.get(`/invoices/${nadiaId}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body).toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('sorts invoices and rejects unsupported sort options', async () => {
+    const order = async (query: Record<string, string>) => {
+      const { body } = await admin
+        .get('/invoices')
+        .query({ pageSize: 50, q: MARKER, ...query })
+        .expect(200);
+
+      return body.items.map(
+        (item: { contract: { status: string } }) => item.contract.status,
+      );
+    };
+
+    expect(await order({})).toEqual(['active']);
+    expect(await order({ sort: 'total', order: 'asc' })).toEqual(['active']);
+
+    await admin.get('/invoices?sort=bonus').expect(400);
+    await admin.get('/invoices?sort=name&order=sideways').expect(400);
+  });
+
+  it('summarizes filtered invoice totals and running invoices', async () => {
+    const { body } = await admin
+      .get('/invoices')
+      .query({ q: `${MARKER} Nadia` })
+      .expect(200);
+
+    expect(body.summary).toMatchObject({
+      total: 1_850_000,
+      formulaSet: true,
+    });
+
+    const running = await admin.get('/invoices?status=accruing').expect(200);
+
+    expect(body.summary.runningInvoices).toBe(running.body.total);
+    expect(body.summary.runningInvoices).toBeGreaterThanOrEqual(1);
   });
 
   it('lets an authenticated admin add a positive adjustment and reads it back', async () => {
@@ -301,9 +447,10 @@ describe('Invoices API (e2e)', () => {
     await expectCreatedAdjustment(-75_000, 'Correction for overpayment');
   });
 
-  // OWASP Top 10:2025 A06 (Insecure Design): enforce the documented reason-length limit.
+  // OWASP Top 10:2025 A06 — enforce the documented reason-length limit.
   it('accepts a reason with exactly 500 non-whitespace characters', async () => {
     const reason = 'R'.repeat(500);
+
     await expectCreatedAdjustment(1, reason);
 
     expect(
@@ -321,32 +468,38 @@ describe('Invoices API (e2e)', () => {
     );
   });
 
-  // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): invalid reasons leave no partial writes.
+  // OWASP Top 10:2025 A10 — invalid reasons must not create partial writes.
   it.each([
     ['missing', { amount: 10 }],
     ['blank', { amount: 10, reason: '   ' }],
     ['over 500 characters', { amount: 10, reason: 'R'.repeat(501) }],
-  ])('rejects a %s reason without creating an adjustment', async (_case, body) => {
-    await expectAdjustmentStateUnchanged(() =>
-      admin.post(adjustmentPath()).send(body).expect(422),
-    );
-  });
+  ])(
+    'rejects a %s reason without creating an adjustment',
+    async (_case, body) => {
+      await expectAdjustmentStateUnchanged(() =>
+        admin.post(adjustmentPath()).send(body).expect(422),
+      );
+    },
+  );
 
-  // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): invalid amounts leave no partial writes.
+  // OWASP Top 10:2025 A10 — invalid amounts must not create partial writes.
   it.each([
     ['zero', 0],
     ['more than two decimal places', 1.234],
-  ])('rejects an adjustment amount with %s and makes no change', async (_case, amount) => {
-    await expectAdjustmentStateUnchanged(() =>
-      admin
-        .post(adjustmentPath())
-        .send({ amount, reason: 'Invalid amount test' })
-        .expect(422),
-    );
-  });
+  ])(
+    'rejects an adjustment amount with %s and makes no change',
+    async (_case, amount) => {
+      await expectAdjustmentStateUnchanged(() =>
+        admin
+          .post(adjustmentPath())
+          .send({ amount, reason: 'Invalid amount test' })
+          .expect(422),
+      );
+    },
+  );
 
-  // OWASP Top 10:2025 A05 (Injection): SQL-looking reason text remains literal data.
-  it('stores SQL-looking reason text literally and leaves content records unchanged', async () => {
+  // OWASP Top 10:2025 A05 — SQL-looking reason text must remain literal data.
+  it('stores SQL-looking reason text literally without changing other records', async () => {
     const reason = "Adjustment'; DROP TABLE users; --";
     const contentCountBefore = await prisma.contents.count({
       where: { contract_id: contractId },
@@ -359,9 +512,11 @@ describe('Invoices API (e2e)', () => {
         (adjustment: { reason: string }) => adjustment.reason === reason,
       ),
     ).toBe(true);
+
     expect(
       await prisma.contents.count({ where: { contract_id: contractId } }),
     ).toBe(contentCountBefore);
+
     expect(
       await prisma.users.findUnique({
         where: { email: `${MARKER}-nadia@example.com` },
@@ -370,8 +525,8 @@ describe('Invoices API (e2e)', () => {
     ).not.toBeNull();
   });
 
-  // OWASP Top 10:2025 A01 (Broken Access Control): callers cannot set server-controlled invoice fields.
-  it('rejects client-supplied actor and invoice authority fields without changing adjustments', async () => {
+  // OWASP Top 10:2025 A01 — clients cannot set server-controlled fields.
+  it('rejects forged actor and invoice authority fields without changing adjustments', async () => {
     await expectAdjustmentStateUnchanged(() =>
       admin
         .post(adjustmentPath())
@@ -388,13 +543,14 @@ describe('Invoices API (e2e)', () => {
     );
   });
 
-  // OWASP Top 10:2025 A01 (Broken Access Control): enforce the admin and same-origin boundaries.
-  // These checks require the route to exist; a missing-route 404 is not security evidence.
-  it('denies unauthenticated and creator mutations, and rejects a cross-origin admin mutation', async () => {
+  // OWASP Top 10:2025 A01 — enforce admin authentication and same-origin boundaries.
+  it('denies unauthenticated and creator mutations and rejects cross-origin admin mutations', async () => {
     const priorDevAuth = process.env.DEV_AUTH_ENABLED;
     process.env.DEV_AUTH_ENABLED = 'false';
+
     try {
       const secondAdminCookie = await signInAsAdmin(app, prisma, MARKER);
+
       await expectAdjustmentStateUnchanged(() =>
         request(app.getHttpServer())
           .post(adjustmentPath())
@@ -403,12 +559,14 @@ describe('Invoices API (e2e)', () => {
           .send({ amount: 10, reason: 'Unauthenticated request' })
           .expect(401),
       );
+
       await expectAdjustmentStateUnchanged(() =>
         creator
           .post(adjustmentPath())
           .send({ amount: 10, reason: 'Creator request' })
           .expect(403),
       );
+
       await expectAdjustmentStateUnchanged(() =>
         request(app.getHttpServer())
           .post(adjustmentPath())
@@ -419,16 +577,20 @@ describe('Invoices API (e2e)', () => {
           .expect(403),
       );
     } finally {
-      if (priorDevAuth === undefined) delete process.env.DEV_AUTH_ENABLED;
-      else process.env.DEV_AUTH_ENABLED = priorDevAuth;
+      if (priorDevAuth === undefined) {
+        delete process.env.DEV_AUTH_ENABLED;
+      } else {
+        process.env.DEV_AUTH_ENABLED = priorDevAuth;
+      }
     }
   });
 
-  // OWASP Top 10:2025 A06 (Insecure Design) and A08 (Software and Data Integrity Failures).
+  // OWASP Top 10:2025 A06 and A08 — finalization must persist the calculation snapshot.
   it('finalizes an ended invoice with a complete persisted calculation snapshot', async () => {
     const user = await prisma.users.create({
       data: { email: `${MARKER}-finalization@example.com` },
     });
+
     const creatorRow = await prisma.creators.create({
       data: {
         user_id: user.id,
@@ -468,6 +630,7 @@ describe('Invoices API (e2e)', () => {
       },
       select: { contracts: { select: { id: true } } },
     });
+
     const endedContractId = creatorRow.contracts[0].id;
     const reason = 'Finalization adjustment';
 
@@ -500,11 +663,13 @@ describe('Invoices API (e2e)', () => {
       .get('/invoices')
       .query({ pageSize: 50 })
       .expect(200);
-    const invoice = listed.items.find(
+
+    const finalizedInvoice = listed.items.find(
       (item: { contract: { id: string } }) =>
         item.contract.id === endedContractId,
     );
-    expect(invoice).toMatchObject({
+
+    expect(finalizedInvoice).toMatchObject({
       invoiceStatus: 'finalized',
       snapshot: finalized.snapshot,
       adjustments: [{ amount: 25_000, reason, actorId: adminId }],

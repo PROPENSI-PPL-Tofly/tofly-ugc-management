@@ -105,4 +105,12 @@ describe('calculateInvoice', () => {
       'waiting_for_data',
     );
   });
+
+  it('does not call a total of exactly zero floored', () => {
+    const result = calculateInvoice(
+      context({ contract: contract({ startDate: day(5), endDate: day(60) }) }),
+    );
+
+    expect(result).toMatchObject({ rawTotal: 0, total: 0, floored: false });
+  });
 });

@@ -14,6 +14,7 @@ const ADMIN_USER_ID = '99999999-9999-4999-8999-999999999999';
 const BODY = {
   specificBonus: 100000,
   latePenaltyPerDay: 50000,
+  maxPenaltyDays: 3,
   performanceBonus: {
     instagram: {
       metric: 'views',

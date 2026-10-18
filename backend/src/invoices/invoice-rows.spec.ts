@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
 import {
+  CONTENT_SELECT,
+  INVOICE_SELECT,
   creatorName,
   pickContract,
   toInvoiceContract,
@@ -292,6 +294,42 @@ describe('toInvoiceItem', () => {
       rawTotal: 5_625_000,
       total: 5_625_000,
       floored: false,
+    });
+  });
+});
+
+describe('the columns an invoice is read from', () => {
+  it('reads only the creator and contract columns the calculation needs', () => {
+    expect(INVOICE_SELECT).toEqual({
+      id: true,
+      first_name: true,
+      middle_name: true,
+      last_name: true,
+      access_revoke_date: true,
+      contracts: {
+        select: {
+          id: true,
+          start_date: true,
+          end_date: true,
+          content_quota: true,
+          fixed_rate: true,
+        },
+      },
+    });
+  });
+
+  it('reads only the content columns the calculation needs', () => {
+    expect(CONTENT_SELECT).toEqual({
+      id: true,
+      contract_id: true,
+      name: true,
+      type: true,
+      status: true,
+      deadline: true,
+      video_submitted_at: true,
+      platform: true,
+      views: true,
+      likes: true,
     });
   });
 });

@@ -3,6 +3,8 @@ import type {
   InvoiceComponentKey,
   InvoiceLine,
 } from '../invoice-component.js';
+import type { InvoiceStatus } from '../invoice-status.js';
+import type { RateFormula } from '../rate-formula.js';
 
 /** One part of the invoice as the Rate & Invoicing table reads it. */
 export interface InvoiceComponentDto {
@@ -41,12 +43,10 @@ export interface InvoiceSnapshotDto {
   finalizedAt: string;
 }
 
-export interface InvoiceListItem {
+/** Calculation result before the invoice pipeline assigns its status. */
+export interface CalculatedInvoice {
   creatorId: string;
   creatorName: string;
-  invoiceStatus: 'running' | 'finalized';
-  adjustments: InvoiceAdjustmentDto[];
-  snapshot: InvoiceSnapshotDto | null;
   contract: InvoiceContractDto;
   components: Record<InvoiceComponentKey, InvoiceComponentDto>;
   /** What the components add up to, which may be below zero. */
@@ -57,10 +57,38 @@ export interface InvoiceListItem {
   floored: boolean;
 }
 
+export interface InvoiceListItem extends CalculatedInvoice {
+  /** Where the invoice stands in the invoice pipeline. */
+  invoiceStatus: InvoiceStatus;
+  /** Manual adjustments recorded against this invoice. */
+  adjustments: InvoiceAdjustmentDto[];
+  /** Persisted breakdown and totals after finalization; null while not finalized. */
+  snapshot: InvoiceSnapshotDto | null;
+}
+
+/**
+ * One creator's invoice with the contract period and formula used for its calculation.
+ */
+export interface InvoiceDetail extends InvoiceListItem {
+  periodNumber: number;
+  formula: RateFormula | null;
+}
+
+/** Summary information across all invoices kept by the filters. */
+export interface InvoiceListSummary {
+  /** What every invoice the filters keep adds up to, across all pages. */
+  total: number;
+  /** Running invoices across the whole roster, whatever the filters. */
+  runningInvoices: number;
+  /** Whether an admin has saved a rate formula yet. */
+  formulaSet: boolean;
+}
+
 export interface InvoiceListResponse {
   items: InvoiceListItem[];
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
+  summary: InvoiceListSummary;
 }

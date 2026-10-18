@@ -165,4 +165,23 @@ describe('PerformanceBonusComponent', () => {
 
     expect(result.status).toBe('waiting_for_data');
   });
+
+  it('still pays a late Evergreen item its bonus: only a late Specific item loses it', () => {
+    const result = new PerformanceBonusComponent().calculate(
+      context({
+        contents: [
+          content({
+            type: 'evergreen',
+            status: 'link_submitted',
+            deadline: day(-10),
+            videoSubmittedAt: day(-2),
+            platform: 'instagram',
+            views: 12_000,
+          }),
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({ status: 'calculated', amount: 150_000 });
+  });
 });

@@ -105,6 +105,11 @@ export function jakartaDay(now: Date = new Date()): string {
  * Whole days from today to a deadline: positive before it, 0 on it, negative after; null when
  * the deadline cannot be read. Today is Jakarta's calendar day, so the count turns over at
  * midnight WIB for everyone. `now` is a parameter so a test can pin the day.
+ *
+ * Single Responsibility: this counts the days and formatDaysLeft words them. The panel's header
+ * needs the number (to colour the deadline) and the words, so it counts once and words after.
+ * Dependency injection: the clock comes in as `now`, which keeps the function pure and the
+ * tests repeatable on any day.
  */
 export function daysUntil(deadline: string | null, now: Date = new Date()): number | null {
   if (!deadline) return null;
@@ -140,4 +145,9 @@ export function formatRevisions(value: number): string {
 /** Rupiah, as the prototype writes it: "Rp500.000", with a plain minus for what is taken off. */
 export function formatRupiah(amount: number): string {
   return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
+}
+
+/** Money taken away, such as a penalty, written the one way the table and its popups share. */
+export function formatDeduction(amount: number): string {
+  return `− ${formatRupiah(amount)}`;
 }

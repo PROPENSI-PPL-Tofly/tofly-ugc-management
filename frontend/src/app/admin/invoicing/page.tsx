@@ -1,5 +1,6 @@
 import { InvoiceFilters } from "@/components/invoice/invoice-filters";
-import { InvoiceTable } from "@/components/invoice/invoice-table";
+import { InvoiceBoard } from "@/components/invoicing/invoice-board";
+import { RateFormulaTrigger } from "@/components/rate-formula/rate-formula-trigger";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
@@ -19,8 +20,6 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Rate & Invoicing — Tofly",
 };
-
-const FORMULA = "Final Rate = Fixed Rate + Konten Tambahan + Bonus − Penalti";
 
 /**
  * The Rate & Invoicing table (PBI-8, subtask 8.4): every creator's fixed rate, additional
@@ -52,22 +51,30 @@ export default async function RateInvoicingPage({
     >
       {list ? (
         <Panel>
-          {/* The prototype's panel head: the name and the formula behind a question mark. */}
-          <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-5">
-            <h2 className="text-[15px]">
-              Rate & Invoicing{" "}
-              <span
-                title={FORMULA}
-                className="cursor-help align-super text-xs text-muted"
-              >
-                ?
-                <span className="sr-only">{FORMULA}</span>
-              </span>
-            </h2>
+          {/* The prototype's panel head; the ⓘ that explains Total sits on the Total header. */}
+          <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-3 pt-5">
+            <h2 className="text-[15px]">Rate & Invoicing</h2>
+            <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} />
           </div>
 
+          {list.summary.formulaSet ? null : (
+            <p
+              role="status"
+              aria-label="Formula rate belum diatur"
+              className="mx-5 mb-3 rounded-(--radius-control) border border-amber bg-amber-wash px-3 py-2 text-[13px] text-amber-ink"
+            >
+              Formula rate belum diatur. Fee konten tambahan dan penalti belum dihitung sampai formula
+              disimpan lewat Atur Formula Rate.
+            </p>
+          )}
+
           <InvoiceFilters />
-          <InvoiceTable rows={list.rows} />
+          {/* The table, with each money cell opening its breakdown (8.5). */}
+          <InvoiceBoard
+            rows={list.rows}
+            sort={{ key: state.sort, order: state.order }}
+            summary={{ total: list.summary.total, count: list.total }}
+          />
           {/* Stays on show on a single page: a table that always carries its footer (4.2). */}
           <Pagination
             basePath={INVOICE_PATH}

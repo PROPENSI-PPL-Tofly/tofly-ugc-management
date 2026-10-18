@@ -76,6 +76,7 @@ describe('toRateFormula', () => {
         configured: false,
         specificBonus: null,
         latePenaltyPerDay: null,
+        maxPenaltyDays: null,
         updatedAt: null,
         performanceBonus: {
           instagram: { metric: null, tiers: [] },

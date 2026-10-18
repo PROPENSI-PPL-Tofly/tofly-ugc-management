@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  NotFoundException,
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -17,17 +18,25 @@ describe('InvoicesController', () => {
   });
 
   let controller: InvoicesController;
+
   const service = {
     list: vi.fn(),
+    detail: vi.fn(),
     addAdjustment: vi.fn(),
     finalize: vi.fn(),
   };
+
   const response = {
     items: [],
     page: 1,
     pageSize: 10,
     total: 0,
     totalPages: 1,
+    summary: {
+      total: 0,
+      runningInvoices: 0,
+      formulaSet: false,
+    },
   };
 
   beforeEach(async () => {
@@ -48,22 +57,26 @@ describe('InvoicesController', () => {
       { page: 2, pageSize: 25 },
       expect.any(Date),
       {},
+      { key: 'action', order: 'asc' },
     );
   });
 
-  it('hands the search word and the contract status on, trimmed and checked', async () => {
+  it('hands the trimmed search word and checked contract status to the service', async () => {
     await controller.list(1, 10, '  Rangga ', 'active');
+
     expect(service.list).toHaveBeenCalledWith(
       { page: 1, pageSize: 10 },
       expect.any(Date),
       { q: 'Rangga', contract: 'active' },
+      { key: 'action', order: 'asc' },
     );
   });
 
-  it('rejects a contract status the table does not offer without asking the service', async () => {
+  it('rejects an unsupported contract status without asking the service', async () => {
     await expect(
       controller.list(1, 10, undefined, 'none'),
     ).rejects.toBeInstanceOf(BadRequestException);
+
     expect(service.list).not.toHaveBeenCalled();
   });
 
@@ -71,6 +84,7 @@ describe('InvoicesController', () => {
     await expect(controller.list(0, 10)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+
     expect(service.list).not.toHaveBeenCalled();
   });
 
@@ -81,11 +95,105 @@ describe('InvoicesController', () => {
     await expect(controller.list(1, 50)).resolves.toBe(response);
   });
 
+  it('hands the checked invoice status filter to the service', async () => {
+    await controller.list(1, 10, undefined, undefined, 'paid');
+
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      { status: 'paid' },
+      { key: 'action', order: 'asc' },
+    );
+  });
+
+  it('rejects an unsupported invoice status without asking the service', async () => {
+    await expect(
+      controller.list(1, 10, undefined, undefined, 'hacked'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(service.list).not.toHaveBeenCalled();
+  });
+
+  it("answers one creator's invoice as of today", async () => {
+    const detail = { creatorId: 'creator-1' };
+    service.detail.mockResolvedValue(detail);
+
+    await expect(controller.detail('creator-1')).resolves.toBe(detail);
+
+    expect(service.detail).toHaveBeenCalledWith(
+      'creator-1',
+      expect.any(Date),
+    );
+  });
+
+  it('answers 404 with a readable code when the creator has no invoice', async () => {
+    service.detail.mockResolvedValue(null);
+
+    await expect(controller.detail('creator-1')).rejects.toMatchObject({
+      response: { code: 'INVOICE_NOT_FOUND' },
+    });
+    expect(service.detail).toHaveBeenCalledWith(
+      'creator-1',
+      expect.any(Date),
+    );
+  });
+
+  it('tells the admin in Indonesian why there is no invoice', async () => {
+    service.detail.mockResolvedValue(null);
+
+    await expect(controller.detail('creator-1')).rejects.toMatchObject({
+      response: {
+        message: 'Creator tidak ditemukan atau belum punya kontrak',
+      },
+    });
+  });
+
+  it('hands the requested sort order to the service', async () => {
+    await controller.list(
+      1,
+      10,
+      undefined,
+      undefined,
+      undefined,
+      'total',
+      'desc',
+    );
+
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      {},
+      { key: 'total', order: 'desc' },
+    );
+  });
+
+  it('rejects an unsupported sort key or direction', async () => {
+    await expect(
+      controller.list(1, 10, undefined, undefined, undefined, 'bonus'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      controller.list(
+        1,
+        10,
+        undefined,
+        undefined,
+        undefined,
+        'name',
+        'sideways',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(service.list).not.toHaveBeenCalled();
+  });
+
   describe('manual adjustments and finalize', () => {
     const contractId = '11111111-1111-4111-8111-111111111111';
-    const admin = { principal: { userId: 'admin-1', role: 'admin' as const } };
+    const admin = {
+      principal: { userId: 'admin-1', role: 'admin' as const },
+    };
 
-    // OWASP Top 10:2025 A01 (Broken Access Control): the actor is the signed-in admin.
+    // OWASP Top 10:2025 A01 — actor identity must come from the authenticated principal.
     it('records the adjustment as the signed-in admin with the checked body', async () => {
       const saved = { id: 'adj-1', invoiceStatus: 'running' };
       service.addAdjustment.mockResolvedValue(saved);
@@ -97,6 +205,7 @@ describe('InvoicesController', () => {
           admin,
         ),
       ).resolves.toBe(saved);
+
       expect(service.addAdjustment).toHaveBeenCalledWith(
         contractId,
         { amount: 25_000, reason: 'Approved campaign adjustment' },
@@ -104,11 +213,12 @@ describe('InvoicesController', () => {
       );
     });
 
-    // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): nothing is written on bad input.
+    // OWASP Top 10:2025 A10 — invalid input must not reach the service.
     it('rejects an invalid adjustment without asking the service', async () => {
       await expect(
         controller.addAdjustment(contractId, { amount: 0, reason: '' }, admin),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
       expect(service.addAdjustment).not.toHaveBeenCalled();
     });
 
@@ -119,13 +229,14 @@ describe('InvoicesController', () => {
       await expect(controller.finalize(contractId, admin)).resolves.toBe(
         finalized,
       );
+
       expect(service.finalize).toHaveBeenCalledWith(
         contractId,
         expect.any(Date),
       );
     });
 
-    // OWASP Top 10:2025 A01 (Broken Access Control): defence in depth behind AdminGuard.
+    // OWASP Top 10:2025 A01 — reject missing and non-admin principals.
     it.each([
       ['no principal', {}],
       [
@@ -146,9 +257,11 @@ describe('InvoicesController', () => {
           request,
         ),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+
       await expect(
         controller.finalize(contractId, request),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+
       expect(service.addAdjustment).not.toHaveBeenCalled();
       expect(service.finalize).not.toHaveBeenCalled();
     });

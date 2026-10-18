@@ -24,6 +24,7 @@ const ADMIN_ROUTES = [
   ['get', '/rate-formula'],
   ['put', '/rate-formula'],
   ['get', '/invoices'],
+  ['get', `/invoices/${UUID}`],
 ] as const;
 
 describe('admin routes (e2e)', () => {
