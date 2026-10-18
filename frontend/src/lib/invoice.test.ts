@@ -8,6 +8,7 @@ import {
   finalLabel,
   INVOICE_STATUS_LABELS,
   invoiceHref,
+  MAX_INVOICE_SEARCH_LENGTH,
   parseInvoiceParams,
   penaltyLabel,
   type InvoiceRow,
@@ -21,6 +22,7 @@ const ROW: InvoiceRow = {
   extraAmount: 750000,
   bonusAmount: 300000,
   penaltyAmount: 250000,
+  totalAmount: 5800000,
   invoiceStatus: "accruing",
 };
 
@@ -33,6 +35,12 @@ describe("parseInvoiceParams", () => {
   it("reads the search word trimmed", () => {
     expect(parseInvoiceParams({ q: "  salsa  " }).q).toBe("salsa");
     expect(parseInvoiceParams({ q: "   " }).q).toBe("");
+  });
+
+  it("cuts a search word to the hundred characters the API reads, rather than sending one it refuses", () => {
+    expect(MAX_INVOICE_SEARCH_LENGTH).toBe(100);
+    expect(parseInvoiceParams({ q: "a".repeat(101) }).q).toBe("a".repeat(100));
+    expect(parseInvoiceParams({ q: `  ${"b".repeat(100)}  ` }).q).toBe("b".repeat(100));
   });
 
   it("reads a contract and an invoice status the filter bar offers", () => {
@@ -140,18 +148,16 @@ describe("penaltyLabel", () => {
 });
 
 describe("finalLabel", () => {
-  it("is the fixed rate plus additional content plus bonus minus penalty", () => {
-    expect(finalLabel(ROW)).toBe("Rp5.800.000");
+  it("is the total the backend worked out, never one added up again here", () => {
+    expect(finalLabel({ ...ROW, totalAmount: 1234000 })).toBe("Rp1.234.000");
   });
 
-  it("waits with the bonus rather than showing a total without it", () => {
-    expect(finalLabel({ ...ROW, bonusAmount: null })).toBe("Menunggu data");
+  it("shows the running total while the bonus waits for data, since the bonus cell already says so", () => {
+    expect(finalLabel({ ...ROW, bonusAmount: null, totalAmount: 5500000 })).toBe("Rp5.500.000");
   });
 
   it("dashes a final amount that comes out to nothing", () => {
-    expect(
-      finalLabel({ ...ROW, fixedAmount: 0, extraAmount: 0, bonusAmount: 0, penaltyAmount: 0 }),
-    ).toBe(DASH);
+    expect(finalLabel({ ...ROW, totalAmount: 0 })).toBe(DASH);
   });
 });
 
