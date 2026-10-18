@@ -34,7 +34,10 @@ export function InvoiceBoard({
 }>) {
   const router = useRouter();
   const { replaceQuery } = useUrlQuery();
-  const { open, layers } = useBreakdownPopups({ onDecided: () => router.refresh() });
+  const { open, layers } = useBreakdownPopups({
+    onDecided: () => router.refresh(),
+    onMutated: () => router.refresh(),
+  });
 
   // A header always names a column, never the default order, so a press always writes both.
   function sortBy(current: { key: InvoiceSortKey; order: InvoiceSortOrder }, key: InvoiceSortKey) {

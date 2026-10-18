@@ -130,7 +130,7 @@ describe("the words on the controls", () => {
 
   it("reads an adjustment as added or taken away", () => {
     expect(adjustmentLabel(200000)).toBe("+Rp200.000");
-    expect(adjustmentLabel(-100000)).toBe("-Rp100.000");
+    expect(adjustmentLabel(-100000)).toBe("− Rp100.000");
   });
 });
 

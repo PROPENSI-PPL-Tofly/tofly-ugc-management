@@ -54,7 +54,13 @@ function readKey(row: InvoiceRow): string {
 export function useBreakdownPopups({
   load = loadInvoiceBreakdown,
   onDecided,
-}: Readonly<{ load?: BreakdownLoader; onDecided?: (decision?: Decision) => void }> = {}): {
+  onMutated,
+}: Readonly<{
+  load?: BreakdownLoader;
+  onDecided?: (decision: Decision) => void;
+  /** An invoice move (PBI-12) was accepted; the table reads its invoices again. */
+  onMutated?: () => void;
+}> = {}): {
   open: (kind: BreakdownView, row: InvoiceRow) => void;
   layers: ReactNode;
 } {
@@ -132,7 +138,7 @@ export function useBreakdownPopups({
             onMutated={() => {
               read.current.clear();
               closeAll();
-              onDecided?.();
+              onMutated?.();
             }}
           />
         }

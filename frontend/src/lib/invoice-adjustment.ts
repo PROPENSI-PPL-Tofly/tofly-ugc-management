@@ -6,6 +6,7 @@
 // The wording of the field errors is the backend's own (checkManualAdjustment, invoice-lifecycle),
 // so the form and the server never tell an admin two different things about the same mistake.
 
+import { formatDeduction, formatRupiah } from "./format";
 import type { InvoiceStatus } from "./invoice";
 
 /** The reason says why the amount moves; the backend takes at most this many characters. */
@@ -110,13 +111,10 @@ export function canFinalize(invoiceStatus: InvoiceStatus, today: string, endDate
   return invoiceStatus === "accruing" && today > endDate;
 }
 
-/** An adjustment line reads as what was added or taken away: "+Rp200.000" / "-Rp100.000". */
+/** An adjustment line reads as what was added or taken away: "+Rp200.000" / "− Rp100.000". */
 export function adjustmentLabel(amount: number): string {
-  return `${amount > 0 ? "+" : ""}${formatSigned(amount)}`;
-}
-
-function formatSigned(amount: number): string {
-  return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
+  // One minus style for every deduction, the way the whole app writes one (formatDeduction).
+  return amount < 0 ? formatDeduction(-amount) : `+${formatRupiah(amount)}`;
 }
 
 /**

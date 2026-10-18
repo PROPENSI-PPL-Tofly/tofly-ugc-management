@@ -140,7 +140,7 @@ describe("InvoiceRincian", () => {
     expect(screen.getByRole("region", { name: "Penyesuaian manual" })).toBeInTheDocument();
     expect(screen.getByText("Koreksi kelebihan tagihan")).toBeInTheDocument();
     expect(screen.getByText(formatTimestamp("2026-10-18T03:00:00.000Z"))).toBeInTheDocument();
-    expect(screen.getByText("-Rp75.000")).toBeInTheDocument();
+    expect(screen.getByText("− Rp75.000")).toBeInTheDocument();
   });
 
   it("marks a frozen invoice with the prototype's Final word", () => {

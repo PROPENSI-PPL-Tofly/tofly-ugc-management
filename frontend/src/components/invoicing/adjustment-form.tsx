@@ -75,9 +75,12 @@ export function AdjustmentForm({
       }
     >
       <div className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1.5 text-[13px]">
-          <span className="font-semibold">Nominal (Rp)</span>
+        <div className="flex flex-col gap-1.5 text-[13px]">
+          <label htmlFor="adjustment-amount" className="font-semibold">
+            Nominal (Rp)
+          </label>
           <input
+            id="adjustment-amount"
             type="text"
             inputMode="decimal"
             placeholder="mis. 200000 atau -100000"
@@ -95,11 +98,14 @@ export function AdjustmentForm({
               Kurang untuk mengurangi invoice, lebih untuk menambah.
             </span>
           )}
-        </label>
+        </div>
 
-        <label className="flex flex-col gap-1.5 text-[13px]">
-          <span className="font-semibold">Alasan</span>
+        <div className="flex flex-col gap-1.5 text-[13px]">
+          <label htmlFor="adjustment-reason" className="font-semibold">
+            Alasan
+          </label>
           <textarea
+            id="adjustment-reason"
             rows={3}
             maxLength={REASON_MAX_LENGTH}
             value={draft.reason}
@@ -107,7 +113,7 @@ export function AdjustmentForm({
             className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5"
           />
           <CharLimit
-            id="adjustment-reason"
+            id="adjustment-reason-count"
             length={Array.from(draft.reason).length}
             max={REASON_MAX_LENGTH}
           />
@@ -116,7 +122,7 @@ export function AdjustmentForm({
               {errors.reason}
             </span>
           ) : null}
-        </label>
+        </div>
 
         {refusal ? (
           <p role="alert" className="text-[13px] text-red-ink">

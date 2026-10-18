@@ -31,6 +31,11 @@ const ZEROS: InvoiceRow = {
   totalAmount: 0,
   floored: false,
   invoiceStatus: "paid",
+  contractId: "11111111-1111-4111-8111-111111111111",
+  contractEnd: "2026-12-31",
+  adjustments: [],
+  frozenAt: "2026-10-18T03:00:00.000Z",
+  dataWaiting: false,
 };
 
 const WAITING: InvoiceRow = {

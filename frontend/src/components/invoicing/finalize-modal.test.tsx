@@ -46,10 +46,10 @@ describe("FinalizeModal", () => {
     expect(screen.getByText("Rp500.000")).toBeInTheDocument();
     expect(screen.getByText("Rp200.000")).toBeInTheDocument();
     expect(screen.getByText("Rp150.000")).toBeInTheDocument();
-    expect(screen.getByText("-Rp150.000")).toBeInTheDocument();
+    expect(screen.getByText("− Rp150.000")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Total invoice" })).toHaveTextContent("Rp700.000");
     expect(screen.getByText("Koreksi kelebihan tagihan")).toBeInTheDocument();
-    expect(screen.getByText("-Rp75.000")).toBeInTheDocument();
+    expect(screen.getByText("− Rp75.000")).toBeInTheDocument();
     expect(screen.getByText(formatTimestamp("2026-10-18T03:00:00.000Z"))).toBeInTheDocument();
     expect(screen.getByText(/dikunci dan tidak berubah lagi/)).toBeInTheDocument();
   });

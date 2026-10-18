@@ -409,9 +409,9 @@ describe("useBreakdownPopups after the table is read again", () => {
   describe("the whole invoice (Rincian)", () => {
     function Whole({
       load,
-      onDecided,
-    }: Readonly<{ load: BreakdownLoader; onDecided?: () => void }>) {
-      const { open, layers } = useBreakdownPopups({ load, onDecided });
+      onMutated,
+    }: Readonly<{ load: BreakdownLoader; onMutated?: () => void }>) {
+      const { open, layers } = useBreakdownPopups({ load, onMutated });
       return (
         <>
           <button type="button" onClick={() => open("all", RANGGA_ROW)}>
@@ -465,8 +465,8 @@ describe("useBreakdownPopups after the table is read again", () => {
     });
 
     it("closes the layers and reads the invoices again when a move is taken", async () => {
-      const onDecided = vi.fn();
-      render(<Whole load={answering()} onDecided={onDecided} />);
+      const onMutated = vi.fn();
+      render(<Whole load={answering()} onMutated={onMutated} />);
 
       fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
       fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
@@ -478,7 +478,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 
-      await vi.waitFor(() => expect(onDecided).toHaveBeenCalled());
+      await vi.waitFor(() => expect(onMutated).toHaveBeenCalled());
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
