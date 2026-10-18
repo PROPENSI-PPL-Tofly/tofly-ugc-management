@@ -106,3 +106,34 @@ describe("SortableTh", () => {
     expect(screen.getByRole("columnheader", { name: "Nama Konten" })).not.toHaveAttribute("aria-sort");
   });
 });
+
+describe("SortableTh, a column the table is not sorted by", () => {
+  it("shows no arrow and says the column is not sorted", () => {
+    renderHeader({ direction: null });
+
+    expect(header()).toHaveAttribute("aria-sort", "none");
+    expect(screen.getByRole("button", { name: "Deadline" }).textContent).toBe("Deadline");
+  });
+
+  it("explains what pressing it will do", () => {
+    renderHeader({ direction: null, idleHint: "Urutkan menurut deadline" });
+
+    expect(screen.getByRole("button", { name: "Deadline" })).toHaveAttribute("title", "Urutkan menurut deadline");
+  });
+
+  it("lines up with a column of numbers when asked", () => {
+    renderHeader({ align: "right" });
+
+    expect(header()).toHaveClass("text-right");
+    expect(screen.getByRole("button", { name: /Deadline/ }).parentElement).toHaveClass("justify-end");
+  });
+
+  it("draws something beside the button, outside it, such as an ⓘ", () => {
+    renderHeader({ beside: <button type="button">Info</button> });
+
+    expect(screen.getByRole("button", { name: "Info" }).closest("button")).not.toBe(
+      screen.getByRole("button", { name: /Deadline/ }),
+    );
+    expect(header()).toContainElement(screen.getByRole("button", { name: "Info" }));
+  });
+});

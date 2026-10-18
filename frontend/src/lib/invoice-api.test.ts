@@ -7,12 +7,19 @@ import {
 } from "./invoice-api";
 import { DEFAULT_INVOICE_PARAMS, type InvoiceParams } from "./invoice";
 
-const STATE: InvoiceParams = { q: "salsa", contract: "active", status: "paid", page: 3 };
+const STATE: InvoiceParams = {
+  q: "salsa",
+  contract: "active",
+  status: "paid",
+  sort: "total",
+  order: "desc",
+  page: 3,
+};
 
 describe("toInvoiceListQuery", () => {
   it("sends every filter and the page, in the words the API reads", () => {
     expect(toInvoiceListQuery(STATE).toString()).toBe(
-      "q=salsa&contract=active&status=paid&page=3&pageSize=10",
+      "q=salsa&contract=active&status=paid&sort=total&order=desc&page=3&pageSize=10",
     );
   });
 
@@ -28,7 +35,12 @@ describe("toInvoiceList", () => {
     pageSize: 10,
     total: 1,
     totalPages: 1,
+    summary: { total: 550000, runningInvoices: 11, formulaSet: true },
   };
+
+  it("carries the summary of every invoice across, not only the page's", () => {
+    expect(toInvoiceList(RAW).summary).toEqual({ total: 550000, runningInvoices: 11, formulaSet: true });
+  });
 
   it("reads each component's amount into the table's columns, with the backend's total", () => {
     expect(toInvoiceList(RAW).rows).toEqual([
@@ -80,6 +92,7 @@ describe("toInvoiceList", () => {
       page: 1,
       total: 0,
       totalPages: 1,
+      summary: RAW.summary,
     });
   });
 
@@ -111,16 +124,36 @@ describe("toInvoiceBreakdown", () => {
           name: "Review layanan same-day",
           rate: 100000,
           amount: 100000,
+          late: false,
         },
         {
           contentId: "a1a1a1a1-0000-4000-8000-000000000002",
           name: "Promo akhir bulan",
           rate: 100000,
           amount: 100000,
+          late: false,
         },
       ],
       total: 200000,
     });
+  });
+
+  it("marks a Specific content handed in late, which the backend lists at Rp0", () => {
+    const late = toInvoiceBreakdown({
+      ...RAW_RANGGA_DETAIL,
+      components: {
+        ...RAW_RANGGA_DETAIL.components,
+        additionalContent: {
+          amount: 0,
+          status: "calculated",
+          lines: [{ contentId: "late-1", contentName: "Promo telat", amount: 0, basis: { fee: 100000, late: "yes" } }],
+        },
+      },
+    });
+
+    expect(late.extra.lines).toEqual([
+      { contentId: "late-1", name: "Promo telat", rate: 100000, amount: 0, late: true },
+    ]);
   });
 
   it("lists the bonuses known so far, says the rest is waiting, and states the formula's rules", () => {
@@ -257,7 +290,14 @@ describe("toInvoiceBreakdown", () => {
 
     expect(toInvoiceBreakdown(waiting).fixed.total).toBe(0);
     expect(
-      toInvoiceList({ items: [waiting], page: 1, pageSize: 10, total: 1, totalPages: 1 }).rows[0]
+      toInvoiceList({
+        items: [waiting],
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        totalPages: 1,
+        summary: { total: 0, runningInvoices: 1, formulaSet: true },
+      }).rows[0]
         .fixedAmount,
     ).toBe(0);
   });

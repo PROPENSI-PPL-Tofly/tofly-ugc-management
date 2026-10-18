@@ -394,4 +394,52 @@ describe("useBreakdownPopups after the table is read again", () => {
     expect(screen.getByRole("list")).toBeInTheDocument();
     expect(load).toHaveBeenCalledTimes(1);
   });
+
+  describe("the whole invoice (Rincian)", () => {
+    function Whole({ load }: Readonly<{ load: BreakdownLoader }>) {
+      const { open, layers } = useBreakdownPopups({ load });
+      return (
+        <>
+          <button type="button" onClick={() => open("all", RANGGA_ROW)}>
+            Rincian Rangga
+          </button>
+          <BreakdownAmount kind="extra" row={RANGGA_ROW} onOpen={open} />
+          {layers}
+        </>
+      );
+    }
+
+    it("opens every part of one creator's invoice in one panel", async () => {
+      render(<Whole load={answering()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+
+      expect(await screen.findByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+      expect(await screen.findByRole("region", { name: "Penalti" })).toBeInTheDocument();
+    });
+
+    it("reads the breakdown once for the panel and the cells of the same row", async () => {
+      const load = answering();
+      render(<Whole load={load} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+      await screen.findByRole("region", { name: "Penalti" });
+      fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+      fireEvent.click(cell(/^Konten Tambahan Rangga/));
+
+      expect(load).toHaveBeenCalledTimes(1);
+    });
+
+    it("opens a content from the panel and comes back to the panel when it closes", async () => {
+      render(<Whole load={answering()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Evg_3_Rangga_15102026" }));
+      expect(panel()).toHaveAttribute("data-content", "c-3");
+
+      fireEvent.click(screen.getByRole("button", { name: "Tutup panel" }));
+
+      expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+    });
+  });
 });

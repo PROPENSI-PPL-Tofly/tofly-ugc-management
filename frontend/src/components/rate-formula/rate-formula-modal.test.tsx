@@ -12,6 +12,7 @@ function setup(
     loading?: boolean;
     serverErrors?: RateFormulaErrors;
     formError?: string;
+    runningInvoices?: number;
   } = {},
 ) {
   const onClose = vi.fn();
@@ -292,5 +293,19 @@ describe("RateFormulaModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buang" }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("says before saving how many running invoices the change will recalculate", () => {
+    setup({ runningInvoices: 11 });
+
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Perubahan langsung menghitung ulang 11 invoice yang masih berjalan.",
+    );
+  });
+
+  it("says nothing about reach when no invoice is running", () => {
+    setup({ runningInvoices: 0 });
+
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 });

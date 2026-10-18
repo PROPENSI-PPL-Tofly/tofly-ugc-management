@@ -37,7 +37,8 @@ vi.mock("@/lib/use-url-filters", () => ({
   MAX_SEARCH_LENGTH: 100,
 }));
 
-const FORMULA = "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti";
+const FORMULA =
+  "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti. Bonus yang masih menunggu data belum dihitung.";
 
 function listOf(overrides: Partial<InvoiceList> = {}): InvoiceList {
   return {
@@ -58,6 +59,7 @@ function listOf(overrides: Partial<InvoiceList> = {}): InvoiceList {
     page: 1,
     total: 24,
     totalPages: 3,
+    summary: { total: 9800000, runningInvoices: 24, formulaSet: true },
     ...overrides,
   };
 }
@@ -185,5 +187,46 @@ describe("Rate & Invoicing page", () => {
     expect(
       screen.getByRole("button", { name: "Fixed Rate Rangga Pratama: Rp5.000.000, lihat rincian" }),
     ).toBeInTheDocument();
+  });
+
+  describe("the flow around the table", () => {
+    const SUMMARY = { total: 9800000, runningInvoices: 24, formulaSet: true };
+
+    it("warns that nothing but the fixed rate is counted while no formula is saved", async () => {
+      fetchList.mockResolvedValue(listOf({ summary: { ...SUMMARY, formulaSet: false } }));
+
+      await renderPage();
+
+      expect(screen.getByRole("status", { name: "Formula rate belum diatur" })).toHaveTextContent(
+        "Formula rate belum diatur. Fee konten tambahan dan penalti belum dihitung sampai formula disimpan lewat Atur Formula Rate.",
+      );
+    });
+
+    it("says nothing about the formula once it is saved", async () => {
+      await renderPage();
+
+      expect(screen.queryByRole("status", { name: "Formula rate belum diatur" })).not.toBeInTheDocument();
+    });
+
+    it("offers the filtered, ordered list as a CSV download", async () => {
+      await renderPage({ q: "rangga", sort: "total", order: "desc", page: "2" });
+
+      const link = screen.getByRole("link", { name: "Unduh CSV" });
+      expect(link).toHaveAttribute("href", "/api/invoices/export?q=rangga&sort=total&order=desc");
+      expect(link).toHaveAttribute("download");
+    });
+
+    it("adds up the whole filtered list under the table", async () => {
+      await renderPage();
+
+      expect(screen.getByText("Total 24 creator")).toBeInTheDocument();
+      expect(screen.getByText("Rp9.800.000")).toBeInTheDocument();
+    });
+
+    it("asks the list for the order in the URL", async () => {
+      await renderPage({ sort: "penalty", order: "asc" });
+
+      expect(fetchList).toHaveBeenCalledWith(expect.objectContaining({ sort: "penalty", order: "asc" }));
+    });
   });
 });

@@ -13,7 +13,14 @@ vi.mock("next/headers", () => ({
 
 import { fetchRateInvoices } from "./invoice.server";
 
-const ANSWER: RawInvoiceList = { items: [RAW_RANGGA], page: 1, pageSize: 10, total: 1, totalPages: 1 };
+const ANSWER: RawInvoiceList = {
+  items: [RAW_RANGGA],
+  page: 1,
+  pageSize: 10,
+  total: 1,
+  totalPages: 1,
+  summary: { total: 550000, runningInvoices: 1, formulaSet: true },
+};
 
 function params(over: Partial<InvoiceParams> = {}): InvoiceParams {
   return { ...DEFAULT_INVOICE_PARAMS, ...over };

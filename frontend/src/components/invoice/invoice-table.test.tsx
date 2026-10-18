@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { InvoiceTable } from "./invoice-table";
-import { DASH, type InvoiceRow } from "@/lib/invoice";
+import { DASH, TOTAL_FORMULA, type InvoiceRow } from "@/lib/invoice";
 
 const FULL: InvoiceRow = {
   creatorId: "creator-rangga",
@@ -181,5 +181,77 @@ describe("InvoiceTable", () => {
     } finally {
       errors.mockRestore();
     }
+  });
+
+  describe("sorting (when the board hands it an order)", () => {
+    const sortProps = (key: "action" | "name" | "fixed" | "penalty" | "total", order: "asc" | "desc" = "desc") => ({
+      key,
+      order,
+      onSort: vi.fn(),
+    });
+
+    it("lets Creator, Fixed Rate, Penalti and Total be sorted, the others not", () => {
+      render(<InvoiceTable rows={[FULL]} sort={sortProps("action")} />);
+
+      expect(screen.getAllByRole("columnheader").filter((th) => th.querySelector("button[title]")).map((th) => th.textContent?.replace(/[↑↓]/g, "").trim())).toEqual([
+        "Creator",
+        "Fixed Rate",
+        "Penalti",
+        "Total",
+      ]);
+    });
+
+    it("marks no column while the table reads what needs action first", () => {
+      render(<InvoiceTable rows={[FULL]} sort={sortProps("action")} />);
+
+      expect(screen.getAllByRole("columnheader").filter((th) => th.getAttribute("aria-sort") && th.getAttribute("aria-sort") !== "none")).toEqual([]);
+    });
+
+    it("marks the column it is sorted by, in its direction", () => {
+      render(<InvoiceTable rows={[FULL]} sort={sortProps("total", "desc")} />);
+
+      expect(screen.getByRole("columnheader", { name: /^Total/ })).toHaveAttribute("aria-sort", "descending");
+      expect(screen.getByRole("columnheader", { name: /^Creator/ })).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("reports which column was pressed", () => {
+      const sort = sortProps("action");
+      render(<InvoiceTable rows={[FULL]} sort={sort} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /^Penalti/ }));
+
+      expect(sort.onSort).toHaveBeenCalledWith("penalty");
+    });
+  });
+
+  it("explains the total behind an ⓘ in its own header, that the bonus waiting is not in it", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    expect(screen.getByRole("button", { name: "Info rumus Total" })).toHaveAccessibleDescription(TOTAL_FORMULA);
+    expect(TOTAL_FORMULA).toBe(
+      "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti. Bonus yang masih menunggu data belum dihitung.",
+    );
+  });
+
+  it("adds up every creator the filters keep under the table, across pages", () => {
+    render(<InvoiceTable rows={[FULL]} summary={{ total: 12345000, count: 24 }} />);
+
+    const footer = screen.getAllByRole("rowgroup").at(-1)!;
+    expect(footer.tagName).toBe("TFOOT");
+    expect(within(footer).getByText("Total 24 creator")).toBeInTheDocument();
+    expect(within(footer).getByText("Rp12.345.000")).toBeInTheDocument();
+  });
+
+  it("adds no footer to an empty table", () => {
+    const { container } = render(<InvoiceTable rows={[]} summary={{ total: 0, count: 0 }} />);
+
+    expect(container.querySelector("tfoot")).toBeNull();
+  });
+
+  it("gives each row an action column when the board hands one in, named for a screen reader", () => {
+    render(<InvoiceTable rows={[FULL]} action={(row) => <button type="button">Rincian {row.creatorName}</button>} />);
+
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rincian Rangga Pratama" })).toBeInTheDocument();
   });
 });

@@ -162,4 +162,12 @@ describe("RateFormulaTrigger", () => {
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("hands the number of running invoices to the dialog", async () => {
+    render(<RateFormulaTrigger runningInvoices={7} />);
+
+    await openModal();
+
+    expect(screen.getByRole("note")).toHaveTextContent("7 invoice yang masih berjalan");
+  });
 });

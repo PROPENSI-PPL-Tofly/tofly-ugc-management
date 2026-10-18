@@ -7,8 +7,10 @@ import {
   DASH,
   finalLabel,
   INVOICE_STATUS_LABELS,
+  invoiceExportHref,
   invoiceHref,
   MAX_INVOICE_SEARCH_LENGTH,
+  nextInvoiceSort,
   parseInvoiceParams,
   penaltyLabel,
   type InvoiceRow,
@@ -30,7 +32,14 @@ const ROW: InvoiceRow = {
 describe("parseInvoiceParams", () => {
   it("defaults to the whole list on page one", () => {
     expect(parseInvoiceParams({})).toEqual(DEFAULT_INVOICE_PARAMS);
-    expect(DEFAULT_INVOICE_PARAMS).toEqual({ q: "", contract: "all", status: "all", page: 1 });
+    expect(DEFAULT_INVOICE_PARAMS).toEqual({
+      q: "",
+      contract: "all",
+      status: "all",
+      sort: "action",
+      order: "asc",
+      page: 1,
+    });
   });
 
   it("reads the search word trimmed", () => {
@@ -93,8 +102,15 @@ describe("buildInvoiceQuery", () => {
 
   it("carries every part of a narrowed state into the page links", () => {
     expect(
-      buildInvoiceQuery({ q: "salsa", contract: "active", status: "paid", page: 3 }),
-    ).toEqual({ q: "salsa", contract: "active", status: "paid", page: "3" });
+      buildInvoiceQuery({
+        q: "salsa",
+        contract: "active",
+        status: "paid",
+        sort: "total",
+        order: "desc",
+        page: 3,
+      }),
+    ).toEqual({ q: "salsa", contract: "active", status: "paid", sort: "total", order: "desc", page: "3" });
   });
 
   it("does not carry a contract or status that is not applied", () => {
@@ -183,5 +199,47 @@ describe("the label maps", () => {
       payment_uploaded: "Bukti Bayar Terkirim",
       paid: "Paid",
     });
+  });
+});
+
+describe("the order of the table", () => {
+  it.each(["action", "name", "fixed", "penalty", "total"])("reads the sort %s from the URL", (sort) => {
+    expect(parseInvoiceParams({ sort, order: "desc" })).toMatchObject({ sort, order: "desc" });
+  });
+
+  it.each([["bonus"], ["TOTAL"], [""], ["__proto__"]])(
+    "falls back to what needs action first for the sort %j, which is not one of ours",
+    (sort) => {
+      expect(parseInvoiceParams({ sort, order: "sideways" })).toMatchObject({ sort: "action", order: "asc" });
+    },
+  );
+
+  it("leaves the default order out of the address, and carries any other", () => {
+    expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, order: "desc" })).toEqual({ order: "desc" });
+    expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, sort: "name" })).toEqual({ sort: "name" });
+  });
+
+  it("turns the current column around when it is pressed again", () => {
+    expect(nextInvoiceSort({ sort: "total", order: "desc" }, "total")).toEqual({ sort: "total", order: "asc" });
+    expect(nextInvoiceSort({ sort: "name", order: "asc" }, "name")).toEqual({ sort: "name", order: "desc" });
+  });
+
+  it("starts a newly pressed column the way it reads best: names A to Z, amounts largest first", () => {
+    expect(nextInvoiceSort({ sort: "action", order: "asc" }, "name")).toEqual({ sort: "name", order: "asc" });
+    for (const key of ["fixed", "penalty", "total"] as const) {
+      expect(nextInvoiceSort({ sort: "name", order: "asc" }, key)).toEqual({ sort: key, order: "desc" });
+    }
+  });
+});
+
+describe("invoiceExportHref", () => {
+  it("asks the export for the filters and the order on show, through the app's own /api", () => {
+    expect(
+      invoiceExportHref({ q: "salsa", contract: "active", status: "accruing", sort: "total", order: "desc", page: 3 }),
+    ).toBe("/api/invoices/export?q=salsa&contract=active&status=accruing&sort=total&order=desc");
+  });
+
+  it("asks for everything, in the default order, when nothing is narrowed; the page never matters", () => {
+    expect(invoiceExportHref({ ...DEFAULT_INVOICE_PARAMS, page: 4 })).toBe("/api/invoices/export");
   });
 });
