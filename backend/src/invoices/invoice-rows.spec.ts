@@ -204,4 +204,94 @@ describe('toInvoiceItem', () => {
     expect(item.components.fixedRate.amount).toBe(0);
     expect(item).toMatchObject({ rawTotal: 0.8, total: 0.8, floored: false });
   });
+
+  it('holds a running total at zero when a negative adjustment outweighs the pay', () => {
+    const item = toInvoiceItem(
+      creatorRow(),
+      contractRow(),
+      [],
+      FORMULA,
+      TODAY,
+      {
+        status: 'running',
+        adjustments: [
+          {
+            id: 'adj-1',
+            amount: -6_000_000,
+            reason: 'Pengembalian dana',
+            actorId: 'admin-1',
+            createdAt: '2026-09-17T00:00:00.000Z',
+          },
+        ],
+        snapshot: null,
+      },
+    );
+
+    expect(item).toMatchObject({
+      rawTotal: -500_000,
+      total: 0,
+      floored: true,
+    });
+  });
+
+  // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a finalized invoice is read
+  // from its snapshot, never recalculated from live content or the current formula.
+  it('returns the persisted snapshot of a finalized invoice instead of recalculating it', () => {
+    const component = (amount: number) => ({
+      amount,
+      status: 'calculated' as const,
+      lines: [],
+    });
+    const adjustments = [
+      {
+        id: 'adj-1',
+        amount: 25_000,
+        reason: 'Approved campaign adjustment',
+        actorId: 'admin-1',
+        createdAt: '2026-09-10T00:00:00.000Z',
+      },
+    ];
+    const snapshot = {
+      fixedRate: component(5_500_000),
+      additionalContent: component(100_000),
+      performanceBonus: component(0),
+      penalty: component(0),
+      adjustments,
+      rawTotal: 5_625_000,
+      total: 5_625_000,
+      floored: false,
+      finalizedAt: '2026-09-12T03:00:00.000Z',
+    };
+
+    const item = toInvoiceItem(
+      creatorRow(),
+      contractRow({ fixed_rate: new Prisma.Decimal('9000000') }),
+      [
+        contentRow({
+          id: 'late',
+          status: 'link_submitted',
+          deadline: day(-10),
+          video_submitted_at: day(-8),
+        }),
+      ],
+      { ...FORMULA, latePenaltyPerDay: 1_000_000 },
+      TODAY,
+      { status: 'finalized', adjustments, snapshot },
+    );
+
+    expect(item).toMatchObject({
+      invoiceStatus: 'finalized',
+      adjustments,
+      snapshot,
+      components: {
+        fixedRate: snapshot.fixedRate,
+        additionalContent: snapshot.additionalContent,
+        performanceBonus: snapshot.performanceBonus,
+        penalty: snapshot.penalty,
+      },
+      rawTotal: 5_625_000,
+      total: 5_625_000,
+      floored: false,
+    });
+  });
 });
