@@ -29,12 +29,24 @@ export interface InvoiceAdjustmentDto {
   createdAt: string;
 }
 
+export interface InvoiceSnapshotDto {
+  fixedRate: InvoiceComponentDto;
+  additionalContent: InvoiceComponentDto;
+  performanceBonus: InvoiceComponentDto;
+  penalty: InvoiceComponentDto;
+  adjustments: InvoiceAdjustmentDto[];
+  rawTotal: number;
+  total: number;
+  floored: boolean;
+  finalizedAt: string;
+}
+
 export interface InvoiceListItem {
   creatorId: string;
   creatorName: string;
   invoiceStatus: 'running' | 'finalized';
   adjustments: InvoiceAdjustmentDto[];
-  snapshot: null;
+  snapshot: InvoiceSnapshotDto | null;
   contract: InvoiceContractDto;
   components: Record<InvoiceComponentKey, InvoiceComponentDto>;
   /** What the components add up to, which may be below zero. */

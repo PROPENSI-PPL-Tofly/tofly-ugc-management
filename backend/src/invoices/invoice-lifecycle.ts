@@ -5,14 +5,21 @@ export type InvoiceStatus = 'running' | 'finalized';
 /** Lifecycle policy resolved from the status read from the database. */
 export interface InvoiceState {
   assertCanAdjust(): void;
+  assertCanFinalize(): void;
 }
 
 export class RunningInvoiceState implements InvoiceState {
   assertCanAdjust(): void {}
+
+  assertCanFinalize(): void {}
 }
 
 export class FinalizedInvoiceState implements InvoiceState {
   assertCanAdjust(): never {
+    throw this.finalized();
+  }
+
+  assertCanFinalize(): never {
     throw this.finalized();
   }
 

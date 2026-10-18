@@ -11,6 +11,7 @@ import {
 import type {
   InvoiceAdjustmentDto,
   InvoiceListItem,
+  InvoiceSnapshotDto,
 } from './dto/invoice-list.dto.js';
 import { calculateInvoice } from './invoice-calculator.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
@@ -145,15 +146,18 @@ export function toInvoiceItem(
   lifecycle: {
     status: 'running' | 'finalized';
     adjustments: InvoiceAdjustmentDto[];
-  } = { status: 'running', adjustments: [] },
+    snapshot: InvoiceSnapshotDto | null;
+  } = { status: 'running', adjustments: [], snapshot: null },
 ): InvoiceListItem {
-  const breakdown = calculateInvoice({
-    contract: toInvoiceContract(contractRow, row.access_revoke_date),
-    contents: contents.map(toInvoiceContent),
-    formula,
-    today,
-  });
-
+  const snapshot = lifecycle.snapshot;
+  const breakdown = snapshot
+    ? null
+    : calculateInvoice({
+        contract: toInvoiceContract(contractRow, row.access_revoke_date),
+        contents: contents.map(toInvoiceContent),
+        formula,
+        today,
+      });
   const adjustmentTotal = lifecycle.adjustments.reduce(
     (sum, adjustment) => sum + adjustment.amount,
     0,
@@ -163,16 +167,23 @@ export function toInvoiceItem(
     creatorName: creatorName(row),
     invoiceStatus: lifecycle.status,
     adjustments: lifecycle.adjustments,
-    snapshot: null,
+    snapshot,
     contract: {
       id: contractRow.id,
       status: invoiceContractStatus(contractRow, today),
       startDate: calendarDay(contractRow.start_date),
       endDate: calendarDay(contractRow.end_date),
     },
-    components: breakdown.components,
-    rawTotal: breakdown.rawTotal + adjustmentTotal,
-    total: Math.max(0, breakdown.rawTotal + adjustmentTotal),
-    floored: breakdown.rawTotal + adjustmentTotal < 0,
+    components: snapshot
+      ? {
+          fixedRate: snapshot.fixedRate,
+          additionalContent: snapshot.additionalContent,
+          performanceBonus: snapshot.performanceBonus,
+          penalty: snapshot.penalty,
+        }
+      : breakdown!.components,
+    rawTotal: snapshot?.rawTotal ?? breakdown!.rawTotal + adjustmentTotal,
+    total: snapshot?.total ?? Math.max(0, breakdown!.rawTotal + adjustmentTotal),
+    floored: snapshot?.floored ?? breakdown!.rawTotal + adjustmentTotal < 0,
   };
 }

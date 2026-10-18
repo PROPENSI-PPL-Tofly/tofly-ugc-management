@@ -60,4 +60,13 @@ export class InvoicesController {
     );
   }
 
+  @Post(':contractId/finalize')
+  async finalize(
+    @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Req() request: Pick<AdminRequest, 'principal'>,
+  ) {
+    if (request.principal?.role !== 'admin') throw unauthenticated();
+    return this.invoices.finalize(contractId, new Date());
+  }
+
 }

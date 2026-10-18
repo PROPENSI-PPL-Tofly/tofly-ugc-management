@@ -1,15 +1,19 @@
 import {
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
+import { jakartaDay } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { hasInvoiceFilters, type InvoiceFilters } from './invoice-filters.js';
 import type {
   InvoiceAdjustmentDto,
   InvoiceListResponse,
+  InvoiceSnapshotDto,
 } from './dto/invoice-list.dto.js';
 import {
   CONTENT_SELECT,
@@ -20,10 +24,13 @@ import {
   invoiceContractStatus,
   type InvoiceCreatorRow,
   pickContract,
+  toInvoiceContent,
+  toInvoiceContract,
   toInvoiceItem,
 } from './invoice-rows.js';
 import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
+import { calculateInvoice } from './invoice-calculator.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
 /** The database operations this service uses. */
@@ -50,6 +57,11 @@ export interface InvoiceLister {
     input: ManualAdjustmentInput,
     actorUserId: string,
   ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'running' }>;
+  finalize(contractId: string, today?: Date): Promise<{
+    invoiceStatus: 'finalized';
+    adjustments: InvoiceAdjustmentDto[];
+    snapshot: InvoiceSnapshotDto;
+  }>;
 }
 
 /** A creator without any contract has nothing to invoice, so the table never lists them. */
@@ -143,7 +155,11 @@ function adjustmentDto(row: {
   };
 }
 
-/** Loads lifecycle and adjustment data alongside the selected page's live calculation inputs. */
+function codeError(code: string, message: string): ConflictException {
+  return new ConflictException({ code, message });
+}
+
+/** Loads lifecycle data for the selected page and leaves invoice arithmetic to the calculator. */
 @Injectable()
 export class InvoicesService implements InvoiceLister {
   constructor(
@@ -175,6 +191,7 @@ export class InvoicesService implements InvoiceLister {
             select: {
               contract_id: true,
               status: true,
+              snapshot: true,
               adjustments: {
                 select: INVOICE_ADJUSTMENT_SELECT,
                 orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
@@ -193,12 +210,14 @@ export class InvoicesService implements InvoiceLister {
       {
         status: 'running' | 'finalized';
         adjustments: InvoiceAdjustmentDto[];
+        snapshot: InvoiceSnapshotDto | null;
       }
     >();
     for (const invoice of persisted) {
       lifecycleByContract.set(invoice.contract_id, {
         status: invoice.status,
         adjustments: invoice.adjustments.map(adjustmentDto),
+        snapshot: invoice.snapshot as unknown as InvoiceSnapshotDto | null,
       });
     }
 
@@ -213,6 +232,7 @@ export class InvoicesService implements InvoiceLister {
           lifecycleByContract.get(contract.id) ?? {
             status: 'running',
             adjustments: [],
+            snapshot: null,
           },
         ),
       ),
@@ -289,6 +309,101 @@ export class InvoicesService implements InvoiceLister {
         select: INVOICE_ADJUSTMENT_SELECT,
       });
       return { ...adjustmentDto(saved), invoiceStatus: 'running' };
+    }, { isolationLevel: 'ReadCommitted' });
+  }
+
+  async finalize(
+    contractId: string,
+    today = new Date(),
+  ): Promise<{
+    invoiceStatus: 'finalized';
+    adjustments: InvoiceAdjustmentDto[];
+    snapshot: InvoiceSnapshotDto;
+  }> {
+    const formula = await this.formulas.current();
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockContract(tx, contractId);
+      const contract = await tx.contracts.findUnique({
+        where: { id: contractId },
+        select: {
+          id: true,
+          start_date: true,
+          end_date: true,
+          content_quota: true,
+          fixed_rate: true,
+          creators: { select: { access_revoke_date: true } },
+          contents: { select: CONTENT_SELECT, orderBy: { deadline: 'asc' } },
+        },
+      });
+      if (!contract) this.contractNotFound();
+
+      if (jakartaDay(today) <= contract.end_date.toISOString().slice(0, 10)) {
+        throw codeError('CONTRACT_NOT_ENDED', 'Kontrak belum berakhir');
+      }
+
+      const invoice = await tx.invoices.upsert({
+        where: { contract_id: contractId },
+        create: { contract_id: contractId },
+        update: {},
+        select: { id: true, status: true },
+      });
+      invoiceState(invoice.status).assertCanFinalize();
+
+      const breakdown = calculateInvoice({
+        contract: toInvoiceContract(
+          {
+            id: contract.id,
+            start_date: contract.start_date,
+            end_date: contract.end_date,
+            content_quota: contract.content_quota,
+            fixed_rate: contract.fixed_rate,
+          },
+          contract.creators.access_revoke_date,
+        ),
+        contents: contract.contents.map(toInvoiceContent),
+        formula,
+        today,
+      });
+      if (Object.values(breakdown.components).some(
+        (component) => component.status === 'waiting_for_data',
+      )) {
+        throw new UnprocessableEntityException({
+          code: 'INVOICE_DATA_INCOMPLETE',
+          message: 'Invoice memiliki komponen yang belum dapat dihitung',
+        });
+      }
+
+      const adjustmentRows = await tx.invoice_adjustments.findMany({
+        where: { invoice_id: invoice.id },
+        select: INVOICE_ADJUSTMENT_SELECT,
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      });
+      const adjustments = adjustmentRows.map(adjustmentDto);
+      const rawTotal = breakdown.rawTotal + adjustments.reduce(
+        (sum, adjustment) => sum + adjustment.amount,
+        0,
+      );
+      const finalizedAt = new Date();
+      const snapshot: InvoiceSnapshotDto = {
+        ...breakdown.components,
+        adjustments,
+        rawTotal,
+        total: Math.max(0, rawTotal),
+        floored: rawTotal < 0,
+        finalizedAt: finalizedAt.toISOString(),
+      };
+      const updated = await tx.invoices.updateMany({
+        where: { id: invoice.id, status: 'running' },
+        data: {
+          status: 'finalized',
+          snapshot: snapshot as unknown as Prisma.InputJsonValue,
+          finalized_at: finalizedAt,
+        },
+      });
+      if (updated.count !== 1) {
+        throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
+      }
+      return { invoiceStatus: 'finalized', adjustments, snapshot };
     }, { isolationLevel: 'ReadCommitted' });
   }
 
