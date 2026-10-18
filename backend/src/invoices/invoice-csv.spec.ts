@@ -87,7 +87,41 @@ describe('toInvoiceCsv', () => {
   });
 });
 
+describe('toInvoiceCsv words', () => {
+  it.each([
+    ['active', 'Aktif'],
+    ['upcoming', 'Belum Dimulai'],
+    ['expired', 'Berakhir'],
+  ] as const)('names a contract that is %s as %s', (status, label) => {
+    const cells = rows(toInvoiceCsv([item({ contract: { id: 'k', status, startDate: '', endDate: '' } })]))[1].split(',');
+
+    expect(cells[1]).toBe(label);
+  });
+
+  it.each([
+    ['accruing', 'Berjalan'],
+    ['finalized', 'Invoice Terkirim'],
+    ['creator_acked', 'Perlu Bukti Bayar'],
+    ['payment_uploaded', 'Bukti Bayar Terkirim'],
+    ['paid', 'Paid'],
+  ] as const)('names an invoice that is %s as %s', (invoiceStatus, label) => {
+    expect(rows(toInvoiceCsv([item({ invoiceStatus })]))[1].split(',')[7]).toBe(label);
+  });
+
+  it('notes both a held total and a waiting bonus, one after the other', () => {
+    const both = item({ floored: true, total: 0, rawTotal: -1 });
+
+    expect(rows(toInvoiceCsv([both]))[1].split(',').at(-1)).toBe(
+      'Penalti melebihi pembayaran; Bonus performa menunggu data',
+    );
+  });
+});
+
 describe('csvCell', () => {
+  it('leaves a formula character in the middle of a name alone', () => {
+    expect(csvCell('Rangga = Pratama')).toBe('Rangga = Pratama');
+  });
+
   it('leaves plain text as it is', () => {
     expect(csvCell('Rangga Pratama')).toBe('Rangga Pratama');
   });

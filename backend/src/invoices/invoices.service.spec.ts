@@ -113,6 +113,34 @@ describe('InvoicesService', () => {
       );
     });
 
+    it('hands each creator the content of their own contract', async () => {
+      const late = (id: string, contractId: string) => ({
+        id,
+        contract_id: contractId,
+        name: id,
+        type: 'evergreen',
+        status: 'link_submitted',
+        deadline: day(-10),
+        video_submitted_at: day(-8),
+        platform: null,
+        views: null,
+        likes: null,
+      });
+      prisma.contents.findMany.mockResolvedValue([
+        late('rangga-1', 'rangga-c'),
+        late('rangga-2', 'rangga-c'),
+        late('nadia-1', 'nadia-c'),
+      ]);
+
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {}, { key: 'name', order: 'asc' });
+      const lines = (id: string) =>
+        result.items.find((item) => item.creatorId === id)!.components.penalty.lines.map((line) => line.contentId);
+
+      expect(lines('rangga')).toEqual(['rangga-1', 'rangga-2']);
+      expect(lines('nadia')).toEqual(['nadia-1']);
+      expect(lines('kevin')).toEqual([]);
+    });
+
     it('puts what needs action first by default: ended, then running, then not started', async () => {
       const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
