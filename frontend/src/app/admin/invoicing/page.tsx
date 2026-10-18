@@ -1,5 +1,6 @@
 import { InvoiceFilters } from "@/components/invoice/invoice-filters";
 import { InvoiceBoard } from "@/components/invoicing/invoice-board";
+import { RateFormulaTrigger } from "@/components/rate-formula/rate-formula-trigger";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
@@ -64,6 +65,7 @@ export default async function RateInvoicingPage({
                 <span className="sr-only">{FORMULA}</span>
               </span>
             </h2>
+            <RateFormulaTrigger />
           </div>
 
           <InvoiceFilters />

@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { checkNewCreator } from './new-creator.js';
+import { checkNewCreator, MAX_FIXED_RATE } from './new-creator.js';
 
 const TODAY = new Date('2026-09-23T00:00:00Z');
 
@@ -439,28 +439,35 @@ describe('checkNewCreator', () => {
       expect(checkNewCreator(body({ interval: 1 }), TODAY).interval).toBe(1);
     });
 
-    it('accepts a fixed rate with cents', () => {
-      expect(
-        checkNewCreator(body({ fixedRate: 750000.5 }), TODAY).fixedRate,
-      ).toBe(750000.5);
+    // Subtask 8.1: the prototype's Add Creator form takes the fixed rate in whole rupiah, from
+    // Rp1 to Rp10.000.000 (FV.fAccFixedRate).
+    it.each([750000.5, 0.001, 10_000_000.01])(
+      'rejects a fixed rate with cents (%s)',
+      (fixedRate) => {
+        expect(errorsFor(body({ fixedRate }))).toEqual({
+          fixedRate: 'Fixed rate harus bilangan bulat',
+        });
+      },
+    );
+
+    it('caps the fixed rate at Rp10.000.000', () => {
+      expect(MAX_FIXED_RATE).toBe(10_000_000);
     });
 
-    it('rejects a fixed rate with more than two decimals', () => {
-      expect(errorsFor(body({ fixedRate: 0.001 }))).toEqual({
-        fixedRate: 'Fixed rate maksimal 2 angka desimal',
-      });
+    it.each([1, 10_000_000])('accepts a fixed rate of %s', (fixedRate) => {
+      expect(checkNewCreator(body({ fixedRate }), TODAY).fixedRate).toBe(
+        fixedRate,
+      );
     });
 
-    // contracts.fixed_rate is numeric(14, 2): twelve digits before the decimal point.
-    it('accepts the largest numeric(14, 2) and rejects one more', () => {
-      expect(
-        checkNewCreator(body({ fixedRate: 999_999_999_999.99 }), TODAY)
-          .fixedRate,
-      ).toBe(999_999_999_999.99);
-      expect(errorsFor(body({ fixedRate: 1_000_000_000_000 }))).toEqual({
-        fixedRate: 'Fixed rate terlalu besar',
-      });
-    });
+    it.each([10_000_001, 9_999_999_999, 999_999_999_999])(
+      'rejects a fixed rate past Rp10.000.000 (%s)',
+      (fixedRate) => {
+        expect(errorsFor(body({ fixedRate }))).toEqual({
+          fixedRate: 'Fixed rate terlalu besar',
+        });
+      },
+    );
   });
 
   // PRD 3.4 (Simpan only once exactly the quota is allocated) and 3.6 (every new deadline on
