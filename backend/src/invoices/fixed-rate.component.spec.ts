@@ -56,4 +56,23 @@ describe('FixedRateComponent', () => {
 
     expect(result.lines[0].basis.delivered).toBe(1);
   });
+
+  it('names its one line after the contract and counts only handed-in Evergreen items as delivered', () => {
+    const result = new FixedRateComponent().calculate(
+      context({
+        contract: contract({ contentQuota: 3 }),
+        contents: [
+          content({ id: 'in', status: 'link_submitted' }),
+          content({ id: 'also-in', status: 'link_submitted' }),
+          content({ id: 'draft', status: 'draft_review' }),
+        ],
+      }),
+    );
+
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0]).toMatchObject({
+      contentName: 'Kontrak',
+      basis: { delivered: 2, quota: 3 },
+    });
+  });
 });

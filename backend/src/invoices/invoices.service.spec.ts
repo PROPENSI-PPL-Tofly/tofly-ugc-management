@@ -423,4 +423,45 @@ describe('InvoicesService', () => {
       expect(prisma.contents.findMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('reading from the database', () => {
+    it('loads content in deadline order', async () => {
+      prisma.creators.findMany.mockResolvedValue([row()]);
+      prisma.creators.count.mockResolvedValue(1);
+
+      await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+      expect(prisma.contents.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { deadline: 'asc' } }),
+      );
+    });
+
+    it('reads the filtered roster with contracts, by name, without paging', async () => {
+      prisma.creators.findMany.mockResolvedValue([row()]);
+
+      await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
+
+      expect(prisma.creators.findMany).toHaveBeenCalledWith({
+        where: { contracts: { some: {} } },
+        select: expect.objectContaining({ id: true, contracts: expect.any(Object) }),
+        orderBy: [{ first_name: 'asc' }, { last_name: 'asc' }, { id: 'asc' }],
+      });
+    });
+
+    it('cuts a filtered page by page and size, and skips a creator left without a contract', async () => {
+      prisma.creators.findMany.mockResolvedValue([
+        row({ id: 'a', first_name: 'Ana' }),
+        row({ id: 'b', first_name: 'Ani' }),
+        row({ id: 'gone', first_name: 'Anya', contracts: [] }),
+        row({ id: 'c', first_name: 'Anu' }),
+      ]);
+
+      const result = await service.list({ page: 2, pageSize: 2 }, TODAY, {
+        q: 'an',
+      });
+
+      expect(result).toMatchObject({ total: 3, totalPages: 2, page: 2 });
+      expect(result.items.map((item) => item.creatorId)).toEqual(['c']);
+    });
+  });
 });

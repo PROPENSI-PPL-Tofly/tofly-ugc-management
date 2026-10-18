@@ -92,4 +92,30 @@ describe('AdditionalContentComponent', () => {
 
     expect(result).toMatchObject({ amount: null, status: 'waiting_for_data' });
   });
+
+  it('pays no fee for Evergreen content handed in on time, and names the fee each line was paid at', () => {
+    const result = new AdditionalContentComponent().calculate(
+      context({
+        contents: [
+          content({
+            id: 'evergreen',
+            type: 'evergreen',
+            status: 'link_submitted',
+            deadline: day(-2),
+            videoSubmittedAt: day(-3),
+          }),
+          content({
+            id: 'specific',
+            type: 'specific',
+            status: 'link_submitted',
+            deadline: day(-2),
+            videoSubmittedAt: day(-3),
+          }),
+        ],
+      }),
+    );
+
+    expect(result.lines.map((line) => line.contentId)).toEqual(['specific']);
+    expect(result.lines[0].basis).toEqual({ fee: 100_000 });
+  });
 });

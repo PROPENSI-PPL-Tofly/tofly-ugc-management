@@ -107,4 +107,12 @@ describe('InvoicesController', () => {
       response: { code: 'INVOICE_NOT_FOUND' },
     });
   });
+
+  it('tells the admin in Indonesian why there is no invoice', async () => {
+    service.detail.mockResolvedValue(null);
+
+    await expect(controller.detail('creator-1')).rejects.toMatchObject({
+      response: { message: 'Creator tidak ditemukan atau belum punya kontrak' },
+    });
+  });
 });

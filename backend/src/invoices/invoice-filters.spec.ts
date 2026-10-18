@@ -85,3 +85,14 @@ describe('hasInvoiceFilters', () => {
     expect(hasInvoiceFilters({ status: 'accruing' })).toBe(true);
   });
 });
+
+describe('checkInvoiceFilters messages', () => {
+  it('says how long a search word may be and which contract statuses exist', () => {
+    expect(() =>
+      checkInvoiceFilters('a'.repeat(MAX_SEARCH_LENGTH + 1), undefined),
+    ).toThrow(`q must be ${MAX_SEARCH_LENGTH} characters or fewer`);
+    expect(() => checkInvoiceFilters(undefined, 'none')).toThrow(
+      'contract must be one of active, upcoming, expired',
+    );
+  });
+});
