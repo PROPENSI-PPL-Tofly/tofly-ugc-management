@@ -59,15 +59,13 @@ function createHarness(options?: {
     },
   };
 
-  const transactionRunner = vi.fn(
-    async <T>(
+  const client: CreatorCommentClient = {
+    $transaction: async <T>(
       work: (transaction: CreatorCommentTransaction) => Promise<T>,
     ): Promise<T> => work(transaction),
-  );
-
-  const client: CreatorCommentClient = {
-    $transaction: transactionRunner,
   };
+  // Spying keeps the client's generic $transaction signature, which vi.fn would erase.
+  const transactionRunner = vi.spyOn(client, '$transaction');
 
   return {
     service: new CreatorCommentService(client),
