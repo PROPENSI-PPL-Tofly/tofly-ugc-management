@@ -3,7 +3,7 @@
 // view can be linked, bookmarked and reloaded. Pure module — no next/headers — so client
 // components can share it.
 
-import { formatRupiah } from "./format";
+import { formatDeduction, formatRupiah } from "./format";
 import { oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** The table shows ten creators a page, as the prototype pages it. */
@@ -135,7 +135,7 @@ export function bonusLabel(amount: number | null): string {
 
 /** A penalty is what is taken off, so it reads as a minus. */
 export function penaltyLabel(amount: number): string {
-  return amount === 0 ? DASH : formatRupiah(-amount);
+  return amount === 0 ? DASH : formatDeduction(amount);
 }
 
 /**

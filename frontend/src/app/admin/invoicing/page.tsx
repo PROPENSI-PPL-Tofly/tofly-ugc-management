@@ -2,6 +2,7 @@ import { InvoiceFilters } from "@/components/invoice/invoice-filters";
 import { InvoiceBoard } from "@/components/invoicing/invoice-board";
 import { RateFormulaTrigger } from "@/components/rate-formula/rate-formula-trigger";
 import { AppShell } from "@/components/shell/app-shell";
+import { InfoTip } from "@/components/ui/info-tip";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
@@ -21,7 +22,7 @@ export const metadata = {
   title: "Rate & Invoicing — Tofly",
 };
 
-const FORMULA = "Final Rate = Fixed Rate + Konten Tambahan + Bonus − Penalti";
+const FORMULA = "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti";
 
 /**
  * The Rate & Invoicing table (PBI-8, subtask 8.4): every creator's fixed rate, additional
@@ -57,13 +58,7 @@ export default async function RateInvoicingPage({
           <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-5">
             <h2 className="text-[15px]">
               Rate & Invoicing{" "}
-              <span
-                title={FORMULA}
-                className="cursor-help align-super text-xs text-muted"
-              >
-                ?
-                <span className="sr-only">{FORMULA}</span>
-              </span>
+              <InfoTip label="Info rumus Total" text={FORMULA} />
             </h2>
             <RateFormulaTrigger />
           </div>

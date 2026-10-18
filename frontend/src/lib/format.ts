@@ -146,3 +146,8 @@ export function formatRevisions(value: number): string {
 export function formatRupiah(amount: number): string {
   return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
 }
+
+/** Money taken away, such as a penalty, written the one way the table and its popups share. */
+export function formatDeduction(amount: number): string {
+  return `− ${formatRupiah(amount)}`;
+}

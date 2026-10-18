@@ -35,18 +35,18 @@ const INVOICE_TONES: Record<InvoiceStatus, Tone> = {
 };
 
 /**
- * The prototype's column widths, so the table lays out exactly as the prototype laid it. Each
- * width is named by its column: several columns share a width, so a width alone cannot key one.
+ * The column widths, the prototype's spread over the seven columns there are until Finalize
+ * (PBI-12) brings an action column. Classes, not inline styles, which the CSP refuses; each is
+ * named by its column, since several columns share a width and a width alone cannot key one.
  */
 const COLUMNS = [
-  ["creator", "17%"],
-  ["fixed", "11%"],
-  ["extra", "11%"],
-  ["bonus", "11%"],
-  ["penalty", "13%"],
-  ["final", "11%"],
-  ["invoice", "13%"],
-  ["actions", "13%"],
+  ["creator", "w-[20%]"],
+  ["fixed", "w-[12%]"],
+  ["extra", "w-[13%]"],
+  ["bonus", "w-[13%]"],
+  ["penalty", "w-[13%]"],
+  ["final", "w-[13%]"],
+  ["invoice", "w-[16%]"],
 ] as const;
 
 function amountCell(amount: number, label: string) {
@@ -91,11 +91,13 @@ export function InvoiceTable({
   amount?: (kind: BreakdownKind, row: InvoiceRow) => ReactNode;
 }>) {
   return (
-    <div className="overflow-x-auto">
+    // relative: the scroll region is the containing block of anything absolutely placed inside
+    // it, so nothing escapes it and widens the page.
+    <div className="relative overflow-x-auto">
       <table className="w-full text-[13px]">
         <colgroup>
           {COLUMNS.map(([column, width]) => (
-            <col key={column} style={{ width }} />
+            <col key={column} className={width} />
           ))}
         </colgroup>
         <thead>
@@ -107,23 +109,19 @@ export function InvoiceTable({
               Fixed Rate
             </th>
             <th scope="col" className={NUM_HEAD}>
-              Tambahan
+              Fee Konten Tambahan
             </th>
             <th scope="col" className={NUM_HEAD}>
-              Bonus
+              Bonus Performa
             </th>
             <th scope="col" className={NUM_HEAD}>
               Penalti
             </th>
             <th scope="col" className={NUM_HEAD}>
-              Final Rate
+              Total
             </th>
             <th scope="col" className={HEAD}>
-              Invoice
-            </th>
-            <th scope="col" className={HEAD}>
-              {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
-              <span className="sr-only">Aksi</span>
+              Status Invoice
             </th>
           </tr>
         </thead>
@@ -163,7 +161,6 @@ export function InvoiceTable({
                     {INVOICE_STATUS_LABELS[row.invoiceStatus]}
                   </Pill>
                 </td>
-                <td className={CELL}>{/* The action column is its owner's to fill (8.5). */}</td>
               </tr>
             ))
           )}

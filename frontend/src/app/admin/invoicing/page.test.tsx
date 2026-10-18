@@ -37,7 +37,7 @@ vi.mock("@/lib/use-url-filters", () => ({
   MAX_SEARCH_LENGTH: 100,
 }));
 
-const FORMULA = "Final Rate = Fixed Rate + Konten Tambahan + Bonus − Penalti";
+const FORMULA = "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti";
 
 function listOf(overrides: Partial<InvoiceList> = {}): InvoiceList {
   return {

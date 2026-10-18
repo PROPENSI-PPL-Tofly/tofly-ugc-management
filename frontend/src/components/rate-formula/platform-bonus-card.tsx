@@ -43,9 +43,9 @@ export function PlatformBonusCard({
 
   return (
     <div role="group" aria-label={`Bonus performa ${platformName}`} className="rounded-(--radius-panel) border border-rule p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold">{platformName}</h3>
-        <label htmlFor={metricId} className="flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-[13px] text-muted">
+        <label htmlFor={metricId} className="flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-[13px] text-muted focus-within:outline-2 focus-within:outline-focus">
           Metrik
           <select
             id={metricId}
@@ -62,7 +62,7 @@ export function PlatformBonusCard({
         </label>
       </div>
 
-      <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-x-2 gap-y-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2">
         <span className="text-xs font-semibold text-muted">Minimum {metricName}</span>
         <span className="text-xs font-semibold text-muted">Bonus (Rp)</span>
         <span aria-hidden="true" />
@@ -142,7 +142,7 @@ function TierRow({
   return (
     <>
       <AmountInput
-        className={FIELD}
+        className={`${FIELD} min-w-0`}
         aria-label={`${position} minimum ${metricName}`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
@@ -150,7 +150,7 @@ function TierRow({
         onChange={onThreshold}
       />
       <AmountInput
-        className={FIELD}
+        className={`${FIELD} min-w-0`}
         aria-label={`${position} bonus (Rp)`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
