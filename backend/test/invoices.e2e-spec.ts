@@ -175,13 +175,19 @@ describe('GET /invoices (e2e)', () => {
 
     // FORMULA: Rp50.000 a day for at most 3 days, Rp100.000 per on-time Specific item.
     expect(nadia.components.fixedRate.amount).toBe(2_000_000);
-    expect(nadia.components.additionalContent).toMatchObject({
-      amount: 100_000,
-      lines: [
-        { contentName: 'Specific on time', amount: 100_000 },
-        { contentName: 'Specific late', amount: 0, basis: { late: 'yes' } },
-      ],
-    });
+    // Both items share a deadline, so their order is the database's; read them in any order.
+    expect(nadia.components.additionalContent.amount).toBe(100_000);
+    expect(nadia.components.additionalContent.lines).toHaveLength(2);
+    expect(nadia.components.additionalContent.lines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ contentName: 'Specific on time', amount: 100_000 }),
+        expect.objectContaining({
+          contentName: 'Specific late',
+          amount: 0,
+          basis: { fee: 100_000, late: 'yes' },
+        }),
+      ]),
+    );
     expect(nadia.components.penalty.amount).toBe(250_000);
     expect(nadia.components.performanceBonus.status).toBe('waiting_for_data');
     expect(nadia).toMatchObject({ total: 1_850_000, floored: false });
