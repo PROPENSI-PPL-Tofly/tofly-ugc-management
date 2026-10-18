@@ -42,12 +42,6 @@ export interface InvoiceLister {
     filters?: InvoiceFilters,
     sort?: InvoiceSort,
   ): Promise<InvoiceListResponse>;
-  /** Every invoice the filters keep, in the asked order, for the CSV export. */
-  exportAll(
-    today?: Date,
-    filters?: InvoiceFilters,
-    sort?: InvoiceSort,
-  ): Promise<InvoiceListItem[]>;
 }
 
 /** What the breakdown popups need from the service: one creator's invoice, or null. */
@@ -156,14 +150,6 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         formulaSet,
       },
     };
-  }
-
-  async exportAll(
-    today = new Date(),
-    filters: InvoiceFilters = {},
-    sort: InvoiceSort = DEFAULT_INVOICE_SORT,
-  ): Promise<InvoiceListItem[]> {
-    return (await this.calculate(today, filters, sort)).items;
   }
 
   async detail(

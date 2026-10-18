@@ -9,7 +9,6 @@ import {
   buildInvoiceQuery,
   INVOICE_PAGE_SIZE,
   INVOICE_PATH,
-  invoiceExportHref,
   invoiceHref,
   parseInvoiceParams,
   type InvoiceList,
@@ -55,16 +54,7 @@ export default async function RateInvoicingPage({
           {/* The prototype's panel head; the ⓘ that explains Total sits on the Total header. */}
           <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-3 pt-5">
             <h2 className="text-[15px]">Rate & Invoicing</h2>
-            <div className="flex flex-wrap items-start gap-2">
-              <a
-                href={invoiceExportHref(state)}
-                download
-                className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink transition-colors hover:border-ink-2"
-              >
-                Unduh CSV
-              </a>
-              <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} />
-            </div>
+            <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} />
           </div>
 
           {list.summary.formulaSet ? null : (

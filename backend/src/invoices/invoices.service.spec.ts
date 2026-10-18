@@ -271,25 +271,6 @@ describe('InvoicesService', () => {
     });
   });
 
-  describe('exportAll', () => {
-    beforeEach(() => {
-      prisma.creators.findMany.mockResolvedValue(roster);
-    });
-
-    it('answers every invoice the filters keep, in the asked order, without paging', async () => {
-      const items = await service.exportAll(TODAY, {}, { key: 'name', order: 'asc' });
-
-      expect(items.map((item) => item.creatorId)).toEqual(['kevin', 'nadia', 'rangga']);
-    });
-
-    it('applies the filters and the default order', async () => {
-      const items = await service.exportAll(TODAY, { q: 'pr' });
-
-      // "pr" is in Rangga Pratama and Kevin Pranata, not Nadia Putri.
-      expect(items.map((item) => item.creatorId)).toEqual(['rangga', 'kevin']);
-    });
-  });
-
   describe('detail', () => {
     const renewed = row({
       contracts: [

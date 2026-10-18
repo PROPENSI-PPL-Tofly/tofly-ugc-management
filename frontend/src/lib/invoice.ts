@@ -163,16 +163,6 @@ export function nextInvoiceSort(
   return { sort: key, order: key === "name" || key === "action" ? "asc" : "desc" };
 }
 
-/**
- * Where the CSV of what is on show downloads from: the same filters and order, every page, through
- * the app's own /api so the session stays a same-origin cookie.
- */
-export function invoiceExportHref(state: InvoiceParams): string {
-  // Page one leaves the page out of the query; the export is every page.
-  const search = new URLSearchParams(buildInvoiceQuery({ ...state, page: 1 })).toString();
-  return search ? `/api/invoices/export?${search}` : "/api/invoices/export";
-}
-
 /** The list's own address for a state: the bare path, or the path with its query. */
 export function invoiceHref(state: InvoiceParams): string {
   const search = new URLSearchParams(buildInvoiceQuery(state)).toString();

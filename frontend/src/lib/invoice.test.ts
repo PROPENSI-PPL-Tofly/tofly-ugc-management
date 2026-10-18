@@ -7,7 +7,6 @@ import {
   DASH,
   finalLabel,
   INVOICE_STATUS_LABELS,
-  invoiceExportHref,
   invoiceHref,
   MAX_INVOICE_SEARCH_LENGTH,
   nextInvoiceSort,
@@ -232,14 +231,3 @@ describe("the order of the table", () => {
   });
 });
 
-describe("invoiceExportHref", () => {
-  it("asks the export for the filters and the order on show, through the app's own /api", () => {
-    expect(
-      invoiceExportHref({ q: "salsa", contract: "active", status: "accruing", sort: "total", order: "desc", page: 3 }),
-    ).toBe("/api/invoices/export?q=salsa&contract=active&status=accruing&sort=total&order=desc");
-  });
-
-  it("asks for everything, in the default order, when nothing is narrowed; the page never matters", () => {
-    expect(invoiceExportHref({ ...DEFAULT_INVOICE_PARAMS, page: 4 })).toBe("/api/invoices/export");
-  });
-});

@@ -210,14 +210,6 @@ describe("Rate & Invoicing page", () => {
       expect(screen.queryByRole("status", { name: "Formula rate belum diatur" })).not.toBeInTheDocument();
     });
 
-    it("offers the filtered, ordered list as a CSV download", async () => {
-      await renderPage({ q: "rangga", sort: "total", order: "desc", page: "2" });
-
-      const link = screen.getByRole("link", { name: "Unduh CSV" });
-      expect(link).toHaveAttribute("href", "/api/invoices/export?q=rangga&sort=total&order=desc");
-      expect(link).toHaveAttribute("download");
-    });
-
     it("adds up the whole filtered list under the table", async () => {
       await renderPage();
 

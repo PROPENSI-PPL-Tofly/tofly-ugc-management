@@ -123,26 +123,6 @@ describe('GET /invoices (e2e)', () => {
         },
       },
     });
-    // A creator whose typed name starts like a spreadsheet formula, for the export.
-    const formulaName = await prisma.users.create({
-      data: { email: `${MARKER}-formula@example.com` },
-    });
-    await prisma.creators.create({
-      data: {
-        user_id: formulaName.id,
-        first_name: `=HYPERLINK("http://evil.example";"${MARKER}")`,
-        contracts: {
-          create: {
-            start_date: day(10),
-            end_date: day(70),
-            contract_type: 'regular',
-            days_between: 14,
-            content_quota: 1,
-            fixed_rate: 1_000_000,
-          },
-        },
-      },
-    });
     // A creator with no contract has nothing to invoice.
     const kevinCreator = await prisma.creators.create({
       data: { user_id: kevin.id, first_name: `${MARKER} Kevin` },
@@ -318,9 +298,8 @@ describe('GET /invoices (e2e)', () => {
       return body.items.map((item: { contract: { status: string } }) => item.contract.status);
     };
 
-    // Nadia runs now; the formula-named creator has not started.
-    expect(await order({})).toEqual(['active', 'upcoming']);
-    expect(await order({ sort: 'total', order: 'asc' })).toEqual(['upcoming', 'active']);
+    expect(await order({})).toEqual(['active']);
+    expect(await order({ sort: 'total', order: 'asc' })).toEqual(['active']);
     await admin.get('/invoices?sort=bonus').expect(400);
     await admin.get('/invoices?sort=name&order=sideways').expect(400);
   });
@@ -332,33 +311,4 @@ describe('GET /invoices (e2e)', () => {
     expect(body.summary.runningInvoices).toBeGreaterThanOrEqual(2);
   });
 
-  it('exports the filtered invoices as a CSV file an admin can open in a spreadsheet', async () => {
-    const response = await admin.get('/invoices/export').query({ q: MARKER }).expect(200);
-
-    expect(response.headers['content-type']).toBe('text/csv; charset=utf-8');
-    expect(response.headers['content-disposition']).toMatch(
-      /^attachment; filename="rate-invoicing-\d{4}-\d{2}-\d{2}\.csv"$/,
-    );
-    expect(response.headers['cache-control']).toBe('no-store');
-    const lines = response.text.replace(/^﻿/, '').split('\r\n');
-    expect(lines[0]).toBe(
-      'Creator,Kontrak,Fixed Rate,Fee Konten Tambahan,Bonus Performa,Penalti,Total,Status Invoice,Catatan',
-    );
-    expect(lines[1]).toBe(
-      `${MARKER} Nadia,Aktif,2000000,100000,Menunggu data,250000,1850000,Berjalan,Bonus performa menunggu data`,
-    );
-  });
-
-  it('writes a name that starts like a formula as text in the export (OWASP A03)', async () => {
-    const response = await admin.get('/invoices/export').query({ q: 'HYPERLINK' }).expect(200);
-    const row = response.text.replace(/^﻿/, '').split('\r\n')[1];
-
-    expect(row.startsWith(`"'=HYPERLINK(""http://evil.example"";""${MARKER}"")"`)).toBe(true);
-  });
-
-  it('refuses the export to a creator and checks its filters', async () => {
-    const asCreator = await nadiaAsCreator.get('/invoices/export');
-    expect(asCreator.status).toBe(403);
-    await admin.get('/invoices/export?status=hacked').expect(400);
-  });
 });

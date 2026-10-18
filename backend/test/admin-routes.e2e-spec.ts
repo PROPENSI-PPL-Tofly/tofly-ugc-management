@@ -24,7 +24,6 @@ const ADMIN_ROUTES = [
   ['get', '/rate-formula'],
   ['put', '/rate-formula'],
   ['get', '/invoices'],
-  ['get', '/invoices/export'],
   ['get', `/invoices/${UUID}`],
 ] as const;
 
