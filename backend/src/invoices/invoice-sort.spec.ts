@@ -10,7 +10,7 @@ import {
 function item(
   creatorName: string,
   status: 'active' | 'upcoming' | 'expired',
-  amounts: { fixed?: number; penalty?: number | null; total?: number } = {},
+  amounts: { fixed?: number | null; penalty?: number | null; total?: number } = {},
 ): InvoiceListItem {
   const component = (amount: number | null) => ({
     amount,
@@ -22,7 +22,7 @@ function item(
     creatorName,
     contract: { id: `${creatorName}-c`, status, startDate: '', endDate: '' },
     components: {
-      fixedRate: component(amounts.fixed ?? 0),
+      fixedRate: component(amounts.fixed === undefined ? 0 : amounts.fixed),
       additionalContent: component(0),
       performanceBonus: component(null),
       penalty: component(amounts.penalty === undefined ? 0 : amounts.penalty),
@@ -145,5 +145,17 @@ describe('sortInvoices', () => {
     sortInvoices(roster, { key: 'name', order: 'desc' });
 
     expect(names(roster)).toEqual(before);
+  });
+
+  it('sorts a fixed rate with no amount yet as zero', () => {
+    // Waiting on either side of a comparison, so both are read as zero.
+    const waiting = [
+      item('Kevin', 'upcoming', { fixed: null }),
+      item('Bagas', 'active', { fixed: 450_000 }),
+      item('Farah', 'upcoming', { fixed: null }),
+    ];
+
+    expect(names(sortInvoices(waiting, { key: 'fixed', order: 'asc' }))).toEqual(['Farah', 'Kevin', 'Bagas']);
+    expect(names(sortInvoices(waiting, { key: 'fixed', order: 'desc' }))).toEqual(['Bagas', 'Farah', 'Kevin']);
   });
 });
