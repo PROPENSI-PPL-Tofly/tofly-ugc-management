@@ -104,12 +104,24 @@ describe("RateFormulaModal", () => {
     expect(simpan()).toBeEnabled();
   });
 
-  it("takes at most ten digits in an amount", () => {
+  it("keeps an amount past ten digits as typed and refuses it out loud", () => {
     setup();
 
     type("Bonus Specific (Rp)*", "123456789012");
 
-    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("1234567890");
+    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("123456789012");
+    expect(screen.getByText("Bonus Specific maksimal 10 digit")).toBeInTheDocument();
+    expect(simpan()).toBeDisabled();
+  });
+
+  it("keeps a minus sign as typed and asks for a whole number", () => {
+    setup();
+
+    type("Penalti per Hari (Rp)*", "-5");
+
+    expect(screen.getByLabelText("Penalti per Hari (Rp)*")).toHaveValue("-5");
+    expect(screen.getByText("Penalti per hari harus berupa angka bulat")).toBeInTheDocument();
+    expect(simpan()).toBeDisabled();
   });
 
   it("shows a message below an amount once it is left empty, and disables Simpan", () => {

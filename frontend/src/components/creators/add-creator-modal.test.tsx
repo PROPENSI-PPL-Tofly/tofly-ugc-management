@@ -376,31 +376,38 @@ describe("AddCreatorModal", () => {
       expect(simpanButton()).toBeDisabled();
     });
 
-    it("takes at most ten digits in the fixed rate", () => {
-      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+    it.each([
+      ["-1000", "Fixed rate harus berupa angka bulat"],
+      ["1.5", "Fixed rate harus berupa angka bulat"],
+      ["Rp 7a5", "Fixed rate harus berupa angka bulat"],
+      ["0", "Fixed rate harus lebih dari 0"],
+      ["20000000", "Fixed rate maksimal Rp10.000.000"],
+      ["12345678901", "Fixed rate maksimal Rp10.000.000"],
+    ])(
+      "keeps %j as typed and says what is wrong with it, rather than changing it",
+      (typed, message) => {
+        render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "12345678901234" } });
+        fillValidForm();
+        const fixedRate = screen.getByLabelText(/fixed rate/i);
+        fireEvent.change(fixedRate, { target: { value: typed } });
+        fireEvent.blur(fixedRate);
 
-      expect(screen.getByLabelText(/fixed rate/i)).toHaveValue("1234567890");
-    });
+        expect(fixedRate).toHaveValue(typed);
+        expect(screen.getByText(message)).toBeInTheDocument();
+        expect(simpanButton()).toBeDisabled();
+      },
+    );
 
-    it("drops anything but digits from the fixed rate", () => {
-      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
-
-      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "Rp 7a5" } });
-
-      expect(screen.getByLabelText(/fixed rate/i)).toHaveValue("75");
-    });
-
-    it("saves a fixed rate of zero as 0, not as empty", () => {
+    it("saves the highest fixed rate the server takes", () => {
       const onSubmit = vi.fn();
       render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
 
       fillValidForm();
-      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "0" } });
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "10000000" } });
       fireEvent.click(simpanButton());
 
-      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fixedRate: 0 }));
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fixedRate: 10_000_000 }));
     });
 
     it("stays disabled when the content quota is zero", () => {

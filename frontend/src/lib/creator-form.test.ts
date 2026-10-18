@@ -7,6 +7,7 @@ import {
   scheduleDeadlines,
   scheduleReady,
   validateCreatorForm,
+  MAX_FIXED_RATE,
 } from "./creator-form";
 
 describe("validateCreatorForm", () => {
@@ -95,14 +96,32 @@ describe("validateCreatorForm", () => {
     expect(errors.quota).toBe("Jumlah konten harus lebih dari 0");
   });
 
-  // Stricter than the database's `fixed_rate >= 0` check constraint: a new creator's rate
-  // is a business amount, not a counter like quota, so exactly 0 makes no sense either.
-  // (Manual UI review: a numeric field pre-filled with "0" made typing "1" produce "01".)
-  // Subtask 8.2: required, numeric, min. 0, at most ten digits.
-  it("accepts a fixed rate of zero", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 0 });
+  // The same range POST /creators accepts (new-creator.ts): above Rp0, at most Rp10.000.000, so
+  // the form never lets through a rate the server then refuses.
+  it.each([0, -1])("rejects a fixed rate of %i, as the server does", (fixedRate) => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate });
 
-    expect(errors.fixedRate).toBeUndefined();
+    expect(errors.fixedRate).toBe("Fixed rate harus lebih dari 0");
+  });
+
+  it("accepts the lowest and highest fixed rate the server takes", () => {
+    expect(validateCreatorForm({ ...VALID_INPUT, fixedRate: 1 }).fixedRate).toBeUndefined();
+    expect(
+      validateCreatorForm({ ...VALID_INPUT, fixedRate: MAX_FIXED_RATE }).fixedRate,
+    ).toBeUndefined();
+    expect(MAX_FIXED_RATE).toBe(10_000_000);
+  });
+
+  it("rejects a fixed rate one rupiah over the highest, naming the limit", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: MAX_FIXED_RATE + 1 });
+
+    expect(errors.fixedRate).toBe("Fixed rate maksimal Rp10.000.000");
+  });
+
+  it("rejects a fixed rate that is not a whole number", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: Number.NaN });
+
+    expect(errors.fixedRate).toBe("Fixed rate harus berupa angka bulat");
   });
 
   it("requires a fixed rate", () => {
@@ -111,23 +130,6 @@ describe("validateCreatorForm", () => {
     expect(errors.fixedRate).toBe("Fixed rate wajib diisi");
   });
 
-  it("rejects a negative fixed rate", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: -1 });
-
-    expect(errors.fixedRate).toBe("Fixed rate minimal 0");
-  });
-
-  it("accepts a fixed rate of ten digits", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 9_999_999_999 });
-
-    expect(errors.fixedRate).toBeUndefined();
-  });
-
-  it("rejects a fixed rate of eleven digits", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, fixedRate: 10_000_000_000 });
-
-    expect(errors.fixedRate).toBe("Fixed rate maksimal 10 digit");
-  });
 
   // A new creator needs at least one connected account before Tofly can pull performance
   // data — only the platform is enum-constrained by the database (instagram | tiktok); the

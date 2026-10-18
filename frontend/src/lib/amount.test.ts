@@ -9,20 +9,27 @@ describe("parseAmount", () => {
     expect(parseAmount("")).toBeNull();
   });
 
-  it("drops everything that is not a digit", () => {
-    expect(parseAmount("Rp 1.500,00")).toBe(150000);
-  });
+  // Dropping the separators would read "Rp 1.500,00" (Rp1.500) as Rp150.000 without a word.
+  it.each(["Rp 1.500,00", "abc", "-1000", "1.5", "7a5", "1 000"])(
+    "reads %j, which is not a whole number of digits, as not a number rather than guessing",
+    (raw) => {
+      expect(parseAmount(raw)).toBeNaN();
+    },
+  );
 
-  it("reads a field of letters as empty", () => {
-    expect(parseAmount("abc")).toBeNull();
+  it("ignores spaces around the digits", () => {
+    expect(parseAmount("  500 ")).toBe(500);
   });
 
   it("keeps 0 as a real value", () => {
     expect(parseAmount("0")).toBe(0);
   });
 
-  it("stops at ten digits", () => {
-    expect(parseAmount("12345678901234")).toBe(1234567890);
+  it("keeps every digit typed, so a number past ten digits is refused out loud, not cut", () => {
+    expect(parseAmount("12345678901")).toBe(12345678901);
+    expect(amountProblem(parseAmount("12345678901"), "Fixed rate")).toBe(
+      `Fixed rate maksimal ${MAX_AMOUNT_DIGITS} digit`,
+    );
   });
 });
 

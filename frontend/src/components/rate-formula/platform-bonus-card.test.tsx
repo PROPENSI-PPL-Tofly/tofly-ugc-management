@@ -57,11 +57,24 @@ describe("PlatformBonusCard", () => {
     expect(onChange).toHaveBeenCalledWith({ metric: "shares", tiers: [EMPTY_TIER] });
   });
 
-  it("reports a typed minimum, keeping only its digits", () => {
+  it("reports a typed minimum that is not a whole number as not a number, keeping what was typed", () => {
+    const onChange = setup();
+    const minimum = screen.getByLabelText("Instagram tier 1 minimum Views");
+
+    fireEvent.change(minimum, { target: { value: "2.500x" } });
+
+    expect(minimum).toHaveValue("2.500x");
+    expect(onChange).toHaveBeenCalledWith({
+      metric: "views",
+      tiers: [{ threshold: Number.NaN, bonus: 150000 }, TWO_TIERS.tiers[1]],
+    });
+  });
+
+  it("reports a typed minimum of digits as its number", () => {
     const onChange = setup();
 
     fireEvent.change(screen.getByLabelText("Instagram tier 1 minimum Views"), {
-      target: { value: "2.500x" },
+      target: { value: "2500" },
     });
 
     expect(onChange).toHaveBeenCalledWith({
