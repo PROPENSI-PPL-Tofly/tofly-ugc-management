@@ -308,7 +308,10 @@ describe('GET /invoices (e2e)', () => {
     const { body } = await admin.get('/invoices').query({ q: `${MARKER} Nadia` }).expect(200);
 
     expect(body.summary).toMatchObject({ total: 1_850_000, formulaSet: true });
-    expect(body.summary.runningInvoices).toBeGreaterThanOrEqual(2);
+    // Counted over the whole roster, whatever the filter: the same as every running invoice listed.
+    const running = await admin.get('/invoices').query({ status: 'accruing' }).expect(200);
+    expect(body.summary.runningInvoices).toBe(running.body.total);
+    expect(body.summary.runningInvoices).toBeGreaterThanOrEqual(1);
   });
 
 });
