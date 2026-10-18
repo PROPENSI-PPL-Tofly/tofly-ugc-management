@@ -4,6 +4,7 @@ import {
   toInvoiceList,
   toInvoiceListQuery,
   type RawInvoiceList,
+  type RawInvoiceRow,
 } from "./invoice-api";
 import { DEFAULT_INVOICE_PARAMS, type InvoiceParams } from "./invoice";
 
@@ -47,15 +48,123 @@ describe("toInvoiceList", () => {
       {
         creatorId: RAW_RANGGA.creatorId,
         creatorName: "Rangga Pratama",
+        contractId: RAW_RANGGA.contract.id,
         contractStatus: "active",
+        contractEnd: RAW_RANGGA.contract.endDate,
         fixedAmount: 500000,
         extraAmount: 200000,
         bonusAmount: null,
         penaltyAmount: 150000,
         totalAmount: 550000,
         floored: false,
+        dataWaiting: true,
         invoiceStatus: "accruing",
+        adjustments: [],
+        frozenAt: null,
       },
+    ]);
+  });
+
+  it("carries the contract's id and last day, for the two invoice moves and the freeze gate", () => {
+    const row = toInvoiceList(RAW).rows[0];
+
+    expect(row.contractId).toBe(RAW_RANGGA.contract.id);
+    expect(row.contractEnd).toBe(RAW_RANGGA.contract.endDate);
+  });
+
+  it("carries each manual adjustment with its reason and the moment it was added", () => {
+    const adjusted = {
+      ...RAW_RANGGA,
+      adjustments: [
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          amount: -75000,
+          reason: "Koreksi kelebihan tagihan",
+          actorId: "33333333-3333-4333-8333-333333333333",
+          createdAt: "2026-10-18T03:00:00.000Z",
+        },
+      ],
+    };
+
+    expect(toInvoiceList({ ...RAW, items: [adjusted] }).rows[0].adjustments).toEqual([
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        amount: -75000,
+        reason: "Koreksi kelebihan tagihan",
+        createdAt: "2026-10-18T03:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("says the invoice is waiting for data while any of its parts is", () => {
+    const waiting = {
+      ...RAW_RANGGA,
+      components: {
+        ...RAW_RANGGA.components,
+        performanceBonus: {
+          amount: 150000,
+          status: "waiting_for_data" as const,
+          lines: [],
+        },
+      },
+    };
+
+    expect(toInvoiceList({ ...RAW, items: [waiting] }).rows[0].dataWaiting).toBe(true);
+    expect(toInvoiceList({ ...RAW, items: [RAW_RANGGA] }).rows[0].dataWaiting).toBe(true);
+  });
+
+  it("says nothing is waiting when every part is measured", () => {
+    const measured = {
+      ...RAW_RANGGA,
+      components: {
+        fixedRate: { amount: 500000, status: "calculated" as const, lines: [] },
+        additionalContent: { amount: 200000, status: "calculated" as const, lines: [] },
+        performanceBonus: { amount: 150000, status: "calculated" as const, lines: [] },
+        penalty: { amount: 150000, status: "calculated" as const, lines: [] },
+      },
+    };
+
+    expect(toInvoiceList({ ...RAW, items: [measured] }).rows[0].dataWaiting).toBe(false);
+  });
+
+  it("carries the moment an invoice was frozen, and nothing while it still runs", () => {
+    const frozen = {
+      ...RAW_RANGGA,
+      invoiceStatus: "finalized" as const,
+      snapshot: { finalizedAt: "2026-10-18T03:00:00.000Z" },
+    };
+
+    expect(toInvoiceList({ ...RAW, items: [frozen] }).rows[0].frozenAt).toBe(
+      "2026-10-18T03:00:00.000Z",
+    );
+    expect(toInvoiceList(RAW).rows[0].frozenAt).toBeNull();
+  });
+
+  it("lists no adjustments and no freeze for an answer that predates them", () => {
+    const old = {
+      ...RAW_RANGGA,
+      adjustments: undefined,
+      snapshot: undefined,
+    } as unknown as RawInvoiceRow;
+
+    expect(toInvoiceList({ ...RAW, items: [old] }).rows[0]).toMatchObject({
+      adjustments: [],
+      frozenAt: null,
+    });
+  });
+
+  it("answers in the shape the API answers in, every field named", () => {
+    expect(Object.keys(RAW_RANGGA).sort()).toEqual([
+      "adjustments",
+      "components",
+      "contract",
+      "creatorId",
+      "creatorName",
+      "floored",
+      "invoiceStatus",
+      "rawTotal",
+      "snapshot",
+      "total",
     ]);
   });
 
@@ -106,6 +215,28 @@ describe("toInvoiceBreakdown", () => {
 
   it("names the creator as the table does", () => {
     expect(breakdown.creatorName).toBe("Rangga Pratama");
+  });
+
+  it("shows a frozen invoice's amounts as they were frozen, never adding them up again", () => {
+    // The snapshot kept a bonus the saved formula would no longer pay; the breakdown shows the
+    // frozen figure and does not recompute it (12.1: the breakdown does not change after freeze).
+    const frozen = {
+      ...RAW_RANGGA_DETAIL,
+      invoiceStatus: "finalized" as const,
+      snapshot: { finalizedAt: "2026-10-18T03:00:00.000Z" },
+      components: {
+        ...RAW_RANGGA_DETAIL.components,
+        performanceBonus: {
+          amount: 999999,
+          status: "calculated" as const,
+          lines: [],
+        },
+      },
+    };
+
+    const shown = toInvoiceBreakdown(frozen);
+
+    expect(shown.bonus.total).toBe(999999);
   });
 
   it("bills the fixed rate for the contract period, with the quota delivered so far", () => {
