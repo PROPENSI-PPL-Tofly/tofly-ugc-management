@@ -11,6 +11,10 @@ const LOOKS = {
  * A link a creator typed: clickable only when it is a web address, and then always in a new
  * tab that cannot reach back into this one. Anything else is shown as text, so what was sent
  * is still visible without a click being able to run it (OWASP A03).
+ *
+ * DRY and Single Responsibility: the Draft Preview and the Content Detail panel each had this
+ * check written out. It lives here once, so the rule for an unsafe link cannot differ between
+ * the two, and a new look is one more entry in LOOKS.
  */
 export function CreatorLink({
   link,

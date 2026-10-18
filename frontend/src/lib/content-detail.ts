@@ -59,7 +59,11 @@ export class ContentDetailError extends Error {
   }
 }
 
-/** The adapter is a pass-through today; it exists so the panel never sees the wire shape. */
+/**
+ * Adapter pattern: the one place the API's answer becomes what the panel reads. It is a
+ * pass-through today; it exists so the panel never sees the wire shape, and a change to the
+ * endpoint is a change here and nowhere in the UI.
+ */
 export function toContentDetail(raw: RawContentDetail): ContentDetail {
   return raw;
 }
@@ -77,6 +81,10 @@ export interface JourneyStep {
 
 // How each kind of event reads. The number is the draft's version or the revision round;
 // kinds that have neither ignore it. A kind without a link label never shows a link.
+//
+// Open/Closed Principle: one entry per kind in a table, not a switch inside describeJourney.
+// A new kind of event is a new entry here (the Record type refuses to compile without it),
+// and the function that walks the events stays as it is.
 const STEP_WORDING: Record<
   DetailEventType,
   (ordinal: number, by: RawContentEvent["actor"]["role"]) => { title: string; linkLabel: string | null }

@@ -10,6 +10,10 @@ const ARROWS: Record<SortDirection, string> = { asc: "↑", desc: "↓" };
  *
  * It knows nothing about the column it heads. The label and what "asc" and "desc" mean for
  * this column come in as props, so the Content Plan and Task Saya share it as it is.
+ *
+ * Open/Closed Principle: sorting another column or another table means passing a different
+ * label and hints, never editing this component. Single Responsibility: it draws the header
+ * and reports the press; where the direction is kept is the caller's business.
  */
 export function SortableTh({
   label,

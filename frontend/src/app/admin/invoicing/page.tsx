@@ -1,5 +1,5 @@
 import { InvoiceFilters } from "@/components/invoice/invoice-filters";
-import { InvoiceTable } from "@/components/invoice/invoice-table";
+import { InvoiceBoard } from "@/components/invoicing/invoice-board";
 import { RateFormulaTrigger } from "@/components/rate-formula/rate-formula-trigger";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
@@ -69,7 +69,8 @@ export default async function RateInvoicingPage({
           </div>
 
           <InvoiceFilters />
-          <InvoiceTable rows={list.rows} />
+          {/* The table, with each money cell opening its breakdown (8.5). */}
+          <InvoiceBoard rows={list.rows} />
           {/* Stays on show on a single page: a table that always carries its footer (4.2). */}
           <Pagination
             basePath={INVOICE_PATH}

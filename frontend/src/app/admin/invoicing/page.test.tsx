@@ -170,4 +170,12 @@ describe("Rate & Invoicing page", () => {
       "/admin/invoicing?q=pw&status=accruing&page=3",
     );
   });
+
+  it("lets each money cell open its breakdown, through the 8.5 triggers", async () => {
+    await renderPage();
+
+    expect(
+      screen.getByRole("button", { name: "Fixed Rate Rangga Pratama: Rp5.000.000, lihat rincian" }),
+    ).toBeInTheDocument();
+  });
 });
