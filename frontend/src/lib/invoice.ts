@@ -4,6 +4,7 @@
 // components can share it.
 
 import { formatDeduction, formatRupiah } from "./format";
+import type { AdjustmentLine } from "./invoice-adjustment";
 import { oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** The table shows ten creators a page, as the prototype pages it. */
@@ -63,7 +64,11 @@ export const CONTRACT_STATUSES = Object.keys(CONTRACT_STATUS_LABELS) as Contract
 export interface InvoiceRow {
   creatorId: string;
   creatorName: string;
+  /** The contract this invoice settles; what the two invoice moves name. */
+  contractId: string;
   contractStatus: ContractStatus;
+  /** The contract's last day, YYYY-MM-DD; freezing needs today past it. */
+  contractEnd: string;
 
   fixedAmount: number;
   /** Konten Tambahan: what the extra content earned on top of the fixed rate. */
@@ -81,7 +86,13 @@ export interface InvoiceRow {
   totalAmount: number;
   /** True when the penalty outweighed the pay and the backend held the total at zero. */
   floored: boolean;
+  /** True while any part of the invoice still waits for data, so freezing it is refused. */
+  dataWaiting: boolean;
   invoiceStatus: InvoiceStatus;
+  /** The manual adjustments added so far, oldest first. */
+  adjustments: AdjustmentLine[];
+  /** When the invoice was frozen, an ISO instant; null while it still runs. */
+  frozenAt: string | null;
 }
 
 /** What the page says about every invoice, not only the ones on this page. */

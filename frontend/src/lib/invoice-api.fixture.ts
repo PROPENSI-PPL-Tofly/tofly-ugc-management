@@ -76,6 +76,8 @@ export const RAW_RANGGA: RawInvoiceRow = {
   total: 550000,
   floored: false,
   invoiceStatus: "accruing",
+  adjustments: [],
+  snapshot: null,
 };
 
 export const RAW_RANGGA_DETAIL: RawInvoiceDetail = {
@@ -129,6 +131,8 @@ export const RAW_UPCOMING_NO_FORMULA: RawInvoiceDetail = {
   total: 0,
   floored: false,
   invoiceStatus: "accruing",
+  adjustments: [],
+  snapshot: null,
   periodNumber: 1,
   formula: null,
 };

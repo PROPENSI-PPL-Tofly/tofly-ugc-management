@@ -25,6 +25,16 @@ export interface AdjustmentDraft {
   reason: string;
 }
 
+/** One manual adjustment as the breakdown lists it: what it moved, why, and when. */
+export interface AdjustmentLine {
+  id: string;
+  /** Positive adds to the invoice, negative takes away. */
+  amount: number;
+  reason: string;
+  /** ISO instant the admin added it; the actor stays the server's record. */
+  createdAt: string;
+}
+
 /** One message per field that needs fixing; a field without one is fine. */
 export interface AdjustmentErrors {
   amount?: string;
