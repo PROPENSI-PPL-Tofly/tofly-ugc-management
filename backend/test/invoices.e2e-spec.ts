@@ -171,6 +171,17 @@ describe('GET /invoices (e2e)', () => {
     expect(nadia.contract.status).toBe('active');
   });
 
+  it('returns the running lifecycle fields for an invoice not yet finalized', async () => {
+    const [nadia] = await ours();
+
+    expect(nadia).toBeDefined();
+    expect(nadia).toMatchObject({
+      invoiceStatus: 'running',
+      adjustments: [],
+      snapshot: null,
+    });
+  });
+
   it('leaves out a creator without a contract', async () => {
     const names = (await ours()).map(
       (item: { creatorName: string }) => item.creatorName,
