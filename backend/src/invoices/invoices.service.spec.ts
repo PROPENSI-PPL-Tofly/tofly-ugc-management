@@ -190,4 +190,96 @@ describe('InvoicesService', () => {
     expect(result.items[0].contract.id).toBe('running');
     expect(result.items[0].components.penalty.lines[0].contentId).toBe('late');
   });
+
+  describe('with filters', () => {
+    const contractFor = (id: string, start: number, end: number) => ({
+      id,
+      start_date: day(start),
+      end_date: day(end),
+      content_quota: 11,
+      fixed_rate: new Prisma.Decimal('5500000'),
+    });
+    const roster = [
+      row({ id: 'rangga', first_name: 'Rangga', last_name: 'Pratama' }),
+      row({
+        id: 'nadia',
+        first_name: 'Nadia',
+        last_name: 'Putri',
+        contracts: [contractFor('nadia-c', -200, -10)],
+      }),
+      row({
+        id: 'kevin',
+        first_name: 'Kevin',
+        last_name: 'Pranata',
+        contracts: [contractFor('kevin-c', 10, 100)],
+      }),
+    ];
+
+    beforeEach(() => {
+      prisma.creators.findMany.mockResolvedValue(roster);
+    });
+
+    it('reads the whole roster without content, then filters before paging', async () => {
+      await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
+
+      const [args] = prisma.creators.findMany.mock.calls[0];
+      expect(args).not.toHaveProperty('skip');
+      expect(args).not.toHaveProperty('take');
+      expect(prisma.creators.count).not.toHaveBeenCalled();
+    });
+
+    it('finds a creator by any part of the name, in any case', async () => {
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        q: 'GA PRA',
+      });
+
+      expect(result.items.map((item) => item.creatorId)).toEqual(['rangga']);
+      expect(result).toMatchObject({ total: 1, totalPages: 1 });
+    });
+
+    it.each([
+      ['active', 'rangga'],
+      ['expired', 'nadia'],
+      ['upcoming', 'kevin'],
+    ] as const)(
+      'keeps only creators whose invoiced contract is %s',
+      async (contract, creatorId) => {
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+          contract,
+        });
+
+        expect(result.items.map((item) => item.creatorId)).toEqual([creatorId]);
+      },
+    );
+
+    it('combines the search word and the contract status', async () => {
+      const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        q: 'pra',
+        contract: 'upcoming',
+      });
+
+      expect(result.items.map((item) => item.creatorId)).toEqual(['kevin']);
+    });
+
+    it('pages the filtered creators and clamps a page past them', async () => {
+      const result = await service.list({ page: 9, pageSize: 1 }, TODAY, {
+        q: 'pra',
+      });
+
+      expect(result).toMatchObject({ page: 2, total: 2, totalPages: 2 });
+      expect(result.items.map((item) => item.creatorId)).toEqual(['kevin']);
+    });
+
+    it('loads content only for the creators on the page', async () => {
+      await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        contract: 'expired',
+      });
+
+      expect(prisma.contents.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { contract_id: { in: ['nadia-c'] } },
+        }),
+      );
+    });
+  });
 });

@@ -184,4 +184,27 @@ describe('GET /invoices (e2e)', () => {
     await admin.get('/invoices?page=0').expect(400);
     await admin.get('/invoices?pageSize=51').expect(400);
   });
+
+  it('searches by name and filters by contract status across the whole roster', async () => {
+    const names = async (query: Record<string, string | number>) => {
+      const { body } = await admin
+        .get('/invoices')
+        .query({ pageSize: 50, ...query })
+        .expect(200);
+      return body.items.map(
+        (item: { creatorName: string }) => item.creatorName,
+      );
+    };
+
+    expect(await names({ q: `${MARKER} nad` })).toEqual([`${MARKER} Nadia`]);
+    expect(await names({ q: MARKER, contract: 'active' })).toEqual([
+      `${MARKER} Nadia`,
+    ]);
+    expect(await names({ q: MARKER, contract: 'expired' })).toEqual([]);
+  });
+
+  it('rejects a contract status the table does not offer and an overlong search', async () => {
+    await admin.get('/invoices?contract=none').expect(400);
+    await admin.get(`/invoices?q=${'a'.repeat(101)}`).expect(400);
+  });
 });

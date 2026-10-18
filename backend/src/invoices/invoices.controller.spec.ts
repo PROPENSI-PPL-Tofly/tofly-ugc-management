@@ -34,12 +34,29 @@ describe('InvoicesController', () => {
     controller = module.get(InvoicesController);
   });
 
-  it('hands the requested page and today to the service', async () => {
+  it('hands the requested page, today and no filters to the service', async () => {
     await expect(controller.list(2, 25)).resolves.toBe(response);
     expect(service.list).toHaveBeenCalledWith(
       { page: 2, pageSize: 25 },
       expect.any(Date),
+      {},
     );
+  });
+
+  it('hands the search word and the contract status on, trimmed and checked', async () => {
+    await controller.list(1, 10, '  Rangga ', 'active');
+    expect(service.list).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.any(Date),
+      { q: 'Rangga', contract: 'active' },
+    );
+  });
+
+  it('rejects a contract status the table does not offer without asking the service', async () => {
+    await expect(
+      controller.list(1, 10, undefined, 'none'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.list).not.toHaveBeenCalled();
   });
 
   it('rejects a page below one without asking the service', async () => {
