@@ -27,6 +27,7 @@ const ROW: InvoiceRow = {
   extraAmount: 500000,
   bonusAmount: null,
   penaltyAmount: 0,
+  totalAmount: 0,
   invoiceStatus: "accruing",
 };
 

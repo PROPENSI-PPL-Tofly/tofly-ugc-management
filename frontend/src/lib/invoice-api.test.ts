@@ -229,6 +229,29 @@ describe("toInvoiceBreakdown", () => {
     expect(odd.fixed.period).toMatchObject({ quotaDone: 0, quotaTotal: 0 });
   });
 
+  it("reads a measured bonus as ready, at the amount the backend totalled", () => {
+    const measured = toInvoiceBreakdown({
+      ...RAW_RANGGA_DETAIL,
+      components: {
+        ...RAW_RANGGA_DETAIL.components,
+        performanceBonus: { ...RAW_RANGGA_DETAIL.components.performanceBonus, amount: 150000, status: "calculated" },
+      },
+    });
+
+    expect(measured.bonus).toMatchObject({ total: 150000, performance: "ready" });
+  });
+
+  it("reads any component left without an amount as nothing billed yet, in the table and the popup", () => {
+    const fixedRate = { amount: null, status: "waiting_for_data" as const, lines: [] };
+    const waiting = { ...RAW_RANGGA_DETAIL, components: { ...RAW_RANGGA_DETAIL.components, fixedRate } };
+
+    expect(toInvoiceBreakdown(waiting).fixed.total).toBe(0);
+    expect(
+      toInvoiceList({ items: [waiting], page: 1, pageSize: 10, total: 1, totalPages: 1 }).rows[0]
+        .fixedAmount,
+    ).toBe(0);
+  });
+
   it("reads a fixed rate with no line at all as nothing delivered of no quota", () => {
     const bare = toInvoiceBreakdown({
       ...RAW_RANGGA_DETAIL,

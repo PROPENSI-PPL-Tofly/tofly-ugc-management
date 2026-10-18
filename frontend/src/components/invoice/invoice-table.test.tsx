@@ -10,6 +10,7 @@ const FULL: InvoiceRow = {
   extraAmount: 750000,
   bonusAmount: 300000,
   penaltyAmount: 250000,
+  totalAmount: 5800000,
   invoiceStatus: "accruing",
 };
 
@@ -21,6 +22,7 @@ const ZEROS: InvoiceRow = {
   extraAmount: 0,
   bonusAmount: 0,
   penaltyAmount: 0,
+  totalAmount: 0,
   invoiceStatus: "paid",
 };
 
@@ -32,6 +34,7 @@ const WAITING: InvoiceRow = {
   extraAmount: 0,
   bonusAmount: null,
   penaltyAmount: 0,
+  totalAmount: 4500000,
   invoiceStatus: "finalized",
 };
 
@@ -98,12 +101,12 @@ describe("InvoiceTable", () => {
     expect(screen.getByText("Paid")).toBeInTheDocument();
   });
 
-  it("says the bonus is waiting, in the bonus and in the final rate alike", () => {
+  it("says the bonus is waiting in its own cell and runs the final rate without it", () => {
     render(<InvoiceTable rows={[WAITING]} />);
 
-    expect(screen.getAllByText("Menunggu data")).toHaveLength(2);
-    // The fixed rate still shows; only the total refuses to guess.
-    expect(screen.getAllByText("Rp4.500.000")).toHaveLength(1);
+    expect(screen.getAllByText("Menunggu data")).toHaveLength(1);
+    // The fixed rate, and the final rate the backend worked out without the bonus.
+    expect(screen.getAllByText("Rp4.500.000")).toHaveLength(2);
   });
 
   it("says the filter found nobody rather than showing an empty grid", () => {

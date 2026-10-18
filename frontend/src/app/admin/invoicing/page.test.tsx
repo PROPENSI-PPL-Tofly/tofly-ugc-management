@@ -50,6 +50,7 @@ function listOf(overrides: Partial<InvoiceList> = {}): InvoiceList {
         extraAmount: 750000,
         bonusAmount: 300000,
         penaltyAmount: 250000,
+        totalAmount: 5800000,
         invoiceStatus: "accruing",
       },
     ],
@@ -140,6 +141,7 @@ describe("Rate & Invoicing page", () => {
             extraAmount: 0,
             bonusAmount: null,
             penaltyAmount: 0,
+            totalAmount: 4500000,
             invoiceStatus: "accruing",
           },
         ],
@@ -148,7 +150,8 @@ describe("Rate & Invoicing page", () => {
 
     await renderPage();
 
-    expect(screen.getAllByText("Menunggu data")).toHaveLength(2);
+    expect(screen.getAllByText("Menunggu data")).toHaveLength(1);
+    expect(screen.getAllByText("Rp4.500.000")).toHaveLength(2);
   });
 
   it("says how many creators there are when there are none", async () => {

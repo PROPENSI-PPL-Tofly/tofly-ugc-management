@@ -71,12 +71,8 @@ function bonusCell(row: InvoiceRow) {
 }
 
 function finalCell(row: InvoiceRow) {
-  // A total without the bonus would be a number nobody can trace; it waits with the bonus.
-  return row.bonusAmount === null ? (
-    <span className="text-muted">Menunggu data</span>
-  ) : (
-    <strong>{finalLabel(row)}</strong>
-  );
+  // The backend's running total; while the bonus waits the Bonus cell says so beside it.
+  return <strong>{finalLabel(row)}</strong>;
 }
 
 /**

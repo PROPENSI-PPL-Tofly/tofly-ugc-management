@@ -12,6 +12,9 @@ export const INVOICE_PAGE_SIZE = 10;
 /** The list's own address. */
 export const INVOICE_PATH = "/admin/invoicing";
 
+/** The longest search word GET /invoices reads; a longer one would be refused with a 400. */
+export const MAX_INVOICE_SEARCH_LENGTH = 100;
+
 /** An amount of nothing to pay reads as a dash, not as a zero. */
 export const DASH = "–";
 
@@ -57,6 +60,11 @@ export interface InvoiceRow {
    */
   bonusAmount: number | null;
   penaltyAmount: number;
+  /**
+   * Final Rate as the backend works it out: the running total, held at zero when the penalty
+   * outweighs the pay, with a bonus still waiting for data counted as nothing yet.
+   */
+  totalAmount: number;
   invoiceStatus: InvoiceStatus;
 }
 
@@ -89,7 +97,7 @@ export const DEFAULT_INVOICE_PARAMS: InvoiceParams = {
  */
 export function parseInvoiceParams(params: SearchParams): InvoiceParams {
   return {
-    q: single(params.q).trim(),
+    q: single(params.q).trim().slice(0, MAX_INVOICE_SEARCH_LENGTH).trim(),
     contract: oneOf(["all", ...CONTRACT_STATUSES], single(params.contract), "all"),
     status: oneOf(["all", ...INVOICE_STATUSES], single(params.status), "all"),
     page: pageNumber(params.page),
@@ -131,12 +139,10 @@ export function penaltyLabel(amount: number): string {
 }
 
 /**
- * Final Rate = Fixed Rate + Konten Tambahan + Bonus − Penalti, as the tooltip on the table
- * says. While the bonus waits for its data, this waits too: a total without it would be a
- * number nobody can trace.
+ * Final Rate = Fixed Rate + Konten Tambahan + Bonus − Penalti, as the tooltip on the table says,
+ * taken from the backend rather than added up again, so it can never disagree with the invoice.
+ * While the bonus waits for its data the total runs without it; the Bonus cell says so.
  */
 export function finalLabel(row: InvoiceRow): string {
-  return row.bonusAmount === null
-    ? "Menunggu data"
-    : amountLabel(row.fixedAmount + row.extraAmount + row.bonusAmount - row.penaltyAmount);
+  return amountLabel(row.totalAmount);
 }
