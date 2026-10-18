@@ -177,12 +177,18 @@ export function toInvoiceItem(
   contents: readonly InvoiceContentRow[],
   formula: RateFormula | null,
   today: Date,
-  lifecycle: {
+  savedLifecycle?: {
     status: 'running' | 'finalized';
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto | null;
-  } = { status: 'running', adjustments: [], snapshot: null },
+  },
 ): InvoiceListItem {
+  // An invoice with no saved lifecycle yet is running, with no adjustments or snapshot.
+  const lifecycle = savedLifecycle ?? {
+    status: 'running',
+    adjustments: [],
+    snapshot: null,
+  };
   const snapshot = lifecycle.snapshot;
 
   const breakdown = snapshot
