@@ -9,7 +9,8 @@ import { as, signIn, signInAsAdmin } from './sessions.js';
 const MARKER = 'e2e-admin-routes';
 const UUID = '00000000-0000-4000-8000-000000000000';
 
-// Every admin route: the Creator Database, content scheduling, draft review and the rate formula.
+// Every admin route: the Creator Database, content scheduling, draft review, the rate formula
+// and invoicing.
 const ADMIN_ROUTES = [
   ['get', '/creators'],
   ['get', `/creators/${UUID}`],
@@ -22,6 +23,7 @@ const ADMIN_ROUTES = [
   ['patch', `/submissions/${UUID}/revise`],
   ['get', '/rate-formula'],
   ['put', '/rate-formula'],
+  ['get', '/invoices'],
 ] as const;
 
 describe('admin routes (e2e)', () => {
