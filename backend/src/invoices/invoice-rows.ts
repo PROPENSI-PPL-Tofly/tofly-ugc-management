@@ -10,6 +10,7 @@ import {
 } from '../creators/creator-metrics.js';
 import type { InvoiceListItem } from './dto/invoice-list.dto.js';
 import { calculateInvoice } from './invoice-calculator.js';
+import type { InvoiceContractStatus } from './invoice-filters.js';
 import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
 
@@ -109,6 +110,15 @@ function period(contract: InvoiceContractRow): MetricsContract {
   };
 }
 
+/** Where a contract stands today, as the table's contract column and filter read it. */
+export function invoiceContractStatus(
+  contract: InvoiceContractRow,
+  today: Date,
+): InvoiceContractStatus {
+  // A contract exists, so contractStatus never answers 'none' here.
+  return contractStatus(period(contract), today) as InvoiceContractStatus;
+}
+
 /**
  * The contract the table describes: the one running today, else the most recently finished,
  * else the earliest upcoming (the same pick as the Creator Database). Null for a creator with no
@@ -137,14 +147,12 @@ export function toInvoiceItem(
     today,
   });
 
-  const status = contractStatus(period(contractRow), today);
   return {
     creatorId: row.id,
     creatorName: creatorName(row),
     contract: {
       id: contractRow.id,
-      // A contract exists, so contractStatus never answers 'none' here.
-      status: status as InvoiceListItem['contract']['status'],
+      status: invoiceContractStatus(contractRow, today),
       startDate: calendarDay(contractRow.start_date),
       endDate: calendarDay(contractRow.end_date),
     },
