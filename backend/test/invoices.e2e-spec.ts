@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
+import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { jakartaMidnight } from '../src/creators/evergreen.js';
@@ -9,7 +10,7 @@ import {
   RateFormulaService,
   type RateFormulaView,
 } from '../src/rate-formula/rate-formula.service.js';
-import { as, signInAsAdmin } from './sessions.js';
+import { as, signIn, signInAsAdmin } from './sessions.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, seeded or not.
@@ -44,10 +45,13 @@ function day(offset: number): Date {
   );
 }
 
-describe('GET /invoices (e2e)', () => {
+describe('Invoices API (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let admin: ReturnType<typeof as>;
+  let creator: ReturnType<typeof as>;
+  let contractId: string;
+  let adminId: string;
   // The developer's own formula, put back once these tests are done with the singleton row.
   let savedFormula: RateFormulaView | undefined;
 
@@ -60,6 +64,12 @@ describe('GET /invoices (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     admin = as(app, await signInAsAdmin(app, prisma, MARKER));
+    adminId = (
+      await prisma.users.findUniqueOrThrow({
+        where: { email: `${MARKER}-signed-in-admin@example.com` },
+        select: { id: true },
+      })
+    ).id;
     savedFormula = await app.get(RateFormulaService).read();
     await admin.put('/rate-formula').send(FORMULA).expect(200);
 
@@ -70,7 +80,7 @@ describe('GET /invoices (e2e)', () => {
       data: { email: `${MARKER}-kevin@example.com` },
     });
 
-    await prisma.creators.create({
+    const nadiaCreator = await prisma.creators.create({
       data: {
         user_id: nadia.id,
         first_name: `${MARKER} Nadia`,
@@ -118,7 +128,17 @@ describe('GET /invoices (e2e)', () => {
           },
         },
       },
+      select: { id: true, contracts: { select: { id: true } } },
     });
+    contractId = nadiaCreator.contracts[0].id;
+    creator = as(
+      app,
+      await signIn(app, {
+        userId: nadia.id,
+        role: 'creator',
+        creatorId: nadiaCreator.id,
+      }),
+    );
     // A creator with no contract has nothing to invoice.
     await prisma.creators.create({
       data: { user_id: kevin.id, first_name: `${MARKER} Kevin` },
@@ -154,6 +174,60 @@ describe('GET /invoices (e2e)', () => {
     return body.items.filter((item: { creatorName: string }) =>
       item.creatorName.startsWith(MARKER),
     );
+  }
+
+  async function invoice() {
+    const item = (await ours()).find(
+      (candidate: { contract: { id: string } }) =>
+        candidate.contract.id === contractId,
+    );
+    expect(item).toBeDefined();
+    return item;
+  }
+
+  const adjustmentPath = () => `/invoices/${contractId}/adjustments`;
+
+  async function expectCreatedAdjustment(
+    amount: number,
+    reason: string,
+    expectedReason = reason,
+  ) {
+    const startedAt = Date.now();
+    const { body } = await admin
+      .post(adjustmentPath())
+      .send({ amount, reason })
+      .expect(201);
+    const finishedAt = Date.now();
+
+    expect(body).toMatchObject({
+      amount,
+      reason: expectedReason,
+      actorId: adminId,
+      invoiceStatus: 'running',
+    });
+    expect(typeof body.createdAt).toBe('string');
+    const createdAt = new Date(body.createdAt).getTime();
+    expect(Number.isNaN(createdAt)).toBe(false);
+    expect(createdAt).toBeGreaterThanOrEqual(startedAt);
+    expect(createdAt).toBeLessThanOrEqual(finishedAt);
+
+    const current = await invoice();
+    expect(current.invoiceStatus).toBe('running');
+    expect(current.adjustments).toContainEqual(
+      expect.objectContaining({
+        amount,
+        reason: expectedReason,
+        actorId: adminId,
+        createdAt: body.createdAt,
+      }),
+    );
+    return body;
+  }
+
+  async function expectAdjustmentStateUnchanged(action: () => Promise<unknown>) {
+    const before = (await invoice()).adjustments;
+    await action();
+    expect((await invoice()).adjustments).toEqual(before);
   }
 
   it('calculates the running invoice from the database rows', async () => {
@@ -217,5 +291,136 @@ describe('GET /invoices (e2e)', () => {
   it('rejects a contract status the table does not offer and an overlong search', async () => {
     await admin.get('/invoices?contract=none').expect(400);
     await admin.get(`/invoices?q=${'a'.repeat(101)}`).expect(400);
+  });
+
+  it('lets an authenticated admin add a positive adjustment and reads it back', async () => {
+    await expectCreatedAdjustment(125_000, 'Approved campaign uplift');
+  });
+
+  it('lets an authenticated admin add a negative adjustment and reads it back', async () => {
+    await expectCreatedAdjustment(-75_000, 'Correction for overpayment');
+  });
+
+  // OWASP Top 10:2025 A06 (Insecure Design): enforce the documented reason-length limit.
+  it('accepts a reason with exactly 500 non-whitespace characters', async () => {
+    const reason = 'R'.repeat(500);
+    await expectCreatedAdjustment(1, reason);
+
+    expect(
+      (await invoice()).adjustments.some(
+        (adjustment: { reason: string }) => adjustment.reason === reason,
+      ),
+    ).toBe(true);
+  });
+
+  it('trims surrounding whitespace from an adjustment reason', async () => {
+    await expectCreatedAdjustment(
+      1,
+      '  Campaign adjustment  ',
+      'Campaign adjustment',
+    );
+  });
+
+  // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): invalid reasons leave no partial writes.
+  it.each([
+    ['missing', { amount: 10 }],
+    ['blank', { amount: 10, reason: '   ' }],
+    ['over 500 characters', { amount: 10, reason: 'R'.repeat(501) }],
+  ])('rejects a %s reason without creating an adjustment', async (_case, body) => {
+    await expectAdjustmentStateUnchanged(() =>
+      admin.post(adjustmentPath()).send(body).expect(422),
+    );
+  });
+
+  // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): invalid amounts leave no partial writes.
+  it.each([
+    ['zero', 0],
+    ['more than two decimal places', 1.234],
+  ])('rejects an adjustment amount with %s and makes no change', async (_case, amount) => {
+    await expectAdjustmentStateUnchanged(() =>
+      admin
+        .post(adjustmentPath())
+        .send({ amount, reason: 'Invalid amount test' })
+        .expect(422),
+    );
+  });
+
+  // OWASP Top 10:2025 A05 (Injection): SQL-looking reason text remains literal data.
+  it('stores SQL-looking reason text literally and leaves content records unchanged', async () => {
+    const reason = "Adjustment'; DROP TABLE users; --";
+    const contentCountBefore = await prisma.contents.count({
+      where: { contract_id: contractId },
+    });
+
+    await expectCreatedAdjustment(-1, reason);
+
+    expect(
+      (await invoice()).adjustments.some(
+        (adjustment: { reason: string }) => adjustment.reason === reason,
+      ),
+    ).toBe(true);
+    expect(
+      await prisma.contents.count({ where: { contract_id: contractId } }),
+    ).toBe(contentCountBefore);
+    expect(
+      await prisma.users.findUnique({
+        where: { email: `${MARKER}-nadia@example.com` },
+        select: { id: true },
+      }),
+    ).not.toBeNull();
+  });
+
+  // OWASP Top 10:2025 A01 (Broken Access Control): callers cannot set server-controlled invoice fields.
+  it('rejects client-supplied actor and invoice authority fields without changing adjustments', async () => {
+    await expectAdjustmentStateUnchanged(() =>
+      admin
+        .post(adjustmentPath())
+        .send({
+          amount: 50,
+          reason: 'Forged fields test',
+          actorId: '00000000-0000-0000-0000-000000000001',
+          createdAt: '2000-01-01T00:00:00.000Z',
+          invoiceStatus: 'finalized',
+          snapshot: { total: 1 },
+          total: 1,
+        })
+        .expect(422),
+    );
+  });
+
+  // OWASP Top 10:2025 A01 (Broken Access Control): enforce the admin and same-origin boundaries.
+  // These checks require the route to exist; a missing-route 404 is not security evidence.
+  it('denies unauthenticated and creator mutations, and rejects a cross-origin admin mutation', async () => {
+    const priorDevAuth = process.env.DEV_AUTH_ENABLED;
+    process.env.DEV_AUTH_ENABLED = 'false';
+    try {
+      const secondAdminCookie = await signInAsAdmin(app, prisma, MARKER);
+      await expectAdjustmentStateUnchanged(() =>
+        request(app.getHttpServer())
+          .post(adjustmentPath())
+          .set('Origin', process.env.FRONTEND_URL ?? 'http://localhost:3000')
+          .set('Sec-Fetch-Site', 'same-origin')
+          .send({ amount: 10, reason: 'Unauthenticated request' })
+          .expect(401),
+      );
+      await expectAdjustmentStateUnchanged(() =>
+        creator
+          .post(adjustmentPath())
+          .send({ amount: 10, reason: 'Creator request' })
+          .expect(403),
+      );
+      await expectAdjustmentStateUnchanged(() =>
+        request(app.getHttpServer())
+          .post(adjustmentPath())
+          .set('Cookie', secondAdminCookie)
+          .set('Origin', 'https://evil.example')
+          .set('Sec-Fetch-Site', 'cross-site')
+          .send({ amount: 10, reason: 'Cross-origin request' })
+          .expect(403),
+      );
+    } finally {
+      if (priorDevAuth === undefined) delete process.env.DEV_AUTH_ENABLED;
+      else process.env.DEV_AUTH_ENABLED = priorDevAuth;
+    }
   });
 });
