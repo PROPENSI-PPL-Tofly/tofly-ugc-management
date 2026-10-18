@@ -90,6 +90,11 @@ describe("tier list edits", () => {
 });
 
 describe("tiersProblem", () => {
+  it("asks for whole numbers when a minimum or bonus was typed with anything but digits", () => {
+    expect(tiersProblem([tier(Number.NaN, 150000)])).toBe("Minimum dan bonus harus berupa angka bulat.");
+    expect(tiersProblem([tier(10000, Number.NaN)])).toBe("Minimum dan bonus harus berupa angka bulat.");
+  });
+
   it("accepts tiers whose minimums and bonuses both rise", () => {
     expect(tiersProblem([tier(10000, 150000), tier(40000, 400000)])).toBeUndefined();
   });

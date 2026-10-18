@@ -2,18 +2,19 @@
 // amount (the contract's fixed rate, the Atur Formula Rate modal), so they cannot disagree on
 // what a valid number is.
 
-import { digitsOnly } from "@/components/ui/form-classes";
-
 /** A number field takes at most this many digits. */
 export const MAX_AMOUNT_DIGITS = 10;
 
 /**
- * What a typed value means: its digits, capped at MAX_AMOUNT_DIGITS, as a whole number. Empty is
- * null rather than 0, so a required field can tell "not filled in" from "filled in with 0".
+ * What a typed value means. Empty is null rather than 0, so a required field can tell "not
+ * filled in" from "filled in with 0". Digits are their number, however many there are, so a
+ * number past MAX_AMOUNT_DIGITS is refused by amountProblem rather than cut. Anything else (a
+ * sign, a separator, a letter) is NaN: dropping it would read "1.500,00" as 150000.
  */
 export function parseAmount(raw: string): number | null {
-  const digits = digitsOnly(raw).slice(0, MAX_AMOUNT_DIGITS);
-  return digits === "" ? null : Number(digits);
+  const typed = raw.trim();
+  if (typed === "") return null;
+  return /^\d+$/.test(typed) ? Number(typed) : Number.NaN;
 }
 
 /** A held amount as the input shows it: empty when there is none, so typing "5" gives "5". */

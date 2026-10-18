@@ -1,143 +1,106 @@
-import { INVOICE_FIXTURE_ROWS } from "./invoice.fixture";
-import { BREAKDOWN_KINDS, type InvoiceBreakdown } from "./invoice-breakdown";
-import { loadInvoiceBreakdown } from "./invoice-breakdown.server";
-import { currentRole } from "./session.server";
+import { RANGGA_ID, RAW_RANGGA_DETAIL } from "./invoice-api.fixture";
+
+const { sessionCookies } = vi.hoisted(() => ({
+  sessionCookies: [] as { name: string; value: string }[],
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ getAll: () => sessionCookies })),
+}));
 
 // Who is asking is read from the session on the server; here it is whatever a test says.
 vi.mock("./session.server", () => ({ currentRole: vi.fn() }));
 
+import { loadInvoiceBreakdown } from "./invoice-breakdown.server";
+import { currentRole } from "./session.server";
+
 const asRole = (role: "admin" | "creator" | null) => vi.mocked(currentRole).mockResolvedValue(role);
 
-/** The columns that list contents; the fixed rate is the contract period's, one amount. */
-const LISTED = BREAKDOWN_KINDS.filter((kind) => kind !== "fixed") as ("extra" | "bonus" | "penalty")[];
-
-/** What the lines of one column add up to. */
-function sumOf(breakdown: InvoiceBreakdown, kind: (typeof LISTED)[number]): number {
-  return breakdown[kind].lines.reduce((sum, line) => sum + line.amount, 0);
+function answer(body: unknown, status = 200) {
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response(JSON.stringify(body), { status }));
 }
 
 describe("loadInvoiceBreakdown", () => {
-  beforeEach(() => asRole("admin"));
-
-  it("answers an admin with the creator's breakdown, named as the table names them", async () => {
-    const breakdown = await loadInvoiceBreakdown("creator-rangga");
-
-    expect(breakdown?.creatorName).toBe("Rangga Pratama");
+  beforeEach(() => {
+    asRole("admin");
+    vi.stubEnv("BACKEND_URL", "http://localhost:3001");
+    sessionCookies.push({ name: "__session", value: "abc" });
   });
 
-  describe("agrees with the table it is opened from", () => {
-    it.each(INVOICE_FIXTURE_ROWS.map((row) => [row.name, row] as const))(
-      "totals each of %s's columns as the table's row does",
-      async (_name, row) => {
-        const breakdown = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    sessionCookies.length = 0;
+  });
 
-        expect(breakdown.fixed.total).toBe(row.fixedAmount);
-        expect(breakdown.extra.total).toBe(row.extraAmount);
-        expect(breakdown.bonus.total).toBe(row.bonusAmount ?? 0);
-        expect(breakdown.penalty.total).toBe(row.penaltyAmount);
-      },
-    );
+  it("asks GET /invoices/:creatorId with the admin's session and reads the answer into the popup's names", async () => {
+    const fetch = answer(RAW_RANGGA_DETAIL);
 
-    it.each(INVOICE_FIXTURE_ROWS.map((row) => [row.name, row.creatorId] as const))(
-      "adds %s's lines up to each column's total",
-      async (_name, creatorId) => {
-        const breakdown = (await loadInvoiceBreakdown(creatorId)) as InvoiceBreakdown;
+    const breakdown = await loadInvoiceBreakdown(RANGGA_ID);
 
-        for (const kind of LISTED) {
-          expect(sumOf(breakdown, kind)).toBe(breakdown[kind].total);
-        }
-      },
-    );
-
-    it("says the performance bonus is waiting exactly where the table reads Menunggu data", async () => {
-      for (const row of INVOICE_FIXTURE_ROWS) {
-        const breakdown = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
-
-        expect(breakdown.bonus.performance).toBe(row.bonusAmount === null ? "waiting" : "ready");
-      }
+    expect(fetch).toHaveBeenCalledWith(`http://localhost:3001/invoices/${RANGGA_ID}`, {
+      cache: "no-store",
+      headers: { cookie: "__session=abc" },
+    });
+    expect(breakdown).toMatchObject({
+      creatorName: "Rangga Pratama",
+      fixed: { total: 500000 },
+      penalty: { total: 150000 },
     });
   });
 
-  it("lists every content once, so a line opens the content it names", async () => {
-    for (const row of INVOICE_FIXTURE_ROWS) {
-      const breakdown = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
-      const ids = LISTED.flatMap((kind) => breakdown[kind].lines.map((line) => line.contentId));
+  it("answers null for a creator the backend has no invoice for", async () => {
+    answer({ code: "INVOICE_NOT_FOUND" }, 404);
 
-      expect(ids.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
-    }
+    await expect(loadInvoiceBreakdown(RANGGA_ID)).resolves.toBeNull();
   });
 
-  it("gives an empty column no lines and a zero total", async () => {
-    const row = INVOICE_FIXTURE_ROWS.find((candidate) => candidate.penaltyAmount === 0);
-    const breakdown = (await loadInvoiceBreakdown(row?.creatorId ?? "")) as InvoiceBreakdown;
+  it.each([401, 403, 500])(
+    "throws on HTTP %i, so the popup offers to try again",
+    async (status) => {
+      answer({}, status);
 
-    expect(breakdown.penalty).toEqual({ lines: [], total: 0 });
-  });
+      await expect(loadInvoiceBreakdown(RANGGA_ID)).rejects.toThrow(
+        `Loading the invoice breakdown failed with HTTP ${status}`,
+      );
+    },
+  );
 
-  describe("refuses", () => {
-    it("a creator nobody knows", async () => {
-      await expect(loadInvoiceBreakdown("creator-nobody")).resolves.toBeNull();
-    });
-
-    it.each(["__proto__", "constructor", "toString", ""])(
-      "a key that is not a creator's, such as %j",
+  describe("refuses without asking the backend", () => {
+    it.each(["__proto__", "constructor", "", "../creators", "creator-rangga", `${RANGGA_ID}/x`])(
+      "an id that is not a UUID, such as %j",
       async (creatorId) => {
+        const fetch = answer(RAW_RANGGA_DETAIL);
+
         await expect(loadInvoiceBreakdown(creatorId)).resolves.toBeNull();
+        expect(fetch).not.toHaveBeenCalled();
       },
     );
 
     it("an id that is not text, as anything can be posted to a server action", async () => {
+      const fetch = answer(RAW_RANGGA_DETAIL);
+
       await expect(loadInvoiceBreakdown(42 as unknown as string)).resolves.toBeNull();
+      expect(fetch).not.toHaveBeenCalled();
     });
 
     it.each([["creator"], [null]] as const)(
-      "anyone who is not an admin (%s), without reading a breakdown",
+      "anyone who is not an admin (%s)",
       async (role) => {
         asRole(role);
+        const fetch = answer(RAW_RANGGA_DETAIL);
 
-        await expect(loadInvoiceBreakdown("creator-rangga")).resolves.toBeNull();
+        await expect(loadInvoiceBreakdown(RANGGA_ID)).resolves.toBeNull();
+        expect(fetch).not.toHaveBeenCalled();
       },
     );
   });
 
-  describe("follows the prototype's rules", () => {
-    it("bills the fixed rate per contract period, with the quota done out of the quota", async () => {
-      for (const row of INVOICE_FIXTURE_ROWS) {
-        const { fixed } = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
+  it("throws when BACKEND_URL is missing", async () => {
+    vi.stubEnv("BACKEND_URL", undefined);
 
-        expect(fixed.period.number).toBeGreaterThanOrEqual(1);
-        expect(fixed.period.quotaDone).toBeLessThanOrEqual(fixed.period.quotaTotal);
-        expect(fixed.notStarted).toBe(row.fixedAmount === 0 && row.contractStatus === "upcoming");
-      }
-    });
-
-    it("charges no content more days than the cap of three", async () => {
-      for (const row of INVOICE_FIXTURE_ROWS) {
-        const { penalty } = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
-
-        for (const line of penalty.lines) {
-          expect(line.chargedDays).toBeLessThanOrEqual(3);
-          expect(line.chargedDays).toBeLessThanOrEqual(line.daysLate);
-          expect(line.amount).toBe(line.chargedDays * line.ratePerDay);
-        }
-      }
-    });
-
-    it("pays each performance bonus at its tier's amount", async () => {
-      for (const row of INVOICE_FIXTURE_ROWS) {
-        const { bonus } = (await loadInvoiceBreakdown(row.creatorId)) as InvoiceBreakdown;
-
-        for (const line of bonus.lines) {
-          if (line.kind !== "performance") continue;
-          const rule = bonus.rules.tiers.find(
-            (candidate) => candidate.platform === line.platform && candidate.metric === line.metric,
-          );
-          const steps = [...(rule?.steps ?? [])].sort((a, b) => a.min - b.min);
-
-          expect(steps[line.tier - 1]?.bonus).toBe(line.amount);
-          expect(line.value).toBeGreaterThanOrEqual(steps[line.tier - 1]?.min ?? Infinity);
-        }
-      }
-    });
+    await expect(loadInvoiceBreakdown(RANGGA_ID)).rejects.toThrow("BACKEND_URL is not configured");
   });
 });

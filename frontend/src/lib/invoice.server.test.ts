@@ -1,74 +1,93 @@
+import { RAW_RANGGA } from "./invoice-api.fixture";
+import type { RawInvoiceList } from "./invoice-api";
 import { DEFAULT_INVOICE_PARAMS, type InvoiceParams } from "./invoice";
+
+const { sessionCookies } = vi.hoisted(() => ({
+  sessionCookies: [] as { name: string; value: string }[],
+}));
+
+// The browser's cookies as the server reads them; here whatever a test puts in.
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ getAll: () => sessionCookies })),
+}));
+
 import { fetchRateInvoices } from "./invoice.server";
+
+const ANSWER: RawInvoiceList = {
+  items: [RAW_RANGGA],
+  page: 1,
+  pageSize: 10,
+  total: 1,
+  totalPages: 1,
+  summary: { total: 550000, runningInvoices: 1, formulaSet: true },
+};
 
 function params(over: Partial<InvoiceParams> = {}): InvoiceParams {
   return { ...DEFAULT_INVOICE_PARAMS, ...over };
 }
 
+function answer(body: unknown, status = 200) {
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response(JSON.stringify(body), { status }));
+}
+
 describe("fetchRateInvoices", () => {
-  it("answers the first page of the whole table, ten creators at a time", async () => {
-    const list = await fetchRateInvoices(params());
-
-    expect(list.rows).toHaveLength(10);
-    expect(list.page).toBe(1);
-    expect(list.total).toBe(12);
-    expect(list.totalPages).toBe(2);
+  beforeEach(() => {
+    vi.stubEnv("BACKEND_URL", "http://localhost:3001/");
   });
 
-  it("answers the rest on the second page", async () => {
-    const list = await fetchRateInvoices(params({ page: 2 }));
-
-    expect(list.rows).toHaveLength(2);
-    expect(list.page).toBe(2);
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    sessionCookies.length = 0;
   });
 
-  it("narrows by the search word, wherever in the name it sits", async () => {
-    const list = await fetchRateInvoices(params({ q: "salsa" }));
+  it("asks GET /invoices for the page's filters, with the session and nothing cached", async () => {
+    const fetch = answer(ANSWER);
+    sessionCookies.push({ name: "__session", value: "abc" }, { name: "other", value: "x" });
 
-    expect(list.rows.map((row) => row.creatorName)).toEqual(["Salsa Amelia"]);
-    expect(list.total).toBe(1);
+    await fetchRateInvoices(params({ q: "rangga", status: "accruing", page: 2 }));
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3001/invoices?q=rangga&status=accruing&page=2&pageSize=10",
+      { cache: "no-store", headers: { cookie: "__session=abc" } },
+    );
   });
 
-  it("narrows by contract and by invoice status together", async () => {
-    const list = await fetchRateInvoices(params({ contract: "active", status: "accruing" }));
+  it("sends no cookie header when the browser has no session", async () => {
+    const fetch = answer(ANSWER);
 
-    expect(list.total).toBe(3);
-    expect(list.rows).toHaveLength(3);
-    expect(
-      list.rows.every(
-        (row) => row.contractStatus === "active" && row.invoiceStatus === "accruing",
-      ),
-    ).toBe(true);
-  });
+    await fetchRateInvoices(params());
 
-  it("shows the last page when asked for one past the end, never an empty table", async () => {
-    const list = await fetchRateInvoices(params({ page: 9 }));
-
-    expect(list.page).toBe(2);
-    expect(list.rows).toHaveLength(2);
-  });
-
-  it("keeps a list nothing matches as it is asked: nothing shown, one page to name", async () => {
-    const list = await fetchRateInvoices(params({ q: "zzz", page: 5 }));
-
-    expect(list.rows).toEqual([]);
-    expect(list.total).toBe(0);
-    expect(list.page).toBe(1);
-    expect(list.totalPages).toBe(1);
+    expect(fetch).toHaveBeenCalledWith(expect.any(String), { cache: "no-store" });
   });
 
   it("hands the rows to the table in the table's own names", async () => {
-    const list = await fetchRateInvoices(params({ q: "rangga" }));
+    answer(ANSWER);
 
-    expect(list.rows[0]).toEqual({
-      creatorId: "creator-rangga",
-      creatorName: "Rangga Pratama",
-      contractStatus: "active",
-      fixedAmount: 5000000,
-      extraAmount: 750000,
-      bonusAmount: 300000,
-      penaltyAmount: 0,
-      invoiceStatus: "accruing",
-    });
+    const list = await fetchRateInvoices(params());
+
+    expect(list).toMatchObject({ page: 1, total: 1, totalPages: 1 });
+    expect(list.rows[0]).toMatchObject({ creatorName: "Rangga Pratama", totalAmount: 550000 });
+  });
+
+  it.each([401, 403, 500])(
+    "throws on HTTP %i, so the page offers a retry instead of an empty table",
+    async (status) => {
+      answer({ code: "ANY" }, status);
+
+      await expect(fetchRateInvoices(params())).rejects.toThrow(
+        `Loading the invoices failed with HTTP ${status}`,
+      );
+    },
+  );
+
+  it("throws when BACKEND_URL is missing, before asking anyone", async () => {
+    vi.stubEnv("BACKEND_URL", undefined);
+    const fetch = answer(ANSWER);
+
+    await expect(fetchRateInvoices(params())).rejects.toThrow("BACKEND_URL is not configured");
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

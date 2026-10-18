@@ -27,7 +27,7 @@ const NAME =
   "cursor-pointer border-none bg-transparent p-0 text-left font-bold text-ink wrap-anywhere transition-colors hover:text-accent-deep focus-visible:text-accent-deep";
 
 /** The lines of a breakdown that has arrived, with their total and any note under them. */
-function Lines({
+export function BreakdownLines({
   kind,
   breakdown,
   onOpenContent,
@@ -152,7 +152,7 @@ export function BreakdownPopup({
       </p>
     );
   } else {
-    body = <Lines kind={kind} breakdown={breakdown} onOpenContent={onOpenContent} />;
+    body = <BreakdownLines kind={kind} breakdown={breakdown} onOpenContent={onOpenContent} />;
   }
 
   return (

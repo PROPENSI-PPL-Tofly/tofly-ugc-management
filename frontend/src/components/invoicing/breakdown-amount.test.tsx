@@ -10,6 +10,8 @@ const ROW: InvoiceRow = {
   extraAmount: 0,
   bonusAmount: 100000,
   penaltyAmount: 150000,
+  totalAmount: 0,
+  floored: false,
   invoiceStatus: "accruing",
 };
 
@@ -78,7 +80,7 @@ describe("BreakdownAmount", () => {
     renderAmount("penalty");
 
     const button = screen.getByRole("button");
-    expect(button).toHaveTextContent("-Rp150.000");
+    expect(button).toHaveTextContent("− Rp150.000");
     expect(button).toHaveClass("text-red-ink");
   });
 

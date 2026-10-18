@@ -5,6 +5,10 @@ import { InvoicesService } from './invoices.service.js';
 import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
+import {
+  INVOICE_STATUS_SOURCE,
+  RunningInvoiceStatusSource,
+} from './invoice-status.js';
 
 describe('InvoicesModule', () => {
   it('registers the invoices controller and service', () => {
@@ -25,6 +29,15 @@ describe('InvoicesModule', () => {
     ).toContainEqual({
       provide: RATE_FORMULA_SOURCE,
       useClass: StoredRateFormulaSource,
+    });
+  });
+
+  it('reads every invoice as running until the invoice pipeline exists (PBI-12)', () => {
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.PROVIDERS, InvoicesModule),
+    ).toContainEqual({
+      provide: INVOICE_STATUS_SOURCE,
+      useClass: RunningInvoiceStatusSource,
     });
   });
 });

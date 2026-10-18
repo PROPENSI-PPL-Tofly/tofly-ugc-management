@@ -2,8 +2,8 @@
 
 import { useId } from "react";
 import { Button } from "@/components/ui/button";
-import { FIELD, FIELD_ERROR, NUMERIC_INPUT } from "@/components/ui/form-classes";
-import { amountText, parseAmount } from "@/lib/amount";
+import { AmountInput } from "@/components/ui/amount-input";
+import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import {
   addTier,
   changeMetric,
@@ -42,10 +42,10 @@ export function PlatformBonusCard({
   const atLimit = value.tiers.length >= MAX_TIERS;
 
   return (
-    <div role="group" aria-label={`Bonus performa ${platformName}`} className="rounded-(--radius-panel) border border-rule p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div role="group" aria-label={`Bonus performa ${platformName}`} className="rounded-(--radius-panel) border border-rule p-4 max-sm:p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold">{platformName}</h3>
-        <label htmlFor={metricId} className="flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-[13px] text-muted">
+        <label htmlFor={metricId} className="flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-[13px] text-muted focus-within:outline-2 focus-within:outline-focus">
           Metrik
           <select
             id={metricId}
@@ -62,7 +62,7 @@ export function PlatformBonusCard({
         </label>
       </div>
 
-      <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-x-2 gap-y-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2">
         <span className="text-xs font-semibold text-muted">Minimum {metricName}</span>
         <span className="text-xs font-semibold text-muted">Bonus (Rp)</span>
         <span aria-hidden="true" />
@@ -141,23 +141,21 @@ function TierRow({
 
   return (
     <>
-      <input
-        {...NUMERIC_INPUT}
-        className={FIELD}
+      <AmountInput
+        className={`${FIELD} min-w-0 max-sm:px-2`}
         aria-label={`${position} minimum ${metricName}`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
-        value={amountText(threshold)}
-        onChange={(event) => onThreshold(parseAmount(event.target.value))}
+        value={threshold}
+        onChange={onThreshold}
       />
-      <input
-        {...NUMERIC_INPUT}
-        className={FIELD}
+      <AmountInput
+        className={`${FIELD} min-w-0 max-sm:px-2`}
         aria-label={`${position} bonus (Rp)`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
-        value={amountText(bonus)}
-        onChange={(event) => onBonus(parseAmount(event.target.value))}
+        value={bonus}
+        onChange={onBonus}
       />
       <button
         type="button"

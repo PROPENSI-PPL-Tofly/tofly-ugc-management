@@ -109,6 +109,27 @@ describe("breakdownPopup", () => {
   });
 
   describe("konten tambahan", () => {
+    it("says a Specific content handed in late earned nothing, at Rp0", () => {
+      const view = breakdownPopup(
+        "extra",
+        breakdown({
+          extra: {
+            lines: [
+              { contentId: "c-1", name: "Promo tepat", rate: 100000, amount: 100000, late: false },
+              { contentId: "c-2", name: "Promo telat", rate: 100000, amount: 0, late: true },
+            ],
+            total: 100000,
+          },
+        }),
+      );
+
+      expect(view.lines.map((line) => [line.name, line.detail, line.amount, line.tone])).toEqual([
+        ["Promo tepat", "1 konten × Rp100.000", "Rp100.000", "plain"],
+        ["Promo telat", "Telat — tidak dibayar", "Rp0", "plain"],
+      ]);
+      expect(view.total).toBe("Rp100.000");
+    });
+
     it("lists each extra content with its own rate", () => {
       const view = breakdownPopup(
         "extra",

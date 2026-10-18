@@ -1,9 +1,9 @@
 "use client";
 
 import { useId } from "react";
-import { FIELD, FIELD_ERROR, NUMERIC_INPUT } from "@/components/ui/form-classes";
+import { AmountInput } from "@/components/ui/amount-input";
+import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import { InfoTip } from "@/components/ui/info-tip";
-import { amountText, parseAmount } from "@/lib/amount";
 
 /**
  * A required rupiah field of the rate formula: its label with the ⓘ that explains it, a
@@ -42,15 +42,14 @@ export function AmountField({
         </label>
         <InfoTip label={`Info ${label}`} text={hint} align={tipAlign} />
       </div>
-      <input
-        {...NUMERIC_INPUT}
+      <AmountInput
         id={inputId}
         className={FIELD}
         required
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        value={amountText(value)}
-        onChange={(event) => onChange(parseAmount(event.target.value))}
+        value={value}
+        onChange={onChange}
         onBlur={onBlur}
       />
       {error ? (

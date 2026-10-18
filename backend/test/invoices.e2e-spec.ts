@@ -9,7 +9,7 @@ import {
   RateFormulaService,
   type RateFormulaView,
 } from '../src/rate-formula/rate-formula.service.js';
-import { as, signInAsAdmin } from './sessions.js';
+import { as, signIn, signInAsAdmin } from './sessions.js';
 
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, seeded or not.
@@ -48,6 +48,10 @@ describe('GET /invoices (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let admin: ReturnType<typeof as>;
+  // Nadia signed in as herself: a creator must not read even her own invoice here.
+  let nadiaAsCreator: ReturnType<typeof as>;
+  let nadiaId: string;
+  let kevinId: string;
   // The developer's own formula, put back once these tests are done with the singleton row.
   let savedFormula: RateFormulaView | undefined;
 
@@ -70,7 +74,7 @@ describe('GET /invoices (e2e)', () => {
       data: { email: `${MARKER}-kevin@example.com` },
     });
 
-    await prisma.creators.create({
+    const nadiaCreator = await prisma.creators.create({
       data: {
         user_id: nadia.id,
         first_name: `${MARKER} Nadia`,
@@ -120,9 +124,19 @@ describe('GET /invoices (e2e)', () => {
       },
     });
     // A creator with no contract has nothing to invoice.
-    await prisma.creators.create({
+    const kevinCreator = await prisma.creators.create({
       data: { user_id: kevin.id, first_name: `${MARKER} Kevin` },
     });
+    nadiaId = nadiaCreator.id;
+    kevinId = kevinCreator.id;
+    nadiaAsCreator = as(
+      app,
+      await signIn(app, {
+        userId: nadia.id,
+        role: 'creator',
+        creatorId: nadiaId,
+      }),
+    );
   });
 
   afterAll(async () => {
@@ -140,7 +154,7 @@ describe('GET /invoices (e2e)', () => {
       await prisma.$executeRaw`delete from rate_formula`;
     }
     await prisma.creators.deleteMany({
-      where: { first_name: { startsWith: MARKER } },
+      where: { first_name: { contains: MARKER } },
     });
     await prisma.users.deleteMany({ where: { email: { startsWith: MARKER } } });
     await app.close();
@@ -152,7 +166,7 @@ describe('GET /invoices (e2e)', () => {
       .query({ pageSize: 50 })
       .expect(200);
     return body.items.filter((item: { creatorName: string }) =>
-      item.creatorName.startsWith(MARKER),
+      item.creatorName.startsWith(`${MARKER} `),
     );
   }
 
@@ -161,10 +175,19 @@ describe('GET /invoices (e2e)', () => {
 
     // FORMULA: Rp50.000 a day for at most 3 days, Rp100.000 per on-time Specific item.
     expect(nadia.components.fixedRate.amount).toBe(2_000_000);
-    expect(nadia.components.additionalContent).toMatchObject({
-      amount: 100_000,
-      lines: [{ contentName: 'Specific on time', amount: 100_000 }],
-    });
+    // Both items share a deadline, so their order is the database's; read them in any order.
+    expect(nadia.components.additionalContent.amount).toBe(100_000);
+    expect(nadia.components.additionalContent.lines).toHaveLength(2);
+    expect(nadia.components.additionalContent.lines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ contentName: 'Specific on time', amount: 100_000 }),
+        expect.objectContaining({
+          contentName: 'Specific late',
+          amount: 0,
+          basis: { fee: 100_000, late: 'yes' },
+        }),
+      ]),
+    );
     expect(nadia.components.penalty.amount).toBe(250_000);
     expect(nadia.components.performanceBonus.status).toBe('waiting_for_data');
     expect(nadia).toMatchObject({ total: 1_850_000, floored: false });
@@ -207,4 +230,88 @@ describe('GET /invoices (e2e)', () => {
     await admin.get('/invoices?contract=none').expect(400);
     await admin.get(`/invoices?q=${'a'.repeat(101)}`).expect(400);
   });
+
+  it('marks every invoice as running and filters on the invoice status', async () => {
+    const [nadia] = await ours();
+    expect(nadia.invoiceStatus).toBe('accruing');
+
+    const running = await admin
+      .get('/invoices')
+      .query({ q: `${MARKER} Nadia`, status: 'accruing' })
+      .expect(200);
+    expect(running.body.total).toBe(1);
+
+    const paid = await admin
+      .get('/invoices')
+      .query({ q: MARKER, status: 'paid' })
+      .expect(200);
+    expect(paid.body).toMatchObject({ items: [], total: 0 });
+
+    await admin.get('/invoices?status=hacked').expect(400);
+  });
+
+  it("answers one creator's invoice with the formula and the period its popups state", async () => {
+    const { body } = await admin.get(`/invoices/${nadiaId}`).expect(200);
+
+    expect(body).toMatchObject({
+      creatorId: nadiaId,
+      creatorName: `${MARKER} Nadia`,
+      invoiceStatus: 'accruing',
+      periodNumber: 1,
+      total: 1_850_000,
+      formula: { latePenaltyPerDay: 50_000, specificBonus: 100_000 },
+    });
+    expect(
+      body.components.penalty.lines.map(
+        (line: { contentName: string }) => line.contentName,
+      ),
+    ).toEqual(['Never handed in', 'Late by two days']);
+  });
+
+  it('answers 404 for a creator with no contract and for one that does not exist', async () => {
+    const none = await admin.get(`/invoices/${kevinId}`).expect(404);
+    expect(none.body).toMatchObject({ code: 'INVOICE_NOT_FOUND' });
+
+    await admin
+      .get('/invoices/00000000-0000-4000-8000-000000000000')
+      .expect(404);
+  });
+
+  it('refuses an id that is not a UUID before reading the database', async () => {
+    await admin.get('/invoices/not-a-uuid').expect(400);
+    await admin.get(`/invoices/${encodeURIComponent("1' or '1'='1")}`).expect(400);
+  });
+
+  it('refuses a creator, even asking for their own invoice', async () => {
+    const response = await nadiaAsCreator.get(`/invoices/${nadiaId}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body).toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('puts what needs action first, sorts by a column when asked, and refuses an unknown order', async () => {
+    const order = async (query: Record<string, string>) => {
+      const { body } = await admin
+        .get('/invoices')
+        .query({ pageSize: 50, q: MARKER, ...query })
+        .expect(200);
+      return body.items.map((item: { contract: { status: string } }) => item.contract.status);
+    };
+
+    expect(await order({})).toEqual(['active']);
+    expect(await order({ sort: 'total', order: 'asc' })).toEqual(['active']);
+    await admin.get('/invoices?sort=bonus').expect(400);
+    await admin.get('/invoices?sort=name&order=sideways').expect(400);
+  });
+
+  it('adds up what the filtered invoices owe and counts the running ones', async () => {
+    const { body } = await admin.get('/invoices').query({ q: `${MARKER} Nadia` }).expect(200);
+
+    expect(body.summary).toMatchObject({ total: 1_850_000, formulaSet: true });
+    // Counted over the whole roster, whatever the filter: the same as every running invoice listed.
+    const running = await admin.get('/invoices').query({ status: 'accruing' }).expect(200);
+    expect(body.summary.runningInvoices).toBe(running.body.total);
+    expect(body.summary.runningInvoices).toBeGreaterThanOrEqual(1);
+  });
+
 });

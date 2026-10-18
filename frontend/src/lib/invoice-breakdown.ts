@@ -5,7 +5,7 @@
 //
 // Pure module: no React and no next/headers, so the table, the popup and tests all share it.
 
-import { formatDate, formatRupiah } from "./format";
+import { formatDate, formatDeduction, formatRupiah } from "./format";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -19,6 +19,8 @@ export interface RatedLine {
   name: string;
   rate: number;
   amount: number;
+  /** Handed in after its deadline: listed so the missing fee is traced, at Rp0. */
+  late?: boolean;
 }
 
 /**
@@ -191,7 +193,7 @@ function rated(line: RatedLine): Described {
   return {
     contentId: line.contentId,
     name: line.name,
-    detail: `1 konten × ${formatRupiah(line.rate)}`,
+    detail: line.late ? "Telat — tidak dibayar" : `1 konten × ${formatRupiah(line.rate)}`,
     amount: formatRupiah(line.amount),
     tone: "plain",
   };
@@ -241,7 +243,7 @@ function penalty(line: PenaltyLine): Described {
     contentId: line.contentId,
     name: line.name,
     detail: line.ongoing ? `${counted} · berjalan` : counted,
-    amount: `− ${formatRupiah(line.amount)}`,
+    amount: formatDeduction(line.amount),
     tone: "danger",
   };
 }
@@ -314,7 +316,7 @@ function keyed(lines: Described[]): BreakdownPopupLine[] {
 export function breakdownPopup(kind: BreakdownKind, breakdown: InvoiceBreakdown): BreakdownPopupView {
   const column = COLUMNS[kind](breakdown);
   // A penalty is money taken away, and its total reads that way too.
-  const total = `${kind === "penalty" ? "− " : ""}${formatRupiah(column.total)}`;
+  const total = kind === "penalty" ? formatDeduction(column.total) : formatRupiah(column.total);
 
   return {
     title: `${BREAKDOWN_TITLES[kind]} · ${breakdown.creatorName}`,

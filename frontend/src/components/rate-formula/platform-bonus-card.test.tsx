@@ -34,6 +34,37 @@ describe("PlatformBonusCard", () => {
     expect(screen.getByText("2/5 tier")).toBeInTheDocument();
   });
 
+  it("lets the platform name and metric wrap, and the tier inputs shrink, on a narrow screen", () => {
+    setup();
+
+    const group = screen.getByRole("group", { name: "Bonus performa Instagram" });
+    expect(screen.getByRole("heading", { name: "Instagram" }).parentElement).toHaveClass("flex-wrap");
+    expect(
+      Array.from(group.querySelectorAll("div")).some((div) =>
+        div.className.includes("grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"),
+      ),
+    ).toBe(true);
+    expect(screen.getByLabelText("Instagram tier 1 minimum Views")).toHaveClass("min-w-0");
+  });
+
+  it("gives the tier inputs room for a seven-digit amount at 320 px, with less padding on a phone", () => {
+    setup();
+
+    expect(screen.getByRole("group", { name: "Bonus performa Instagram" })).toHaveClass("max-sm:p-3");
+    for (const label of ["Instagram tier 1 minimum Views", "Instagram tier 1 bonus (Rp)"]) {
+      expect(screen.getByLabelText(label)).toHaveClass("max-sm:px-2");
+    }
+  });
+
+  it("shows where focus is on the metric picker, which draws no outline of its own", () => {
+    setup();
+
+    expect(screen.getByLabelText(/metrik/i).closest("label")).toHaveClass(
+      "focus-within:outline-2",
+      "focus-within:outline-focus",
+    );
+  });
+
   it("names the minimum column after the chosen metric", () => {
     setup({ value: { metric: "shares", tiers: [EMPTY_TIER] } });
 
@@ -57,11 +88,24 @@ describe("PlatformBonusCard", () => {
     expect(onChange).toHaveBeenCalledWith({ metric: "shares", tiers: [EMPTY_TIER] });
   });
 
-  it("reports a typed minimum, keeping only its digits", () => {
+  it("reports a typed minimum that is not a whole number as not a number, keeping what was typed", () => {
+    const onChange = setup();
+    const minimum = screen.getByLabelText("Instagram tier 1 minimum Views");
+
+    fireEvent.change(minimum, { target: { value: "2.500x" } });
+
+    expect(minimum).toHaveValue("2.500x");
+    expect(onChange).toHaveBeenCalledWith({
+      metric: "views",
+      tiers: [{ threshold: Number.NaN, bonus: 150000 }, TWO_TIERS.tiers[1]],
+    });
+  });
+
+  it("reports a typed minimum of digits as its number", () => {
     const onChange = setup();
 
     fireEvent.change(screen.getByLabelText("Instagram tier 1 minimum Views"), {
-      target: { value: "2.500x" },
+      target: { value: "2500" },
     });
 
     expect(onChange).toHaveBeenCalledWith({

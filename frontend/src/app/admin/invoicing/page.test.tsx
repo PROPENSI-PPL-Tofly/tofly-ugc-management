@@ -37,7 +37,8 @@ vi.mock("@/lib/use-url-filters", () => ({
   MAX_SEARCH_LENGTH: 100,
 }));
 
-const FORMULA = "Final Rate = Fixed Rate + Konten Tambahan + Bonus − Penalti";
+const FORMULA =
+  "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti. Bonus yang masih menunggu data belum dihitung.";
 
 function listOf(overrides: Partial<InvoiceList> = {}): InvoiceList {
   return {
@@ -50,12 +51,15 @@ function listOf(overrides: Partial<InvoiceList> = {}): InvoiceList {
         extraAmount: 750000,
         bonusAmount: 300000,
         penaltyAmount: 250000,
+        totalAmount: 5800000,
+        floored: false,
         invoiceStatus: "accruing",
       },
     ],
     page: 1,
     total: 24,
     totalPages: 3,
+    summary: { total: 9800000, runningInvoices: 24, formulaSet: true },
     ...overrides,
   };
 }
@@ -77,11 +81,14 @@ describe("Rate & Invoicing page", () => {
     fetchList.mockResolvedValue(listOf());
   });
 
-  it("titles the page and keeps the formula behind the question mark", async () => {
+  it("titles the page and explains the formula behind an ⓘ a keyboard can reach", async () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Rate & Invoicing" })).toBeInTheDocument();
-    expect(screen.getByTitle(FORMULA)).toBeInTheDocument();
+    const tip = screen.getByRole("button", { name: "Info rumus Total" });
+    expect(tip).toHaveAccessibleDescription(FORMULA);
+    // Not a title: a hover-only hint no keyboard or touch can open.
+    expect(screen.queryByTitle(FORMULA)).not.toBeInTheDocument();
   });
 
   // Subtask 8.2: the Atur Formula Rate button sits in the panel head, beside the title.
@@ -98,6 +105,8 @@ describe("Rate & Invoicing page", () => {
       q: "pw",
       contract: "active",
       status: "paid",
+      sort: "action",
+      order: "asc",
       page: 2,
     });
   });
@@ -108,7 +117,7 @@ describe("Rate & Invoicing page", () => {
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Kontrak Aktif")).toBeInTheDocument();
     expect(screen.getByText("Rp5.000.000")).toBeInTheDocument();
-    expect(screen.getByText("-Rp250.000")).toBeInTheDocument();
+    expect(screen.getByText("− Rp250.000")).toBeInTheDocument();
     // Inside the table: the filter bar offers the same word as a choice.
     expect(within(screen.getByRole("table")).getByText("Berjalan")).toBeInTheDocument();
   });
@@ -140,6 +149,8 @@ describe("Rate & Invoicing page", () => {
             extraAmount: 0,
             bonusAmount: null,
             penaltyAmount: 0,
+            totalAmount: 4500000,
+            floored: false,
             invoiceStatus: "accruing",
           },
         ],
@@ -148,7 +159,8 @@ describe("Rate & Invoicing page", () => {
 
     await renderPage();
 
-    expect(screen.getAllByText("Menunggu data")).toHaveLength(2);
+    expect(screen.getAllByText("Menunggu data")).toHaveLength(1);
+    expect(screen.getAllByText("Rp4.500.000")).toHaveLength(2);
   });
 
   it("says how many creators there are when there are none", async () => {
@@ -177,5 +189,38 @@ describe("Rate & Invoicing page", () => {
     expect(
       screen.getByRole("button", { name: "Fixed Rate Rangga Pratama: Rp5.000.000, lihat rincian" }),
     ).toBeInTheDocument();
+  });
+
+  describe("the flow around the table", () => {
+    const SUMMARY = { total: 9800000, runningInvoices: 24, formulaSet: true };
+
+    it("warns that nothing but the fixed rate is counted while no formula is saved", async () => {
+      fetchList.mockResolvedValue(listOf({ summary: { ...SUMMARY, formulaSet: false } }));
+
+      await renderPage();
+
+      expect(screen.getByRole("status", { name: "Formula rate belum diatur" })).toHaveTextContent(
+        "Formula rate belum diatur. Fee konten tambahan dan penalti belum dihitung sampai formula disimpan lewat Atur Formula Rate.",
+      );
+    });
+
+    it("says nothing about the formula once it is saved", async () => {
+      await renderPage();
+
+      expect(screen.queryByRole("status", { name: "Formula rate belum diatur" })).not.toBeInTheDocument();
+    });
+
+    it("adds up the whole filtered list under the table", async () => {
+      await renderPage();
+
+      expect(screen.getByText("Total 24 creator")).toBeInTheDocument();
+      expect(screen.getByText("Rp9.800.000")).toBeInTheDocument();
+    });
+
+    it("asks the list for the order in the URL", async () => {
+      await renderPage({ sort: "penalty", order: "asc" });
+
+      expect(fetchList).toHaveBeenCalledWith(expect.objectContaining({ sort: "penalty", order: "asc" }));
+    });
   });
 });

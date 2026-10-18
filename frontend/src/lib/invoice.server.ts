@@ -1,21 +1,26 @@
-// Server-side only: the Rate & Invoicing table's list, fetched while the page renders.
+// Server-side only: the Rate & Invoicing table's list, fetched while the page renders. It reads
+// the browser's session through next/headers, which client components cannot import, so it
+// lives apart from the shared invoice module.
 //
-// TODO(SCRUM-8.3): GET /invoices does not exist yet, so the fixture stands in for it — same
-// query, same answer shape. When 8.3 lands, this function calls the backend the way
-// content-plan.server.ts does (BACKEND_URL, the browser's session forwarded) and nothing else
-// in the table changes. The page past the end stays: an old link shows the last page rather
-// than an empty table that would claim there are no creators.
+// The endpoint is GET /invoices (subtask 8.3). Its query and its answer are spelled in the API's
+// own words, so both pass through invoice-api, the one module that knows them. Single
+// Responsibility: this module fetches and invoice-api translates.
 
-import { invoiceFixture } from "./invoice.fixture";
-import { toInvoiceList, toInvoiceListQuery } from "./invoice-api";
+import { backendGet } from "./backend.server";
+import { toInvoiceList, toInvoiceListQuery, type RawInvoiceList } from "./invoice-api";
 import type { InvoiceList, InvoiceParams } from "./invoice";
 
+/**
+ * One page of the table. Any failure throws, so the page offers a retry rather than an empty
+ * table that would claim there are no creators. The backend answers a page past the end with the
+ * last page, so an old link never shows an empty table either.
+ */
 export async function fetchRateInvoices(state: InvoiceParams): Promise<InvoiceList> {
-  const answer = invoiceFixture(toInvoiceListQuery(state));
+  const response = await backendGet(`/invoices?${toInvoiceListQuery(state)}`);
 
-  if (answer.items.length === 0 && answer.totalPages > 0 && state.page > answer.totalPages) {
-    return toInvoiceList(invoiceFixture(toInvoiceListQuery({ ...state, page: answer.totalPages })));
+  if (!response.ok) {
+    throw new Error(`Loading the invoices failed with HTTP ${response.status}`);
   }
 
-  return toInvoiceList(answer);
+  return toInvoiceList((await response.json()) as RawInvoiceList);
 }

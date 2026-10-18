@@ -8,6 +8,7 @@ import {
   formatDue,
   formatPercent,
   formatRevisions,
+  formatDeduction,
   formatRupiah,
   formatTimestamp,
   jakartaDay,
@@ -280,5 +281,12 @@ describe("formatRupiah", () => {
 
   it("writes a plain zero", () => {
     expect(formatRupiah(0)).toBe("Rp0");
+  });
+});
+
+describe("formatDeduction", () => {
+  it("writes money taken away with a minus sign before the rupiah, as the breakdown popups do", () => {
+    expect(formatDeduction(150000)).toBe("− Rp150.000");
+    expect(formatDeduction(0)).toBe("− Rp0");
   });
 });

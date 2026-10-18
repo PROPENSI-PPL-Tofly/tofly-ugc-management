@@ -8,7 +8,7 @@ import {
   currentContract,
   type MetricsContract,
 } from '../creators/creator-metrics.js';
-import type { InvoiceListItem } from './dto/invoice-list.dto.js';
+import type { CalculatedInvoice } from './dto/invoice-list.dto.js';
 import { calculateInvoice } from './invoice-calculator.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
 import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
@@ -132,6 +132,18 @@ export function pickContract(
   return row.contracts.find((contract) => contract.id === picked?.id) ?? null;
 }
 
+/** Which of the creator's contracts this is, counted from 1 in the order they started. */
+export function periodNumber(
+  row: InvoiceCreatorRow,
+  contractRow: InvoiceContractRow,
+): number {
+  return (
+    1 +
+    row.contracts.filter((other) => other.start_date < contractRow.start_date)
+      .length
+  );
+}
+
 /** The invoice of `contractRow`, one of the creator's contracts, from its content. */
 export function toInvoiceItem(
   row: InvoiceCreatorRow,
@@ -139,7 +151,7 @@ export function toInvoiceItem(
   contents: readonly InvoiceContentRow[],
   formula: RateFormula | null,
   today: Date,
-): InvoiceListItem {
+): CalculatedInvoice {
   const breakdown = calculateInvoice({
     contract: toInvoiceContract(contractRow, row.access_revoke_date),
     contents: contents.map(toInvoiceContent),
