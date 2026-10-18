@@ -8,7 +8,10 @@ import {
   currentContract,
   type MetricsContract,
 } from '../creators/creator-metrics.js';
-import type { InvoiceListItem } from './dto/invoice-list.dto.js';
+import type {
+  InvoiceAdjustmentDto,
+  InvoiceListItem,
+} from './dto/invoice-list.dto.js';
 import { calculateInvoice } from './invoice-calculator.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
 import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
@@ -139,6 +142,10 @@ export function toInvoiceItem(
   contents: readonly InvoiceContentRow[],
   formula: RateFormula | null,
   today: Date,
+  lifecycle: {
+    status: 'running' | 'finalized';
+    adjustments: InvoiceAdjustmentDto[];
+  } = { status: 'running', adjustments: [] },
 ): InvoiceListItem {
   const breakdown = calculateInvoice({
     contract: toInvoiceContract(contractRow, row.access_revoke_date),
@@ -147,9 +154,16 @@ export function toInvoiceItem(
     today,
   });
 
+  const adjustmentTotal = lifecycle.adjustments.reduce(
+    (sum, adjustment) => sum + adjustment.amount,
+    0,
+  );
   return {
     creatorId: row.id,
     creatorName: creatorName(row),
+    invoiceStatus: lifecycle.status,
+    adjustments: lifecycle.adjustments,
+    snapshot: null,
     contract: {
       id: contractRow.id,
       status: invoiceContractStatus(contractRow, today),
@@ -157,8 +171,8 @@ export function toInvoiceItem(
       endDate: calendarDay(contractRow.end_date),
     },
     components: breakdown.components,
-    rawTotal: breakdown.rawTotal,
-    total: breakdown.total,
-    floored: breakdown.floored,
+    rawTotal: breakdown.rawTotal + adjustmentTotal,
+    total: Math.max(0, breakdown.rawTotal + adjustmentTotal),
+    floored: breakdown.rawTotal + adjustmentTotal < 0,
   };
 }

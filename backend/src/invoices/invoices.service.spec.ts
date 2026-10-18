@@ -37,6 +37,9 @@ describe('InvoicesService', () => {
     contents: {
       findMany: vi.fn(),
     },
+    invoices: {
+      findMany: vi.fn(),
+    },
   };
   const formulas = { current: vi.fn() };
 
@@ -44,6 +47,7 @@ describe('InvoicesService', () => {
     vi.clearAllMocks();
     formulas.current.mockResolvedValue(FORMULA);
     prisma.contents.findMany.mockResolvedValue([]);
+    prisma.invoices.findMany.mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [

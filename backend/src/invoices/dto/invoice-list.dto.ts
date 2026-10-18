@@ -21,9 +21,20 @@ export interface InvoiceContractDto {
   endDate: string;
 }
 
+export interface InvoiceAdjustmentDto {
+  id: string;
+  amount: number;
+  reason: string;
+  actorId: string;
+  createdAt: string;
+}
+
 export interface InvoiceListItem {
   creatorId: string;
   creatorName: string;
+  invoiceStatus: 'running' | 'finalized';
+  adjustments: InvoiceAdjustmentDto[];
+  snapshot: null;
   contract: InvoiceContractDto;
   components: Record<InvoiceComponentKey, InvoiceComponentDto>;
   /** What the components add up to, which may be below zero. */

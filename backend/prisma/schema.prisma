@@ -47,6 +47,7 @@ model contracts {
   updated_at    DateTime      @default(now()) @db.Timestamptz(6)
   contract_type contract_type
   contents      contents[]
+  invoice       invoices?
   creators      creators      @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([creator_id, end_date(sort: Desc)], map: "contracts_creator_end_date_idx")
@@ -126,7 +127,40 @@ model users {
   creators       creators?
   app_sessions   app_sessions[]
   content_events content_events[]
+  invoice_adjustments invoice_adjustments[]
   rate_formula   rate_formula[]
+}
+
+enum invoice_status {
+  running
+  finalized
+}
+
+/// Persisted lifecycle for one contract invoice; live calculation data remains derived.
+model invoices {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id String             @unique @db.Uuid
+  status      invoice_status     @default(running)
+  created_at  DateTime           @default(now()) @db.Timestamptz(6)
+  contracts   contracts          @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  adjustments invoice_adjustments[]
+
+  @@index([status])
+}
+
+/// Auditable manual amounts attached to their invoice; actor and timestamp are server supplied.
+model invoice_adjustments {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id    String   @db.Uuid
+  amount        Decimal  @db.Decimal
+  reason        String   @db.VarChar(500)
+  actor_user_id String   @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  invoices      invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users    @relation(fields: [actor_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([invoice_id, created_at], map: "invoice_adjustments_invoice_created_idx")
+  @@index([actor_user_id], map: "invoice_adjustments_actor_user_idx")
 }
 
 /// The one Atur Formula Rate row (PBI-8); its id can only be true.

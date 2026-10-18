@@ -1,17 +1,24 @@
 import {
+  Body,
   Controller,
   DefaultValuePipe,
   Get,
   Inject,
+  Param,
   ParseIntPipe,
+  ParseUUIDPipe,
+  Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
+import { unauthenticated } from '../auth/creator-request.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from '../creators/paging.js';
 import type { InvoiceListResponse } from './dto/invoice-list.dto.js';
 import { checkInvoiceFilters } from './invoice-filters.js';
 import { InvoicesService, type InvoiceLister } from './invoices.service.js';
+import { checkManualAdjustment } from './manual-adjustment.js';
 
 /** The running invoice of every creator, for the Rate & Invoicing table (8.4). */
 @Controller('invoices')
@@ -38,4 +45,19 @@ export class InvoicesController {
       checkInvoiceFilters(q, contract),
     );
   }
+
+  @Post(':contractId/adjustments')
+  async addAdjustment(
+    @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Body() body: unknown,
+    @Req() request: Pick<AdminRequest, 'principal'>,
+  ) {
+    if (request.principal?.role !== 'admin') throw unauthenticated();
+    return this.invoices.addAdjustment(
+      contractId,
+      checkManualAdjustment(body),
+      request.principal.userId,
+    );
+  }
+
 }

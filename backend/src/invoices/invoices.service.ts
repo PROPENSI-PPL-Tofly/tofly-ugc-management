@@ -1,9 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { InvoiceListResponse } from './dto/invoice-list.dto.js';
 import { hasInvoiceFilters, type InvoiceFilters } from './invoice-filters.js';
+import type {
+  InvoiceAdjustmentDto,
+  InvoiceListResponse,
+} from './dto/invoice-list.dto.js';
 import {
   CONTENT_SELECT,
   creatorName,
@@ -15,18 +22,34 @@ import {
   pickContract,
   toInvoiceItem,
 } from './invoice-rows.js';
+import { invoiceState } from './invoice-lifecycle.js';
+import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
-/** The slice of the database client this service touches; tests hand in a stub of just that. */
-export type InvoicesClient = Pick<PrismaService, 'creators' | 'contents'>;
+/** The database operations this service uses. */
+export type InvoicesClient = Pick<
+  PrismaService,
+  | 'creators'
+  | 'contents'
+  | 'contracts'
+  | 'invoices'
+  | 'invoice_adjustments'
+  | '$queryRaw'
+  | '$transaction'
+>;
 
-/** What the controller needs from the service, so it can be swapped or stubbed by contract. */
+/** What the controller needs from the invoice service. */
 export interface InvoiceLister {
   list(
     paging: Paging,
     today?: Date,
     filters?: InvoiceFilters,
   ): Promise<InvoiceListResponse>;
+  addAdjustment(
+    contractId: string,
+    input: ManualAdjustmentInput,
+    actorUserId: string,
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'running' }>;
 }
 
 /** A creator without any contract has nothing to invoice, so the table never lists them. */
@@ -95,6 +118,32 @@ function clampPage(asked: number, pageSize: number, total: number) {
  * contracts (no content) are read whole, filtered and paged here, the way the Creator
  * Database filters; content is still loaded for the page alone.
  */
+
+const INVOICE_ADJUSTMENT_SELECT = {
+  id: true,
+  amount: true,
+  reason: true,
+  actor_user_id: true,
+  created_at: true,
+} satisfies Prisma.invoice_adjustmentsSelect;
+
+function adjustmentDto(row: {
+  id: string;
+  amount: Prisma.Decimal;
+  reason: string;
+  actor_user_id: string;
+  created_at: Date;
+}): InvoiceAdjustmentDto {
+  return {
+    id: row.id,
+    amount: row.amount.toNumber(),
+    reason: row.reason,
+    actorId: row.actor_user_id,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+/** Loads lifecycle and adjustment data alongside the selected page's live calculation inputs. */
 @Injectable()
 export class InvoicesService implements InvoiceLister {
   constructor(
@@ -113,17 +162,44 @@ export class InvoicesService implements InvoiceLister {
         : this.page(asked, pageSize, today),
       this.formulas.current(),
     ]);
-
-    const contents = await this.prisma.contents.findMany({
-      where: { contract_id: { in: picked.map(({ contract }) => contract.id) } },
-      select: CONTENT_SELECT,
-      orderBy: { deadline: 'asc' },
-    });
+    const [contents, persisted] = await Promise.all([
+      this.prisma.contents.findMany({
+        where: { contract_id: { in: picked.map(({ contract }) => contract.id) } },
+        select: CONTENT_SELECT,
+        orderBy: { deadline: 'asc' },
+      }),
+      picked.length === 0
+        ? Promise.resolve([])
+        : this.prisma.invoices.findMany({
+            where: { contract_id: { in: picked.map(({ contract }) => contract.id) } },
+            select: {
+              contract_id: true,
+              status: true,
+              adjustments: {
+                select: INVOICE_ADJUSTMENT_SELECT,
+                orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+              },
+            },
+          }),
+    ]);
     const byContract = new Map<string, InvoiceContentRow[]>();
     for (const content of contents) {
       const list = byContract.get(content.contract_id) ?? [];
       list.push(content);
       byContract.set(content.contract_id, list);
+    }
+    const lifecycleByContract = new Map<
+      string,
+      {
+        status: 'running' | 'finalized';
+        adjustments: InvoiceAdjustmentDto[];
+      }
+    >();
+    for (const invoice of persisted) {
+      lifecycleByContract.set(invoice.contract_id, {
+        status: invoice.status,
+        adjustments: invoice.adjustments.map(adjustmentDto),
+      });
     }
 
     return {
@@ -134,6 +210,10 @@ export class InvoicesService implements InvoiceLister {
           byContract.get(contract.id) ?? [],
           formula,
           today,
+          lifecycleByContract.get(contract.id) ?? {
+            status: 'running',
+            adjustments: [],
+          },
         ),
       ),
       page,
@@ -181,5 +261,61 @@ export class InvoicesService implements InvoiceLister {
       total: matched.length,
       totalPages,
     };
+  }
+
+  async addAdjustment(
+    contractId: string,
+    input: ManualAdjustmentInput,
+    actorUserId: string,
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'running' }> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockContract(tx, contractId);
+      await this.requireContract(tx, contractId);
+      const invoice = await tx.invoices.upsert({
+        where: { contract_id: contractId },
+        create: { contract_id: contractId },
+        update: {},
+        select: { id: true, status: true },
+      });
+      invoiceState(invoice.status).assertCanAdjust();
+
+      const saved = await tx.invoice_adjustments.create({
+        data: {
+          invoice_id: invoice.id,
+          amount: new Prisma.Decimal(input.amount.toFixed(2)),
+          reason: input.reason,
+          actor_user_id: actorUserId,
+        },
+        select: INVOICE_ADJUSTMENT_SELECT,
+      });
+      return { ...adjustmentDto(saved), invoiceStatus: 'running' };
+    }, { isolationLevel: 'ReadCommitted' });
+  }
+
+  private async lockContract(
+    tx: Prisma.TransactionClient,
+    contractId: string,
+  ): Promise<void> {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT id FROM contracts WHERE id = ${contractId}::uuid FOR UPDATE
+    `);
+  }
+
+  private async requireContract(
+    tx: Prisma.TransactionClient,
+    contractId: string,
+  ): Promise<void> {
+    const contract = await tx.contracts.findUnique({
+      where: { id: contractId },
+      select: { id: true },
+    });
+    if (!contract) this.contractNotFound();
+  }
+
+  private contractNotFound(): never {
+    throw new NotFoundException({
+      code: 'CONTRACT_NOT_FOUND',
+      message: 'Kontrak tidak ditemukan',
+    });
   }
 }
