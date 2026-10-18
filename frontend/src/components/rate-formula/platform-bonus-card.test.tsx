@@ -47,6 +47,15 @@ describe("PlatformBonusCard", () => {
     expect(screen.getByLabelText("Instagram tier 1 minimum Views")).toHaveClass("min-w-0");
   });
 
+  it("gives the tier inputs room for a seven-digit amount at 320 px, with less padding on a phone", () => {
+    setup();
+
+    expect(screen.getByRole("group", { name: "Bonus performa Instagram" })).toHaveClass("max-sm:p-3");
+    for (const label of ["Instagram tier 1 minimum Views", "Instagram tier 1 bonus (Rp)"]) {
+      expect(screen.getByLabelText(label)).toHaveClass("max-sm:px-2");
+    }
+  });
+
   it("shows where focus is on the metric picker, which draws no outline of its own", () => {
     setup();
 

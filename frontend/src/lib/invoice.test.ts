@@ -23,6 +23,7 @@ const ROW: InvoiceRow = {
   bonusAmount: 300000,
   penaltyAmount: 250000,
   totalAmount: 5800000,
+  floored: false,
   invoiceStatus: "accruing",
 };
 
@@ -158,6 +159,10 @@ describe("finalLabel", () => {
 
   it("dashes a final amount that comes out to nothing", () => {
     expect(finalLabel({ ...ROW, totalAmount: 0 })).toBe(DASH);
+  });
+
+  it("writes Rp0, not a dash, when the penalty used the pay up: there was pay, and it is gone", () => {
+    expect(finalLabel({ ...ROW, totalAmount: 0, floored: true })).toBe("Rp0");
   });
 });
 

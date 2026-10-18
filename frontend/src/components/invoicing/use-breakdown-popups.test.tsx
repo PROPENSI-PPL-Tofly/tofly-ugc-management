@@ -42,6 +42,7 @@ function rowOf(creatorId: string, creatorName: string): InvoiceRow {
     bonusAmount: null,
     penaltyAmount: 150000,
     totalAmount: 0,
+    floored: false,
     invoiceStatus: "accruing",
   };
 }

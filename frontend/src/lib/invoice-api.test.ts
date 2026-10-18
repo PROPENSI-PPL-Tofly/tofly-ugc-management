@@ -41,9 +41,19 @@ describe("toInvoiceList", () => {
         bonusAmount: null,
         penaltyAmount: 150000,
         totalAmount: 550000,
+        floored: false,
         invoiceStatus: "accruing",
       },
     ]);
+  });
+
+  it("says when the penalty outweighed the pay and the total was held at zero", () => {
+    const floored = { ...RAW_RANGGA, rawTotal: -100000, total: 0, floored: true };
+
+    expect(toInvoiceList({ ...RAW, items: [floored] }).rows[0]).toMatchObject({
+      totalAmount: 0,
+      floored: true,
+    });
   });
 
   it("keeps a measured bonus, a zero one included", () => {

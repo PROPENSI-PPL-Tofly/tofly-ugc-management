@@ -11,6 +11,7 @@ const FULL: InvoiceRow = {
   bonusAmount: 300000,
   penaltyAmount: 250000,
   totalAmount: 5800000,
+  floored: false,
   invoiceStatus: "accruing",
 };
 
@@ -23,6 +24,7 @@ const ZEROS: InvoiceRow = {
   bonusAmount: 0,
   penaltyAmount: 0,
   totalAmount: 0,
+  floored: false,
   invoiceStatus: "paid",
 };
 
@@ -35,6 +37,7 @@ const WAITING: InvoiceRow = {
   bonusAmount: null,
   penaltyAmount: 0,
   totalAmount: 4500000,
+  floored: false,
   invoiceStatus: "finalized",
 };
 
@@ -63,6 +66,19 @@ describe("InvoiceTable", () => {
     ]);
     // Widths come from classes: the CSP refuses inline styles.
     expect(cols.some((col) => col.hasAttribute("style"))).toBe(false);
+  });
+
+  it("says under a total held at zero that the penalty outweighed the pay", () => {
+    render(<InvoiceTable rows={[{ ...FULL, penaltyAmount: 9000000, totalAmount: 0, floored: true }]} />);
+
+    expect(screen.getByText("Rp0")).toBeInTheDocument();
+    expect(screen.getByText("Penalti melebihi pembayaran")).toBeInTheDocument();
+  });
+
+  it("adds no remark to a total that was not held", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    expect(screen.queryByText("Penalti melebihi pembayaran")).not.toBeInTheDocument();
   });
 
   it("keeps the table's overflow inside its own scroll region", () => {
