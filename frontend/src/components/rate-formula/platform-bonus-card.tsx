@@ -2,8 +2,8 @@
 
 import { useId } from "react";
 import { Button } from "@/components/ui/button";
-import { FIELD, FIELD_ERROR, NUMERIC_INPUT } from "@/components/ui/form-classes";
-import { amountText, parseAmount } from "@/lib/amount";
+import { AmountInput } from "@/components/ui/amount-input";
+import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import {
   addTier,
   changeMetric,
@@ -141,23 +141,21 @@ function TierRow({
 
   return (
     <>
-      <input
-        {...NUMERIC_INPUT}
+      <AmountInput
         className={FIELD}
         aria-label={`${position} minimum ${metricName}`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
-        value={amountText(threshold)}
-        onChange={(event) => onThreshold(parseAmount(event.target.value))}
+        value={threshold}
+        onChange={onThreshold}
       />
-      <input
-        {...NUMERIC_INPUT}
+      <AmountInput
         className={FIELD}
         aria-label={`${position} bonus (Rp)`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
-        value={amountText(bonus)}
-        onChange={(event) => onBonus(parseAmount(event.target.value))}
+        value={bonus}
+        onChange={onBonus}
       />
       <button
         type="button"

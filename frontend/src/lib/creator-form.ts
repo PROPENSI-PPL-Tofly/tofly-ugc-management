@@ -1,7 +1,6 @@
 // Pure validation for the Add Creator form. Kept apart from the modal component so each
 // rule is testable without rendering anything, one RED/GREEN cycle at a time.
 
-import { amountProblem } from "./amount";
 import { getBufferWindow, getDeadlinePreview, type DeadlinePreview } from "./deadline-schedule";
 import { formatDate } from "./format";
 
@@ -155,6 +154,22 @@ function checkContractDates(
   }
 }
 
+/** The highest fixed rate POST /creators accepts (new-creator.ts MAX_FIXED_RATE). */
+export const MAX_FIXED_RATE = 10_000_000;
+
+/**
+ * What is wrong with a contract's fixed rate: filled in, a whole number, above Rp0 and at most
+ * MAX_FIXED_RATE. The same range the server checks, so the form never lets through a rate the
+ * server then refuses.
+ */
+function fixedRateProblem(value: number | null): string | undefined {
+  if (value === null) return "Fixed rate wajib diisi";
+  if (!Number.isInteger(value)) return "Fixed rate harus berupa angka bulat";
+  if (value <= 0) return "Fixed rate harus lebih dari 0";
+  if (value > MAX_FIXED_RATE) return "Fixed rate maksimal Rp10.000.000";
+  return undefined;
+}
+
 /**
  * Whether the schedule preview has what it needs: dates, interval and quota all without a
  * problem. Until then the calendar would draw a contract that cannot be saved anyway.
@@ -194,7 +209,7 @@ export function validateCreatorForm(
     errors.quota = `Jumlah konten maksimal ${MAX_CONTENT_QUOTA}`;
   }
 
-  const fixedRate = amountProblem(input.fixedRate, "Fixed rate");
+  const fixedRate = fixedRateProblem(input.fixedRate);
   if (fixedRate) errors.fixedRate = fixedRate;
 
   if (input.socialPlatform === "") {

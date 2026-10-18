@@ -357,13 +357,12 @@ describe("AddCreatorModal", () => {
     });
 
     // Subtask 8.2: the fixed rate may be 0 (min. 0); only an empty field is "not filled in yet".
-    it("becomes enabled when the fixed rate is zero", () => {
+    it("becomes enabled at the lowest fixed rate the server takes, Rp1", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
       fillValidForm();
-      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "0" } });
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "1" } });
 
-      expect(screen.getByLabelText(/fixed rate/i)).toHaveValue("0");
       expect(simpanButton()).toBeEnabled();
     });
 

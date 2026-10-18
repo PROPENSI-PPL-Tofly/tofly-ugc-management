@@ -156,6 +156,10 @@ export function tiersProblem(tiers: TierDraft[]): string | undefined {
     return "Minimum dan bonus harus lebih dari 0.";
   }
 
+  if (filled.some(({ threshold, bonus }) => Number.isNaN(threshold) || Number.isNaN(bonus))) {
+    return "Minimum dan bonus harus berupa angka bulat.";
+  }
+
   // Above 0 and whole already; what is left for amountProblem to catch is more than ten digits.
   if (filled.some(({ threshold, bonus }) => amountProblem(threshold, "") || amountProblem(bonus, ""))) {
     return "Angka terlalu besar.";

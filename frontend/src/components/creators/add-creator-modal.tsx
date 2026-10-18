@@ -32,7 +32,7 @@ import {
   toggleAutoDeadline,
   type SlotPicks,
 } from "@/lib/deadline-allocation";
-import { amountText, parseAmount } from "@/lib/amount";
+import { AmountInput } from "@/components/ui/amount-input";
 import { getBufferWindow } from "@/lib/deadline-schedule";
 import { formatDate } from "@/lib/format";
 import type { NewCreatorRequest } from "@/lib/creators";
@@ -360,13 +360,12 @@ export function AddCreatorModal({
               text: "Rate tetap untuk periode kontrak pertama creator ini. Tidak ada biaya default untuk tiap konten.",
             }}
           >
-            <input
-              {...NUMERIC_INPUT}
+            <AmountInput
               className={FIELD}
               required
               placeholder="mis. 5000000"
-              value={amountText(form.fixedRate)}
-              onChange={(event) => change("fixedRate", parseAmount(event.target.value))}
+              value={form.fixedRate}
+              onChange={(value) => change("fixedRate", value)}
               onBlur={() => markTouched("fixedRate")}
             />
           </Field>

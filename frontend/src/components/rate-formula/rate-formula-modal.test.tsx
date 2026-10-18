@@ -108,6 +108,7 @@ describe("RateFormulaModal", () => {
     setup();
 
     type("Bonus Specific (Rp)*", "123456789012");
+    fireEvent.blur(screen.getByLabelText("Bonus Specific (Rp)*"));
 
     expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("123456789012");
     expect(screen.getByText("Bonus Specific maksimal 10 digit")).toBeInTheDocument();
@@ -118,6 +119,7 @@ describe("RateFormulaModal", () => {
     setup();
 
     type("Penalti per Hari (Rp)*", "-5");
+    fireEvent.blur(screen.getByLabelText("Penalti per Hari (Rp)*"));
 
     expect(screen.getByLabelText("Penalti per Hari (Rp)*")).toHaveValue("-5");
     expect(screen.getByText("Penalti per hari harus berupa angka bulat")).toBeInTheDocument();
