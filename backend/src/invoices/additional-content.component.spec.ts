@@ -39,7 +39,7 @@ describe('AdditionalContentComponent', () => {
     });
   });
 
-  it('pays Rp0 for a Specific item handed in late (for now, to be confirmed)', () => {
+  it('pays Rp0 for a Specific item handed in late (for now, to be confirmed), and still lists it so the Rp0 can be traced', () => {
     const result = component.calculate(
       context({
         contents: [
@@ -49,7 +49,31 @@ describe('AdditionalContentComponent', () => {
     );
 
     expect(result.amount).toBe(0);
-    expect(result.lines).toEqual([]);
+    expect(result.lines).toEqual([
+      {
+        contentId: expect.any(String),
+        contentName: expect.any(String),
+        amount: 0,
+        basis: { fee: 100_000, late: 'yes' },
+      },
+    ]);
+  });
+
+  it('lists a late item beside an on-time one, adding only the on-time fee', () => {
+    const result = component.calculate(
+      context({
+        contents: [
+          specific({ id: 'late', status: 'link_submitted', videoSubmittedAt: day(-4) }),
+          specific({ id: 'on-time', status: 'link_submitted', videoSubmittedAt: day(-6) }),
+        ],
+      }),
+    );
+
+    expect(result.amount).toBe(100_000);
+    expect(result.lines.map((line) => [line.contentId, line.amount])).toEqual([
+      ['late', 0],
+      ['on-time', 100_000],
+    ]);
   });
 
   it('pays nothing for Specific content not delivered yet', () => {
