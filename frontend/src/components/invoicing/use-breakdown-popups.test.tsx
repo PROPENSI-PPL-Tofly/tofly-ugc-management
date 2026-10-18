@@ -32,18 +32,29 @@ vi.mock("@/components/content-detail/content-detail-panel", () => ({
 // The real loader is a server action; the popups only need something that answers a creator.
 vi.mock("@/lib/invoice-breakdown.server", () => ({ loadInvoiceBreakdown: vi.fn() }));
 
+// The two invoice moves are server actions; the popups only need one that says yes.
+vi.mock("@/lib/invoice-actions.server", () => ({
+  addInvoiceAdjustment: vi.fn().mockResolvedValue({ ok: true }),
+  finalizeInvoice: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
 function rowOf(creatorId: string, creatorName: string): InvoiceRow {
   return {
     creatorId,
     creatorName,
+    contractId: "11111111-1111-4111-8111-111111111111",
     contractStatus: "active",
+    contractEnd: "2026-12-31",
     fixedAmount: 1000000,
     extraAmount: 1000000,
     bonusAmount: null,
     penaltyAmount: 150000,
     totalAmount: 0,
     floored: false,
+    dataWaiting: true,
     invoiceStatus: "accruing",
+    adjustments: [],
+    frozenAt: null,
   };
 }
 
@@ -396,8 +407,11 @@ describe("useBreakdownPopups after the table is read again", () => {
   });
 
   describe("the whole invoice (Rincian)", () => {
-    function Whole({ load }: Readonly<{ load: BreakdownLoader }>) {
-      const { open, layers } = useBreakdownPopups({ load });
+    function Whole({
+      load,
+      onDecided,
+    }: Readonly<{ load: BreakdownLoader; onDecided?: () => void }>) {
+      const { open, layers } = useBreakdownPopups({ load, onDecided });
       return (
         <>
           <button type="button" onClick={() => open("all", RANGGA_ROW)}>
@@ -439,6 +453,33 @@ describe("useBreakdownPopups after the table is read again", () => {
 
       expect(await screen.findByRole("region", { name: "Penalti" })).toBeInTheDocument();
       expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it("puts the two invoice moves beside Tutup (PBI-12)", async () => {
+      render(<Whole load={answering()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+
+      expect(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
+    });
+
+    it("closes the layers and reads the invoices again when a move is taken", async () => {
+      const onDecided = vi.fn();
+      render(<Whole load={answering()} onDecided={onDecided} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+      fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
+      fireEvent.change(screen.getByRole("textbox", { name: "Nominal (Rp)" }), {
+        target: { value: "200000" },
+      });
+      fireEvent.change(screen.getByRole("textbox", { name: "Alasan" }), {
+        target: { value: "Koreksi" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+      await vi.waitFor(() => expect(onDecided).toHaveBeenCalled());
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     it("opens a content from the panel and comes back to the panel when it closes", async () => {

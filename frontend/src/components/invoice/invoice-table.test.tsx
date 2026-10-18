@@ -13,6 +13,11 @@ const FULL: InvoiceRow = {
   totalAmount: 5800000,
   floored: false,
   invoiceStatus: "accruing",
+  contractId: "11111111-1111-4111-8111-111111111111",
+  contractEnd: "2026-12-31",
+  adjustments: [],
+  frozenAt: null,
+  dataWaiting: false,
 };
 
 const ZEROS: InvoiceRow = {
@@ -39,6 +44,11 @@ const WAITING: InvoiceRow = {
   totalAmount: 4500000,
   floored: false,
   invoiceStatus: "finalized",
+  contractId: "11111111-1111-4111-8111-111111111111",
+  contractEnd: "2026-12-31",
+  adjustments: [],
+  frozenAt: "2026-10-18T03:00:00.000Z",
+  dataWaiting: false,
 };
 
 describe("InvoiceTable", () => {

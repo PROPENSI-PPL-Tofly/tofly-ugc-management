@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
+import { formatTimestamp } from "@/lib/format";
 import type { InvoiceRow } from "@/lib/invoice";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { InvoiceRincian } from "./invoice-rincian";
@@ -7,14 +8,19 @@ import { InvoiceRincian } from "./invoice-rincian";
 const ROW: InvoiceRow = {
   creatorId: "creator-adit",
   creatorName: "Adit Prakoso",
+  contractId: "11111111-1111-4111-8111-111111111111",
   contractStatus: "expired",
+  contractEnd: "2026-08-29",
   fixedAmount: 400000,
   extraAmount: 100000,
   bonusAmount: null,
   penaltyAmount: 150000,
   totalAmount: 350000,
   floored: false,
+  dataWaiting: true,
   invoiceStatus: "accruing",
+  adjustments: [],
+  frozenAt: null,
 };
 
 const BREAKDOWN: InvoiceBreakdown = {
@@ -114,6 +120,47 @@ describe("InvoiceRincian", () => {
 
     expect(screen.getByRole("button", { name: "Finalize" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
+  });
+
+  it("lists each manual adjustment with its reason, its moment and what it moved", () => {
+    setup({
+      row: {
+        ...ROW,
+        adjustments: [
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            amount: -75000,
+            reason: "Koreksi kelebihan tagihan",
+            createdAt: "2026-10-18T03:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByRole("region", { name: "Penyesuaian manual" })).toBeInTheDocument();
+    expect(screen.getByText("Koreksi kelebihan tagihan")).toBeInTheDocument();
+    expect(screen.getByText(formatTimestamp("2026-10-18T03:00:00.000Z"))).toBeInTheDocument();
+    expect(screen.getByText("-Rp75.000")).toBeInTheDocument();
+  });
+
+  it("marks a frozen invoice with the prototype's Final word", () => {
+    setup({
+      row: {
+        ...ROW,
+        invoiceStatus: "finalized",
+        frozenAt: "2026-10-18T03:00:00.000Z",
+      },
+    });
+
+    expect(screen.getByText("Final")).toBeInTheDocument();
+    expect(screen.queryByText("Berjalan")).not.toBeInTheDocument();
+  });
+
+  it("keeps adjustments and the Final word out of the panel while there are none", () => {
+    setup();
+
+    expect(screen.queryByRole("region", { name: "Penyesuaian manual" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Final")).not.toBeInTheDocument();
   });
 
   it("closes with Tutup", () => {

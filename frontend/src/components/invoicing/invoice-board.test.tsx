@@ -35,6 +35,11 @@ const ROW: InvoiceRow = {
   totalAmount: 0,
   floored: false,
   invoiceStatus: "accruing",
+  contractId: "11111111-1111-4111-8111-111111111111",
+  contractEnd: "2026-12-31",
+  adjustments: [],
+  frozenAt: null,
+  dataWaiting: false,
 };
 
 const BREAKDOWN: InvoiceBreakdown = {
