@@ -4,9 +4,10 @@ import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   InvoiceDetail,
+  InvoiceListItem,
   InvoiceListResponse,
 } from './dto/invoice-list.dto.js';
-import { hasInvoiceFilters, type InvoiceFilters } from './invoice-filters.js';
+import type { InvoiceFilters } from './invoice-filters.js';
 import {
   CONTENT_SELECT,
   creatorName,
@@ -19,6 +20,11 @@ import {
   pickContract,
   toInvoiceItem,
 } from './invoice-rows.js';
+import {
+  DEFAULT_INVOICE_SORT,
+  type InvoiceSort,
+  sortInvoices,
+} from './invoice-sort.js';
 import {
   INVOICE_STATUS_SOURCE,
   type InvoiceStatusSource,
@@ -34,7 +40,14 @@ export interface InvoiceLister {
     paging: Paging,
     today?: Date,
     filters?: InvoiceFilters,
+    sort?: InvoiceSort,
   ): Promise<InvoiceListResponse>;
+  /** Every invoice the filters keep, in the asked order, for the CSV export. */
+  exportAll(
+    today?: Date,
+    filters?: InvoiceFilters,
+    sort?: InvoiceSort,
+  ): Promise<InvoiceListItem[]>;
 }
 
 /** What the breakdown popups need from the service: one creator's invoice, or null. */
@@ -59,12 +72,12 @@ interface PickedCreator {
   contract: InvoiceContractRow;
 }
 
-/** One page of the listing before its content is loaded. */
-interface PickedPage {
-  picked: PickedCreator[];
-  page: number;
-  total: number;
-  totalPages: number;
+/** Every invoice the filters keep, sorted, with what the page says about all of them. */
+interface Calculated {
+  items: InvoiceListItem[];
+  /** Running invoices across the whole roster: what a formula change would reach. */
+  runningInvoices: number;
+  formulaSet: boolean;
 }
 
 function pick(rows: InvoiceCreatorRow[], today: Date): PickedCreator[] {
@@ -102,14 +115,11 @@ function clampPage(asked: number, pageSize: number, total: number) {
 }
 
 /**
- * Loads one page of creators, then the content of the one contract per creator the table
- * describes, and leaves the arithmetic to invoice-rows and the calculator. The formula comes
- * through RateFormulaSource.
- *
- * Without filters the page is cut in the database. A filter reads the contract's status,
- * which is worked out from its dates rather than stored, so with one the creators and their
- * contracts (no content) are read whole, filtered and paged here, the way the Creator
- * Database filters; content is still loaded for the page alone. Where each invoice stands comes
+ * Reads the creators and their contracts whole, keeps the ones the filters ask for, calculates
+ * every one of their invoices, then sorts and pages. Sorting by an amount, and adding up what the
+ * period owes, both need every invoice worked out, so nothing is cut in the database; the roster
+ * is a team's creators, not a table that grows without end. The arithmetic stays in invoice-rows
+ * and the calculator; the formula comes through RateFormulaSource and where each invoice stands
  * through InvoiceStatusSource.
  */
 @Injectable()
@@ -125,37 +135,35 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     { page: asked, pageSize }: Paging,
     today = new Date(),
     filters: InvoiceFilters = {},
+    sort: InvoiceSort = DEFAULT_INVOICE_SORT,
   ): Promise<InvoiceListResponse> {
-    const [{ picked, page, total, totalPages }, formula] = await Promise.all([
-      hasInvoiceFilters(filters)
-        ? this.filteredPage(asked, pageSize, today, filters)
-        : this.page(asked, pageSize, today),
-      this.formulas.current(),
-    ]);
-
-    const ids = picked.map(({ contract }) => contract.id);
-    const [byContract, statuses] = await Promise.all([
-      this.contentsOf(ids),
-      this.pipeline.statuses(ids),
-    ]);
+    const { items, runningInvoices, formulaSet } = await this.calculate(
+      today,
+      filters,
+      sort,
+    );
+    const { page, totalPages } = clampPage(asked, pageSize, items.length);
 
     return {
-      items: picked.map(({ row, contract }) => ({
-        ...toInvoiceItem(
-          row,
-          contract,
-          byContract.get(contract.id) ?? [],
-          formula,
-          today,
-        ),
-        // The pipeline answers for every contract it is asked about.
-        invoiceStatus: statuses.get(contract.id)!,
-      })),
+      items: items.slice((page - 1) * pageSize, page * pageSize),
       page,
       pageSize,
-      total,
+      total: items.length,
       totalPages,
+      summary: {
+        total: items.reduce((sum, item) => sum + item.total, 0),
+        runningInvoices,
+        formulaSet,
+      },
     };
+  }
+
+  async exportAll(
+    today = new Date(),
+    filters: InvoiceFilters = {},
+    sort: InvoiceSort = DEFAULT_INVOICE_SORT,
+  ): Promise<InvoiceListItem[]> {
+    return (await this.calculate(today, filters, sort)).items;
   }
 
   async detail(
@@ -189,6 +197,54 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     };
   }
 
+  private async calculate(
+    today: Date,
+    filters: InvoiceFilters,
+    sort: InvoiceSort,
+  ): Promise<Calculated> {
+    const [rows, formula] = await Promise.all([
+      this.prisma.creators.findMany({
+        where: HAS_CONTRACT,
+        select: INVOICE_SELECT,
+        orderBy: ORDER_BY,
+      }),
+      this.formulas.current(),
+    ]);
+    const everyone = pick(rows, today);
+    const statuses = await this.pipeline.statuses(
+      everyone.map(({ contract }) => contract.id),
+    );
+
+    const kept = everyone.filter(
+      (creator) =>
+        matches(creator, filters, today) &&
+        (!filters.status ||
+          statuses.get(creator.contract.id) === filters.status),
+    );
+    const byContract = await this.contentsOf(
+      kept.map(({ contract }) => contract.id),
+    );
+    const items = kept.map(({ row, contract }) => ({
+      ...toInvoiceItem(
+        row,
+        contract,
+        byContract.get(contract.id) ?? [],
+        formula,
+        today,
+      ),
+      // The pipeline answers for every contract it is asked about.
+      invoiceStatus: statuses.get(contract.id)!,
+    }));
+
+    return {
+      items: sortInvoices(items, sort),
+      runningInvoices: [...statuses.values()].filter(
+        (status) => status === 'accruing',
+      ).length,
+      formulaSet: formula !== null,
+    };
+  }
+
   /** The content of each contract asked about, by contract, in deadline order. */
   private async contentsOf(
     contractIds: string[],
@@ -205,53 +261,5 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       byContract.set(content.contract_id, list);
     }
     return byContract;
-  }
-
-  private async page(
-    asked: number,
-    pageSize: number,
-    today: Date,
-  ): Promise<PickedPage> {
-    const total = await this.prisma.creators.count({ where: HAS_CONTRACT });
-    const { page, totalPages } = clampPage(asked, pageSize, total);
-    const rows = await this.prisma.creators.findMany({
-      where: HAS_CONTRACT,
-      select: INVOICE_SELECT,
-      orderBy: ORDER_BY,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    });
-    return { picked: pick(rows, today), page, total, totalPages };
-  }
-
-  private async filteredPage(
-    asked: number,
-    pageSize: number,
-    today: Date,
-    filters: InvoiceFilters,
-  ): Promise<PickedPage> {
-    const rows = await this.prisma.creators.findMany({
-      where: HAS_CONTRACT,
-      select: INVOICE_SELECT,
-      orderBy: ORDER_BY,
-    });
-    let matched = pick(rows, today).filter((creator) =>
-      matches(creator, filters, today),
-    );
-    if (filters.status) {
-      const statuses = await this.pipeline.statuses(
-        matched.map(({ contract }) => contract.id),
-      );
-      matched = matched.filter(
-        ({ contract }) => statuses.get(contract.id) === filters.status,
-      );
-    }
-    const { page, totalPages } = clampPage(asked, pageSize, matched.length);
-    return {
-      picked: matched.slice((page - 1) * pageSize, page * pageSize),
-      page,
-      total: matched.length,
-      totalPages,
-    };
   }
 }

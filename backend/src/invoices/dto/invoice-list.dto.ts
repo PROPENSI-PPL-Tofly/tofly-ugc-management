@@ -52,10 +52,21 @@ export interface InvoiceDetail extends InvoiceListItem {
   formula: RateFormula | null;
 }
 
+/** What the page says about every invoice, not only the ones on the page. */
+export interface InvoiceListSummary {
+  /** What every invoice the filters keep adds up to, across all pages. */
+  total: number;
+  /** Running invoices across the whole roster, whatever the filters: what a formula change reaches. */
+  runningInvoices: number;
+  /** Whether an admin has saved a rate formula yet. */
+  formulaSet: boolean;
+}
+
 export interface InvoiceListResponse {
   items: InvoiceListItem[];
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
+  summary: InvoiceListSummary;
 }

@@ -4,6 +4,7 @@ import {
   type ComponentResult,
   type InvoiceComponent,
   type InvoiceContext,
+  type InvoiceLine,
   waitingForData,
 } from './invoice-component.js';
 
@@ -28,7 +29,7 @@ export class AdditionalContentComponent implements InvoiceComponent {
 
     return calculated(
       this.key,
-      delivered.map((content) =>
+      delivered.map((content): InvoiceLine =>
         onTime(content.deadline, content.videoSubmittedAt)
           ? {
               contentId: content.id,

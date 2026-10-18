@@ -66,12 +66,3 @@ export function checkInvoiceFilters(
 
   return filters;
 }
-
-/** Whether any filter is set, so the service can page in the database when none is. */
-export function hasInvoiceFilters(filters: InvoiceFilters): boolean {
-  return (
-    filters.q !== undefined ||
-    filters.contract !== undefined ||
-    filters.status !== undefined
-  );
-}
