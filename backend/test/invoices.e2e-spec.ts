@@ -402,10 +402,19 @@ describe('Invoices API (e2e)', () => {
   });
 
   it('rejects an id that is not a UUID before reading the database', async () => {
-    await admin.get('/invoices/not-a-uuid').expect(400);
-    await admin
+    const plain = await admin.get('/invoices/not-a-uuid').expect(400);
+    const injection = await admin
       .get(`/invoices/${encodeURIComponent("1' or '1'='1")}`)
       .expect(400);
+
+    // ParseUUIDPipe refuses both ids, so no lookup runs and no invoice is answered.
+    for (const response of [plain, injection]) {
+      expect(response.body).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'Validation failed (uuid is expected)',
+      });
+    }
   });
 
   it('refuses a creator access to their own invoice', async () => {
