@@ -111,6 +111,7 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
     bonusAmount: performanceBonus.amount,
     penaltyAmount: penalty.amount ?? 0,
     totalAmount: raw.total,
+    floored: raw.floored,
     invoiceStatus: raw.invoiceStatus,
   };
 }

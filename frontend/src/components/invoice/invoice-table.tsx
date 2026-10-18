@@ -72,7 +72,16 @@ function bonusCell(row: InvoiceRow) {
 
 function finalCell(row: InvoiceRow) {
   // The backend's running total; while the bonus waits the Bonus cell says so beside it.
-  return <strong>{finalLabel(row)}</strong>;
+  return (
+    <>
+      <strong>{finalLabel(row)}</strong>
+      {row.floored ? (
+        <span className="mt-1 block whitespace-normal text-xs text-red-ink">
+          Penalti melebihi pembayaran
+        </span>
+      ) : null}
+    </>
+  );
 }
 
 /**

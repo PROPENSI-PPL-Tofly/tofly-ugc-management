@@ -65,6 +65,8 @@ export interface InvoiceRow {
    * outweighs the pay, with a bonus still waiting for data counted as nothing yet.
    */
   totalAmount: number;
+  /** True when the penalty outweighed the pay and the backend held the total at zero. */
+  floored: boolean;
   invoiceStatus: InvoiceStatus;
 }
 
@@ -144,5 +146,6 @@ export function penaltyLabel(amount: number): string {
  * While the bonus waits for its data the total runs without it; the Bonus cell says so.
  */
 export function finalLabel(row: InvoiceRow): string {
-  return amountLabel(row.totalAmount);
+  // A total the penalty used up is a real Rp0, not "nothing billed": it reads as an amount.
+  return row.floored ? formatRupiah(0) : amountLabel(row.totalAmount);
 }

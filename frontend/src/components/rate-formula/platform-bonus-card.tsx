@@ -42,7 +42,7 @@ export function PlatformBonusCard({
   const atLimit = value.tiers.length >= MAX_TIERS;
 
   return (
-    <div role="group" aria-label={`Bonus performa ${platformName}`} className="rounded-(--radius-panel) border border-rule p-4">
+    <div role="group" aria-label={`Bonus performa ${platformName}`} className="rounded-(--radius-panel) border border-rule p-4 max-sm:p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold">{platformName}</h3>
         <label htmlFor={metricId} className="flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-[13px] text-muted focus-within:outline-2 focus-within:outline-focus">
@@ -142,7 +142,7 @@ function TierRow({
   return (
     <>
       <AmountInput
-        className={`${FIELD} min-w-0`}
+        className={`${FIELD} min-w-0 max-sm:px-2`}
         aria-label={`${position} minimum ${metricName}`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
@@ -150,7 +150,7 @@ function TierRow({
         onChange={onThreshold}
       />
       <AmountInput
-        className={`${FIELD} min-w-0`}
+        className={`${FIELD} min-w-0 max-sm:px-2`}
         aria-label={`${position} bonus (Rp)`}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={errorId}
