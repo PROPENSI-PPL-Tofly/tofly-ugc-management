@@ -252,7 +252,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       ),
       invoiceStatus: statuses.get(contract.id)!,
       periodNumber: periodNumber(row, contract),
-      formula,
+      // A finalized invoice keeps the rules its saved totals were worked out with.
+      formula: lifecycle?.snapshot
+        ? (lifecycle.snapshot.formula ?? null)
+        : formula,
     };
   }
 
@@ -570,6 +573,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
           adjustments,
           ...adjustedTotals(breakdown.rawTotal, sumAdjustments(adjustments)),
           finalizedAt: today.toISOString(),
+          formula,
         };
 
         const updated = await tx.invoices.updateMany({

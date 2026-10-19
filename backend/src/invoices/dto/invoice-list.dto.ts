@@ -41,6 +41,11 @@ export interface InvoiceSnapshotDto {
   total: number;
   floored: boolean;
   finalizedAt: string;
+  /**
+   * The formula the breakdown was calculated with, null if none was saved then. Absent from a
+   * snapshot saved before the formula was kept with it.
+   */
+  formula?: RateFormula | null;
 }
 
 /** Calculation result before the invoice pipeline assigns its status. */
@@ -71,6 +76,10 @@ export interface InvoiceListItem extends CalculatedInvoice {
  */
 export interface InvoiceDetail extends InvoiceListItem {
   periodNumber: number;
+  /**
+   * The current formula while the invoice is calculated live; once finalized, the one saved with
+   * its snapshot, or null when that snapshot predates keeping it.
+   */
   formula: RateFormula | null;
 }
 

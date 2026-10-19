@@ -205,7 +205,10 @@ function isSnapshot(value: unknown): value is InvoiceSnapshotDto {
     typeof value.rawTotal === 'number' &&
     typeof value.total === 'number' &&
     typeof value.floored === 'boolean' &&
-    typeof value.finalizedAt === 'string'
+    typeof value.finalizedAt === 'string' &&
+    (value.formula === undefined ||
+      value.formula === null ||
+      isRecord(value.formula))
   );
 }
 
