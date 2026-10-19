@@ -1,10 +1,29 @@
 import { ConflictException } from '@nestjs/common';
 import {
+  CreatorAckedInvoiceState,
   FinalizedInvoiceState,
   invoiceState,
   type InvoiceLifecycleStatus,
+  PaidInvoiceState,
+  PaymentUploadedInvoiceState,
   RunningInvoiceState,
 } from './invoice-lifecycle.js';
+
+function refusalOf(run: () => void): unknown {
+  try {
+    run();
+  } catch (error) {
+    expect(error).toBeInstanceOf(ConflictException);
+    return (error as ConflictException).getResponse();
+  }
+  return expect.unreachable('the state must refuse the operation');
+}
+
+const NOT_AWAITING_PROOF = {
+  code: 'INVOICE_NOT_AWAITING_PROOF',
+  message:
+    'Bukti pembayaran hanya bisa diunggah setelah creator meng-acknowledge invoice',
+};
 
 describe('RunningInvoiceState', () => {
   it('lets an adjustment and a finalize go on to their business-rule checks', () => {
@@ -13,41 +32,67 @@ describe('RunningInvoiceState', () => {
     expect(() => state.assertCanAdjust()).not.toThrow();
     expect(() => state.assertCanFinalize()).not.toThrow();
   });
+
+  it('refuses a payment proof: nothing has been finalized or acknowledged yet', () => {
+    expect(
+      refusalOf(() => new RunningInvoiceState().assertCanUploadProof()),
+    ).toEqual(NOT_AWAITING_PROOF);
+  });
 });
 
-// OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a finalized invoice stays as finalized.
-describe('FinalizedInvoiceState', () => {
+// OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a finalized invoice stays as
+// finalized, through every step after it.
+describe.each([
+  ['FinalizedInvoiceState', () => new FinalizedInvoiceState()],
+  ['CreatorAckedInvoiceState', () => new CreatorAckedInvoiceState()],
+  ['PaymentUploadedInvoiceState', () => new PaymentUploadedInvoiceState()],
+  ['PaidInvoiceState', () => new PaidInvoiceState()],
+])('%s', (_name, make) => {
   it.each(['assertCanAdjust', 'assertCanFinalize'] as const)(
     'rejects %s with the INVOICE_FINALIZED conflict',
     (operation) => {
-      const state = new FinalizedInvoiceState();
-
-      try {
-        state[operation]();
-        expect.unreachable('a finalized invoice must reject the operation');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ConflictException);
-        expect((error as ConflictException).getResponse()).toEqual({
-          code: 'INVOICE_FINALIZED',
-          message: 'Invoice sudah difinalisasi',
-        });
-      }
+      expect(refusalOf(() => make()[operation]())).toEqual({
+        code: 'INVOICE_FINALIZED',
+        message: 'Invoice sudah difinalisasi',
+      });
     },
   );
 });
 
-describe('invoiceState', () => {
-  it('resolves the running state from the persisted running status', () => {
-    expect(invoiceState('running')).toBeInstanceOf(RunningInvoiceState);
+// OWASP Top 10:2025 A06 (Insecure Design): the proof is taken at exactly one step, after the
+// creator accepted the amount and before anyone said it was paid.
+describe('assertCanUploadProof', () => {
+  it('lets a proof go on once the creator has acknowledged the invoice', () => {
+    expect(() =>
+      new CreatorAckedInvoiceState().assertCanUploadProof(),
+    ).not.toThrow();
   });
 
-  it('resolves the finalized state from the persisted finalized status', () => {
-    expect(invoiceState('finalized')).toBeInstanceOf(FinalizedInvoiceState);
+  it.each([
+    ['finalized, not yet acknowledged', () => new FinalizedInvoiceState()],
+    ['already holding a proof', () => new PaymentUploadedInvoiceState()],
+    ['already paid', () => new PaidInvoiceState()],
+  ])('refuses a proof for an invoice %s', (_case, make) => {
+    expect(refusalOf(() => make().assertCanUploadProof())).toEqual(
+      NOT_AWAITING_PROOF,
+    );
+  });
+});
+
+describe('invoiceState', () => {
+  it.each([
+    ['running', RunningInvoiceState],
+    ['finalized', FinalizedInvoiceState],
+    ['creator_acked', CreatorAckedInvoiceState],
+    ['payment_uploaded', PaymentUploadedInvoiceState],
+    ['paid', PaidInvoiceState],
+  ] as const)('resolves the %s status to its state', (status, State) => {
+    expect(invoiceState(status)).toBeInstanceOf(State);
   });
 
   // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): an unknown status fails closed.
   it('fails closed on a status the lifecycle does not know', () => {
-    expect(() => invoiceState('paid' as InvoiceLifecycleStatus)).toThrow(
+    expect(() => invoiceState('archived' as InvoiceLifecycleStatus)).toThrow(
       'Unsupported invoice status',
     );
   });
@@ -61,7 +106,10 @@ describe('pipelineStatus', () => {
     expect(invoiceState('running').pipelineStatus).toBe('accruing');
   });
 
-  it('reads a finalized invoice as finalized', () => {
-    expect(invoiceState('finalized').pipelineStatus).toBe('finalized');
-  });
+  it.each(['finalized', 'creator_acked', 'payment_uploaded', 'paid'] as const)(
+    'reads a %s invoice under the same name',
+    (status) => {
+      expect(invoiceState(status).pipelineStatus).toBe(status);
+    },
+  );
 });
