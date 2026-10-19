@@ -1,9 +1,12 @@
 import {
+  COMMENT_MAX_LENGTH,
   creatorNextStep,
   currentAndHistory,
+  invoiceActivity,
   invoiceSteps,
   totalLabel,
   totalNote,
+  validateComment,
   type CreatorInvoice,
 } from "./creator-invoice";
 import { aCreatorInvoice, NONE_REACHED } from "./creator-invoice.builder";
@@ -171,5 +174,100 @@ describe("currentAndHistory", () => {
     currentAndHistory(list);
 
     expect(list.map((item) => item.periodNumber)).toEqual([1, 2]);
+  });
+});
+
+describe("validateComment", () => {
+  it("accepts a comment with something to say", () => {
+    expect(validateComment("Sudah saya cek, terima kasih.")).toBeNull();
+  });
+
+  it.each(["", "   ", "\n\t "])("refuses a comment with nothing in it (%j)", (text) => {
+    expect(validateComment(text)).toBe("Komentar wajib diisi");
+  });
+
+  it("accepts exactly 500 characters, the limit", () => {
+    expect(validateComment("a".repeat(COMMENT_MAX_LENGTH))).toBeNull();
+  });
+
+  it("refuses 501 characters, one past the limit", () => {
+    expect(validateComment("a".repeat(COMMENT_MAX_LENGTH + 1))).toBe("Komentar maksimal 500 karakter");
+  });
+
+  it("counts the comment as it will be sent, without the spaces around it", () => {
+    expect(validateComment(`  ${"a".repeat(COMMENT_MAX_LENGTH)}  `)).toBeNull();
+  });
+});
+
+describe("invoiceActivity", () => {
+  const COMMENT = {
+    id: "c-1",
+    authorName: "Rangga Pratama",
+    authorRole: "creator" as const,
+    text: "Sudah saya cek.",
+    createdAt: "2026-12-02T05:00:00Z",
+  };
+
+  it("has nothing to show on an invoice nobody has moved or written on", () => {
+    expect(invoiceActivity(invoice())).toEqual([]);
+  });
+
+  it("words each step the invoice reached from the creator's side", () => {
+    const entries = invoiceActivity(
+      invoice({
+        status: "paid",
+        reachedAt: {
+          finalized: "2026-12-01T02:00:00Z",
+          creator_acked: "2026-12-02T02:00:00Z",
+          payment_uploaded: "2026-12-04T02:00:00Z",
+          paid: "2026-12-05T02:00:00Z",
+        },
+      }),
+    );
+
+    expect(entries.map((entry) => entry.text)).toEqual([
+      "Invoice difinalisasi Admin",
+      "Kamu meng-acknowledge invoice",
+      "Admin mengirim bukti bayar",
+      "Kamu mengonfirmasi pembayaran diterima",
+    ]);
+    expect(entries.every((entry) => entry.kind === "event")).toBe(true);
+  });
+
+  it("weaves the comments in among the steps, oldest first", () => {
+    const entries = invoiceActivity(
+      invoice({
+        status: "creator_acked",
+        reachedAt: { ...NONE_REACHED, finalized: "2026-12-01T02:00:00Z", creator_acked: "2026-12-03T02:00:00Z" },
+        comments: [COMMENT],
+      }),
+    );
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["event", "comment", "event"]);
+  });
+
+  it("puts a step before a comment written at the same moment", () => {
+    const at = "2026-12-01T02:00:00Z";
+    const entries = invoiceActivity(
+      invoice({ status: "finalized", reachedAt: { ...NONE_REACHED, finalized: at }, comments: [{ ...COMMENT, createdAt: at }] }),
+    );
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["event", "comment"]);
+  });
+
+  it("names an admin's comment Admin, never by person, and a creator's by their name", () => {
+    const entries = invoiceActivity(
+      invoice({
+        comments: [
+          { ...COMMENT, id: "c-1", authorRole: "admin", authorName: "Budi (admin)" },
+          { ...COMMENT, id: "c-2", createdAt: "2026-12-03T05:00:00Z" },
+        ],
+      }),
+    );
+
+    expect(entries.map((entry) => (entry.kind === "comment" ? entry.author : null))).toEqual([
+      "Admin",
+      "Rangga Pratama",
+    ]);
   });
 });
