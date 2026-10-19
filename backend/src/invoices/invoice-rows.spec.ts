@@ -125,6 +125,7 @@ describe('toInvoiceItem', () => {
         status: 'active',
         startDate: '2026-07-20',
         endDate: '2026-11-17',
+        lastDay: '2026-11-17',
       },
       rawTotal: 5_470_000,
       total: 5_470_000,
@@ -161,6 +162,36 @@ describe('toInvoiceItem', () => {
     );
 
     expect(item.components.penalty.lines[0].basis.daysLate).toBe(1);
+  });
+
+  // An early end moves the day the contract stops, not its end date: the period still reads as
+  // agreed, and lastDay is what finalizing waits for.
+  it('gives the day access was revoked as the last day of a contract that ended early', () => {
+    const item = toInvoiceItem(
+      creatorRow({ access_revoke_date: day(-11) }),
+      contractRow(),
+      [],
+      FORMULA,
+      TODAY,
+    );
+
+    expect(item.contract).toMatchObject({
+      endDate: '2026-11-17',
+      lastDay: '2026-09-07',
+    });
+  });
+
+  it('keeps the end date as the last day when access is revoked after it', () => {
+    const ended = contractRow({ start_date: day(-60), end_date: day(-5) });
+    const item = toInvoiceItem(
+      creatorRow({ access_revoke_date: day(-1), contracts: [ended] }),
+      ended,
+      [],
+      FORMULA,
+      TODAY,
+    );
+
+    expect(item.contract.lastDay).toBe('2026-09-13');
   });
 
   it('pays the fixed rate and waits on the rest while no formula is saved', () => {

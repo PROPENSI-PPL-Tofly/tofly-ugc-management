@@ -1042,6 +1042,37 @@ describe('InvoicesService', () => {
       expect(prisma.invoices.upsert).not.toHaveBeenCalled();
     });
 
+    // A contract that ends early stops on the day access was revoked; its end date stays as
+    // agreed, so the gate reads the last day the calculator counts, not end_date.
+    it('finalizes a contract that ended early once the day after access was revoked has begun', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({
+          end_date: day(30),
+          creators: { access_revoke_date: day(-1) },
+        }),
+      );
+
+      const result = await service.finalize('contract-1', TODAY);
+
+      expect(result.invoiceStatus).toBe('finalized');
+      expect(prisma.invoices.updateMany).toHaveBeenCalled();
+    });
+
+    // OWASP Top 10:2025 A06 (Insecure Design): an early end waits for the day after the revocation.
+    it('refuses a contract ended early whose access was revoked today in Jakarta', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({
+          end_date: day(30),
+          creators: { access_revoke_date: day(0) },
+        }),
+      );
+
+      const error = await rejection(service.finalize('contract-1', TODAY));
+
+      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_ENDED' } });
+      expect(prisma.invoices.upsert).not.toHaveBeenCalled();
+    });
+
     it('refuses a second finalize through the finalized state', async () => {
       prisma.invoices.upsert.mockResolvedValue({
         id: 'invoice-1',
