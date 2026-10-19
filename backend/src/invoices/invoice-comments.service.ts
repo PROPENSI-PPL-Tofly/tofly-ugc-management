@@ -22,10 +22,12 @@ export interface InvoiceCommentDto {
   createdAt: string;
 }
 
-/** Who writes: the session's principal, never anything the body sent. */
+/**
+ * Who writes, from the guard, never from the body. A creator is named by their creator id alone:
+ * only the contract's own creator can write on it, so their user is read from the contract.
+ */
 export type CommentAuthor =
-  | { role: 'admin'; userId: string }
-  | { role: 'creator'; userId: string; creatorId: string };
+  { role: 'admin'; userId: string } | { role: 'creator'; creatorId: string };
 
 /** Batched read of threads, for a listing that embeds them (13.1's GET /me/invoices). */
 export interface InvoiceCommentReader {
@@ -128,7 +130,10 @@ export class InvoiceCommentsService implements InvoiceCommentReader {
         contractId,
         author.role === 'creator' ? author.creatorId : undefined,
       ),
-      select: { id: true, creators: { select: NAME_SELECT } },
+      select: {
+        id: true,
+        creators: { select: { ...NAME_SELECT, user_id: true } },
+      },
     });
     if (!contract) throw invoiceNotFound();
 
@@ -142,7 +147,8 @@ export class InvoiceCommentsService implements InvoiceCommentReader {
     const saved = await this.prisma.invoice_comments.create({
       data: {
         invoice_id: invoice.id,
-        author_user_id: author.userId,
+        author_user_id:
+          author.role === 'admin' ? author.userId : contract.creators.user_id,
         author_role: author.role,
         text,
       },
