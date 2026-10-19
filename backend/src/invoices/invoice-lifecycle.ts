@@ -18,7 +18,8 @@ export interface InvoiceState {
   assertCanUploadProof(): void;
 }
 
-function notAwaitingProof(): ConflictException {
+/** Why a proof is refused: the invoice is not waiting for one. */
+export function notAwaitingProof(): ConflictException {
   return new ConflictException({
     code: 'INVOICE_NOT_AWAITING_PROOF',
     message:
