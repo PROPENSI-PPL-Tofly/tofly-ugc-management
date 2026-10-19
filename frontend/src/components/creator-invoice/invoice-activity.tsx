@@ -9,6 +9,7 @@ import {
   invoiceActivity,
   validateComment,
   type CreatorInvoice,
+  type InvoiceComment,
 } from "@/lib/creator-invoice";
 import { addInvoiceComment } from "@/lib/creator-invoice-actions.server";
 import { formatTimestamp } from "@/lib/format";
@@ -25,8 +26,8 @@ export function InvoiceActivity({
   onCommented,
 }: Readonly<{
   invoice: CreatorInvoice;
-  /** A comment was accepted; the invoice reads again. */
-  onCommented: () => void;
+  /** A comment was accepted: as the server saved it, or null when the answer did not carry it. */
+  onCommented: (comment: InvoiceComment | null) => void;
 }>) {
   const entries = invoiceActivity(invoice);
   const [text, setText] = useState("");
@@ -37,9 +38,9 @@ export function InvoiceActivity({
   function send() {
     return run(
       () => addInvoiceComment(invoice.contractId, text),
-      () => {
+      ({ comment }) => {
         setText("");
-        onCommented();
+        onCommented(comment);
       },
     );
   }

@@ -12,6 +12,7 @@ import {
   type CreatorInvoice,
   type CreatorInvoiceAction,
   type CreatorNextStep,
+  type InvoiceComment,
 } from "@/lib/creator-invoice";
 import { formatContractWindow } from "@/lib/format";
 import { InvoiceActivity } from "./invoice-activity";
@@ -95,14 +96,20 @@ export function CreatorInvoiceView({
   onOpenContent: (contentId: string) => void;
   /** The control for the creator's move, when one is due. */
   renderAction?: (action: CreatorInvoiceAction) => ReactNode;
-  /** A comment was accepted; the invoice reads again. */
+  /** A comment was saved but not sent back; the invoice reads again to show it. */
   onCommented: () => void;
 }>) {
+  // Comments sent from here, shown at once instead of reading every invoice again for one line.
+  // Once a read brings one back with the invoice, it is shown from there and not twice.
+  const [sent, setSent] = useState<InvoiceComment[]>([]);
+  const known = new Set(invoice.comments.map((comment) => comment.id));
+  const shown = { ...invoice, comments: [...invoice.comments, ...sent.filter((comment) => !known.has(comment.id))] };
+
   const label = totalLabel(invoice.status);
   const note = totalNote(invoice.status);
   const next = creatorNextStep(invoice);
   const total = totalAmountLabel(invoice);
-  const activityCount = invoiceActivity(invoice).length;
+  const activityCount = invoiceActivity(shown).length;
   const [tab, setTab] = useState<"rincian" | "aktivitas">("rincian");
   const tabsId = useId();
   const panelId = useId();
@@ -139,7 +146,10 @@ export function CreatorInvoiceView({
         {tab === "rincian" ? (
           <InvoiceParts invoice={invoice} onOpenContent={onOpenContent} />
         ) : (
-          <InvoiceActivity invoice={invoice} onCommented={onCommented} />
+          <InvoiceActivity
+            invoice={shown}
+            onCommented={(comment) => (comment ? setSent((was) => [...was, comment]) : onCommented())}
+          />
         )}
       </div>
     </div>

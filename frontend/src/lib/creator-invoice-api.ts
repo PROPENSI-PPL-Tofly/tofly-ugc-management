@@ -93,6 +93,22 @@ function toProof(raw: RawPaymentProof | null | undefined): PaymentProof | null {
   return { url: safeLink(raw.url), fileName: raw.fileName, uploadedAt: raw.uploadedAt };
 }
 
+/**
+ * The comment POST .../comments answers with once it is saved, under the page's names; null for
+ * an answer that is not one, so the caller reads the invoices again rather than guess.
+ */
+export function toSavedComment(body: unknown): InvoiceComment | null {
+  if (!isRecord(body)) return null;
+  const { id, authorName, role, text, createdAt } = body;
+  const complete =
+    typeof id === "string" &&
+    typeof authorName === "string" &&
+    (role === "admin" || role === "creator") &&
+    typeof text === "string" &&
+    typeof createdAt === "string";
+  return complete ? toComment({ id, authorName, role, text, createdAt }) : null;
+}
+
 function toComment(raw: RawInvoiceComment): InvoiceComment {
   return {
     id: raw.id,
