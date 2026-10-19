@@ -274,19 +274,22 @@ describe('Invoice payment proof and comments (e2e)', () => {
       ['get', '/me/invoices/{c}/payment-proof'],
     ] as const)('%s %s without a session', async (method, path) => {
       // Sent from the app's own origin, so only the missing session refuses it.
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         [method](path.replace('{c}', nadiaContract))
         .set('Origin', process.env.FRONTEND_URL ?? 'http://localhost:3000')
-        .set('Sec-Fetch-Site', 'same-origin')
-        .expect(401);
+        .set('Sec-Fetch-Site', 'same-origin');
+
+      expect(res.status).toBe(401);
     });
 
     it('a creator on the admin routes', async () => {
-      await nadia.get(`/invoices/${nadiaContract}/comments`).expect(403);
-      await nadia
+      const read = await nadia.get(`/invoices/${nadiaContract}/comments`);
+      const upload = await nadia
         .post(`/invoices/${nadiaContract}/payment-proof`)
-        .attach('file', PDF, 'a.pdf')
-        .expect(403);
+        .attach('file', PDF, 'a.pdf');
+
+      expect(read.status).toBe(403);
+      expect(upload.status).toBe(403);
     });
 
     // OWASP Top 10:2025 A01 (Broken Access Control): a change sent from another site is
@@ -453,14 +456,18 @@ describe('Invoice payment proof and comments (e2e)', () => {
         },
       });
 
-      await admin
+      const fromAdmin = await admin
         .post(`/invoices/${kevinContract}/comments`)
-        .send({ text: `Status ${status}` })
-        .expect(201);
-      await kevin
+        .send({ text: `Status ${status}` });
+      const fromCreator = await kevin
         .post(`/me/invoices/${kevinContract}/comments`)
-        .send({ text: `Status ${status}` })
-        .expect(201);
+        .send({ text: `Status ${status}` });
+
+      expect([fromAdmin.status, fromCreator.status]).toEqual([201, 201]);
+      expect(fromCreator.body).toMatchObject({
+        authorRole: 'creator',
+        text: `Status ${status}`,
+      });
     });
 
     it('a creator whose access was revoked can no longer read the thread', async () => {
@@ -469,7 +476,9 @@ describe('Invoice payment proof and comments (e2e)', () => {
         data: { access_revoke_date: day(-1) },
       });
 
-      await nadia.get(`/me/invoices/${nadiaContract}/comments`).expect(401);
+      const res = await nadia.get(`/me/invoices/${nadiaContract}/comments`);
+
+      expect(res.status).toBe(401);
     });
 
     it("removes a contract's proof and thread with the contract", async () => {

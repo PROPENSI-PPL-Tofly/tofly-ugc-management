@@ -118,9 +118,16 @@ describe('InvoicePaymentsController', () => {
       });
 
       it('a file of exactly 5 MB', async () => {
-        await upload()
-          .attach('file', sized(PNG_HEAD, PROOF_MAX_BYTES), 'besar.png')
-          .expect(201);
+        const res = await upload().attach(
+          'file',
+          sized(PNG_HEAD, PROOF_MAX_BYTES),
+          'besar.png',
+        );
+
+        expect(res.status).toBe(201);
+        expect(proofs.upload.mock.calls[0][1].bytes).toHaveLength(
+          PROOF_MAX_BYTES,
+        );
       });
     });
 
