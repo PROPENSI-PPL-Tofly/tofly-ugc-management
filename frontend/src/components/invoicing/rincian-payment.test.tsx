@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { InvoiceRow, InvoiceStatus } from "@/lib/invoice";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import type { InvoicePayment } from "@/lib/invoice-payment-api";
@@ -133,5 +133,20 @@ describe("the payment part of the Rincian panel", () => {
     expect(onMutated).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "bukti.pdf" })).toHaveAttribute("href", PROOF_HREF);
+  });
+
+  it("shows the uploaded proof in the payment box and offers no second upload, rather than Belum", async () => {
+    vi.mocked(uploadPaymentProof).mockResolvedValue({ ok: true, proof: PAID.proof! });
+    await openRincian(rowAt("creator_acked", ACKNOWLEDGED));
+
+    fireEvent.change(screen.getByLabelText("File bukti pembayaran"), {
+      target: { files: [new File(["%PDF-1.7"], "bukti.pdf", { type: "application/pdf" })] },
+    });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Upload bukti" })));
+
+    const proofValue = screen.getByText("Bukti pembayaran").nextElementSibling as HTMLElement;
+    expect(proofValue).not.toHaveTextContent("Belum");
+    expect(within(proofValue).getByRole("link", { name: "bukti.pdf" })).toHaveAttribute("href", PROOF_HREF);
+    expect(screen.queryByLabelText("File bukti pembayaran")).not.toBeInTheDocument();
   });
 });
