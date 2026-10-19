@@ -1,5 +1,6 @@
 import { formatTimestamp } from "@/lib/format";
 import type { InvoicePayment } from "@/lib/invoice-payment-api";
+import { ProofLink } from "./proof-link";
 
 // What a step that has not happened yet reads as.
 const NOT_YET = "Belum";
@@ -21,16 +22,7 @@ export function PaymentStatus({ payment }: Readonly<{ payment: InvoicePayment }>
 
         <dt className={TERM}>Bukti pembayaran</dt>
         <dd className={VALUE}>
-          {payment.proof ? (
-            <a
-              href={payment.proof.href ?? undefined}
-              className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
-            >
-              {payment.proof.fileName}
-            </a>
-          ) : (
-            NOT_YET
-          )}
+          {payment.proof ? <ProofLink proof={payment.proof} /> : NOT_YET}
         </dd>
 
         <dt className={TERM}>Penerimaan dikonfirmasi</dt>

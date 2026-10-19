@@ -12,6 +12,7 @@ import {
 } from "@/lib/invoice-payment";
 import { uploadPaymentProof, type UploadOutcome } from "@/lib/invoice-payment-actions.server";
 import type { PaymentProof } from "@/lib/invoice-payment-api";
+import { ProofLink } from "./proof-link";
 
 // What the control needs to send a proof: any function that takes the form and answers an
 // outcome. The control depends on this, not on the server action (DIP), so a test hands it a stub.
@@ -114,12 +115,7 @@ export function PaymentProofUpload({
 
       {state.kind === "uploaded" ? (
         <p>
-          <a
-            href={state.proof.href ?? undefined}
-            className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
-          >
-            {state.proof.fileName}
-          </a>
+          <ProofLink proof={state.proof} />
         </p>
       ) : null}
     </section>
