@@ -47,7 +47,12 @@ export function PaymentProofUpload({
   if (!canUploadProof(status)) return null;
 
   function pick(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files![0];
+    const file = event.target.files?.[0];
+    // Cancelling the picker leaves no file: wait for one again rather than check nothing.
+    if (!file) {
+      setState({ kind: "idle" });
+      return;
+    }
     const message = validateProofFile(file);
     setState(message ? { kind: "invalid", message } : { kind: "picked", file });
   }
