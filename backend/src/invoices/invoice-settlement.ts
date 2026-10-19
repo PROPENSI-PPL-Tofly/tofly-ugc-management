@@ -7,10 +7,9 @@
 
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { InvoiceBreakdown } from './invoice-calculator.js';
-import {
-  calculated,
-  type ComponentResult,
-  type InvoiceComponentKey,
+import type {
+  ComponentResult,
+  InvoiceComponentKey,
 } from './invoice-component.js';
 
 export interface SettledBreakdown {
@@ -50,10 +49,20 @@ export function settleForFinalize(
   }
 
   // A waiting component added nothing to rawTotal, so the measured lines are added on top.
-  const frozen = calculated('performanceBonus', performanceBonus.lines);
+  const measured = performanceBonus.lines.reduce(
+    (sum, line) => sum + line.amount,
+    0,
+  );
   return {
-    components: { ...breakdown.components, performanceBonus: frozen },
-    rawTotal: breakdown.rawTotal + (frozen.amount ?? 0),
+    components: {
+      ...breakdown.components,
+      performanceBonus: {
+        ...performanceBonus,
+        amount: measured,
+        status: 'calculated',
+      },
+    },
+    rawTotal: breakdown.rawTotal + measured,
     performanceBonusPending: true,
   };
 }
