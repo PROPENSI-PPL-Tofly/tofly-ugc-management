@@ -177,12 +177,12 @@ describe("Rate & Invoicing page", () => {
     expect(screen.getAllByText("Rp4.500.000")).toHaveLength(2);
   });
 
-  it("says how many creators there are when there are none", async () => {
+  it("says how many invoices there are when there are none", async () => {
     fetchList.mockResolvedValue(listOf({ rows: [], total: 0, totalPages: 1 }));
 
     await renderPage();
 
-    expect(screen.getByText("Menampilkan 0 creator")).toBeInTheDocument();
+    expect(screen.getByText("Menampilkan 0 invoice")).toBeInTheDocument();
   });
 
   it("offers a retry that keeps the URL when the list cannot load", async () => {

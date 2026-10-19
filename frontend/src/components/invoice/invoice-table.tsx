@@ -249,7 +249,7 @@ export function InvoiceTable({
           <tfoot>
             <tr className="border-t border-rule bg-surface-2">
               <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold`}>
-                {`Total ${summary.count} creator`}
+                {`Total ${summary.count} invoice`}
               </th>
               <td className={NUM}>
                 <strong>{formatRupiah(summary.total)}</strong>
