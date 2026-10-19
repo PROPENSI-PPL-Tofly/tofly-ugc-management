@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { InvoiceSnapshotDto } from './dto/invoice-list.dto.js';
 import type { InvoiceCreatorRow } from './invoice-rows.js';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
 import { INVOICE_STATUS_SOURCE, type InvoiceStatus } from './invoice-status.js';
@@ -75,6 +76,7 @@ describe('InvoicesService', () => {
     invoice_adjustments: {
       create: vi.fn(),
       findMany: vi.fn(),
+      groupBy: vi.fn(),
     },
     $queryRaw: vi.fn(),
     // The transaction client is the same stub, so each test reads what ran inside it.
@@ -97,6 +99,8 @@ describe('InvoicesService', () => {
     formulas.current.mockResolvedValue(FORMULA);
     prisma.contents.findMany.mockResolvedValue([]);
     prisma.invoices.findMany.mockResolvedValue([]);
+    prisma.invoice_adjustments.findMany.mockResolvedValue([]);
+    prisma.invoice_adjustments.groupBy.mockResolvedValue([]);
     prisma.$queryRaw.mockResolvedValue([]);
     prisma.$transaction.mockImplementation(
       (work: (tx: typeof prisma) => Promise<unknown>) => work(prisma),
@@ -128,6 +132,60 @@ describe('InvoicesService', () => {
     row({ id: 'rangga', first_name: 'Rangga', last_name: 'Pratama', contracts: [contractFor('rangga-c', -60, 60, '5500000')] }),
   ];
   const ids = (result: { items: { creatorId: string }[] }) => result.items.map((item) => item.creatorId);
+
+  interface SavedInvoice {
+    id: string;
+    contract_id: string;
+    snapshot: InvoiceSnapshotDto | null;
+    adjustments: ReturnType<typeof adjustmentRow>[];
+  }
+
+  /**
+   * The invoices and invoice_adjustments tables holding `saved`, answering every query by its
+   * where as the database would, whichever columns or relations the service asks for.
+   */
+  function persist(saved: SavedInvoice[]) {
+    const byContract = ({ where }: { where: { contract_id: { in: string[] } } }) =>
+      saved.filter((invoice) => where.contract_id.in.includes(invoice.contract_id));
+    const byInvoice = ({ where }: { where: { invoice_id: { in: string[] } } }) =>
+      saved.filter((invoice) => where.invoice_id.in.includes(invoice.id));
+
+    prisma.invoices.findMany.mockImplementation((args: { where: { contract_id: { in: string[] } } }) =>
+      Promise.resolve(byContract(args).map((invoice) => ({ ...invoice, status: invoice.snapshot ? 'finalized' : 'running' }))),
+    );
+    prisma.invoice_adjustments.groupBy.mockImplementation((args: { where: { invoice_id: { in: string[] } } }) =>
+      Promise.resolve(
+        byInvoice(args)
+          .filter((invoice) => invoice.adjustments.length > 0)
+          .map((invoice) => ({
+            invoice_id: invoice.id,
+            _sum: { amount: invoice.adjustments.reduce((sum, adjustment) => sum.plus(adjustment.amount), new Prisma.Decimal(0)) },
+          })),
+      ),
+    );
+    prisma.invoice_adjustments.findMany.mockImplementation((args: { where: { invoice_id: { in: string[] } } }) =>
+      Promise.resolve(
+        byInvoice(args).flatMap((invoice) => invoice.adjustments.map((adjustment) => ({ ...adjustment, invoice_id: invoice.id }))),
+      ),
+    );
+  }
+
+  /** A finalized breakdown whose amounts no live calculation of the test rows would give. */
+  function snapshotOf(fixedRate: number, adjustments: InvoiceSnapshotDto['adjustments'] = []): InvoiceSnapshotDto {
+    const component = (amount: number) => ({ amount, status: 'calculated' as const, lines: [] });
+    const total = adjustments.reduce((sum, adjustment) => sum + adjustment.amount, fixedRate);
+    return {
+      fixedRate: component(fixedRate),
+      additionalContent: component(0),
+      performanceBonus: component(0),
+      penalty: component(0),
+      adjustments,
+      rawTotal: total,
+      total,
+      floored: false,
+      finalizedAt: '2026-09-12T03:00:00.000Z',
+    };
+  }
 
   describe('list', () => {
     beforeEach(() => {
@@ -314,6 +372,146 @@ describe('InvoicesService', () => {
 
       await expect(service.list({ page: 1, pageSize: 10 }, TODAY)).rejects.toThrow('formula unavailable');
     });
+
+    // Filtering needs only each invoice's status, which the status source reads. Sorting and the
+    // summary need the final amount of every invoice the filters keep, so their snapshots and
+    // adjustment sums are read; content only where there is no snapshot, and adjustment rows for
+    // the page alone.
+    describe('reading only what the listing needs', () => {
+      it('reads the saved invoices of only the creators the filters keep, without their adjustment rows', async () => {
+        persist([]);
+
+        await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
+
+        expect(prisma.invoices.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.invoices.findMany).toHaveBeenCalledWith({
+          where: { contract_id: { in: ['rangga-c'] } },
+          select: { id: true, contract_id: true, snapshot: true },
+        });
+      });
+
+      it('loads no content for an invoice whose saved snapshot holds its final breakdown', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        const adjustment = adjustmentRow('adj-n', '50000');
+        const snapshot = snapshotOf(1_900_000, [
+          {
+            id: 'adj-n',
+            amount: 50_000,
+            reason: 'Reason adj-n',
+            actorId: 'admin-1',
+            createdAt: '2026-09-10T02:00:00.000Z',
+          },
+        ]);
+        persist([{ id: 'nadia-i', contract_id: 'nadia-c', snapshot, adjustments: [adjustment] }]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(prisma.contents.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.contents.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { contract_id: { in: ['kevin-c', 'rangga-c'] } } }),
+        );
+        expect(prisma.invoice_adjustments.groupBy).not.toHaveBeenCalled();
+        expect(result.items.find((item) => item.creatorId === 'nadia')).toMatchObject({
+          invoiceStatus: 'finalized',
+          snapshot,
+          components: { fixedRate: { amount: 1_900_000 } },
+          adjustments: snapshot.adjustments,
+          total: 1_950_000,
+        });
+        expect(result.summary.total).toBe(1_950_000 + 5_500_000);
+      });
+
+      it('asks for no content when every kept invoice has a snapshot', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        persist([{ id: 'nadia-i', contract_id: 'nadia-c', snapshot: snapshotOf(1_900_000), adjustments: [] }]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+
+        expect(prisma.contents.findMany).not.toHaveBeenCalled();
+        expect(result.items[0].total).toBe(1_900_000);
+      });
+
+      it('still calculates a finalized invoice saved without a snapshot from its content and adjustments', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        persist([
+          { id: 'nadia-i', contract_id: 'nadia-c', snapshot: null, adjustments: [adjustmentRow('adj-n', '1000.25')] },
+        ]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+
+        expect(prisma.contents.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { contract_id: { in: ['nadia-c'] } } }),
+        );
+        expect(result.items[0]).toMatchObject({
+          invoiceStatus: 'finalized',
+          snapshot: null,
+          adjustments: [{ id: 'adj-n', amount: 1000.25 }],
+          total: 2_001_000.25,
+        });
+      });
+
+      it('sorts and sums every kept invoice with the adjustments the database adds up, reading adjustment rows for the page only', async () => {
+        persist([
+          {
+            id: 'nadia-i',
+            contract_id: 'nadia-c',
+            snapshot: null,
+            adjustments: [adjustmentRow('adj-n1', '4000000.20'), adjustmentRow('adj-n2', '0.05')],
+          },
+          {
+            id: 'rangga-i',
+            contract_id: 'rangga-c',
+            snapshot: null,
+            adjustments: [adjustmentRow('adj-r1', '25000.50'), adjustmentRow('adj-r2', '-0.50')],
+          },
+        ]);
+        const byTotal = { key: 'total', order: 'desc' } as const;
+
+        const first = await service.list({ page: 1, pageSize: 1 }, TODAY, {}, byTotal);
+
+        // Nadia's Rp2.000.000 plus Rp4.000.000,25 of adjustments outranks Rangga's Rp5.525.000,
+        // though only Nadia is on the page.
+        expect(ids(first)).toEqual(['nadia']);
+        expect(first.items[0]).toMatchObject({ rawTotal: 6_000_000.25, total: 6_000_000.25 });
+        expect(first.items[0].adjustments.map((adjustment) => adjustment.id)).toEqual(['adj-n1', 'adj-n2']);
+        expect(first).toMatchObject({ page: 1, total: 3, totalPages: 3 });
+        expect(first.summary.total).toBe(11_525_000.25);
+        expect(prisma.invoice_adjustments.groupBy).toHaveBeenCalledWith({
+          by: ['invoice_id'],
+          where: { invoice_id: { in: ['nadia-i', 'rangga-i'] } },
+          _sum: { amount: true },
+        });
+        expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { invoice_id: { in: ['nadia-i'] } },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          }),
+        );
+
+        const second = await service.list({ page: 2, pageSize: 1 }, TODAY, {}, byTotal);
+
+        expect(ids(second)).toEqual(['rangga']);
+        expect(second.items[0]).toMatchObject({
+          total: 5_525_000,
+          adjustments: [
+            { id: 'adj-r1', amount: 25_000.5 },
+            { id: 'adj-r2', amount: -0.5 },
+          ],
+        });
+        expect(second.summary.total).toBe(11_525_000.25);
+      });
+
+      it('reads no adjustments while no kept invoice has been saved', async () => {
+        persist([]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(prisma.invoice_adjustments.groupBy).not.toHaveBeenCalled();
+        expect(prisma.invoice_adjustments.findMany).not.toHaveBeenCalled();
+        expect(result.items.every((item) => item.adjustments.length === 0)).toBe(true);
+      });
+    });
   });
 
   describe('detail', () => {
@@ -404,10 +602,10 @@ describe('InvoicesService', () => {
   it('reads the saved status and adjustments of each invoice on the page', async () => {
     prisma.creators.findMany.mockResolvedValue([row()]);
     prisma.creators.count.mockResolvedValue(1);
-    prisma.invoices.findMany.mockResolvedValue([
+    persist([
       {
+        id: 'invoice-1',
         contract_id: 'contract-1',
-        status: 'running',
         snapshot: null,
         adjustments: [adjustmentRow('adj-1', '25000.50')],
       },
@@ -466,10 +664,10 @@ describe('InvoicesService', () => {
     };
     prisma.creators.findMany.mockResolvedValue([row()]);
     prisma.creators.count.mockResolvedValue(1);
-    prisma.invoices.findMany.mockResolvedValue([
+    persist([
       {
+        id: 'invoice-1',
         contract_id: 'contract-1',
-        status: 'finalized',
         snapshot,
         adjustments: [adjustmentRow('adj-1', '25000')],
       },
