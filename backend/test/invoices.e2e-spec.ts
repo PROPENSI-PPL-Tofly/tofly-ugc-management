@@ -606,6 +606,89 @@ describe('Invoices API (e2e)', () => {
     }
   });
 
+  // The listing sums adjustments in the database and reads adjustment rows for its page only;
+  // cutting the same list into pages must not change its order, amounts or summary.
+  it('pages, sorts and sums with the adjustments of every kept invoice as the unpaged list does', async () => {
+    const created: { name: string; contractId: string }[] = [];
+
+    for (const [suffix, fixedRate] of [
+      ['A', 1_000_000],
+      ['B', 2_000_000],
+    ] as const) {
+      const user = await prisma.users.create({
+        data: { email: `${MARKER}-paging-${suffix}@example.com` },
+      });
+      const name = `${MARKER} Paging ${suffix}`;
+      const row = await prisma.creators.create({
+        data: {
+          user_id: user.id,
+          first_name: name,
+          contracts: {
+            create: {
+              start_date: day(-30),
+              end_date: day(30),
+              contract_type: 'regular',
+              days_between: 14,
+              content_quota: 1,
+              fixed_rate: fixedRate,
+            },
+          },
+        },
+        select: { contracts: { select: { id: true } } },
+      });
+      created.push({ name, contractId: row.contracts[0].id });
+    }
+
+    const [a, b] = created;
+    for (const [target, amount] of [
+      [a, 1_500_000.25],
+      [a, 0.5],
+      [b, -0.25],
+    ] as const) {
+      await admin
+        .post(`/invoices/${target.contractId}/adjustments`)
+        .send({ amount, reason: 'Paging adjustment' })
+        .expect(201);
+    }
+
+    const query = { q: `${MARKER} Paging`, sort: 'total', order: 'desc' };
+    const { body: whole } = await admin
+      .get('/invoices')
+      .query({ ...query, pageSize: 50 })
+      .expect(200);
+    const pages = [];
+    for (const page of [1, 2]) {
+      pages.push(
+        (
+          await admin
+            .get('/invoices')
+            .query({ ...query, page, pageSize: 1 })
+            .expect(200)
+        ).body,
+      );
+    }
+
+    // A's Rp1.000.000 plus Rp1.500.000,75 outranks B's Rp2.000.000 less Rp0,25.
+    expect(whole.items.map((item: { creatorName: string }) => item.creatorName)).toEqual([
+      a.name,
+      b.name,
+    ]);
+    expect(
+      whole.items.map(
+        (item: { adjustments: { amount: number }[] }) =>
+          item.adjustments.map((adjustment) => adjustment.amount),
+      ),
+    ).toEqual([[1_500_000.25, 0.5], [-0.25]]);
+    expect(whole.summary.total).toBe(
+      whole.items[0].total + whole.items[1].total,
+    );
+    expect(pages.flatMap((page) => page.items)).toEqual(whole.items);
+    for (const page of pages) {
+      expect(page).toMatchObject({ total: 2, totalPages: 2 });
+      expect(page.summary).toEqual(whole.summary);
+    }
+  });
+
   // OWASP Top 10:2025 A06 and A08 — finalization must persist the calculation snapshot.
   it('finalizes an ended invoice with a complete persisted calculation snapshot', async () => {
     const user = await prisma.users.create({
