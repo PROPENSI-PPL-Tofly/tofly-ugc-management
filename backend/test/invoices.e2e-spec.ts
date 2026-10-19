@@ -685,6 +685,83 @@ describe('Invoices API (e2e)', () => {
     }
   });
 
+  // OWASP Top 10:2025 A01 — finalizing is admin-only and same-origin, like adjusting.
+  it('denies unauthenticated, creator and cross-origin finalization of an invoice an admin can finalize', async () => {
+    const user = await prisma.users.create({
+      data: { email: `${MARKER}-finalize-access@example.com` },
+    });
+    const creatorRow = await prisma.creators.create({
+      data: {
+        user_id: user.id,
+        first_name: `${MARKER} Finalize Access`,
+        contracts: {
+          create: {
+            start_date: day(-30),
+            end_date: day(-1),
+            contract_type: 'regular',
+            days_between: 14,
+            content_quota: 1,
+            fixed_rate: 1_000_000,
+            contents: {
+              create: {
+                name: `${MARKER} access evergreen`,
+                type: 'evergreen',
+                deadline: day(-2),
+                status: 'link_submitted',
+                video_link: 'https://example.com/access-evergreen',
+                video_submitted_at: day(-2),
+                platform: 'instagram',
+                views: 0,
+              },
+            },
+          },
+        },
+      },
+      select: { contracts: { select: { id: true } } },
+    });
+    const endedContractId = creatorRow.contracts[0].id;
+    const finalizePath = `/invoices/${endedContractId}/finalize`;
+    const saved = () =>
+      prisma.invoices.findUnique({
+        where: { contract_id: endedContractId },
+        select: { status: true },
+      });
+
+    const priorDevAuth = process.env.DEV_AUTH_ENABLED;
+    process.env.DEV_AUTH_ENABLED = 'false';
+
+    try {
+      const secondAdminCookie = await signInAsAdmin(app, prisma, MARKER);
+
+      await request(app.getHttpServer())
+        .post(finalizePath)
+        .set('Origin', process.env.FRONTEND_URL ?? 'http://localhost:3000')
+        .set('Sec-Fetch-Site', 'same-origin')
+        .expect(401);
+
+      await creator.post(finalizePath).expect(403);
+
+      await request(app.getHttpServer())
+        .post(finalizePath)
+        .set('Cookie', secondAdminCookie)
+        .set('Origin', 'https://evil.example')
+        .set('Sec-Fetch-Site', 'cross-site')
+        .expect(403);
+
+      expect(await saved()).toBeNull();
+    } finally {
+      if (priorDevAuth === undefined) {
+        delete process.env.DEV_AUTH_ENABLED;
+      } else {
+        process.env.DEV_AUTH_ENABLED = priorDevAuth;
+      }
+    }
+
+    await admin.post(finalizePath).expect(201);
+
+    expect(await saved()).toEqual({ status: 'finalized' });
+  });
+
   // The listing sums adjustments in the database and reads adjustment rows for its page only;
   // cutting the same list into pages must not change its order, amounts or summary.
   it('pages, sorts and sums with the adjustments of every kept invoice as the unpaged list does', async () => {
