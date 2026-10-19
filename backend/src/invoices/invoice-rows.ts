@@ -2,21 +2,25 @@
 // apart from the service so the mapping is tested on plain objects, without Nest or a mock
 // database, and the service is left with loading rows and paging.
 
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   contractStatus,
   currentContract,
   type MetricsContract,
 } from '../creators/creator-metrics.js';
-import type { CalculatedInvoice } from './dto/invoice-list.dto.js';
+import type {
+  InvoiceAdjustmentDto,
+  InvoiceListItem,
+  InvoiceSnapshotDto,
+} from './dto/invoice-list.dto.js';
 import { calculateInvoice } from './invoice-calculator.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
 import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
 
 /**
- * Only the columns an invoice is calculated from. Content is left out: it is loaded afterwards
- * for the one contract per creator the table describes (CONTENT_SELECT), not for every contract.
+ * Only the columns an invoice is calculated from. Content is loaded afterwards
+ * for the one contract per creator the table describes.
  */
 export const INVOICE_SELECT = {
   id: true,
@@ -59,7 +63,7 @@ export type InvoiceContentRow = Prisma.contentsGetPayload<{
   select: typeof CONTENT_SELECT;
 }>;
 
-/** Postgres `date` columns arrive as midnight UTC; the first ten ISO characters are the day. */
+/** Postgres date columns arrive as midnight UTC; the first ten ISO characters are the day. */
 function calendarDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -121,8 +125,7 @@ export function invoiceContractStatus(
 
 /**
  * The contract the table describes: the one running today, else the most recently finished,
- * else the earliest upcoming (the same pick as the Creator Database). Null for a creator with no
- * contract at all.
+ * else the earliest upcoming. Null for a creator with no contract at all.
  */
 export function pickContract(
   row: InvoiceCreatorRow,
@@ -139,38 +142,150 @@ export function periodNumber(
 ): number {
   return (
     1 +
-    row.contracts.filter((other) => other.start_date < contractRow.start_date)
-      .length
+    row.contracts.filter(
+      (other) => other.start_date < contractRow.start_date,
+    ).length
   );
 }
 
-/** The invoice of `contractRow`, one of the creator's contracts, from its content. */
+/** What the manual adjustments add up to, as a decimal so amounts never drift. */
+export function sumAdjustments(
+  adjustments: readonly InvoiceAdjustmentDto[],
+): Prisma.Decimal {
+  return adjustments.reduce(
+    (sum, adjustment) => sum.plus(adjustment.amount),
+    new Prisma.Decimal(0),
+  );
+}
+
+/**
+ * The calculated total plus the adjustments' decimal sum, floored at zero. Numbers are
+ * returned only for the DTO and snapshot.
+ */
+export function adjustedTotals(
+  calculatedRawTotal: number,
+  adjustmentTotal: Prisma.Decimal,
+): { rawTotal: number; total: number; floored: boolean } {
+  const raw = new Prisma.Decimal(calculatedRawTotal).plus(adjustmentTotal);
+
+  const floored = raw.lessThan(0);
+
+  return {
+    rawTotal: raw.toNumber(),
+    total: floored ? 0 : raw.toNumber(),
+    floored,
+  };
+}
+
+const SNAPSHOT_COMPONENTS = [
+  'fixedRate',
+  'additionalContent',
+  'performanceBonus',
+  'penalty',
+] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isComponent(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.amount === null || typeof value.amount === 'number') &&
+    typeof value.status === 'string' &&
+    Array.isArray(value.lines)
+  );
+}
+
+function isSnapshot(value: unknown): value is InvoiceSnapshotDto {
+  return (
+    isRecord(value) &&
+    SNAPSHOT_COMPONENTS.every((key) => isComponent(value[key])) &&
+    Array.isArray(value.adjustments) &&
+    typeof value.rawTotal === 'number' &&
+    typeof value.total === 'number' &&
+    typeof value.floored === 'boolean' &&
+    typeof value.finalizedAt === 'string' &&
+    (value.formula === undefined ||
+      value.formula === null ||
+      isRecord(value.formula))
+  );
+}
+
+/**
+ * The snapshot saved in invoices.snapshot, or null when there is none or it does not hold the
+ * whole final breakdown and totals; the invoice is then calculated live, as before finalizing.
+ */
+export function savedSnapshot(
+  value: Prisma.JsonValue | null,
+): InvoiceSnapshotDto | null {
+  return isSnapshot(value) ? value : null;
+}
+
+/** What the invoices table holds for an invoice besides where it stands in the pipeline. */
+export interface SavedInvoice {
+  adjustments: InvoiceAdjustmentDto[];
+  /**
+   * What every adjustment adds up to, when the database summed them and `adjustments` does not
+   * list them all; summed from `adjustments` when absent or null (a sum over no rows).
+   */
+  adjustmentTotal?: Prisma.Decimal | null;
+  snapshot: InvoiceSnapshotDto | null;
+}
+
+/** A listed invoice before the InvoiceStatusSource says where it stands. */
+export type InvoiceItem = Omit<InvoiceListItem, 'invoiceStatus'>;
+
+/** The invoice of contractRow, using either its live calculation or its persisted snapshot. */
 export function toInvoiceItem(
   row: InvoiceCreatorRow,
   contractRow: InvoiceContractRow,
   contents: readonly InvoiceContentRow[],
   formula: RateFormula | null,
   today: Date,
-): CalculatedInvoice {
-  const breakdown = calculateInvoice({
-    contract: toInvoiceContract(contractRow, row.access_revoke_date),
-    contents: contents.map(toInvoiceContent),
-    formula,
-    today,
-  });
+  saved?: SavedInvoice,
+): InvoiceItem {
+  // An invoice nobody has adjusted or finalized has no saved row yet.
+  const lifecycle = saved ?? { adjustments: [], snapshot: null };
+  const snapshot = lifecycle.snapshot;
+
+  const breakdown = snapshot
+    ? null
+    : calculateInvoice({
+      contract: toInvoiceContract(contractRow, row.access_revoke_date),
+      contents: contents.map(toInvoiceContent),
+      formula,
+      today,
+    });
+
+  const totals =
+    snapshot ??
+    adjustedTotals(
+      breakdown!.rawTotal,
+      lifecycle.adjustmentTotal ?? sumAdjustments(lifecycle.adjustments),
+    );
 
   return {
     creatorId: row.id,
     creatorName: creatorName(row),
+    adjustments: lifecycle.adjustments,
+    snapshot,
     contract: {
       id: contractRow.id,
       status: invoiceContractStatus(contractRow, today),
       startDate: calendarDay(contractRow.start_date),
       endDate: calendarDay(contractRow.end_date),
     },
-    components: breakdown.components,
-    rawTotal: breakdown.rawTotal,
-    total: breakdown.total,
-    floored: breakdown.floored,
+    components: snapshot
+      ? {
+        fixedRate: snapshot.fixedRate,
+        additionalContent: snapshot.additionalContent,
+        performanceBonus: snapshot.performanceBonus,
+        penalty: snapshot.penalty,
+      }
+      : breakdown!.components,
+    rawTotal: totals.rawTotal,
+    total: totals.total,
+    floored: totals.floored,
   };
 }

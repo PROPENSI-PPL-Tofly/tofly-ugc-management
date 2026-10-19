@@ -61,7 +61,7 @@ function stubClient(events: ContentEventRecord[], contentExists = true) {
   };
 }
 
-const VALID_WRITES = [
+const VALID_WRITES: ContentEventInput[] = [
   {
     content_id: CONTENT_ID,
     event_type: 'Scheduled',
@@ -110,7 +110,7 @@ const VALID_WRITES = [
     occurred_at: new Date('2026-10-06T10:00:00Z'),
     event_data: { comment: 'I have added the requested detail.' },
   },
-] satisfies ContentEventInput[];
+];
 
 function unvalidatedInput(input: unknown): ContentEventInput {
   return input as ContentEventInput;

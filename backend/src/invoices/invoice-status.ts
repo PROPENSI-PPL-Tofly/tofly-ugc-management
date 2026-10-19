@@ -1,7 +1,10 @@
-// Where an invoice stands in its pipeline (running → finalized → acknowledged → proof uploaded →
-// paid). Finalizing and paying arrive with PBI-12/13; until then every invoice is running. The
-// service reads the status through the InvoiceStatusSource port, so the pipeline plugs in as one
-// provider in invoices.module.ts and the listing, the filter and the detail do not change.
+// Where an invoice stands in its pipeline (accruing → finalized → acknowledged → proof uploaded →
+// paid). The service reads the status through the InvoiceStatusSource port only, so whatever
+// provider invoices.module.ts plugs in is the one authority for the listing, the filter and the
+// detail. PersistedInvoiceStatusSource reads it from the saved invoice lifecycle (PBI-12).
+//
+// 'accruing' is the pipeline's and the API's word for an invoice the database keeps as
+// 'running' (invoice-lifecycle.ts); each lifecycle state names its pipeline status.
 
 /** The pipeline in the order an invoice walks it. */
 export const INVOICE_STATUSES = [
@@ -23,14 +26,3 @@ export interface InvoiceStatusSource {
 
 /** Nest injection token for InvoiceStatusSource, since an interface does not exist at runtime. */
 export const INVOICE_STATUS_SOURCE = Symbol('INVOICE_STATUS_SOURCE');
-
-/** Nothing can finalize an invoice yet, so every invoice is still running. */
-export class RunningInvoiceStatusSource implements InvoiceStatusSource {
-  statuses(
-    contractIds: readonly string[],
-  ): Promise<ReadonlyMap<string, InvoiceStatus>> {
-    return Promise.resolve(
-      new Map(contractIds.map((id) => [id, 'accruing' as const])),
-    );
-  }
-}

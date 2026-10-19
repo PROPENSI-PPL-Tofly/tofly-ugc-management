@@ -31,6 +31,8 @@ function item(
     total: amounts.total ?? 0,
     floored: false,
     invoiceStatus: 'accruing',
+    adjustments: [],
+    snapshot: null,
   };
 }
 

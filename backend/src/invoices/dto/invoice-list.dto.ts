@@ -23,7 +23,32 @@ export interface InvoiceContractDto {
   endDate: string;
 }
 
-/** What the calculation answers for one creator, before the pipeline says where it stands. */
+export interface InvoiceAdjustmentDto {
+  id: string;
+  amount: number;
+  reason: string;
+  actorId: string;
+  createdAt: string;
+}
+
+export interface InvoiceSnapshotDto {
+  fixedRate: InvoiceComponentDto;
+  additionalContent: InvoiceComponentDto;
+  performanceBonus: InvoiceComponentDto;
+  penalty: InvoiceComponentDto;
+  adjustments: InvoiceAdjustmentDto[];
+  rawTotal: number;
+  total: number;
+  floored: boolean;
+  finalizedAt: string;
+  /**
+   * The formula the breakdown was calculated with, null if none was saved then. Absent from a
+   * snapshot saved before the formula was kept with it.
+   */
+  formula?: RateFormula | null;
+}
+
+/** Calculation result before the invoice pipeline assigns its status. */
 export interface CalculatedInvoice {
   creatorId: string;
   creatorName: string;
@@ -38,25 +63,31 @@ export interface CalculatedInvoice {
 }
 
 export interface InvoiceListItem extends CalculatedInvoice {
-  /** Where the invoice stands in its pipeline; 'accruing' until it can be finalized. */
+  /** Where the invoice stands in the invoice pipeline. */
   invoiceStatus: InvoiceStatus;
+  /** Manual adjustments recorded against this invoice. */
+  adjustments: InvoiceAdjustmentDto[];
+  /** Persisted breakdown and totals after finalization; null while not finalized. */
+  snapshot: InvoiceSnapshotDto | null;
 }
 
 /**
- * One creator's invoice with what its breakdown popups state beside the amounts: which contract
- * period it pays (1 for the first contract, counting up with each renewal) and the formula it
- * was worked out with, null while no admin has saved one.
+ * One creator's invoice with the contract period and formula used for its calculation.
  */
 export interface InvoiceDetail extends InvoiceListItem {
   periodNumber: number;
+  /**
+   * The current formula while the invoice is calculated live; once finalized, the one saved with
+   * its snapshot, or null when that snapshot predates keeping it.
+   */
   formula: RateFormula | null;
 }
 
-/** What the page says about every invoice, not only the ones on the page. */
+/** Summary information across all invoices kept by the filters. */
 export interface InvoiceListSummary {
   /** What every invoice the filters keep adds up to, across all pages. */
   total: number;
-  /** Running invoices across the whole roster, whatever the filters: what a formula change reaches. */
+  /** Running invoices across the whole roster, whatever the filters. */
   runningInvoices: number;
   /** Whether an admin has saved a rate formula yet. */
   formulaSet: boolean;

@@ -217,9 +217,17 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
         type: 'evergreen' as const,
         deadline: '2026-10-10',
       };
+      // The Scheduled event is recorded as the admin who planned the content.
+      const admin = await prisma.users.create({
+        data: {
+          email: `concurrency-admin-${randomUUID()}@example.com`,
+          is_admin: true,
+        },
+      });
+      users.push(admin.id);
       const pending = Promise.allSettled([
-        service.create(input),
-        service.create(input),
+        service.create(input, admin.id),
+        service.create(input, admin.id),
       ]);
       try {
         // Prove real contention rather than merely starting two promises together.

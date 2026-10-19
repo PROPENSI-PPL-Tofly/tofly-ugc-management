@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   DefaultValuePipe,
   Get,
@@ -7,10 +8,13 @@ import {
   Param,
   ParseIntPipe,
   ParseUUIDPipe,
+  Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
+import { unauthenticated } from '../auth/creator-request.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from '../creators/paging.js';
 import type {
   InvoiceDetail,
@@ -23,22 +27,18 @@ import {
   type InvoiceDetailReader,
   type InvoiceLister,
 } from './invoices.service.js';
+import { checkManualAdjustment } from './manual-adjustment.js';
 
-/**
- * The running invoice of every creator, for the Rate & Invoicing table (8.4), and of one
- * creator, for its breakdown popups (8.5).
- */
 @Controller('invoices')
 @UseGuards(AdminGuard)
 export class InvoicesController {
   constructor(
     @Inject(InvoicesService)
-    private readonly invoices: InvoiceLister & InvoiceDetailReader,
+    private readonly invoices: InvoiceLister &
+      InvoiceDetailReader &
+      Pick<InvoicesService, 'addAdjustment' | 'finalize'>,
   ) {}
 
-  // The pipes turn anything that is not an integer into a 400 before this runs; checkPaging
-  // then keeps the integers inside the range the listing can serve. checkInvoiceFilters does
-  // the same job for q, contract and status, and checkInvoiceSort for sort and order.
   @Get()
   async list(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -58,18 +58,44 @@ export class InvoicesController {
     );
   }
 
-  // ParseUUIDPipe answers 400 for an id that is not a UUID before the database is asked.
   @Get(':creatorId')
   async detail(
     @Param('creatorId', ParseUUIDPipe) creatorId: string,
   ): Promise<InvoiceDetail> {
     const detail = await this.invoices.detail(creatorId, new Date());
+
     if (!detail) {
       throw new NotFoundException({
         code: 'INVOICE_NOT_FOUND',
         message: 'Creator tidak ditemukan atau belum punya kontrak',
       });
     }
+
     return detail;
+  }
+
+  @Post(':contractId/adjustments')
+  async addAdjustment(
+    @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Body() body: unknown,
+    @Req() request: Pick<AdminRequest, 'principal'>,
+  ) {
+    if (request.principal?.role !== 'admin') throw unauthenticated();
+
+    return this.invoices.addAdjustment(
+      contractId,
+      checkManualAdjustment(body),
+      request.principal.userId,
+    );
+  }
+
+  @Post(':contractId/finalize')
+  async finalize(
+    @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Req() request: Pick<AdminRequest, 'principal'>,
+  ) {
+    if (request.principal?.role !== 'admin') throw unauthenticated();
+
+    return this.invoices.finalize(contractId, new Date());
   }
 }

@@ -1,11 +1,37 @@
+import {
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { InvoiceSnapshotDto } from './dto/invoice-list.dto.js';
 import type { InvoiceCreatorRow } from './invoice-rows.js';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
 import { INVOICE_STATUS_SOURCE, type InvoiceStatus } from './invoice-status.js';
 import { InvoicesService } from './invoices.service.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
+
+/** The error `promise` rejects with, for checking both its class and its body. */
+async function rejection(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+  return expect.unreachable('the call must be rejected');
+}
+
+function adjustmentRow(id: string, amount: string) {
+  return {
+    id,
+    amount: new Prisma.Decimal(amount),
+    reason: `Reason ${id}`,
+    actor_user_id: 'admin-1',
+    created_at: new Date('2026-09-10T02:00:00.000Z'),
+  };
+}
 
 function row(overrides: Partial<InvoiceCreatorRow> = {}): InvoiceCreatorRow {
   return {
@@ -39,6 +65,22 @@ describe('InvoicesService', () => {
     contents: {
       findMany: vi.fn(),
     },
+    contracts: {
+      findUnique: vi.fn(),
+    },
+    invoices: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    invoice_adjustments: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      groupBy: vi.fn(),
+    },
+    $queryRaw: vi.fn(),
+    // The transaction client is the same stub, so each test reads what ran inside it.
+    $transaction: vi.fn(),
   };
   const formulas = { current: vi.fn() };
   // A stub of the invoice pipeline: every contract is running unless a test says otherwise.
@@ -56,6 +98,13 @@ describe('InvoicesService', () => {
     pipeline = {};
     formulas.current.mockResolvedValue(FORMULA);
     prisma.contents.findMany.mockResolvedValue([]);
+    prisma.invoices.findMany.mockResolvedValue([]);
+    prisma.invoice_adjustments.findMany.mockResolvedValue([]);
+    prisma.invoice_adjustments.groupBy.mockResolvedValue([]);
+    prisma.$queryRaw.mockResolvedValue([]);
+    prisma.$transaction.mockImplementation(
+      (work: (tx: typeof prisma) => Promise<unknown>) => work(prisma),
+    );
 
     const module = await Test.createTestingModule({
       providers: [
@@ -83,6 +132,61 @@ describe('InvoicesService', () => {
     row({ id: 'rangga', first_name: 'Rangga', last_name: 'Pratama', contracts: [contractFor('rangga-c', -60, 60, '5500000')] }),
   ];
   const ids = (result: { items: { creatorId: string }[] }) => result.items.map((item) => item.creatorId);
+
+  interface SavedInvoice {
+    id: string;
+    contract_id: string;
+    /** Whatever the jsonb column holds, a well-formed snapshot or not. */
+    snapshot: InvoiceSnapshotDto | Prisma.JsonValue;
+    adjustments: ReturnType<typeof adjustmentRow>[];
+  }
+
+  /**
+   * The invoices and invoice_adjustments tables holding `saved`, answering every query by its
+   * where as the database would, whichever columns or relations the service asks for.
+   */
+  function persist(saved: SavedInvoice[]) {
+    const byContract = ({ where }: { where: { contract_id: { in: string[] } } }) =>
+      saved.filter((invoice) => where.contract_id.in.includes(invoice.contract_id));
+    const byInvoice = ({ where }: { where: { invoice_id: { in: string[] } } }) =>
+      saved.filter((invoice) => where.invoice_id.in.includes(invoice.id));
+
+    prisma.invoices.findMany.mockImplementation((args: { where: { contract_id: { in: string[] } } }) =>
+      Promise.resolve(byContract(args).map((invoice) => ({ ...invoice, status: invoice.snapshot ? 'finalized' : 'running' }))),
+    );
+    prisma.invoice_adjustments.groupBy.mockImplementation((args: { where: { invoice_id: { in: string[] } } }) =>
+      Promise.resolve(
+        byInvoice(args)
+          .filter((invoice) => invoice.adjustments.length > 0)
+          .map((invoice) => ({
+            invoice_id: invoice.id,
+            _sum: { amount: invoice.adjustments.reduce((sum, adjustment) => sum.plus(adjustment.amount), new Prisma.Decimal(0)) },
+          })),
+      ),
+    );
+    prisma.invoice_adjustments.findMany.mockImplementation((args: { where: { invoice_id: { in: string[] } } }) =>
+      Promise.resolve(
+        byInvoice(args).flatMap((invoice) => invoice.adjustments.map((adjustment) => ({ ...adjustment, invoice_id: invoice.id }))),
+      ),
+    );
+  }
+
+  /** A finalized breakdown whose amounts no live calculation of the test rows would give. */
+  function snapshotOf(fixedRate: number, adjustments: InvoiceSnapshotDto['adjustments'] = []): InvoiceSnapshotDto {
+    const component = (amount: number) => ({ amount, status: 'calculated' as const, lines: [] });
+    const total = adjustments.reduce((sum, adjustment) => sum + adjustment.amount, fixedRate);
+    return {
+      fixedRate: component(fixedRate),
+      additionalContent: component(0),
+      performanceBonus: component(0),
+      penalty: component(0),
+      adjustments,
+      rawTotal: total,
+      total,
+      floored: false,
+      finalizedAt: '2026-09-12T03:00:00.000Z',
+    };
+  }
 
   describe('list', () => {
     beforeEach(() => {
@@ -269,6 +373,165 @@ describe('InvoicesService', () => {
 
       await expect(service.list({ page: 1, pageSize: 10 }, TODAY)).rejects.toThrow('formula unavailable');
     });
+
+    // Filtering needs only each invoice's status, which the status source reads. Sorting and the
+    // summary need the final amount of every invoice the filters keep, so their snapshots and
+    // adjustment sums are read; content only where there is no snapshot, and adjustment rows for
+    // the page alone.
+    describe('reading only what the listing needs', () => {
+      it('reads the saved invoices of only the creators the filters keep, without their adjustment rows', async () => {
+        persist([]);
+
+        await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'rangga' });
+
+        expect(prisma.invoices.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.invoices.findMany).toHaveBeenCalledWith({
+          where: { contract_id: { in: ['rangga-c'] } },
+          select: { id: true, contract_id: true, snapshot: true },
+        });
+      });
+
+      it('loads no content for an invoice whose saved snapshot holds its final breakdown', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        const adjustment = adjustmentRow('adj-n', '50000');
+        const snapshot = snapshotOf(1_900_000, [
+          {
+            id: 'adj-n',
+            amount: 50_000,
+            reason: 'Reason adj-n',
+            actorId: 'admin-1',
+            createdAt: '2026-09-10T02:00:00.000Z',
+          },
+        ]);
+        persist([{ id: 'nadia-i', contract_id: 'nadia-c', snapshot, adjustments: [adjustment] }]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(prisma.contents.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.contents.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { contract_id: { in: ['kevin-c', 'rangga-c'] } } }),
+        );
+        expect(prisma.invoice_adjustments.groupBy).not.toHaveBeenCalled();
+        expect(result.items.find((item) => item.creatorId === 'nadia')).toMatchObject({
+          invoiceStatus: 'finalized',
+          snapshot,
+          components: { fixedRate: { amount: 1_900_000 } },
+          adjustments: snapshot.adjustments,
+          total: 1_950_000,
+        });
+        expect(result.summary.total).toBe(1_950_000 + 5_500_000);
+      });
+
+      it('asks for no content when every kept invoice has a snapshot', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        persist([{ id: 'nadia-i', contract_id: 'nadia-c', snapshot: snapshotOf(1_900_000), adjustments: [] }]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+
+        expect(prisma.contents.findMany).not.toHaveBeenCalled();
+        expect(result.items[0].total).toBe(1_900_000);
+      });
+
+      it('still calculates a finalized invoice saved without a snapshot from its content and adjustments', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        persist([
+          { id: 'nadia-i', contract_id: 'nadia-c', snapshot: null, adjustments: [adjustmentRow('adj-n', '1000.25')] },
+        ]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+
+        expect(prisma.contents.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { contract_id: { in: ['nadia-c'] } } }),
+        );
+        expect(result.items[0]).toMatchObject({
+          invoiceStatus: 'finalized',
+          snapshot: null,
+          adjustments: [{ id: 'adj-n', amount: 1000.25 }],
+          total: 2_001_000.25,
+        });
+      });
+
+      // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a saved value that does not
+      // hold the final breakdown is not trusted as one.
+      it('calculates live, like a missing one, a saved snapshot that lacks its breakdown', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        prisma.creators.findUnique.mockResolvedValue(roster[1]);
+        persist([
+          { id: 'nadia-i', contract_id: 'nadia-c', snapshot: { finalizedAt: '2026-09-12T03:00:00.000Z' }, adjustments: [] },
+        ]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+        const detail = await service.detail('nadia', TODAY);
+
+        expect(prisma.contents.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { contract_id: { in: ['nadia-c'] } } }),
+        );
+        expect(result.items[0]).toMatchObject({ invoiceStatus: 'finalized', snapshot: null, total: 2_000_000 });
+        expect(detail).toMatchObject({ invoiceStatus: 'finalized', snapshot: null, total: 2_000_000 });
+      });
+
+      it('sorts and sums every kept invoice with the adjustments the database adds up, reading adjustment rows for the page only', async () => {
+        persist([
+          {
+            id: 'nadia-i',
+            contract_id: 'nadia-c',
+            snapshot: null,
+            adjustments: [adjustmentRow('adj-n1', '4000000.20'), adjustmentRow('adj-n2', '0.05')],
+          },
+          {
+            id: 'rangga-i',
+            contract_id: 'rangga-c',
+            snapshot: null,
+            adjustments: [adjustmentRow('adj-r1', '25000.50'), adjustmentRow('adj-r2', '-0.50')],
+          },
+        ]);
+        const byTotal = { key: 'total', order: 'desc' } as const;
+
+        const first = await service.list({ page: 1, pageSize: 1 }, TODAY, {}, byTotal);
+
+        // Nadia's Rp2.000.000 plus Rp4.000.000,25 of adjustments outranks Rangga's Rp5.525.000,
+        // though only Nadia is on the page.
+        expect(ids(first)).toEqual(['nadia']);
+        expect(first.items[0]).toMatchObject({ rawTotal: 6_000_000.25, total: 6_000_000.25 });
+        expect(first.items[0].adjustments.map((adjustment) => adjustment.id)).toEqual(['adj-n1', 'adj-n2']);
+        expect(first).toMatchObject({ page: 1, total: 3, totalPages: 3 });
+        expect(first.summary.total).toBe(11_525_000.25);
+        expect(prisma.invoice_adjustments.groupBy).toHaveBeenCalledWith({
+          by: ['invoice_id'],
+          where: { invoice_id: { in: ['nadia-i', 'rangga-i'] } },
+          _sum: { amount: true },
+        });
+        expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { invoice_id: { in: ['nadia-i'] } },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          }),
+        );
+
+        const second = await service.list({ page: 2, pageSize: 1 }, TODAY, {}, byTotal);
+
+        expect(ids(second)).toEqual(['rangga']);
+        expect(second.items[0]).toMatchObject({
+          total: 5_525_000,
+          adjustments: [
+            { id: 'adj-r1', amount: 25_000.5 },
+            { id: 'adj-r2', amount: -0.5 },
+          ],
+        });
+        expect(second.summary.total).toBe(11_525_000.25);
+      });
+
+      it('reads no adjustments while no kept invoice has been saved', async () => {
+        persist([]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(prisma.invoice_adjustments.groupBy).not.toHaveBeenCalled();
+        expect(prisma.invoice_adjustments.findMany).not.toHaveBeenCalled();
+        expect(result.items.every((item) => item.adjustments.length === 0)).toBe(true);
+      });
+    });
   });
 
   describe('detail', () => {
@@ -353,6 +616,469 @@ describe('InvoicesService', () => {
 
       await expect(service.detail('creator-1', TODAY)).resolves.toBeNull();
       expect(prisma.contents.findMany).not.toHaveBeenCalled();
+    });
+
+    // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a finalized invoice's rules
+    // are the ones its saved totals were worked out with, whatever the formula is now.
+    describe('a finalized invoice', () => {
+      const atFinalization = { ...FORMULA, latePenaltyPerDay: 5_000, specificBonus: 250_000 };
+
+      beforeEach(() => {
+        pipeline = { 'contract-1': 'finalized' };
+        prisma.creators.findUnique.mockResolvedValue(row());
+      });
+
+      it('answers the formula saved with its snapshot, not the current one', async () => {
+        const snapshot = { ...snapshotOf(5_500_000), formula: atFinalization };
+        persist([{ id: 'invoice-1', contract_id: 'contract-1', snapshot, adjustments: [] }]);
+
+        const detail = await service.detail('creator-1', TODAY);
+
+        expect(detail).toMatchObject({ formula: atFinalization, snapshot, total: 5_500_000 });
+      });
+
+      it('answers no formula for a snapshot saved before formulas were kept with it', async () => {
+        persist([{ id: 'invoice-1', contract_id: 'contract-1', snapshot: snapshotOf(5_500_000), adjustments: [] }]);
+
+        const detail = await service.detail('creator-1', TODAY);
+
+        expect(detail).toMatchObject({ formula: null, total: 5_500_000 });
+      });
+
+      it('answers a formula of null kept with a snapshot finalized while none was saved', async () => {
+        persist([
+          { id: 'invoice-1', contract_id: 'contract-1', snapshot: { ...snapshotOf(5_500_000), formula: null }, adjustments: [] },
+        ]);
+
+        await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({ formula: null });
+      });
+    });
+  });
+
+  it('reads the saved status and adjustments of each invoice on the page', async () => {
+    prisma.creators.findMany.mockResolvedValue([row()]);
+    prisma.creators.count.mockResolvedValue(1);
+    persist([
+      {
+        id: 'invoice-1',
+        contract_id: 'contract-1',
+        snapshot: null,
+        adjustments: [adjustmentRow('adj-1', '25000.50')],
+      },
+    ]);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(prisma.invoices.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { contract_id: { in: ['contract-1'] } },
+      }),
+    );
+    expect(result.items[0]).toMatchObject({
+      invoiceStatus: 'accruing',
+      adjustments: [
+        {
+          id: 'adj-1',
+          amount: 25_000.5,
+          reason: 'Reason adj-1',
+          actorId: 'admin-1',
+          createdAt: '2026-09-10T02:00:00.000Z',
+        },
+      ],
+      snapshot: null,
+      total: 5_525_000.5,
+    });
+  });
+
+  // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a finalized invoice is listed
+  // from its saved snapshot, not recalculated.
+  it('lists a finalized invoice with its saved snapshot', async () => {
+    pipeline = { 'contract-1': 'finalized' };
+    const component = (amount: number) => ({
+      amount,
+      status: 'calculated' as const,
+      lines: [],
+    });
+    const snapshot = {
+      fixedRate: component(5_500_000),
+      additionalContent: component(0),
+      performanceBonus: component(0),
+      penalty: component(0),
+      adjustments: [
+        {
+          id: 'adj-1',
+          amount: 25_000,
+          reason: 'Reason adj-1',
+          actorId: 'admin-1',
+          createdAt: '2026-09-10T02:00:00.000Z',
+        },
+      ],
+      rawTotal: 5_525_000,
+      total: 5_525_000,
+      floored: false,
+      finalizedAt: '2026-09-12T03:00:00.000Z',
+    };
+    prisma.creators.findMany.mockResolvedValue([row()]);
+    prisma.creators.count.mockResolvedValue(1);
+    persist([
+      {
+        id: 'invoice-1',
+        contract_id: 'contract-1',
+        snapshot,
+        adjustments: [adjustmentRow('adj-1', '25000')],
+      },
+    ]);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(result.items[0]).toMatchObject({
+      invoiceStatus: 'finalized',
+      snapshot,
+      rawTotal: 5_525_000,
+      total: 5_525_000,
+      floored: false,
+    });
+  });
+
+  // The InvoiceStatusSource port answers where an invoice stands; the saved lifecycle row only
+  // carries the adjustments and snapshot. In the app the port reads that same row, so the two
+  // agree; these pin that the service never second-guesses the port when they do not.
+  describe('the status source is the one authority on the invoice status', () => {
+    const saved = (status: 'running' | 'finalized') => [
+      {
+        contract_id: 'contract-1',
+        status,
+        snapshot: null,
+        adjustments: [],
+      },
+    ];
+
+    it.each([
+      ['accruing', 'finalized'],
+      ['finalized', 'running'],
+      ['creator_acked', 'finalized'],
+      ['payment_uploaded', 'finalized'],
+      ['paid', 'running'],
+    ] as const)(
+      'lists and details %s when the saved row says %s',
+      async (source, stored) => {
+        pipeline = { 'contract-1': source };
+        prisma.creators.findMany.mockResolvedValue([row()]);
+        prisma.creators.findUnique.mockResolvedValue(row());
+        prisma.invoices.findMany.mockResolvedValue(saved(stored));
+
+        const listed = await service.list({ page: 1, pageSize: 10 }, TODAY);
+        const detail = await service.detail('creator-1', TODAY);
+
+        expect(listed.items[0].invoiceStatus).toBe(source);
+        expect(detail?.invoiceStatus).toBe(source);
+      },
+    );
+
+    it('filters and counts running invoices by the status the source answers', async () => {
+      pipeline = { 'contract-1': 'accruing' };
+      prisma.creators.findMany.mockResolvedValue([row()]);
+      prisma.invoices.findMany.mockResolvedValue(saved('finalized'));
+
+      const accruing = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        status: 'accruing',
+      });
+      const finalized = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        status: 'finalized',
+      });
+
+      expect(accruing.total).toBe(1);
+      expect(accruing.summary.runningInvoices).toBe(1);
+      expect(finalized.total).toBe(0);
+    });
+  });
+
+  it('leaves out a creator row that comes back without a contract to invoice', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'no-contract', contracts: [] }),
+      row(),
+    ]);
+    prisma.creators.count.mockResolvedValue(2);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(result.items.map((item) => item.creatorId)).toEqual(['creator-1']);
+  });
+
+  it('asks for no invoices when the page has no creators', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(0);
+
+    await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(prisma.invoices.findMany).not.toHaveBeenCalled();
+  });
+
+  describe('addAdjustment', () => {
+    const input = { amount: -1500.5, reason: 'Correction for overpayment' };
+
+    beforeEach(() => {
+      prisma.contracts.findUnique.mockResolvedValue({ id: 'contract-1' });
+      prisma.invoices.upsert.mockResolvedValue({
+        id: 'invoice-1',
+        status: 'running',
+      });
+      prisma.invoice_adjustments.create.mockResolvedValue(
+        adjustmentRow('adj-1', '-1500.50'),
+      );
+    });
+
+    // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): one locked transaction.
+    it('locks the contract, then saves the adjustment on its running invoice as the actor', async () => {
+      const result = await service.addAdjustment(
+        'contract-1',
+        input,
+        'admin-1',
+      );
+
+      expect(result).toEqual({
+        id: 'adj-1',
+        amount: -1500.5,
+        reason: 'Reason adj-1',
+        actorId: 'admin-1',
+        createdAt: '2026-09-10T02:00:00.000Z',
+        invoiceStatus: 'accruing',
+      });
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'ReadCommitted',
+      });
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.invoices.upsert.mock.invocationCallOrder[0],
+      );
+      expect(prisma.invoices.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { contract_id: 'contract-1' },
+          create: { contract_id: 'contract-1' },
+          update: {},
+        }),
+      );
+      const [{ data }] = prisma.invoice_adjustments.create.mock.calls[0];
+      expect(data).toMatchObject({
+        invoice_id: 'invoice-1',
+        reason: 'Correction for overpayment',
+        actor_user_id: 'admin-1',
+      });
+      expect(data.amount.toFixed(2)).toBe('-1500.50');
+      expect(data).not.toHaveProperty('created_at');
+    });
+
+    it('answers 404 for an unknown contract without opening an invoice', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(null);
+
+      const error = await rejection(
+        service.addAdjustment('contract-1', input, 'admin-1'),
+      );
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_FOUND' } });
+      expect(prisma.invoices.upsert).not.toHaveBeenCalled();
+    });
+
+    // OWASP Top 10:2025 A06 (Insecure Design): the State Pattern blocks writes to a finalized invoice.
+    it('rejects an adjustment on a finalized invoice without saving it', async () => {
+      prisma.invoices.upsert.mockResolvedValue({
+        id: 'invoice-1',
+        status: 'finalized',
+      });
+
+      const error = await rejection(
+        service.addAdjustment('contract-1', input, 'admin-1'),
+      );
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
+      expect(prisma.invoice_adjustments.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('finalize', () => {
+    const measured = {
+      id: 'measured',
+      contract_id: 'contract-1',
+      name: 'Evg_1',
+      type: 'evergreen',
+      status: 'link_submitted',
+      deadline: day(-2),
+      video_submitted_at: day(-2),
+      platform: 'instagram',
+      views: 0,
+      likes: null,
+    };
+
+    /** An ended contract whose one video was on time and measured, so nothing waits for data. */
+    function endedContract(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'contract-1',
+        start_date: day(-30),
+        end_date: day(-1),
+        content_quota: 1,
+        fixed_rate: new Prisma.Decimal('1000000'),
+        creators: { access_revoke_date: null },
+        contents: [measured],
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      prisma.contracts.findUnique.mockResolvedValue(endedContract());
+      prisma.invoices.upsert.mockResolvedValue({
+        id: 'invoice-1',
+        status: 'running',
+      });
+      prisma.invoice_adjustments.findMany.mockResolvedValue([
+        adjustmentRow('adj-1', '25000'),
+        adjustmentRow('adj-2', '-0.50'),
+      ]);
+      prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot is the calculator's
+    // breakdown plus every adjustment, saved in the same locked transaction as the status change.
+    it('saves the calculated breakdown, the adjustments and the totals as the snapshot', async () => {
+      const result = await service.finalize('contract-1', TODAY);
+
+      expect(result).toMatchObject({
+        invoiceStatus: 'finalized',
+        adjustments: [
+          { id: 'adj-1', amount: 25_000, actorId: 'admin-1' },
+          { id: 'adj-2', amount: -0.5, actorId: 'admin-1' },
+        ],
+        snapshot: {
+          fixedRate: { amount: 1_000_000, status: 'calculated' },
+          additionalContent: { amount: 0, status: 'calculated' },
+          performanceBonus: { amount: 0, status: 'calculated' },
+          penalty: { amount: 0, status: 'calculated' },
+          rawTotal: 1_024_999.5,
+          total: 1_024_999.5,
+          floored: false,
+          finalizedAt: expect.any(String),
+        },
+      });
+      expect(result.snapshot.adjustments).toEqual(result.adjustments);
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.contracts.findUnique.mock.invocationCallOrder[0],
+      );
+      expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { invoice_id: 'invoice-1' } }),
+      );
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith({
+        where: { id: 'invoice-1', status: 'running' },
+        data: {
+          status: 'finalized',
+          snapshot: result.snapshot,
+          finalized_at: new Date(result.snapshot.finalizedAt),
+        },
+      });
+    });
+
+    // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the rules the totals were
+    // worked out with are saved with them, so a later formula change cannot be shown beside them.
+    it('saves the formula the breakdown was calculated with in the snapshot', async () => {
+      const { snapshot } = await service.finalize('contract-1', TODAY);
+
+      expect(snapshot.formula).toEqual(FORMULA);
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            snapshot: expect.objectContaining({ formula: FORMULA }),
+          }),
+        }),
+      );
+    });
+
+    // The instant the breakdown is calculated as of is the instant the invoice is finalized at,
+    // to the millisecond: the controller passes the request time, not a day.
+    it('stamps the snapshot and the row with the instant the breakdown was calculated as of', async () => {
+      const at = new Date('2026-09-18T09:41:27.123Z');
+
+      const { snapshot } = await service.finalize('contract-1', at);
+
+      expect(snapshot.finalizedAt).toBe('2026-09-18T09:41:27.123Z');
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ finalized_at: at }),
+        }),
+      );
+    });
+
+    it('floors the snapshot total at zero when adjustments outweigh the pay', async () => {
+      prisma.invoice_adjustments.findMany.mockResolvedValue([
+        adjustmentRow('adj-1', '-1500000'),
+      ]);
+
+      const { snapshot } = await service.finalize('contract-1', TODAY);
+
+      expect(snapshot).toMatchObject({
+        rawTotal: -500_000,
+        total: 0,
+        floored: true,
+      });
+    });
+
+    it('answers 404 for an unknown contract', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(null);
+
+      const error = await rejection(service.finalize('contract-1', TODAY));
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(prisma.invoices.upsert).not.toHaveBeenCalled();
+    });
+
+    // OWASP Top 10:2025 A06 (Insecure Design): finalize waits for the day after the end date in Jakarta.
+    it('refuses a contract whose last day is today in Jakarta', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({ end_date: day(0) }),
+      );
+
+      const error = await rejection(service.finalize('contract-1', TODAY));
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_ENDED' } });
+      expect(prisma.invoices.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses a second finalize through the finalized state', async () => {
+      prisma.invoices.upsert.mockResolvedValue({
+        id: 'invoice-1',
+        status: 'finalized',
+      });
+
+      const error = await rejection(service.finalize('contract-1', TODAY));
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
+      expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses to finalize while a component is waiting for data', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({
+          contents: [{ ...measured, platform: null, views: null }],
+        }),
+      );
+
+      const error = await rejection(service.finalize('contract-1', TODAY));
+
+      expect(error).toBeInstanceOf(UnprocessableEntityException);
+      expect(error).toMatchObject({
+        response: { code: 'INVOICE_DATA_INCOMPLETE' },
+      });
+      expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+    });
+
+    // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): a lost race is a conflict.
+    it('refuses when the running invoice was finalized by another request first', async () => {
+      prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+      const error = await rejection(service.finalize('contract-1', TODAY));
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
     });
   });
 });
