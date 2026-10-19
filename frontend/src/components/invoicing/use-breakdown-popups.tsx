@@ -9,6 +9,7 @@ import type { InvoiceRow } from "@/lib/invoice";
 import type { BreakdownKind, InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { loadInvoiceBreakdown } from "@/lib/invoice-breakdown.server";
 import { BreakdownPopup, type BreakdownStatus } from "./breakdown-popup";
+import { InvoiceActions } from "./invoice-actions";
 import { InvoiceRincian } from "./invoice-rincian";
 
 /** One money column, or "all" for the whole invoice in one panel (Rincian). */
@@ -53,7 +54,13 @@ function readKey(row: InvoiceRow): string {
 export function useBreakdownPopups({
   load = loadInvoiceBreakdown,
   onDecided,
-}: Readonly<{ load?: BreakdownLoader; onDecided?: (decision: Decision) => void }> = {}): {
+  onMutated,
+}: Readonly<{
+  load?: BreakdownLoader;
+  onDecided?: (decision: Decision) => void;
+  /** An invoice move (PBI-12) was accepted; the table reads its invoices again. */
+  onMutated?: () => void;
+}> = {}): {
   open: (kind: BreakdownView, row: InvoiceRow) => void;
   layers: ReactNode;
 } {
@@ -123,6 +130,18 @@ export function useBreakdownPopups({
         onRetry={() => fetchFor("all", popup.row)}
         onClose={closeAll}
         onOpenContent={setContentId}
+        actions={
+          // The two invoice moves (PBI-12) live beside Tutup; one accepted closes the layers
+          // and forgets what was read, so the table and panel read the invoice again.
+          <InvoiceActions
+            row={popup.row}
+            onMutated={() => {
+              read.current.clear();
+              closeAll();
+              onMutated?.();
+            }}
+          />
+        }
       />
     );
   } else if (popup) {

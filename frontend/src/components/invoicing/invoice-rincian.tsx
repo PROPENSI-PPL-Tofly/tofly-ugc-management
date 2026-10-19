@@ -5,6 +5,7 @@ import { CONTRACT_TONES, INVOICE_TONES } from "@/components/invoice/invoice-tabl
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot } from "@/components/ui/pill";
+import { FINAL_LABEL } from "@/lib/invoice-adjustment";
 import {
   CONTRACT_STATUS_LABELS,
   finalLabel,
@@ -12,6 +13,7 @@ import {
   type InvoiceRow,
 } from "@/lib/invoice";
 import { BREAKDOWN_KINDS, BREAKDOWN_TITLES, type InvoiceBreakdown } from "@/lib/invoice-breakdown";
+import { AdjustmentLines } from "./adjustment-lines";
 import { BreakdownLines, type BreakdownStatus } from "./breakdown-popup";
 
 /**
@@ -67,6 +69,13 @@ export function InvoiceRincian({
           </section>
         ))}
 
+        {row.adjustments.length > 0 ? (
+          <section aria-label="Penyesuaian manual" className="flex flex-col gap-1.5">
+            <h3 className="text-[13px] font-bold">Penyesuaian</h3>
+            <AdjustmentLines adjustments={row.adjustments} />
+          </section>
+        ) : null}
+
         <div
           role="group"
           aria-label="Total invoice"
@@ -102,6 +111,8 @@ export function InvoiceRincian({
           {`Kontrak ${CONTRACT_STATUS_LABELS[row.contractStatus]}`}
         </StatusDot>
         <Pill tone={INVOICE_TONES[row.invoiceStatus]}>{INVOICE_STATUS_LABELS[row.invoiceStatus]}</Pill>
+        {/* A frozen invoice is settled history: the prototype's word marks it. */}
+        {row.frozenAt !== null ? <Pill tone="green">{FINAL_LABEL}</Pill> : null}
       </div>
       {body}
     </Modal>

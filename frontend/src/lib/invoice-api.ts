@@ -35,6 +35,16 @@ export interface RawInvoiceComponent {
   lines: RawInvoiceLine[];
 }
 
+/** One manual adjustment, as POST answers it and GET lists it. */
+export interface RawAdjustment {
+  id: string;
+  amount: number;
+  reason: string;
+  actorId: string;
+  /** ISO instant. */
+  createdAt: string;
+}
+
 /** One creator's running invoice, as GET /invoices answers it. */
 export interface RawInvoiceRow {
   creatorId: string;
@@ -59,6 +69,10 @@ export interface RawInvoiceRow {
   total: number;
   floored: boolean;
   invoiceStatus: InvoiceStatus;
+  /** The manual adjustments recorded against this invoice, oldest first. */
+  adjustments: RawAdjustment[];
+  /** The frozen breakdown of a finalized invoice; null while it still runs. */
+  snapshot: { finalizedAt: string } | null;
 }
 
 export interface RawInvoiceList {
@@ -105,11 +119,14 @@ export function toInvoiceListQuery(state: InvoiceParams): URLSearchParams {
 
 function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
   const { fixedRate, additionalContent, performanceBonus, penalty } = raw.components;
+  const parts = [fixedRate, additionalContent, performanceBonus, penalty];
 
   return {
     creatorId: raw.creatorId,
     creatorName: raw.creatorName,
+    contractId: raw.contract.id,
     contractStatus: raw.contract.status,
+    contractEnd: raw.contract.endDate,
     // A fee or penalty waiting for a formula has charged nothing yet.
     fixedAmount: fixedRate.amount ?? 0,
     extraAmount: additionalContent.amount ?? 0,
@@ -118,7 +135,17 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
     penaltyAmount: penalty.amount ?? 0,
     totalAmount: raw.total,
     floored: raw.floored,
+    // Freezing needs every part measured; the server refuses and so does the form.
+    dataWaiting: parts.some((part) => part.status === "waiting_for_data"),
     invoiceStatus: raw.invoiceStatus,
+    // An answer that predates the field simply lists none.
+    adjustments: (raw.adjustments ?? []).map((adjustment) => ({
+      id: adjustment.id,
+      amount: adjustment.amount,
+      reason: adjustment.reason,
+      createdAt: adjustment.createdAt,
+    })),
+    frozenAt: raw.snapshot?.finalizedAt ?? null,
   };
 }
 
