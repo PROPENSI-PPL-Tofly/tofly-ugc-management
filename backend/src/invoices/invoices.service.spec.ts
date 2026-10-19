@@ -245,6 +245,70 @@ describe('InvoicesService', () => {
       expect(lines('kevin')).toEqual([]);
     });
 
+    // A renewed creator still owes the earlier contract's invoice its finalize and its payment.
+    describe('a creator whose earlier contract has ended', () => {
+      const salsa = row({
+        id: 'salsa',
+        first_name: 'Salsa',
+        last_name: 'Amelia',
+        contracts: [contractFor('salsa-new', -30, 150), contractFor('salsa-old', -200, -40)],
+      });
+      const contracts = (result: { items: { contract: { id: string; period: number } }[] }) =>
+        result.items.map(({ contract }) => [contract.id, contract.period]);
+
+      beforeEach(() => {
+        prisma.creators.findMany.mockResolvedValue([salsa]);
+      });
+
+      it("lists the earlier contract's invoice as its own row beside the current one", async () => {
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([
+          ['salsa-old', 1],
+          ['salsa-new', 2],
+        ]);
+        expect(result.items.every((item) => item.creatorId === 'salsa')).toBe(true);
+        expect(result).toMatchObject({ total: 2, summary: { runningInvoices: 2 } });
+      });
+
+      it('keeps listing it once finalized, so the admin sees it Final and can take it to payment', async () => {
+        pipeline = { 'salsa-old': 'finalized' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([
+          ['salsa-old', 1],
+          ['salsa-new', 2],
+        ]);
+        expect(result.summary.runningInvoices).toBe(1);
+      });
+
+      it('stops listing it once paid, when nothing is left to do on it', async () => {
+        pipeline = { 'salsa-old': 'paid' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([['salsa-new', 2]]);
+      });
+
+      it('keeps the current contract listed whatever its invoice status', async () => {
+        pipeline = { 'salsa-new': 'paid' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([
+          ['salsa-old', 1],
+          ['salsa-new', 2],
+        ]);
+      });
+
+      it('filters each row by its own contract', async () => {
+        const ended = await service.list({ page: 1, pageSize: 10 }, TODAY, { contract: 'expired' });
+
+        expect(contracts(ended)).toEqual([['salsa-old', 1]]);
+      });
+    });
+
     it('puts what needs action first by default: ended, then running, then not started', async () => {
       const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
@@ -585,6 +649,28 @@ describe('InvoicesService', () => {
         formula: FORMULA,
         total: 5_500_000,
       });
+    });
+
+    it('answers the contract it is asked for, with the period it pays', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+
+      const detail = await service.detail('creator-1', TODAY, 'first');
+
+      expect(statuses.statuses).toHaveBeenCalledWith(['first']);
+      expect(detail).toMatchObject({
+        contract: { id: 'first', status: 'expired', period: 1 },
+        periodNumber: 1,
+        total: 5_000_000,
+      });
+    });
+
+    // OWASP Top 10:2025 A01 (Broken Access Control): a contract id names one creator's contract;
+    // another creator's is not reached through this one's invoice.
+    it('answers null for a contract the creator does not hold', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+
+      await expect(service.detail('creator-1', TODAY, 'someone-elses')).resolves.toBeNull();
+      expect(prisma.contents.findMany).not.toHaveBeenCalled();
     });
 
     it('counts the first contract as period 1', async () => {

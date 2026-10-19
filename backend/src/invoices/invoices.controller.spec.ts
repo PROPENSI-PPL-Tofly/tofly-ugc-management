@@ -123,6 +123,19 @@ describe('InvoicesController', () => {
     expect(service.detail).toHaveBeenCalledWith(
       'creator-1',
       expect.any(Date),
+      undefined,
+    );
+  });
+
+  it("answers the invoice of the creator's contract it is asked for", async () => {
+    service.detail.mockResolvedValue({ creatorId: 'creator-1' });
+
+    await controller.detail('creator-1', 'contract-1');
+
+    expect(service.detail).toHaveBeenCalledWith(
+      'creator-1',
+      expect.any(Date),
+      'contract-1',
     );
   });
 
@@ -135,6 +148,7 @@ describe('InvoicesController', () => {
     expect(service.detail).toHaveBeenCalledWith(
       'creator-1',
       expect.any(Date),
+      undefined,
     );
   });
 

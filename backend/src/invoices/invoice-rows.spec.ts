@@ -4,6 +4,7 @@ import {
   CONTENT_SELECT,
   INVOICE_SELECT,
   creatorName,
+  listedContracts,
   pickContract,
   savedSnapshot,
   toInvoiceContract,
@@ -83,6 +84,50 @@ describe('toInvoiceContract', () => {
   });
 });
 
+// A creator whose contract was renewed still has the earlier one's invoice to finalize and pay:
+// each ended contract gets its own row next to the one the table describes.
+describe('listedContracts', () => {
+  const ids = (contracts: InvoiceContractRow[]) => contracts.map(({ id }) => id);
+
+  it('lists the current contract and, after it, every earlier one that has ended', () => {
+    const row = creatorRow({
+      contracts: [
+        contractRow({ id: 'old', start_date: day(-200), end_date: day(-61) }),
+        contractRow({ id: 'running' }),
+        contractRow({ id: 'older', start_date: day(-400), end_date: day(-201) }),
+      ],
+    });
+
+    expect(ids(listedContracts(row, TODAY))).toEqual(['running', 'old', 'older']);
+  });
+
+  it('lists both of two ended contracts, the latest first', () => {
+    const row = creatorRow({
+      contracts: [
+        contractRow({ id: 'old', start_date: day(-200), end_date: day(-61) }),
+        contractRow({ id: 'latest', start_date: day(-60), end_date: day(-1) }),
+      ],
+    });
+
+    expect(ids(listedContracts(row, TODAY))).toEqual(['latest', 'old']);
+  });
+
+  it('leaves out a contract still to come after the current one', () => {
+    const row = creatorRow({
+      contracts: [
+        contractRow({ id: 'running' }),
+        contractRow({ id: 'next', start_date: day(61), end_date: day(200) }),
+      ],
+    });
+
+    expect(ids(listedContracts(row, TODAY))).toEqual(['running']);
+  });
+
+  it('lists nothing for a creator without a contract', () => {
+    expect(listedContracts(creatorRow({ contracts: [] }), TODAY)).toEqual([]);
+  });
+});
+
 describe('pickContract', () => {
   it('picks the running contract, not an earlier one', () => {
     const row = creatorRow({
@@ -126,6 +171,7 @@ describe('toInvoiceItem', () => {
         startDate: '2026-07-20',
         endDate: '2026-11-17',
         lastDay: '2026-11-17',
+        period: 1,
       },
       rawTotal: 5_470_000,
       total: 5_470_000,
@@ -179,6 +225,41 @@ describe('toInvoiceItem', () => {
       endDate: '2026-11-17',
       lastDay: '2026-09-07',
     });
+  });
+
+  // OWASP Top 10:2025 A06 (Insecure Design): the contract column, its filter and the
+  // needs-action order all read an early end as the end, as finalizing does.
+  it('marks a contract that ended early as ended, although its end date has not come', () => {
+    const item = toInvoiceItem(
+      creatorRow({ access_revoke_date: day(-11) }),
+      contractRow(),
+      [],
+      FORMULA,
+      TODAY,
+    );
+
+    expect(item.contract.status).toBe('expired');
+  });
+
+  it('keeps a contract running on the day access is revoked', () => {
+    const item = toInvoiceItem(
+      creatorRow({ access_revoke_date: day(0) }),
+      contractRow(),
+      [],
+      FORMULA,
+      TODAY,
+    );
+
+    expect(item.contract.status).toBe('active');
+  });
+
+  it('numbers each contract by the period it pays, counted in the order they started', () => {
+    const first = contractRow({ id: 'first', start_date: day(-200), end_date: day(-61) });
+    const renewal = contractRow({ id: 'renewal' });
+    const row = creatorRow({ contracts: [renewal, first] });
+
+    expect(toInvoiceItem(row, first, [], FORMULA, TODAY).contract.period).toBe(1);
+    expect(toInvoiceItem(row, renewal, [], FORMULA, TODAY).contract.period).toBe(2);
   });
 
   it('keeps the end date as the last day when access is revoked after it', () => {

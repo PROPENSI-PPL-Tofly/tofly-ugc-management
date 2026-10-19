@@ -11,6 +11,7 @@ function item(
   creatorName: string,
   status: 'active' | 'upcoming' | 'expired',
   amounts: { fixed?: number | null; penalty?: number | null; total?: number } = {},
+  contract: { id?: string; startDate?: string } = {},
 ): InvoiceListItem {
   const component = (amount: number | null) => ({
     amount,
@@ -20,7 +21,14 @@ function item(
   return {
     creatorId: creatorName,
     creatorName,
-    contract: { id: `${creatorName}-c`, status, startDate: '', endDate: '', lastDay: '' },
+    contract: {
+      id: contract.id ?? `${creatorName}-c`,
+      status,
+      startDate: contract.startDate ?? '',
+      endDate: '',
+      lastDay: '',
+      period: 1,
+    },
     components: {
       fixedRate: component(amounts.fixed === undefined ? 0 : amounts.fixed),
       additionalContent: component(0),
@@ -139,6 +147,27 @@ describe('sortInvoices', () => {
       'Yusuf',
       'Bagas',
       'Rangga',
+    ]);
+  });
+
+  // Two rows of one renewed creator tie on the name: the earlier contract comes first, then the
+  // id, so paging the same list never shows a row twice or skips one.
+  it.each([
+    ['action', 'asc'],
+    ['name', 'asc'],
+    ['name', 'desc'],
+    ['total', 'desc'],
+  ] as const)('breaks a tie between two rows of one creator by the earlier contract (%s %s)', (key, order) => {
+    const renewed = [
+      item('Salsa', 'expired', { total: 100 }, { id: 'b-new', startDate: '2026-09-19' }),
+      item('Salsa', 'expired', { total: 100 }, { id: 'a-old', startDate: '2025-09-14' }),
+      item('Salsa', 'expired', { total: 100 }, { id: 'c-same', startDate: '2025-09-14' }),
+    ];
+
+    expect(sortInvoices(renewed, { key, order }).map((i) => i.contract.id)).toEqual([
+      'a-old',
+      'c-same',
+      'b-new',
     ]);
   });
 
