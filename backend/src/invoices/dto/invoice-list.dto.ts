@@ -51,6 +51,12 @@ export interface InvoiceSnapshotDto {
    * snapshot saved before the formula was kept with it.
    */
   formula?: RateFormula | null;
+  /**
+   * Whether the admin froze the performance bonus while some content still had no performance
+   * data, so it holds only what the measured content earned. Absent from a snapshot saved before
+   * a pending bonus could be frozen.
+   */
+  performanceBonusPending?: boolean;
 }
 
 /** Calculation result before the invoice pipeline assigns its status. */

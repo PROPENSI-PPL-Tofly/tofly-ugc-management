@@ -3,7 +3,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
@@ -48,6 +47,8 @@ import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
 import { contractLastDay } from './invoice-days.js';
+import { settleForFinalize } from './invoice-settlement.js';
+import type { FinalizeRequest } from './finalize-request.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
 /** The database operations this service uses. */
@@ -489,6 +490,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
   async finalize(
     contractId: string,
     today = new Date(),
+    request: FinalizeRequest = { acceptPendingBonus: false },
   ): Promise<{
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
@@ -550,16 +552,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
           today,
         });
 
-        if (
-          Object.values(breakdown.components).some(
-            (component) => component.status === 'waiting_for_data',
-          )
-        ) {
-          throw new UnprocessableEntityException({
-            code: 'INVOICE_DATA_INCOMPLETE',
-            message: 'Invoice memiliki komponen yang belum dapat dihitung',
-          });
-        }
+        const settled = settleForFinalize(
+          breakdown,
+          request.acceptPendingBonus,
+        );
 
         const adjustmentRows = await tx.invoice_adjustments.findMany({
           where: { invoice_id: invoice.id },
@@ -572,11 +568,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         // today is the request's instant, not a day: the breakdown is as of it, so it is when
         // the invoice was finalized.
         const snapshot: InvoiceSnapshotDto = {
-          ...breakdown.components,
+          ...settled.components,
           adjustments,
-          ...adjustedTotals(breakdown.rawTotal, sumAdjustments(adjustments)),
+          ...adjustedTotals(settled.rawTotal, sumAdjustments(adjustments)),
           finalizedAt: today.toISOString(),
           formula,
+          performanceBonusPending: settled.performanceBonusPending,
         };
 
         const updated = await tx.invoices.updateMany({

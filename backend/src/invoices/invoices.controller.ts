@@ -27,6 +27,7 @@ import {
   type InvoiceDetailReader,
   type InvoiceLister,
 } from './invoices.service.js';
+import { checkFinalizeRequest } from './finalize-request.js';
 import { checkManualAdjustment } from './manual-adjustment.js';
 
 @Controller('invoices')
@@ -92,10 +93,15 @@ export class InvoicesController {
   @Post(':contractId/finalize')
   async finalize(
     @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Body() body: unknown,
     @Req() request: Pick<AdminRequest, 'principal'>,
   ) {
     if (request.principal?.role !== 'admin') throw unauthenticated();
 
-    return this.invoices.finalize(contractId, new Date());
+    return this.invoices.finalize(
+      contractId,
+      new Date(),
+      checkFinalizeRequest(body),
+    );
   }
 }
