@@ -517,13 +517,14 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         });
 
         const adjustments = adjustmentRows.map(adjustmentDto);
-        const finalizedAt = new Date();
 
+        // today is the request's instant, not a day: the breakdown is as of it, so it is when
+        // the invoice was finalized.
         const snapshot: InvoiceSnapshotDto = {
           ...breakdown.components,
           adjustments,
           ...adjustedTotals(breakdown.rawTotal, adjustments),
-          finalizedAt: finalizedAt.toISOString(),
+          finalizedAt: today.toISOString(),
         };
 
         const updated = await tx.invoices.updateMany({
@@ -531,7 +532,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
           data: {
             status: 'finalized',
             snapshot: snapshot as unknown as Prisma.InputJsonValue,
-            finalized_at: finalizedAt,
+            finalized_at: today,
           },
         });
 
