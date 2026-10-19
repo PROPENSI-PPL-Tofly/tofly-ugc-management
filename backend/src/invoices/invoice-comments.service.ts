@@ -1,6 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceCommentInput } from './comment-request.js';
+import type {
+  CommentAuthorRole,
+  InvoiceCommentDto,
+} from './dto/invoice-payment.dto.js';
 import { creatorName } from './invoice-rows.js';
 
 /** The database operations this service uses. */
@@ -8,19 +12,6 @@ export type InvoiceCommentsClient = Pick<
   PrismaService,
   'contracts' | 'invoices' | 'invoice_comments'
 >;
-
-export type CommentAuthorRole = 'admin' | 'creator';
-
-/** One comment as the API answers it, oldest first in a thread. */
-export interface InvoiceCommentDto {
-  id: string;
-  /** "Admin" for every admin, never an email; the contract's creator by name. */
-  authorName: string;
-  authorRole: CommentAuthorRole;
-  text: string;
-  /** ISO instant. */
-  createdAt: string;
-}
 
 /**
  * Who writes, from the guard, never from the body. A creator is named by their creator id alone:

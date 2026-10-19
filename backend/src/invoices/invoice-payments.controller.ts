@@ -17,15 +17,13 @@ import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { unauthenticated } from '../auth/creator-request.js';
 import { sendOpenedFile } from '../storage/open-file-response.js';
 import { checkInvoiceComment } from './comment-request.js';
-import {
-  InvoiceCommentsService,
-  type InvoiceCommentDto,
-} from './invoice-comments.service.js';
+import type {
+  InvoiceCommentDto,
+  UploadedPaymentProofDto,
+} from './dto/invoice-payment.dto.js';
+import { InvoiceCommentsService } from './invoice-comments.service.js';
 import { checkPaymentProof, type UploadedProof } from './payment-proof-file.js';
-import {
-  PaymentProofService,
-  type UploadedPaymentProofDto,
-} from './payment-proof.service.js';
+import { PaymentProofService } from './payment-proof.service.js';
 import { ProofUploadInterceptor } from './proof-upload.interceptor.js';
 
 /**

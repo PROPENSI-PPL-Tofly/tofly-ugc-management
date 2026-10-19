@@ -13,10 +13,8 @@ import type { Response } from 'express';
 import { CurrentCreator } from '../auth/current-creator.decorator.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { checkInvoiceComment } from '../invoices/comment-request.js';
-import {
-  InvoiceCommentsService,
-  type InvoiceCommentDto,
-} from '../invoices/invoice-comments.service.js';
+import type { InvoiceCommentDto } from '../invoices/dto/invoice-payment.dto.js';
+import { InvoiceCommentsService } from '../invoices/invoice-comments.service.js';
 import { PaymentProofService } from '../invoices/payment-proof.service.js';
 import { sendOpenedFile } from '../storage/open-file-response.js';
 

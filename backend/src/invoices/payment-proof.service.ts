@@ -14,6 +14,10 @@ import {
   type FileStore,
   type OpenedFile,
 } from '../storage/file-store.js';
+import type {
+  PaymentProofDto,
+  UploadedPaymentProofDto,
+} from './dto/invoice-payment.dto.js';
 import { invoiceState, notAwaitingProof } from './invoice-lifecycle.js';
 import type { CheckedProof } from './payment-proof-file.js';
 
@@ -25,19 +29,6 @@ export type PaymentProofClient = Pick<
 
 /** Who is asking: an admin sees every proof, a creator only their own contracts' ones. */
 export type ProofAudience = 'admin' | 'creator';
-
-/** A saved proof as the API answers it. */
-export interface PaymentProofDto {
-  fileName: string;
-  /** A stable same-origin link; the backend checks access and opens the file only when followed. */
-  url: string;
-  /** ISO instant. */
-  uploadedAt: string;
-}
-
-export interface UploadedPaymentProofDto extends PaymentProofDto {
-  invoiceStatus: 'payment_uploaded';
-}
 
 /** Batched read of proofs, for every listing that shows them (13.1's GET /me/invoices too). */
 export interface PaymentProofReader {
