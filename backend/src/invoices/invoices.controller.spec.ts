@@ -226,14 +226,36 @@ describe('InvoicesController', () => {
       const finalized = { invoiceStatus: 'finalized' };
       service.finalize.mockResolvedValue(finalized);
 
-      await expect(controller.finalize(contractId, admin)).resolves.toBe(
+      await expect(controller.finalize(contractId, {}, admin)).resolves.toBe(
         finalized,
       );
 
       expect(service.finalize).toHaveBeenCalledWith(
         contractId,
         expect.any(Date),
+        { acceptPendingBonus: false },
       );
+    });
+
+    it('passes on that the admin accepted freezing a pending bonus', async () => {
+      service.finalize.mockResolvedValue({ invoiceStatus: 'finalized' });
+
+      await controller.finalize(contractId, { acceptPendingBonus: true }, admin);
+
+      expect(service.finalize).toHaveBeenCalledWith(
+        contractId,
+        expect.any(Date),
+        { acceptPendingBonus: true },
+      );
+    });
+
+    // OWASP Top 10:2025 A08 — a body trying to set what the server decides never reaches it.
+    it('rejects a finalize body it does not take without asking the service', async () => {
+      await expect(
+        controller.finalize(contractId, { status: 'finalized' }, admin),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+      expect(service.finalize).not.toHaveBeenCalled();
     });
 
     // OWASP Top 10:2025 A01 — reject missing and non-admin principals.
@@ -259,7 +281,7 @@ describe('InvoicesController', () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
 
       await expect(
-        controller.finalize(contractId, request),
+        controller.finalize(contractId, {}, request),
       ).rejects.toBeInstanceOf(UnauthorizedException);
 
       expect(service.addAdjustment).not.toHaveBeenCalled();

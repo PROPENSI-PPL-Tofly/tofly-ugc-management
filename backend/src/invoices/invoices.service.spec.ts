@@ -1086,20 +1086,69 @@ describe('InvoicesService', () => {
       expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
     });
 
-    it('refuses to finalize while a component is waiting for data', async () => {
-      prisma.contracts.findUnique.mockResolvedValue(
-        endedContract({
-          contents: [{ ...measured, platform: null, views: null }],
-        }),
-      );
+    it('refuses to finalize while a fee or penalty is waiting for a formula', async () => {
+      formulas.current.mockResolvedValue(null);
 
-      const error = await rejection(service.finalize('contract-1', TODAY));
+      const error = await rejection(
+        service.finalize('contract-1', TODAY, { acceptPendingBonus: true }),
+      );
 
       expect(error).toBeInstanceOf(UnprocessableEntityException);
       expect(error).toMatchObject({
         response: { code: 'INVOICE_DATA_INCOMPLETE' },
       });
       expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+    });
+
+    describe('a performance bonus still waiting for data', () => {
+      const unmeasured = { ...measured, id: 'unmeasured', views: null };
+
+      beforeEach(() => {
+        prisma.contracts.findUnique.mockResolvedValue(
+          endedContract({ contents: [unmeasured] }),
+        );
+      });
+
+      // OWASP Top 10:2025 A06 (Insecure Design): the admin is told before the bonus is frozen.
+      it('refuses to finalize until the admin accepts freezing it', async () => {
+        const error = await rejection(service.finalize('contract-1', TODAY));
+
+        expect(error).toBeInstanceOf(UnprocessableEntityException);
+        expect(error).toMatchObject({
+          response: { code: 'INVOICE_BONUS_PENDING' },
+        });
+        expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+      });
+
+      // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot says the bonus
+      // was frozen before its data was complete, so the final amount stays traceable.
+      it('freezes it at what was measured once accepted, and marks the snapshot so', async () => {
+        const { snapshot } = await service.finalize('contract-1', TODAY, {
+          acceptPendingBonus: true,
+        });
+
+        expect(snapshot).toMatchObject({
+          performanceBonus: { amount: 0, status: 'calculated' },
+          performanceBonusPending: true,
+          rawTotal: 1_024_999.5,
+          total: 1_024_999.5,
+        });
+        expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              snapshot: expect.objectContaining({
+                performanceBonusPending: true,
+              }),
+            }),
+          }),
+        );
+      });
+    });
+
+    it('marks a snapshot whose bonus had all its data as not pending', async () => {
+      const { snapshot } = await service.finalize('contract-1', TODAY);
+
+      expect(snapshot.performanceBonusPending).toBe(false);
     });
 
     // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): a lost race is a conflict.
