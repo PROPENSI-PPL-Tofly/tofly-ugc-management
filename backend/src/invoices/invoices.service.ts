@@ -47,6 +47,7 @@ import {
 import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
+import { contractLastDay } from './invoice-days.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
 /** The database operations this service uses. */
@@ -517,9 +518,19 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
         if (!contract) this.contractNotFound();
 
-        if (
-          jakartaDay(today) <= contract.end_date.toISOString().slice(0, 10)
-        ) {
+        const invoiceContract = toInvoiceContract(
+          {
+            id: contract.id,
+            start_date: contract.start_date,
+            end_date: contract.end_date,
+            content_quota: contract.content_quota,
+            fixed_rate: contract.fixed_rate,
+          },
+          contract.creators.access_revoke_date,
+        );
+
+        // An early end counts: the contract stops on the day access was revoked.
+        if (jakartaDay(today) <= contractLastDay(invoiceContract)) {
           throw codeError('CONTRACT_NOT_ENDED', 'Kontrak belum berakhir');
         }
 
@@ -533,16 +544,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         invoiceState(invoice.status).assertCanFinalize();
 
         const breakdown = calculateInvoice({
-          contract: toInvoiceContract(
-            {
-              id: contract.id,
-              start_date: contract.start_date,
-              end_date: contract.end_date,
-              content_quota: contract.content_quota,
-              fixed_rate: contract.fixed_rate,
-            },
-            contract.creators.access_revoke_date,
-          ),
+          contract: invoiceContract,
           contents: contract.contents.map(toInvoiceContent),
           formula,
           today,

@@ -21,6 +21,11 @@ export interface InvoiceContractDto {
   startDate: string;
   /** YYYY-MM-DD */
   endDate: string;
+  /**
+   * YYYY-MM-DD, the last day the contract counts: endDate, or the day access was revoked if
+   * that came first. Finalizing waits for the day after it.
+   */
+  lastDay: string;
 }
 
 export interface InvoiceAdjustmentDto {

@@ -20,7 +20,7 @@ function item(
   return {
     creatorId: creatorName,
     creatorName,
-    contract: { id: `${creatorName}-c`, status, startDate: '', endDate: '' },
+    contract: { id: `${creatorName}-c`, status, startDate: '', endDate: '', lastDay: '' },
     components: {
       fixedRate: component(amounts.fixed === undefined ? 0 : amounts.fixed),
       additionalContent: component(0),

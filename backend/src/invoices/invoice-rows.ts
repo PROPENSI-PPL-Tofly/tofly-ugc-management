@@ -14,6 +14,7 @@ import type {
   InvoiceSnapshotDto,
 } from './dto/invoice-list.dto.js';
 import { calculateInvoice } from './invoice-calculator.js';
+import { contractLastDay } from './invoice-days.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
 import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
@@ -249,10 +250,11 @@ export function toInvoiceItem(
   const lifecycle = saved ?? { adjustments: [], snapshot: null };
   const snapshot = lifecycle.snapshot;
 
+  const contract = toInvoiceContract(contractRow, row.access_revoke_date);
   const breakdown = snapshot
     ? null
     : calculateInvoice({
-      contract: toInvoiceContract(contractRow, row.access_revoke_date),
+      contract,
       contents: contents.map(toInvoiceContent),
       formula,
       today,
@@ -275,6 +277,7 @@ export function toInvoiceItem(
       status: invoiceContractStatus(contractRow, today),
       startDate: calendarDay(contractRow.start_date),
       endDate: calendarDay(contractRow.end_date),
+      lastDay: contractLastDay(contract),
     },
     components: snapshot
       ? {
