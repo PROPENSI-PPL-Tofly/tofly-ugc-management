@@ -4,20 +4,13 @@
 //
 // The contract below is the one this page assumes until 13.1 and 13.2 land: each item is the
 // admin's invoice detail (GET /invoices/:creatorId), so a creator reads the same breakdown the
-// admin froze, plus when each payment step was reached, the proof and the comment thread. The
-// backend answers only the signed-in creator's own invoices; the page never names a creator.
+// admin froze, plus the payment fields under the names the admin's Rate & Invoicing reads
+// (13.4, PR #107) and the comment thread, so the backend serves one shape to both. The backend
+// answers only the signed-in creator's own invoices; the page never names a creator.
 
 import type { CreatorInvoice, InvoiceComment, PaymentProof } from "./creator-invoice";
 import { INVOICE_STATUSES } from "./invoice";
 import { toInvoiceBreakdown, type RawInvoiceComponent, type RawInvoiceDetail } from "./invoice-api";
-
-/** When each payment step was reached, ISO instants; null until it is. */
-export interface RawInvoiceTimeline {
-  finalizedAt: string | null;
-  acknowledgedAt: string | null;
-  proofUploadedAt: string | null;
-  paidAt: string | null;
-}
 
 /** The proof the admin uploaded: a short-lived link to the file in Storage. */
 export interface RawPaymentProof {
@@ -29,15 +22,21 @@ export interface RawPaymentProof {
 export interface RawInvoiceComment {
   id: string;
   authorName: string;
-  authorRole: "admin" | "creator";
+  role: "admin" | "creator";
   text: string;
   createdAt: string;
 }
 
-/** One of the signed-in creator's invoices. */
+/**
+ * One of the signed-in creator's invoices. Final is dated by the frozen snapshot and Bukti Bayar
+ * by the proof's upload, so only the two moves the creator makes have a field of their own.
+ */
 export interface RawCreatorInvoice extends RawInvoiceDetail {
-  timeline: RawInvoiceTimeline;
-  proof: RawPaymentProof | null;
+  /** When the creator acknowledged it, an ISO instant; null until then. */
+  acknowledgedAt: string | null;
+  /** When the creator confirmed the payment arrived, an ISO instant; null until then. */
+  paidAt: string | null;
+  paymentProof: RawPaymentProof | null;
   /** Oldest first. */
   comments: RawInvoiceComment[];
 }
@@ -45,13 +44,6 @@ export interface RawCreatorInvoice extends RawInvoiceDetail {
 export interface RawCreatorInvoices {
   items: RawCreatorInvoice[];
 }
-
-const NO_TIMELINE: RawInvoiceTimeline = {
-  finalizedAt: null,
-  acknowledgedAt: null,
-  proofUploadedAt: null,
-  paidAt: null,
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -105,7 +97,7 @@ function toComment(raw: RawInvoiceComment): InvoiceComment {
   return {
     id: raw.id,
     authorName: raw.authorName,
-    authorRole: raw.authorRole,
+    authorRole: raw.role,
     text: raw.text,
     createdAt: raw.createdAt,
   };
@@ -113,8 +105,6 @@ function toComment(raw: RawInvoiceComment): InvoiceComment {
 
 function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
   const { fixedRate, additionalContent, performanceBonus, penalty } = raw.components;
-  // An answer that predates the payment fields simply has reached none of those steps.
-  const timeline = raw.timeline ?? NO_TIMELINE;
 
   return {
     contractId: raw.contract.id,
@@ -139,13 +129,14 @@ function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
     totalAmount: raw.total,
     floored: raw.floored,
     breakdown: toInvoiceBreakdown(raw),
+    // An answer that predates the payment fields simply has reached none of those steps.
     reachedAt: {
-      finalized: timeline.finalizedAt,
-      creator_acked: timeline.acknowledgedAt,
-      payment_uploaded: timeline.proofUploadedAt,
-      paid: timeline.paidAt,
+      finalized: raw.snapshot?.finalizedAt ?? null,
+      creator_acked: raw.acknowledgedAt ?? null,
+      payment_uploaded: raw.paymentProof?.uploadedAt ?? null,
+      paid: raw.paidAt ?? null,
     },
-    proof: toProof(raw.proof),
+    proof: toProof(raw.paymentProof),
     comments: (raw.comments ?? []).map(toComment),
   };
 }
