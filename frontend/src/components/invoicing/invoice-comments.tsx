@@ -2,9 +2,15 @@
 
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { CharLimit } from "@/components/ui/char-limit";
 import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import { formatTimestamp } from "@/lib/format";
-import { COMMENT_FAILED, COMMENTS_UNAVAILABLE } from "@/lib/invoice-comments";
+import {
+  COMMENT_FAILED,
+  COMMENT_MAX_LENGTH,
+  COMMENTS_UNAVAILABLE,
+  validateComment,
+} from "@/lib/invoice-comments";
 import {
   addInvoiceComment,
   loadInvoiceComments,
@@ -38,6 +44,7 @@ export function InvoiceComments({
   comments = SERVER_COMMENTS,
 }: Readonly<{ contractId: string; comments?: CommentsGateway }>) {
   const boxId = useId();
+  const countId = useId();
   const [thread, setThread] = useState<Thread>({ kind: "loading" });
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -116,15 +123,21 @@ export function InvoiceComments({
             className={FIELD}
             rows={3}
             value={text}
+            maxLength={COMMENT_MAX_LENGTH}
+            aria-describedby={countId}
             onChange={(event) => setText(event.target.value)}
           />
+          <CharLimit id={countId} length={text.length} max={COMMENT_MAX_LENGTH} />
           {error ? (
             <p role="alert" className={FIELD_ERROR}>
               {error}
             </p>
           ) : null}
           <div>
-            <Button disabled={sending} onClick={() => send(thread.comments)}>
+            <Button
+              disabled={sending || validateComment(text) !== null}
+              onClick={() => send(thread.comments)}
+            >
               Kirim
             </Button>
           </div>
