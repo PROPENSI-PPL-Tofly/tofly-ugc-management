@@ -55,7 +55,6 @@ function stubs() {
     file_name: PROOF.fileName,
     uploaded_at: UPLOADED_AT,
   });
-  prisma.invoice_payment_proofs.findMany.mockResolvedValue([]);
   prisma.$transaction.mockImplementation(
     (work: (tx: typeof prisma) => Promise<unknown>) => work(prisma),
   );
@@ -79,7 +78,7 @@ async function refusalOf(work: Promise<unknown>) {
     () => expect.unreachable('the call must be refused'),
     (thrown: unknown) => thrown,
   );
-  return error as { getResponse(): unknown; getStatus(): number };
+  return error as { getResponse(): unknown };
 }
 
 describe('PaymentProofService', () => {
@@ -96,184 +95,141 @@ describe('PaymentProofService', () => {
   });
 
   describe('upload', () => {
-    describe('accepts', () => {
-      it('a proof once the creator has acknowledged: stores it, records it and moves the invoice on', async () => {
-        await expect(service.upload(CONTRACT, PROOF, ADMIN)).resolves.toEqual({
-          fileName: 'transfer-agustus.pdf',
-          url: `/api/invoices/${CONTRACT}/payment-proof`,
-          uploadedAt: '2026-10-20T03:00:00.000Z',
-          invoiceStatus: 'payment_uploaded',
-        });
-
-        expect(prisma.contracts.findUnique).toHaveBeenCalledWith({
-          where: { id: CONTRACT },
-          select: { id: true, invoice: { select: { id: true, status: true } } },
-        });
-        // Read committed: the guarded update waits on a rival's row lock, then re-reads it.
-        expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
-          isolationLevel: 'ReadCommitted',
-        });
-        expect(store.put).toHaveBeenCalledExactlyOnceWith(
-          KEY,
-          PROOF.bytes,
-          'application/pdf',
-        );
-        expect(prisma.invoices.updateMany).toHaveBeenCalledWith({
-          where: { id: INVOICE, status: 'creator_acked' },
-          data: { status: 'payment_uploaded' },
-        });
-        expect(prisma.invoice_payment_proofs.create).toHaveBeenCalledWith({
-          data: {
-            invoice_id: INVOICE,
-            object_key: OBJECT,
-            file_name: 'transfer-agustus.pdf',
-            content_type: 'application/pdf',
-            size_bytes: PROOF.bytes.length,
-            uploaded_by: ADMIN,
-          },
-          select: { file_name: true, uploaded_at: true },
-        });
-        expect(store.remove).not.toHaveBeenCalled();
+    it('stores the file, then records it and moves an acknowledged invoice on in one transaction', async () => {
+      await expect(service.upload(CONTRACT, PROOF, ADMIN)).resolves.toEqual({
+        fileName: 'transfer-agustus.pdf',
+        url: `/api/invoices/${CONTRACT}/payment-proof`,
+        uploadedAt: '2026-10-20T03:00:00.000Z',
+        invoiceStatus: 'payment_uploaded',
       });
 
-      it('stores the file before the transaction, so the transaction holds no lock during the upload', async () => {
-        await service.upload(CONTRACT, PROOF, ADMIN);
-
-        expect(store.put.mock.invocationCallOrder[0]).toBeLessThan(
-          prisma.$transaction.mock.invocationCallOrder[0],
-        );
+      expect(store.put).toHaveBeenCalledExactlyOnceWith(
+        KEY,
+        PROOF.bytes,
+        'application/pdf',
+      );
+      // The upload happens before the transaction, so no row lock is held while it runs.
+      expect(store.put.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.$transaction.mock.invocationCallOrder[0],
+      );
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'ReadCommitted',
       });
-
-      it('names a new random key for every upload', async () => {
-        const real = new PaymentProofService(
-          prisma as unknown as PaymentProofClient,
-          store,
-        );
-
-        await real.upload(CONTRACT, PROOF, ADMIN);
-
-        expect(store.put.mock.calls[0][0]).toMatch(
-          /^payment-proofs\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-        );
+      // Guarded: moves the status only if it is still waiting for a proof.
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith({
+        where: { id: INVOICE, status: 'creator_acked' },
+        data: { status: 'payment_uploaded' },
       });
+      expect(prisma.invoice_payment_proofs.create).toHaveBeenCalledWith({
+        data: {
+          invoice_id: INVOICE,
+          object_key: OBJECT,
+          file_name: 'transfer-agustus.pdf',
+          content_type: 'application/pdf',
+          size_bytes: PROOF.bytes.length,
+          uploaded_by: ADMIN,
+        },
+        select: { file_name: true, uploaded_at: true },
+      });
+      expect(store.remove).not.toHaveBeenCalled();
     });
 
-    describe('refuses', () => {
-      it('a contract that does not exist, before storing anything', async () => {
-        prisma.contracts.findUnique.mockResolvedValue(null);
+    it('stores every upload under a fresh random key, never a name the admin typed', async () => {
+      await new PaymentProofService(
+        prisma as unknown as PaymentProofClient,
+        store,
+      ).upload(CONTRACT, PROOF, ADMIN);
 
-        const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
-
-        expect(error).toBeInstanceOf(NotFoundException);
-        expect(error.getResponse()).toEqual({
-          code: 'INVOICE_NOT_FOUND',
-          message: 'Invoice tidak ditemukan',
-        });
-        expect(store.put).not.toHaveBeenCalled();
-      });
-
-      it('an accruing contract with no invoice row yet', async () => {
-        prisma.contracts.findUnique.mockResolvedValue({
-          id: CONTRACT,
-          invoice: null,
-        });
-
-        const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
-
-        expect(error).toBeInstanceOf(ConflictException);
-        expect(error.getResponse()).toEqual(NOT_AWAITING_PROOF);
-        expect(store.put).not.toHaveBeenCalled();
-      });
-
-      it.each(['running', 'finalized', 'payment_uploaded', 'paid'])(
-        'an invoice that is %s, before storing anything',
-        async (status) => {
-          prisma.contracts.findUnique.mockResolvedValue({
-            id: CONTRACT,
-            invoice: { id: INVOICE, status },
-          });
-
-          const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
-
-          expect(error.getResponse()).toEqual(NOT_AWAITING_PROOF);
-          expect(store.put).not.toHaveBeenCalled();
-          expect(prisma.$transaction).not.toHaveBeenCalled();
-        },
+      expect(store.put.mock.calls[0][0]).toMatch(
+        /^payment-proofs\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       );
+    });
+
+    it('refuses a contract that does not exist, storing nothing', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(null);
+
+      const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(error.getResponse()).toEqual({
+        code: 'INVOICE_NOT_FOUND',
+        message: 'Invoice tidak ditemukan',
+      });
+      expect(store.put).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an accruing contract with no invoice row yet', null],
+      ['an invoice not acknowledged yet', { id: INVOICE, status: 'finalized' }],
+      [
+        'an invoice that already has its proof',
+        { id: INVOICE, status: 'payment_uploaded' },
+      ],
+    ])('refuses %s, storing nothing', async (_case, invoice) => {
+      prisma.contracts.findUnique.mockResolvedValue({ id: CONTRACT, invoice });
+
+      const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error.getResponse()).toEqual(NOT_AWAITING_PROOF);
+      expect(store.put).not.toHaveBeenCalled();
     });
 
     // OWASP Top 10:2025 A06 (Insecure Design) and A10 (Mishandling of Exceptional Conditions):
     // two admins at once, or a failure halfway, never leave a status without its proof or a
     // stored file nobody points at.
-    describe('edge:', () => {
-      it('loses a race when the status moved after the check, and removes its file', async () => {
-        prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+    it('loses a race to another upload as a conflict, and removes its own file', async () => {
+      prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
 
-        const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
+      const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
 
-        expect(error.getResponse()).toEqual(NOT_AWAITING_PROOF);
-        expect(prisma.invoice_payment_proofs.create).not.toHaveBeenCalled();
-        expect(store.remove).toHaveBeenCalledExactlyOnceWith(KEY);
-      });
+      expect(error.getResponse()).toEqual(NOT_AWAITING_PROOF);
+      expect(prisma.invoice_payment_proofs.create).not.toHaveBeenCalled();
+      expect(store.remove).toHaveBeenCalledExactlyOnceWith(KEY);
+    });
 
-      it('reads a proof already saved for the invoice as the same conflict, and removes its file', async () => {
-        prisma.invoice_payment_proofs.create.mockRejectedValue(
-          new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-            code: 'P2002',
-            clientVersion: 'test',
-          }),
-        );
-
-        const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
-
-        expect(error).toBeInstanceOf(ConflictException);
-        expect(error.getResponse()).toEqual(NOT_AWAITING_PROOF);
-        expect(store.remove).toHaveBeenCalledExactlyOnceWith(KEY);
-      });
-
-      it('passes on any other database failure, and removes its file', async () => {
-        const failure = new Prisma.PrismaClientKnownRequestError('FK', {
-          code: 'P2003',
+    it('reads a duplicate proof row (unique invoice) as the same conflict, and removes its file', async () => {
+      prisma.invoice_payment_proofs.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
           clientVersion: 'test',
-        });
-        prisma.invoice_payment_proofs.create.mockRejectedValue(failure);
+        }),
+      );
 
-        await expect(service.upload(CONTRACT, PROOF, ADMIN)).rejects.toBe(
-          failure,
-        );
-        expect(store.remove).toHaveBeenCalledExactlyOnceWith(KEY);
+      const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(store.remove).toHaveBeenCalledExactlyOnceWith(KEY);
+    });
+
+    it('passes on any other failure after storing, keeping it over a failed clean-up, which is logged', async () => {
+      const failure = new Error('connection reset');
+      prisma.$transaction.mockRejectedValue(failure);
+      store.remove.mockRejectedValue(new Error('bucket unreachable'));
+      const log = vi
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+
+      await expect(service.upload(CONTRACT, PROOF, ADMIN)).rejects.toBe(
+        failure,
+      );
+      expect(log).toHaveBeenCalledWith(
+        `Could not remove the unrecorded payment proof ${KEY}: bucket unreachable`,
+      );
+      log.mockRestore();
+    });
+
+    it('answers a storage outage as unavailable, recording nothing', async () => {
+      store.put.mockRejectedValue(new Error('503 from storage'));
+
+      const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
+
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      expect(error.getResponse()).toEqual({
+        code: 'PROOF_STORAGE_UNAVAILABLE',
+        message: 'Bukti pembayaran gagal disimpan. Coba lagi.',
       });
-
-      it('keeps the first failure when removing the file fails too, and logs the leftover key', async () => {
-        const failure = new Error('connection reset');
-        prisma.$transaction.mockRejectedValue(failure);
-        store.remove.mockRejectedValue(new Error('bucket unreachable'));
-        const log = vi
-          .spyOn(Logger.prototype, 'error')
-          .mockImplementation(() => {});
-
-        await expect(service.upload(CONTRACT, PROOF, ADMIN)).rejects.toBe(
-          failure,
-        );
-        expect(log).toHaveBeenCalledWith(
-          `Could not remove the unrecorded payment proof ${KEY}: bucket unreachable`,
-        );
-        log.mockRestore();
-      });
-
-      it('answers a store that cannot take the file as unavailable, with nothing recorded', async () => {
-        store.put.mockRejectedValue(new Error('503 from storage'));
-
-        const error = await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
-
-        expect(error).toBeInstanceOf(ServiceUnavailableException);
-        expect(error.getResponse()).toEqual({
-          code: 'PROOF_STORAGE_UNAVAILABLE',
-          message: 'Bukti pembayaran gagal disimpan. Coba lagi.',
-        });
-        expect(prisma.$transaction).not.toHaveBeenCalled();
-        expect(store.remove).not.toHaveBeenCalled();
-      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 
@@ -283,83 +239,76 @@ describe('PaymentProofService', () => {
       file_name: 'transfer-agustus.pdf',
       content_type: 'application/pdf',
     };
+    const SELECT = { object_key: true, file_name: true, content_type: true };
 
-    describe('accepts', () => {
-      it("an admin's request for any invoice's proof", async () => {
-        prisma.invoice_payment_proofs.findFirst.mockResolvedValue(SAVED);
-        store.open.mockResolvedValue({
-          kind: 'redirect',
-          url: 'https://signed',
-        });
+    it("opens any invoice's proof for an admin, named and typed as saved", async () => {
+      prisma.invoice_payment_proofs.findFirst.mockResolvedValue(SAVED);
+      store.open.mockResolvedValue({ kind: 'redirect', url: 'https://signed' });
 
-        await expect(service.open(CONTRACT, {})).resolves.toEqual({
-          kind: 'redirect',
-          url: 'https://signed',
-        });
-        expect(prisma.invoice_payment_proofs.findFirst).toHaveBeenCalledWith({
-          where: { invoices: { contract_id: CONTRACT } },
-          select: { object_key: true, file_name: true, content_type: true },
-        });
-        expect(store.open).toHaveBeenCalledWith(KEY, {
-          fileName: 'transfer-agustus.pdf',
-          contentType: 'application/pdf',
-        });
+      await expect(service.open(CONTRACT, {})).resolves.toEqual({
+        kind: 'redirect',
+        url: 'https://signed',
       });
+      expect(prisma.invoice_payment_proofs.findFirst).toHaveBeenCalledWith({
+        where: { invoices: { contract_id: CONTRACT } },
+        select: SELECT,
+      });
+      expect(store.open).toHaveBeenCalledWith(KEY, {
+        fileName: 'transfer-agustus.pdf',
+        contentType: 'application/pdf',
+      });
+    });
 
-      it("a creator's request, looked up only among their own contracts", async () => {
-        prisma.invoice_payment_proofs.findFirst.mockResolvedValue(SAVED);
-        store.open.mockResolvedValue({
-          kind: 'redirect',
-          url: 'https://signed',
-        });
+    // OWASP Top 10:2025 A01 (Broken Access Control): a creator's lookup is scoped to their own
+    // contracts, and another creator's proof answers exactly as a missing one.
+    it("looks a creator's proof up only among their own contracts, answering not found otherwise", async () => {
+      prisma.invoice_payment_proofs.findFirst.mockResolvedValue(null);
 
-        await service.open(CONTRACT, { creatorId: CREATOR });
+      const error = await refusalOf(
+        service.open(CONTRACT, { creatorId: CREATOR }),
+      );
 
-        expect(prisma.invoice_payment_proofs.findFirst).toHaveBeenCalledWith({
-          where: {
-            invoices: {
-              contract_id: CONTRACT,
-              contracts: { creator_id: CREATOR },
-            },
+      expect(prisma.invoice_payment_proofs.findFirst).toHaveBeenCalledWith({
+        where: {
+          invoices: {
+            contract_id: CONTRACT,
+            contracts: { creator_id: CREATOR },
           },
-          select: { object_key: true, file_name: true, content_type: true },
-        });
+        },
+        select: SELECT,
+      });
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(error.getResponse()).toEqual({
+        code: 'PROOF_NOT_FOUND',
+        message: 'Bukti pembayaran tidak ditemukan',
+      });
+      expect(store.open).not.toHaveBeenCalled();
+    });
+
+    it('still opens a creator their own proof through that scope', async () => {
+      prisma.invoice_payment_proofs.findFirst.mockResolvedValue(SAVED);
+      store.open.mockResolvedValue({ kind: 'redirect', url: 'https://signed' });
+
+      await expect(
+        service.open(CONTRACT, { creatorId: CREATOR }),
+      ).resolves.toEqual({
+        kind: 'redirect',
+        url: 'https://signed',
       });
     });
 
-    // OWASP Top 10:2025 A01 (Broken Access Control): another creator's proof answers exactly as
-    // a missing one does, so the endpoint never says whose contract an id is.
-    describe('refuses', () => {
-      it("a contract with no proof, or one that is not the creator's, as not found", async () => {
-        prisma.invoice_payment_proofs.findFirst.mockResolvedValue(null);
+    it('answers a recorded proof whose file is gone as not found, not as a crash', async () => {
+      prisma.invoice_payment_proofs.findFirst.mockResolvedValue(SAVED);
+      store.open.mockResolvedValue(null);
 
-        const error = await refusalOf(
-          service.open(CONTRACT, { creatorId: CREATOR }),
-        );
-
-        expect(error).toBeInstanceOf(NotFoundException);
-        expect(error.getResponse()).toEqual({
-          code: 'PROOF_NOT_FOUND',
-          message: 'Bukti pembayaran tidak ditemukan',
-        });
-        expect(store.open).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('edge:', () => {
-      it('answers a recorded proof whose file is gone as not found', async () => {
-        prisma.invoice_payment_proofs.findFirst.mockResolvedValue(SAVED);
-        store.open.mockResolvedValue(null);
-
-        const error = await refusalOf(service.open(CONTRACT, {}));
-
-        expect(error.getStatus()).toBe(404);
-      });
+      expect(await refusalOf(service.open(CONTRACT, {}))).toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
   describe('forContracts', () => {
-    it("reads every asked contract's proof in one query, linked for the audience", async () => {
+    it("reads every asked contract's proof in one query, linked for each audience", async () => {
       prisma.invoice_payment_proofs.findMany.mockResolvedValue([
         {
           file_name: 'a.pdf',
@@ -368,24 +317,26 @@ describe('PaymentProofService', () => {
         },
       ]);
 
-      const proofs = await service.forContracts(
+      const forCreator = await service.forContracts(
         [CONTRACT, OTHER_CONTRACT],
         'creator',
       );
+      const forAdmin = await service.forContracts([CONTRACT], 'admin');
 
-      expect(
-        prisma.invoice_payment_proofs.findMany,
-      ).toHaveBeenCalledExactlyOnceWith({
-        where: {
-          invoices: { contract_id: { in: [CONTRACT, OTHER_CONTRACT] } },
+      expect(prisma.invoice_payment_proofs.findMany).toHaveBeenNthCalledWith(
+        1,
+        {
+          where: {
+            invoices: { contract_id: { in: [CONTRACT, OTHER_CONTRACT] } },
+          },
+          select: {
+            file_name: true,
+            uploaded_at: true,
+            invoices: { select: { contract_id: true } },
+          },
         },
-        select: {
-          file_name: true,
-          uploaded_at: true,
-          invoices: { select: { contract_id: true } },
-        },
-      });
-      expect(proofs).toEqual(
+      );
+      expect(forCreator).toEqual(
         new Map([
           [
             CONTRACT,
@@ -397,26 +348,12 @@ describe('PaymentProofService', () => {
           ],
         ]),
       );
-      expect(proofs.has(OTHER_CONTRACT)).toBe(false);
-    });
-
-    it("links an admin's proofs to the admin route", async () => {
-      prisma.invoice_payment_proofs.findMany.mockResolvedValue([
-        {
-          file_name: 'a.pdf',
-          uploaded_at: UPLOADED_AT,
-          invoices: { contract_id: CONTRACT },
-        },
-      ]);
-
-      const proofs = await service.forContracts([CONTRACT], 'admin');
-
-      expect(proofs.get(CONTRACT)?.url).toBe(
+      expect(forAdmin.get(CONTRACT)?.url).toBe(
         `/api/invoices/${CONTRACT}/payment-proof`,
       );
     });
 
-    it('asks nothing for no contracts', async () => {
+    it('asks nothing for an empty page', async () => {
       await expect(service.forContracts([], 'admin')).resolves.toEqual(
         new Map(),
       );

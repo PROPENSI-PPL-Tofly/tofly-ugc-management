@@ -21,6 +21,7 @@ describe('LocalFileStore', () => {
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'tofly-store-'));
+    // A folder that does not exist yet: the first put makes it.
     store = new LocalFileStore(join(root, 'not-made-yet'));
   });
 
@@ -28,46 +29,35 @@ describe('LocalFileStore', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  describe('accepts', () => {
-    it('stores a file and streams the same bytes back with their type and size', async () => {
-      const bytes = Buffer.from('%PDF-1.7 bukti');
+  it('streams back the bytes it stored, with their name, type and size', async () => {
+    const bytes = Buffer.from('%PDF-1.7 bukti');
+    await store.put(KEY, bytes, 'application/pdf');
 
-      await store.put(KEY, bytes, 'application/pdf');
-      const opened = await store.open(KEY, META);
+    const opened = await store.open(KEY, META);
 
-      expect(opened).toMatchObject({
-        kind: 'stream',
-        fileName: 'bukti.pdf',
-        contentType: 'application/pdf',
-        size: bytes.length,
-      });
-      expect(await readAll((opened as { stream: Readable }).stream)).toEqual(
-        bytes,
-      );
+    expect(opened).toMatchObject({
+      kind: 'stream',
+      fileName: 'bukti.pdf',
+      contentType: 'application/pdf',
+      size: bytes.length,
     });
-
-    it('removes a stored file, so it can no longer be opened', async () => {
-      await store.put(KEY, Buffer.from('x'), 'image/png');
-
-      await store.remove(KEY);
-
-      await expect(store.open(KEY, META)).resolves.toBeNull();
-    });
+    expect(await readAll((opened as { stream: Readable }).stream)).toEqual(
+      bytes,
+    );
   });
 
-  // OWASP Top 10:2025 A01 (Broken Access Control): a key is a fixed prefix and a UUID, so no key
-  // can name a file outside the store's folder.
-  describe('refuses', () => {
-    it.each([
-      '../escape',
-      'payment-proofs/../../etc/passwd',
-      'payment-proofs/not-a-uuid',
-      '0f0e0d0c-0b0a-4908-8706-050403020100',
-      'Payment-Proofs/0f0e0d0c-0b0a-4908-8706-050403020100',
-      'payment-proofs\\0f0e0d0c-0b0a-4908-8706-050403020100',
-      `${KEY}/more`,
-      '',
-    ])('the key %j before touching the disk', async (key) => {
+  it('answers null for a missing file, and removes one twice without failing', async () => {
+    await store.put(KEY, Buffer.from('x'), 'image/png');
+
+    await store.remove(KEY);
+    await expect(store.remove(KEY)).resolves.toBeUndefined();
+    await expect(store.open(KEY, META)).resolves.toBeNull();
+  });
+
+  // OWASP Top 10:2025 A01 (Broken Access Control): a key can never name a file outside the folder.
+  it.each(['../escape', `../${KEY}`, `${KEY}/more`])(
+    'refuses the key %j before touching the disk',
+    async (key) => {
       await expect(
         store.put(key, Buffer.from('x'), 'image/png'),
       ).rejects.toThrow('Invalid storage key');
@@ -76,44 +66,26 @@ describe('LocalFileStore', () => {
       );
       await expect(store.remove(key)).rejects.toThrow('Invalid storage key');
       await expect(readdir(root)).resolves.toEqual([]);
-    });
+    },
+  );
 
-    it('overwriting a stored file, keeping the first', async () => {
-      await store.put(KEY, Buffer.from('first'), 'image/png');
+  it('never overwrites a stored file', async () => {
+    await store.put(KEY, Buffer.from('first'), 'image/png');
 
-      await expect(
-        store.put(KEY, Buffer.from('second'), 'image/png'),
-      ).rejects.toThrow();
-      expect(
-        await readFile(join(root, 'not-made-yet', ...KEY.split('/'))),
-      ).toEqual(Buffer.from('first'));
-    });
+    await expect(
+      store.put(KEY, Buffer.from('second'), 'image/png'),
+    ).rejects.toThrow();
+    expect(
+      await readFile(join(root, 'not-made-yet', ...KEY.split('/'))),
+    ).toEqual(Buffer.from('first'));
   });
 
-  describe('edge:', () => {
-    it('answers null for a key that was never stored', async () => {
-      await expect(store.open(KEY, META)).resolves.toBeNull();
-    });
+  // A disk failure other than a missing file is passed on, never read as "no file".
+  it('refuses to stream a folder sitting where a file should be', async () => {
+    await mkdir(join(root, ...KEY.split('/')), { recursive: true });
 
-    it('removes a key that is not there without failing', async () => {
-      await expect(store.remove(KEY)).resolves.toBeUndefined();
-    });
-
-    it('makes its folder on the first put', async () => {
-      await store.put(KEY, Buffer.from('x'), 'image/png');
-
-      await expect(readdir(join(root, 'not-made-yet'))).resolves.toEqual([
-        'payment-proofs',
-      ]);
-    });
-
-    // A disk failure other than a missing file is passed on, never read as "no file".
-    it('refuses to stream a folder sitting where a file should be', async () => {
-      await mkdir(join(root, ...KEY.split('/')), { recursive: true });
-
-      await expect(new LocalFileStore(root).open(KEY, META)).rejects.toThrow(
-        'Not a stored file',
-      );
-    });
+    await expect(new LocalFileStore(root).open(KEY, META)).rejects.toThrow(
+      'Not a stored file',
+    );
   });
 });

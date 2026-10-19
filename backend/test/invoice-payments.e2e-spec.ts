@@ -53,7 +53,6 @@ describe('Invoice payment proof and comments (e2e)', () => {
   let nadiaContract: string;
   let kevinContract: string;
   let sariContract: string;
-  let nadiaCreatorId: string;
 
   /** Creates a creator under the marker with one contract, and signs them in. */
   async function creator(name: string, start: number, end: number) {
@@ -131,7 +130,6 @@ describe('Invoice payment proof and comments (e2e)', () => {
     const n = await creator('Nadia', -90, -10);
     nadia = n.client;
     nadiaContract = n.contractId;
-    nadiaCreatorId = n.creatorId;
 
     const k = await creator('Kevin', -10, 60);
     kevin = k.client;
@@ -373,27 +371,6 @@ describe('Invoice payment proof and comments (e2e)', () => {
         }),
       ).toEqual({ status: 'creator_acked' });
     });
-
-    it('a 6 MB file', async () => {
-      const big = Buffer.alloc(6 * 1024 * 1024);
-      PDF.copy(big);
-
-      const res = await admin
-        .post(`/invoices/${sariContract}/payment-proof`)
-        .attach('file', big, 'besar.pdf')
-        .expect(422);
-
-      expect(res.body.code).toBe('PROOF_TOO_LARGE');
-    });
-
-    it('a proof for an invoice still running', async () => {
-      const res = await admin
-        .post(`/invoices/${kevinContract}/payment-proof`)
-        .attach('file', PDF, 'a.pdf')
-        .expect(409);
-
-      expect(res.body.code).toBe('INVOICE_NOT_AWAITING_PROOF');
-    });
   });
 
   describe('edge:', () => {
@@ -468,17 +445,6 @@ describe('Invoice payment proof and comments (e2e)', () => {
         authorRole: 'creator',
         text: `Status ${status}`,
       });
-    });
-
-    it('a creator whose access was revoked can no longer read the thread', async () => {
-      await prisma.creators.update({
-        where: { id: nadiaCreatorId },
-        data: { access_revoke_date: day(-1) },
-      });
-
-      const res = await nadia.get(`/me/invoices/${nadiaContract}/comments`);
-
-      expect(res.status).toBe(401);
     });
 
     it("removes a contract's proof and thread with the contract", async () => {

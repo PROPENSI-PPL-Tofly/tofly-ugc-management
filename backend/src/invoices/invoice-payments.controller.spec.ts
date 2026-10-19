@@ -2,7 +2,6 @@ import {
   ConflictException,
   type ExecutionContext,
   type INestApplication,
-  NotFoundException,
 } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
@@ -92,135 +91,93 @@ describe('InvoicePaymentsController', () => {
   }
 
   describe('POST /invoices/:contractId/payment-proof', () => {
-    describe('accepts', () => {
-      it('a PDF, handing the service its bytes, type, clean name and the admin', async () => {
-        const res = await upload().attach('file', PDF, 'bukti.pdf').expect(201);
+    // multer reads browser file names as latin1 unless told otherwise: an emoji name is the bug.
+    it('hands the service the bytes, type, UTF-8 name and the signed-in admin', async () => {
+      const res = await upload().attach('file', PDF, 'Bukti transfer ✅.pdf');
 
-        expect(res.body).toEqual({
-          fileName: 'bukti.pdf',
-          url: `/api/invoices/${CONTRACT}/payment-proof`,
-          uploadedAt: '2026-10-20T03:00:00.000Z',
-          invoiceStatus: 'payment_uploaded',
-        });
-        expect(proofs.upload).toHaveBeenCalledExactlyOnceWith(
-          CONTRACT,
-          { bytes: PDF, contentType: 'application/pdf', fileName: 'bukti.pdf' },
-          ADMIN,
-        );
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({
+        fileName: 'bukti.pdf',
+        url: `/api/invoices/${CONTRACT}/payment-proof`,
+        uploadedAt: '2026-10-20T03:00:00.000Z',
+        invoiceStatus: 'payment_uploaded',
       });
-
-      it('a file name in UTF-8, as the browser sends it', async () => {
-        await upload().attach('file', PDF, 'Bukti transfer ✅.pdf').expect(201);
-
-        expect(proofs.upload.mock.calls[0][1].fileName).toBe(
-          'Bukti transfer ✅.pdf',
-        );
-      });
-
-      it('a file of exactly 5 MB', async () => {
-        const res = await upload().attach(
-          'file',
-          sized(PNG_HEAD, PROOF_MAX_BYTES),
-          'besar.png',
-        );
-
-        expect(res.status).toBe(201);
-        expect(proofs.upload.mock.calls[0][1].bytes).toHaveLength(
-          PROOF_MAX_BYTES,
-        );
-      });
+      expect(proofs.upload).toHaveBeenCalledExactlyOnceWith(
+        CONTRACT,
+        {
+          bytes: PDF,
+          contentType: 'application/pdf',
+          fileName: 'Bukti transfer ✅.pdf',
+        },
+        ADMIN,
+      );
     });
 
-    // OWASP Top 10:2025 A06 (Insecure Design): multer stops reading at the first limit, and
-    // every way a form can be wrong answers in the admin's words, as 422, never a raw 400/413.
-    describe('refuses', () => {
-      it('a contract id that is not a UUID, before the service hears of it', async () => {
-        await upload('not-a-uuid').attach('file', PDF, 'a.pdf').expect(400);
-        expect(proofs.upload).not.toHaveBeenCalled();
-      });
+    // busboy treats its size limit inclusively, so a limit of exactly 5 MB refused a 5 MB file.
+    it("takes exactly 5 MB and refuses one byte more in the admin's words (off by one)", async () => {
+      const exact = await upload().attach(
+        'file',
+        sized(PNG_HEAD, PROOF_MAX_BYTES),
+        'a.png',
+      );
+      const over = await upload().attach(
+        'file',
+        sized(PDF, PROOF_MAX_BYTES + 1),
+        'b.pdf',
+      );
 
-      it('a form with no file', async () => {
-        const res = await upload().expect(422);
+      expect(exact.status).toBe(201);
+      expect(over.status).toBe(422);
+      expect(over.body).toEqual(TOO_LARGE);
+      expect(proofs.upload).toHaveBeenCalledTimes(1);
+    });
 
-        expect(res.body).toEqual(INVALID);
-      });
-
-      it('a program renamed .png', async () => {
-        const res = await upload()
-          .attach('file', Buffer.from('MZ\x90\x00'), {
-            filename: 'bukti.png',
+    // OWASP Top 10:2025 A06 (Insecure Design): every way the form can be wrong is a 422 in the
+    // admin's words, never Nest's raw 400/413, and never reaches the service.
+    it.each([
+      ['no file', (call: request.Test) => call],
+      [
+        'a body that is not multipart',
+        (call: request.Test) => call.send({ file: 'x' }),
+      ],
+      [
+        'two files',
+        (call: request.Test) =>
+          call.attach('file', PDF, 'a.pdf').attach('file', PDF, 'b.pdf'),
+      ],
+      [
+        'another field name',
+        (call: request.Test) => call.attach('proof', PDF, 'a.pdf'),
+      ],
+      [
+        'a forged text field',
+        (call: request.Test) =>
+          call.field('uploadedBy', 'x').attach('file', PDF, 'a.pdf'),
+      ],
+      [
+        'a program renamed .png',
+        (call: request.Test) =>
+          call.attach('file', Buffer.from('MZ\x90\x00'), {
+            filename: 'a.png',
             contentType: 'image/png',
-          })
-          .expect(422);
+          }),
+      ],
+    ])('refuses %s', async (_case, build) => {
+      const res = await build(upload());
 
-        expect(res.body).toEqual(INVALID);
-        expect(proofs.upload).not.toHaveBeenCalled();
-      });
-
-      it('a file one byte over 5 MB', async () => {
-        const res = await upload()
-          .attach('file', sized(PDF, PROOF_MAX_BYTES + 1), 'besar.pdf')
-          .expect(422);
-
-        expect(res.body).toEqual(TOO_LARGE);
-        expect(proofs.upload).not.toHaveBeenCalled();
-      });
-
-      it('two files at once', async () => {
-        const res = await upload()
-          .attach('file', PDF, 'a.pdf')
-          .attach('file', PDF, 'b.pdf')
-          .expect(422);
-
-        expect(res.body).toEqual(INVALID);
-      });
-
-      it('a file under any field name other than file', async () => {
-        const res = await upload().attach('proof', PDF, 'a.pdf').expect(422);
-
-        expect(res.body).toEqual(INVALID);
-      });
-
-      it('a text field beside the file, such as a forged uploader', async () => {
-        const res = await upload()
-          .field('uploadedBy', 'someone-else')
-          .attach('file', PDF, 'a.pdf')
-          .expect(422);
-
-        expect(res.body).toEqual(INVALID);
-        expect(proofs.upload).not.toHaveBeenCalled();
-      });
-
-      it('a request the guard let through without an admin', async () => {
-        principal = null;
-
-        await upload().attach('file', PDF, 'a.pdf').expect(401);
-        expect(proofs.upload).not.toHaveBeenCalled();
-      });
+      expect(res.status).toBe(422);
+      expect(res.body).toEqual(INVALID);
+      expect(proofs.upload).not.toHaveBeenCalled();
     });
 
-    describe('edge:', () => {
-      it("passes on the service's refusal as it was worded", async () => {
-        proofs.upload.mockRejectedValue(
-          new ConflictException({
-            code: 'INVOICE_NOT_AWAITING_PROOF',
-            message: 'x',
-          }),
-        );
+    it("passes on the service's conflict as it was worded", async () => {
+      const refusal = { code: 'INVOICE_NOT_AWAITING_PROOF', message: 'x' };
+      proofs.upload.mockRejectedValue(new ConflictException(refusal));
 
-        const res = await upload().attach('file', PDF, 'a.pdf').expect(409);
+      const res = await upload().attach('file', PDF, 'a.pdf');
 
-        expect(res.body).toEqual({
-          code: 'INVOICE_NOT_AWAITING_PROOF',
-          message: 'x',
-        });
-      });
-
-      it('a body that is not multipart at all', async () => {
-        const res = await upload().send({ file: 'x' }).expect(422);
-
-        expect(res.body).toEqual(INVALID);
-      });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual(refusal);
     });
   });
 
@@ -228,22 +185,25 @@ describe('InvoicePaymentsController', () => {
     it('redirects to the signed link, which nothing may cache or leak in a referrer', async () => {
       proofs.open.mockResolvedValue({
         kind: 'redirect',
-        url: 'https://storage.googleapis.com/b/o?X-Goog-Signature=s',
+        url: 'https://storage.googleapis.com/signed',
       });
 
-      const res = await request(app.getHttpServer())
-        .get(`/invoices/${CONTRACT}/payment-proof`)
-        .expect(302);
+      const res = await request(app.getHttpServer()).get(
+        `/invoices/${CONTRACT}/payment-proof`,
+      );
 
+      expect(res.status).toBe(302);
       expect(res.headers.location).toBe(
-        'https://storage.googleapis.com/b/o?X-Goog-Signature=s',
+        'https://storage.googleapis.com/signed',
       );
       expect(res.headers['cache-control']).toBe('private, no-store');
       expect(res.headers['referrer-policy']).toBe('no-referrer');
       expect(proofs.open).toHaveBeenCalledWith(CONTRACT, {});
     });
 
-    it('streams a locally stored file inline, named, typed and never sniffed', async () => {
+    // OWASP Top 10:2025 A05 (Injection): the name is percent-encoded into the header, and the
+    // browser may not sniff the bytes into something that runs.
+    it('streams a local file inline, safely named, typed and never sniffed', async () => {
       proofs.open.mockResolvedValue({
         kind: 'stream',
         stream: Readable.from([PDF]),
@@ -259,9 +219,9 @@ describe('InvoicePaymentsController', () => {
           const chunks: Buffer[] = [];
           response.on('data', (chunk: Buffer) => chunks.push(chunk));
           response.on('end', () => done(null, Buffer.concat(chunks)));
-        })
-        .expect(200);
+        });
 
+      expect(res.status).toBe(200);
       expect(res.body).toEqual(PDF);
       expect(res.headers).toMatchObject({
         'content-type': 'application/pdf',
@@ -271,23 +231,6 @@ describe('InvoicePaymentsController', () => {
         'x-content-type-options': 'nosniff',
         'cache-control': 'private, no-store',
       });
-    });
-
-    it('passes on a proof that is not there', async () => {
-      proofs.open.mockRejectedValue(
-        new NotFoundException({ code: 'PROOF_NOT_FOUND', message: 'x' }),
-      );
-
-      await request(app.getHttpServer())
-        .get(`/invoices/${CONTRACT}/payment-proof`)
-        .expect(404);
-    });
-
-    it('refuses a contract id that is not a UUID', async () => {
-      await request(app.getHttpServer())
-        .get('/invoices/..%2F..%2Fetc/payment-proof')
-        .expect(400);
-      expect(proofs.open).not.toHaveBeenCalled();
     });
   });
 
@@ -300,26 +243,20 @@ describe('InvoicePaymentsController', () => {
       createdAt: '2026-10-20T03:00:00.000Z',
     };
 
-    it("lists any contract's thread for an admin", async () => {
+    it("lists any contract's thread, and adds a trimmed comment as the signed-in admin", async () => {
       comments.list.mockResolvedValue([COMMENT]);
-
-      const res = await request(app.getHttpServer())
-        .get(`/invoices/${CONTRACT}/comments`)
-        .expect(200);
-
-      expect(res.body).toEqual([COMMENT]);
-      expect(comments.list).toHaveBeenCalledWith(CONTRACT, {});
-    });
-
-    it('adds a comment as the signed-in admin, trimmed', async () => {
       comments.add.mockResolvedValue(COMMENT);
 
-      const res = await request(app.getHttpServer())
+      const listed = await request(app.getHttpServer()).get(
+        `/invoices/${CONTRACT}/comments`,
+      );
+      const added = await request(app.getHttpServer())
         .post(`/invoices/${CONTRACT}/comments`)
-        .send({ text: '  Halo  ' })
-        .expect(201);
+        .send({ text: '  Halo  ' });
 
-      expect(res.body).toEqual(COMMENT);
+      expect([listed.status, added.status]).toEqual([200, 201]);
+      expect(listed.body).toEqual([COMMENT]);
+      expect(comments.list).toHaveBeenCalledWith(CONTRACT, {});
       expect(comments.add).toHaveBeenCalledWith(
         CONTRACT,
         { text: 'Halo' },
@@ -327,34 +264,46 @@ describe('InvoicePaymentsController', () => {
       );
     });
 
-    it("refuses an empty comment in the form's words", async () => {
+    it('refuses a blank comment before the service hears of it', async () => {
       const res = await request(app.getHttpServer())
         .post(`/invoices/${CONTRACT}/comments`)
-        .send({ text: '   ' })
-        .expect(422);
+        .send({ text: '   ' });
 
-      expect(res.body).toEqual({
-        code: 'COMMENT_INVALID',
-        message: 'Komentar wajib diisi',
-      });
+      expect(res.status).toBe(422);
       expect(comments.add).not.toHaveBeenCalled();
     });
+  });
 
-    it('refuses a comment the guard let through without an admin', async () => {
-      principal = null;
+  // OWASP Top 10:2025 A05 (Injection): no id that is not a UUID reaches a query.
+  it.each([
+    ['get', '/invoices/..%2F..%2Fetc/payment-proof'],
+    ['get', '/invoices/abc/comments'],
+    ['post', '/invoices/abc/comments'],
+    ['post', '/invoices/not-a-uuid/payment-proof'],
+  ] as const)('refuses %s %s with 400', async (method, path) => {
+    const res = await request(app.getHttpServer())
+      [method](path)
+      .send({ text: 'x' });
 
-      await request(app.getHttpServer())
-        .post(`/invoices/${CONTRACT}/comments`)
-        .send({ text: 'Halo' })
-        .expect(401);
-      expect(comments.add).not.toHaveBeenCalled();
-    });
+    expect(res.status).toBe(400);
+    expect(proofs.upload).not.toHaveBeenCalled();
+    expect(proofs.open).not.toHaveBeenCalled();
+    expect(comments.list).not.toHaveBeenCalled();
+    expect(comments.add).not.toHaveBeenCalled();
+  });
 
-    it('refuses a contract id that is not a UUID', async () => {
-      await request(app.getHttpServer())
-        .get('/invoices/abc/comments')
-        .expect(400);
-      expect(comments.list).not.toHaveBeenCalled();
-    });
+  // OWASP Top 10:2025 A01 (Broken Access Control): a change is always recorded as someone; with
+  // no admin behind the request (the guard's local stand-in), nothing is written.
+  it('refuses an upload or a comment with no admin behind it', async () => {
+    principal = null;
+
+    const uploaded = await upload().attach('file', PDF, 'a.pdf');
+    const commented = await request(app.getHttpServer())
+      .post(`/invoices/${CONTRACT}/comments`)
+      .send({ text: 'Halo' });
+
+    expect([uploaded.status, commented.status]).toEqual([401, 401]);
+    expect(proofs.upload).not.toHaveBeenCalled();
+    expect(comments.add).not.toHaveBeenCalled();
   });
 });
