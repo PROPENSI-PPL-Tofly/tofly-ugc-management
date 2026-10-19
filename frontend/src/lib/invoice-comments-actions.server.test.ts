@@ -3,13 +3,12 @@ vi.mock("./session.server", () => ({ currentRole: vi.fn() }));
 
 import { backendGet, backendPost } from "./backend.server";
 import {
-  addInvoiceComment,
   COMMENT_FAILED,
   COMMENT_FORBIDDEN,
   COMMENTS_FORBIDDEN,
   COMMENTS_UNAVAILABLE,
-  loadInvoiceComments,
-} from "./invoice-comments-actions.server";
+} from "./invoice-comments";
+import { addInvoiceComment, loadInvoiceComments } from "./invoice-comments-actions.server";
 import { currentRole } from "./session.server";
 
 const CONTRACT = "11111111-1111-4111-8111-111111111111";

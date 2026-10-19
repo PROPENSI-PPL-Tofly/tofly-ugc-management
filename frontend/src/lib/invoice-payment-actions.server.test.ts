@@ -2,12 +2,13 @@ vi.mock("./backend.server", () => ({ backendPostForm: vi.fn() }));
 vi.mock("./session.server", () => ({ currentRole: vi.fn() }));
 
 import { backendPostForm } from "./backend.server";
-import { PROOF_TOO_LARGE, PROOF_TYPE_INVALID } from "./invoice-payment";
 import {
+  PROOF_TOO_LARGE,
+  PROOF_TYPE_INVALID,
   UPLOAD_FAILED,
   UPLOAD_FORBIDDEN,
-  uploadPaymentProof,
-} from "./invoice-payment-actions.server";
+} from "./invoice-payment";
+import { uploadPaymentProof } from "./invoice-payment-actions.server";
 import { currentRole } from "./session.server";
 
 const CONTRACT = "11111111-1111-4111-8111-111111111111";

@@ -13,13 +13,15 @@ import {
   type InvoiceComment,
   type RawInvoiceComment,
 } from "./invoice-comments-api";
+import {
+  COMMENT_FAILED,
+  COMMENT_FORBIDDEN,
+  COMMENTS_FORBIDDEN,
+  COMMENTS_UNAVAILABLE,
+} from "./invoice-comments";
 import { readBody, refusalText } from "./response-body";
 import { currentRole } from "./session.server";
 
-export const COMMENTS_FORBIDDEN = "Hanya admin yang dapat membuka komentar invoice ini.";
-export const COMMENTS_UNAVAILABLE = "Komentar tidak bisa dimuat.";
-export const COMMENT_FORBIDDEN = "Hanya admin yang dapat menambah komentar di sini.";
-export const COMMENT_FAILED = "Komentar gagal dikirim. Coba lagi.";
 
 // What adding a comment comes to: the saved comment, or the message the panel shows.
 export type CommentOutcome = { ok: true; comment: InvoiceComment } | { ok: false; message: string };

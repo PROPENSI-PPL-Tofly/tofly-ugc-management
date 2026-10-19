@@ -6,13 +6,16 @@
 
 import { backendPostForm } from "./backend.server";
 import { isUuid } from "./creator-detail";
-import { PROOF_TYPE_INVALID, validateProofFile } from "./invoice-payment";
+import {
+  PROOF_TYPE_INVALID,
+  UPLOAD_FAILED,
+  UPLOAD_FORBIDDEN,
+  validateProofFile,
+} from "./invoice-payment";
 import { isRawPaymentProof, toPaymentProof, type PaymentProof } from "./invoice-payment-api";
 import { readBody, refusalText } from "./response-body";
 import { currentRole } from "./session.server";
 
-export const UPLOAD_FORBIDDEN = "Hanya admin yang dapat mengunggah bukti pembayaran.";
-export const UPLOAD_FAILED = "Bukti pembayaran gagal diunggah. Coba lagi.";
 const INVOICE_NOT_FOUND = "Invoice tidak ditemukan.";
 
 // What an upload comes to: the saved proof, or the message the panel shows.

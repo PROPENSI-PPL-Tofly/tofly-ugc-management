@@ -14,6 +14,11 @@ export const PROOF_MAX_BYTES = 5 * 1024 * 1024;
 export const PROOF_TYPE_INVALID = "File bukti pembayaran harus PDF, JPG, atau PNG.";
 export const PROOF_TOO_LARGE = "Ukuran file maksimal 5 MB.";
 
+// What the upload answers when it is refused or fails. Kept here, not in the server action's
+// file: a "use server" file may export async functions only.
+export const UPLOAD_FORBIDDEN = "Hanya admin yang dapat mengunggah bukti pembayaran.";
+export const UPLOAD_FAILED = "Bukti pembayaran gagal diunggah. Coba lagi.";
+
 /** What the rules read from a picked file; the browser's File carries all three. */
 export interface ProofFile {
   name: string;
