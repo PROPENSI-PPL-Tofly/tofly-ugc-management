@@ -8,7 +8,13 @@ import type { Readable } from 'node:stream';
 /** How a stored file reaches the browser: a short-lived link, or its bytes through the backend. */
 export type OpenedFile =
   | { kind: 'redirect'; url: string }
-  | { kind: 'stream'; stream: Readable; contentType: string; size: number };
+  | {
+      kind: 'stream';
+      stream: Readable;
+      fileName: string;
+      contentType: string;
+      size: number;
+    };
 
 /** What the browser should call and treat the file as when it opens it. */
 export interface FileDescription {

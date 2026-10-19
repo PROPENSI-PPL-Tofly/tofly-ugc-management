@@ -3,6 +3,7 @@ import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   assertStorageKey,
+  type FileDescription,
   type FileStore,
   type OpenedFile,
 } from './file-store.js';
@@ -23,7 +24,7 @@ export class LocalFileStore implements FileStore {
 
   async open(
     key: string,
-    { contentType }: { contentType: string },
+    { fileName, contentType }: FileDescription,
   ): Promise<OpenedFile | null> {
     const path = this.pathOf(key);
 
@@ -40,6 +41,7 @@ export class LocalFileStore implements FileStore {
     return {
       kind: 'stream',
       stream: createReadStream(path),
+      fileName,
       contentType,
       size,
     };
