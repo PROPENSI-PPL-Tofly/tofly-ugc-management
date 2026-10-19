@@ -276,7 +276,7 @@ describe("InvoiceTable", () => {
 
     const footer = screen.getAllByRole("rowgroup").at(-1)!;
     expect(footer.tagName).toBe("TFOOT");
-    expect(within(footer).getByText("Total 24 creator")).toBeInTheDocument();
+    expect(within(footer).getByText("Total 24 invoice")).toBeInTheDocument();
     expect(within(footer).getByText("Rp12.345.000")).toBeInTheDocument();
   });
 

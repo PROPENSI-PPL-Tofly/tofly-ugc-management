@@ -132,7 +132,7 @@ describe("Rate & Invoicing page", () => {
   it("counts the creators in the footer", async () => {
     await renderPage();
 
-    expect(screen.getByText(/Menampilkan 1.10 dari 24 creator/)).toBeInTheDocument();
+    expect(screen.getByText(/Menampilkan 1.10 dari 24 invoice/)).toBeInTheDocument();
   });
 
   it("keeps the pagination on show even on a single page", async () => {
@@ -227,7 +227,7 @@ describe("Rate & Invoicing page", () => {
     it("adds up the whole filtered list under the table", async () => {
       await renderPage();
 
-      expect(screen.getByText("Total 24 creator")).toBeInTheDocument();
+      expect(screen.getByText("Total 24 invoice")).toBeInTheDocument();
       expect(screen.getByText("Rp9.800.000")).toBeInTheDocument();
     });
 

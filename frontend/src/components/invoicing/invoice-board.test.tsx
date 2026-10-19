@@ -157,7 +157,7 @@ describe("InvoiceBoard", () => {
   it("adds up the period under the table when it is given the summary", () => {
     render(<InvoiceBoard rows={[ROW]} summary={{ total: 900000, count: 3 }} />);
 
-    expect(screen.getByText("Total 3 creator")).toBeInTheDocument();
+    expect(screen.getByText("Total 3 invoice")).toBeInTheDocument();
     expect(screen.getByText("Rp900.000")).toBeInTheDocument();
   });
 });
