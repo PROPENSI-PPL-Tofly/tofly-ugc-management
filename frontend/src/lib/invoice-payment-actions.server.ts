@@ -7,7 +7,7 @@
 import { backendPostForm } from "./backend.server";
 import { isUuid } from "./creator-detail";
 import { PROOF_TYPE_INVALID, validateProofFile } from "./invoice-payment";
-import { toInvoicePayment, type PaymentProof } from "./invoice-payment-api";
+import { isRawPaymentProof, toPaymentProof, type PaymentProof } from "./invoice-payment-api";
 import { currentRole } from "./session.server";
 
 export const UPLOAD_FORBIDDEN = "Hanya admin yang dapat mengunggah bukti pembayaran.";
@@ -16,9 +16,6 @@ const INVOICE_NOT_FOUND = "Invoice tidak ditemukan.";
 
 // What an upload comes to: the saved proof, or the message the panel shows.
 export type UploadOutcome = { ok: true; proof: PaymentProof } | { ok: false; message: string };
-
-// The saved proof as 13.2 answers it.
-type SavedProof = { fileName: string; url: string; uploadedAt: string };
 
 function refuse(message: string): UploadOutcome {
   return { ok: false, message };
@@ -62,11 +59,9 @@ export async function uploadPaymentProof(
   const body = await readBody(response);
 
   if (response.ok) {
-    if (typeof body?.fileName !== "string" || typeof body.url !== "string") {
-      return refuse(UPLOAD_FAILED);
-    }
-    const { proof } = toInvoicePayment({ paymentProof: body as SavedProof });
-    return { ok: true, proof: proof! };
+    return isRawPaymentProof(body)
+      ? { ok: true, proof: toPaymentProof(body) }
+      : refuse(UPLOAD_FAILED);
   }
 
   // A refusal the backend worded for the admin passes on; anything else stays general.
