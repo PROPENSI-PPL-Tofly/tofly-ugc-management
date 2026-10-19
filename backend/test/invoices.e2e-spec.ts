@@ -669,14 +669,12 @@ describe('Invoices API (e2e)', () => {
     }
 
     // A's Rp1.000.000 plus Rp1.500.000,75 outranks B's Rp2.000.000 less Rp0,25.
-    expect(whole.items.map((item: { creatorName: string }) => item.creatorName)).toEqual([
-      a.name,
-      b.name,
-    ]);
     expect(
-      whole.items.map(
-        (item: { adjustments: { amount: number }[] }) =>
-          item.adjustments.map((adjustment) => adjustment.amount),
+      whole.items.map((item: { creatorName: string }) => item.creatorName),
+    ).toEqual([a.name, b.name]);
+    expect(
+      whole.items.map((item: { adjustments: { amount: number }[] }) =>
+        item.adjustments.map((adjustment) => adjustment.amount),
       ),
     ).toEqual([[1_500_000.25, 0.5], [-0.25]]);
     expect(whole.summary.total).toBe(
