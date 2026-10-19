@@ -3,8 +3,10 @@ vi.mock("./session.server", () => ({ currentRole: vi.fn() }));
 
 import { backendGet, backendPost } from "./backend.server";
 import {
+  COMMENT_EMPTY,
   COMMENT_FAILED,
   COMMENT_FORBIDDEN,
+  COMMENT_TOO_LONG,
   COMMENTS_FORBIDDEN,
   COMMENTS_UNAVAILABLE,
 } from "./invoice-comments";
@@ -179,13 +181,30 @@ describe("addInvoiceComment", () => {
 
   it("passes on the backend's own message when it refuses the comment", async () => {
     vi.mocked(backendPost).mockResolvedValue(
-      reply(422, { message: "Komentar maksimal 500 karakter." }),
+      reply(409, { message: "Invoice ini sudah tidak menerima komentar." }),
     );
 
-    await expect(addInvoiceComment(CONTRACT, "x".repeat(501))).resolves.toEqual({
+    await expect(addInvoiceComment(CONTRACT, "Halo")).resolves.toEqual({
       ok: false,
-      message: "Komentar maksimal 500 karakter.",
+      message: "Invoice ini sudah tidak menerima komentar.",
     });
+  });
+
+  it("sends the comment without the spaces around it", async () => {
+    await addInvoiceComment(CONTRACT, "  Pembayaran sudah dikirim ya.  ");
+
+    expect(backendPost).toHaveBeenCalledWith(`/invoices/${CONTRACT}/comments`, {
+      text: "Pembayaran sudah dikirim ya.",
+    });
+  });
+
+  it.each([
+    ["an empty comment", "", COMMENT_EMPTY],
+    ["a comment of spaces only", "   ", COMMENT_EMPTY],
+    ["a comment over 500 characters", "x".repeat(501), COMMENT_TOO_LONG],
+  ])("refuses %s on the server too, sending nothing", async (_label, text, message) => {
+    await expect(addInvoiceComment(CONTRACT, text)).resolves.toEqual({ ok: false, message });
+    expect(backendPost).not.toHaveBeenCalled();
   });
 
   it.each([
