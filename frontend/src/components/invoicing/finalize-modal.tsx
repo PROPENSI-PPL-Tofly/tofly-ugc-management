@@ -8,6 +8,7 @@ import {
   amountLabel,
   bonusLabel,
   finalLabel,
+  invoiceTitle,
   penaltyLabel,
   type InvoiceRow,
 } from "@/lib/invoice";
@@ -53,7 +54,7 @@ export function FinalizeModal({
 
   return (
     <Modal
-      title={`Finalize invoice ${row.creatorName}`}
+      title={`Finalize invoice ${invoiceTitle(row)}`}
       onClose={onCancel}
       footer={
         <>

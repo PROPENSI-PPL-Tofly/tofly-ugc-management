@@ -75,6 +75,8 @@ export interface InvoiceRow {
   creatorName: string;
   /** The contract this invoice settles; what the two invoice moves name. */
   contractId: string;
+  /** Which of the creator's contracts this is, from 1 in the order they started. */
+  periodNumber: number;
   contractStatus: ContractStatus;
   /**
    * The last day the contract counts, YYYY-MM-DD: its end date, or the day access was revoked if
@@ -220,6 +222,14 @@ export function penaltyLabel(amount: number): string {
  * taken from the backend rather than added up again, so it can never disagree with the invoice.
  * While the bonus waits for its data the total runs without it; the Bonus cell says so.
  */
+/**
+ * How a row's invoice is named: the creator, and for a later contract its period too, so a
+ * renewed creator's rows read apart in the table, in its buttons' names and in its dialogs.
+ */
+export function invoiceTitle(row: Pick<InvoiceRow, "creatorName" | "periodNumber">): string {
+  return row.periodNumber > 1 ? `${row.creatorName} · Periode ${row.periodNumber}` : row.creatorName;
+}
+
 export function finalLabel(row: InvoiceRow): string {
   // A total the penalty used up is a real Rp0, not "nothing billed": it reads as an amount.
   return row.floored ? formatRupiah(0) : amountLabel(row.totalAmount);

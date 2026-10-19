@@ -9,6 +9,7 @@ import { FINAL_LABEL } from "@/lib/invoice-adjustment";
 import {
   CONTRACT_STATUS_LABELS,
   finalLabel,
+  invoiceTitle,
   INVOICE_STATUS_LABELS,
   type InvoiceRow,
 } from "@/lib/invoice";
@@ -96,7 +97,7 @@ export function InvoiceRincian({
 
   return (
     <Modal
-      title={`Rincian Invoice · ${row.creatorName}`}
+      title={`Rincian Invoice · ${invoiceTitle(row)}`}
       placement="side"
       onClose={onClose}
       footer={

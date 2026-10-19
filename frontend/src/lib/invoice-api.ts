@@ -59,6 +59,8 @@ export interface RawInvoiceRow {
     endDate: string;
     /** The last day the contract counts: endDate, or the day access was revoked if earlier. */
     lastDay: string;
+    /** Which of the creator's contracts this is, from 1 in the order they started. */
+    period: number;
   };
   components: {
     fixedRate: RawInvoiceComponent;
@@ -141,6 +143,7 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
     creatorId: raw.creatorId,
     creatorName: raw.creatorName,
     contractId: raw.contract.id,
+    periodNumber: raw.contract.period,
     contractStatus: raw.contract.status,
     // An early end counts: freezing waits for the day the contract stopped, not its end date.
     contractEnd: raw.contract.lastDay,

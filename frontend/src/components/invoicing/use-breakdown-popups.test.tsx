@@ -380,7 +380,7 @@ describe("useBreakdownPopups without a loader", () => {
     fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
 
     expect(await screen.findByRole("list")).toHaveTextContent("Evg_1_Rangga_01102026");
-    expect(loadInvoiceBreakdown).toHaveBeenCalledWith("creator-rangga");
+    expect(loadInvoiceBreakdown).toHaveBeenCalledWith("creator-rangga", RANGGA_ROW.contractId);
   });
 });
 

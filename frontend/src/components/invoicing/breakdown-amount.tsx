@@ -4,6 +4,7 @@ import {
   amountLabel,
   bonusLabel,
   DASH,
+  invoiceTitle,
   penaltyLabel,
   type InvoiceRow,
 } from "@/lib/invoice";
@@ -62,7 +63,7 @@ export function BreakdownAmount({
     <button
       type="button"
       title="Lihat detail"
-      aria-label={`${BREAKDOWN_LABELS[kind]} ${row.creatorName}: ${cell.text}, lihat rincian`}
+      aria-label={`${BREAKDOWN_LABELS[kind]} ${invoiceTitle(row)}: ${cell.text}, lihat rincian`}
       className={`${AMOUNT} ${cell.tone}`}
       onClick={(event) => {
         // The row around the cell may open the whole invoice; this press is for the column only.

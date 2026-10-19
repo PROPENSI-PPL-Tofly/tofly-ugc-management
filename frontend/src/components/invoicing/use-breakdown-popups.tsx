@@ -5,7 +5,7 @@ import {
   ContentDetailPanel,
   type Decision,
 } from "@/components/content-detail/content-detail-panel";
-import type { InvoiceRow } from "@/lib/invoice";
+import { invoiceTitle, type InvoiceRow } from "@/lib/invoice";
 import type { BreakdownKind, InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { loadInvoiceBreakdown } from "@/lib/invoice-breakdown.server";
 import { BreakdownPopup, type BreakdownStatus } from "./breakdown-popup";
@@ -16,7 +16,10 @@ import { InvoiceRincian } from "./invoice-rincian";
 export type BreakdownView = BreakdownKind | "all";
 
 /** Where a creator's breakdown comes from: null when there is none to show. */
-export type BreakdownLoader = (creatorId: string) => Promise<InvoiceBreakdown | null>;
+export type BreakdownLoader = (
+  creatorId: string,
+  contractId: string,
+) => Promise<InvoiceBreakdown | null>;
 
 interface OpenBreakdown {
   kind: BreakdownView;
@@ -32,7 +35,14 @@ interface OpenBreakdown {
  * amounts, the popup asks again, so it can never disagree with the cell it was opened from.
  */
 function readKey(row: InvoiceRow): string {
-  return [row.creatorId, row.fixedAmount, row.extraAmount, row.bonusAmount, row.penaltyAmount].join("|");
+  return [
+    row.creatorId,
+    row.contractId,
+    row.fixedAmount,
+    row.extraAmount,
+    row.bonusAmount,
+    row.penaltyAmount,
+  ].join("|");
 }
 
 /**
@@ -74,7 +84,7 @@ export function useBreakdownPopups({
     const request = ++latest.current;
     setPopup({ kind, row, breakdown: null, status: "loading" });
 
-    load(row.creatorId).then(
+    load(row.creatorId, row.contractId).then(
       (breakdown) => {
         if (request !== latest.current) return;
         if (breakdown) read.current.set(readKey(row), breakdown);
@@ -148,7 +158,7 @@ export function useBreakdownPopups({
     layers = (
       <BreakdownPopup
         kind={popup.kind}
-        creatorName={popup.row.creatorName}
+        creatorName={invoiceTitle(popup.row)}
         breakdown={popup.breakdown}
         status={popup.status}
         onRetry={() => fetchFor(popup.kind, popup.row)}
