@@ -106,6 +106,20 @@ describe("InvoiceActivity", () => {
       await waitFor(() => expect(field()).toHaveValue(""));
     });
 
+    it("locks the field while the comment is on its way, so nothing typed meanwhile is wiped on success", async () => {
+      let answer: (value: { ok: true }) => void = () => {};
+      vi.mocked(addInvoiceComment).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+      renderActivity();
+      fireEvent.change(field(), { target: { value: "Halo" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Kirim Komentar" }));
+
+      expect(field()).toBeDisabled();
+      answer({ ok: true });
+      await waitFor(() => expect(field()).toBeEnabled());
+      expect(field()).toHaveValue("");
+    });
+
     it("keeps what was typed and says why when the comment is refused", async () => {
       vi.mocked(addInvoiceComment).mockResolvedValue({ ok: false, code: "FORBIDDEN", message: "Akses ditolak" });
       const { onCommented } = renderActivity();
