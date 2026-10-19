@@ -169,3 +169,15 @@ describe("addInvoiceComment's own checks", () => {
     await expect(addInvoiceComment(CONTRACT, "a".repeat(500))).resolves.toEqual({ ok: true });
   });
 });
+
+describe("a refusal that names no code", () => {
+  it("keeps its HTTP status as the code and the message the backend wrote for people", async () => {
+    fetchSpy().mockResolvedValue(reply(400, { message: "Invoice sudah di-acknowledge" }));
+
+    await expect(acknowledgeInvoice(CONTRACT)).resolves.toEqual({
+      ok: false,
+      code: "HTTP_400",
+      message: "Invoice sudah di-acknowledge",
+    });
+  });
+});
