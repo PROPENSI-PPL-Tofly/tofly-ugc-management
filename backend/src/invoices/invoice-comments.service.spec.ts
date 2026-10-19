@@ -206,7 +206,12 @@ describe('InvoiceCommentsService', () => {
           select: {
             id: true,
             creators: {
-              select: { first_name: true, middle_name: true, last_name: true },
+              select: {
+                first_name: true,
+                middle_name: true,
+                last_name: true,
+                user_id: true,
+              },
             },
           },
         });
@@ -221,7 +226,13 @@ describe('InvoiceCommentsService', () => {
         });
       });
 
-      it("a creator's comment on their own contract, named by their name", async () => {
+      // The creator guard's local stand-in resolves only a creator id, so the author's user is
+      // read from the contract's creator, the one creator who can write on it.
+      it("a creator's comment on their own contract, named by their name and kept as their user's", async () => {
+        prisma.contracts.findFirst.mockResolvedValue({
+          id: CONTRACT,
+          creators: { ...RANGGA, user_id: CREATOR_USER },
+        });
         prisma.invoice_comments.create.mockResolvedValue({
           id: 'c10',
           author_role: 'creator',
@@ -232,7 +243,7 @@ describe('InvoiceCommentsService', () => {
         const saved = await service.add(
           CONTRACT,
           { text: 'Terima kasih' },
-          { role: 'creator', userId: CREATOR_USER, creatorId: CREATOR },
+          { role: 'creator', creatorId: CREATOR },
         );
 
         expect(saved.authorName).toBe('Rangga Pratama');
@@ -260,7 +271,7 @@ describe('InvoiceCommentsService', () => {
           service.add(
             OTHER_CONTRACT,
             { text: 'Halo' },
-            { role: 'creator', userId: CREATOR_USER, creatorId: CREATOR },
+            { role: 'creator', creatorId: CREATOR },
           ),
         );
 
