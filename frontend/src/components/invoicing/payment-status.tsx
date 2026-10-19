@@ -23,7 +23,7 @@ export function PaymentStatus({ payment }: Readonly<{ payment: InvoicePayment }>
         <dd className={VALUE}>
           {payment.proof ? (
             <a
-              href={payment.proof.href}
+              href={payment.proof.href ?? undefined}
               className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
             >
               {payment.proof.fileName}

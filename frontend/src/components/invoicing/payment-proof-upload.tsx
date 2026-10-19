@@ -115,7 +115,7 @@ export function PaymentProofUpload({
       {state.kind === "uploaded" ? (
         <p>
           <a
-            href={state.proof.href}
+            href={state.proof.href ?? undefined}
             className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
           >
             {state.proof.fileName}
