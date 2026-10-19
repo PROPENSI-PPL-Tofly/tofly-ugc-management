@@ -1,11 +1,14 @@
 import { AMOUNT_INVALID, REASON_EMPTY } from "./invoice-adjustment";
 
-const { sessionCookies } = vi.hoisted(() => ({
+const { sessionCookies, incoming } = vi.hoisted(() => ({
   sessionCookies: [] as { name: string; value: string }[],
+  // The headers the browser sent with the server action's own POST.
+  incoming: { current: {} as Record<string, string> },
 }));
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ getAll: () => sessionCookies })),
+  headers: vi.fn(async () => new Headers(incoming.current)),
 }));
 
 vi.mock("./session.server", () => ({ currentRole: vi.fn() }));
@@ -160,6 +163,50 @@ describe("addInvoiceAdjustment", () => {
       ok: false,
       message: "Permintaan tidak dapat diproses. Coba lagi.",
     });
+  });
+});
+
+// The backend refuses a state change without the browser's Origin (assertSameOrigin). A server
+// action reaches it from the Next server, so it passes on what the browser sent, as the /api
+// proxy does; Next has already refused an action whose Origin does not match its host.
+describe("the browser's origin on an invoice move", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("BACKEND_URL", "http://localhost:3001");
+    sessionCookies.push({ name: "__session", value: "abc" });
+    asRole("admin");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(reply(201, {}));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    sessionCookies.length = 0;
+    incoming.current = {};
+  });
+
+  // OWASP Top 10:2025 A01 (Broken Access Control): the same-origin check holds end to end.
+  it("forwards the Origin and Sec-Fetch-Site the browser sent", async () => {
+    incoming.current = { origin: "http://localhost:3000", "sec-fetch-site": "same-origin" };
+
+    await finalizeInvoice(CONTRACT);
+    await addInvoiceAdjustment(CONTRACT, DRAFT);
+
+    for (const [, init] of vi.mocked(globalThis.fetch).mock.calls) {
+      expect(init?.headers).toMatchObject({
+        origin: "http://localhost:3000",
+        "sec-fetch-site": "same-origin",
+        cookie: "__session=abc",
+      });
+    }
+  });
+
+  it("invents no Origin the browser did not send, leaving the backend to refuse", async () => {
+    await finalizeInvoice(CONTRACT);
+
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(init?.headers).not.toHaveProperty("origin");
+    expect(init?.headers).not.toHaveProperty("sec-fetch-site");
   });
 });
 
