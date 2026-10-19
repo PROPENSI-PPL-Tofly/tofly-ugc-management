@@ -18,6 +18,8 @@ import {
   COMMENT_FORBIDDEN,
   COMMENTS_FORBIDDEN,
   COMMENTS_UNAVAILABLE,
+  commentText,
+  validateComment,
 } from "./invoice-comments";
 import { readBody, refusalText } from "./response-body";
 import { currentRole } from "./session.server";
@@ -59,11 +61,14 @@ export async function addInvoiceComment(contractId: string, text: string): Promi
   if ((await currentRole()) !== "admin") return { ok: false, message: COMMENT_FORBIDDEN };
   // A server action can be called with anything; only text goes on.
   if (typeof text !== "string") return failed;
+  // The box's rules again, on the server (OWASP A06:2025 Insecure Design).
+  const problem = validateComment(text);
+  if (problem) return { ok: false, message: problem };
 
   // A failure of any kind becomes a message, never a crash or a raw error (OWASP A10).
   let response: Response;
   try {
-    response = await backendPost(`/invoices/${contractId}/comments`, { text });
+    response = await backendPost(`/invoices/${contractId}/comments`, { text: commentText(text) });
   } catch {
     return failed;
   }
