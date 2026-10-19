@@ -18,6 +18,7 @@ const ROW: InvoiceRow = {
   totalAmount: 350000,
   floored: false,
   dataWaiting: true,
+  pendingBonus: null,
   invoiceStatus: "accruing",
   adjustments: [],
   frozenAt: null,

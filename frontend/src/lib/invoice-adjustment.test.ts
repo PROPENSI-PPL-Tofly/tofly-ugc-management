@@ -138,9 +138,10 @@ describe("refusalMessage", () => {
   it.each([
     ["INVOICE_FINALIZED", "Invoice sudah difinalisasi"],
     ["CONTRACT_NOT_ENDED", "Kontrak belum berakhir"],
+    ["INVOICE_DATA_INCOMPLETE", "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate."],
     [
-      "INVOICE_DATA_INCOMPLETE",
-      "Invoice belum bisa difinalisasi: masih ada data yang menunggu, seperti bonus performa.",
+      "INVOICE_BONUS_PENDING",
+      "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
     ],
     ["INVOICE_NOT_FOUND", "Invoice tidak ditemukan."],
     ["CONTRACT_NOT_FOUND", "Invoice tidak ditemukan."],

@@ -18,6 +18,7 @@ const FULL: InvoiceRow = {
   adjustments: [],
   frozenAt: null,
   dataWaiting: false,
+  pendingBonus: null,
 };
 
 const ZEROS: InvoiceRow = {
@@ -36,6 +37,7 @@ const ZEROS: InvoiceRow = {
   adjustments: [],
   frozenAt: "2026-10-18T03:00:00.000Z",
   dataWaiting: false,
+  pendingBonus: null,
 };
 
 const WAITING: InvoiceRow = {
@@ -54,6 +56,7 @@ const WAITING: InvoiceRow = {
   adjustments: [],
   frozenAt: "2026-10-18T03:00:00.000Z",
   dataWaiting: false,
+  pendingBonus: null,
 };
 
 describe("InvoiceTable", () => {

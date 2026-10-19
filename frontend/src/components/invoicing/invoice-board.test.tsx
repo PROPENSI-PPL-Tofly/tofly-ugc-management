@@ -40,6 +40,7 @@ const ROW: InvoiceRow = {
   adjustments: [],
   frozenAt: null,
   dataWaiting: false,
+  pendingBonus: null,
 };
 
 const BREAKDOWN: InvoiceBreakdown = {

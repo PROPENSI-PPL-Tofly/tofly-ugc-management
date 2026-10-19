@@ -103,7 +103,7 @@ describe("addInvoiceAdjustment", () => {
 
   it.each([
     ["INVOICE_FINALIZED", "Invoice sudah difinalisasi"],
-    ["INVOICE_DATA_INCOMPLETE", "Invoice belum bisa difinalisasi: masih ada data yang menunggu, seperti bonus performa."],
+    ["INVOICE_DATA_INCOMPLETE", "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate."],
   ])("reads a %s refusal for the admin, who keeps the form open", async (code, message) => {
     vi.mocked(globalThis.fetch).mockResolvedValue(reply(409, { code, message: "server words" }));
 
@@ -183,8 +183,41 @@ describe("finalizeInvoice", () => {
 
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
       `http://localhost:3001/invoices/${CONTRACT}/finalize`,
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ acceptPendingBonus: false }) }),
     );
+  });
+
+  it("says the admin accepted freezing a bonus still waiting for data, when they did", async () => {
+    await expect(finalizeInvoice(CONTRACT, { acceptPendingBonus: true })).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
+      `http://localhost:3001/invoices/${CONTRACT}/finalize`,
+      expect.objectContaining({ body: JSON.stringify({ acceptPendingBonus: true }) }),
+    );
+  });
+
+  // OWASP Top 10:2025 A05 (Injection): only a real true accepts; anything else a caller passes is
+  // sent as not accepted.
+  it.each(["true", 1, null])("sends %j as not accepting the pending bonus", async (accept) => {
+    await finalizeInvoice(CONTRACT, { acceptPendingBonus: accept as unknown as boolean });
+
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: JSON.stringify({ acceptPendingBonus: false }) }),
+    );
+  });
+
+  // The lifecycle answers a refusal it can name with 422 as well as 409; the code must survive.
+  it.each([
+    ["INVOICE_DATA_INCOMPLETE", "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate."],
+    [
+      "INVOICE_BONUS_PENDING",
+      "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
+    ],
+  ])("reads a 422 %s refusal by its code", async (code, message) => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(reply(422, { code, message: "server words" }));
+
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: false, code, message });
   });
 
   it("refuses an id the API would never take, without asking it", async () => {
@@ -208,7 +241,7 @@ describe("finalizeInvoice", () => {
   it.each([
     ["CONTRACT_NOT_ENDED", "Kontrak belum berakhir"],
     ["INVOICE_FINALIZED", "Invoice sudah difinalisasi"],
-    ["INVOICE_DATA_INCOMPLETE", "Invoice belum bisa difinalisasi: masih ada data yang menunggu, seperti bonus performa."],
+    ["INVOICE_DATA_INCOMPLETE", "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate."],
     ["CONTRACT_NOT_FOUND", "Invoice tidak ditemukan."],
   ])("reads a %s refusal for the admin", async (code, message) => {
     vi.mocked(globalThis.fetch).mockResolvedValue(reply(409, { code }));

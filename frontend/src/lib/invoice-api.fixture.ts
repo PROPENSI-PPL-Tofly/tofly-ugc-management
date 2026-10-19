@@ -15,6 +15,7 @@ export const RAW_RANGGA: RawInvoiceRow = {
     status: "active",
     startDate: "2026-09-01",
     endDate: "2026-11-30",
+    lastDay: "2026-11-30",
   },
   components: {
     fixedRate: {
@@ -109,6 +110,7 @@ export const RAW_UPCOMING_NO_FORMULA: RawInvoiceDetail = {
     status: "upcoming",
     startDate: "2026-11-01",
     endDate: "2027-01-31",
+    lastDay: "2027-01-31",
   },
   components: {
     fixedRate: {

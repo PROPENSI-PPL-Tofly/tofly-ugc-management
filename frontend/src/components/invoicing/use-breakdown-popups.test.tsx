@@ -52,6 +52,7 @@ function rowOf(creatorId: string, creatorName: string): InvoiceRow {
     totalAmount: 0,
     floored: false,
     dataWaiting: true,
+    pendingBonus: null,
     invoiceStatus: "accruing",
     adjustments: [],
     frozenAt: null,
