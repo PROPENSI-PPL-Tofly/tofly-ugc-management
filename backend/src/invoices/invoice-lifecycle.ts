@@ -1,20 +1,28 @@
 import { ConflictException } from '@nestjs/common';
+import type { InvoiceStatus as PipelineStatus } from './invoice-status.js';
 
 export type InvoiceStatus = 'running' | 'finalized';
 
 /** Lifecycle policy resolved from the status read from the database. */
 export interface InvoiceState {
+  /** Where this invoice stands in the invoice pipeline the API reports. */
+  readonly pipelineStatus: PipelineStatus;
+
   assertCanAdjust(): void;
   assertCanFinalize(): void;
 }
 
 export class RunningInvoiceState implements InvoiceState {
+  readonly pipelineStatus = 'accruing';
+
   assertCanAdjust(): void {}
 
   assertCanFinalize(): void {}
 }
 
 export class FinalizedInvoiceState implements InvoiceState {
+  readonly pipelineStatus = 'finalized';
+
   assertCanAdjust(): never {
     throw this.finalized();
   }
