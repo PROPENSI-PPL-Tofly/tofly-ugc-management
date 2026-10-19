@@ -9,7 +9,7 @@
 import type { AdjustmentLine } from "./invoice-adjustment";
 import type { InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
-import { formatDate, jakartaDay } from "./format";
+import { formatDate, formatRupiah, jakartaDay } from "./format";
 import type { Role } from "./session";
 
 /** The page's own address. */
@@ -83,6 +83,14 @@ export class CreatorInvoicesError extends Error {
 export function totalLabel(status: InvoiceStatus): string {
   if (status === "accruing") return "Estimasi Pendapatan";
   return status === "paid" ? "Total Dibayarkan" : "Total Final";
+}
+
+/**
+ * The total as the page writes it, in the summary and in the history alike: a total the penalty
+ * used up is a real Rp0, held there by the backend.
+ */
+export function totalAmountLabel(invoice: Pick<CreatorInvoice, "totalAmount" | "floored">): string {
+  return formatRupiah(invoice.floored ? 0 : invoice.totalAmount);
 }
 
 /** Until the creator acknowledges, an adjustment can still move the total; the page says so. */

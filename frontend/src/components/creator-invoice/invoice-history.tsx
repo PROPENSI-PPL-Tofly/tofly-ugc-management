@@ -1,8 +1,8 @@
 import { INVOICE_TONES } from "@/components/invoice/invoice-table";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import type { CreatorInvoice } from "@/lib/creator-invoice";
-import { formatContractWindow, formatRupiah } from "@/lib/format";
+import { totalAmountLabel, type CreatorInvoice } from "@/lib/creator-invoice";
+import { formatContractWindow } from "@/lib/format";
 import { INVOICE_STATUS_LABELS } from "@/lib/invoice";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
@@ -59,7 +59,7 @@ export function InvoiceHistory({
                   <Pill tone={INVOICE_TONES[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Pill>
                 </td>
                 <td className={`${CELL} text-right font-semibold whitespace-nowrap tabular-nums`}>
-                  {formatRupiah(invoice.floored ? 0 : invoice.totalAmount)}
+                  {totalAmountLabel(invoice)}
                 </td>
                 <td className={`${CELL} text-right`}>
                   <Button

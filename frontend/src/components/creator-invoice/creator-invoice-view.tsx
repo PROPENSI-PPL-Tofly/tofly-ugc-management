@@ -8,16 +8,18 @@ import {
   creatorNextStep,
   instantDay,
   invoiceSteps,
+  totalAmountLabel,
   totalLabel,
   totalNote,
   type CreatorInvoice,
   type CreatorInvoiceAction,
+  type CreatorNextStep,
   type PaymentProof,
 } from "@/lib/creator-invoice";
-import { formatContractWindow, formatRupiah } from "@/lib/format";
+import { formatContractWindow } from "@/lib/format";
 import { adjustmentLabel } from "@/lib/invoice-adjustment";
 import { amountLabel, bonusLabel, DASH, penaltyLabel } from "@/lib/invoice";
-import { BREAKDOWN_TITLES, breakdownPopup, type BreakdownKind } from "@/lib/invoice-breakdown";
+import { BREAKDOWN_KINDS, BREAKDOWN_TITLES, breakdownPopup, type BreakdownKind } from "@/lib/invoice-breakdown";
 import { InvoiceTracker } from "./invoice-tracker";
 
 const ROW = "flex items-center justify-between gap-3 px-0.5 py-2.5 text-[13px]";
@@ -96,6 +98,38 @@ function ProofLink({ proof }: Readonly<{ proof: PaymentProof }>) {
   );
 }
 
+/**
+ * Whose turn the invoice is: the creator's, as a banner with the move beside the ask (and the
+ * proof right there when the ask is about it), or the admin's, as a quiet line saying so.
+ */
+function NextStep({
+  next,
+  invoice,
+  renderAction,
+}: Readonly<{
+  next: CreatorNextStep;
+  invoice: CreatorInvoice;
+  renderAction?: (action: CreatorInvoiceAction) => ReactNode;
+}>) {
+  if (next.action === null) {
+    if (next.hint === null) return null;
+    return <p className={`mt-2.5 text-xs ${invoice.status === "paid" ? "text-green-ink" : "text-muted"}`}>{next.hint}</p>;
+  }
+
+  return (
+    <section
+      aria-label="Giliran kamu"
+      className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-2.5 rounded-(--radius-control) border border-accent bg-accent-wash px-3 py-2.5 text-[12.5px]"
+    >
+      <span>{next.hint}</span>
+      <span className="flex flex-wrap items-center gap-2">
+        {next.action === "confirm" && invoice.proof !== null ? <ProofLink proof={invoice.proof} /> : null}
+        {renderAction?.(next.action)}
+      </span>
+    </section>
+  );
+}
+
 function amountOf(kind: BreakdownKind, invoice: CreatorInvoice): { amount: string; tone: string } {
   switch (kind) {
     case "fixed":
@@ -134,7 +168,7 @@ export function CreatorInvoiceView({
   const label = totalLabel(invoice.status);
   const note = totalNote(invoice.status);
   const next = creatorNextStep(invoice);
-  const total = formatRupiah(invoice.floored ? 0 : invoice.totalAmount);
+  const total = totalAmountLabel(invoice);
   const adjusted = invoice.adjustments.reduce((sum, adjustment) => sum + adjustment.amount, 0);
   // While the proof waits for the creator's confirmation, it is linked where they are asked.
   const rowProof = next.action === "confirm" ? null : invoice.proof;
@@ -155,25 +189,10 @@ export function CreatorInvoiceView({
 
       <InvoiceTracker steps={invoiceSteps(invoice)} />
 
-      {next.action === null ? (
-        next.hint === null ? null : (
-          <p className={`mt-2.5 text-xs ${invoice.status === "paid" ? "text-green-ink" : "text-muted"}`}>{next.hint}</p>
-        )
-      ) : (
-        <section
-          aria-label="Giliran kamu"
-          className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-2.5 rounded-(--radius-control) border border-accent bg-accent-wash px-3 py-2.5 text-[12.5px]"
-        >
-          <span>{next.hint}</span>
-          <span className="flex flex-wrap items-center gap-2">
-            {next.action === "confirm" && invoice.proof !== null ? <ProofLink proof={invoice.proof} /> : null}
-            {renderAction?.(next.action)}
-          </span>
-        </section>
-      )}
+      <NextStep next={next} invoice={invoice} renderAction={renderAction} />
 
       <div className="mt-4">
-        {(["fixed", "extra", "bonus", "penalty"] as const).map((kind) => {
+        {BREAKDOWN_KINDS.map((kind) => {
           const view = breakdownPopup(kind, invoice.breakdown);
           // The bonus always opens: the creator can read the tiers before earning one.
           const opens = view.lines.length > 0 || kind === "bonus";
