@@ -32,6 +32,7 @@ import {
   toInvoiceContract,
   toInvoiceItem,
   adjustedTotals,
+  sumAdjustments,
 } from './invoice-rows.js';
 import {
   DEFAULT_INVOICE_SORT,
@@ -106,9 +107,18 @@ interface PickedCreator {
 }
 
 interface Calculated {
+  /** Every kept invoice, sorted, with its totals but without its adjustment rows. */
   items: InvoiceListItem[];
+  /** The saved invoice id of each kept contract that has one, for reading the page's adjustments. */
+  invoiceIds: Map<string, string>;
   runningInvoices: number;
   formulaSet: boolean;
+}
+
+/** The columns of a kept contract's saved invoice the listing reads before paging. */
+interface SavedListing {
+  id: string;
+  snapshot: InvoiceSnapshotDto | null;
 }
 
 function pick(rows: InvoiceCreatorRow[], today: Date): PickedCreator[] {
@@ -186,16 +196,16 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     filters: InvoiceFilters = {},
     sort: InvoiceSort = DEFAULT_INVOICE_SORT,
   ): Promise<InvoiceListResponse> {
-    const { items, runningInvoices, formulaSet } = await this.calculate(
-      today,
-      filters,
-      sort,
-    );
+    const { items, invoiceIds, runningInvoices, formulaSet } =
+      await this.calculate(today, filters, sort);
 
     const { page, totalPages } = clampPage(asked, pageSize, items.length);
 
     return {
-      items: items.slice((page - 1) * pageSize, page * pageSize),
+      items: await this.withAdjustments(
+        items.slice((page - 1) * pageSize, page * pageSize),
+        invoiceIds,
+      ),
       page,
       pageSize,
       total: items.length,
@@ -260,12 +270,11 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     ]);
 
     const everyone = pick(rows, today);
-    const contractIds = everyone.map(({ contract }) => contract.id);
 
-    const [statuses, lifecycleByContract] = await Promise.all([
-      this.pipeline.statuses(contractIds),
-      this.lifecycleForContracts(contractIds),
-    ]);
+    // Filtering needs only where each invoice stands.
+    const statuses = await this.pipeline.statuses(
+      everyone.map(({ contract }) => contract.id),
+    );
 
     const kept = everyone.filter(
       (creator) =>
@@ -274,12 +283,22 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
           statuses.get(creator.contract.id) === filters.status),
     );
 
-    const byContract = await this.contentsOf(
+    // Sorting and the summary need every kept invoice's final amounts: a snapshot holds them,
+    // anything else is calculated from its content and the sum of its adjustments.
+    const saved = await this.savedListings(
       kept.map(({ contract }) => contract.id),
     );
+    const live = kept.filter(({ contract }) => !saved.get(contract.id)?.snapshot);
+
+    const [byContract, adjustmentTotals] = await Promise.all([
+      this.contentsOf(live.map(({ contract }) => contract.id)),
+      this.adjustmentTotals(
+        live.flatMap(({ contract }) => saved.get(contract.id)?.id ?? []),
+      ),
+    ]);
 
     const items = kept.map(({ row, contract }) => {
-      const lifecycle = lifecycleByContract.get(contract.id);
+      const invoice = saved.get(contract.id);
 
       return {
         ...toInvoiceItem(
@@ -288,7 +307,11 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
           byContract.get(contract.id) ?? [],
           formula,
           today,
-          lifecycle,
+          invoice && {
+            adjustments: [],
+            adjustmentTotal: adjustmentTotals.get(invoice.id),
+            snapshot: invoice.snapshot,
+          },
         ),
         invoiceStatus: statuses.get(contract.id)!,
       };
@@ -296,6 +319,9 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     return {
       items: sortInvoices(items, sort),
+      invoiceIds: new Map(
+        [...saved].map(([contractId, invoice]) => [contractId, invoice.id]),
+      ),
       runningInvoices: [...statuses.values()].filter(
         (status) => status === 'accruing',
       ).length,
@@ -303,12 +329,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     };
   }
 
-  /** Read saved adjustments and snapshots for the requested contracts. */
+  /** Read saved adjustments and snapshots for the requested contracts, for the detail. */
   private async lifecycleForContracts(
     contractIds: string[],
   ): Promise<Map<string, SavedInvoice>> {
-    if (contractIds.length === 0) return new Map();
-
     const persisted = await this.prisma.invoices.findMany({
       where: { contract_id: { in: contractIds } },
       select: {
@@ -333,10 +357,77 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     return result;
   }
 
+  /** The id and snapshot of each requested contract's saved invoice, without its adjustments. */
+  private async savedListings(
+    contractIds: string[],
+  ): Promise<Map<string, SavedListing>> {
+    if (contractIds.length === 0) return new Map();
+
+    const saved = await this.prisma.invoices.findMany({
+      where: { contract_id: { in: contractIds } },
+      select: { id: true, contract_id: true, snapshot: true },
+    });
+
+    return new Map(
+      saved.map((invoice) => [
+        invoice.contract_id,
+        {
+          id: invoice.id,
+          snapshot: invoice.snapshot as unknown as InvoiceSnapshotDto | null,
+        },
+      ]),
+    );
+  }
+
+  /** What each requested invoice's adjustments add up to, summed by the database. */
+  private async adjustmentTotals(
+    invoiceIds: string[],
+  ): Promise<Map<string, Prisma.Decimal | null>> {
+    if (invoiceIds.length === 0) return new Map();
+
+    const sums = await this.prisma.invoice_adjustments.groupBy({
+      by: ['invoice_id'],
+      where: { invoice_id: { in: invoiceIds } },
+      _sum: { amount: true },
+    });
+
+    return new Map(sums.map((sum) => [sum.invoice_id, sum._sum.amount]));
+  }
+
+  /** The page's items with their adjustment rows, read for the whole page in one query. */
+  private async withAdjustments(
+    items: InvoiceListItem[],
+    invoiceIds: Map<string, string>,
+  ): Promise<InvoiceListItem[]> {
+    const ids = items.flatMap((item) => invoiceIds.get(item.contract.id) ?? []);
+    if (ids.length === 0) return items;
+
+    const rows = await this.prisma.invoice_adjustments.findMany({
+      where: { invoice_id: { in: ids } },
+      select: { ...INVOICE_ADJUSTMENT_SELECT, invoice_id: true },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+    });
+
+    const byInvoice = new Map<string, InvoiceAdjustmentDto[]>();
+
+    for (const row of rows) {
+      const list = byInvoice.get(row.invoice_id) ?? [];
+      list.push(adjustmentDto(row));
+      byInvoice.set(row.invoice_id, list);
+    }
+
+    return items.map((item) => {
+      const id = invoiceIds.get(item.contract.id);
+      return id ? { ...item, adjustments: byInvoice.get(id) ?? [] } : item;
+    });
+  }
+
   /** Load each requested contract's content in deadline order. */
   private async contentsOf(
     contractIds: string[],
   ): Promise<Map<string, InvoiceContentRow[]>> {
+    if (contractIds.length === 0) return new Map();
+
     const contents = await this.prisma.contents.findMany({
       where: { contract_id: { in: contractIds } },
       select: CONTENT_SELECT,
@@ -476,7 +567,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         const snapshot: InvoiceSnapshotDto = {
           ...breakdown.components,
           adjustments,
-          ...adjustedTotals(breakdown.rawTotal, adjustments),
+          ...adjustedTotals(breakdown.rawTotal, sumAdjustments(adjustments)),
           finalizedAt: today.toISOString(),
         };
 

@@ -148,18 +148,25 @@ export function periodNumber(
   );
 }
 
+/** What the manual adjustments add up to, as a decimal so amounts never drift. */
+export function sumAdjustments(
+  adjustments: readonly InvoiceAdjustmentDto[],
+): Prisma.Decimal {
+  return adjustments.reduce(
+    (sum, adjustment) => sum.plus(adjustment.amount),
+    new Prisma.Decimal(0),
+  );
+}
+
 /**
- * The calculated total plus manual adjustments, added as decimals so amounts
- * never drift, and floored at zero. Numbers are returned only for the DTO and snapshot.
+ * The calculated total plus the adjustments' decimal sum, floored at zero. Numbers are
+ * returned only for the DTO and snapshot.
  */
 export function adjustedTotals(
   calculatedRawTotal: number,
-  adjustments: readonly InvoiceAdjustmentDto[],
+  adjustmentTotal: Prisma.Decimal,
 ): { rawTotal: number; total: number; floored: boolean } {
-  const raw = adjustments.reduce(
-    (sum, adjustment) => sum.plus(adjustment.amount),
-    new Prisma.Decimal(calculatedRawTotal),
-  );
+  const raw = new Prisma.Decimal(calculatedRawTotal).plus(adjustmentTotal);
 
   const floored = raw.lessThan(0);
 
@@ -173,6 +180,11 @@ export function adjustedTotals(
 /** What the invoices table holds for an invoice besides where it stands in the pipeline. */
 export interface SavedInvoice {
   adjustments: InvoiceAdjustmentDto[];
+  /**
+   * What every adjustment adds up to, when the database summed them and `adjustments` does not
+   * list them all; summed from `adjustments` when absent or null (a sum over no rows).
+   */
+  adjustmentTotal?: Prisma.Decimal | null;
   snapshot: InvoiceSnapshotDto | null;
 }
 
@@ -202,7 +214,11 @@ export function toInvoiceItem(
     });
 
   const totals =
-    snapshot ?? adjustedTotals(breakdown!.rawTotal, lifecycle.adjustments);
+    snapshot ??
+    adjustedTotals(
+      breakdown!.rawTotal,
+      lifecycle.adjustmentTotal ?? sumAdjustments(lifecycle.adjustments),
+    );
 
   return {
     creatorId: row.id,
