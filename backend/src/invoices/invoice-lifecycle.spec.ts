@@ -52,3 +52,16 @@ describe('invoiceState', () => {
     );
   });
 });
+
+// The database keeps a running invoice as 'running'; the invoice pipeline and the API call the
+// same invoice 'accruing'. Each state says which pipeline status it is, so the word is mapped in
+// one place.
+describe('pipelineStatus', () => {
+  it('reads a running invoice as accruing, the first status of the pipeline', () => {
+    expect(invoiceState('running').pipelineStatus).toBe('accruing');
+  });
+
+  it('reads a finalized invoice as finalized', () => {
+    expect(invoiceState('finalized').pipelineStatus).toBe('finalized');
+  });
+});
