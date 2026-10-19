@@ -97,6 +97,18 @@ describe("uploadPaymentProof", () => {
     expect(backendPostForm).not.toHaveBeenCalled();
   });
 
+  it("refuses a program renamed to .pdf by its first bytes, sending nothing", async () => {
+    const renamed = new File([Uint8Array.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00])], "bukti.pdf", {
+      type: "application/pdf",
+    });
+
+    await expect(uploadPaymentProof(CONTRACT, proofForm(renamed))).resolves.toEqual({
+      ok: false,
+      message: PROOF_TYPE_INVALID,
+    });
+    expect(backendPostForm).not.toHaveBeenCalled();
+  });
+
   it("passes on the backend's own message when it refuses the upload", async () => {
     vi.mocked(backendPostForm).mockResolvedValue(
       reply(409, { code: "INVOICE_NOT_ACKNOWLEDGED", message: "Invoice belum diakui creator." }),
