@@ -46,6 +46,19 @@ describe("PaymentStatus", () => {
     );
   });
 
+  it("opens the proof in a new tab, and names a proof without a safe link as text only", () => {
+    const { unmount } = render(<PaymentStatus payment={SETTLED} />);
+    expect(screen.getByRole("link", { name: "bukti-transfer-oktober.pdf" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
+    unmount();
+
+    render(<PaymentStatus payment={{ ...SETTLED, proof: { ...SETTLED.proof!, href: null } }} />);
+    expect(valueOf("Bukti pembayaran")).toHaveTextContent("bukti-transfer-oktober.pdf");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("says Belum for each step that has not happened yet, and offers no link", () => {
     render(<PaymentStatus payment={NOTHING_YET} />);
 
