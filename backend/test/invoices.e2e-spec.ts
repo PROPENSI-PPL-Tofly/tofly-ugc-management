@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
@@ -544,6 +545,84 @@ describe('Invoices API (e2e)', () => {
         select: { id: true },
       }),
     ).not.toBeNull();
+  });
+
+  // OWASP Top 10:2025 A08 — amounts are kept exactly as written; the unconstrained numeric column
+  // and its check refuse a third decimal, where numeric(14, 2) would round it before the check.
+  it('stores two-decimal adjustments and their total exactly and refuses a third decimal in the database itself', async () => {
+    const user = await prisma.users.create({
+      data: { email: `${MARKER}-precision@example.com` },
+    });
+    const name = `${MARKER} Precision`;
+    const creatorRow = await prisma.creators.create({
+      data: {
+        user_id: user.id,
+        first_name: name,
+        contracts: {
+          create: {
+            start_date: day(-30),
+            end_date: day(30),
+            contract_type: 'regular',
+            days_between: 14,
+            content_quota: 1,
+            fixed_rate: 1_000_000,
+          },
+        },
+      },
+      select: { contracts: { select: { id: true } } },
+    });
+    const precisionContractId = creatorRow.contracts[0].id;
+    const listed = async () =>
+      (await admin.get('/invoices').query({ q: name }).expect(200)).body
+        .items[0];
+
+    const before = await listed();
+    for (const amount of [0.01, -1500.55, 2_000_000.99]) {
+      await admin
+        .post(`/invoices/${precisionContractId}/adjustments`)
+        .send({ amount, reason: 'Precision adjustment' })
+        .expect(201);
+    }
+    const after = await listed();
+
+    const stored = await prisma.invoice_adjustments.findMany({
+      where: { invoices: { contract_id: precisionContractId } },
+      select: { amount: true },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+    });
+    expect(stored.map(({ amount }) => amount.toFixed())).toEqual([
+      '0.01',
+      '-1500.55',
+      '2000000.99',
+    ]);
+    expect(
+      after.adjustments.map(
+        (adjustment: { amount: number }) => adjustment.amount,
+      ),
+    ).toEqual([0.01, -1500.55, 2_000_000.99]);
+    expect(
+      new Prisma.Decimal(after.rawTotal).minus(before.rawTotal).toFixed(),
+    ).toBe('1998500.45');
+
+    const { id: invoiceId } = await prisma.invoices.findUniqueOrThrow({
+      where: { contract_id: precisionContractId },
+      select: { id: true },
+    });
+    await expect(
+      prisma.invoice_adjustments.create({
+        data: {
+          invoice_id: invoiceId,
+          amount: new Prisma.Decimal('1.005'),
+          reason: 'Written past the API',
+          actor_user_id: adminId,
+        },
+      }),
+    ).rejects.toThrow('invoice_adjustments_amount_check');
+    expect(
+      await prisma.invoice_adjustments.count({
+        where: { invoice_id: invoiceId },
+      }),
+    ).toBe(3);
   });
 
   // OWASP Top 10:2025 A01 — clients cannot set server-controlled fields.
