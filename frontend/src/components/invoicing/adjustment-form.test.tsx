@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import {
   AMOUNT_EMPTY,
   AMOUNT_INVALID,
+  AMOUNT_THOUSANDS,
   REASON_EMPTY,
   REASON_MAX_LENGTH,
   REASON_TOO_LONG,
@@ -59,9 +60,44 @@ describe("AdjustmentForm", () => {
     expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
   });
 
+  it("says how to fix an amount typed with thousands dots", () => {
+    form();
+    fill("200.000", "Koreksi");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(screen.getByText(AMOUNT_THOUSANDS)).toBeInTheDocument();
+    expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
+  });
+
+  it("explains how to take away and how to add below the amount field", () => {
+    form();
+
+    expect(
+      screen.getByText("Pakai tanda minus (-) untuk mengurangi invoice, angka biasa untuk menambah."),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["200000", "Akan dicatat: +Rp200.000"],
+    ["-100000", "Akan dicatat: − Rp100.000"],
+  ])("shows what %s will be recorded as before it is sent", (amount, preview) => {
+    form();
+    fill(amount, "");
+
+    expect(screen.getByText(preview)).toBeInTheDocument();
+  });
+
+  it("shows no amount preview for one it cannot read", () => {
+    form();
+    fill("abc", "");
+
+    expect(screen.queryByText(/Akan dicatat/)).not.toBeInTheDocument();
+  });
+
   it("says below the amount field what is wrong with it, in the backend's words", () => {
     form();
-    fill("1.234", "Koreksi");
+    fill("1.2345", "Koreksi");
 
     fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 

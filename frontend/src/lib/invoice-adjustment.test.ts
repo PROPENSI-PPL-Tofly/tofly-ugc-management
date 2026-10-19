@@ -4,6 +4,7 @@ import {
   adjustmentReason,
   AMOUNT_EMPTY,
   AMOUNT_INVALID,
+  AMOUNT_THOUSANDS,
   canAdjust,
   canFinalize,
   FINAL_LABEL,
@@ -34,12 +35,27 @@ describe("validateAdjustment", () => {
     expect(AMOUNT_EMPTY).toBe("Jumlah wajib diisi");
   });
 
-  it.each(["abc", "1.234", "0", "-0", "1e5", "Rp100", "12,", "--5"])(
+  it.each(["abc", "0", "-0", "1e5", "Rp100", "12,", "--5", "1.2345"])(
     "refuses the amount %j in the backend's own words",
     (amount) => {
       expect(validateAdjustment(draft({ amount }))).toEqual({ amount: AMOUNT_INVALID });
     },
   );
+
+  // Rupiah is written with a dot between thousands; the API reads a dot as decimals, so an amount
+  // typed that way is refused with what to do instead, never as "two decimals at most".
+  it.each(["200.000", "-1.500.000", "1.234", "12.345.678"])(
+    "asks for %j without the thousands dots",
+    (amount) => {
+      expect(validateAdjustment(draft({ amount }))).toEqual({ amount: AMOUNT_THOUSANDS });
+      expect(AMOUNT_THOUSANDS).toBe("Tulis nominal tanpa titik pemisah ribuan, mis. 200000");
+    },
+  );
+
+  it("still takes a dot that marks cents", () => {
+    expect(validateAdjustment(draft({ amount: "2.50" }))).toEqual({});
+    expect(validateAdjustment(draft({ amount: "1500.5" }))).toEqual({});
+  });
 
   it("uses the backend's wording for a wrong amount, so the form and the server agree", () => {
     expect(AMOUNT_INVALID).toBe("Jumlah harus bukan nol dan maksimal dua angka desimal");
