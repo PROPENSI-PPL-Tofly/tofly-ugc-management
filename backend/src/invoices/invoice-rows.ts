@@ -16,7 +16,6 @@ import type {
 import { calculateInvoice } from './invoice-calculator.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
 import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
-import type { InvoiceLifecycleStatus } from './invoice-lifecycle.js';
 import type { RateFormula } from './rate-formula.js';
 
 /**
@@ -171,6 +170,15 @@ export function adjustedTotals(
   };
 }
 
+/** What the invoices table holds for an invoice besides where it stands in the pipeline. */
+export interface SavedInvoice {
+  adjustments: InvoiceAdjustmentDto[];
+  snapshot: InvoiceSnapshotDto | null;
+}
+
+/** A listed invoice before the InvoiceStatusSource says where it stands. */
+export type InvoiceItem = Omit<InvoiceListItem, 'invoiceStatus'>;
+
 /** The invoice of contractRow, using either its live calculation or its persisted snapshot. */
 export function toInvoiceItem(
   row: InvoiceCreatorRow,
@@ -178,18 +186,10 @@ export function toInvoiceItem(
   contents: readonly InvoiceContentRow[],
   formula: RateFormula | null,
   today: Date,
-  savedLifecycle?: {
-    status: InvoiceLifecycleStatus;
-    adjustments: InvoiceAdjustmentDto[];
-    snapshot: InvoiceSnapshotDto | null;
-  },
-): InvoiceListItem {
-  // An invoice with no saved lifecycle yet is running, with no adjustments or snapshot.
-  const lifecycle = savedLifecycle ?? {
-    status: 'running',
-    adjustments: [],
-    snapshot: null,
-  };
+  saved?: SavedInvoice,
+): InvoiceItem {
+  // An invoice nobody has adjusted or finalized has no saved row yet.
+  const lifecycle = saved ?? { adjustments: [], snapshot: null };
   const snapshot = lifecycle.snapshot;
 
   const breakdown = snapshot
@@ -207,8 +207,6 @@ export function toInvoiceItem(
   return {
     creatorId: row.id,
     creatorName: creatorName(row),
-    // The service may replace this with the authoritative pipeline status.
-    invoiceStatus: lifecycle.status === 'finalized' ? 'finalized' : 'accruing',
     adjustments: lifecycle.adjustments,
     snapshot,
     contract: {

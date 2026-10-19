@@ -194,7 +194,6 @@ describe('toInvoiceItem', () => {
       FORMULA,
       TODAY,
       {
-        status: 'running',
         adjustments: [
           { ...adjustment, id: 'adj-1', amount: 0.7 },
           { ...adjustment, id: 'adj-2', amount: 0.1 },
@@ -215,7 +214,6 @@ describe('toInvoiceItem', () => {
       FORMULA,
       TODAY,
       {
-        status: 'running',
         adjustments: [
           {
             id: 'adj-1',
@@ -278,11 +276,12 @@ describe('toInvoiceItem', () => {
       ],
       { ...FORMULA, latePenaltyPerDay: 1_000_000 },
       TODAY,
-      { status: 'finalized', adjustments, snapshot },
+      { adjustments, snapshot },
     );
 
+    // Where it stands is the InvoiceStatusSource's to say, not the row mapping's.
+    expect(item).not.toHaveProperty('invoiceStatus');
     expect(item).toMatchObject({
-      invoiceStatus: 'finalized',
       adjustments,
       snapshot,
       components: {

@@ -26,6 +26,7 @@ import {
   invoiceContractStatus,
   type InvoiceCreatorRow,
   periodNumber,
+  type SavedInvoice,
   pickContract,
   toInvoiceContent,
   toInvoiceContract,
@@ -41,10 +42,7 @@ import {
   INVOICE_STATUS_SOURCE,
   type InvoiceStatusSource,
 } from './invoice-status.js';
-import {
-  invoiceState,
-  type InvoiceLifecycleStatus,
-} from './invoice-lifecycle.js';
+import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
@@ -89,13 +87,6 @@ export interface InvoiceLister {
 /** What the invoice breakdown popups need: one creator's invoice, or null. */
 export interface InvoiceDetailReader {
   detail(creatorId: string, today?: Date): Promise<InvoiceDetail | null>;
-}
-
-/** Lifecycle data persisted for a contract's invoice. */
-interface InvoiceLifecycle {
-  status: InvoiceLifecycleStatus;
-  adjustments: InvoiceAdjustmentDto[];
-  snapshot: InvoiceSnapshotDto | null;
 }
 
 /** A creator without a contract has nothing to invoice. */
@@ -237,11 +228,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         this.lifecycleForContracts([contract.id]),
       ]);
 
-    const lifecycle = lifecycleByContract.get(contract.id) ?? {
-      status: 'running' as const,
-      adjustments: [],
-      snapshot: null,
-    };
+    const lifecycle = lifecycleByContract.get(contract.id);
 
     return {
       ...toInvoiceItem(
@@ -292,11 +279,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     );
 
     const items = kept.map(({ row, contract }) => {
-      const lifecycle = lifecycleByContract.get(contract.id) ?? {
-        status: 'running' as const,
-        adjustments: [],
-        snapshot: null,
-      };
+      const lifecycle = lifecycleByContract.get(contract.id);
 
       return {
         ...toInvoiceItem(
@@ -320,17 +303,16 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     };
   }
 
-  /** Read stored adjustments and snapshots for the requested contracts. */
+  /** Read saved adjustments and snapshots for the requested contracts. */
   private async lifecycleForContracts(
     contractIds: string[],
-  ): Promise<Map<string, InvoiceLifecycle>> {
+  ): Promise<Map<string, SavedInvoice>> {
     if (contractIds.length === 0) return new Map();
 
     const persisted = await this.prisma.invoices.findMany({
       where: { contract_id: { in: contractIds } },
       select: {
         contract_id: true,
-        status: true,
         snapshot: true,
         adjustments: {
           select: INVOICE_ADJUSTMENT_SELECT,
@@ -339,11 +321,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       },
     });
 
-    const result = new Map<string, InvoiceLifecycle>();
+    const result = new Map<string, SavedInvoice>();
 
     for (const invoice of persisted) {
       result.set(invoice.contract_id, {
-        status: invoice.status,
         adjustments: invoice.adjustments.map(adjustmentDto),
         snapshot: invoice.snapshot as unknown as InvoiceSnapshotDto | null,
       });
