@@ -44,6 +44,14 @@ export function toPaymentProof(raw: RawPaymentProof): PaymentProof {
   return { fileName: raw.fileName, href: raw.url, uploadedAt: raw.uploadedAt };
 }
 
+// The payment as a part of an invoice row: present once the answer sends any payment field, and
+// left out before 13.1 and 13.2, so a row from today's API reads exactly as it did.
+export function paymentOf(raw: RawInvoicePayment): { payment?: InvoicePayment } {
+  const sent =
+    raw.acknowledgedAt !== undefined || raw.paidAt !== undefined || raw.paymentProof !== undefined;
+  return sent ? { payment: toInvoicePayment(raw) } : {};
+}
+
 export function toInvoicePayment(raw: RawInvoicePayment): InvoicePayment {
   return {
     acknowledgedAt: raw.acknowledgedAt ?? null,
