@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import {
   FinalizedInvoiceState,
   invoiceState,
-  type InvoiceStatus,
+  type InvoiceLifecycleStatus,
   RunningInvoiceState,
 } from './invoice-lifecycle.js';
 
@@ -47,7 +47,7 @@ describe('invoiceState', () => {
 
   // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): an unknown status fails closed.
   it('fails closed on a status the lifecycle does not know', () => {
-    expect(() => invoiceState('paid' as InvoiceStatus)).toThrow(
+    expect(() => invoiceState('paid' as InvoiceLifecycleStatus)).toThrow(
       'Unsupported invoice status',
     );
   });

@@ -5,7 +5,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   invoiceState,
-  type InvoiceStatus as LifecycleStatus,
+  type InvoiceLifecycleStatus,
 } from './invoice-lifecycle.js';
 import type { InvoiceStatus, InvoiceStatusSource } from './invoice-status.js';
 
@@ -15,7 +15,7 @@ export interface InvoiceStatusRows {
     findMany(args: {
       where: { contract_id: { in: string[] } };
       select: { contract_id: true; status: true };
-    }): Promise<{ contract_id: string; status: LifecycleStatus }[]>;
+    }): Promise<{ contract_id: string; status: InvoiceLifecycleStatus }[]>;
   };
 }
 

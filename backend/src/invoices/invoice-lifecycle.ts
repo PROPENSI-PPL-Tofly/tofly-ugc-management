@@ -1,12 +1,16 @@
 import { ConflictException } from '@nestjs/common';
-import type { InvoiceStatus as PipelineStatus } from './invoice-status.js';
+import type { InvoiceStatus } from './invoice-status.js';
 
-export type InvoiceStatus = 'running' | 'finalized';
+/**
+ * An invoice's lifecycle as the database keeps it in invoices.status. The pipeline and the API
+ * call a running invoice accruing; see InvoiceState.pipelineStatus.
+ */
+export type InvoiceLifecycleStatus = 'running' | 'finalized';
 
 /** Lifecycle policy resolved from the status read from the database. */
 export interface InvoiceState {
   /** Where this invoice stands in the invoice pipeline the API reports. */
-  readonly pipelineStatus: PipelineStatus;
+  readonly pipelineStatus: InvoiceStatus;
 
   assertCanAdjust(): void;
   assertCanFinalize(): void;
@@ -39,7 +43,7 @@ export class FinalizedInvoiceState implements InvoiceState {
   }
 }
 
-export function invoiceState(status: InvoiceStatus): InvoiceState {
+export function invoiceState(status: InvoiceLifecycleStatus): InvoiceState {
   switch (status) {
     case 'running':
       return new RunningInvoiceState();

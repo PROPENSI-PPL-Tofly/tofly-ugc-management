@@ -16,6 +16,7 @@ import type {
 import { calculateInvoice } from './invoice-calculator.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
 import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
+import type { InvoiceLifecycleStatus } from './invoice-lifecycle.js';
 import type { RateFormula } from './rate-formula.js';
 
 /**
@@ -178,7 +179,7 @@ export function toInvoiceItem(
   formula: RateFormula | null,
   today: Date,
   savedLifecycle?: {
-    status: 'running' | 'finalized';
+    status: InvoiceLifecycleStatus;
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto | null;
   },

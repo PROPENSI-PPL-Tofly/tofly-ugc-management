@@ -41,7 +41,10 @@ import {
   INVOICE_STATUS_SOURCE,
   type InvoiceStatusSource,
 } from './invoice-status.js';
-import { invoiceState } from './invoice-lifecycle.js';
+import {
+  invoiceState,
+  type InvoiceLifecycleStatus,
+} from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
@@ -90,7 +93,7 @@ export interface InvoiceDetailReader {
 
 /** Lifecycle data persisted for a contract's invoice. */
 interface InvoiceLifecycle {
-  status: 'running' | 'finalized';
+  status: InvoiceLifecycleStatus;
   adjustments: InvoiceAdjustmentDto[];
   snapshot: InvoiceSnapshotDto | null;
 }
