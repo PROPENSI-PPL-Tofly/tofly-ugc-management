@@ -1,8 +1,11 @@
 vi.mock("./backend.server", () => ({ backendGet: vi.fn(), backendPost: vi.fn() }));
 vi.mock("./session.server", () => ({ currentRole: vi.fn() }));
 
-import { backendGet } from "./backend.server";
+import { backendGet, backendPost } from "./backend.server";
 import {
+  addInvoiceComment,
+  COMMENT_FAILED,
+  COMMENT_FORBIDDEN,
   COMMENTS_FORBIDDEN,
   COMMENTS_UNAVAILABLE,
   loadInvoiceComments,
@@ -107,5 +110,98 @@ describe("loadInvoiceComments", () => {
       message: COMMENTS_UNAVAILABLE,
     });
     expect(COMMENTS_UNAVAILABLE).toBe("Komentar tidak bisa dimuat.");
+  });
+});
+
+describe("addInvoiceComment", () => {
+  const SAVED = {
+    id: "c3",
+    authorName: "Admin Tofly",
+    role: "admin",
+    text: "Pembayaran sudah dikirim ya.",
+    createdAt: "2026-10-21T03:00:00.000Z",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(currentRole).mockResolvedValue("admin");
+    vi.mocked(backendPost).mockResolvedValue(reply(201, SAVED));
+  });
+
+  it("sends the text to the invoice's thread and answers the saved comment under the page's names", async () => {
+    await expect(addInvoiceComment(CONTRACT, "Pembayaran sudah dikirim ya.")).resolves.toEqual({
+      ok: true,
+      comment: {
+        id: "c3",
+        author: "Admin Tofly",
+        role: "admin",
+        text: "Pembayaran sudah dikirim ya.",
+        createdAt: "2026-10-21T03:00:00.000Z",
+      },
+    });
+    expect(backendPost).toHaveBeenCalledWith(`/invoices/${CONTRACT}/comments`, {
+      text: "Pembayaran sudah dikirim ya.",
+    });
+  });
+
+  it.each(["../creators", "not-an-id", ""])(
+    "refuses the contract id %j before anything reaches the backend",
+    async (contractId) => {
+      await expect(addInvoiceComment(contractId, "Halo")).resolves.toEqual({
+        ok: false,
+        message: COMMENT_FAILED,
+      });
+      expect(backendPost).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["creator", null] as const)("refuses a %s, sending nothing", async (role) => {
+    vi.mocked(currentRole).mockResolvedValue(role);
+
+    await expect(addInvoiceComment(CONTRACT, "Halo")).resolves.toEqual({
+      ok: false,
+      message: COMMENT_FORBIDDEN,
+    });
+    expect(COMMENT_FORBIDDEN).toBe("Hanya admin yang dapat menambah komentar di sini.");
+    expect(backendPost).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a number", 42],
+    ["an object", { text: "Halo" }],
+    ["nothing", undefined],
+  ])("refuses %s in place of the text, sending nothing", async (_label, text) => {
+    await expect(addInvoiceComment(CONTRACT, text as unknown as string)).resolves.toEqual({
+      ok: false,
+      message: COMMENT_FAILED,
+    });
+    expect(backendPost).not.toHaveBeenCalled();
+  });
+
+  it("passes on the backend's own message when it refuses the comment", async () => {
+    vi.mocked(backendPost).mockResolvedValue(
+      reply(422, { message: "Komentar maksimal 500 karakter." }),
+    );
+
+    await expect(addInvoiceComment(CONTRACT, "x".repeat(501))).resolves.toEqual({
+      ok: false,
+      message: "Komentar maksimal 500 karakter.",
+    });
+  });
+
+  it.each([
+    ["a server error", () => vi.mocked(backendPost).mockResolvedValue(reply(500, { message: "Prisma P2003" }))],
+    ["a refusal without a message", () => vi.mocked(backendPost).mockResolvedValue(reply(400, {}))],
+    ["an answer that is not JSON", () => vi.mocked(backendPost).mockResolvedValue(reply(201, "<html>"))],
+    ["a saved answer without the comment", () => vi.mocked(backendPost).mockResolvedValue(reply(201, {}))],
+    ["the network failing", () => vi.mocked(backendPost).mockRejectedValue(new TypeError("fetch failed"))],
+  ])("answers %s with the general failure, never the raw error", async (_label, arrange) => {
+    arrange();
+
+    await expect(addInvoiceComment(CONTRACT, "Halo")).resolves.toEqual({
+      ok: false,
+      message: COMMENT_FAILED,
+    });
+    expect(COMMENT_FAILED).toBe("Komentar gagal dikirim. Coba lagi.");
   });
 });
