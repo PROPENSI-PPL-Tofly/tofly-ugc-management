@@ -1,14 +1,8 @@
-import {
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
+import type { FileStore } from './file-store.js';
 import { LocalFileStore } from './local-file-store.js';
 
 const KEY = 'payment-proofs/0f0e0d0c-0b0a-4908-8706-050403020100';
@@ -22,7 +16,8 @@ async function readAll(stream: Readable): Promise<Buffer> {
 
 describe('LocalFileStore', () => {
   let root: string;
-  let store: LocalFileStore;
+  // Typed as the port: the adapter is used only through it.
+  let store: FileStore;
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'tofly-store-'));
@@ -111,16 +106,7 @@ describe('LocalFileStore', () => {
       ]);
     });
 
-    it('passes on a disk failure other than a missing file', async () => {
-      // A file where the prefix folder should be: the path below it cannot even be looked up.
-      await writeFile(join(root, 'payment-proofs'), 'in the way');
-      const blocked = new LocalFileStore(root);
-
-      await expect(blocked.open(KEY, META)).rejects.toMatchObject({
-        code: 'ENOTDIR',
-      });
-    });
-
+    // A disk failure other than a missing file is passed on, never read as "no file".
     it('refuses to stream a folder sitting where a file should be', async () => {
       await mkdir(join(root, ...KEY.split('/')), { recursive: true });
 

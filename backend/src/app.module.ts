@@ -13,38 +13,42 @@ import { MeModule } from './me/me.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProposalsModule } from './contents/proposals.module.js';
 import { RateFormulaModule } from './rate-formula/rate-formula.module.js';
+import { requireStorageInProduction } from './storage/file-store.provider.js';
+import { StorageModule } from './storage/storage.module.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
 function validate(config: Record<string, unknown>): Record<string, unknown> {
-    for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
-        if (!config[key]) {
-            throw new Error(`Missing required env var: ${key}`);
-        }
+  for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
+    if (!config[key]) {
+      throw new Error(`Missing required env var: ${key}`);
     }
-    requireGoogleConfigInProduction(config as Record<string, string | undefined>);
+  }
+  requireGoogleConfigInProduction(config as Record<string, string | undefined>);
+  requireStorageInProduction(config as Record<string, string | undefined>);
 
-    return config;
+  return config;
 }
 
 @Module({
-    imports: [
-        ConfigModule.forRoot({
-            isGlobal: true,
-            validate,
-        }),
-        PrismaModule,
-        CreatorsModule,
-        InvoicesModule,
-        ContentsModule,
-        ProposalsModule,
-        SubmissionsModule,
-        RateFormulaModule,
-        MeModule,
-        SessionModule,
-        GoogleAuthModule,
-    ],
-    controllers: [AppController, HealthController],
-    providers: [AppService],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate,
+    }),
+    PrismaModule,
+    StorageModule,
+    CreatorsModule,
+    InvoicesModule,
+    ContentsModule,
+    ProposalsModule,
+    SubmissionsModule,
+    RateFormulaModule,
+    MeModule,
+    SessionModule,
+    GoogleAuthModule,
+  ],
+  controllers: [AppController, HealthController],
+  providers: [AppService],
 })
 export class AppModule {}
