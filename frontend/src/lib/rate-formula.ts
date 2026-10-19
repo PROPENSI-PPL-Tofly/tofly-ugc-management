@@ -179,8 +179,9 @@ export function tiersProblem(tiers: TierDraft[]): string | undefined {
 /** What is wrong with the day cap: an amount that is filled in, whole, and no more than a year. */
 function penaltyDaysProblem(value: number | null): string | undefined {
   const problem = amountProblem(value, "Maks hari penalti");
-  if (problem) return problem;
-  return (value ?? 0) > MAX_PENALTY_DAYS
+  // No problem means amountProblem found a whole number: only the cap is left to check.
+  if (problem !== undefined || value === null) return problem;
+  return value > MAX_PENALTY_DAYS
     ? `Maks hari penalti harus antara 0 hari dan ${MAX_PENALTY_DAYS} hari`
     : undefined;
 }
