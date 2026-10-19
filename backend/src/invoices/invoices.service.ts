@@ -24,6 +24,7 @@ import {
   type InvoiceContractRow,
   invoiceContractStatus,
   type InvoiceCreatorRow,
+  listedContracts,
   periodNumber,
   type SavedInvoice,
   savedSnapshot,
@@ -90,7 +91,11 @@ export interface InvoiceLister {
 
 /** What the invoice breakdown popups need: one creator's invoice, or null. */
 export interface InvoiceDetailReader {
-  detail(creatorId: string, today?: Date): Promise<InvoiceDetail | null>;
+  detail(
+    creatorId: string,
+    today?: Date,
+    contractId?: string,
+  ): Promise<InvoiceDetail | null>;
 }
 
 /** A creator without a contract has nothing to invoice. */
@@ -107,6 +112,8 @@ const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
 interface PickedCreator {
   row: InvoiceCreatorRow;
   contract: InvoiceContractRow;
+  /** The contract the table describes for this creator, listed whatever its invoice status. */
+  current: boolean;
 }
 
 interface Calculated {
@@ -125,10 +132,13 @@ interface SavedListing {
 }
 
 function pick(rows: InvoiceCreatorRow[], today: Date): PickedCreator[] {
-  return rows.flatMap((row) => {
-    const contract = pickContract(row, today);
-    return contract ? [{ row, contract }] : [];
-  });
+  return rows.flatMap((row) =>
+    listedContracts(row, today).map((contract, index) => ({
+      row,
+      contract,
+      current: index === 0,
+    })),
+  );
 }
 
 /** Match creator-name and contract filters; invoice status is evaluated separately. */
@@ -146,7 +156,8 @@ function matches(
 
   return (
     !filters.contract ||
-    invoiceContractStatus(contract, today) === filters.contract
+    invoiceContractStatus(contract, today, row.access_revoke_date) ===
+      filters.contract
   );
 }
 
@@ -224,13 +235,19 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
   async detail(
     creatorId: string,
     today = new Date(),
+    contractId?: string,
   ): Promise<InvoiceDetail | null> {
     const row = await this.prisma.creators.findUnique({
       where: { id: creatorId },
       select: INVOICE_SELECT,
     });
 
-    const contract = row && pickContract(row, today);
+    // A contract id names one of this creator's own contracts; any other answers nothing.
+    const contract =
+      row &&
+      (contractId === undefined
+        ? pickContract(row, today)
+        : (row.contracts.find(({ id }) => id === contractId) ?? null));
     if (!row || !contract) return null;
 
     const [byContract, statuses, formula, lifecycleByContract] =
@@ -284,6 +301,9 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     const kept = everyone.filter(
       (creator) =>
+        // An earlier contract's invoice stays listed until it is paid, then there is nothing
+        // left to do on it.
+        (creator.current || statuses.get(creator.contract.id) !== 'paid') &&
         matches(creator, filters, today) &&
         (!filters.status ||
           statuses.get(creator.contract.id) === filters.status),

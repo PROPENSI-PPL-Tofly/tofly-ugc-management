@@ -26,6 +26,8 @@ export interface InvoiceContractDto {
    * that came first. Finalizing waits for the day after it.
    */
   lastDay: string;
+  /** Which of the creator's contracts this is, from 1 in the order they started. */
+  period: number;
 }
 
 export interface InvoiceAdjustmentDto {

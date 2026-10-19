@@ -62,8 +62,11 @@ export class InvoicesController {
   @Get(':creatorId')
   async detail(
     @Param('creatorId', ParseUUIDPipe) creatorId: string,
+    // Which of the creator's contracts; the one the table describes when none is named.
+    @Query('contract', new ParseUUIDPipe({ optional: true }))
+    contractId?: string,
   ): Promise<InvoiceDetail> {
-    const detail = await this.invoices.detail(creatorId, new Date());
+    const detail = await this.invoices.detail(creatorId, new Date(), contractId);
 
     if (!detail) {
       throw new NotFoundException({

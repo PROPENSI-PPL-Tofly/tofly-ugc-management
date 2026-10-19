@@ -3,6 +3,7 @@
 // database, and the service is left with loading rows and paging.
 
 import { Prisma } from '@prisma/client';
+import { jakartaDay } from '../creators/evergreen.js';
 import {
   contractStatus,
   currentContract,
@@ -115,13 +116,22 @@ function period(contract: InvoiceContractRow): MetricsContract {
   };
 }
 
-/** Where a contract stands today, as the table's contract column and filter read it. */
+/**
+ * Where a contract stands today, as the table's contract column, its filter and the needs-action
+ * order read it. An early end counts: past the day access was revoked, the contract has ended,
+ * the same last day finalizing waits for.
+ */
 export function invoiceContractStatus(
   contract: InvoiceContractRow,
   today: Date,
+  endedEarlyOn: Date | null = null,
 ): InvoiceContractStatus {
   // A contract exists, so contractStatus never answers 'none' here.
-  return contractStatus(period(contract), today) as InvoiceContractStatus;
+  const status = contractStatus(period(contract), today) as InvoiceContractStatus;
+  if (status !== 'active') return status;
+
+  const lastDay = contractLastDay(toInvoiceContract(contract, endedEarlyOn));
+  return jakartaDay(today) > lastDay ? 'expired' : 'active';
 }
 
 /**
@@ -134,6 +144,30 @@ export function pickContract(
 ): InvoiceContractRow | null {
   const picked = currentContract(row.contracts.map(period), today);
   return row.contracts.find((contract) => contract.id === picked?.id) ?? null;
+}
+
+/**
+ * The contracts a creator's invoices are listed for: the one the table describes first, then
+ * every earlier one that has ended, latest first. A renewed creator still has the earlier
+ * invoice to finalize and pay; the service drops it again once it is paid.
+ */
+export function listedContracts(
+  row: InvoiceCreatorRow,
+  today: Date,
+): InvoiceContractRow[] {
+  const current = pickContract(row, today);
+  if (!current) return [];
+
+  const ended = row.contracts
+    .filter(
+      (contract) =>
+        contract.id !== current.id &&
+        invoiceContractStatus(contract, today, row.access_revoke_date) ===
+          'expired',
+    )
+    .sort((a, b) => b.end_date.getTime() - a.end_date.getTime());
+
+  return [current, ...ended];
 }
 
 /** Which of the creator's contracts this is, counted from 1 in the order they started. */
@@ -274,10 +308,11 @@ export function toInvoiceItem(
     snapshot,
     contract: {
       id: contractRow.id,
-      status: invoiceContractStatus(contractRow, today),
+      status: invoiceContractStatus(contractRow, today, row.access_revoke_date),
       startDate: calendarDay(contractRow.start_date),
       endDate: calendarDay(contractRow.end_date),
       lastDay: contractLastDay(contract),
+      period: periodNumber(row, contractRow),
     },
     components: snapshot
       ? {
