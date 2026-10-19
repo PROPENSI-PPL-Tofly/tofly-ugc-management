@@ -200,6 +200,10 @@ describe('proofFileName', () => {
     it('a name with no extension, adding the one its bytes name', () => {
       expect(proofFileName('bukti', 'application/pdf')).toBe('bukti.pdf');
     });
+
+    it('a name that is only the extension word, keeping it whole as the name', () => {
+      expect(proofFileName('pdf', 'application/pdf')).toBe('pdf.pdf');
+    });
   });
 
   describe('edge:', () => {

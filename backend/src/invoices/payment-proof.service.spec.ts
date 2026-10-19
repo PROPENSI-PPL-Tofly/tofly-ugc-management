@@ -105,6 +105,14 @@ describe('PaymentProofService', () => {
           invoiceStatus: 'payment_uploaded',
         });
 
+        expect(prisma.contracts.findUnique).toHaveBeenCalledWith({
+          where: { id: CONTRACT },
+          select: { id: true, invoice: { select: { id: true, status: true } } },
+        });
+        // Read committed: the guarded update waits on a rival's row lock, then re-reads it.
+        expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+          isolationLevel: 'ReadCommitted',
+        });
         expect(store.put).toHaveBeenCalledExactlyOnceWith(
           KEY,
           PROOF.bytes,

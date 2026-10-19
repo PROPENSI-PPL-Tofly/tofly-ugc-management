@@ -66,10 +66,14 @@ describe('fileStoreFromEnv', () => {
       );
     });
 
-    it('builds a real Cloud Storage bucket when no factory is given', () => {
-      expect(
-        fileStoreFromEnv({ STORAGE_BUCKET: 'tofly-proofs' }),
-      ).toBeInstanceOf(GcsFileStore);
+    it('builds a real Cloud Storage bucket of that name when no factory is given', () => {
+      const store = fileStoreFromEnv({ STORAGE_BUCKET: 'tofly-proofs' });
+
+      expect(store).toBeInstanceOf(GcsFileStore);
+      // Building a bucket handle makes no request, so this stays offline.
+      expect((Reflect.get(store, 'bucket') as { name: string }).name).toBe(
+        'tofly-proofs',
+      );
     });
   });
 });

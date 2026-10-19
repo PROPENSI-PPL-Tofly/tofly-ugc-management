@@ -115,6 +115,12 @@ describe('InvoiceCommentsService', () => {
             createdAt: '2026-10-20T04:00:00.000Z',
           },
         ]);
+        // Strictly: an admin's lookup carries no creator_id key at all, not even undefined.
+        expect(prisma.contracts.findFirst.mock.calls[0][0].where).toStrictEqual(
+          {
+            id: CONTRACT,
+          },
+        );
         expect(prisma.contracts.findFirst).toHaveBeenCalledExactlyOnceWith({
           where: { id: CONTRACT },
           select: {
@@ -201,6 +207,11 @@ describe('InvoiceCommentsService', () => {
           createdAt: '2026-10-20T03:00:00.000Z',
         });
 
+        expect(prisma.contracts.findFirst.mock.calls[0][0].where).toStrictEqual(
+          {
+            id: CONTRACT,
+          },
+        );
         expect(prisma.contracts.findFirst).toHaveBeenCalledWith({
           where: { id: CONTRACT },
           select: {

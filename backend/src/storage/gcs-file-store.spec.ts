@@ -91,6 +91,10 @@ describe('GcsFileStore', () => {
         await expect(
           store.put(key, Buffer.from('x'), 'image/png'),
         ).rejects.toThrow('Invalid storage key');
+        await expect(
+          store.open(key, { fileName: 'a.png', contentType: 'image/png' }),
+        ).rejects.toThrow('Invalid storage key');
+        await expect(store.remove(key)).rejects.toThrow('Invalid storage key');
         expect(stub.bucket.file).not.toHaveBeenCalled();
       },
     );
@@ -101,14 +105,15 @@ describe('GcsFileStore', () => {
     // so it is percent-encoded and cannot add a header or end the value early.
     it('encodes a name with quotes, a semicolon and non-ASCII characters', async () => {
       await store.open(KEY, {
-        fileName: "bukti 'Ag;ustus' ✅.png",
+        fileName: "bukti 'Ag;ustus' (*) ✅.png",
         contentType: 'image/png',
       });
 
+      // Upper-case hex throughout, as RFC 3986 recommends and encodeURIComponent writes.
       expect(stub.file.getSignedUrl).toHaveBeenCalledWith(
         expect.objectContaining({
           responseDisposition:
-            "inline; filename*=UTF-8''bukti%20%27Ag%3Bustus%27%20%E2%9C%85.png",
+            "inline; filename*=UTF-8''bukti%20%27Ag%3Bustus%27%20%28%2A%29%20%E2%9C%85.png",
         }),
       );
     });
