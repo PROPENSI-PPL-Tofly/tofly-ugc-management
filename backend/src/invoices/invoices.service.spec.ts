@@ -1038,7 +1038,12 @@ describe('InvoicesService', () => {
       const error = await rejection(service.finalize('contract-1', TODAY));
 
       expect(error).toBeInstanceOf(ConflictException);
-      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_ENDED' } });
+      expect(error).toMatchObject({
+        response: {
+          code: 'CONTRACT_NOT_ENDED',
+          message: 'Kontrak belum berakhir',
+        },
+      });
       expect(prisma.invoices.upsert).not.toHaveBeenCalled();
     });
 

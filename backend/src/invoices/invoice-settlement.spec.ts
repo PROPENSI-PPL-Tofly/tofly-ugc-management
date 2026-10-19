@@ -69,7 +69,10 @@ describe('settleForFinalize', () => {
 
     expect(error).toBeInstanceOf(UnprocessableEntityException);
     expect(error).toMatchObject({
-      response: { code: 'INVOICE_BONUS_PENDING' },
+      response: {
+        code: 'INVOICE_BONUS_PENDING',
+        message: 'Bonus performa masih menunggu data',
+      },
     });
   });
 
@@ -120,7 +123,10 @@ describe('settleForFinalize', () => {
 
       expect(error).toBeInstanceOf(UnprocessableEntityException);
       expect(error).toMatchObject({
-        response: { code: 'INVOICE_DATA_INCOMPLETE' },
+        response: {
+          code: 'INVOICE_DATA_INCOMPLETE',
+          message: 'Invoice memiliki komponen yang belum dapat dihitung',
+        },
       });
     },
   );
