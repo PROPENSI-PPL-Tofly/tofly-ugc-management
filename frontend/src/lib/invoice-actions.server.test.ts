@@ -296,6 +296,43 @@ describe("finalizeInvoice", () => {
     await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: false, code, message });
   });
 
+  it("names a refusal that sent no code by its status, in the words the server sent", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(reply(404, { message: "Kontrak tidak ditemukan" }));
+
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({
+      ok: false,
+      code: "HTTP_404",
+      message: "Kontrak tidak ditemukan",
+    });
+  });
+
+  it("says only that it could not be done when a refusal sent neither code nor words", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(reply(400, {}));
+
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({
+      ok: false,
+      code: "HTTP_400",
+      message: "Permintaan tidak dapat diproses. Coba lagi.",
+    });
+  });
+
+  it("reads a 422 that sent neither code nor message as a generic invalid request", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(reply(422, {}));
+
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({
+      ok: false,
+      code: "INVALID",
+      message: "Permintaan tidak dapat diproses. Coba lagi.",
+    });
+  });
+
+  // A misconfigured deployment fails loudly here; the dialog that called catches and says so.
+  it("throws when the backend address is not configured", async () => {
+    vi.stubEnv("BACKEND_URL", "");
+
+    await expect(finalizeInvoice(CONTRACT)).rejects.toThrow("BACKEND_URL is not configured");
+  });
+
   it("says nothing of a server that failed, only that it could not answer", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       reply(503, { message: "upstream connect error" }),

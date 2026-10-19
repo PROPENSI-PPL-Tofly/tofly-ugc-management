@@ -116,6 +116,28 @@ describe("InvoiceActions", () => {
     await vi.waitFor(() => expect(onMutated).toHaveBeenCalled());
   });
 
+  it("closes the adjustment form on Batal without adding anything", () => {
+    const { onMutated } = actions(ROW);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Tambah Penyesuaian" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Batal" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
+    expect(onMutated).not.toHaveBeenCalled();
+  });
+
+  it("closes the finalize confirmation on Batal without freezing anything", () => {
+    const { onMutated } = actions(ROW);
+
+    fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Batal" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(moves.finalizeInvoice).not.toHaveBeenCalled();
+    expect(onMutated).not.toHaveBeenCalled();
+  });
+
   it("opens the finalize confirmation from the freeze button", async () => {
     const { onMutated } = actions(ROW);
 
