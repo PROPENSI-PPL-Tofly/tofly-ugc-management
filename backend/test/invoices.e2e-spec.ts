@@ -778,4 +778,80 @@ describe('Invoices API (e2e)', () => {
       total: 1_125_000,
     });
   });
+
+  // OWASP Top 10:2025 A08 — a finalized invoice keeps the formula its totals were worked out with.
+  it('keeps answering the finalization formula and totals after the formula changes', async () => {
+    const user = await prisma.users.create({
+      data: { email: `${MARKER}-formula-history@example.com` },
+    });
+    const creatorRow = await prisma.creators.create({
+      data: {
+        user_id: user.id,
+        first_name: `${MARKER} Formula History`,
+        contracts: {
+          create: {
+            start_date: day(-30),
+            end_date: day(-1),
+            contract_type: 'regular',
+            days_between: 14,
+            content_quota: 1,
+            fixed_rate: 1_000_000,
+            contents: {
+              create: [
+                {
+                  name: `${MARKER} history evergreen`,
+                  type: 'evergreen',
+                  deadline: day(-2),
+                  status: 'link_submitted',
+                  video_link: 'https://example.com/history-evergreen',
+                  video_submitted_at: day(-2),
+                  platform: 'instagram',
+                  views: 0,
+                },
+                {
+                  name: `${MARKER} history specific`,
+                  type: 'specific',
+                  deadline: day(-3),
+                  status: 'link_submitted',
+                  video_link: 'https://example.com/history-specific',
+                  video_submitted_at: day(-3),
+                },
+              ],
+            },
+          },
+        },
+      },
+      select: { id: true, contracts: { select: { id: true } } },
+    });
+
+    const { body: finalized } = await admin
+      .post(`/invoices/${creatorRow.contracts[0].id}/finalize`)
+      .expect(201);
+
+    expect(finalized.snapshot.formula).toMatchObject({
+      specificBonus: FORMULA.specificBonus,
+      latePenaltyPerDay: FORMULA.latePenaltyPerDay,
+    });
+
+    try {
+      await admin
+        .put('/rate-formula')
+        .send({ ...FORMULA, specificBonus: 999_000, latePenaltyPerDay: 1_000 })
+        .expect(200);
+
+      const { body: detail } = await admin
+        .get(`/invoices/${creatorRow.id}`)
+        .expect(200);
+
+      expect(detail).toMatchObject({
+        invoiceStatus: 'finalized',
+        formula: finalized.snapshot.formula,
+        snapshot: finalized.snapshot,
+        components: { additionalContent: { amount: 100_000 } },
+        total: finalized.snapshot.total,
+      });
+    } finally {
+      await admin.put('/rate-formula').send(FORMULA).expect(200);
+    }
+  });
 });
