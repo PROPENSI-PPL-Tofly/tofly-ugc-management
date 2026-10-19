@@ -436,10 +436,10 @@ describe('InvoicesService', () => {
     });
   });
 
-  // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a locally finalized invoice is
-  // listed as finalized from its saved snapshot while the pipeline still reports accruing.
-  it('lists a locally finalized invoice as finalized with its saved snapshot', async () => {
-    pipeline = { 'contract-1': 'accruing' };
+  // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a finalized invoice is listed
+  // from its saved snapshot, not recalculated.
+  it('lists a finalized invoice with its saved snapshot', async () => {
+    pipeline = { 'contract-1': 'finalized' };
     const component = (amount: number) => ({
       amount,
       status: 'calculated' as const,
@@ -483,6 +483,59 @@ describe('InvoicesService', () => {
       rawTotal: 5_525_000,
       total: 5_525_000,
       floored: false,
+    });
+  });
+
+  // The InvoiceStatusSource port answers where an invoice stands; the saved lifecycle row only
+  // carries the adjustments and snapshot. In the app the port reads that same row, so the two
+  // agree; these pin that the service never second-guesses the port when they do not.
+  describe('the status source is the one authority on the invoice status', () => {
+    const saved = (status: 'running' | 'finalized') => [
+      {
+        contract_id: 'contract-1',
+        status,
+        snapshot: null,
+        adjustments: [],
+      },
+    ];
+
+    it.each([
+      ['accruing', 'finalized'],
+      ['finalized', 'running'],
+      ['creator_acked', 'finalized'],
+      ['payment_uploaded', 'finalized'],
+      ['paid', 'running'],
+    ] as const)(
+      'lists and details %s when the saved row says %s',
+      async (source, stored) => {
+        pipeline = { 'contract-1': source };
+        prisma.creators.findMany.mockResolvedValue([row()]);
+        prisma.creators.findUnique.mockResolvedValue(row());
+        prisma.invoices.findMany.mockResolvedValue(saved(stored));
+
+        const listed = await service.list({ page: 1, pageSize: 10 }, TODAY);
+        const detail = await service.detail('creator-1', TODAY);
+
+        expect(listed.items[0].invoiceStatus).toBe(source);
+        expect(detail?.invoiceStatus).toBe(source);
+      },
+    );
+
+    it('filters and counts running invoices by the status the source answers', async () => {
+      pipeline = { 'contract-1': 'accruing' };
+      prisma.creators.findMany.mockResolvedValue([row()]);
+      prisma.invoices.findMany.mockResolvedValue(saved('finalized'));
+
+      const accruing = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        status: 'accruing',
+      });
+      const finalized = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        status: 'finalized',
+      });
+
+      expect(accruing.total).toBe(1);
+      expect(accruing.summary.runningInvoices).toBe(1);
+      expect(finalized.total).toBe(0);
     });
   });
 
