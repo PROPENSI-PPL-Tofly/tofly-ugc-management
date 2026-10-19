@@ -52,7 +52,9 @@ async function move(path: string, body?: unknown): Promise<ActionOutcome> {
     return refuse(`HTTP_${response.status}`, GENERIC_FAILURE);
   }
 
-  if (response.status === 422) {
+  // A lifecycle refusal can come as a 422 too (INVOICE_DATA_INCOMPLETE, INVOICE_BONUS_PENDING);
+  // its code says so, where a field check sends errors instead.
+  if (response.status === 422 && typeof parsed.code !== "string") {
     const errors = parsed.errors as AdjustmentErrors | undefined;
     return refuse(
       "INVALID",
@@ -104,11 +106,18 @@ export async function addInvoiceAdjustment(
 /**
  * Freezes a finished invoice: the amounts stop moving with the formula and the content. The
  * server decides whether the contract has really ended and whether anything still waits for
- * data; its refusals come back worded for the admin.
+ * data; its refusals come back worded for the admin. `acceptPendingBonus` says the admin was told
+ * the bonus still waits for performance data and freezes it at what was measured; only a real
+ * `true` says so.
  */
-export async function finalizeInvoice(contractId: string): Promise<ActionOutcome> {
+export async function finalizeInvoice(
+  contractId: string,
+  { acceptPendingBonus }: { acceptPendingBonus?: boolean } = {},
+): Promise<ActionOutcome> {
   const blocked = await allowed(contractId);
   if (blocked) return blocked;
 
-  return move(`/invoices/${contractId}/finalize`);
+  return move(`/invoices/${contractId}/finalize`, {
+    acceptPendingBonus: acceptPendingBonus === true,
+  });
 }

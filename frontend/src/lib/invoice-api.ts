@@ -18,6 +18,7 @@ import {
   type InvoiceParams,
   type InvoiceRow,
   type InvoiceStatus,
+  type PendingBonus,
 } from "./invoice";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -56,6 +57,8 @@ export interface RawInvoiceRow {
     startDate: string;
     /** YYYY-MM-DD */
     endDate: string;
+    /** The last day the contract counts: endDate, or the day access was revoked if earlier. */
+    lastDay: string;
   };
   components: {
     fixedRate: RawInvoiceComponent;
@@ -117,16 +120,30 @@ export function toInvoiceListQuery(state: InvoiceParams): URLSearchParams {
   return query;
 }
 
+function isWaiting(component: RawInvoiceComponent): boolean {
+  return component.status === "waiting_for_data";
+}
+
+/**
+ * What freezing a bonus still waiting for data would hold: the lines measured so far, added to a
+ * total that counted the bonus as nothing yet, then held at zero, as the backend settles it.
+ */
+function pendingBonus(bonus: RawInvoiceComponent, rawTotal: number): PendingBonus {
+  const amount = bonus.lines.reduce((sum, line) => sum + line.amount, 0);
+  const frozen = rawTotal + amount;
+  return { amount, totalAmount: Math.max(0, frozen), floored: frozen < 0 };
+}
+
 function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
   const { fixedRate, additionalContent, performanceBonus, penalty } = raw.components;
-  const parts = [fixedRate, additionalContent, performanceBonus, penalty];
 
   return {
     creatorId: raw.creatorId,
     creatorName: raw.creatorName,
     contractId: raw.contract.id,
     contractStatus: raw.contract.status,
-    contractEnd: raw.contract.endDate,
+    // An early end counts: freezing waits for the day the contract stopped, not its end date.
+    contractEnd: raw.contract.lastDay,
     // A fee or penalty waiting for a formula has charged nothing yet.
     fixedAmount: fixedRate.amount ?? 0,
     extraAmount: additionalContent.amount ?? 0,
@@ -135,8 +152,9 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
     penaltyAmount: penalty.amount ?? 0,
     totalAmount: raw.total,
     floored: raw.floored,
-    // Freezing needs every part measured; the server refuses and so does the form.
-    dataWaiting: parts.some((part) => part.status === "waiting_for_data"),
+    // A fee or penalty without a formula cannot be frozen; the server refuses and so does the form.
+    dataWaiting: [fixedRate, additionalContent, penalty].some(isWaiting),
+    pendingBonus: isWaiting(performanceBonus) ? pendingBonus(performanceBonus, raw.rawTotal) : null,
     invoiceStatus: raw.invoiceStatus,
     // An answer that predates the field simply lists none.
     adjustments: (raw.adjustments ?? []).map((adjustment) => ({

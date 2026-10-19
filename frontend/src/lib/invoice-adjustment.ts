@@ -103,12 +103,12 @@ export function canAdjust(invoiceStatus: InvoiceStatus): boolean {
 }
 
 /**
- * Freezing needs a contract that has ended — an early end included, so it is the date and not
- * the calendar status that decides — and an invoice still running. `today` and `endDate` are
- * plain calendar days, compared as written.
+ * Freezing needs a contract that has ended and an invoice still running. `lastDay` is the last day
+ * the contract counts, which the backend moves to the day access was revoked when it ended early;
+ * `today` and `lastDay` are plain calendar days, compared as written.
  */
-export function canFinalize(invoiceStatus: InvoiceStatus, today: string, endDate: string): boolean {
-  return invoiceStatus === "accruing" && today > endDate;
+export function canFinalize(invoiceStatus: InvoiceStatus, today: string, lastDay: string): boolean {
+  return invoiceStatus === "accruing" && today > lastDay;
 }
 
 /** An adjustment line reads as what was added or taken away: "+Rp200.000" / "− Rp100.000". */
@@ -129,7 +129,9 @@ export function refusalMessage(code: string | undefined): string | null {
     case "CONTRACT_NOT_ENDED":
       return "Kontrak belum berakhir";
     case "INVOICE_DATA_INCOMPLETE":
-      return "Invoice belum bisa difinalisasi: masih ada data yang menunggu, seperti bonus performa.";
+      return "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate.";
+    case "INVOICE_BONUS_PENDING":
+      return "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.";
     case "CONTRACT_NOT_FOUND":
     case "INVOICE_NOT_FOUND":
       return "Invoice tidak ditemukan.";

@@ -30,12 +30,15 @@ export function FinalizeModal({
 }>) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A bonus still waiting for data is frozen at what was measured: the dialog shows that, not the
+  // running "Menunggu data", so the admin confirms the amounts that will be kept.
+  const pending = row.pendingBonus;
 
   async function confirm() {
     setBusy(true);
     setRefusal(null);
     try {
-      const outcome = await finalizeInvoice(row.contractId);
+      const outcome = await finalizeInvoice(row.contractId, { acceptPendingBonus: pending !== null });
       if (outcome.ok) {
         onFinalized();
         return;
@@ -69,6 +72,14 @@ export function FinalizeModal({
           data konten berubah.
         </p>
 
+        {pending ? (
+          <p role="note" className="rounded-(--radius-control) bg-amber-wash px-3 py-2 text-[13px] text-amber-ink">
+            Bonus performa masih menunggu data. Jika difinalisasi sekarang, bonus dikunci sebesar
+            yang sudah terukur dan konten tanpa data dihitung Rp0. Tambahkan penyesuaian dulu jika
+            masih ada bonus yang perlu dibayar.
+          </p>
+        ) : null}
+
         <dl className="flex flex-col gap-1.5 text-[13px]">
           <div className="flex items-start justify-between gap-4">
             <dt>Fixed Rate</dt>
@@ -80,7 +91,9 @@ export function FinalizeModal({
           </div>
           <div className="flex items-start justify-between gap-4">
             <dt>Bonus</dt>
-            <dd className="whitespace-nowrap tabular-nums">{bonusLabel(row.bonusAmount)}</dd>
+            <dd className="whitespace-nowrap tabular-nums">
+              {bonusLabel(pending ? pending.amount : row.bonusAmount)}
+            </dd>
           </div>
           <div className="flex items-start justify-between gap-4">
             <dt>Penalti</dt>
@@ -101,7 +114,9 @@ export function FinalizeModal({
           className="flex items-start justify-between gap-4 border-t border-rule pt-3"
         >
           <p className="text-sm font-bold">Total</p>
-          <strong className="whitespace-nowrap text-sm tabular-nums">{finalLabel(row)}</strong>
+          <strong className="whitespace-nowrap text-sm tabular-nums">
+            {finalLabel(pending ? { ...row, floored: pending.floored, totalAmount: pending.totalAmount } : row)}
+          </strong>
         </div>
 
         {refusal ? (
