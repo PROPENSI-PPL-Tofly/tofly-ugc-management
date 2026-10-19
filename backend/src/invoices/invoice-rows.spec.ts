@@ -232,11 +232,18 @@ describe('toInvoiceItem', () => {
   });
 
   it('reads a null adjustment sum, a sum over no rows, as no adjustments', () => {
-    const item = toInvoiceItem(creatorRow(), contractRow(), [], FORMULA, TODAY, {
-      adjustments: [],
-      adjustmentTotal: null,
-      snapshot: null,
-    });
+    const item = toInvoiceItem(
+      creatorRow(),
+      contractRow(),
+      [],
+      FORMULA,
+      TODAY,
+      {
+        adjustments: [],
+        adjustmentTotal: null,
+        snapshot: null,
+      },
+    );
 
     expect(item).toMatchObject({ rawTotal: 5_500_000, total: 5_500_000 });
   });
@@ -395,7 +402,10 @@ describe('savedSnapshot', () => {
       maxPenaltyDays: 3,
       specificBonus: 100_000,
       performanceBonus: {
-        tiktok: { metric: 'likes', tiers: [{ threshold: 1_000, bonus: 50_000 }] },
+        tiktok: {
+          metric: 'likes',
+          tiers: [{ threshold: 1_000, bonus: 50_000 }],
+        },
       },
     };
     const withFormula = { ...complete, formula };
@@ -414,9 +424,18 @@ describe('savedSnapshot', () => {
     ['an array', [complete]],
     ['no fixed rate', { ...complete, fixedRate: undefined }],
     ['a component that is not an object', { ...complete, penalty: 0 }],
-    ['a component amount in text', { ...complete, additionalContent: { ...component, amount: '10' } }],
-    ['a component without a status', { ...complete, performanceBonus: { ...component, status: undefined } }],
-    ['a component without lines', { ...complete, fixedRate: { ...component, lines: undefined } }],
+    [
+      'a component amount in text',
+      { ...complete, additionalContent: { ...component, amount: '10' } },
+    ],
+    [
+      'a component without a status',
+      { ...complete, performanceBonus: { ...component, status: undefined } },
+    ],
+    [
+      'a component without lines',
+      { ...complete, fixedRate: { ...component, lines: undefined } },
+    ],
     ['no adjustments', { ...complete, adjustments: undefined }],
     ['a raw total in text', { ...complete, rawTotal: '3000000' }],
     ['no total', { ...complete, total: undefined }],
