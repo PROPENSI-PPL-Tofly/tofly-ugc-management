@@ -1,7 +1,7 @@
 // Answers of GET /me/invoices for the tests of the modules that read them. The invoice part is
 // the admin detail's own fixture, since 13.1 answers a creator with the same breakdown; the
-// payment fields are the ones the contract below assumes. Test data only: nothing the app
-// renders imports this.
+// payment fields are named as the admin's Rate & Invoicing reads them (13.4, PR #107), so the
+// backend serves one shape to both. Test data only: nothing the app renders imports this.
 
 import type { RawCreatorInvoice } from "./creator-invoice-api";
 import { RAW_RANGGA_DETAIL } from "./invoice-api.fixture";
@@ -10,13 +10,14 @@ import { RAW_RANGGA_DETAIL } from "./invoice-api.fixture";
 export const RAW_MY_RUNNING: RawCreatorInvoice = {
   ...RAW_RANGGA_DETAIL,
   contract: { ...RAW_RANGGA_DETAIL.contract, period: 2 },
-  timeline: { finalizedAt: null, acknowledgedAt: null, proofUploadedAt: null, paidAt: null },
-  proof: null,
+  acknowledgedAt: null,
+  paidAt: null,
+  paymentProof: null,
   comments: [
     {
       id: "c0c0c0c0-0000-4000-8000-000000000001",
       authorName: "Rangga Pratama",
-      authorRole: "creator",
+      role: "creator",
       text: "Konten Promo akhir bulan sudah saya submit ya.",
       createdAt: "2026-10-10T03:00:00Z",
     },
@@ -48,13 +49,9 @@ export const RAW_MY_PAID: RawCreatorInvoice = {
     },
   ],
   snapshot: { finalizedAt: "2026-09-02T02:00:00Z" },
-  timeline: {
-    finalizedAt: "2026-09-02T02:00:00Z",
-    acknowledgedAt: "2026-09-03T02:00:00Z",
-    proofUploadedAt: "2026-09-05T02:00:00Z",
-    paidAt: "2026-09-06T02:00:00Z",
-  },
-  proof: {
+  acknowledgedAt: "2026-09-03T02:00:00Z",
+  paidAt: "2026-09-06T02:00:00Z",
+  paymentProof: {
     url: "https://files.tofly.test/proofs/rangga-1.pdf?token=abc",
     fileName: "transfer-rangga-agustus.pdf",
     uploadedAt: "2026-09-05T02:00:00Z",

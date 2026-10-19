@@ -36,12 +36,12 @@ describe("toCreatorInvoices", () => {
   });
 
   it("counts a fee or penalty still waiting for a formula as nothing charged yet", () => {
-    const invoice = only({ ...RAW_UPCOMING_NO_FORMULA, timeline: RAW_MY_RUNNING.timeline, proof: null, comments: [] });
+    const invoice = only({ ...RAW_UPCOMING_NO_FORMULA, acknowledgedAt: null, paidAt: null, paymentProof: null, comments: [] });
 
     expect(invoice).toMatchObject({ extraAmount: 0, penaltyAmount: 0, bonusAmount: null, notStarted: true });
   });
 
-  it("dates each step the invoice has reached", () => {
+  it("dates each step the invoice has reached: Final by its snapshot, Bukti Bayar by the proof's upload", () => {
     expect(only(RAW_MY_PAID).reachedAt).toEqual({
       finalized: "2026-09-02T02:00:00Z",
       creator_acked: "2026-09-03T02:00:00Z",
@@ -79,13 +79,13 @@ describe("toCreatorInvoices", () => {
     ["plain HTTP", "http://files.tofly.test/proofs/rangga-1.pdf"],
     ["something that is not a URL", "not a url"],
   ])("keeps the proof but drops a link that is %s, so it can never run or leak in a click", (_, url) => {
-    const proof = RAW_MY_PAID.proof!;
+    const proof = RAW_MY_PAID.paymentProof!;
 
-    expect(only({ ...RAW_MY_PAID, proof: { ...proof, url } }).proof).toEqual({ ...proof, url: null });
+    expect(only({ ...RAW_MY_PAID, paymentProof: { ...proof, url } }).proof).toEqual({ ...proof, url: null });
   });
 
   it("keeps the comments in the order the backend sends them, oldest first", () => {
-    const later = { ...RAW_MY_RUNNING.comments[0], id: "c0c0c0c0-0000-4000-8000-000000000002", authorRole: "admin" as const, authorName: "Admin Tofly", createdAt: "2026-10-11T03:00:00Z" };
+    const later = { ...RAW_MY_RUNNING.comments[0], id: "c0c0c0c0-0000-4000-8000-000000000002", role: "admin" as const, authorName: "Admin Tofly", createdAt: "2026-10-11T03:00:00Z" };
 
     const comments = only({ ...RAW_MY_RUNNING, comments: [...RAW_MY_RUNNING.comments, later] }).comments;
 
@@ -101,7 +101,7 @@ describe("toCreatorInvoices", () => {
 
   it("reads an answer that predates the payment fields as an invoice with none of them yet", () => {
     const older = Object.fromEntries(
-      Object.entries(RAW_MY_RUNNING).filter(([key]) => !["timeline", "proof", "comments"].includes(key)),
+      Object.entries(RAW_MY_RUNNING).filter(([key]) => !["acknowledgedAt", "paidAt", "paymentProof", "comments"].includes(key)),
     ) as unknown as RawCreatorInvoice;
 
     expect(only(older)).toMatchObject({
