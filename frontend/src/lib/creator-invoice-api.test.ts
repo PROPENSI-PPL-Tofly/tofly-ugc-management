@@ -111,6 +111,16 @@ describe("toCreatorInvoices", () => {
     });
   });
 
+  it("counts a fixed rate still waiting for a formula as nothing charged yet", () => {
+    const fixedRate = { ...RAW_MY_RUNNING.components.fixedRate, amount: null, status: "waiting_for_data" as const };
+
+    expect(only({ ...RAW_MY_RUNNING, components: { ...RAW_MY_RUNNING.components, fixedRate } }).fixedAmount).toBe(0);
+  });
+
+  it("reads an answer without adjustments as an invoice with none", () => {
+    expect(only({ ...RAW_MY_RUNNING, adjustments: undefined as never }).adjustments).toEqual([]);
+  });
+
   it("reads an empty list as no invoices", () => {
     expect(toCreatorInvoices({ items: [] })).toEqual([]);
   });

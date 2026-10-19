@@ -211,6 +211,12 @@ describe("CreatorInvoiceView", () => {
       expect(within(row).queryByRole("link")).not.toBeInTheDocument();
     });
 
+    it("writes a dash for an upload moment it cannot read", () => {
+      renderView({ status: "paid", proof: { ...PROOF, uploadedAt: "not-a-date" } });
+
+      expect(screen.getByRole("group", { name: "Bukti Bayar" })).toHaveTextContent("Diupload –");
+    });
+
     it("has no proof row before the admin uploads one", () => {
       renderView({ status: "creator_acked" });
 

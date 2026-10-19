@@ -64,6 +64,15 @@ describe("CreatorInvoices", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("closes an earlier invoice on Escape too", () => {
+    render(<CreatorInvoices invoices={[EARLIER, CURRENT]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Periode 1" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("opens a content's detail as the creator from the current invoice", () => {
     render(<CreatorInvoices invoices={[CURRENT]} />);
     const current = panel("Invoice Periode Ini");
