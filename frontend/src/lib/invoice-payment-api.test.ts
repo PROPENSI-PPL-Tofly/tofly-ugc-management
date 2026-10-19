@@ -45,3 +45,40 @@ describe("toInvoicePayment", () => {
     expect(toInvoicePayment({})).toEqual({ acknowledgedAt: null, receivedAt: null, proof: null });
   });
 });
+
+describe("the proof's link", () => {
+  function hrefOf(url: string): string | null {
+    const proof = toInvoicePayment(
+      raw({ paymentProof: { fileName: "bukti.pdf", url, uploadedAt: "2026-10-20T08:00:00.000Z" } }),
+    ).proof;
+    return proof!.href;
+  }
+
+  it.each([
+    "https://storage.example.com/bukti.pdf?sig=abc",
+    "http://localhost:3001/invoices/0b9c1f2e-3a4d-4e5f-8a9b-1c2d3e4f5a6b/payment-proof",
+    "/api/invoices/0b9c1f2e-3a4d-4e5f-8a9b-1c2d3e4f5a6b/payment-proof",
+  ])("keeps %s, a web address or a path on this site", (url) => {
+    expect(hrefOf(url)).toBe(url);
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+    "//evil.example/bukti.pdf",
+    "/\\evil.example/bukti.pdf",
+    "bukti.pdf",
+    "",
+  ])("offers no link for %j, keeping only the file's name", (url) => {
+    expect(hrefOf(url)).toBeNull();
+  });
+
+  it("still names the file when its link is not offered", () => {
+    expect(
+      toInvoicePayment(
+        raw({ paymentProof: { fileName: "bukti.pdf", url: "javascript:alert(1)", uploadedAt: "2026-10-20T08:00:00.000Z" } }),
+      ).proof,
+    ).toEqual({ fileName: "bukti.pdf", href: null, uploadedAt: "2026-10-20T08:00:00.000Z" });
+  });
+});
