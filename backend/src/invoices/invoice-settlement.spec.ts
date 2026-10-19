@@ -106,10 +106,7 @@ describe('settleForFinalize', () => {
 
   // OWASP Top 10:2025 A06 (Insecure Design): accepting a pending bonus covers the bonus alone; a
   // fee or penalty still waiting for a formula cannot be frozen at all.
-  it.each([
-    ['additionalContent' as const],
-    ['penalty' as const],
-  ])(
+  it.each([['additionalContent' as const], ['penalty' as const]])(
     'refuses a %s still waiting for data even with the bonus accepted',
     (key) => {
       const error = refusal(() =>
