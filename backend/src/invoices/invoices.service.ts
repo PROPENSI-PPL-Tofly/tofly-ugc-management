@@ -50,6 +50,10 @@ import { calculateInvoice } from './invoice-calculator.js';
 import { contractLastDay } from './invoice-days.js';
 import { settleForFinalize } from './invoice-settlement.js';
 import type { FinalizeRequest } from './finalize-request.js';
+import {
+  PaymentProofService,
+  type PaymentProofReader,
+} from './payment-proof.service.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
 /** The database operations this service uses. */
@@ -202,6 +206,8 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     @Inject(RATE_FORMULA_SOURCE) private readonly formulas: RateFormulaSource,
     @Inject(INVOICE_STATUS_SOURCE)
     private readonly pipeline: InvoiceStatusSource,
+    @Inject(PaymentProofService)
+    private readonly proofs: PaymentProofReader,
   ) {}
 
   async list(
@@ -214,12 +220,21 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       await this.calculate(today, filters, sort);
 
     const { page, totalPages } = clampPage(asked, pageSize, items.length);
+    const onPage = items.slice((page - 1) * pageSize, page * pageSize);
+
+    const [adjusted, proofs] = await Promise.all([
+      this.withAdjustments(onPage, invoiceIds),
+      this.proofs.forContracts(
+        onPage.map(({ contract }) => contract.id),
+        'admin',
+      ),
+    ]);
 
     return {
-      items: await this.withAdjustments(
-        items.slice((page - 1) * pageSize, page * pageSize),
-        invoiceIds,
-      ),
+      items: adjusted.map((item) => ({
+        ...item,
+        paymentProof: proofs.get(item.contract.id) ?? null,
+      })),
       page,
       pageSize,
       total: items.length,
@@ -250,12 +265,13 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         : (row.contracts.find(({ id }) => id === contractId) ?? null));
     if (!row || !contract) return null;
 
-    const [byContract, statuses, formula, lifecycleByContract] =
+    const [byContract, statuses, formula, lifecycleByContract, proofs] =
       await Promise.all([
         this.contentsOf([contract.id]),
         this.pipeline.statuses([contract.id]),
         this.formulas.current(),
         this.lifecycleForContracts([contract.id]),
+        this.proofs.forContracts([contract.id], 'admin'),
       ]);
 
     const lifecycle = lifecycleByContract.get(contract.id);
@@ -275,6 +291,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       formula: lifecycle?.snapshot
         ? (lifecycle.snapshot.formula ?? null)
         : formula,
+      paymentProof: proofs.get(contract.id) ?? null,
     };
   }
 
@@ -314,7 +331,9 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     const saved = await this.savedListings(
       kept.map(({ contract }) => contract.id),
     );
-    const live = kept.filter(({ contract }) => !saved.get(contract.id)?.snapshot);
+    const live = kept.filter(
+      ({ contract }) => !saved.get(contract.id)?.snapshot,
+    );
 
     const [byContract, adjustmentTotals] = await Promise.all([
       this.contentsOf(live.map(({ contract }) => contract.id)),

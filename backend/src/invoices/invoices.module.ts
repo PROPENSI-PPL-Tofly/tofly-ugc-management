@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
+import { InvoicePaymentsModule } from './invoice-payments.module.js';
 import { INVOICE_STATUS_SOURCE } from './invoice-status.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesService } from './invoices.service.js';
@@ -8,7 +9,8 @@ import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 
 @Module({
-  imports: [RateFormulaModule],
+  // The payment proof each row shows (PBI-13).
+  imports: [RateFormulaModule, InvoicePaymentsModule],
   controllers: [InvoicesController],
   providers: [
     InvoicesService,
