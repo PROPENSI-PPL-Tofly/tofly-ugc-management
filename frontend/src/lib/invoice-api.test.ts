@@ -50,14 +50,16 @@ describe("toInvoiceList", () => {
         creatorName: "Rangga Pratama",
         contractId: RAW_RANGGA.contract.id,
         contractStatus: "active",
-        contractEnd: RAW_RANGGA.contract.endDate,
+        contractEnd: RAW_RANGGA.contract.lastDay,
         fixedAmount: 500000,
         extraAmount: 200000,
         bonusAmount: null,
         penaltyAmount: 150000,
         totalAmount: 550000,
         floored: false,
-        dataWaiting: true,
+        dataWaiting: false,
+        pendingBonus: { amount: 150000, totalAmount: 700000, floored: false },
+        periodNumber: 1,
         invoiceStatus: "accruing",
         adjustments: [],
         frozenAt: null,
@@ -69,7 +71,23 @@ describe("toInvoiceList", () => {
     const row = toInvoiceList(RAW).rows[0];
 
     expect(row.contractId).toBe(RAW_RANGGA.contract.id);
-    expect(row.contractEnd).toBe(RAW_RANGGA.contract.endDate);
+    expect(row.contractEnd).toBe(RAW_RANGGA.contract.lastDay);
+  });
+
+  it("carries which of the creator's contracts the row is, by the period it pays", () => {
+    const renewal = { ...RAW_RANGGA, contract: { ...RAW_RANGGA.contract, period: 2 } };
+
+    expect(toInvoiceList({ ...RAW, items: [renewal] }).rows[0].periodNumber).toBe(2);
+  });
+
+  // An early end stops the contract on the day access was revoked; its end date stays as agreed.
+  it("gates the freeze on the day a contract that ended early stopped, not its end date", () => {
+    const endedEarly = {
+      ...RAW_RANGGA,
+      contract: { ...RAW_RANGGA.contract, endDate: "2026-11-30", lastDay: "2026-10-05" },
+    };
+
+    expect(toInvoiceList({ ...RAW, items: [endedEarly] }).rows[0].contractEnd).toBe("2026-10-05");
   });
 
   it("carries each manual adjustment with its reason and the moment it was added", () => {
@@ -96,21 +114,66 @@ describe("toInvoiceList", () => {
     ]);
   });
 
-  it("says the invoice is waiting for data while any of its parts is", () => {
+  it("says the invoice is waiting for data while a fee or penalty is", () => {
     const waiting = {
       ...RAW_RANGGA,
       components: {
         ...RAW_RANGGA.components,
-        performanceBonus: {
-          amount: 150000,
-          status: "waiting_for_data" as const,
-          lines: [],
-        },
+        penalty: { amount: null, status: "waiting_for_data" as const, lines: [] },
       },
     };
 
     expect(toInvoiceList({ ...RAW, items: [waiting] }).rows[0].dataWaiting).toBe(true);
-    expect(toInvoiceList({ ...RAW, items: [RAW_RANGGA] }).rows[0].dataWaiting).toBe(true);
+  });
+
+  // The bonus waits for performance data (PBI-19) and may be frozen at what was measured, once the
+  // admin accepts it; it does not hold the whole invoice back.
+  it("does not hold the freeze back for a bonus alone waiting for data", () => {
+    expect(toInvoiceList({ ...RAW, items: [RAW_RANGGA] }).rows[0].dataWaiting).toBe(false);
+  });
+
+  it("says what freezing a pending bonus now would hold: the measured lines, added to the total", () => {
+    const measuredTwice = {
+      ...RAW_RANGGA,
+      components: {
+        ...RAW_RANGGA.components,
+        performanceBonus: {
+          ...RAW_RANGGA.components.performanceBonus,
+          lines: [
+            ...RAW_RANGGA.components.performanceBonus.lines,
+            { ...RAW_RANGGA.components.performanceBonus.lines[0], contentId: "second", amount: 50000 },
+          ],
+        },
+      },
+    };
+
+    expect(toInvoiceList({ ...RAW, items: [measuredTwice] }).rows[0].pendingBonus).toEqual({
+      amount: 200000,
+      totalAmount: 750000,
+      floored: false,
+    });
+  });
+
+  it("holds the frozen total at zero when the penalty still outweighs a pending bonus", () => {
+    const outweighed = { ...RAW_RANGGA, rawTotal: -400000, total: 0, floored: true };
+
+    expect(toInvoiceList({ ...RAW, items: [outweighed] }).rows[0].pendingBonus).toEqual({
+      amount: 150000,
+      totalAmount: 0,
+      floored: true,
+    });
+  });
+
+  it("has no pending bonus once the bonus is measured", () => {
+    const measured = {
+      ...RAW_RANGGA,
+      components: {
+        ...RAW_RANGGA.components,
+        performanceBonus: { amount: 150000, status: "calculated" as const, lines: [] },
+      },
+    };
+
+    expect(toInvoiceList({ ...RAW, items: [measured] }).rows[0].pendingBonus).toBeNull();
   });
 
   it("says nothing is waiting when every part is measured", () => {

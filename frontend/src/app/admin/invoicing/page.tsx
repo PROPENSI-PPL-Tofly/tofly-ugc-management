@@ -78,7 +78,7 @@ export default async function RateInvoicingPage({
           {/* Stays on show on a single page: a table that always carries its footer (4.2). */}
           <Pagination
             basePath={INVOICE_PATH}
-            noun="creator"
+            noun="invoice"
             query={buildInvoiceQuery(state)}
             always
             page={list.page}

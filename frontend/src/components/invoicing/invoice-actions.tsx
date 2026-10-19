@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { jakartaDay } from "@/lib/format";
-import { canAdjust, canFinalize, refusalMessage } from "@/lib/invoice-adjustment";
+import { canAdjust, canFinalize, REFUSAL_MESSAGES } from "@/lib/invoice-adjustment";
 import type { InvoiceRow } from "@/lib/invoice";
 import { AdjustmentForm } from "./adjustment-form";
 import { FinalizeModal } from "./finalize-modal";
@@ -46,11 +46,11 @@ export function InvoiceActions({
       {finalizable ? (
         row.dataWaiting ? (
           <>
-            <Button disabled title={refusalMessage("INVOICE_DATA_INCOMPLETE") ?? undefined}>
+            <Button disabled title={REFUSAL_MESSAGES.INVOICE_DATA_INCOMPLETE}>
               Finalize
             </Button>
             <p className="basis-full text-xs text-muted" role="status">
-              {refusalMessage("INVOICE_DATA_INCOMPLETE")}
+              {REFUSAL_MESSAGES.INVOICE_DATA_INCOMPLETE}
             </p>
           </>
         ) : (

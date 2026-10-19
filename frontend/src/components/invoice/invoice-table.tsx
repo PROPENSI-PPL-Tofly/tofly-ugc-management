@@ -10,6 +10,7 @@ import {
   DASH,
   finalLabel,
   INVOICE_STATUS_LABELS,
+  invoiceTitle,
   penaltyLabel,
   TOTAL_FORMULA,
   type ContractStatus,
@@ -212,10 +213,10 @@ export function InvoiceTable({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.creatorId} className="border-b border-rule last:border-b-0">
+              <tr key={row.contractId} className="border-b border-rule last:border-b-0">
                 <td className={`${CELL} min-w-44`}>
-                  <strong className="block truncate" title={row.creatorName}>
-                    {row.creatorName}
+                  <strong className="block truncate" title={invoiceTitle(row)}>
+                    {invoiceTitle(row)}
                   </strong>
                   <p className="mt-1">
                     <StatusDot tone={CONTRACT_TONES[row.contractStatus]}>
@@ -248,7 +249,7 @@ export function InvoiceTable({
           <tfoot>
             <tr className="border-t border-rule bg-surface-2">
               <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold`}>
-                {`Total ${summary.count} creator`}
+                {`Total ${summary.count} invoice`}
               </th>
               <td className={NUM}>
                 <strong>{formatRupiah(summary.total)}</strong>

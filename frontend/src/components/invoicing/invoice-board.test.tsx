@@ -15,6 +15,12 @@ vi.mock("next/navigation", () => ({
 // The real loader is a server action; here it answers from the breakdown below.
 vi.mock("@/lib/invoice-breakdown.server", () => ({ loadInvoiceBreakdown: load }));
 
+// The invoice moves are server actions too; here every move is accepted.
+vi.mock("@/lib/invoice-actions.server", () => ({
+  addInvoiceAdjustment: vi.fn().mockResolvedValue({ ok: true }),
+  finalizeInvoice: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
 // The panel is tested where it lives; here it only offers the decision the board must answer.
 vi.mock("@/components/content-detail/content-detail-panel", () => ({
   ContentDetailPanel: ({ onDecided }: { onDecided: (decision: "approve") => void }) => (
@@ -40,6 +46,8 @@ const ROW: InvoiceRow = {
   adjustments: [],
   frozenAt: null,
   dataWaiting: false,
+  pendingBonus: null,
+  periodNumber: 1,
 };
 
 const BREAKDOWN: InvoiceBreakdown = {
@@ -83,7 +91,7 @@ describe("InvoiceBoard", () => {
 
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Fee Konten Tambahan · Rangga Pratama");
     expect(await screen.findByRole("list")).toHaveTextContent("Evg_1_Rangga");
-    expect(load).toHaveBeenCalledWith("creator-rangga");
+    expect(load).toHaveBeenCalledWith("creator-rangga", ROW.contractId);
   });
 
   it("reads the invoices again after a decision taken from a breakdown", async () => {
@@ -133,10 +141,23 @@ describe("InvoiceBoard", () => {
     expect(await screen.findByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
   });
 
+  it("reads the invoices again after an adjustment added from the Rincian panel", async () => {
+    render(<InvoiceBoard rows={[ROW]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Nominal (Rp)" }), { target: { value: "50000" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Alasan" }), { target: { value: "Bonus kampanye" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("adds up the period under the table when it is given the summary", () => {
     render(<InvoiceBoard rows={[ROW]} summary={{ total: 900000, count: 3 }} />);
 
-    expect(screen.getByText("Total 3 creator")).toBeInTheDocument();
+    expect(screen.getByText("Total 3 invoice")).toBeInTheDocument();
     expect(screen.getByText("Rp900.000")).toBeInTheDocument();
   });
 });

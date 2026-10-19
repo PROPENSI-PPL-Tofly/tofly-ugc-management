@@ -18,6 +18,8 @@ const FULL: InvoiceRow = {
   adjustments: [],
   frozenAt: null,
   dataWaiting: false,
+  pendingBonus: null,
+  periodNumber: 1,
 };
 
 const ZEROS: InvoiceRow = {
@@ -36,6 +38,8 @@ const ZEROS: InvoiceRow = {
   adjustments: [],
   frozenAt: "2026-10-18T03:00:00.000Z",
   dataWaiting: false,
+  pendingBonus: null,
+  periodNumber: 1,
 };
 
 const WAITING: InvoiceRow = {
@@ -54,6 +58,8 @@ const WAITING: InvoiceRow = {
   adjustments: [],
   frozenAt: "2026-10-18T03:00:00.000Z",
   dataWaiting: false,
+  pendingBonus: null,
+  periodNumber: 1,
 };
 
 describe("InvoiceTable", () => {
@@ -109,6 +115,21 @@ describe("InvoiceTable", () => {
 
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Kontrak Aktif")).toBeInTheDocument();
+  });
+
+  it("draws a row per contract of a renewed creator, the later one named with its period", () => {
+    render(
+      <InvoiceTable
+        rows={[
+          { ...FULL, contractStatus: "expired" },
+          { ...FULL, contractId: "22222222-2222-4222-8222-222222222222", periodNumber: 2 },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+    expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
+    expect(screen.getByText("Rangga Pratama · Periode 2")).toBeInTheDocument();
   });
 
   it("writes every amount the way the prototype writes it", () => {
@@ -255,7 +276,7 @@ describe("InvoiceTable", () => {
 
     const footer = screen.getAllByRole("rowgroup").at(-1)!;
     expect(footer.tagName).toBe("TFOOT");
-    expect(within(footer).getByText("Total 24 creator")).toBeInTheDocument();
+    expect(within(footer).getByText("Total 24 invoice")).toBeInTheDocument();
     expect(within(footer).getByText("Rp12.345.000")).toBeInTheDocument();
   });
 

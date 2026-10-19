@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { Modal } from "@/components/ui/modal";
 import {
+  adjustmentAmount,
+  adjustmentLabel,
   REASON_MAX_LENGTH,
   validateAdjustment,
   type AdjustmentDraft,
@@ -32,6 +34,8 @@ export function AdjustmentForm({
   const [errors, setErrors] = useState<AdjustmentErrors>({});
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // What the typed amount will be recorded as, so the admin sees the rupiah before sending it.
+  const typedAmount = adjustmentAmount(draft);
 
   async function submit() {
     const found = validateAdjustment(draft);
@@ -95,9 +99,14 @@ export function AdjustmentForm({
             </span>
           ) : (
             <span className="text-xs text-muted">
-              Kurang untuk mengurangi invoice, lebih untuk menambah.
+              Pakai tanda minus (-) untuk mengurangi invoice, angka biasa untuk menambah.
             </span>
           )}
+          {typedAmount !== null ? (
+            <span className="text-xs font-semibold tabular-nums">
+              {`Akan dicatat: ${adjustmentLabel(typedAmount)}`}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-1.5 text-[13px]">

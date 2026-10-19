@@ -21,6 +21,13 @@ export interface InvoiceContractDto {
   startDate: string;
   /** YYYY-MM-DD */
   endDate: string;
+  /**
+   * YYYY-MM-DD, the last day the contract counts: endDate, or the day access was revoked if
+   * that came first. Finalizing waits for the day after it.
+   */
+  lastDay: string;
+  /** Which of the creator's contracts this is, from 1 in the order they started. */
+  period: number;
 }
 
 export interface InvoiceAdjustmentDto {
@@ -46,6 +53,12 @@ export interface InvoiceSnapshotDto {
    * snapshot saved before the formula was kept with it.
    */
   formula?: RateFormula | null;
+  /**
+   * Whether the admin froze the performance bonus while some content still had no performance
+   * data, so it holds only what the measured content earned. Absent from a snapshot saved before
+   * a pending bonus could be frozen.
+   */
+  performanceBonusPending?: boolean;
 }
 
 /** Calculation result before the invoice pipeline assigns its status. */

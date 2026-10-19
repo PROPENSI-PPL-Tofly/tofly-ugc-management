@@ -17,6 +17,7 @@ export const FINAL_LABEL = "Final";
 
 export const AMOUNT_EMPTY = "Jumlah wajib diisi";
 export const AMOUNT_INVALID = "Jumlah harus bukan nol dan maksimal dua angka desimal";
+export const AMOUNT_THOUSANDS = "Tulis nominal tanpa titik pemisah ribuan, mis. 200000";
 export const REASON_EMPTY = "Alasan wajib diisi";
 export const REASON_TOO_LONG = "Alasan maksimal 500 karakter";
 
@@ -45,6 +46,9 @@ export interface AdjustmentErrors {
 /** A signed number with at most two decimals, as the form types it and the API reads it. */
 const AMOUNT = /^-?(0|[1-9]\d*)(\.\d{1,2})?$/;
 
+/** Rupiah as Indonesians write it, a dot between every three digits: 200.000, -1.500.000. */
+const THOUSANDS_DOTS = /^-?\d{1,3}(\.\d{3})+$/;
+
 /**
  * Reads one amount line. The whole amount rule in one place: mandatory, a finite non-zero
  * number, at most two decimals — exactly what checkManualAdjustment refuses on the server.
@@ -69,6 +73,9 @@ export function validateAdjustment(draft: AdjustmentDraft): AdjustmentErrors {
   const typed = draft.amount.trim();
   if (typed === "") {
     errors.amount = AMOUNT_EMPTY;
+  } else if (THOUSANDS_DOTS.test(typed)) {
+    // The API reads a dot as decimals; say how to write it rather than "two decimals at most".
+    errors.amount = AMOUNT_THOUSANDS;
   } else if (readAmount(typed) === null) {
     errors.amount = AMOUNT_INVALID;
   }
@@ -103,12 +110,12 @@ export function canAdjust(invoiceStatus: InvoiceStatus): boolean {
 }
 
 /**
- * Freezing needs a contract that has ended — an early end included, so it is the date and not
- * the calendar status that decides — and an invoice still running. `today` and `endDate` are
- * plain calendar days, compared as written.
+ * Freezing needs a contract that has ended and an invoice still running. `lastDay` is the last day
+ * the contract counts, which the backend moves to the day access was revoked when it ended early;
+ * `today` and `lastDay` are plain calendar days, compared as written.
  */
-export function canFinalize(invoiceStatus: InvoiceStatus, today: string, endDate: string): boolean {
-  return invoiceStatus === "accruing" && today > endDate;
+export function canFinalize(invoiceStatus: InvoiceStatus, today: string, lastDay: string): boolean {
+  return invoiceStatus === "accruing" && today > lastDay;
 }
 
 /** An adjustment line reads as what was added or taken away: "+Rp200.000" / "− Rp100.000". */
@@ -122,18 +129,20 @@ export function adjustmentLabel(amount: number): string {
  * message with the code; when only the code survives a proxy or an old tab, these are the same
  * sentences in the same words.
  */
+export const REFUSAL_MESSAGES = {
+  INVOICE_FINALIZED: "Invoice sudah difinalisasi",
+  CONTRACT_NOT_ENDED: "Kontrak belum berakhir",
+  INVOICE_DATA_INCOMPLETE: "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate.",
+  INVOICE_BONUS_PENDING:
+    "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
+  CONTRACT_NOT_FOUND: "Invoice tidak ditemukan.",
+  INVOICE_NOT_FOUND: "Invoice tidak ditemukan.",
+} as const;
+
+/** The admin's words for a refusal code, or null for one this page does not know. */
 export function refusalMessage(code: string | undefined): string | null {
-  switch (code) {
-    case "INVOICE_FINALIZED":
-      return "Invoice sudah difinalisasi";
-    case "CONTRACT_NOT_ENDED":
-      return "Kontrak belum berakhir";
-    case "INVOICE_DATA_INCOMPLETE":
-      return "Invoice belum bisa difinalisasi: masih ada data yang menunggu, seperti bonus performa.";
-    case "CONTRACT_NOT_FOUND":
-    case "INVOICE_NOT_FOUND":
-      return "Invoice tidak ditemukan.";
-    default:
-      return null;
-  }
+  // Own keys only, so a code such as "constructor" never reads an inherited property.
+  return code !== undefined && Object.hasOwn(REFUSAL_MESSAGES, code)
+    ? REFUSAL_MESSAGES[code as keyof typeof REFUSAL_MESSAGES]
+    : null;
 }

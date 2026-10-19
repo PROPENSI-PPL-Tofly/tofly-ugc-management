@@ -1,5 +1,7 @@
 import { RANGGA_ID, RAW_RANGGA_DETAIL } from "./invoice-api.fixture";
 
+const CONTRACT_ID = RAW_RANGGA_DETAIL.contract.id;
+
 const { sessionCookies } = vi.hoisted(() => ({
   sessionCookies: [] as { name: string; value: string }[],
 }));
@@ -38,9 +40,9 @@ describe("loadInvoiceBreakdown", () => {
   it("asks GET /invoices/:creatorId with the admin's session and reads the answer into the popup's names", async () => {
     const fetch = answer(RAW_RANGGA_DETAIL);
 
-    const breakdown = await loadInvoiceBreakdown(RANGGA_ID);
+    const breakdown = await loadInvoiceBreakdown(RANGGA_ID, CONTRACT_ID);
 
-    expect(fetch).toHaveBeenCalledWith(`http://localhost:3001/invoices/${RANGGA_ID}`, {
+    expect(fetch).toHaveBeenCalledWith(`http://localhost:3001/invoices/${RANGGA_ID}?contract=${CONTRACT_ID}`, {
       cache: "no-store",
       headers: { cookie: "__session=abc" },
     });
@@ -54,7 +56,7 @@ describe("loadInvoiceBreakdown", () => {
   it("answers null for a creator the backend has no invoice for", async () => {
     answer({ code: "INVOICE_NOT_FOUND" }, 404);
 
-    await expect(loadInvoiceBreakdown(RANGGA_ID)).resolves.toBeNull();
+    await expect(loadInvoiceBreakdown(RANGGA_ID, CONTRACT_ID)).resolves.toBeNull();
   });
 
   it.each([401, 403, 500])(
@@ -62,7 +64,7 @@ describe("loadInvoiceBreakdown", () => {
     async (status) => {
       answer({}, status);
 
-      await expect(loadInvoiceBreakdown(RANGGA_ID)).rejects.toThrow(
+      await expect(loadInvoiceBreakdown(RANGGA_ID, CONTRACT_ID)).rejects.toThrow(
         `Loading the invoice breakdown failed with HTTP ${status}`,
       );
     },
@@ -74,7 +76,19 @@ describe("loadInvoiceBreakdown", () => {
       async (creatorId) => {
         const fetch = answer(RAW_RANGGA_DETAIL);
 
-        await expect(loadInvoiceBreakdown(creatorId)).resolves.toBeNull();
+        await expect(loadInvoiceBreakdown(creatorId, CONTRACT_ID)).resolves.toBeNull();
+        expect(fetch).not.toHaveBeenCalled();
+      },
+    );
+
+    // OWASP Top 10:2025 A05 (Injection): the contract id goes into the query string, so only a
+    // UUID is ever sent.
+    it.each(["", "x&contract=y", "../creators", 42])(
+      "a contract id that is not a UUID, such as %j",
+      async (contractId) => {
+        const fetch = answer(RAW_RANGGA_DETAIL);
+
+        await expect(loadInvoiceBreakdown(RANGGA_ID, contractId as string)).resolves.toBeNull();
         expect(fetch).not.toHaveBeenCalled();
       },
     );
@@ -82,7 +96,7 @@ describe("loadInvoiceBreakdown", () => {
     it("an id that is not text, as anything can be posted to a server action", async () => {
       const fetch = answer(RAW_RANGGA_DETAIL);
 
-      await expect(loadInvoiceBreakdown(42 as unknown as string)).resolves.toBeNull();
+      await expect(loadInvoiceBreakdown(42 as unknown as string, CONTRACT_ID)).resolves.toBeNull();
       expect(fetch).not.toHaveBeenCalled();
     });
 
@@ -92,7 +106,7 @@ describe("loadInvoiceBreakdown", () => {
         asRole(role);
         const fetch = answer(RAW_RANGGA_DETAIL);
 
-        await expect(loadInvoiceBreakdown(RANGGA_ID)).resolves.toBeNull();
+        await expect(loadInvoiceBreakdown(RANGGA_ID, CONTRACT_ID)).resolves.toBeNull();
         expect(fetch).not.toHaveBeenCalled();
       },
     );
@@ -101,6 +115,6 @@ describe("loadInvoiceBreakdown", () => {
   it("throws when BACKEND_URL is missing", async () => {
     vi.stubEnv("BACKEND_URL", undefined);
 
-    await expect(loadInvoiceBreakdown(RANGGA_ID)).rejects.toThrow("BACKEND_URL is not configured");
+    await expect(loadInvoiceBreakdown(RANGGA_ID, CONTRACT_ID)).rejects.toThrow("BACKEND_URL is not configured");
   });
 });

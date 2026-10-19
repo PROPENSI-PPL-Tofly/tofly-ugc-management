@@ -18,6 +18,8 @@ const ROW: InvoiceRow = {
   adjustments: [],
   frozenAt: null,
   dataWaiting: false,
+  pendingBonus: null,
+  periodNumber: 1,
 };
 
 function renderAmount(

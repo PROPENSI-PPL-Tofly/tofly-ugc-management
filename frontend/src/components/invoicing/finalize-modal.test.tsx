@@ -22,6 +22,8 @@ const ROW: InvoiceRow = {
   totalAmount: 700000,
   floored: false,
   dataWaiting: false,
+  pendingBonus: null,
+  periodNumber: 1,
   invoiceStatus: "accruing",
   adjustments: [
     {
@@ -73,9 +75,68 @@ describe("FinalizeModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
     await vi.waitFor(() =>
-      expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId),
+      expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false }),
     );
     await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
+  });
+
+  describe("a bonus still waiting for performance data", () => {
+    const PENDING: InvoiceRow = {
+      ...ROW,
+      bonusAmount: null,
+      totalAmount: 550000,
+      pendingBonus: { amount: 150000, totalAmount: 700000, floored: false },
+    };
+
+    it("warns that the bonus is frozen at what was measured, before anything is frozen", () => {
+      render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+      expect(screen.getByRole("note")).toHaveTextContent(
+        "Bonus performa masih menunggu data. Jika difinalisasi sekarang, bonus dikunci sebesar yang sudah terukur dan konten tanpa data dihitung Rp0. Tambahkan penyesuaian dulu jika masih ada bonus yang perlu dibayar.",
+      );
+    });
+
+    it("shows the bonus and the total as freezing now would hold them", () => {
+      render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+      expect(screen.getByText("Rp150.000")).toBeInTheDocument();
+      expect(screen.queryByText("Menunggu data")).not.toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Total invoice" })).toHaveTextContent("Rp700.000");
+    });
+
+    it("reads a frozen total the penalty used up as a real Rp0", () => {
+      render(
+        <FinalizeModal
+          row={{ ...PENDING, pendingBonus: { amount: 0, totalAmount: 0, floored: true } }}
+          onCancel={vi.fn()}
+          onFinalized={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("group", { name: "Total invoice" })).toHaveTextContent("Rp0");
+    });
+
+    it("accepts freezing it on confirm", async () => {
+      render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+
+      await vi.waitFor(() =>
+        expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: true }),
+      );
+    });
+  });
+
+  it("names which contract's invoice it freezes when the creator has more than one", () => {
+    render(<FinalizeModal row={{ ...ROW, periodNumber: 2 }} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Finalize invoice Rangga Pratama · Periode 2");
+  });
+
+  it("warns of no pending bonus when the bonus is measured", () => {
+    render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
   it("keeps the confirmation open with the refusal when the server will not freeze", async () => {

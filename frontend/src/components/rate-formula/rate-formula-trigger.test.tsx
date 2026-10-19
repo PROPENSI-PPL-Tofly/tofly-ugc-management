@@ -4,6 +4,9 @@ import { SAVED_FORMULA, UNCONFIGURED_FORMULA } from "@/lib/rate-formula.fixture"
 import type { SaveRateFormulaResult } from "@/lib/rate-formula-api";
 import { RateFormulaTrigger } from "./rate-formula-trigger";
 
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
 const fetchRateFormula = vi.fn<() => Promise<RateFormulaView>>();
 const saveRateFormula = vi.fn<(...args: unknown[]) => Promise<SaveRateFormulaResult>>();
 vi.mock("@/lib/rate-formula-api", () => ({
@@ -27,6 +30,7 @@ describe("RateFormulaTrigger", () => {
   beforeEach(() => {
     fetchRateFormula.mockReset();
     saveRateFormula.mockReset();
+    refresh.mockReset();
     fetchRateFormula.mockResolvedValue(SAVED_FORMULA);
   });
 
@@ -102,6 +106,28 @@ describe("RateFormulaTrigger", () => {
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Formula rate berhasil disimpan.");
+  });
+
+  // A saved formula recalculates every running invoice; the page reads them again at once, so the
+  // table, the "no formula" notice and the period total never show the old formula's amounts.
+  it("reads the invoices again once the formula is saved", async () => {
+    saveRateFormula.mockResolvedValue({ ok: true, formula: SAVED_FORMULA });
+    render(<RateFormulaTrigger />);
+    await openModal();
+
+    await save();
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the page as it is when the save is refused", async () => {
+    saveRateFormula.mockResolvedValue({ ok: false, message: "Formula rate tidak valid", errors: {} });
+    render(<RateFormulaTrigger />);
+    await openModal();
+
+    await save();
+
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("keeps the dialog open with the server's message under the rejected field", async () => {

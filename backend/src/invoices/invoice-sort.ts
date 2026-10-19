@@ -46,6 +46,14 @@ const KEYS: Record<Exclude<InvoiceSortKey, 'name'>, Compare> = {
 const byName: Compare = (a, b) => a.creatorName.localeCompare(b.creatorName, 'id');
 
 /**
+ * Two rows of one renewed creator: the earlier contract first, then by id, so the order of equal
+ * rows never flips between one page and the next.
+ */
+const byContract: Compare = (a, b) =>
+  a.contract.startDate.localeCompare(b.contract.startDate) ||
+  a.contract.id.localeCompare(b.contract.id);
+
+/**
  * Validates the raw query values once, at the edge. A value sent twice arrives as an array and is
  * refused like any other unknown value.
  */
@@ -72,8 +80,12 @@ export function sortInvoices(
   { key, order }: InvoiceSort,
 ): InvoiceListItem[] {
   const sign = order === 'asc' ? 1 : -1;
-  if (key === 'name') return [...items].sort((a, b) => sign * byName(a, b));
+  if (key === 'name') {
+    return [...items].sort((a, b) => sign * byName(a, b) || byContract(a, b));
+  }
 
   const compare = KEYS[key];
-  return [...items].sort((a, b) => sign * compare(a, b) || byName(a, b));
+  return [...items].sort(
+    (a, b) => sign * compare(a, b) || byName(a, b) || byContract(a, b),
+  );
 }

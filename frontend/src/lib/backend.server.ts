@@ -2,7 +2,24 @@
 // and the invoice actions share it; it reads the session through next/headers, which client
 // components cannot import.
 
+import { headers } from "next/headers";
 import { appSessionCookieHeader } from "./session-cookie";
+
+/**
+ * The browser's own Origin and Sec-Fetch-Site from the request that invoked the action. The
+ * backend refuses a state change without them (assertSameOrigin), and Next has already refused a
+ * server action whose Origin does not match its host, so they are passed on as sent, the way the
+ * /api proxy passes them, and never made up here.
+ */
+async function browserOriginHeaders(): Promise<Record<string, string>> {
+  const incoming = await headers();
+  const forwarded: Record<string, string> = {};
+  for (const name of ["origin", "sec-fetch-site"]) {
+    const value = incoming.get(name);
+    if (value !== null) forwarded[name] = value;
+  }
+  return forwarded;
+}
 
 function withoutTrailingSlash(url: string): string {
   let end = url.length;
@@ -48,6 +65,7 @@ export async function backendPost(path: string, body: unknown = {}): Promise<Res
     cache: "no-store",
     headers: {
       "content-type": "application/json",
+      ...(await browserOriginHeaders()),
       ...(cookie && { cookie }),
     },
     body: JSON.stringify(body),

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { InvoiceTable } from "@/components/invoice/invoice-table";
 import { Button } from "@/components/ui/button";
 import {
+  invoiceTitle,
   nextInvoiceSort,
   type InvoiceRow,
   type InvoiceSortKey,
@@ -57,7 +58,7 @@ export function InvoiceBoard({
         sort={sort ? { ...sort, onSort: (key) => sortBy(sort, key) } : undefined}
         summary={summary}
         action={(row) => (
-          <Button aria-label={`Rincian invoice ${row.creatorName}`} onClick={() => open("all", row)}>
+          <Button aria-label={`Rincian invoice ${invoiceTitle(row)}`} onClick={() => open("all", row)}>
             Rincian
           </Button>
         )}

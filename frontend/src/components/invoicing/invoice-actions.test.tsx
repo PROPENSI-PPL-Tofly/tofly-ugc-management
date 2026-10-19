@@ -23,6 +23,8 @@ const ROW: InvoiceRow = {
   totalAmount: 700000,
   floored: false,
   dataWaiting: false,
+  pendingBonus: null,
+  periodNumber: 1,
   invoiceStatus: "accruing",
   adjustments: [],
   frozenAt: null,
@@ -63,8 +65,8 @@ describe("InvoiceActions", () => {
     expect(screen.getByRole("button", { name: "Finalize" })).toBeEnabled();
   });
 
-  it("holds the freeze button, with its reason, while the bonus waits for data", () => {
-    actions({ ...ROW, dataWaiting: true, bonusAmount: null });
+  it("holds the freeze button, with its reason, while a fee or penalty waits for a formula", () => {
+    actions({ ...ROW, dataWaiting: true, extraAmount: 0 });
 
     const freeze = screen.getByRole("button", { name: "Finalize" });
     expect(freeze).toBeDisabled();
@@ -72,6 +74,18 @@ describe("InvoiceActions", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       refusalMessage("INVOICE_DATA_INCOMPLETE")!,
     );
+  });
+
+  // The bonus waits for performance data (PBI-19); the confirmation says what freezing it holds.
+  it("offers the freeze while the bonus alone waits for data", () => {
+    actions({
+      ...ROW,
+      bonusAmount: null,
+      pendingBonus: { amount: 0, totalAmount: ROW.totalAmount, floored: false },
+    });
+
+    expect(screen.getByRole("button", { name: "Finalize" })).toBeEnabled();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("offers neither move once the invoice is frozen", () => {
@@ -103,6 +117,28 @@ describe("InvoiceActions", () => {
     await vi.waitFor(() => expect(onMutated).toHaveBeenCalled());
   });
 
+  it("closes the adjustment form on Batal without adding anything", () => {
+    const { onMutated } = actions(ROW);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Tambah Penyesuaian" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Batal" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
+    expect(onMutated).not.toHaveBeenCalled();
+  });
+
+  it("closes the finalize confirmation on Batal without freezing anything", () => {
+    const { onMutated } = actions(ROW);
+
+    fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Batal" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(moves.finalizeInvoice).not.toHaveBeenCalled();
+    expect(onMutated).not.toHaveBeenCalled();
+  });
+
   it("opens the finalize confirmation from the freeze button", async () => {
     const { onMutated } = actions(ROW);
 
@@ -112,7 +148,9 @@ describe("InvoiceActions", () => {
 
     fireEvent.click(dialog.getByRole("button", { name: "Finalize" }));
 
-    await vi.waitFor(() => expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId));
+    await vi.waitFor(() =>
+      expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false }),
+    );
     await vi.waitFor(() => expect(onMutated).toHaveBeenCalled());
   });
 });

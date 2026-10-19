@@ -245,6 +245,70 @@ describe('InvoicesService', () => {
       expect(lines('kevin')).toEqual([]);
     });
 
+    // A renewed creator still owes the earlier contract's invoice its finalize and its payment.
+    describe('a creator whose earlier contract has ended', () => {
+      const salsa = row({
+        id: 'salsa',
+        first_name: 'Salsa',
+        last_name: 'Amelia',
+        contracts: [contractFor('salsa-new', -30, 150), contractFor('salsa-old', -200, -40)],
+      });
+      const contracts = (result: { items: { contract: { id: string; period: number } }[] }) =>
+        result.items.map(({ contract }) => [contract.id, contract.period]);
+
+      beforeEach(() => {
+        prisma.creators.findMany.mockResolvedValue([salsa]);
+      });
+
+      it("lists the earlier contract's invoice as its own row beside the current one", async () => {
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([
+          ['salsa-old', 1],
+          ['salsa-new', 2],
+        ]);
+        expect(result.items.every((item) => item.creatorId === 'salsa')).toBe(true);
+        expect(result).toMatchObject({ total: 2, summary: { runningInvoices: 2 } });
+      });
+
+      it('keeps listing it once finalized, so the admin sees it Final and can take it to payment', async () => {
+        pipeline = { 'salsa-old': 'finalized' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([
+          ['salsa-old', 1],
+          ['salsa-new', 2],
+        ]);
+        expect(result.summary.runningInvoices).toBe(1);
+      });
+
+      it('stops listing it once paid, when nothing is left to do on it', async () => {
+        pipeline = { 'salsa-old': 'paid' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([['salsa-new', 2]]);
+      });
+
+      it('keeps the current contract listed whatever its invoice status', async () => {
+        pipeline = { 'salsa-new': 'paid' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([
+          ['salsa-old', 1],
+          ['salsa-new', 2],
+        ]);
+      });
+
+      it('filters each row by its own contract', async () => {
+        const ended = await service.list({ page: 1, pageSize: 10 }, TODAY, { contract: 'expired' });
+
+        expect(contracts(ended)).toEqual([['salsa-old', 1]]);
+      });
+    });
+
     it('puts what needs action first by default: ended, then running, then not started', async () => {
       const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
@@ -585,6 +649,28 @@ describe('InvoicesService', () => {
         formula: FORMULA,
         total: 5_500_000,
       });
+    });
+
+    it('answers the contract it is asked for, with the period it pays', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+
+      const detail = await service.detail('creator-1', TODAY, 'first');
+
+      expect(statuses.statuses).toHaveBeenCalledWith(['first']);
+      expect(detail).toMatchObject({
+        contract: { id: 'first', status: 'expired', period: 1 },
+        periodNumber: 1,
+        total: 5_000_000,
+      });
+    });
+
+    // OWASP Top 10:2025 A01 (Broken Access Control): a contract id names one creator's contract;
+    // another creator's is not reached through this one's invoice.
+    it('answers null for a contract the creator does not hold', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+
+      await expect(service.detail('creator-1', TODAY, 'someone-elses')).resolves.toBeNull();
+      expect(prisma.contents.findMany).not.toHaveBeenCalled();
     });
 
     it('counts the first contract as period 1', async () => {
@@ -1038,6 +1124,42 @@ describe('InvoicesService', () => {
       const error = await rejection(service.finalize('contract-1', TODAY));
 
       expect(error).toBeInstanceOf(ConflictException);
+      expect(error).toMatchObject({
+        response: {
+          code: 'CONTRACT_NOT_ENDED',
+          message: 'Kontrak belum berakhir',
+        },
+      });
+      expect(prisma.invoices.upsert).not.toHaveBeenCalled();
+    });
+
+    // A contract that ends early stops on the day access was revoked; its end date stays as
+    // agreed, so the gate reads the last day the calculator counts, not end_date.
+    it('finalizes a contract that ended early once the day after access was revoked has begun', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({
+          end_date: day(30),
+          creators: { access_revoke_date: day(-1) },
+        }),
+      );
+
+      const result = await service.finalize('contract-1', TODAY);
+
+      expect(result.invoiceStatus).toBe('finalized');
+      expect(prisma.invoices.updateMany).toHaveBeenCalled();
+    });
+
+    // OWASP Top 10:2025 A06 (Insecure Design): an early end waits for the day after the revocation.
+    it('refuses a contract ended early whose access was revoked today in Jakarta', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({
+          end_date: day(30),
+          creators: { access_revoke_date: day(0) },
+        }),
+      );
+
+      const error = await rejection(service.finalize('contract-1', TODAY));
+
       expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_ENDED' } });
       expect(prisma.invoices.upsert).not.toHaveBeenCalled();
     });
@@ -1055,20 +1177,69 @@ describe('InvoicesService', () => {
       expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
     });
 
-    it('refuses to finalize while a component is waiting for data', async () => {
-      prisma.contracts.findUnique.mockResolvedValue(
-        endedContract({
-          contents: [{ ...measured, platform: null, views: null }],
-        }),
-      );
+    it('refuses to finalize while a fee or penalty is waiting for a formula', async () => {
+      formulas.current.mockResolvedValue(null);
 
-      const error = await rejection(service.finalize('contract-1', TODAY));
+      const error = await rejection(
+        service.finalize('contract-1', TODAY, { acceptPendingBonus: true }),
+      );
 
       expect(error).toBeInstanceOf(UnprocessableEntityException);
       expect(error).toMatchObject({
         response: { code: 'INVOICE_DATA_INCOMPLETE' },
       });
       expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+    });
+
+    describe('a performance bonus still waiting for data', () => {
+      const unmeasured = { ...measured, id: 'unmeasured', views: null };
+
+      beforeEach(() => {
+        prisma.contracts.findUnique.mockResolvedValue(
+          endedContract({ contents: [unmeasured] }),
+        );
+      });
+
+      // OWASP Top 10:2025 A06 (Insecure Design): the admin is told before the bonus is frozen.
+      it('refuses to finalize until the admin accepts freezing it', async () => {
+        const error = await rejection(service.finalize('contract-1', TODAY));
+
+        expect(error).toBeInstanceOf(UnprocessableEntityException);
+        expect(error).toMatchObject({
+          response: { code: 'INVOICE_BONUS_PENDING' },
+        });
+        expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+      });
+
+      // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot says the bonus
+      // was frozen before its data was complete, so the final amount stays traceable.
+      it('freezes it at what was measured once accepted, and marks the snapshot so', async () => {
+        const { snapshot } = await service.finalize('contract-1', TODAY, {
+          acceptPendingBonus: true,
+        });
+
+        expect(snapshot).toMatchObject({
+          performanceBonus: { amount: 0, status: 'calculated' },
+          performanceBonusPending: true,
+          rawTotal: 1_024_999.5,
+          total: 1_024_999.5,
+        });
+        expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              snapshot: expect.objectContaining({
+                performanceBonusPending: true,
+              }),
+            }),
+          }),
+        );
+      });
+    });
+
+    it('marks a snapshot whose bonus had all its data as not pending', async () => {
+      const { snapshot } = await service.finalize('contract-1', TODAY);
+
+      expect(snapshot.performanceBonusPending).toBe(false);
     });
 
     // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): a lost race is a conflict.

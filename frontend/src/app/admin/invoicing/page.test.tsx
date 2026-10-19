@@ -59,6 +59,8 @@ function listOf(overrides: Partial<InvoiceList> = {}): InvoiceList {
         adjustments: [],
         frozenAt: null,
         dataWaiting: false,
+        pendingBonus: null,
+        periodNumber: 1,
       },
     ],
     page: 1,
@@ -130,7 +132,7 @@ describe("Rate & Invoicing page", () => {
   it("counts the creators in the footer", async () => {
     await renderPage();
 
-    expect(screen.getByText(/Menampilkan 1.10 dari 24 creator/)).toBeInTheDocument();
+    expect(screen.getByText(/Menampilkan 1.10 dari 24 invoice/)).toBeInTheDocument();
   });
 
   it("keeps the pagination on show even on a single page", async () => {
@@ -162,6 +164,8 @@ describe("Rate & Invoicing page", () => {
         adjustments: [],
         frozenAt: null,
         dataWaiting: false,
+        pendingBonus: null,
+        periodNumber: 1,
           },
         ],
       }),
@@ -173,12 +177,12 @@ describe("Rate & Invoicing page", () => {
     expect(screen.getAllByText("Rp4.500.000")).toHaveLength(2);
   });
 
-  it("says how many creators there are when there are none", async () => {
+  it("says how many invoices there are when there are none", async () => {
     fetchList.mockResolvedValue(listOf({ rows: [], total: 0, totalPages: 1 }));
 
     await renderPage();
 
-    expect(screen.getByText("Menampilkan 0 creator")).toBeInTheDocument();
+    expect(screen.getByText("Menampilkan 0 invoice")).toBeInTheDocument();
   });
 
   it("offers a retry that keeps the URL when the list cannot load", async () => {
@@ -223,7 +227,7 @@ describe("Rate & Invoicing page", () => {
     it("adds up the whole filtered list under the table", async () => {
       await renderPage();
 
-      expect(screen.getByText("Total 24 creator")).toBeInTheDocument();
+      expect(screen.getByText("Total 24 invoice")).toBeInTheDocument();
       expect(screen.getByText("Rp9.800.000")).toBeInTheDocument();
     });
 

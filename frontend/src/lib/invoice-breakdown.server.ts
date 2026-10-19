@@ -12,16 +12,21 @@ import type { InvoiceBreakdown } from "./invoice-breakdown";
 import { currentRole } from "./session.server";
 
 /**
- * The breakdown of one creator's running invoice from GET /invoices/:creatorId, or null when
- * there is none to show. A server action can be posted to by anyone with any value, so the
- * caller must be an admin and the id a UUID before the backend is asked: nothing else can reach
- * another path (OWASP A01, A03). A failed request throws, so the popup offers to try again.
+ * The breakdown of one of a creator's invoices from GET /invoices/:creatorId?contract=…, or null
+ * when there is none to show. A renewed creator has one per contract, so the contract is named.
+ * A server action can be posted to by anyone with any value, so the caller must be an admin and
+ * both ids UUIDs before the backend is asked: nothing else can reach another path or query
+ * (OWASP A01, A05). A failed request throws, so the popup offers to try again.
  */
-export async function loadInvoiceBreakdown(creatorId: string): Promise<InvoiceBreakdown | null> {
+export async function loadInvoiceBreakdown(
+  creatorId: string,
+  contractId: string,
+): Promise<InvoiceBreakdown | null> {
   if (typeof creatorId !== "string" || !isUuid(creatorId)) return null;
+  if (typeof contractId !== "string" || !isUuid(contractId)) return null;
   if ((await currentRole()) !== "admin") return null;
 
-  const response = await backendGet(`/invoices/${creatorId}`);
+  const response = await backendGet(`/invoices/${creatorId}?contract=${contractId}`);
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(`Loading the invoice breakdown failed with HTTP ${response.status}`);

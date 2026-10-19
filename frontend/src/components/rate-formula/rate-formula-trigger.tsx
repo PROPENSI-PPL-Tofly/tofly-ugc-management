@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -37,6 +38,7 @@ export function RateFormulaTrigger({
   const [loadFailed, setLoadFailed] = useState(false);
   const [failure, setFailure] = useState<SaveFailure>(NO_FAILURE);
   const { show: confirm, toast } = useToast();
+  const router = useRouter();
 
   // Stable, so the modal's discard guard is not rebuilt on every render.
   const close = useCallback(() => {
@@ -64,6 +66,8 @@ export function RateFormulaTrigger({
     if (result.ok) {
       close();
       confirm("Formula rate berhasil disimpan.");
+      // The change recalculates every running invoice: the page reads them again at once.
+      router.refresh();
       return;
     }
 

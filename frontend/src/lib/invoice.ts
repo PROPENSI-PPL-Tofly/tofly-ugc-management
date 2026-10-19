@@ -61,13 +61,27 @@ export const CONTRACT_STATUSES = Object.keys(CONTRACT_STATUS_LABELS) as Contract
  * One creator's running invoice, in the page's own names. Components read these and never the
  * API's answer, so a change to the endpoint stops at invoice-api.
  */
+/** A bonus still waiting for performance data, as freezing it now would hold it. */
+export interface PendingBonus {
+  /** What the content measured so far earned; the rest counts Rp0. */
+  amount: number;
+  /** The invoice total with that bonus, held at zero like any total. */
+  totalAmount: number;
+  floored: boolean;
+}
+
 export interface InvoiceRow {
   creatorId: string;
   creatorName: string;
   /** The contract this invoice settles; what the two invoice moves name. */
   contractId: string;
+  /** Which of the creator's contracts this is, from 1 in the order they started. */
+  periodNumber: number;
   contractStatus: ContractStatus;
-  /** The contract's last day, YYYY-MM-DD; freezing needs today past it. */
+  /**
+   * The last day the contract counts, YYYY-MM-DD: its end date, or the day access was revoked if
+   * it ended early. Freezing needs today past it.
+   */
   contractEnd: string;
 
   fixedAmount: number;
@@ -86,8 +100,16 @@ export interface InvoiceRow {
   totalAmount: number;
   /** True when the penalty outweighed the pay and the backend held the total at zero. */
   floored: boolean;
-  /** True while any part of the invoice still waits for data, so freezing it is refused. */
+  /**
+   * True while a fee or penalty still waits for a formula, so freezing it is refused. The bonus
+   * waiting for performance data does not count here; see pendingBonus.
+   */
   dataWaiting: boolean;
+  /**
+   * While the performance bonus still waits for data: what freezing now would hold, the bonus the
+   * measured content earned and the total with it. Null once the bonus is measured.
+   */
+  pendingBonus: PendingBonus | null;
   invoiceStatus: InvoiceStatus;
   /** The manual adjustments added so far, oldest first. */
   adjustments: AdjustmentLine[];
@@ -200,6 +222,14 @@ export function penaltyLabel(amount: number): string {
  * taken from the backend rather than added up again, so it can never disagree with the invoice.
  * While the bonus waits for its data the total runs without it; the Bonus cell says so.
  */
+/**
+ * How a row's invoice is named: the creator, and for a later contract its period too, so a
+ * renewed creator's rows read apart in the table, in its buttons' names and in its dialogs.
+ */
+export function invoiceTitle(row: Pick<InvoiceRow, "creatorName" | "periodNumber">): string {
+  return row.periodNumber > 1 ? `${row.creatorName} · Periode ${row.periodNumber}` : row.creatorName;
+}
+
 export function finalLabel(row: InvoiceRow): string {
   // A total the penalty used up is a real Rp0, not "nothing billed": it reads as an amount.
   return row.floored ? formatRupiah(0) : amountLabel(row.totalAmount);
