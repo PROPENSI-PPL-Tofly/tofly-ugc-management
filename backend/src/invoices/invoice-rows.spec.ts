@@ -101,7 +101,7 @@ describe('listedContracts', () => {
     expect(ids(listedContracts(row, TODAY))).toEqual(['running', 'old', 'older']);
   });
 
-  it('lists both of two ended contracts, the latest first', () => {
+  it('lists both of two ended contracts, the one the table describes first', () => {
     const row = creatorRow({
       contracts: [
         contractRow({ id: 'old', start_date: day(-200), end_date: day(-61) }),

@@ -148,8 +148,8 @@ export function pickContract(
 
 /**
  * The contracts a creator's invoices are listed for: the one the table describes first, then
- * every earlier one that has ended, latest first. A renewed creator still has the earlier
- * invoice to finalize and pay; the service drops it again once it is paid.
+ * every earlier one that has ended. A renewed creator still has the earlier invoice to finalize
+ * and pay; the service drops it again once it is paid, and orders every row (invoice-sort).
  */
 export function listedContracts(
   row: InvoiceCreatorRow,
@@ -158,14 +158,12 @@ export function listedContracts(
   const current = pickContract(row, today);
   if (!current) return [];
 
-  const ended = row.contracts
-    .filter(
-      (contract) =>
-        contract.id !== current.id &&
-        invoiceContractStatus(contract, today, row.access_revoke_date) ===
-          'expired',
-    )
-    .sort((a, b) => b.end_date.getTime() - a.end_date.getTime());
+  const ended = row.contracts.filter(
+    (contract) =>
+      contract.id !== current.id &&
+      invoiceContractStatus(contract, today, row.access_revoke_date) ===
+        'expired',
+  );
 
   return [current, ...ended];
 }
