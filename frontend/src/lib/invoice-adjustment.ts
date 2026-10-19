@@ -17,6 +17,7 @@ export const FINAL_LABEL = "Final";
 
 export const AMOUNT_EMPTY = "Jumlah wajib diisi";
 export const AMOUNT_INVALID = "Jumlah harus bukan nol dan maksimal dua angka desimal";
+export const AMOUNT_THOUSANDS = "Tulis nominal tanpa titik pemisah ribuan, mis. 200000";
 export const REASON_EMPTY = "Alasan wajib diisi";
 export const REASON_TOO_LONG = "Alasan maksimal 500 karakter";
 
@@ -45,6 +46,9 @@ export interface AdjustmentErrors {
 /** A signed number with at most two decimals, as the form types it and the API reads it. */
 const AMOUNT = /^-?(0|[1-9]\d*)(\.\d{1,2})?$/;
 
+/** Rupiah as Indonesians write it, a dot between every three digits: 200.000, -1.500.000. */
+const THOUSANDS_DOTS = /^-?\d{1,3}(\.\d{3})+$/;
+
 /**
  * Reads one amount line. The whole amount rule in one place: mandatory, a finite non-zero
  * number, at most two decimals — exactly what checkManualAdjustment refuses on the server.
@@ -69,6 +73,9 @@ export function validateAdjustment(draft: AdjustmentDraft): AdjustmentErrors {
   const typed = draft.amount.trim();
   if (typed === "") {
     errors.amount = AMOUNT_EMPTY;
+  } else if (THOUSANDS_DOTS.test(typed)) {
+    // The API reads a dot as decimals; say how to write it rather than "two decimals at most".
+    errors.amount = AMOUNT_THOUSANDS;
   } else if (readAmount(typed) === null) {
     errors.amount = AMOUNT_INVALID;
   }
