@@ -5,6 +5,7 @@ import {
   INVOICE_SELECT,
   creatorName,
   pickContract,
+  savedSnapshot,
   toInvoiceContract,
   toInvoiceItem,
   type InvoiceContentRow,
@@ -364,5 +365,47 @@ describe('the columns an invoice is read from', () => {
       views: true,
       likes: true,
     });
+  });
+});
+
+// OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a saved snapshot is read back
+// only when it holds the whole final breakdown and totals, instead of being trusted by a cast.
+describe('savedSnapshot', () => {
+  const component = { amount: 1_000_000, status: 'calculated', lines: [] };
+  const complete = {
+    fixedRate: component,
+    additionalContent: component,
+    performanceBonus: component,
+    penalty: { ...component, amount: null, status: 'waiting_for_data' },
+    adjustments: [],
+    rawTotal: 3_000_000,
+    total: 3_000_000,
+    floored: false,
+    finalizedAt: '2026-09-12T03:00:00.000Z',
+  };
+
+  it('reads back a snapshot holding every component and total', () => {
+    expect(savedSnapshot(complete)).toBe(complete);
+  });
+
+  it('reads no snapshot for an invoice that has none', () => {
+    expect(savedSnapshot(null)).toBeNull();
+  });
+
+  it.each([
+    ['a string', 'snapshot'],
+    ['an array', [complete]],
+    ['no fixed rate', { ...complete, fixedRate: undefined }],
+    ['a component that is not an object', { ...complete, penalty: 0 }],
+    ['a component amount in text', { ...complete, additionalContent: { ...component, amount: '10' } }],
+    ['a component without a status', { ...complete, performanceBonus: { ...component, status: undefined } }],
+    ['a component without lines', { ...complete, fixedRate: { ...component, lines: undefined } }],
+    ['no adjustments', { ...complete, adjustments: undefined }],
+    ['a raw total in text', { ...complete, rawTotal: '3000000' }],
+    ['no total', { ...complete, total: undefined }],
+    ['no floored flag', { ...complete, floored: undefined }],
+    ['no finalization time', { ...complete, finalizedAt: undefined }],
+  ])('reads a saved value with %s as no usable snapshot', (_case, value) => {
+    expect(savedSnapshot(value)).toBeNull();
   });
 });

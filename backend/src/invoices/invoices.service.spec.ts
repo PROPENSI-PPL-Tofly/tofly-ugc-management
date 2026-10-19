@@ -136,7 +136,8 @@ describe('InvoicesService', () => {
   interface SavedInvoice {
     id: string;
     contract_id: string;
-    snapshot: InvoiceSnapshotDto | null;
+    /** Whatever the jsonb column holds, a well-formed snapshot or not. */
+    snapshot: InvoiceSnapshotDto | Prisma.JsonValue;
     adjustments: ReturnType<typeof adjustmentRow>[];
   }
 
@@ -448,6 +449,25 @@ describe('InvoicesService', () => {
           adjustments: [{ id: 'adj-n', amount: 1000.25 }],
           total: 2_001_000.25,
         });
+      });
+
+      // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a saved value that does not
+      // hold the final breakdown is not trusted as one.
+      it('calculates live, like a missing one, a saved snapshot that lacks its breakdown', async () => {
+        pipeline = { 'nadia-c': 'finalized' };
+        prisma.creators.findUnique.mockResolvedValue(roster[1]);
+        persist([
+          { id: 'nadia-i', contract_id: 'nadia-c', snapshot: { finalizedAt: '2026-09-12T03:00:00.000Z' }, adjustments: [] },
+        ]);
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, { q: 'nadia' });
+        const detail = await service.detail('nadia', TODAY);
+
+        expect(prisma.contents.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { contract_id: { in: ['nadia-c'] } } }),
+        );
+        expect(result.items[0]).toMatchObject({ invoiceStatus: 'finalized', snapshot: null, total: 2_000_000 });
+        expect(detail).toMatchObject({ invoiceStatus: 'finalized', snapshot: null, total: 2_000_000 });
       });
 
       it('sorts and sums every kept invoice with the adjustments the database adds up, reading adjustment rows for the page only', async () => {
