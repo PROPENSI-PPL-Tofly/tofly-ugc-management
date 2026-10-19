@@ -1,7 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import type { InvoiceStatus } from "@/lib/invoice";
-import { toInvoicePayment, type InvoicePayment } from "@/lib/invoice-payment-api";
+import {
+  toInvoicePayment,
+  type InvoicePayment,
+  type PaymentProof,
+} from "@/lib/invoice-payment-api";
 import { InvoiceComments, type CommentsGateway } from "./invoice-comments";
 import { PaymentProofUpload, type ProofUploader } from "./payment-proof-upload";
 import { PaymentStatus } from "./payment-status";
@@ -30,15 +35,25 @@ export function InvoicePaymentSection({
   // The proof was saved; the invoice reads again.
   onUploaded: () => void;
 }>) {
+  // The proof saved in this panel. The row the panel opened with predates it, and once a proof is
+  // in, the invoice is past Acknowledged, so no second upload is offered (PRD 13.2: one per invoice).
+  const [uploaded, setUploaded] = useState<PaymentProof | null>(null);
+  const shown = uploaded ? { ...payment, proof: uploaded } : payment;
+
   return (
     <div className="flex flex-col gap-5 border-t border-rule pt-4">
-      <PaymentStatus payment={payment} />
-      <PaymentProofUpload
-        contractId={contractId}
-        status={status}
-        upload={upload}
-        onUploaded={onUploaded}
-      />
+      <PaymentStatus payment={shown} />
+      {uploaded ? null : (
+        <PaymentProofUpload
+          contractId={contractId}
+          status={status}
+          upload={upload}
+          onUploaded={(proof) => {
+            setUploaded(proof);
+            onUploaded();
+          }}
+        />
+      )}
       <InvoiceComments contractId={contractId} comments={comments} />
     </div>
   );

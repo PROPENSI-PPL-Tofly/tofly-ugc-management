@@ -43,8 +43,8 @@ export function PaymentProofUpload({
   contractId: string;
   status: InvoiceStatus;
   upload?: ProofUploader;
-  // The proof was saved; the invoice reads again.
-  onUploaded: () => void;
+  // The proof was saved, and this is it; the invoice reads again.
+  onUploaded: (proof: PaymentProof) => void;
 }>) {
   const inputId = useId();
   const [state, setState] = useState<UploadState>({ kind: "idle" });
@@ -73,7 +73,7 @@ export function PaymentProofUpload({
     );
     if (outcome.ok) {
       setState({ kind: "uploaded", proof: outcome.proof });
-      onUploaded();
+      onUploaded(outcome.proof);
     } else {
       setState({ kind: "failed", file, message: outcome.message });
     }
