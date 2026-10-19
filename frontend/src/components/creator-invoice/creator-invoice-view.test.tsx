@@ -3,6 +3,9 @@ import type { CreatorInvoice, CreatorInvoiceAction } from "@/lib/creator-invoice
 import { aCreatorInvoice, NONE_REACHED } from "@/lib/creator-invoice.builder";
 import { CreatorInvoiceView } from "./creator-invoice-view";
 
+// The activity tab's comment form posts through a server action; here it is never reached.
+vi.mock("@/lib/creator-invoice-actions.server", () => ({ addInvoiceComment: vi.fn() }));
+
 const PROOF = {
   url: "https://files.tofly.test/proofs/rangga-1.pdf?token=abc",
   fileName: "transfer-rangga-agustus.pdf",
@@ -14,14 +17,16 @@ function renderView(
   renderAction?: (action: CreatorInvoiceAction) => React.ReactNode,
 ) {
   const onOpenContent = vi.fn();
+  const onCommented = vi.fn();
   render(
     <CreatorInvoiceView
       invoice={aCreatorInvoice(overrides)}
       onOpenContent={onOpenContent}
       renderAction={renderAction}
+      onCommented={onCommented}
     />,
   );
-  return { onOpenContent };
+  return { onOpenContent, onCommented };
 }
 
 /** The row of one part of the invoice: its button when it opens, its plain row otherwise. */
@@ -266,6 +271,54 @@ describe("CreatorInvoiceView", () => {
       expect(screen.getByRole("region", { name: "Giliran kamu" })).toHaveTextContent(
         "Cek rincian, lalu acknowledge.",
       );
+    });
+  });
+
+  describe("the tabs", () => {
+    const COMMENT = {
+      id: "c-1",
+      authorName: "Rangga Pratama",
+      authorRole: "creator" as const,
+      text: "Sudah saya cek.",
+      createdAt: "2026-10-10T03:00:00Z",
+    };
+
+    it("offers Rincian and Aktivitas & Komentar, opening on Rincian", () => {
+      renderView();
+
+      const tabs = within(screen.getByRole("tablist", { name: "Bagian invoice" })).getAllByRole("tab");
+      expect(tabs.map((tab) => tab.textContent)).toEqual(["Rincian", "Aktivitas & Komentar"]);
+      expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Rincian");
+    });
+
+    it("counts what the activity holds in its tab", () => {
+      renderView({ comments: [COMMENT] });
+
+      expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toBeInTheDocument();
+    });
+
+    it("shows the activity in place of the parts, and the parts again from Rincian", () => {
+      renderView({ comments: [COMMENT] });
+
+      fireEvent.click(screen.getByRole("tab", { name: /Aktivitas/ }));
+
+      expect(screen.getByRole("tab", { name: /Aktivitas/ })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("list", { name: "Aktivitas & komentar" })).toHaveTextContent("Sudah saya cek.");
+      expect(screen.queryByRole("group", { name: "Penalti" })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Rincian" }));
+
+      expect(screen.getByRole("group", { name: "Penalti" })).toBeInTheDocument();
+    });
+
+    it("keeps the summary and the creator's turn above the tabs, whichever is open", () => {
+      renderView({ status: "finalized" });
+
+      fireEvent.click(screen.getByRole("tab", { name: /Aktivitas/ }));
+
+      expect(screen.getByRole("group", { name: "Ringkasan invoice" })).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Giliran kamu" })).toBeInTheDocument();
     });
   });
 });
