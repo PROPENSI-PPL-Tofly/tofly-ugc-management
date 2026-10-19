@@ -23,6 +23,7 @@ const ROW: InvoiceRow = {
   floored: false,
   dataWaiting: false,
   pendingBonus: null,
+  periodNumber: 1,
   invoiceStatus: "accruing",
   adjustments: [
     {
@@ -124,6 +125,12 @@ describe("FinalizeModal", () => {
         expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: true }),
       );
     });
+  });
+
+  it("names which contract's invoice it freezes when the creator has more than one", () => {
+    render(<FinalizeModal row={{ ...ROW, periodNumber: 2 }} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Finalize invoice Rangga Pratama · Periode 2");
   });
 
   it("warns of no pending bonus when the bonus is measured", () => {

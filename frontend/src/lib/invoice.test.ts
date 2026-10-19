@@ -6,6 +6,7 @@ import {
   DEFAULT_INVOICE_PARAMS,
   DASH,
   finalLabel,
+  invoiceTitle,
   INVOICE_STATUS_LABELS,
   invoiceHref,
   MAX_INVOICE_SEARCH_LENGTH,
@@ -32,6 +33,7 @@ const ROW: InvoiceRow = {
   frozenAt: null,
   dataWaiting: false,
   pendingBonus: null,
+  periodNumber: 1,
 };
 
 describe("parseInvoiceParams", () => {
@@ -166,6 +168,20 @@ describe("penaltyLabel", () => {
 
   it("dashes a period without penalties", () => {
     expect(penaltyLabel(0)).toBe(DASH);
+  });
+});
+
+// A renewed creator has a row per contract; the period tells them apart, in the table and to a
+// screen reader, while a creator's first contract reads as the name alone.
+describe("invoiceTitle", () => {
+  it("names a first contract's invoice by the creator alone", () => {
+    expect(invoiceTitle({ ...ROW, creatorName: "Salsa Amelia", periodNumber: 1 })).toBe("Salsa Amelia");
+  });
+
+  it("adds the period to a later contract's invoice", () => {
+    expect(invoiceTitle({ ...ROW, creatorName: "Salsa Amelia", periodNumber: 2 })).toBe(
+      "Salsa Amelia · Periode 2",
+    );
   });
 });
 

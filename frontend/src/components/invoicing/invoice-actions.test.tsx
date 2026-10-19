@@ -24,6 +24,7 @@ const ROW: InvoiceRow = {
   floored: false,
   dataWaiting: false,
   pendingBonus: null,
+  periodNumber: 1,
   invoiceStatus: "accruing",
   adjustments: [],
   frozenAt: null,

@@ -59,6 +59,7 @@ describe("toInvoiceList", () => {
         floored: false,
         dataWaiting: false,
         pendingBonus: { amount: 150000, totalAmount: 700000, floored: false },
+        periodNumber: 1,
         invoiceStatus: "accruing",
         adjustments: [],
         frozenAt: null,
@@ -71,6 +72,12 @@ describe("toInvoiceList", () => {
 
     expect(row.contractId).toBe(RAW_RANGGA.contract.id);
     expect(row.contractEnd).toBe(RAW_RANGGA.contract.lastDay);
+  });
+
+  it("carries which of the creator's contracts the row is, by the period it pays", () => {
+    const renewal = { ...RAW_RANGGA, contract: { ...RAW_RANGGA.contract, period: 2 } };
+
+    expect(toInvoiceList({ ...RAW, items: [renewal] }).rows[0].periodNumber).toBe(2);
   });
 
   // An early end stops the contract on the day access was revoked; its end date stays as agreed.

@@ -53,6 +53,7 @@ function rowOf(creatorId: string, creatorName: string): InvoiceRow {
     floored: false,
     dataWaiting: true,
     pendingBonus: null,
+    periodNumber: 1,
     invoiceStatus: "accruing",
     adjustments: [],
     frozenAt: null,
@@ -159,9 +160,42 @@ describe("useBreakdownPopups", () => {
 
     expect(popup()).toHaveAccessibleName("Penalti · Rangga Pratama");
     expect(screen.getByRole("status")).toHaveTextContent("Memuat rincian…");
-    expect(load).toHaveBeenCalledWith("creator-rangga");
+    expect(load).toHaveBeenCalledWith("creator-rangga", RANGGA_ROW.contractId);
 
     expect(await screen.findByRole("list")).toHaveTextContent("Evg_3_Rangga_15102026");
+  });
+
+  // A renewed creator has a row per contract: each loads and keeps its own contract's breakdown.
+  it("keeps two contracts of one creator apart", async () => {
+    const load = answering();
+    const renewal: InvoiceRow = {
+      ...RANGGA_ROW,
+      contractId: "22222222-2222-4222-8222-222222222222",
+      periodNumber: 2,
+    };
+    function Renewed() {
+      const { open, layers } = useBreakdownPopups({ load });
+      return (
+        <>
+          <BreakdownAmount kind="extra" row={RANGGA_ROW} onOpen={open} />
+          <BreakdownAmount kind="extra" row={renewal} onOpen={open} />
+          {layers}
+        </>
+      );
+    }
+    render(<Renewed />);
+
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama:/));
+    await screen.findByRole("list");
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+    fireEvent.click(cell(/^Konten Tambahan Rangga Pratama · Periode 2/));
+    await screen.findByRole("list");
+
+    expect(load.mock.calls).toEqual([
+      ["creator-rangga", RANGGA_ROW.contractId],
+      ["creator-rangga", renewal.contractId],
+    ]);
+    expect(popup()).toHaveAccessibleName("Fee Konten Tambahan · Rangga Pratama · Periode 2");
   });
 
   it("keeps each creator's breakdown apart", async () => {

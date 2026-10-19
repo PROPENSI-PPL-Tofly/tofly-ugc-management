@@ -47,6 +47,7 @@ const ROW: InvoiceRow = {
   frozenAt: null,
   dataWaiting: false,
   pendingBonus: null,
+  periodNumber: 1,
 };
 
 const BREAKDOWN: InvoiceBreakdown = {
@@ -90,7 +91,7 @@ describe("InvoiceBoard", () => {
 
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Fee Konten Tambahan · Rangga Pratama");
     expect(await screen.findByRole("list")).toHaveTextContent("Evg_1_Rangga");
-    expect(load).toHaveBeenCalledWith("creator-rangga");
+    expect(load).toHaveBeenCalledWith("creator-rangga", ROW.contractId);
   });
 
   it("reads the invoices again after a decision taken from a breakdown", async () => {
