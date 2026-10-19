@@ -140,6 +140,34 @@ describe("InvoiceComments", () => {
     expect(screen.getByLabelText("Tulis komentar")).toHaveValue("Halo");
   });
 
+  it("stops the box at 500 characters and counts what is typed, as the prototype's box does", async () => {
+    await renderThread();
+
+    expect(screen.getByLabelText("Tulis komentar")).toHaveAttribute("maxLength", "500");
+    expect(screen.getByText("0/500")).toBeInTheDocument();
+
+    type("Halo");
+
+    expect(screen.getByText("4/500")).toBeInTheDocument();
+  });
+
+  it.each(["", "   "])("keeps Kirim off while the box holds nothing to say (%j)", async (text) => {
+    const comments = await renderThread();
+
+    type(text);
+
+    expect(screen.getByRole("button", { name: "Kirim" })).toBeDisabled();
+    expect(comments.add).not.toHaveBeenCalled();
+  });
+
+  it("turns Kirim on once there is something to say", async () => {
+    await renderThread();
+
+    type("Halo");
+
+    expect(screen.getByRole("button", { name: "Kirim" })).toBeEnabled();
+  });
+
   it("holds the button while a comment is being sent", async () => {
     let finish: (value: CommentOutcome) => void = () => {};
     await renderThread(

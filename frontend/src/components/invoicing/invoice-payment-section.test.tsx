@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { InvoiceStatus } from "@/lib/invoice";
 import type { InvoicePayment } from "@/lib/invoice-payment-api";
 import type { CommentsGateway } from "./invoice-comments";
@@ -66,6 +66,7 @@ describe("InvoicePaymentSection", () => {
 
     expect(screen.queryByLabelText("File bukti pembayaran")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Tulis komentar")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tulis komentar"), { target: { value: "Sudah diterima, terima kasih." } });
     expect(screen.getByRole("button", { name: "Kirim" })).toBeEnabled();
   });
 

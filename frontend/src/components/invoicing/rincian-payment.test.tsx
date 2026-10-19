@@ -118,6 +118,7 @@ describe("the payment part of the Rincian panel", () => {
     expect(screen.queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Finalize" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Tulis komentar")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tulis komentar"), { target: { value: "Sudah diterima, terima kasih." } });
     expect(screen.getByRole("button", { name: "Kirim" })).toBeEnabled();
   });
 
