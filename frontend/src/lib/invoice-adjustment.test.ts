@@ -153,4 +153,16 @@ describe("refusalMessage", () => {
     expect(refusalMessage("SOMETHING_ELSE")).toBeNull();
     expect(refusalMessage(undefined)).toBeNull();
   });
+
+  // OWASP Top 10:2025 A05 (Injection): a code from the server never reads an inherited property.
+  it.each(["constructor", "__proto__", "toString", "hasOwnProperty"])(
+    "has nothing to say about %s, which is not a refusal",
+    (code) => {
+      expect(refusalMessage(code)).toBeNull();
+    },
+  );
+
+  it("reads no message twice: the not-found codes share one", () => {
+    expect(refusalMessage("CONTRACT_NOT_FOUND")).toBe(refusalMessage("INVOICE_NOT_FOUND"));
+  });
 });
