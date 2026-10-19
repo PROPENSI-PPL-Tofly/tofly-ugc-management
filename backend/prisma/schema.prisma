@@ -152,6 +152,8 @@ model invoices {
 model invoice_adjustments {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   invoice_id    String   @db.Uuid
+  /// Unconstrained numeric on purpose, as the rate_formula amounts: its check refuses zero and a
+  /// third decimal, which numeric(14, 2) would round away before the check could see it.
   amount        Decimal  @db.Decimal
   reason        String   @db.VarChar(500)
   actor_user_id String   @db.Uuid
