@@ -68,6 +68,16 @@ describe("PaymentProofUpload", () => {
     expect(button()).toBeDisabled();
   });
 
+  it("goes back to waiting for a file when the admin cancels the picker", () => {
+    renderUpload(vi.fn());
+
+    pick(pdf());
+    fireEvent.change(screen.getByLabelText("File bukti pembayaran"), { target: { files: [] } });
+
+    expect(button()).toBeDisabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it.each([
     ["a GIF", pdf(1000, "bukti.gif", "image/gif"), PROOF_TYPE_INVALID],
     ["a file over 5 MB", pdf(5 * MB + 1), PROOF_TOO_LARGE],
