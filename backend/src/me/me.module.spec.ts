@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { MeModule } from './me.module.js';
 import { MyContentsController } from './my-contents.controller.js';
 import { MyContentsService } from './my-contents.service.js';
+import { MyInvoicePaymentsController } from './my-invoice-payments.controller.js';
 
 describe('MeModule', () => {
   it('provides the Task Saya controller and service', async () => {
@@ -17,6 +18,17 @@ describe('MeModule', () => {
 
     expect(module.get(MyContentsController)).toBeDefined();
     expect(module.get(MyContentsService)).toBeDefined();
+  });
+
+  it("provides the creator's invoice comment and payment proof routes", async () => {
+    const module = await Test.createTestingModule({
+      imports: [MeModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
+
+    expect(module.get(MyInvoicePaymentsController)).toBeDefined();
   });
 
   it('is part of the application', () => {
