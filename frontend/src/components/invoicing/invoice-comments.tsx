@@ -44,7 +44,8 @@ export function InvoiceComments({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    comments
+    // Not awaited on purpose: an effect cannot be async, and the catch below handles a throw.
+    void comments
       .load(contractId)
       // A call that throws (the network, say) reads as unavailable, never as loading for ever.
       .catch((): CommentsOutcome => ({ ok: false, message: COMMENTS_UNAVAILABLE }))
