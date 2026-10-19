@@ -8,6 +8,7 @@ import { backendPostForm } from "./backend.server";
 import { isUuid } from "./creator-detail";
 import { PROOF_TYPE_INVALID, validateProofFile } from "./invoice-payment";
 import { isRawPaymentProof, toPaymentProof, type PaymentProof } from "./invoice-payment-api";
+import { readBody, refusalText } from "./response-body";
 import { currentRole } from "./session.server";
 
 export const UPLOAD_FORBIDDEN = "Hanya admin yang dapat mengunggah bukti pembayaran.";
@@ -19,15 +20,6 @@ export type UploadOutcome = { ok: true; proof: PaymentProof } | { ok: false; mes
 
 function refuse(message: string): UploadOutcome {
   return { ok: false, message };
-}
-
-// The backend's answer as an object, or null when it is not JSON at all.
-async function readBody(response: Response): Promise<Record<string, unknown> | null> {
-  try {
-    return (await response.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
 }
 
 export async function uploadPaymentProof(
@@ -65,6 +57,5 @@ export async function uploadPaymentProof(
   }
 
   // A refusal the backend worded for the admin passes on; anything else stays general.
-  if (response.status < 500 && typeof body?.message === "string") return refuse(body.message);
-  return refuse(UPLOAD_FAILED);
+  return refuse(refusalText(response, body) ?? UPLOAD_FAILED);
 }

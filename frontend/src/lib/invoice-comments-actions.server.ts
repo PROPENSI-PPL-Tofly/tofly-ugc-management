@@ -13,6 +13,7 @@ import {
   type InvoiceComment,
   type RawInvoiceComment,
 } from "./invoice-comments-api";
+import { readBody, refusalText } from "./response-body";
 import { currentRole } from "./session.server";
 
 export const COMMENTS_FORBIDDEN = "Hanya admin yang dapat membuka komentar invoice ini.";
@@ -27,15 +28,6 @@ export type CommentOutcome = { ok: true; comment: InvoiceComment } | { ok: false
 export type CommentsOutcome =
   | { ok: true; comments: InvoiceComment[] }
   | { ok: false; message: string };
-
-// The backend's answer, or null when it is not JSON at all.
-async function readBody(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
 
 export async function loadInvoiceComments(contractId: string): Promise<CommentsOutcome> {
   const unavailable: CommentsOutcome = { ok: false, message: COMMENTS_UNAVAILABLE };
@@ -78,6 +70,6 @@ export async function addInvoiceComment(contractId: string, text: string): Promi
     return isRawInvoiceComment(body) ? { ok: true, comment: toInvoiceComment(body) } : failed;
   }
   // A refusal the backend worded for the admin passes on; anything else stays general.
-  const message = (body as { message?: unknown } | null)?.message;
-  return response.status < 500 && typeof message === "string" ? { ok: false, message } : failed;
+  const message = refusalText(response, body);
+  return message === null ? failed : { ok: false, message };
 }
