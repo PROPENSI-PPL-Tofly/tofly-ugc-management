@@ -1,6 +1,14 @@
-import { PersistedInvoiceStatusSource } from './persisted-invoice-status.source.js';
+import type { PrismaService } from '../prisma/prisma.service.js';
+import {
+  type InvoiceStatusRows,
+  PersistedInvoiceStatusSource,
+} from './persisted-invoice-status.source.js';
 
 describe('PersistedInvoiceStatusSource', () => {
+  it('is injected with the Prisma client, which runs the one query it needs', () => {
+    expectTypeOf<PrismaService>().toExtend<InvoiceStatusRows>();
+  });
+
   const prisma = { invoices: { findMany: vi.fn() } };
   const source = new PersistedInvoiceStatusSource(prisma);
 
