@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { INVOICE_STATUSES } from "@/lib/invoice";
-import { PROOF_TOO_LARGE, PROOF_TYPE_INVALID } from "@/lib/invoice-payment";
+import { PROOF_TOO_LARGE, PROOF_TYPE_INVALID, UPLOAD_FAILED } from "@/lib/invoice-payment";
 import type { UploadOutcome } from "@/lib/invoice-payment-actions.server";
 import { PaymentProofUpload, type ProofUploader } from "./payment-proof-upload";
 
@@ -126,6 +126,18 @@ describe("PaymentProofUpload", () => {
 
     expect(screen.getByRole("link", { name: "bukti.pdf" })).toHaveAttribute("href", PROOF_HREF);
     expect(onUploaded).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the failure and lets the admin try again when the upload throws", async () => {
+    const onUploaded = renderUpload(vi.fn<ProofUploader>().mockRejectedValue(new TypeError("fetch failed")));
+
+    pick(pdf());
+    await act(async () => fireEvent.click(button()));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(UPLOAD_FAILED);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(button()).toBeEnabled();
+    expect(onUploaded).not.toHaveBeenCalled();
   });
 
   it("shows the server's message when the upload is refused, and lets the admin try again", async () => {

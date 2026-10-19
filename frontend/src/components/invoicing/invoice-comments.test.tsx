@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { COMMENT_FAILED, COMMENTS_UNAVAILABLE } from "@/lib/invoice-comments";
 import type { CommentOutcome, CommentsOutcome } from "@/lib/invoice-comments-actions.server";
 import type { InvoiceComment } from "@/lib/invoice-comments-api";
 import { InvoiceComments, type CommentsGateway } from "./invoice-comments";
@@ -119,6 +120,24 @@ describe("InvoiceComments", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Komentar maksimal 500 karakter.");
     expect(screen.getByLabelText("Tulis komentar")).toHaveValue("Komentar yang terlalu panjang");
     expect(items()).toHaveLength(2);
+  });
+
+  it("shows the thread as unavailable when reading it throws, instead of loading for ever", async () => {
+    await renderThread(gateway({ load: vi.fn().mockRejectedValue(new TypeError("fetch failed")) }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(COMMENTS_UNAVAILABLE);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("shows the failure, frees the button and keeps the text when sending throws", async () => {
+    await renderThread(gateway({ add: vi.fn().mockRejectedValue(new TypeError("fetch failed")) }));
+
+    type("Halo");
+    await send();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(COMMENT_FAILED);
+    expect(screen.getByRole("button", { name: "Kirim" })).toBeEnabled();
+    expect(screen.getByLabelText("Tulis komentar")).toHaveValue("Halo");
   });
 
   it("holds the button while a comment is being sent", async () => {
