@@ -26,6 +26,20 @@ export interface ProofFile {
   size: number;
 }
 
+// The bytes each accepted type starts with, named once beside the types themselves.
+const PROOF_SIGNATURES: Record<(typeof PROOF_TYPES)[number], readonly number[]> = {
+  "application/pdf": [0x25, 0x50, 0x44, 0x46], // %PDF
+  "image/png": [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  "image/jpeg": [0xff, 0xd8, 0xff],
+};
+
+// Whether a file starts the way its type does. The browser names a file's type from its
+// extension, so only its first bytes say what it really is.
+export function matchesProofSignature(type: string, head: Uint8Array): boolean {
+  const signature = PROOF_SIGNATURES[type as keyof typeof PROOF_SIGNATURES];
+  return signature !== undefined && signature.every((byte, index) => head[index] === byte);
+}
+
 /** The proof is uploaded once the creator has acknowledged the invoice, and only then. */
 export function canUploadProof(status: InvoiceStatus): boolean {
   return status === "creator_acked";

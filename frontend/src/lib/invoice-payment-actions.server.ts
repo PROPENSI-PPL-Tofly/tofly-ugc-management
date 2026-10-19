@@ -7,6 +7,7 @@
 import { backendPostForm } from "./backend.server";
 import { isUuid } from "./creator-detail";
 import {
+  matchesProofSignature,
   PROOF_TYPE_INVALID,
   UPLOAD_FAILED,
   UPLOAD_FORBIDDEN,
@@ -39,6 +40,9 @@ export async function uploadPaymentProof(
   if (!(file instanceof File)) return refuse(PROOF_TYPE_INVALID);
   const invalid = validateProofFile(file);
   if (invalid) return refuse(invalid);
+  // Its first bytes too, since its type is only named from its extension (OWASP A06:2025).
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  if (!matchesProofSignature(file.type, head)) return refuse(PROOF_TYPE_INVALID);
 
   // Only the file goes on; nothing else the form carried reaches the backend.
   const sent = new FormData();
