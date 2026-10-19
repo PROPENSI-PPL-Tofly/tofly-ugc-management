@@ -192,3 +192,62 @@ export function currentAndHistory(invoices: readonly CreatorInvoice[]): {
   const [current = null, ...history] = [...invoices].sort((a, b) => b.periodNumber - a.periodNumber);
   return { current, history };
 }
+
+/** The longest comment a thread takes (13.2, proposed), counted as it is sent. */
+export const COMMENT_MAX_LENGTH = 500;
+
+/**
+ * Why a comment cannot be sent, or null when it can: something to say, at most 500 characters
+ * once the spaces around it are trimmed, as the backend counts it. The form and the server
+ * action both ask this, so a client that skipped the form hears the same words (OWASP A05).
+ */
+export function validateComment(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed === "") return "Komentar wajib diisi";
+  if (trimmed.length > COMMENT_MAX_LENGTH) return `Komentar maksimal ${COMMENT_MAX_LENGTH} karakter`;
+  return null;
+}
+
+/** One line of an invoice's Aktivitas & Komentar: a step it reached, or a comment. */
+export type ActivityEntry =
+  | { kind: "event"; id: string; text: string; at: string }
+  | { kind: "comment"; id: string; author: string; text: string; at: string };
+
+/** Each step past Berjalan as the creator reads it in the activity. */
+const EVENT_TEXT: Record<keyof ReachedAt, string> = {
+  finalized: "Invoice difinalisasi Admin",
+  creator_acked: "Kamu meng-acknowledge invoice",
+  payment_uploaded: "Admin mengirim bukti bayar",
+  paid: "Kamu mengonfirmasi pembayaran diterima",
+};
+
+/**
+ * The invoice's story, oldest first, as the prototype's activity tab tells it: every step it
+ * reached woven together with the comments. A step comes before a comment written at the same
+ * moment. An admin writes as "Admin", never by person, as the Content Detail timeline does.
+ */
+export function invoiceActivity(invoice: CreatorInvoice): ActivityEntry[] {
+  const events: ActivityEntry[] = (Object.keys(EVENT_TEXT) as (keyof ReachedAt)[]).flatMap((step) => {
+    const at = invoice.reachedAt[step];
+    return at === null ? [] : [{ kind: "event" as const, id: step, text: EVENT_TEXT[step], at }];
+  });
+  const comments: ActivityEntry[] = invoice.comments.map((comment) => ({
+    kind: "comment",
+    id: comment.id,
+    author: comment.authorRole === "admin" ? "Admin" : comment.authorName,
+    text: comment.text,
+    at: comment.createdAt,
+  }));
+
+  // A stable sort keeps every step ahead of a comment at the same moment.
+  return [...events, ...comments].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+/** A refusal of one of the creator's moves, worded for the creator. */
+export const CREATOR_REFUSALS = {
+  UNAUTHENTICATED: "Sesi kamu sudah berakhir. Masuk lagi untuk melanjutkan.",
+  FORBIDDEN: "Akses ditolak",
+  INVOICE_NOT_FOUND: "Invoice tidak ditemukan.",
+  INVALID_INVOICE_TRANSITION: "Status invoice sudah berubah. Muat ulang halaman untuk melihat status terbaru.",
+  GENERIC: "Permintaan tidak dapat diproses. Coba lagi.",
+} as const;
