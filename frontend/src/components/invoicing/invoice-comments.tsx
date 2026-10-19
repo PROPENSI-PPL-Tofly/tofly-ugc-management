@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import { formatTimestamp } from "@/lib/format";
+import { COMMENT_FAILED, COMMENTS_UNAVAILABLE } from "@/lib/invoice-comments";
 import {
   addInvoiceComment,
   loadInvoiceComments,
@@ -43,20 +44,26 @@ export function InvoiceComments({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    comments.load(contractId).then((outcome) =>
-      setThread(
-        outcome.ok
-          ? { kind: "loaded", comments: outcome.comments }
-          : { kind: "failed", message: outcome.message },
-      ),
-    );
+    comments
+      .load(contractId)
+      // A call that throws (the network, say) reads as unavailable, never as loading for ever.
+      .catch((): CommentsOutcome => ({ ok: false, message: COMMENTS_UNAVAILABLE }))
+      .then((outcome) =>
+        setThread(
+          outcome.ok
+            ? { kind: "loaded", comments: outcome.comments }
+            : { kind: "failed", message: outcome.message },
+        ),
+      );
   }, [comments, contractId]);
 
   // The saved comment goes after the ones already shown, as the thread reads oldest first.
   async function send(shown: InvoiceComment[]) {
     setSending(true);
     setError(null);
-    const outcome = await comments.add(contractId, text);
+    const outcome = await comments
+      .add(contractId, text)
+      .catch((): CommentOutcome => ({ ok: false, message: COMMENT_FAILED }));
     setSending(false);
     if (outcome.ok) {
       setThread({ kind: "loaded", comments: [...shown, outcome.comment] });

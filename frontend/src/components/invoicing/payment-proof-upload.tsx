@@ -4,7 +4,12 @@ import { useId, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FIELD_ERROR } from "@/components/ui/form-classes";
 import type { InvoiceStatus } from "@/lib/invoice";
-import { canUploadProof, PROOF_TYPES, validateProofFile } from "@/lib/invoice-payment";
+import {
+  canUploadProof,
+  PROOF_TYPES,
+  UPLOAD_FAILED,
+  validateProofFile,
+} from "@/lib/invoice-payment";
 import { uploadPaymentProof, type UploadOutcome } from "@/lib/invoice-payment-actions.server";
 import type { PaymentProof } from "@/lib/invoice-payment-api";
 
@@ -62,7 +67,10 @@ export function PaymentProofUpload({
     form.set("file", file);
     setState({ kind: "uploading", file });
 
-    const outcome = await upload(contractId, form);
+    // A call that throws (the network, say) reads as a failed upload, never as uploading for ever.
+    const outcome = await upload(contractId, form).catch(
+      (): UploadOutcome => ({ ok: false, message: UPLOAD_FAILED }),
+    );
     if (outcome.ok) {
       setState({ kind: "uploaded", proof: outcome.proof });
       onUploaded();
