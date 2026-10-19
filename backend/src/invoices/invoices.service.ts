@@ -39,7 +39,6 @@ import {
 } from './invoice-sort.js';
 import {
   INVOICE_STATUS_SOURCE,
-  type InvoiceStatus,
   type InvoiceStatusSource,
 } from './invoice-status.js';
 import { invoiceState } from './invoice-lifecycle.js';
@@ -178,21 +177,6 @@ function codeError(code: string, message: string): ConflictException {
   return new ConflictException({ code, message });
 }
 
-/**
- * Preserve later pipeline states, while mapping the lifecycle's running status to
- * accruing and making a locally finalized invoice visible as finalized.
- */
-function effectiveStatus(
-  pipelineStatus: InvoiceStatus | undefined,
-  lifecycle: InvoiceLifecycle,
-): InvoiceStatus {
-  if (pipelineStatus && pipelineStatus !== 'accruing') {
-    return pipelineStatus;
-  }
-
-  return lifecycle.status === 'finalized' ? 'finalized' : 'accruing';
-}
-
 @Injectable()
 export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
   constructor(
@@ -265,7 +249,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         today,
         lifecycle,
       ),
-      invoiceStatus: effectiveStatus(statuses.get(contract.id), lifecycle),
+      invoiceStatus: statuses.get(contract.id)!,
       periodNumber: periodNumber(row, contract),
       formula,
     };
@@ -288,25 +272,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     const everyone = pick(rows, today);
     const contractIds = everyone.map(({ contract }) => contract.id);
 
-    const [pipelineStatuses, lifecycleByContract] = await Promise.all([
+    const [statuses, lifecycleByContract] = await Promise.all([
       this.pipeline.statuses(contractIds),
       this.lifecycleForContracts(contractIds),
     ]);
-
-    const statuses = new Map<string, InvoiceStatus>();
-
-    for (const { contract } of everyone) {
-      const lifecycle = lifecycleByContract.get(contract.id) ?? {
-        status: 'running' as const,
-        adjustments: [],
-        snapshot: null,
-      };
-
-      statuses.set(
-        contract.id,
-        effectiveStatus(pipelineStatuses.get(contract.id), lifecycle),
-      );
-    }
 
     const kept = everyone.filter(
       (creator) =>
