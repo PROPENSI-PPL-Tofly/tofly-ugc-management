@@ -122,20 +122,20 @@ export function adjustmentLabel(amount: number): string {
  * message with the code; when only the code survives a proxy or an old tab, these are the same
  * sentences in the same words.
  */
+export const REFUSAL_MESSAGES = {
+  INVOICE_FINALIZED: "Invoice sudah difinalisasi",
+  CONTRACT_NOT_ENDED: "Kontrak belum berakhir",
+  INVOICE_DATA_INCOMPLETE: "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate.",
+  INVOICE_BONUS_PENDING:
+    "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
+  CONTRACT_NOT_FOUND: "Invoice tidak ditemukan.",
+  INVOICE_NOT_FOUND: "Invoice tidak ditemukan.",
+} as const;
+
+/** The admin's words for a refusal code, or null for one this page does not know. */
 export function refusalMessage(code: string | undefined): string | null {
-  switch (code) {
-    case "INVOICE_FINALIZED":
-      return "Invoice sudah difinalisasi";
-    case "CONTRACT_NOT_ENDED":
-      return "Kontrak belum berakhir";
-    case "INVOICE_DATA_INCOMPLETE":
-      return "Invoice belum bisa difinalisasi: masih ada komponen yang menunggu formula rate.";
-    case "INVOICE_BONUS_PENDING":
-      return "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.";
-    case "CONTRACT_NOT_FOUND":
-    case "INVOICE_NOT_FOUND":
-      return "Invoice tidak ditemukan.";
-    default:
-      return null;
-  }
+  // Own keys only, so a code such as "constructor" never reads an inherited property.
+  return code !== undefined && Object.hasOwn(REFUSAL_MESSAGES, code)
+    ? REFUSAL_MESSAGES[code as keyof typeof REFUSAL_MESSAGES]
+    : null;
 }

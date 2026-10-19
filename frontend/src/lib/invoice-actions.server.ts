@@ -14,6 +14,7 @@ import {
   adjustmentAmount,
   adjustmentReason,
   refusalMessage,
+  REFUSAL_MESSAGES,
   validateAdjustment,
   type AdjustmentDraft,
   type AdjustmentErrors,
@@ -73,7 +74,7 @@ async function move(path: string, body?: unknown): Promise<ActionOutcome> {
 /** The path guards every invoice move shares: an id the API would take and an admin asking. */
 async function allowed(contractId: string): Promise<ActionOutcome | null> {
   if (typeof contractId !== "string" || !isUuid(contractId)) {
-    return refuse("INVOICE_NOT_FOUND", refusalMessage("INVOICE_NOT_FOUND") ?? GENERIC_FAILURE);
+    return refuse("INVOICE_NOT_FOUND", REFUSAL_MESSAGES.INVOICE_NOT_FOUND);
   }
   if ((await currentRole()) !== "admin") {
     return refuse("FORBIDDEN", "Hanya admin yang dapat mengubah invoice.");
