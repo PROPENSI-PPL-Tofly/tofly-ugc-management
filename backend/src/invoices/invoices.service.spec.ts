@@ -669,6 +669,21 @@ describe('InvoicesService', () => {
       });
     });
 
+    // The instant the breakdown is calculated as of is the instant the invoice is finalized at,
+    // to the millisecond: the controller passes the request time, not a day.
+    it('stamps the snapshot and the row with the instant the breakdown was calculated as of', async () => {
+      const at = new Date('2026-09-18T09:41:27.123Z');
+
+      const { snapshot } = await service.finalize('contract-1', at);
+
+      expect(snapshot.finalizedAt).toBe('2026-09-18T09:41:27.123Z');
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ finalized_at: at }),
+        }),
+      );
+    });
+
     it('floors the snapshot total at zero when adjustments outweigh the pay', async () => {
       prisma.invoice_adjustments.findMany.mockResolvedValue([
         adjustmentRow('adj-1', '-1500000'),
