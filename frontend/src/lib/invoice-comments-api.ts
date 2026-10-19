@@ -21,6 +21,16 @@ export interface InvoiceComment {
   createdAt: string;
 }
 
+// Whether an answer is a saved comment, as 13.2 answers a post to the thread.
+export function isRawInvoiceComment(body: unknown): body is RawInvoiceComment {
+  const comment = body as Partial<RawInvoiceComment> | null;
+  return (
+    typeof comment?.id === "string" &&
+    typeof comment.text === "string" &&
+    typeof comment.authorName === "string"
+  );
+}
+
 export function toInvoiceComment(raw: RawInvoiceComment): InvoiceComment {
   return {
     id: raw.id,

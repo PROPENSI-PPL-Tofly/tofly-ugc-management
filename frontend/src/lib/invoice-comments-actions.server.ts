@@ -4,9 +4,11 @@
 // to 13.2's endpoints with the browser's session. A refusal or a failure is an answer, not an
 // exception, so the panel says so instead of breaking.
 
-import { backendGet } from "./backend.server";
+import { backendGet, backendPost } from "./backend.server";
 import { isUuid } from "./creator-detail";
 import {
+  isRawInvoiceComment,
+  toInvoiceComment,
   toInvoiceComments,
   type InvoiceComment,
   type RawInvoiceComment,
@@ -15,6 +17,11 @@ import { currentRole } from "./session.server";
 
 export const COMMENTS_FORBIDDEN = "Hanya admin yang dapat membuka komentar invoice ini.";
 export const COMMENTS_UNAVAILABLE = "Komentar tidak bisa dimuat.";
+export const COMMENT_FORBIDDEN = "Hanya admin yang dapat menambah komentar di sini.";
+export const COMMENT_FAILED = "Komentar gagal dikirim. Coba lagi.";
+
+// What adding a comment comes to: the saved comment, or the message the panel shows.
+export type CommentOutcome = { ok: true; comment: InvoiceComment } | { ok: false; message: string };
 
 // What reading the thread comes to: the comments, or the message the panel shows.
 export type CommentsOutcome =
@@ -48,4 +55,29 @@ export async function loadInvoiceComments(contractId: string): Promise<CommentsO
   return response.ok && Array.isArray(body)
     ? { ok: true, comments: toInvoiceComments(body as RawInvoiceComment[]) }
     : unavailable;
+}
+
+export async function addInvoiceComment(contractId: string, text: string): Promise<CommentOutcome> {
+  const failed: CommentOutcome = { ok: false, message: COMMENT_FAILED };
+  // An id that is not a UUID never goes into the backend path (OWASP A05 Injection, A01 SSRF).
+  if (typeof contractId !== "string" || !isUuid(contractId)) return failed;
+  // Only an admin adds a comment here (OWASP A01 Broken Access Control).
+  if ((await currentRole()) !== "admin") return { ok: false, message: COMMENT_FORBIDDEN };
+  // A server action can be called with anything; only text goes on.
+  if (typeof text !== "string") return failed;
+
+  // A failure of any kind becomes a message, never a crash or a raw error (OWASP A10).
+  let response: Response;
+  try {
+    response = await backendPost(`/invoices/${contractId}/comments`, { text });
+  } catch {
+    return failed;
+  }
+  const body = await readBody(response);
+  if (response.ok) {
+    return isRawInvoiceComment(body) ? { ok: true, comment: toInvoiceComment(body) } : failed;
+  }
+  // A refusal the backend worded for the admin passes on; anything else stays general.
+  const message = (body as { message?: unknown } | null)?.message;
+  return response.status < 500 && typeof message === "string" ? { ok: false, message } : failed;
 }
