@@ -47,15 +47,22 @@ afterEach(() => {
 });
 
 // The three moves share every guard; each is checked once per move below.
+// Each with what an accepted move answers when the backend sends back an empty body.
 const MOVES = [
-  ["acknowledgeInvoice", (id: string) => acknowledgeInvoice(id), "acknowledge", {}],
-  ["confirmInvoicePayment", (id: string) => confirmInvoicePayment(id), "confirm-payment", {}],
-  ["addInvoiceComment", (id: string) => addInvoiceComment(id, "  Sudah saya cek.  "), "comments", { text: "Sudah saya cek." }],
+  ["acknowledgeInvoice", (id: string) => acknowledgeInvoice(id), "acknowledge", {}, { ok: true }],
+  ["confirmInvoicePayment", (id: string) => confirmInvoicePayment(id), "confirm-payment", {}, { ok: true }],
+  [
+    "addInvoiceComment",
+    (id: string) => addInvoiceComment(id, "  Sudah saya cek.  "),
+    "comments",
+    { text: "Sudah saya cek." },
+    { ok: true, comment: null },
+  ],
 ] as const;
 
-describe.each(MOVES)("%s", (_, move, path, body) => {
+describe.each(MOVES)("%s", (_, move, path, body, accepted) => {
   it("posts to the creator's own invoice with the session, and nothing naming the creator", async () => {
-    await expect(move(CONTRACT)).resolves.toEqual({ ok: true });
+    await expect(move(CONTRACT)).resolves.toEqual(accepted);
 
     expect(fetchSpy()).toHaveBeenCalledWith(
       `http://localhost:3001/me/invoices/${CONTRACT}/${path}`,
@@ -166,7 +173,7 @@ describe("addInvoiceComment's own checks", () => {
   });
 
   it("sends a comment of exactly 500 characters", async () => {
-    await expect(addInvoiceComment(CONTRACT, "a".repeat(500))).resolves.toEqual({ ok: true });
+    await expect(addInvoiceComment(CONTRACT, "a".repeat(500))).resolves.toEqual({ ok: true, comment: null });
   });
 });
 
@@ -179,5 +186,40 @@ describe("a refusal that names no code", () => {
       code: "HTTP_400",
       message: "Invoice sudah di-acknowledge",
     });
+  });
+});
+
+describe("the comment the backend saved", () => {
+  const SAVED = {
+    id: "c0c0c0c0-0000-4000-8000-000000000009",
+    authorName: "Rangga Pratama",
+    role: "creator",
+    text: "Sudah saya cek.",
+    createdAt: "2026-10-20T03:00:00Z",
+  };
+
+  it("comes back in the page's names, so the thread can show it without reading every invoice again", async () => {
+    fetchSpy().mockResolvedValue(reply(201, SAVED));
+
+    await expect(addInvoiceComment(CONTRACT, "Sudah saya cek.")).resolves.toEqual({
+      ok: true,
+      comment: {
+        id: SAVED.id,
+        authorName: "Rangga Pratama",
+        authorRole: "creator",
+        text: "Sudah saya cek.",
+        createdAt: "2026-10-20T03:00:00Z",
+      },
+    });
+  });
+
+  it.each([
+    ["no JSON", new Response("Created", { status: 201 })],
+    ["a comment without its id", reply(201, { ...SAVED, id: 9 })],
+    ["a role from nowhere", reply(201, { ...SAVED, role: "owner" })],
+  ])("is null when the answer carries %s, so the page reads the invoices again instead", async (_, answer) => {
+    fetchSpy().mockResolvedValue(answer);
+
+    await expect(addInvoiceComment(CONTRACT, "Sudah saya cek.")).resolves.toEqual({ ok: true, comment: null });
   });
 });

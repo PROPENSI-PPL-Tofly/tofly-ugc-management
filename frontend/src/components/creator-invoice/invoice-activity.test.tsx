@@ -14,6 +14,14 @@ const ADMIN_COMMENT = {
   createdAt: "2026-12-04T03:00:00Z",
 };
 
+const SAVED = {
+  id: "c-9",
+  authorName: "Rangga Pratama",
+  authorRole: "creator" as const,
+  text: "Sudah saya cek.",
+  createdAt: "2026-12-05T03:00:00Z",
+};
+
 function renderActivity(overrides: Partial<CreatorInvoice> = {}) {
   const onCommented = vi.fn();
   const invoice = aCreatorInvoice(overrides);
@@ -27,7 +35,7 @@ function field() {
 
 describe("InvoiceActivity", () => {
   beforeEach(() => {
-    vi.mocked(addInvoiceComment).mockReset().mockResolvedValue({ ok: true });
+    vi.mocked(addInvoiceComment).mockReset().mockResolvedValue({ ok: true, comment: SAVED });
   });
 
   it("lists the steps and the comments, oldest first, each dated", () => {
@@ -82,19 +90,19 @@ describe("InvoiceActivity", () => {
       expect(screen.getByText(/500\/500/)).toBeInTheDocument();
     });
 
-    it("sends the comment, empties the field and reads the invoice again", async () => {
+    it("sends the comment, empties the field and hands on the comment the server saved", async () => {
       const { onCommented, invoice } = renderActivity();
       fireEvent.change(field(), { target: { value: "Sudah saya cek." } });
 
       fireEvent.click(screen.getByRole("button", { name: "Kirim Komentar" }));
 
-      await waitFor(() => expect(onCommented).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(onCommented).toHaveBeenCalledWith(SAVED));
       expect(addInvoiceComment).toHaveBeenCalledWith(invoice.contractId, "Sudah saya cek.");
       expect(field()).toHaveValue("");
     });
 
     it("holds the button while the comment is on its way", async () => {
-      let answer: (value: { ok: true }) => void = () => {};
+      let answer: (value: { ok: true; comment: null }) => void = () => {};
       vi.mocked(addInvoiceComment).mockReturnValue(new Promise((resolve) => (answer = resolve)));
       renderActivity();
       fireEvent.change(field(), { target: { value: "Halo" } });
@@ -102,12 +110,12 @@ describe("InvoiceActivity", () => {
       fireEvent.click(screen.getByRole("button", { name: "Kirim Komentar" }));
 
       expect(screen.getByRole("button", { name: "Kirim Komentar" })).toBeDisabled();
-      answer({ ok: true });
+      answer({ ok: true, comment: null });
       await waitFor(() => expect(field()).toHaveValue(""));
     });
 
     it("locks the field while the comment is on its way, so nothing typed meanwhile is wiped on success", async () => {
-      let answer: (value: { ok: true }) => void = () => {};
+      let answer: (value: { ok: true; comment: null }) => void = () => {};
       vi.mocked(addInvoiceComment).mockReturnValue(new Promise((resolve) => (answer = resolve)));
       renderActivity();
       fireEvent.change(field(), { target: { value: "Halo" } });
@@ -115,7 +123,7 @@ describe("InvoiceActivity", () => {
       fireEvent.click(screen.getByRole("button", { name: "Kirim Komentar" }));
 
       expect(field()).toBeDisabled();
-      answer({ ok: true });
+      answer({ ok: true, comment: null });
       await waitFor(() => expect(field()).toBeEnabled());
       expect(field()).toHaveValue("");
     });

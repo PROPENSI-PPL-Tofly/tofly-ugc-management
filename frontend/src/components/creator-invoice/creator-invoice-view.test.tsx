@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { CreatorInvoice, CreatorInvoiceAction } from "@/lib/creator-invoice";
 import { aCreatorInvoice, NONE_REACHED } from "@/lib/creator-invoice.builder";
+import { addInvoiceComment } from "@/lib/creator-invoice-actions.server";
 import { CreatorInvoiceView } from "./creator-invoice-view";
 
 // The activity tab's comment form posts through a server action; here it is never reached.
@@ -319,6 +320,59 @@ describe("CreatorInvoiceView", () => {
 
       expect(screen.getByRole("group", { name: "Ringkasan invoice" })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: "Giliran kamu" })).toBeInTheDocument();
+    });
+  });
+
+  describe("a comment just sent", () => {
+    const SAVED = {
+      id: "c-new",
+      authorName: "Rangga Pratama",
+      authorRole: "creator" as const,
+      text: "Komentar baru",
+      createdAt: "2026-10-20T03:00:00Z",
+    };
+
+    function send() {
+      fireEvent.click(screen.getByRole("tab", { name: /Aktivitas/ }));
+      fireEvent.change(screen.getByRole("textbox", { name: "Komentar" }), { target: { value: "Komentar baru" } });
+      fireEvent.click(screen.getByRole("button", { name: "Kirim Komentar" }));
+    }
+
+    it("shows at once and counts in its tab, without reading the invoices again", async () => {
+      vi.mocked(addInvoiceComment).mockResolvedValue({ ok: true, comment: SAVED });
+      const { onCommented } = renderView();
+
+      send();
+
+      expect(await screen.findByRole("list", { name: "Aktivitas & komentar" })).toHaveTextContent("Komentar baru");
+      expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toBeInTheDocument();
+      expect(onCommented).not.toHaveBeenCalled();
+    });
+
+    it("reads the invoices again when the server saved it without sending it back", async () => {
+      vi.mocked(addInvoiceComment).mockResolvedValue({ ok: true, comment: null });
+      const { onCommented } = renderView();
+
+      send();
+
+      await waitFor(() => expect(onCommented).toHaveBeenCalledTimes(1));
+    });
+
+    it("is shown once when it comes back with the invoice read again", async () => {
+      vi.mocked(addInvoiceComment).mockResolvedValue({ ok: true, comment: SAVED });
+      const invoice = aCreatorInvoice();
+      const { rerender } = render(
+        <CreatorInvoiceView invoice={invoice} onOpenContent={vi.fn()} onCommented={vi.fn()} />,
+      );
+      send();
+      await screen.findByText("Komentar baru");
+
+      rerender(
+        <CreatorInvoiceView invoice={{ ...invoice, comments: [SAVED] }} onOpenContent={vi.fn()} onCommented={vi.fn()} />,
+      );
+
+      expect(screen.getAllByText("Komentar baru")).toHaveLength(1);
+      expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toBeInTheDocument();
     });
   });
 });

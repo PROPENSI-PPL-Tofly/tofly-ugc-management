@@ -11,7 +11,16 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/lib/creator-invoice-actions.server", () => ({
   acknowledgeInvoice: vi.fn().mockResolvedValue({ ok: true }),
   confirmInvoicePayment: vi.fn().mockResolvedValue({ ok: true }),
-  addInvoiceComment: vi.fn().mockResolvedValue({ ok: true }),
+  addInvoiceComment: vi.fn().mockResolvedValue({
+    ok: true,
+    comment: {
+      id: "c-new",
+      authorName: "Rangga Pratama",
+      authorRole: "creator",
+      text: "Halo Admin",
+      createdAt: "2026-10-20T03:00:00Z",
+    },
+  }),
 }));
 
 // The panel is tested where it lives; here it only says which content it was opened on, for whom.
@@ -167,15 +176,16 @@ describe("CreatorInvoices", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    it("reads the invoices again after a comment is sent", async () => {
+    it("shows a sent comment without reading every invoice again, which only a move needs", async () => {
       render(<CreatorInvoices invoices={[CURRENT]} />);
       fireEvent.click(screen.getByRole("tab", { name: /Aktivitas/ }));
       fireEvent.change(screen.getByRole("textbox", { name: "Komentar" }), { target: { value: "Halo Admin" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Kirim Komentar" }));
 
-      await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+      expect(await screen.findByRole("list", { name: "Aktivitas & komentar" })).toHaveTextContent("Halo Admin");
       expect(addInvoiceComment).toHaveBeenCalledWith(CURRENT.contractId, "Halo Admin");
+      expect(refresh).not.toHaveBeenCalled();
     });
   });
 });
