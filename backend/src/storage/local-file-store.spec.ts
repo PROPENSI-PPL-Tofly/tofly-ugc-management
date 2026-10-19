@@ -37,6 +37,7 @@ describe('LocalFileStore', () => {
 
       expect(opened).toMatchObject({
         kind: 'stream',
+        fileName: 'bukti.pdf',
         contentType: 'application/pdf',
         size: bytes.length,
       });
