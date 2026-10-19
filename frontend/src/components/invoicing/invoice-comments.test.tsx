@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import type { CommentOutcome, CommentsOutcome } from "@/lib/invoice-comments-actions.server";
 import type { InvoiceComment } from "@/lib/invoice-comments-api";
 import { InvoiceComments, type CommentsGateway } from "./invoice-comments";
 
@@ -61,7 +62,7 @@ const items = () => within(screen.getByRole("list", { name: "Komentar" })).getAl
 
 describe("InvoiceComments", () => {
   it("says it is loading while the thread is read", () => {
-    const comments = gateway({ load: vi.fn(() => new Promise(() => {})) });
+    const comments = gateway({ load: vi.fn(() => new Promise<CommentsOutcome>(() => {})) });
     render(<InvoiceComments contractId={CONTRACT} comments={comments} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Memuat komentar…");
@@ -121,8 +122,10 @@ describe("InvoiceComments", () => {
   });
 
   it("holds the button while a comment is being sent", async () => {
-    let finish: (value: unknown) => void = () => {};
-    await renderThread(gateway({ add: vi.fn(() => new Promise((resolve) => (finish = resolve))) }));
+    let finish: (value: CommentOutcome) => void = () => {};
+    await renderThread(
+      gateway({ add: vi.fn(() => new Promise<CommentOutcome>((resolve) => (finish = resolve))) }),
+    );
 
     type("Halo");
     fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
