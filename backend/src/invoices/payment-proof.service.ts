@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -46,6 +47,9 @@ export interface PaymentProofReader {
   ): Promise<Map<string, PaymentProofDto>>;
 }
 
+/** Nest token for a fixed object-key factory; nothing provides it outside tests. */
+export const PROOF_KEY_FACTORY = Symbol('PROOF_KEY_FACTORY');
+
 /** Every proof is stored under this prefix, then the UUID kept in object_key. */
 const KEY_PREFIX = 'payment-proofs';
 
@@ -74,6 +78,9 @@ export class PaymentProofService implements PaymentProofReader {
   constructor(
     @Inject(PrismaService) private readonly prisma: PaymentProofClient,
     @Inject(FILE_STORE) private readonly store: FileStore,
+    // Tests name the key; the app leaves it to a fresh random UUID per upload.
+    @Optional()
+    @Inject(PROOF_KEY_FACTORY)
     private readonly newObjectKey: () => string = randomUUID,
   ) {}
 

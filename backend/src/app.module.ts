@@ -14,7 +14,6 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ProposalsModule } from './contents/proposals.module.js';
 import { RateFormulaModule } from './rate-formula/rate-formula.module.js';
 import { requireStorageInProduction } from './storage/file-store.provider.js';
-import { StorageModule } from './storage/storage.module.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
@@ -37,7 +36,6 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
       validate,
     }),
     PrismaModule,
-    StorageModule,
     CreatorsModule,
     InvoicesModule,
     ContentsModule,
