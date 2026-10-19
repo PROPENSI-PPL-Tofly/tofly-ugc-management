@@ -74,7 +74,7 @@ export interface InvoiceLister {
     contractId: string,
     input: ManualAdjustmentInput,
     actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'running' }>;
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }>;
 
   finalize(
     contractId: string,
@@ -453,7 +453,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     contractId: string,
     input: ManualAdjustmentInput,
     actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'running' }> {
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }> {
     return this.prisma.$transaction(
       async (tx) => {
         await this.lockContract(tx, contractId);
@@ -478,7 +478,8 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
           select: INVOICE_ADJUSTMENT_SELECT,
         });
 
-        return { ...adjustmentDto(saved), invoiceStatus: 'running' };
+        // Still running in the database; the API names it as the pipeline does.
+        return { ...adjustmentDto(saved), invoiceStatus: 'accruing' };
       },
       { isolationLevel: 'ReadCommitted' },
     );
