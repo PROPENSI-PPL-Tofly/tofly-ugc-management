@@ -1,4 +1,5 @@
 import type { Bucket } from '@google-cloud/storage';
+import { inlineDisposition } from './open-file-response.js';
 import {
   assertStorageKey,
   type FileDescription,
@@ -11,14 +12,6 @@ const LINK_LIFETIME_MS = 15 * 60_000;
 
 /** The calls this adapter makes on a Cloud Storage bucket, so tests can stub exactly those. */
 export type GcsBucket = Pick<Bucket, 'file'>;
-
-/** RFC 5987 encoding for filename*=: encodeURIComponent leaves ' ( ) * as they are. */
-function encodeHeaderValue(value: string): string {
-  return encodeURIComponent(value).replaceAll(
-    /['()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-}
 
 /**
  * Files in a private Cloud Storage bucket. The browser reads one through a V4 signed link made
@@ -51,7 +44,7 @@ export class GcsFileStore implements FileStore {
       version: 'v4',
       action: 'read',
       expires: new Date(this.now().getTime() + LINK_LIFETIME_MS),
-      responseDisposition: `inline; filename*=UTF-8''${encodeHeaderValue(fileName)}`,
+      responseDisposition: inlineDisposition(fileName),
       responseType: contentType,
     });
     return { kind: 'redirect', url };

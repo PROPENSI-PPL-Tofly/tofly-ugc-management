@@ -127,7 +127,7 @@ describe('InvoicePaymentsController', () => {
     // OWASP Top 10:2025 A06 (Insecure Design): multer stops reading at the first limit, and
     // every way a form can be wrong answers in the admin's words, as 422, never a raw 400/413.
     describe('refuses', () => {
-      it('a contract id that is not a UUID, before reading the upload', async () => {
+      it('a contract id that is not a UUID, before the service hears of it', async () => {
         await upload('not-a-uuid').attach('file', PDF, 'a.pdf').expect(400);
         expect(proofs.upload).not.toHaveBeenCalled();
       });
