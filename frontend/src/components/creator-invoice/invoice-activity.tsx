@@ -77,6 +77,8 @@ export function InvoiceActivity({
           maxLength={COMMENT_MAX_LENGTH}
           rows={3}
           aria-describedby={countId}
+          // Locked while sending: success empties the field, and must not take what was typed since.
+          disabled={busy}
           placeholder="Tulis komentar untuk Admin..."
           onChange={(event) => setText(event.target.value)}
           className="w-full resize-y rounded-(--radius-control) border border-rule bg-surface px-3 py-2 text-[13px] focus-visible:border-focus focus-visible:outline-none"
