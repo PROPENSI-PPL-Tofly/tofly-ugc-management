@@ -388,6 +388,23 @@ describe('savedSnapshot', () => {
     expect(savedSnapshot(complete)).toBe(complete);
   });
 
+  it('reads back the formula kept with a snapshot, or a null one', () => {
+    // As the jsonb column hands it back: plain JSON, not a RateFormula.
+    const formula = {
+      latePenaltyPerDay: 15_000,
+      maxPenaltyDays: 3,
+      specificBonus: 100_000,
+      performanceBonus: {
+        tiktok: { metric: 'likes', tiers: [{ threshold: 1_000, bonus: 50_000 }] },
+      },
+    };
+    const withFormula = { ...complete, formula };
+    const withoutOne = { ...complete, formula: null };
+
+    expect(savedSnapshot(withFormula)).toBe(withFormula);
+    expect(savedSnapshot(withoutOne)).toBe(withoutOne);
+  });
+
   it('reads no snapshot for an invoice that has none', () => {
     expect(savedSnapshot(null)).toBeNull();
   });
@@ -405,6 +422,7 @@ describe('savedSnapshot', () => {
     ['no total', { ...complete, total: undefined }],
     ['no floored flag', { ...complete, floored: undefined }],
     ['no finalization time', { ...complete, finalizedAt: undefined }],
+    ['a formula that is not an object', { ...complete, formula: 'FORMULA' }],
   ])('reads a saved value with %s as no usable snapshot', (_case, value) => {
     expect(savedSnapshot(value)).toBeNull();
   });

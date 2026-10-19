@@ -617,6 +617,42 @@ describe('InvoicesService', () => {
       await expect(service.detail('creator-1', TODAY)).resolves.toBeNull();
       expect(prisma.contents.findMany).not.toHaveBeenCalled();
     });
+
+    // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): a finalized invoice's rules
+    // are the ones its saved totals were worked out with, whatever the formula is now.
+    describe('a finalized invoice', () => {
+      const atFinalization = { ...FORMULA, latePenaltyPerDay: 5_000, specificBonus: 250_000 };
+
+      beforeEach(() => {
+        pipeline = { 'contract-1': 'finalized' };
+        prisma.creators.findUnique.mockResolvedValue(row());
+      });
+
+      it('answers the formula saved with its snapshot, not the current one', async () => {
+        const snapshot = { ...snapshotOf(5_500_000), formula: atFinalization };
+        persist([{ id: 'invoice-1', contract_id: 'contract-1', snapshot, adjustments: [] }]);
+
+        const detail = await service.detail('creator-1', TODAY);
+
+        expect(detail).toMatchObject({ formula: atFinalization, snapshot, total: 5_500_000 });
+      });
+
+      it('answers no formula for a snapshot saved before formulas were kept with it', async () => {
+        persist([{ id: 'invoice-1', contract_id: 'contract-1', snapshot: snapshotOf(5_500_000), adjustments: [] }]);
+
+        const detail = await service.detail('creator-1', TODAY);
+
+        expect(detail).toMatchObject({ formula: null, total: 5_500_000 });
+      });
+
+      it('answers a formula of null kept with a snapshot finalized while none was saved', async () => {
+        persist([
+          { id: 'invoice-1', contract_id: 'contract-1', snapshot: { ...snapshotOf(5_500_000), formula: null }, adjustments: [] },
+        ]);
+
+        await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({ formula: null });
+      });
+    });
   });
 
   it('reads the saved status and adjustments of each invoice on the page', async () => {
@@ -938,6 +974,21 @@ describe('InvoicesService', () => {
           finalized_at: new Date(result.snapshot.finalizedAt),
         },
       });
+    });
+
+    // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the rules the totals were
+    // worked out with are saved with them, so a later formula change cannot be shown beside them.
+    it('saves the formula the breakdown was calculated with in the snapshot', async () => {
+      const { snapshot } = await service.finalize('contract-1', TODAY);
+
+      expect(snapshot.formula).toEqual(FORMULA);
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            snapshot: expect.objectContaining({ formula: FORMULA }),
+          }),
+        }),
+      );
     });
 
     // The instant the breakdown is calculated as of is the instant the invoice is finalized at,
