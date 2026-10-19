@@ -13,7 +13,7 @@ describe("CreatorNav", () => {
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
-  it("leads to the Dashboard first, then Task Saya", () => {
+  it("leads to the Dashboard first, then Task Saya, then Pembayaran", () => {
     vi.mocked(usePathname).mockReturnValue("/creator/tasks");
 
     render(<CreatorNav />);
@@ -21,6 +21,7 @@ describe("CreatorNav", () => {
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Dashboard",
       "Task Saya",
+      "Pembayaran",
     ]);
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
@@ -69,6 +70,16 @@ describe("CreatorNav", () => {
       );
     },
   );
+
+  it("leads to Pembayaran and marks it as current there", () => {
+    vi.mocked(usePathname).mockReturnValue("/creator/payments");
+
+    render(<CreatorNav />);
+
+    const link = screen.getByRole("link", { name: "Pembayaran" });
+    expect(link).toHaveAttribute("href", "/creator/payments");
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
 
   // "/creator/tasks-archive" shares the prefix but is not below the page.
   it.each(["/creator", "/creator/tasks-archive"])("leaves Task Saya plain on %s", (path) => {
