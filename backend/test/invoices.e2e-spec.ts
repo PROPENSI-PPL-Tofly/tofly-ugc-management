@@ -995,6 +995,101 @@ describe('Invoices API (e2e)', () => {
     ).toEqual({ status: 'finalized' });
   });
 
+  // OWASP Top 10:2025 A01 and A06 — a renewed creator's earlier invoice is still listed, can be
+  // finalized and stays listed after, and its detail is reached through that creator alone.
+  it("lists a renewed creator's earlier ended contract as its own row, through finalizing it", async () => {
+    const user = await prisma.users.create({
+      data: { email: `${MARKER}-renewed@example.com` },
+    });
+    const name = `${MARKER} Renewed`;
+    const creatorRow = await prisma.creators.create({
+      data: {
+        user_id: user.id,
+        first_name: name,
+        contracts: {
+          create: [
+            {
+              start_date: day(-200),
+              end_date: day(-40),
+              contract_type: 'regular',
+              days_between: 14,
+              content_quota: 1,
+              fixed_rate: 1_000_000,
+              contents: {
+                create: {
+                  name: `${MARKER} renewed evergreen`,
+                  type: 'evergreen',
+                  deadline: day(-50),
+                  status: 'link_submitted',
+                  video_link: 'https://example.com/renewed-evergreen',
+                  video_submitted_at: day(-50),
+                  platform: 'instagram',
+                  views: 0,
+                },
+              },
+            },
+            {
+              start_date: day(-30),
+              end_date: day(150),
+              contract_type: 'regular',
+              days_between: 14,
+              content_quota: 1,
+              fixed_rate: 2_000_000,
+            },
+          ],
+        },
+      },
+      select: {
+        id: true,
+        contracts: { select: { id: true }, orderBy: { start_date: 'asc' } },
+      },
+    });
+    const [earlier, current] = creatorRow.contracts;
+    const listed = async () =>
+      (await admin.get('/invoices').query({ q: name }).expect(200)).body.items.map(
+        (item: { contract: { id: string; period: number }; invoiceStatus: string }) => [
+          item.contract.id,
+          item.contract.period,
+          item.invoiceStatus,
+        ],
+      );
+
+    expect(await listed()).toEqual([
+      [earlier.id, 1, 'accruing'],
+      [current.id, 2, 'accruing'],
+    ]);
+
+    await admin.post(`/invoices/${earlier.id}/finalize`).expect(201);
+
+    expect(await listed()).toEqual([
+      [earlier.id, 1, 'finalized'],
+      [current.id, 2, 'accruing'],
+    ]);
+
+    const { body: detail } = await admin
+      .get(`/invoices/${creatorRow.id}`)
+      .query({ contract: earlier.id })
+      .expect(200);
+    expect(detail).toMatchObject({
+      contract: { id: earlier.id, period: 1 },
+      periodNumber: 1,
+      invoiceStatus: 'finalized',
+    });
+
+    const other = await prisma.contracts.findFirstOrThrow({
+      where: { creator_id: { not: creatorRow.id } },
+      select: { id: true },
+    });
+    await admin
+      .get(`/invoices/${creatorRow.id}`)
+      .query({ contract: other.id })
+      .expect(404);
+    await admin
+      .get(`/invoices/${creatorRow.id}`)
+      .query({ contract: 'not-a-uuid' })
+      .expect(400);
+  });
+
   // OWASP Top 10:2025 A06 and A08 — a bonus still waiting for performance data is frozen only once
   // the admin accepts it, and the snapshot keeps that it was.
   it('freezes a bonus still waiting for performance data only after the admin accepts it', async () => {
