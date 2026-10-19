@@ -195,7 +195,7 @@ describe('InvoicesController', () => {
 
     // OWASP Top 10:2025 A01 — actor identity must come from the authenticated principal.
     it('records the adjustment as the signed-in admin with the checked body', async () => {
-      const saved = { id: 'adj-1', invoiceStatus: 'running' };
+      const saved = { id: 'adj-1', invoiceStatus: 'accruing' };
       service.addAdjustment.mockResolvedValue(saved);
 
       await expect(

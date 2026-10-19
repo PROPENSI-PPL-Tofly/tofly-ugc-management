@@ -224,7 +224,7 @@ describe('Invoices API (e2e)', () => {
       amount,
       reason: expectedReason,
       actorId: adminId,
-      invoiceStatus: 'running',
+      invoiceStatus: 'accruing',
     });
 
     expect(typeof body.createdAt).toBe('string');

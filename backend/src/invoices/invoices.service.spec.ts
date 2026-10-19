@@ -842,7 +842,7 @@ describe('InvoicesService', () => {
         reason: 'Reason adj-1',
         actorId: 'admin-1',
         createdAt: '2026-09-10T02:00:00.000Z',
-        invoiceStatus: 'running',
+        invoiceStatus: 'accruing',
       });
       expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
         isolationLevel: 'ReadCommitted',
