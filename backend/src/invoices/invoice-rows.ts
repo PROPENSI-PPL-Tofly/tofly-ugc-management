@@ -177,6 +177,48 @@ export function adjustedTotals(
   };
 }
 
+const SNAPSHOT_COMPONENTS = [
+  'fixedRate',
+  'additionalContent',
+  'performanceBonus',
+  'penalty',
+] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isComponent(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.amount === null || typeof value.amount === 'number') &&
+    typeof value.status === 'string' &&
+    Array.isArray(value.lines)
+  );
+}
+
+function isSnapshot(value: unknown): value is InvoiceSnapshotDto {
+  return (
+    isRecord(value) &&
+    SNAPSHOT_COMPONENTS.every((key) => isComponent(value[key])) &&
+    Array.isArray(value.adjustments) &&
+    typeof value.rawTotal === 'number' &&
+    typeof value.total === 'number' &&
+    typeof value.floored === 'boolean' &&
+    typeof value.finalizedAt === 'string'
+  );
+}
+
+/**
+ * The snapshot saved in invoices.snapshot, or null when there is none or it does not hold the
+ * whole final breakdown and totals; the invoice is then calculated live, as before finalizing.
+ */
+export function savedSnapshot(
+  value: Prisma.JsonValue | null,
+): InvoiceSnapshotDto | null {
+  return isSnapshot(value) ? value : null;
+}
+
 /** What the invoices table holds for an invoice besides where it stands in the pipeline. */
 export interface SavedInvoice {
   adjustments: InvoiceAdjustmentDto[];

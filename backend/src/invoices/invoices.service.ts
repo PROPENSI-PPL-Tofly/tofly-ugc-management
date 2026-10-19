@@ -27,6 +27,7 @@ import {
   type InvoiceCreatorRow,
   periodNumber,
   type SavedInvoice,
+  savedSnapshot,
   pickContract,
   toInvoiceContent,
   toInvoiceContract,
@@ -350,7 +351,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     for (const invoice of persisted) {
       result.set(invoice.contract_id, {
         adjustments: invoice.adjustments.map(adjustmentDto),
-        snapshot: invoice.snapshot as unknown as InvoiceSnapshotDto | null,
+        snapshot: savedSnapshot(invoice.snapshot),
       });
     }
 
@@ -373,7 +374,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         invoice.contract_id,
         {
           id: invoice.id,
-          snapshot: invoice.snapshot as unknown as InvoiceSnapshotDto | null,
+          snapshot: savedSnapshot(invoice.snapshot),
         },
       ]),
     );
