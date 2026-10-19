@@ -206,6 +206,40 @@ describe('toInvoiceItem', () => {
     expect(item).toMatchObject({ rawTotal: 0.8, total: 0.8, floored: false });
   });
 
+  // The listing sums adjustments in the database and reads their rows for its page only.
+  it('totals with the adjustment sum it is given rather than the rows it lists', () => {
+    const unpaid = contractRow({ fixed_rate: new Prisma.Decimal('0') });
+    const item = toInvoiceItem(
+      creatorRow({ contracts: [unpaid] }),
+      unpaid,
+      [],
+      FORMULA,
+      TODAY,
+      {
+        adjustments: [],
+        adjustmentTotal: new Prisma.Decimal('-1500.25'),
+        snapshot: null,
+      },
+    );
+
+    expect(item).toMatchObject({
+      adjustments: [],
+      rawTotal: -1500.25,
+      total: 0,
+      floored: true,
+    });
+  });
+
+  it('reads a null adjustment sum, a sum over no rows, as no adjustments', () => {
+    const item = toInvoiceItem(creatorRow(), contractRow(), [], FORMULA, TODAY, {
+      adjustments: [],
+      adjustmentTotal: null,
+      snapshot: null,
+    });
+
+    expect(item).toMatchObject({ rawTotal: 5_500_000, total: 5_500_000 });
+  });
+
   it('holds a running total at zero when a negative adjustment outweighs the pay', () => {
     const item = toInvoiceItem(
       creatorRow(),
