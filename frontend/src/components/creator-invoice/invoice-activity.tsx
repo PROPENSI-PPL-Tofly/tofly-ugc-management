@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import {
   COMMENT_MAX_LENGTH,
-  CREATOR_REFUSALS,
   instantDay,
   invoiceActivity,
   validateComment,
@@ -13,6 +12,7 @@ import {
 } from "@/lib/creator-invoice";
 import { addInvoiceComment } from "@/lib/creator-invoice-actions.server";
 import { formatTimestamp } from "@/lib/format";
+import { useCreatorMove } from "./use-creator-move";
 
 /**
  * An invoice's Aktivitas & Komentar (PBI-13, subtask 13.3): every step it reached and every
@@ -30,27 +30,18 @@ export function InvoiceActivity({
 }>) {
   const entries = invoiceActivity(invoice);
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const { busy, refusal, run } = useCreatorMove();
   const fieldId = useId();
   const countId = useId();
 
-  async function send() {
-    setBusy(true);
-    setRefusal(null);
-    try {
-      const outcome = await addInvoiceComment(invoice.contractId, text);
-      if (outcome.ok) {
+  function send() {
+    return run(
+      () => addInvoiceComment(invoice.contractId, text),
+      () => {
         setText("");
         onCommented();
-        return;
-      }
-      setRefusal(outcome.message);
-    } catch {
-      setRefusal(CREATOR_REFUSALS.GENERIC);
-    } finally {
-      setBusy(false);
-    }
+      },
+    );
   }
 
   return (

@@ -3,12 +3,13 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { CREATOR_REFUSALS, type CreatorInvoiceAction } from "@/lib/creator-invoice";
+import type { CreatorInvoiceAction } from "@/lib/creator-invoice";
 import {
   acknowledgeInvoice,
   confirmInvoicePayment,
   type CreatorMoveOutcome,
 } from "@/lib/creator-invoice-actions.server";
+import { useCreatorMove } from "./use-creator-move";
 
 /** Each move in the prototype's words, and the server action that makes it. */
 const MOVES: Record<
@@ -59,31 +60,22 @@ export function InvoiceMove({
 }>) {
   const move = MOVES[action];
   const [asking, setAsking] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const { busy, refusal, run, clear } = useCreatorMove();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   function close() {
     setAsking(false);
-    setRefusal(null);
+    clear();
   }
 
-  async function send() {
-    setBusy(true);
-    setRefusal(null);
-    try {
-      const outcome = await move.send(contractId);
-      if (outcome.ok) {
+  function send() {
+    return run(
+      () => move.send(contractId),
+      () => {
         close();
         onDone(move.done);
-        return;
-      }
-      setRefusal(outcome.message);
-    } catch {
-      setRefusal(CREATOR_REFUSALS.GENERIC);
-    } finally {
-      setBusy(false);
-    }
+      },
+    );
   }
 
   return (
