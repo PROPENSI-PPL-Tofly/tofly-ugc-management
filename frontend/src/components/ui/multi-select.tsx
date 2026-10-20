@@ -29,6 +29,35 @@ const CHIP =
   "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
 
 /**
+ * A filter shown as a chip that takes itself off when pressed. The multi-select's picks use it,
+ * and so does the folded phone filter bar's row of active filters.
+ */
+export function FilterChip({
+  text,
+  removeLabel,
+  onRemove,
+  wrap = false,
+}: Readonly<{
+  text: string;
+  removeLabel: string;
+  onRemove: () => void;
+  /** Wraps a long text instead of cutting it off, where the chip is all that names the filter. */
+  wrap?: boolean;
+}>) {
+  return (
+    <button
+      type="button"
+      aria-label={removeLabel}
+      onClick={onRemove}
+      className={`${CHIP} cursor-pointer hover:border-ink-2`}
+    >
+      <span className={wrap ? "min-w-0 text-left" : "max-w-40 truncate"}>{text}</span>
+      <span aria-hidden="true">×</span>
+    </button>
+  );
+}
+
+/**
  * A multi-select whose choices read as chips: the popup holds the checkboxes, and each pick
  * becomes a chip the admin can drop on its own, so narrowing one list never means starting
  * the whole filter over. Shared vocabulary for every filter bar that needs more than one
@@ -163,16 +192,12 @@ export function MultiSelect({
       </span>
 
       {selected.map((value) => (
-        <button
+        <FilterChip
           key={value}
-          type="button"
-          aria-label={`Hapus filter ${label}: ${labelFor(value)}`}
-          onClick={() => toggle(value)}
-          className={`${CHIP} cursor-pointer hover:border-ink-2`}
-        >
-          <span className="max-w-40 truncate">{labelFor(value)}</span>
-          <span aria-hidden="true">×</span>
-        </button>
+          text={labelFor(value)}
+          removeLabel={`Hapus filter ${label}: ${labelFor(value)}`}
+          onRemove={() => toggle(value)}
+        />
       ))}
     </div>
   );

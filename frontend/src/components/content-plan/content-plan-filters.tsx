@@ -1,12 +1,16 @@
 "use client";
 
 import {
+  FilterBar,
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
   ResetFilters,
   SearchBox,
   offeredPicks,
+  overdueFilter,
+  periodFilter,
+  pickFilters,
 } from "@/components/filters/filter-controls";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
@@ -67,22 +71,43 @@ export function ContentPlanFilters({
 
   const from = param("from") === "all" ? "" : param("from");
   const to = param("to") === "all" ? "" : param("to");
+  const creatorPicks = pickedCreators();
+  const types = offeredPicks(listParam("type"), typeOptions);
+  const statuses = offeredPicks(listParam("status"), statusOptions);
+  const periodIgnored = state.tab === "action" && param("period") !== "all";
+
+  // What the folded phone bar names, in the order of the controls.
+  const active = [
+    ...pickFilters("Creator", creatorPicks, creatorOptions, (next) => setListParam("creator", next)),
+    ...pickFilters("Tipe", types, typeOptions, (next) => setListParam("type", next)),
+    ...(statusOptions.length > 1
+      ? pickFilters("Status", statuses, statusOptions, (next) => setListParam("status", next))
+      : []),
+    ...(state.tab === "done" ? [] : overdueFilter(param("overdue"), () => setParam("overdue", "all"))),
+    ...periodFilter(param("period"), from, to, periodIgnored, () => {
+      setParam("period", "all");
+      setParam("from", "");
+      setParam("to", "");
+    }),
+  ];
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
-      <SearchBox label="Cari konten atau creator" value={search} onChange={setSearch} />
-
+    <FilterBar
+      search={<SearchBox label="Cari konten atau creator" value={search} onChange={setSearch} />}
+      active={active}
+      reset={isFilteredNow ? <ResetFilters onReset={resetKeepingTab} disabled={pending} /> : null}
+    >
       <MultiSelect
         label="Creator"
         options={creatorOptions}
-        selected={pickedCreators()}
+        selected={creatorPicks}
         onChange={(next) => setListParam("creator", next)}
       />
 
       <MultiSelect
         label="Tipe"
         options={typeOptions}
-        selected={offeredPicks(listParam("type"), typeOptions)}
+        selected={types}
         onChange={(next) => setListParam("type", next)}
       />
 
@@ -90,7 +115,7 @@ export function ContentPlanFilters({
         <MultiSelect
           label="Status"
           options={statusOptions}
-          selected={offeredPicks(listParam("status"), statusOptions)}
+          selected={statuses}
           onChange={(next) => setListParam("status", next)}
         />
       ) : null}
@@ -109,11 +134,9 @@ export function ContentPlanFilters({
         period={param("period")}
         from={from}
         to={to}
-        ignored={state.tab === "action" && param("period") !== "all"}
+        ignored={periodIgnored}
         onChange={setParam}
       />
-
-      {isFilteredNow ? <ResetFilters onReset={resetKeepingTab} disabled={pending} /> : null}
-    </div>
+    </FilterBar>
   );
 }

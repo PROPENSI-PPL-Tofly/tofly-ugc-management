@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
+import { FilterChip } from "@/components/ui/multi-select";
 import { formatContractWindow, formatDate } from "@/lib/format";
 import { list } from "@/lib/search-params";
 import { MAX_SEARCH_LENGTH } from "@/lib/use-url-filters";
@@ -253,19 +254,77 @@ export function ResetFilters({
   );
 }
 
-/** One filter in effect, as the folded phone bar is to name it. */
+/** One active filter as the folded bar names it, with the press that takes it off. */
 export interface ActiveFilter {
   id: string;
   text: string;
   onRemove: () => void;
 }
 
+/** Each pick of a multi-select as its own active filter: "Tipe: Evergreen". */
+export function pickFilters(
+  group: string,
+  picks: readonly string[],
+  options: readonly FilterOption[],
+  onChange: (next: string[]) => void,
+): ActiveFilter[] {
+  return picks.map((value) => ({
+    id: `${group}:${value}`,
+    text: `${group}: ${options.find((option) => option.value === value)?.label ?? value}`,
+    onRemove: () => onChange(picks.filter((pick) => pick !== value)),
+  }));
+}
+
+/** The Overdue choice, under the select's own words for it. */
+export function overdueFilter(value: string, onRemove: () => void): ActiveFilter[] {
+  const option = OVERDUE_OPTIONS.find((candidate) => candidate.value === value);
+  return value === "all" || !option ? [] : [{ id: "overdue", text: option.label, onRemove }];
+}
+
+/** A custom range in words, read the right way round as the list reads it. */
+function rangeChip(from: string, to: string): string {
+  if (from && to) {
+    return `Deadline ${from > to ? formatContractWindow(to, from) : formatContractWindow(from, to)}`;
+  }
+  if (from) return `Deadline mulai ${formatDate(from)}`;
+  if (to) return `Deadline sampai ${formatDate(to)}`;
+  return "Periode: Pilih tanggal";
+}
+
 /**
- * Stub until the folded phone bar lands: every control in one wrapping row, as each list's bar
- * draws it today, with no Filter button and no chips, so the tests that pin both run and fail.
+ * The period: a named one, or the custom range in words. Taking it off is the caller's, since
+ * it clears the custom days too. `ignored` says the open tab does not narrow by period.
+ */
+export function periodFilter(
+  period: string,
+  from: string,
+  to: string,
+  ignored: boolean,
+  onRemove: () => void,
+): ActiveFilter[] {
+  const option = PERIOD_OPTIONS.find((candidate) => candidate.value === period);
+  if (period === "all" || !option) return [];
+
+  const text = period === "custom" ? rangeChip(from, to) : `Periode: ${option.label}`;
+  return [{ id: "period", text: ignored ? `${text} (tidak berlaku di tab ini)` : text, onRemove }];
+}
+
+// mr-auto sends Reset to the far end of the button's row on a phone.
+const TOGGLE =
+  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink hover:border-ink max-sm:mr-auto sm:hidden";
+
+const TOGGLE_COUNT = "rounded-full bg-accent-wash px-1.5 text-[11px] font-semibold text-accent-deep";
+
+/**
+ * A list's filter bar. From sm up every control sits in one wrapping row, as it always has. On
+ * a phone the controls fold behind one Filter button that counts what is active, so the list
+ * starts sooner, and while folded each active filter stays in sight as a chip that takes off
+ * only itself. Open, the controls show their own state and the chips step aside, so nothing is
+ * said twice. The search and Reset stay outside the fold.
  */
 export function FilterBar({
   search,
+  active,
   reset,
   children,
 }: Readonly<{
@@ -274,11 +333,48 @@ export function FilterBar({
   reset: ReactNode;
   children: ReactNode;
 }>) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
+    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3 max-sm:gap-2">
       {search}
-      {children}
+
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        // The count is read as a count, not as a bare number after the word.
+        aria-label={active.length > 0 ? `Filter, ${active.length} aktif` : undefined}
+        onClick={() => setOpen(!open)}
+        className={TOGGLE}
+      >
+        Filter
+        {active.length > 0 ? <span className={TOGGLE_COUNT}>{active.length}</span> : null}
+      </button>
+
+      {/* display: contents keeps the controls in the bar's own row from sm up. */}
+      <div id={panelId} className={open ? "contents" : "contents max-sm:hidden"}>
+        {children}
+      </div>
+
       {reset}
+
+      {/* A row of its own under the button, so each chip keeps its words together. */}
+      {!open && active.length > 0 ? (
+        <ul aria-label="Filter aktif" className="flex min-w-0 basis-full flex-wrap gap-1.5 sm:hidden">
+          {active.map((filter) => (
+            <li key={filter.id} className="max-w-full">
+              <FilterChip
+                text={filter.text}
+                removeLabel={`Hapus ${filter.text}`}
+                onRemove={filter.onRemove}
+                wrap
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

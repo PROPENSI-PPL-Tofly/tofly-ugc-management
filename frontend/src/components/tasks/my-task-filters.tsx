@@ -1,12 +1,16 @@
 "use client";
 
 import {
+  FilterBar,
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
   ResetFilters,
   SearchBox,
   offeredPicks,
+  overdueFilter,
+  periodFilter,
+  pickFilters,
 } from "@/components/filters/filter-controls";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_TYPE_LABELS } from "@/lib/content-labels";
@@ -55,15 +59,46 @@ export function MyTaskFilters({
     param("period") !== "all";
 
   const day = (key: string) => (param(key) === "all" ? "" : param(key));
+  const types = offeredPicks(listParam("type"), TYPE_OPTIONS);
+  const statuses = offeredPicks(listParam("status"), statusOptions);
+  const periodIgnored = state.tab === PERIOD_FREE_MY_TAB && param("period") !== "all";
+
+  // What the folded phone bar names, in the order of the controls.
+  const active = [
+    ...pickFilters("Tipe", types, TYPE_OPTIONS, (next) => setParam("type", next.join(","))),
+    ...(statusOptions.length > 1
+      ? pickFilters("Status", statuses, statusOptions, (next) => setParam("status", next.join(",")))
+      : []),
+    ...(state.tab === "done" ? [] : overdueFilter(param("overdue"), () => setParam("overdue", "all"))),
+    ...periodFilter(param("period"), day("from"), day("to"), periodIgnored, () => {
+      setParam("period", "all");
+      setParam("from", "");
+      setParam("to", "");
+    }),
+  ];
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
-      <SearchBox label="Cari judul konten" value={search} onChange={setSearch} />
-
+    <FilterBar
+      search={<SearchBox label="Cari judul konten" value={search} onChange={setSearch} />}
+      active={active}
+      reset={
+        isFilteredNow ? (
+          <ResetFilters
+            onReset={() =>
+              resetKeeping({
+                ...(state.tab === "all" ? {} : { tab: state.tab }),
+                ...taskViewParams(view),
+              })
+            }
+            disabled={pending}
+          />
+        ) : null
+      }
+    >
       <MultiSelect
         label="Tipe"
         options={TYPE_OPTIONS}
-        selected={offeredPicks(listParam("type"), TYPE_OPTIONS)}
+        selected={types}
         onChange={(next) => setParam("type", next.join(","))}
       />
 
@@ -71,7 +106,7 @@ export function MyTaskFilters({
         <MultiSelect
           label="Status"
           options={statusOptions}
-          selected={offeredPicks(listParam("status"), statusOptions)}
+          selected={statuses}
           onChange={(next) => setParam("status", next.join(","))}
         />
       ) : null}
@@ -89,21 +124,9 @@ export function MyTaskFilters({
         period={param("period")}
         from={day("from")}
         to={day("to")}
-        ignored={state.tab === PERIOD_FREE_MY_TAB && param("period") !== "all"}
+        ignored={periodIgnored}
         onChange={setParam}
       />
-
-      {isFilteredNow ? (
-        <ResetFilters
-          onReset={() =>
-            resetKeeping({
-              ...(state.tab === "all" ? {} : { tab: state.tab }),
-              ...taskViewParams(view),
-            })
-          }
-          disabled={pending}
-        />
-      ) : null}
-    </div>
+    </FilterBar>
   );
 }
