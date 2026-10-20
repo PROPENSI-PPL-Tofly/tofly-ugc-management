@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+import { formatContractWindow, formatDate } from "@/lib/format";
 import { list } from "@/lib/search-params";
 import { MAX_SEARCH_LENGTH } from "@/lib/use-url-filters";
 
@@ -95,15 +97,28 @@ export function FilterSelect({
 function DayField({
   label,
   value,
+  min,
+  max,
+  describedBy,
   onChange,
-}: Readonly<{ label: string; value: string; onChange: (value: string) => void }>) {
+}: Readonly<{
+  label: string;
+  value: string;
+  min?: string;
+  max?: string;
+  describedBy: string;
+  onChange: (value: string) => void;
+}>) {
   return (
-    <label className={LABEL}>
+    <label className={`${LABEL} max-sm:flex-1 max-sm:flex-col max-sm:items-stretch max-sm:gap-1`}>
       <span className="text-muted">{label}</span>
       <input
         type="date"
         aria-label={label}
+        aria-describedby={describedBy}
         value={value}
+        min={min || undefined}
+        max={max || undefined}
         onChange={(event) => onChange(event.target.value)}
         className={FILTER_FIELD}
       />
@@ -112,9 +127,82 @@ function DayField({
 }
 
 /**
- * The deadline period: a named period, or Dari/Sampai once "Pilih tanggal…" is picked. Every
- * change comes back under the URL key it belongs to. `ignored` says the open tab never narrows
- * by period, so nobody wonders why the period changed nothing there.
+ * Which deadlines a custom range shows, in words. A range picked backwards is read the right way
+ * round by the list (periodRange), and says so here rather than leaving the admin to wonder.
+ */
+function rangeSummary(from: string, to: string): string {
+  if (from && to) {
+    return from > to
+      ? `Deadline mulai jatuh setelah deadline sampai, jadi dibaca ${formatContractWindow(to, from)}`
+      : `Deadline ${formatContractWindow(from, to)}`;
+  }
+  if (from) return `Deadline mulai ${formatDate(from)}`;
+  if (to) return `Deadline sampai ${formatDate(to)}`;
+  return "Pilih salah satu atau kedua tanggal";
+}
+
+/**
+ * The custom days, named for the deadlines they bound and grouped as one range. Each picker
+ * stops at the other day, the line beneath says what is shown, and one press clears both.
+ * Stacked on a phone, so neither picker is squeezed.
+ */
+function DeadlineRange({
+  from,
+  to,
+  onChange,
+}: Readonly<{
+  from: string;
+  to: string;
+  onChange: (key: "from" | "to", value: string) => void;
+}>) {
+  const summaryId = useId();
+
+  return (
+    <fieldset className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-0 p-0 max-sm:w-full">
+      <legend className="float-left mr-1 text-[13px] font-semibold text-ink-2 max-sm:mb-1 max-sm:w-full">
+        Rentang deadline
+      </legend>
+      <DayField
+        label="Deadline mulai"
+        value={from}
+        max={to}
+        describedBy={summaryId}
+        onChange={(value) => onChange("from", value)}
+      />
+      <DayField
+        label="Deadline sampai"
+        value={to}
+        min={from}
+        describedBy={summaryId}
+        onChange={(value) => onChange("to", value)}
+      />
+      {from || to ? (
+        <button
+          type="button"
+          onClick={() => {
+            onChange("from", "");
+            onChange("to", "");
+          }}
+          className="cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          Kosongkan tanggal
+        </button>
+      ) : null}
+      <p
+        id={summaryId}
+        role="status"
+        className={`basis-full text-xs ${from && to && from > to ? "text-amber-ink" : "text-muted"}`}
+      >
+        {rangeSummary(from, to)}
+      </p>
+    </fieldset>
+  );
+}
+
+/**
+ * The deadline period: a named period, or a deadline range once "Pilih tanggal…" is picked.
+ * Every change comes back under the URL key it belongs to. `ignored` says the open tab never
+ * narrows by period, so nobody wonders why the period changed nothing there.
  */
 export function PeriodFilter({
   period,
@@ -138,12 +226,7 @@ export function PeriodFilter({
         onChange={(value) => onChange("period", value)}
       />
 
-      {period === "custom" ? (
-        <>
-          <DayField label="Dari" value={from} onChange={(value) => onChange("from", value)} />
-          <DayField label="Sampai" value={to} onChange={(value) => onChange("to", value)} />
-        </>
-      ) : null}
+      {period === "custom" ? <DeadlineRange from={from} to={to} onChange={onChange} /> : null}
 
       {/* amber-ink, not amber: the plain amber token is too light to read on white. */}
       {ignored ? (
