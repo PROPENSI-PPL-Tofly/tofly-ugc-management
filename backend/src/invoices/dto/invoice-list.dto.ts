@@ -5,6 +5,7 @@ import type {
 } from '../invoice-component.js';
 import type { InvoiceStatus } from '../invoice-status.js';
 import type { RateFormula } from '../rate-formula.js';
+import type { InvoiceConfirmationFields } from './invoice-confirmation.dto.js';
 import type { InvoicePaymentFields } from './invoice-payment.dto.js';
 
 /** One part of the invoice as the Rate & Invoicing table reads it. */
@@ -86,9 +87,11 @@ export interface InvoiceListItem extends CalculatedInvoice {
 }
 
 /**
- * One creator's invoice with the contract period and formula used for its calculation.
+ * One creator's invoice with the contract period and formula used for its calculation, and when
+ * the creator made their moves on it. Whose proof link it carries is up to whoever answers it.
  */
-export interface InvoiceDetail extends InvoiceListItem, InvoicePaymentFields {
+export interface InvoiceView
+  extends InvoiceListItem, InvoiceConfirmationFields {
   periodNumber: number;
   /**
    * The current formula while the invoice is calculated live; once finalized, the one saved with
@@ -96,6 +99,9 @@ export interface InvoiceDetail extends InvoiceListItem, InvoicePaymentFields {
    */
   formula: RateFormula | null;
 }
+
+/** The admin's view of one invoice: the breakdown popups and the Rincian panel. */
+export interface InvoiceDetail extends InvoiceView, InvoicePaymentFields {}
 
 /** Summary information across all invoices kept by the filters. */
 export interface InvoiceListSummary {
@@ -108,7 +114,7 @@ export interface InvoiceListSummary {
 }
 
 export interface InvoiceListResponse {
-  items: (InvoiceListItem & InvoicePaymentFields)[];
+  items: (InvoiceListItem & InvoicePaymentFields & InvoiceConfirmationFields)[];
   page: number;
   pageSize: number;
   total: number;
