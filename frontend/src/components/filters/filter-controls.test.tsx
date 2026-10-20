@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
+  FilterBar,
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
@@ -187,5 +188,96 @@ describe("ResetFilters", () => {
 
     rerender(<ResetFilters onReset={onReset} disabled />);
     expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+  });
+});
+
+// Measured on a phone (Task Saya, 320px): the search, Tipe, Status, Overdue and Periode each took
+// a row of their own, about 230px before the first task. Below sm the controls fold behind one
+// Filter button, and what is active stays in sight as chips that each take off one filter.
+describe("FilterBar", () => {
+  const ACTIVE = [
+    { id: "type:evergreen", text: "Tipe: Evergreen", onRemove: vi.fn() },
+    { id: "overdue", text: "Overdue", onRemove: vi.fn() },
+  ];
+
+  function renderBar(active = ACTIVE) {
+    render(
+      <FilterBar
+        search={<input type="search" aria-label="Cari" />}
+        active={active}
+        reset={<button type="button">Reset</button>}
+      >
+        <label>
+          Overdue <select aria-label="Overdue" />
+        </label>
+      </FilterBar>,
+    );
+    const toggle = screen.getByRole("button", { name: /^Filter/ });
+    const panel = document.getElementById(toggle.getAttribute("aria-controls") ?? "") as HTMLElement;
+    return { toggle, panel };
+  }
+
+  it("folds the controls behind a Filter button on a phone, and leaves the desktop bar as it is", () => {
+    const { toggle, panel } = renderBar();
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveClass("sm:hidden");
+    expect(panel).toContainElement(screen.getByLabelText("Overdue"));
+    expect(panel).toHaveClass("contents", "max-sm:hidden");
+  });
+
+  it("opens the controls on a press, and folds them again on the next", () => {
+    const { toggle, panel } = renderBar();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(panel).not.toHaveClass("max-sm:hidden");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(panel).toHaveClass("max-sm:hidden");
+  });
+
+  it("keeps the search and Reset outside the fold", () => {
+    const { panel } = renderBar();
+
+    expect(panel).not.toContainElement(screen.getByRole("searchbox", { name: "Cari" }));
+    expect(panel).not.toContainElement(screen.getByRole("button", { name: "Reset" }));
+  });
+
+  it("counts what is active on the Filter button and names each as a chip while folded", () => {
+    const { toggle } = renderBar();
+
+    expect(toggle).toHaveAccessibleName("Filter, 2 aktif");
+    const chips = screen.getByRole("list", { name: "Filter aktif" });
+    expect(chips).toHaveClass("sm:hidden");
+    expect(within(chips).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Tipe: Evergreen×",
+      "Overdue×",
+    ]);
+  });
+
+  it("takes off only the filter whose chip is pressed", () => {
+    renderBar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus Overdue" }));
+
+    expect(ACTIVE[1].onRemove).toHaveBeenCalledOnce();
+    expect(ACTIVE[0].onRemove).not.toHaveBeenCalled();
+  });
+
+  it("shows the chips only while folded, so an open bar does not say the same thing twice", () => {
+    const { toggle } = renderBar();
+
+    fireEvent.click(toggle);
+
+    expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+  });
+
+  it("says nothing is active when nothing is", () => {
+    const { toggle } = renderBar([]);
+
+    expect(toggle).toHaveAccessibleName("Filter");
+    expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
   });
 });

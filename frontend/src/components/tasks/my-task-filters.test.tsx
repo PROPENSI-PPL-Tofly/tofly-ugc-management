@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { DEFAULT_MY_TASKS_PARAMS, type MyTasksParams } from "@/lib/my-tasks";
 import { MyTaskFilters } from "./my-task-filters";
 
@@ -276,5 +276,89 @@ describe("MyTaskFilters", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
     expect(replace).toHaveBeenLastCalledWith("/creator/tasks", { scroll: false });
+  });
+
+  // On a phone the controls fold behind one Filter button (FilterBar); what is active stays in
+  // sight as one row of chips, each taking off only its own filter.
+  describe("active filters, folded on a phone", () => {
+    const NARROWED = {
+      type: "evergreen",
+      status: "scheduled,draft_revision",
+      overdue: "yes",
+      period: "custom",
+      from: "2026-12-03",
+      to: "2026-12-20",
+    };
+
+    function chips() {
+      return within(screen.getByRole("list", { name: "Filter aktif" }))
+        .getAllByRole("listitem")
+        .map((item) => item.textContent?.replace("×", ""));
+    }
+
+    it("names every active filter, each pick on its own, and counts them on the Filter button", () => {
+      renderOn(NARROWED, { period: "custom" });
+
+      expect(chips()).toEqual([
+        "Tipe: Evergreen",
+        "Status: Scheduled",
+        "Status: Draft Perlu Revisi",
+        "Overdue",
+        "Deadline 3 Des – 20 Des 2026",
+      ]);
+      expect(screen.getByRole("button", { name: "Filter, 5 aktif" })).toBeInTheDocument();
+    });
+
+    it("names a named period, and the search stays in its own box rather than as a chip", () => {
+      renderOn({ q: "serum", period: "month", overdue: "no" });
+
+      expect(chips()).toEqual(["Tidak overdue", "Periode: Bulan ini"]);
+    });
+
+    it("says a period the open tab does not use is not applied", () => {
+      renderOn({ tab: "action", period: "month" }, { tab: "action", period: "month" });
+
+      expect(chips()).toEqual(["Periode: Bulan ini (tidak berlaku di tab ini)"]);
+    });
+
+    it("takes off one status and keeps every other filter", () => {
+      renderOn(NARROWED, { period: "custom" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus Status: Scheduled" }));
+
+      expect(replace).toHaveBeenLastCalledWith(
+        "/creator/tasks?type=evergreen&status=draft_revision&overdue=yes&period=custom&from=2026-12-03&to=2026-12-20",
+        { scroll: false },
+      );
+    });
+
+    it("takes off the overdue filter alone", () => {
+      renderOn(NARROWED, { period: "custom" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus Overdue" }));
+
+      expect(replace).toHaveBeenLastCalledWith(
+        "/creator/tasks?type=evergreen&status=scheduled%2Cdraft_revision&period=custom&from=2026-12-03&to=2026-12-20",
+        { scroll: false },
+      );
+    });
+
+    it("takes off the deadline range with both of its days, keeping the tab and the rest", () => {
+      renderOn({ ...NARROWED, tab: "waiting" }, { tab: "waiting", period: "custom" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus Deadline 3 Des – 20 Des 2026" }));
+
+      expect(replace).toHaveBeenLastCalledWith(
+        "/creator/tasks?type=evergreen&status=scheduled%2Cdraft_revision&overdue=yes&tab=waiting",
+        { scroll: false },
+      );
+    });
+
+    it("shows no chip row while nothing is narrowed", () => {
+      renderOn({ q: "serum" });
+
+      expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Filter" })).toBeInTheDocument();
+    });
   });
 });

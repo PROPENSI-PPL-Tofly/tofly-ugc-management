@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ContentPlanParams } from "@/lib/content-plan";
 import { DEFAULT_CONTENT_PLAN_PARAMS } from "@/lib/content-plan";
 import { ContentPlanFilters } from "./content-plan-filters";
@@ -311,5 +311,32 @@ describe("ContentPlanFilters", () => {
 
     expect(screen.getByLabelText("Deadline mulai")).toHaveValue("2026-10-01");
     expect(screen.getByLabelText("Deadline sampai")).toHaveValue("2026-10-31");
+  });
+
+  describe("active filters, folded on a phone", () => {
+    it("names each picked creator, the type and the overdue filter as a chip", () => {
+      searchParams = new URLSearchParams({ creator: "id-1,id-2", type: "specific", overdue: "no" });
+      renderFilters();
+
+      const chips = within(screen.getByRole("list", { name: "Filter aktif" }));
+      expect(chips.getAllByRole("listitem").map((item) => item.textContent?.replace("×", ""))).toEqual([
+        "Creator: Salsa",
+        "Creator: Rangga",
+        "Tipe: Specific",
+        "Tidak overdue",
+      ]);
+      expect(screen.getByRole("button", { name: "Filter, 4 aktif" })).toBeInTheDocument();
+    });
+
+    it("takes off one creator and keeps the other picks", () => {
+      searchParams = new URLSearchParams({ creator: "id-1,id-2", type: "specific" });
+      renderFilters();
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus Creator: Salsa" }));
+
+      expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?creator=id-2&type=specific", {
+        scroll: false,
+      });
+    });
   });
 });

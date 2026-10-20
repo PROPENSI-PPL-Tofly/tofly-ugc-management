@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { formatContractWindow, formatDate } from "@/lib/format";
 import { list } from "@/lib/search-params";
 import { MAX_SEARCH_LENGTH } from "@/lib/use-url-filters";
@@ -250,5 +250,35 @@ export function ResetFilters({
     >
       Reset
     </button>
+  );
+}
+
+/** One filter in effect, as the folded phone bar is to name it. */
+export interface ActiveFilter {
+  id: string;
+  text: string;
+  onRemove: () => void;
+}
+
+/**
+ * Stub until the folded phone bar lands: every control in one wrapping row, as each list's bar
+ * draws it today, with no Filter button and no chips, so the tests that pin both run and fail.
+ */
+export function FilterBar({
+  search,
+  reset,
+  children,
+}: Readonly<{
+  search: ReactNode;
+  active: readonly ActiveFilter[];
+  reset: ReactNode;
+  children: ReactNode;
+}>) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
+      {search}
+      {children}
+      {reset}
+    </div>
   );
 }
