@@ -290,6 +290,21 @@ describe("CreatorTable", () => {
       }
     });
 
+    // Measured in Edge at a true 320 px viewport: the contract dates and the progress line, kept
+    // on one line for the desktop table, pushed the card 21 px past its 286 px area.
+    it("lets the contract dates and progress line wrap in a card, but not in the table", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      const [, contract, progress] = cells();
+      for (const line of [
+        within(contract).getByText(/–/),
+        within(progress).getByText(/konten terkirim/),
+      ]) {
+        expect(line).toHaveClass("whitespace-nowrap");
+        expect(line).toHaveClass("max-lg:whitespace-normal");
+      }
+    });
+
     it("gives Detail a full-width touch target at least 44px tall", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
 
