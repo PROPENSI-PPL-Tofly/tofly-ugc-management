@@ -2,6 +2,8 @@
 
 import { useId, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button-classes";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FIELD_ERROR } from "@/components/ui/form-classes";
 import type { InvoiceStatus } from "@/lib/invoice";
 import {
@@ -34,7 +36,9 @@ function sendable(state: UploadState): File | null {
 
 // The admin's payment proof upload in the Rincian panel (PBI-13, subtask 13.4), offered only
 // while the creator has acknowledged the invoice. A wrong file is named as soon as it is picked;
-// the server checks it again.
+// the server checks it again. A proof cannot be replaced once sent, so the prototype's question
+// comes first. The native input stays for the keyboard and screen readers, drawn as the app's
+// own button with the chosen file named beside it, instead of the browser's English control.
 export function PaymentProofUpload({
   contractId,
   status,
@@ -48,7 +52,9 @@ export function PaymentProofUpload({
   onUploaded: (proof: PaymentProof) => void;
 }>) {
   const inputId = useId();
+  const titleId = useId();
   const [state, setState] = useState<UploadState>({ kind: "idle" });
+  const [asking, setAsking] = useState(false);
 
   if (!canUploadProof(status)) return null;
 
@@ -81,25 +87,56 @@ export function PaymentProofUpload({
   }
 
   const file = sendable(state);
+  const chosen = state.kind === "picked" || state.kind === "uploading" || state.kind === "failed"
+    ? state.file.name
+    : null;
 
   return (
     <section aria-label="Upload bukti pembayaran" className="flex flex-col gap-2 text-[13px]">
-      <label htmlFor={inputId} className="font-semibold">
+      <p id={titleId} className="font-semibold">
         File bukti pembayaran
-      </label>
-      <input
-        id={inputId}
-        type="file"
-        accept={PROOF_TYPES.join(",")}
-        onChange={pick}
-        disabled={state.kind === "uploading"}
-      />
+      </p>
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <input
+          id={inputId}
+          type="file"
+          aria-labelledby={titleId}
+          accept={PROOF_TYPES.join(",")}
+          onChange={pick}
+          disabled={state.kind === "uploading"}
+          className="peer sr-only"
+        />
+        <label
+          htmlFor={inputId}
+          className={`${buttonClasses()} inline-block peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus peer-disabled:cursor-not-allowed peer-disabled:opacity-40`}
+        >
+          Pilih file
+        </label>
+        <span className={`min-w-0 break-all ${chosen === null ? "text-muted" : ""}`}>
+          {chosen ?? "Belum ada file dipilih"}
+        </span>
+      </div>
 
       <div>
-        <Button disabled={file === null} onClick={() => file && send(file)}>
+        <Button disabled={file === null} onClick={() => setAsking(true)}>
           Upload bukti
         </Button>
       </div>
+
+      {asking && file ? (
+        <ConfirmDialog
+          title="Kirim bukti pembayaran?"
+          message="Creator akan diminta mengonfirmasi bahwa pembayaran sudah diterima. Bukti tidak bisa diganti setelah terkirim."
+          confirmLabel="Kirim Bukti"
+          cancelLabel="Batal"
+          confirmVariant="accent"
+          onCancel={() => setAsking(false)}
+          onConfirm={() => {
+            setAsking(false);
+            void send(file);
+          }}
+        />
+      ) : null}
 
       {state.kind === "uploading" ? (
         <p role="status" className="text-muted">
