@@ -130,6 +130,8 @@ model users {
   invoice_adjustments    invoice_adjustments[]
   invoice_comments       invoice_comments[]
   invoice_payment_proofs invoice_payment_proofs[]
+  invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
+  invoices_paid          invoices[]               @relation("invoices_paid_by")
   rate_formula           rate_formula[]
 }
 
@@ -143,16 +145,27 @@ enum invoice_status {
 
 /// Persisted lifecycle for one contract invoice; live calculation data remains derived.
 model invoices {
-  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contract_id   String                  @unique @db.Uuid
-  status        invoice_status          @default(running)
-  snapshot      Json?                   @db.JsonB
-  created_at    DateTime                @default(now()) @db.Timestamptz(6)
-  finalized_at  DateTime?               @db.Timestamptz(6)
-  contracts     contracts               @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  adjustments   invoice_adjustments[]
-  comments      invoice_comments[]
-  payment_proof invoice_payment_proofs?
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id     String                  @unique @db.Uuid
+  status          invoice_status          @default(running)
+  snapshot        Json?                   @db.JsonB
+  created_at      DateTime                @default(now()) @db.Timestamptz(6)
+  finalized_at    DateTime?               @db.Timestamptz(6)
+  /// When and by whom the creator acknowledged the frozen amount (13.1).
+  acknowledged_at DateTime?               @db.Timestamptz(6)
+  acknowledged_by String?                 @db.Uuid
+  /// When and by whom the creator confirmed the payment arrived (13.1).
+  paid_at         DateTime?               @db.Timestamptz(6)
+  paid_by         String?                 @db.Uuid
+  contracts       contracts               @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  acknowledger    users?                  @relation("invoices_acknowledged_by", fields: [acknowledged_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payee           users?                  @relation("invoices_paid_by", fields: [paid_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  adjustments     invoice_adjustments[]
+  comments        invoice_comments[]
+  payment_proof   invoice_payment_proofs?
+
+  @@index([acknowledged_by], map: "invoices_acknowledged_by_idx")
+  @@index([paid_by], map: "invoices_paid_by_idx")
 }
 
 /// The proof an admin uploaded for one invoice; the file itself lives in object storage under
