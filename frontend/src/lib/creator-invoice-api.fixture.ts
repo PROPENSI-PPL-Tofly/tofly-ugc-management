@@ -17,7 +17,7 @@ export const RAW_MY_RUNNING: RawCreatorInvoice = {
     {
       id: "c0c0c0c0-0000-4000-8000-000000000001",
       authorName: "Rangga Pratama",
-      role: "creator",
+      authorRole: "creator",
       text: "Konten Promo akhir bulan sudah saya submit ya.",
       createdAt: "2026-10-10T03:00:00Z",
     },

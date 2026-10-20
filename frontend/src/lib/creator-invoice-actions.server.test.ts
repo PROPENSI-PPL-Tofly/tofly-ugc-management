@@ -193,7 +193,7 @@ describe("the comment the backend saved", () => {
   const SAVED = {
     id: "c0c0c0c0-0000-4000-8000-000000000009",
     authorName: "Rangga Pratama",
-    role: "creator",
+    authorRole: "creator",
     text: "Sudah saya cek.",
     createdAt: "2026-10-20T03:00:00Z",
   };
@@ -216,7 +216,7 @@ describe("the comment the backend saved", () => {
   it.each([
     ["no JSON", new Response("Created", { status: 201 })],
     ["a comment without its id", reply(201, { ...SAVED, id: 9 })],
-    ["a role from nowhere", reply(201, { ...SAVED, role: "owner" })],
+    ["a role from nowhere", reply(201, { ...SAVED, authorRole: "owner" })],
   ])("is null when the answer carries %s, so the page reads the invoices again instead", async (_, answer) => {
     fetchSpy().mockResolvedValue(answer);
 

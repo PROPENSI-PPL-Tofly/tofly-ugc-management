@@ -5,7 +5,7 @@ function raw(over: Partial<RawInvoiceComment> = {}): RawInvoiceComment {
   return {
     id: "c1",
     authorName: "Admin Tofly",
-    role: "admin",
+    authorRole: "admin",
     text: "Bukti transfer sudah diunggah ya.",
     createdAt: "2026-10-20T08:05:00.000Z",
     ...over,
@@ -24,7 +24,7 @@ describe("toInvoiceComment", () => {
   });
 
   it("keeps a creator's comment as the creator's", () => {
-    expect(toInvoiceComment(raw({ authorName: "Rangga Pratama", role: "creator" }))).toMatchObject({
+    expect(toInvoiceComment(raw({ authorName: "Rangga Pratama", authorRole: "creator" }))).toMatchObject({
       author: "Rangga Pratama",
       role: "creator",
     });
@@ -34,7 +34,7 @@ describe("toInvoiceComment", () => {
 describe("toInvoiceComments", () => {
   it("keeps the comments in the order the API sends them", () => {
     const first = raw({ id: "c1", createdAt: "2026-10-20T08:05:00.000Z" });
-    const second = raw({ id: "c2", role: "creator", createdAt: "2026-10-20T09:00:00.000Z" });
+    const second = raw({ id: "c2", authorRole: "creator", createdAt: "2026-10-20T09:00:00.000Z" });
 
     expect(toInvoiceComments([first, second]).map((comment) => comment.id)).toEqual(["c1", "c2"]);
   });

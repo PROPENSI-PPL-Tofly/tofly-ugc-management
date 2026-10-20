@@ -2,11 +2,11 @@
 // subtask 13.4). The field names are the ones agreed for 13.2; everything that knows them lives
 // here (Adapter), so a rename on the backend changes this file only.
 
-// One comment as the API answers it.
+// One comment as the API answers it (13.2 names the writer's role authorRole).
 export interface RawInvoiceComment {
   id: string;
   authorName: string;
-  role: "admin" | "creator";
+  authorRole: "admin" | "creator";
   text: string;
   // ISO instant.
   createdAt: string;
@@ -35,7 +35,7 @@ export function toInvoiceComment(raw: RawInvoiceComment): InvoiceComment {
   return {
     id: raw.id,
     author: raw.authorName,
-    role: raw.role,
+    role: raw.authorRole,
     text: raw.text,
     createdAt: raw.createdAt,
   };

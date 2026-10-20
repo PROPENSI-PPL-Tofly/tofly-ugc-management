@@ -20,14 +20,14 @@ const THREAD = [
   {
     id: "c1",
     authorName: "Rangga Pratama",
-    role: "creator",
+    authorRole: "creator",
     text: "Invoice sudah saya cek, aman.",
     createdAt: "2026-10-20T02:20:00.000Z",
   },
   {
     id: "c2",
     authorName: "Admin Tofly",
-    role: "admin",
+    authorRole: "admin",
     text: "Bukti transfer sudah diunggah ya.",
     createdAt: "2026-10-20T08:05:00.000Z",
   },
@@ -118,7 +118,7 @@ describe("addInvoiceComment", () => {
   const SAVED = {
     id: "c3",
     authorName: "Admin Tofly",
-    role: "admin",
+    authorRole: "admin",
     text: "Pembayaran sudah dikirim ya.",
     createdAt: "2026-10-21T03:00:00.000Z",
   };

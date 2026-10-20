@@ -117,7 +117,7 @@ export async function acknowledgeInvoice(contractId: string): Promise<CreatorMov
 
 /** Confirms the money arrived once the proof is in; the backend marks the invoice paid. */
 export async function confirmInvoicePayment(contractId: string): Promise<CreatorMoveOutcome> {
-  return move(contractId, "confirm-payment");
+  return move(contractId, "confirm-receipt");
 }
 
 /**

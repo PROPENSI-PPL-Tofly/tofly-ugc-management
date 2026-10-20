@@ -22,7 +22,7 @@ export interface RawPaymentProof {
 export interface RawInvoiceComment {
   id: string;
   authorName: string;
-  role: "admin" | "creator";
+  authorRole: "admin" | "creator";
   text: string;
   createdAt: string;
 }
@@ -76,11 +76,14 @@ export function isRawCreatorInvoices(body: unknown): body is RawCreatorInvoices 
 }
 
 /**
- * A proof link is followed by the creator's click, so only https passes: a javascript: or
- * data: link would run in the page, and plain http would send the signed link in the clear
- * (OWASP A03, A02). Anything else keeps the file's name and loses the link.
+ * A proof link is followed by the creator's click. The backend sends a path on this site, which
+ * the /api proxy opens only for the signed-in creator; an https address also passes. A
+ * javascript: or data: link would run in the page, plain http would send the link in the clear,
+ * and //another.host would leave the site (OWASP A03, A02, A01), so anything else keeps the
+ * file's name and loses the link.
  */
 function safeLink(url: string): string | null {
+  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) return url;
   try {
     return new URL(url).protocol === "https:" ? url : null;
   } catch {
@@ -99,21 +102,21 @@ function toProof(raw: RawPaymentProof | null | undefined): PaymentProof | null {
  */
 export function toSavedComment(body: unknown): InvoiceComment | null {
   if (!isRecord(body)) return null;
-  const { id, authorName, role, text, createdAt } = body;
+  const { id, authorName, authorRole, text, createdAt } = body;
   const complete =
     typeof id === "string" &&
     typeof authorName === "string" &&
-    (role === "admin" || role === "creator") &&
+    (authorRole === "admin" || authorRole === "creator") &&
     typeof text === "string" &&
     typeof createdAt === "string";
-  return complete ? toComment({ id, authorName, role, text, createdAt }) : null;
+  return complete ? toComment({ id, authorName, authorRole, text, createdAt }) : null;
 }
 
 function toComment(raw: RawInvoiceComment): InvoiceComment {
   return {
     id: raw.id,
     authorName: raw.authorName,
-    authorRole: raw.role,
+    authorRole: raw.authorRole,
     text: raw.text,
     createdAt: raw.createdAt,
   };

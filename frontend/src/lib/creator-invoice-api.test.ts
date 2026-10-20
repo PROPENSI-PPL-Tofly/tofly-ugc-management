@@ -85,7 +85,7 @@ describe("toCreatorInvoices", () => {
   });
 
   it("keeps the comments in the order the backend sends them, oldest first", () => {
-    const later = { ...RAW_MY_RUNNING.comments[0], id: "c0c0c0c0-0000-4000-8000-000000000002", role: "admin" as const, authorName: "Admin Tofly", createdAt: "2026-10-11T03:00:00Z" };
+    const later = { ...RAW_MY_RUNNING.comments[0], id: "c0c0c0c0-0000-4000-8000-000000000002", authorRole: "admin" as const, authorName: "Admin Tofly", createdAt: "2026-10-11T03:00:00Z" };
 
     const comments = only({ ...RAW_MY_RUNNING, comments: [...RAW_MY_RUNNING.comments, later] }).comments;
 
