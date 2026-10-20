@@ -87,6 +87,7 @@ export interface InvoiceLister {
 
   finalize(
     contractId: string,
+    finalizedBy: string,
     today?: Date,
   ): Promise<{
     invoiceStatus: 'finalized';
@@ -611,6 +612,8 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
   async finalize(
     contractId: string,
+    /** The admin who freezes the invoice, from the session. */
+    finalizedBy: string,
     today = new Date(),
     request: FinalizeRequest = { acceptPendingBonus: false },
   ): Promise<{
@@ -704,6 +707,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
             status: 'finalized',
             snapshot: snapshot as unknown as Prisma.InputJsonValue,
             finalized_at: today,
+            finalized_by: finalizedBy,
           },
         });
 

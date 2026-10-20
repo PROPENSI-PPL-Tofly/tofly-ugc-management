@@ -66,7 +66,11 @@ export class InvoicesController {
     @Query('contract', new ParseUUIDPipe({ optional: true }))
     contractId?: string,
   ): Promise<InvoiceDetail> {
-    const detail = await this.invoices.detail(creatorId, new Date(), contractId);
+    const detail = await this.invoices.detail(
+      creatorId,
+      new Date(),
+      contractId,
+    );
 
     if (!detail) {
       throw new NotFoundException({
@@ -103,6 +107,7 @@ export class InvoicesController {
 
     return this.invoices.finalize(
       contractId,
+      request.principal.userId,
       new Date(),
       checkFinalizeRequest(body),
     );

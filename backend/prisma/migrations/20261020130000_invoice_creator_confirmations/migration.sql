@@ -1,10 +1,12 @@
--- Invoice status flow (PBI-13, 13.1): every move keeps who made it and when. Finalizing keeps
--- finalized_at (PBI-12) and the payment proof keeps uploaded_by and uploaded_at (13.2); the
--- creator's two moves, the acknowledge and the receipt confirmation, are kept here.
+-- Invoice status flow (PBI-13, 13.1): every move keeps who made it and when. The payment proof
+-- keeps uploaded_by and uploaded_at (13.2); finalizing kept only finalized_at (PBI-12) and now
+-- keeps the admin too; the creator's acknowledge and receipt confirmation are kept here.
 --
 -- The statuses named below were added by 20261020120000, an earlier migration, so they are
 -- committed and usable here.
 alter table invoices
+  -- Null on an invoice finalized before this migration, whose admin was never recorded.
+  add column finalized_by uuid references users(id) on delete no action on update no action,
   add column acknowledged_at timestamptz(6),
   add column acknowledged_by uuid references users(id) on delete no action on update no action,
   add column paid_at timestamptz(6),
@@ -28,5 +30,6 @@ alter table invoices add constraint invoices_paid_check check (
   or (status = 'paid' and paid_at is not null and paid_by is not null)
 );
 
+create index invoices_finalized_by_idx on invoices(finalized_by);
 create index invoices_acknowledged_by_idx on invoices(acknowledged_by);
 create index invoices_paid_by_idx on invoices(paid_by);
