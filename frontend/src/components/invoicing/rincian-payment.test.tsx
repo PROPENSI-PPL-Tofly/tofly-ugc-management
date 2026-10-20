@@ -129,7 +129,8 @@ describe("the payment part of the Rincian panel", () => {
     fireEvent.change(screen.getByLabelText("File bukti pembayaran"), {
       target: { files: [new File(["%PDF-1.7"], "bukti.pdf", { type: "application/pdf" })] },
     });
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Upload bukti" })));
+    fireEvent.click(screen.getByRole("button", { name: "Upload bukti" }));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Kirim Bukti" })));
 
     expect(onMutated).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
@@ -143,7 +144,8 @@ describe("the payment part of the Rincian panel", () => {
     fireEvent.change(screen.getByLabelText("File bukti pembayaran"), {
       target: { files: [new File(["%PDF-1.7"], "bukti.pdf", { type: "application/pdf" })] },
     });
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Upload bukti" })));
+    fireEvent.click(screen.getByRole("button", { name: "Upload bukti" }));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Kirim Bukti" })));
 
     const proofValue = screen.getByText("Bukti pembayaran").nextElementSibling as HTMLElement;
     expect(proofValue).not.toHaveTextContent("Belum");

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { InvoiceRow } from "@/lib/invoice";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { BreakdownAmount } from "./breakdown-amount";
@@ -445,8 +445,13 @@ describe("useBreakdownPopups after the table is read again", () => {
     function Whole({
       load,
       onMutated,
-    }: Readonly<{ load: BreakdownLoader; onMutated?: () => void }>) {
-      const { open, layers } = useBreakdownPopups({ load, onMutated });
+      rows,
+    }: Readonly<{
+      load: BreakdownLoader;
+      onMutated?: (message: string) => void;
+      rows?: readonly InvoiceRow[];
+    }>) {
+      const { open, layers } = useBreakdownPopups({ load, onMutated, rows });
       return (
         <>
           <button type="button" onClick={() => open("all", RANGGA_ROW)}>
@@ -499,9 +504,35 @@ describe("useBreakdownPopups after the table is read again", () => {
       expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
     });
 
-    it("closes the layers and reads the invoices again when a move is taken", async () => {
+    // The prototype keeps the form inside Rincian, so the breakdown stays in view: no dialog on a dialog.
+    it("opens the adjustment form inside the panel, focused, never as a second dialog", async () => {
+      render(<Whole load={answering()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+      fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
+
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+      const rincian = screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" });
+      expect(within(rincian).getByRole("region", { name: "Tambah Penyesuaian" })).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Nominal (Rp)" })).toHaveFocus();
+    });
+
+    it("closes the inline form on Batal and keeps the panel", async () => {
+      render(<Whole load={answering()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+      fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
+      const form = screen.getByRole("region", { name: "Tambah Penyesuaian" });
+      fireEvent.click(within(form).getByRole("button", { name: "Batal" }));
+
+      expect(screen.queryByRole("region", { name: "Tambah Penyesuaian" })).not.toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+    });
+
+    it("keeps the panel open after a move, reads it again and says what was done", async () => {
       const onMutated = vi.fn();
-      render(<Whole load={answering()} onMutated={onMutated} />);
+      const load = answering();
+      render(<Whole load={load} onMutated={onMutated} />);
 
       fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
       fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
@@ -513,8 +544,27 @@ describe("useBreakdownPopups after the table is read again", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 
-      await vi.waitFor(() => expect(onMutated).toHaveBeenCalled());
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      await vi.waitFor(() => expect(onMutated).toHaveBeenCalledWith("Penyesuaian ditambahkan."));
+      expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Tambah Penyesuaian" })).not.toBeInTheDocument();
+      await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    });
+
+    it("shows the row the table read again while the panel stays open", async () => {
+      const { rerender } = render(<Whole load={answering()} rows={[RANGGA_ROW]} />);
+      fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
+      await screen.findByRole("button", { name: "+ Tambah Penyesuaian" });
+
+      const frozen: InvoiceRow = {
+        ...RANGGA_ROW,
+        invoiceStatus: "finalized",
+        frozenAt: "2026-10-20T07:00:00.000Z",
+      };
+      rerender(<Whole load={answering()} rows={[frozen]} />);
+
+      const rincian = screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" });
+      expect(within(rincian).getByText("Invoice Terkirim")).toBeInTheDocument();
+      expect(within(rincian).queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
     });
 
     it("opens a content from the panel and comes back to the panel when it closes", async () => {

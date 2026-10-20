@@ -218,8 +218,11 @@ function bonus(line: BonusLine): Described {
 
 /** The rule, then each platform's tiers lowest first, then the Specific bonus when it is set. */
 function tierInfo(rules: BonusRules): string[] {
+  // In the labels' order, not the rules': a frozen invoice's rules come back from jsonb reordered.
+  const order = Object.keys(PLATFORM_LABELS);
   const platforms = rules.tiers
     .filter((rule) => rule.steps.length > 0)
+    .toSorted((a, b) => order.indexOf(a.platform) - order.indexOf(b.platform))
     .map((rule) => {
       const steps = [...rule.steps]
         .sort((a, b) => a.min - b.min)

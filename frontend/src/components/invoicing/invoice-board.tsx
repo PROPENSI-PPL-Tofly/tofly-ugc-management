@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { InvoiceTable } from "@/components/invoice/invoice-table";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import {
   invoiceTitle,
   nextInvoiceSort,
@@ -35,9 +36,14 @@ export function InvoiceBoard({
 }>) {
   const router = useRouter();
   const { replaceQuery } = useUrlQuery();
+  const { show, toast } = useToast();
   const { open, layers } = useBreakdownPopups({
+    rows,
     onDecided: () => router.refresh(),
-    onMutated: () => router.refresh(),
+    onMutated: (message) => {
+      show(message);
+      router.refresh();
+    },
   });
 
   // A header always names a column, never the default order, so a press always writes both.
@@ -64,6 +70,7 @@ export function InvoiceBoard({
         )}
       />
       {layers}
+      {toast}
     </>
   );
 }

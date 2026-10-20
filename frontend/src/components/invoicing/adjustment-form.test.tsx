@@ -3,6 +3,7 @@ import {
   AMOUNT_EMPTY,
   AMOUNT_INVALID,
   AMOUNT_THOUSANDS,
+  AMOUNT_TOO_LARGE,
   REASON_EMPTY,
   REASON_MAX_LENGTH,
   REASON_TOO_LONG,
@@ -40,6 +41,14 @@ describe("AdjustmentForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     moves.addInvoiceAdjustment.mockResolvedValue({ ok: true });
+  });
+
+  it("sits in the page as a titled region with the amount focused, not as a dialog", () => {
+    form();
+
+    expect(screen.getByRole("region", { name: "Tambah Penyesuaian" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Nominal (Rp)" })).toHaveFocus();
   });
 
   it("asks for an amount and a reason, and counts the reason", () => {
@@ -105,6 +114,17 @@ describe("AdjustmentForm", () => {
     expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
   });
 
+  it("refuses an amount past Rp10.000.000 before anything is sent, with no preview of it", () => {
+    form();
+    fill("99999999999999999", "nominal tidak wajar");
+
+    expect(screen.queryByText(/Akan dicatat/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(screen.getByText(AMOUNT_TOO_LARGE)).toBeInTheDocument();
+    expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
+  });
+
   it("says below the reason field when it runs over the character counter", () => {
     form();
     fill("100000", "x".repeat(REASON_MAX_LENGTH + 1));
@@ -118,13 +138,13 @@ describe("AdjustmentForm", () => {
   it("sends the amount and the trimmed reason, then hands the invoice back to be read", async () => {
     const onMutated = vi.fn();
     form({ onMutated });
-    fill(" -100000.5 ", "  Koreksi  ");
+    fill(" -100000 ", "  Koreksi  ");
 
     fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 
     await vi.waitFor(() =>
       expect(moves.addInvoiceAdjustment).toHaveBeenCalledWith(CONTRACT, {
-        amount: " -100000.5 ",
+        amount: " -100000 ",
         reason: "  Koreksi  ",
       }),
     );

@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { jakartaDay } from "@/lib/format";
 import { canAdjust, canFinalize, REFUSAL_MESSAGES } from "@/lib/invoice-adjustment";
 import type { InvoiceRow } from "@/lib/invoice";
-import { AdjustmentForm } from "./adjustment-form";
 import { FinalizeModal } from "./finalize-modal";
+
+/** What the admin is told once an invoice is frozen, in the prototype's words. */
+export const FINALIZED_MESSAGE = "Invoice difinalisasi dan dikirim ke creator.";
 
 /**
  * The two moves an admin makes on a running invoice (PBI-12, subtask 12.2), beside Tutup in the
@@ -16,19 +18,25 @@ import { FinalizeModal } from "./finalize-modal";
  *
  * Finalizing is withheld, with its reason, while the contract still runs or a part of the
  * invoice still waits for data: the server refuses both, and the button says so first.
+ *
+ * The adjustment form is the panel's to place (inline, as in the prototype); this button only
+ * asks for it through `onAdjust`.
  */
 export function InvoiceActions({
   row,
   today = jakartaDay(),
+  onAdjust,
   onMutated,
 }: Readonly<{
   row: InvoiceRow;
   /** The day the freeze gate is read against; Jakarta's, unless a test says otherwise. */
   today?: string;
-  /** A move was accepted; the invoice reads again. */
-  onMutated: () => void;
+  /** The admin asked to add an adjustment; the panel shows the form. */
+  onAdjust: () => void;
+  /** A move was accepted, with what to tell the admin; the invoice reads again. */
+  onMutated: (message: string) => void;
 }>) {
-  const [dialog, setDialog] = useState<"adjust" | "finalize" | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
 
   if (!canAdjust(row.invoiceStatus)) {
     // A frozen invoice is settled: no adjustment and no second freeze.
@@ -39,7 +47,7 @@ export function InvoiceActions({
 
   return (
     <>
-      <Button variant="ghost" onClick={() => setDialog("adjust")}>
+      <Button variant="ghost" onClick={onAdjust}>
         + Tambah Penyesuaian
       </Button>
 
@@ -54,7 +62,7 @@ export function InvoiceActions({
             </p>
           </>
         ) : (
-          <Button onClick={() => setDialog("finalize")}>Finalize</Button>
+          <Button onClick={() => setFinalizing(true)}>Finalize</Button>
         )
       ) : (
         <p className="basis-full text-xs text-muted" role="status">
@@ -62,16 +70,15 @@ export function InvoiceActions({
         </p>
       )}
 
-      {dialog === "adjust" ? (
-        <AdjustmentForm
-          contractId={row.contractId}
-          onClose={() => setDialog(null)}
-          onMutated={onMutated}
+      {finalizing ? (
+        <FinalizeModal
+          row={row}
+          onCancel={() => setFinalizing(false)}
+          onFinalized={() => {
+            setFinalizing(false);
+            onMutated(FINALIZED_MESSAGE);
+          }}
         />
-      ) : null}
-
-      {dialog === "finalize" ? (
-        <FinalizeModal row={row} onCancel={() => setDialog(null)} onFinalized={onMutated} />
       ) : null}
     </>
   );

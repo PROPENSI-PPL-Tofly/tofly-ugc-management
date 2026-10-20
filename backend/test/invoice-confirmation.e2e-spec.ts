@@ -491,7 +491,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       const list = await admin.get('/me/invoices');
       const move = await admin.post(`/me/invoices/${sariContract}/acknowledge`);
 
-      expect([list.status, move.status]).toEqual([401, 401]);
+      expect([list.status, move.status]).toEqual([403, 403]);
     });
 
     // OWASP Top 10:2025 A01: a move sent from another site is refused before it is read, even

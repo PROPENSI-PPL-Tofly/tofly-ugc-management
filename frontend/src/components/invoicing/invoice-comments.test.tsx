@@ -83,6 +83,16 @@ describe("InvoiceComments", () => {
     expect(second).toHaveTextContent("Bukti transfer sudah diunggah ya.");
   });
 
+  // The backend names an admin "Admin"; "Admin · Admin" would say the same word twice.
+  it("says an admin's role once when the name is the role", async () => {
+    const plain: InvoiceComment = { ...FROM_ADMIN, id: "c9", author: "Admin" };
+    await renderThread(gateway({ load: vi.fn().mockResolvedValue({ ok: true, comments: [plain] }) }));
+
+    const [only] = items();
+    expect(only).not.toHaveTextContent("Admin · Admin");
+    expect(only).toHaveTextContent(/^Admin · 20 Okt 2026/);
+  });
+
   it("says there are no comments yet for an empty thread", async () => {
     await renderThread(gateway({ load: vi.fn().mockResolvedValue({ ok: true, comments: [] }) }));
 

@@ -104,6 +104,19 @@ describe("InvoiceBoard", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("confirms a move made in Rincian with a toast and reads the invoices again", async () => {
+    render(<InvoiceBoard rows={[ROW]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Nominal (Rp)" }), { target: { value: "50000" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Alasan" }), { target: { value: "Ongkir" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(await screen.findByText("Penyesuaian ditambahkan.")).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+  });
+
   describe("sorting", () => {
     it("sorts by a pressed column through the address, back on page one, keeping the filters", () => {
       searchParams = new URLSearchParams("q=rangga&page=3");
@@ -139,19 +152,6 @@ describe("InvoiceBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
 
     expect(await screen.findByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
-  });
-
-  it("reads the invoices again after an adjustment added from the Rincian panel", async () => {
-    render(<InvoiceBoard rows={[ROW]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
-    fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
-
-    fireEvent.change(screen.getByRole("textbox", { name: "Nominal (Rp)" }), { target: { value: "50000" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Alasan" }), { target: { value: "Bonus kampanye" } });
-    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
-
-    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("adds up the period under the table when it is given the summary", () => {

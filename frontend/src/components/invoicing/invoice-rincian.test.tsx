@@ -145,7 +145,8 @@ describe("InvoiceRincian", () => {
     expect(screen.getByText("− Rp75.000")).toBeInTheDocument();
   });
 
-  it("marks a frozen invoice with the prototype's Final word", () => {
+  // One status badge, as everywhere else; "Final" names the total, as the creator's page does.
+  it("shows a frozen invoice's status once and calls its total Total Final", () => {
     setup({
       row: {
         ...ROW,
@@ -154,8 +155,22 @@ describe("InvoiceRincian", () => {
       },
     });
 
-    expect(screen.getByText("Final")).toBeInTheDocument();
+    expect(screen.getByText("Invoice Terkirim")).toBeInTheDocument();
+    expect(screen.queryByText("Final")).not.toBeInTheDocument();
+    expect(screen.getByText("Total Final")).toBeInTheDocument();
     expect(screen.queryByText("Berjalan")).not.toBeInTheDocument();
+  });
+
+  it("calls the total of a paid invoice Total Dibayarkan", () => {
+    setup({
+      row: {
+        ...ROW,
+        invoiceStatus: "paid",
+        frozenAt: "2026-10-18T03:00:00.000Z",
+      },
+    });
+
+    expect(screen.getByText("Total Dibayarkan")).toBeInTheDocument();
   });
 
   it("keeps adjustments and the Final word out of the panel while there are none", () => {

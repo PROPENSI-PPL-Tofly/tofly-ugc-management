@@ -275,6 +275,20 @@ describe("breakdownPopup", () => {
         ]);
       });
 
+      // A finalized invoice's saved rules come back from jsonb with TikTok first; the order shown
+      // must not depend on that.
+      it("lists Instagram before TikTok whatever order the rules arrive in", () => {
+        const view = breakdownPopup(
+          "bonus",
+          breakdown({ bonus: { ...EMPTY_BREAKDOWN.bonus, rules: { ...rules, tiers: [...rules.tiers].reverse() } } }),
+        );
+
+        expect(view.info?.slice(1, 3)).toEqual([
+          "Instagram (Views) — Tier 1: ≥10.000 → Rp50.000 · Tier 2: ≥50.000 → Rp150.000",
+          "TikTok (Likes) — Tier 1: ≥2.000 → Rp75.000",
+        ]);
+      });
+
       it("is there even when no content has earned a bonus, so the admin sees what would", () => {
         const view = breakdownPopup(
           "bonus",

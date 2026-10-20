@@ -5,9 +5,9 @@ import {
   AMOUNT_EMPTY,
   AMOUNT_INVALID,
   AMOUNT_THOUSANDS,
+  AMOUNT_TOO_LARGE,
   canAdjust,
   canFinalize,
-  FINAL_LABEL,
   REASON_EMPTY,
   REASON_MAX_LENGTH,
   REASON_TOO_LONG,
@@ -27,7 +27,6 @@ describe("validateAdjustment", () => {
 
   it("takes an adjustment taken away as well as one added", () => {
     expect(validateAdjustment(draft({ amount: "-75000" }))).toEqual({});
-    expect(validateAdjustment(draft({ amount: "-75000.25" }))).toEqual({});
   });
 
   it.each(["", "   "])("says an amount left blank is required (%j)", (amount) => {
@@ -35,7 +34,7 @@ describe("validateAdjustment", () => {
     expect(AMOUNT_EMPTY).toBe("Jumlah wajib diisi");
   });
 
-  it.each(["abc", "0", "-0", "1e5", "Rp100", "12,", "--5", "1.2345"])(
+  it.each(["abc", "0", "-0", "1e5", "Rp100", "12,", "--5", "1.2345", "1.5", "2.50", "-0.01", "007"])(
     "refuses the amount %j in the backend's own words",
     (amount) => {
       expect(validateAdjustment(draft({ amount }))).toEqual({ amount: AMOUNT_INVALID });
@@ -52,14 +51,22 @@ describe("validateAdjustment", () => {
     },
   );
 
-  it("still takes a dot that marks cents", () => {
-    expect(validateAdjustment(draft({ amount: "2.50" }))).toEqual({});
-    expect(validateAdjustment(draft({ amount: "1500.5" }))).toEqual({});
+  it("uses the backend's wording for a wrong amount, so the form and the server agree", () => {
+    expect(AMOUNT_INVALID).toBe("Jumlah harus angka bulat dan bukan nol");
+    expect(AMOUNT_TOO_LARGE).toBe("Jumlah maksimal Rp10.000.000 per penyesuaian");
   });
 
-  it("uses the backend's wording for a wrong amount, so the form and the server agree", () => {
-    expect(AMOUNT_INVALID).toBe("Jumlah harus bukan nol dan maksimal dua angka desimal");
+  it.each(["10000000", "-10000000", "1", "-1"])("takes %j, inside the Rp10.000.000 limit", (amount) => {
+    expect(validateAdjustment(draft({ amount }))).toEqual({});
   });
+
+  // Checked on the digits, never on Number(): past 2^53 the number is already rounded.
+  it.each(["10000001", "-10000001", "99999999999999999", "9007199254740993", "1" + "0".repeat(40)])(
+    "refuses %j as over the limit",
+    (amount) => {
+      expect(validateAdjustment(draft({ amount }))).toEqual({ amount: AMOUNT_TOO_LARGE });
+    },
+  );
 
   it.each(["", "   ", "\t\n"])("says a reason left blank is required (%j)", (reason) => {
     expect(validateAdjustment(draft({ reason }))).toEqual({ reason: REASON_EMPTY });
@@ -94,13 +101,15 @@ describe("validateAdjustment", () => {
 describe("adjustmentAmount", () => {
   it("reads the amount as the API takes it", () => {
     expect(adjustmentAmount(draft({ amount: " 200000 " }))).toBe(200000);
-    expect(adjustmentAmount(draft({ amount: "-100000.5" }))).toBe(-100000.5);
+    expect(adjustmentAmount(draft({ amount: "-100000" }))).toBe(-100000);
   });
 
   it("answers nothing rather than a zero for a blank or a wrong amount", () => {
     expect(adjustmentAmount(draft({ amount: "" }))).toBeNull();
     expect(adjustmentAmount(draft({ amount: "abc" }))).toBeNull();
     expect(adjustmentAmount(draft({ amount: "0" }))).toBeNull();
+    expect(adjustmentAmount(draft({ amount: "1.5" }))).toBeNull();
+    expect(adjustmentAmount(draft({ amount: "99999999999999999" }))).toBeNull();
   });
 });
 
@@ -140,9 +149,6 @@ describe("canFinalize", () => {
 });
 
 describe("the words on the controls", () => {
-  it("marks a frozen invoice with the prototype's word", () => {
-    expect(FINAL_LABEL).toBe("Final");
-  });
 
   it("reads an adjustment as added or taken away", () => {
     expect(adjustmentLabel(200000)).toBe("+Rp200.000");
