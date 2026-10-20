@@ -318,6 +318,35 @@ describe("Task Saya page views", () => {
     expect(mockedFetch).not.toHaveBeenCalled();
   });
 
+  describe("a deadline range carried onto the calendar", () => {
+    it("keeps the range on the switch from the table to the calendar", async () => {
+      await renderPage({ period: "custom", from: "2026-12-03", to: "2026-12-20" });
+
+      expect(switchLink("Kalender")).toHaveAttribute(
+        "href",
+        "/creator/tasks?period=custom&from=2026-12-03&to=2026-12-20&view=calendar",
+      );
+    });
+
+    it("opens the calendar on the month the range starts in", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2026-12-03", to: "2027-01-20" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the month of the end day when only the end is picked", async () => {
+      await renderPage({ view: "calendar", period: "custom", to: "2027-01-15" });
+
+      expect(screen.getByRole("heading", { name: "Januari 2027" })).toBeInTheDocument();
+    });
+
+    it("stays on this month for a day the period does not use", async () => {
+      await renderPage({ view: "calendar", period: "next30", from: "2026-12-03" });
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+  });
+
   it("shows no pager on the calendar: a month is not paged", async () => {
     await renderPage({ view: "calendar" });
 

@@ -178,6 +178,32 @@ describe("TaskCalendar", () => {
       expect(container.querySelector('[aria-current="date"]')).not.toBeInTheDocument();
     });
 
+    // Client feedback C4: a deadline range picked on the table must still mean something on the
+    // calendar, which used to open on today's month and look empty for a range elsewhere.
+    it("opens on the month a chosen deadline range starts in, with Hari Ini a press away", () => {
+      const onOpen = vi.fn();
+      render(
+        <TaskCalendar
+          tasks={[OCTOBER, task({ id: "dec", name: "Konten Desember", deadline: "2026-12-05" })]}
+          today={TODAY}
+          opensOn="2026-12-03"
+          onOpen={onOpen}
+        />,
+      );
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+      expect(grid().getByRole("button", { name: /Konten Desember/ })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Hari Ini" }));
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on today's month when the range names no day", () => {
+      render(<TaskCalendar tasks={[OCTOBER]} today={TODAY} opensOn={null} onOpen={vi.fn()} />);
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+
     it("has nowhere to go back to while the current month is shown", () => {
       renderCalendar();
 
