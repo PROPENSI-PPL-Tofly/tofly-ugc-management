@@ -41,6 +41,12 @@ function pick(file: File) {
 
 const button = () => screen.getByRole("button", { name: "Upload bukti" });
 
+/** Upload bukti, then yes to "Kirim bukti pembayaran?". */
+async function send() {
+  fireEvent.click(button());
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Kirim Bukti" })));
+}
+
 describe("PaymentProofUpload", () => {
   it.each(INVOICE_STATUSES.filter((status) => status !== "creator_acked"))(
     "offers nothing while the invoice is %s",
@@ -60,6 +66,37 @@ describe("PaymentProofUpload", () => {
       "accept",
       "application/pdf,image/jpeg,image/png",
     );
+  });
+
+  // The browser's own picker says "Choose File / No file chosen" in its own language and style.
+  it("offers the picker as a Pilih file control and names the chosen file in Indonesian", () => {
+    renderUpload(vi.fn());
+
+    expect(screen.getByText("Pilih file")).toBeInTheDocument();
+    expect(screen.getByText("Belum ada file dipilih")).toBeInTheDocument();
+
+    pick(pdf());
+
+    expect(screen.getByText("bukti.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada file dipilih")).not.toBeInTheDocument();
+  });
+
+  // A proof cannot be replaced once sent, so the prototype asks first (OWASP A06).
+  it("asks before sending, focused on Batal, and sends nothing on Batal", () => {
+    const upload = vi.fn();
+    renderUpload(upload);
+
+    pick(pdf());
+    fireEvent.click(button());
+
+    const question = screen.getByRole("alertdialog", { name: "Kirim bukti pembayaran?" });
+    expect(question).toHaveTextContent("Bukti tidak bisa diganti setelah terkirim.");
+    expect(screen.getByRole("button", { name: "Batal" })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(upload).not.toHaveBeenCalled();
   });
 
   it("keeps the upload closed until a file is picked", () => {
@@ -97,7 +134,7 @@ describe("PaymentProofUpload", () => {
     renderUpload(upload);
 
     pick(pdf());
-    await act(async () => fireEvent.click(button()));
+    await send();
 
     const [contractId, form] = upload.mock.calls[0];
     expect(contractId).toBe(CONTRACT);
@@ -111,6 +148,7 @@ describe("PaymentProofUpload", () => {
 
     pick(pdf());
     fireEvent.click(button());
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Bukti" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Mengunggah…");
     expect(button()).toBeDisabled();
@@ -122,7 +160,7 @@ describe("PaymentProofUpload", () => {
     const onUploaded = renderUpload(vi.fn<ProofUploader>().mockResolvedValue(SAVED));
 
     pick(pdf());
-    await act(async () => fireEvent.click(button()));
+    await send();
 
     expect(screen.getByRole("link", { name: "bukti.pdf" })).toHaveAttribute("href", PROOF_HREF);
     expect(onUploaded).toHaveBeenCalledTimes(1);
@@ -132,7 +170,7 @@ describe("PaymentProofUpload", () => {
     const onUploaded = renderUpload(vi.fn<ProofUploader>().mockRejectedValue(new TypeError("fetch failed")));
 
     pick(pdf());
-    await act(async () => fireEvent.click(button()));
+    await send();
 
     expect(screen.getByRole("alert")).toHaveTextContent(UPLOAD_FAILED);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -147,7 +185,7 @@ describe("PaymentProofUpload", () => {
     const onUploaded = renderUpload(upload);
 
     pick(pdf());
-    await act(async () => fireEvent.click(button()));
+    await send();
 
     expect(screen.getByRole("alert")).toHaveTextContent("Invoice belum diakui creator.");
     expect(button()).toBeEnabled();
