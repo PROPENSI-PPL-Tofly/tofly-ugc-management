@@ -346,6 +346,18 @@ describe("Task Saya page views", () => {
       expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
     });
 
+    it("opens on the earlier day of a backwards range that crosses into the next year", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-01-02", to: "2026-12-31" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the month of the start day when only the start is picked", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-03-05" });
+
+      expect(screen.getByRole("heading", { name: "Maret 2027" })).toBeInTheDocument();
+    });
+
     it("stays on this month while Pilih tanggal is chosen but no day is picked yet", async () => {
       await renderPage({ view: "calendar", period: "custom" });
 
