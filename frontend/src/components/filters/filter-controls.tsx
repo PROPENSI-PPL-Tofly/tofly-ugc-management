@@ -95,6 +95,49 @@ export function FilterSelect({
   );
 }
 
+const CHOICE =
+  "inline-flex h-7 cursor-pointer items-center rounded-full px-3 text-[12.5px] font-semibold text-ink-2 transition-colors hover:text-ink has-checked:bg-accent-wash has-checked:text-accent-deep has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-accent";
+
+/**
+ * One choice out of a few, as native radios in a named group: Tab reaches the group once, the
+ * arrow keys move the choice, and the chosen one reads as picked. Drawn as one segmented pill,
+ * so it sits in the bar like the multi-select pills beside it and fits a phone's row.
+ */
+export function FilterRadio({
+  label,
+  value,
+  options,
+  onChange,
+}: Readonly<{
+  label: string;
+  value: string;
+  options: readonly FilterOption[];
+  onChange: (value: string) => void;
+}>) {
+  const name = useId();
+
+  return (
+    <fieldset className="flex items-center gap-2 border-0 p-0">
+      <legend className="float-left text-[13px] text-muted">{label}</legend>
+      <div className="inline-flex rounded-full border border-rule bg-surface p-0.5">
+        {options.map((option) => (
+          <label key={option.value} className={CHOICE}>
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+              className="sr-only"
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function DayField({
   label,
   value,

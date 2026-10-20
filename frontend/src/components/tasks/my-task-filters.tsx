@@ -2,6 +2,7 @@
 
 import {
   FilterBar,
+  FilterRadio,
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
@@ -26,6 +27,9 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 const TYPE_OPTIONS: MultiSelectOption[] = (
   Object.keys(CONTENT_TYPE_LABELS) as Array<keyof typeof CONTENT_TYPE_LABELS>
 ).map((value) => ({ value, label: CONTENT_TYPE_LABELS[value] }));
+
+/** Tipe is one choice: every type, or one of them. */
+const TYPE_CHOICES = [{ value: "all", label: "Semua" }, ...TYPE_OPTIONS];
 
 /**
  * Task Saya's filter bar: the search, Tipe, Status, Overdue and Periode, as in the admin
@@ -59,13 +63,15 @@ export function MyTaskFilters({
     param("period") !== "all";
 
   const day = (key: string) => (param(key) === "all" ? "" : param(key));
+  // One type named is that type; none, or every type, is all of them, as the list reads it.
   const types = offeredPicks(listParam("type"), TYPE_OPTIONS);
+  const type = types.length === 1 ? types[0] : "all";
   const statuses = offeredPicks(listParam("status"), statusOptions);
   const periodIgnored = state.tab === PERIOD_FREE_MY_TAB && param("period") !== "all";
 
   // What the folded phone bar names, in the order of the controls.
   const active = [
-    ...pickFilters("Tipe", types, TYPE_OPTIONS, (next) => setParam("type", next.join(","))),
+    ...pickFilters("Tipe", type === "all" ? [] : [type], TYPE_OPTIONS, () => setParam("type", "all")),
     ...(statusOptions.length > 1
       ? pickFilters("Status", statuses, statusOptions, (next) => setParam("status", next.join(",")))
       : []),
@@ -95,11 +101,11 @@ export function MyTaskFilters({
         ) : null
       }
     >
-      <MultiSelect
+      <FilterRadio
         label="Tipe"
-        options={TYPE_OPTIONS}
-        selected={types}
-        onChange={(next) => setParam("type", next.join(","))}
+        value={type}
+        options={TYPE_CHOICES}
+        onChange={(value) => setParam("type", value)}
       />
 
       {statusOptions.length > 1 ? (
