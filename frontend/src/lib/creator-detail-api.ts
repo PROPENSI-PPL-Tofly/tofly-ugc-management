@@ -20,8 +20,9 @@ import type { ContractPeriod } from "./creators";
 /**
  * One contract period as GET /creators/:id sends it, picked from the mirror of the backend's
  * DTO rather than spelled out again: a field the API drops or renames fails to compile here,
- * not at runtime on the page. The API answers with more (fixed rate, progress, performance);
- * only what the page reads is picked.
+ * not at runtime on the page. The API answers with more (the fixed rate, the counts the
+ * progress repeats); only what the page reads is picked. The period's progress and performance
+ * are read when they come, and the page shows nothing in their place when they do not.
  */
 export type RawCreatorPeriod = Pick<
   ContractPeriod,
@@ -34,7 +35,8 @@ export type RawCreatorPeriod = Pick<
   | "contentQuota"
   | "daysBetween"
   | "remainingEvergreenQuota"
->;
+> &
+  Partial<Pick<ContractPeriod, "progress" | "performance">>;
 
 export interface RawCreatorDetail {
   id: string;
@@ -110,6 +112,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
     daysBetween: period.daysBetween,
+    ...(period.progress ? { progress: period.progress } : {}),
+    ...(period.performance ? { performance: period.performance } : {}),
   };
 }
 

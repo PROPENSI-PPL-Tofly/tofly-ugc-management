@@ -10,7 +10,9 @@ import {
   creatorDetailHref,
   type CreatorPeriod,
 } from "@/lib/creator-detail";
-import { formatContractWindow } from "@/lib/format";
+import { PRODUCTIVITY_TONES } from "@/components/creators/productivity-tones";
+import { formatContractWindow, formatPercent, formatRevisions } from "@/lib/format";
+import type { ReactNode } from "react";
 
 const TAB_BASE =
   "flex min-w-44 flex-col gap-1 rounded-(--radius-control) border px-3 py-2 text-left transition-colors";
@@ -20,12 +22,51 @@ const TAB_BASE =
 const TAB = `${TAB_BASE} border-rule bg-surface-2 hover:border-ink-2`;
 const TAB_ON = `${TAB_BASE} border-accent bg-accent-wash`;
 
-function Term({ label, children }: Readonly<{ label: string; children: string }>) {
+function Term({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div className="rounded-(--radius-control) border border-rule px-4 py-3">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-1 text-[15px] font-semibold tabular-nums">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * How the open period went, under the names and formats the Creator Database uses, so a number
+ * reads the same on both pages. Two columns on a phone, four from a tablet up.
+ */
+function PeriodPerformance({ period }: Readonly<{ period: CreatorPeriod }>) {
+  const { progress, performance } = period;
+  if (!progress || !performance) return null;
+
+  return (
+    <section aria-labelledby="period-performance" className="mt-4">
+      <h3 id="period-performance" className="text-[13px] font-semibold">
+        Performa periode
+      </h3>
+      <p className="mt-0.5 text-xs text-muted">Dihitung dari konten periode yang sedang dibuka.</p>
+
+      <dl className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Term label="Progres konten">
+          {`${progress.submitted}/${progress.total} konten`}
+          <progress
+            value={progress.percent}
+            max={100}
+            aria-label={`Progres ${progress.percent}%`}
+            className="progress mt-2 block h-1.5 w-full"
+          >
+            {progress.percent}%
+          </progress>
+        </Term>
+        <Term label="Tepat waktu">{formatPercent(performance.onTimeRate)}</Term>
+        <Term label="Rata-rata revisi">{formatRevisions(performance.avgRevisions)}</Term>
+        <Term label="Produktivitas">
+          <Pill tone={PRODUCTIVITY_TONES[performance.productivity]}>
+            {performance.productivityLabel}
+          </Pill>
+        </Term>
+      </dl>
+    </section>
   );
 }
 
@@ -97,6 +138,8 @@ export function PeriodTabs({
             <Term label="Sisa Kuota Evergreen">{`${selected.remainingEvergreenQuota} konten`}</Term>
             <Term label="Jarak Antar-Deadline">{`${selected.daysBetween} hari`}</Term>
           </dl>
+
+          <PeriodPerformance period={selected} />
         </div>
       ) : (
         <p className="px-5 pb-5 text-[13px] text-muted">Belum ada kontrak</p>

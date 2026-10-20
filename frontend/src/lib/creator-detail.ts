@@ -13,6 +13,7 @@ import {
   type ContentStatus,
   type ContentTag,
   type CreatorFilterState,
+  type CreatorSummary,
 } from "./creators";
 import { listOf, pageNumber, single, type SearchParams } from "./search-params";
 
@@ -100,6 +101,10 @@ export interface CreatorPeriod {
   remainingEvergreenQuota: number;
   /** The default interval between deadlines, in days. */
   daysBetween: number;
+  /** The period's committed contents and how many are handed in, as the roster counts them. */
+  progress?: CreatorSummary["progress"];
+  /** On-time rate, average revisions and productivity, measured over this period alone. */
+  performance?: CreatorSummary["performance"];
 }
 
 export interface CreatorContentRow {
