@@ -66,6 +66,15 @@ describe("InvoiceHistory", () => {
       expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([null, "Status", "Total", null]);
     });
 
+    // Seen in the browser check: the desktop right-alignment pushed the "Total" label away from
+    // the "Status" label above it.
+    it("lines the total up with the status in a card, and keeps it right-aligned in the table", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      const total = within(rowOf("Periode 1")).getAllByRole("cell")[2];
+      expect(total).toHaveClass("text-right", "max-lg:text-left");
+    });
+
     it("gives Rincian a full-width touch target at least 44px tall", () => {
       render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
 
