@@ -69,7 +69,6 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
   let adminId: string;
 
   let nadia: ReturnType<typeof as>;
-  let nadiaCookie: string;
   let nadiaUser: string;
   let nadiaCreator: string;
   /** Nadia's first contract, ended: the invoice the whole flow walks. */
@@ -79,6 +78,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
 
   let kevin: ReturnType<typeof as>;
   let kevinContract: string;
+  let sari: Awaited<ReturnType<typeof creator>>;
   let sariContract: string;
 
   /** Creates a creator under the marker with the given contracts, and signs them in. */
@@ -169,7 +169,6 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       { start: -30, end: 30 },
     ]);
     nadia = n.client;
-    nadiaCookie = n.cookie;
     nadiaUser = n.userId;
     nadiaCreator = n.creatorId;
     [nadiaEarlier, nadiaCurrent] = n.contractIds;
@@ -178,8 +177,8 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
     kevin = k.client;
     [kevinContract] = k.contractIds;
 
-    [sariContract] = (await creator('Sari', [{ start: -60, end: -1 }]))
-      .contractIds;
+    sari = await creator('Sari', [{ start: -60, end: -1 }]);
+    [sariContract] = sari.contractIds;
   });
 
   afterAll(async () => {
@@ -482,14 +481,20 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       await admin.post(`/me/invoices/${sariContract}/acknowledge`).expect(401);
     });
 
-    // OWASP Top 10:2025 A01: a move sent from another site is refused before it is read.
+    // OWASP Top 10:2025 A01: a move sent from another site is refused before it is read, even
+    // with the creator's own cookie on their own finalized invoice.
     it("an acknowledge without the browser's own origin, changing nothing", async () => {
       const before = await saved(sariContract);
+      expect(before?.status).toBe('finalized');
 
       await request(app.getHttpServer())
-        .post(`/me/invoices/${nadiaCurrent}/acknowledge`)
-        .set('Cookie', nadiaCookie)
+        .post(`/me/invoices/${sariContract}/acknowledge`)
+        .set('Cookie', sari.cookie)
         .set('Origin', 'https://evil.example')
+        .expect(403);
+      await request(app.getHttpServer())
+        .post(`/me/invoices/${sariContract}/acknowledge`)
+        .set('Cookie', sari.cookie)
         .expect(403);
 
       expect(await saved(sariContract)).toEqual(before);
@@ -499,22 +504,9 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
   describe('edge:', () => {
     // OWASP Top 10:2025 A06 (Insecure Design): two acknowledges at once move the invoice once.
     it('two acknowledges at once: one wins, the other is told it is already acknowledged', async () => {
-      const sari = await prisma.creators.findFirstOrThrow({
-        where: { contracts: { some: { id: sariContract } } },
-        select: { id: true, user_id: true },
-      });
-      const sariClient = as(
-        app,
-        await signIn(app, {
-          userId: sari.user_id,
-          role: 'creator',
-          creatorId: sari.id,
-        }),
-      );
-
       const answers = await Promise.all([
-        sariClient.post(`/me/invoices/${sariContract}/acknowledge`),
-        sariClient.post(`/me/invoices/${sariContract}/acknowledge`),
+        sari.client.post(`/me/invoices/${sariContract}/acknowledge`),
+        sari.client.post(`/me/invoices/${sariContract}/acknowledge`),
       ]);
 
       expect(answers.map(({ status }) => status).sort()).toEqual([201, 409]);
@@ -523,7 +515,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       );
       expect(await saved(sariContract)).toMatchObject({
         status: 'creator_acked',
-        acknowledged_by: sari.user_id,
+        acknowledged_by: sari.userId,
       });
     });
 
@@ -531,12 +523,20 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
     // a status past a step that kept no actor and time, whatever code writes it.
     it.each([
       ['creator_acked', 'no acknowledgement', {}],
-      ['payment_uploaded', 'an acknowledgement without its actor', { at: true }],
+      [
+        'payment_uploaded',
+        'an acknowledgement without its actor',
+        { at: true },
+      ],
       ['paid', 'no receipt confirmation', { at: true, by: true }],
       ['finalized', 'a receipt confirmation', { paid: true }],
     ] as const)(
       'the database refuses a %s invoice with %s',
-      async (status, _, moves: { at?: boolean; by?: boolean; paid?: boolean }) => {
+      async (
+        status,
+        _,
+        moves: { at?: boolean; by?: boolean; paid?: boolean },
+      ) => {
         const integrity = await creator(`Integritas-${status}`, [
           { start: -60, end: -1 },
         ]);
