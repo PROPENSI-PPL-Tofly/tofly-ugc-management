@@ -50,7 +50,7 @@ afterEach(() => {
 // Each with what an accepted move answers when the backend sends back an empty body.
 const MOVES = [
   ["acknowledgeInvoice", (id: string) => acknowledgeInvoice(id), "acknowledge", {}, { ok: true }],
-  ["confirmInvoicePayment", (id: string) => confirmInvoicePayment(id), "confirm-payment", {}, { ok: true }],
+  ["confirmInvoicePayment", (id: string) => confirmInvoicePayment(id), "confirm-receipt", {}, { ok: true }],
   [
     "addInvoiceComment",
     (id: string) => addInvoiceComment(id, "  Sudah saya cek.  "),
