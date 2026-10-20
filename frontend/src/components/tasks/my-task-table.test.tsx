@@ -190,6 +190,16 @@ describe("MyTaskTable", () => {
       }
     });
 
+    // Below lg the board offers its own visible sort button; the header's stayed focusable while
+    // unseen inside the hidden header row, so phones had two sort controls, one invisible.
+    it("removes the header's sort button below lg, keeping the column's name", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onSortToggle={vi.fn()} />);
+
+      const header = screen.getByRole("columnheader", { name: /Deadline/ });
+      expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
+    });
+
     it("labels the deadline and status cells with their column", () => {
       render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
 

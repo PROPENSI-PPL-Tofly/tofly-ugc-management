@@ -122,6 +122,28 @@ describe("ContentPlanTable", () => {
       expect(tags).toHaveClass("max-lg:empty:hidden");
     });
 
+    // The deadline sort lived only in the header row, which is hidden below lg: phones had no
+    // visible way to turn the order over, and the header's button stayed focusable while unseen.
+    it("offers a visible deadline sort below lg that turns the order over", () => {
+      const { onSortToggle } = renderTable();
+
+      const sort = screen.getByRole("button", { name: "Urutkan deadline: terjauh dulu" });
+      expect(sort).toHaveTextContent("Deadline");
+      expect(sort).toHaveTextContent("Terjauh dulu");
+      expect(sort.parentElement).toHaveClass("lg:hidden");
+
+      fireEvent.click(sort);
+      expect(onSortToggle).toHaveBeenCalledOnce();
+    });
+
+    it("keeps one sort control per width: the header's button is removed below lg, its name kept", () => {
+      renderTable();
+
+      const header = screen.getByRole("columnheader", { name: /Deadline/ });
+      expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
+    });
+
     it("gives Tinjau and Detail a full-width touch target at least 44px tall", () => {
       renderTable([ROW, { ...ROW, contentId: "c-2", name: "Selesai", status: "link_submitted" }]);
 
