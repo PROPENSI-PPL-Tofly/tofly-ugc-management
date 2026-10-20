@@ -377,7 +377,10 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         }),
       );
 
-      await fresh.get('/me/invoices').expect(200, { items: [] });
+      const res = await fresh.get('/me/invoices');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ items: [] });
     });
   });
 
@@ -466,7 +469,9 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
     });
 
     it('a contract id that is not a UUID, before any query', async () => {
-      await kevin.post('/me/invoices/not-a-uuid/acknowledge').expect(400);
+      const res = await kevin.post('/me/invoices/not-a-uuid/acknowledge');
+
+      expect(res.status).toBe(400);
     });
 
     it.each([
@@ -483,8 +488,10 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
     });
 
     it("an admin on the creator's routes", async () => {
-      await admin.get('/me/invoices').expect(401);
-      await admin.post(`/me/invoices/${sariContract}/acknowledge`).expect(401);
+      const list = await admin.get('/me/invoices');
+      const move = await admin.post(`/me/invoices/${sariContract}/acknowledge`);
+
+      expect([list.status, move.status]).toEqual([401, 401]);
     });
 
     // OWASP Top 10:2025 A01: a move sent from another site is refused before it is read, even
