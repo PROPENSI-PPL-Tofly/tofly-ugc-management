@@ -409,6 +409,33 @@ describe('DevCreatorGuard', () => {
     );
   });
 
+  // OWASP Top 10:2025 A01: only a state change needs the browser's own origin; a read from a
+  // link or a preflight must not be refused for coming from another page.
+  it.each(['GET', 'HEAD', 'OPTIONS'])(
+    'lets a %s with a session through whatever origin it comes from',
+    async (method) => {
+      vi.stubEnv('NODE_ENV', 'test');
+      vi.stubEnv('FRONTEND_URL', 'https://tofly.example');
+      const principal = {
+        userId: 'user-1',
+        role: 'creator' as const,
+        creatorId: HEADER_ID,
+      };
+      const { guard: subject } = sessionGuard(principal);
+      const request: CreatorRequest = {
+        headers: {
+          origin: 'https://attacker.example',
+          'sec-fetch-site': 'cross-site',
+        },
+        cookies: { '__session': 'opaque-id' },
+        method,
+      };
+
+      await expect(subject.canActivate(context(request))).resolves.toBe(true);
+      expect(request.creatorId).toBe(HEADER_ID);
+    },
+  );
+
   it('checks the request origin before allowing a session-authenticated mutation', async () => {
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('FRONTEND_URL', 'https://tofly.example');
