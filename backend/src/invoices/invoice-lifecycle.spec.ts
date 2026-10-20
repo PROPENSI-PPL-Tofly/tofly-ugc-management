@@ -74,6 +74,65 @@ describe('assertCanUploadProof', () => {
   );
 });
 
+const NOT_FINALIZED = {
+  code: 'INVOICE_NOT_FINALIZED',
+  message: 'Invoice belum difinalisasi',
+};
+const ALREADY_ACKNOWLEDGED = {
+  code: 'INVOICE_ALREADY_ACKNOWLEDGED',
+  message: 'Invoice sudah di-acknowledge',
+};
+const PROOF_NOT_UPLOADED = {
+  code: 'PAYMENT_PROOF_NOT_UPLOADED',
+  message: 'Bukti pembayaran belum diunggah',
+};
+const ALREADY_PAID = {
+  code: 'INVOICE_ALREADY_PAID',
+  message: 'Invoice sudah dibayar',
+};
+
+// OWASP Top 10:2025 A06 (Insecure Design): the creator acknowledges once, and only the amount
+// the admin froze. Every other step says why it cannot.
+describe('assertCanAcknowledge', () => {
+  it('lets a finalized invoice be acknowledged', () => {
+    expect(() =>
+      invoiceState('finalized').assertCanAcknowledge(),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['running', NOT_FINALIZED],
+    ['creator_acked', ALREADY_ACKNOWLEDGED],
+    ['payment_uploaded', ALREADY_ACKNOWLEDGED],
+    ['paid', ALREADY_PAID],
+  ] as const)('refuses a %s invoice with its reason', (status, reason) => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanAcknowledge()),
+    ).toEqual(reason);
+  });
+});
+
+// OWASP Top 10:2025 A06 (Insecure Design): receipt is confirmed only against a proof the admin
+// uploaded, and only once.
+describe('assertCanConfirmReceipt', () => {
+  it('lets an invoice with an uploaded proof be confirmed', () => {
+    expect(() =>
+      invoiceState('payment_uploaded').assertCanConfirmReceipt(),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['running', PROOF_NOT_UPLOADED],
+    ['finalized', PROOF_NOT_UPLOADED],
+    ['creator_acked', PROOF_NOT_UPLOADED],
+    ['paid', ALREADY_PAID],
+  ] as const)('refuses a %s invoice with its reason', (status, reason) => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanConfirmReceipt()),
+    ).toEqual(reason);
+  });
+});
+
 describe('invoiceState', () => {
   it('reads a running invoice as accruing, the first status of the pipeline', () => {
     expect(invoiceState('running')).toBeInstanceOf(RunningInvoiceState);
