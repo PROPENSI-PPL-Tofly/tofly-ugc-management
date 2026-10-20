@@ -8,12 +8,14 @@ import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
 import { jakartaDay } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { InvoiceConfirmationFields } from './dto/invoice-confirmation.dto.js';
 import type {
   InvoiceAdjustmentDto,
   InvoiceDetail,
   InvoiceListItem,
   InvoiceListResponse,
   InvoiceSnapshotDto,
+  InvoiceView,
 } from './dto/invoice-list.dto.js';
 import type { InvoiceFilters } from './invoice-filters.js';
 import {
@@ -85,6 +87,7 @@ export interface InvoiceLister {
 
   finalize(
     contractId: string,
+    finalizedBy: string,
     today?: Date,
   ): Promise<{
     invoiceStatus: 'finalized';
@@ -125,6 +128,8 @@ interface Calculated {
   items: InvoiceListItem[];
   /** The saved invoice id of each kept contract that has one, for reading the page's adjustments. */
   invoiceIds: Map<string, string>;
+  /** When the creator made their moves on each kept contract's saved invoice. */
+  confirmations: Map<string, InvoiceConfirmationFields>;
   runningInvoices: number;
   formulaSet: boolean;
 }
@@ -133,6 +138,29 @@ interface Calculated {
 interface SavedListing {
   id: string;
   snapshot: InvoiceSnapshotDto | null;
+  confirmations: InvoiceConfirmationFields;
+}
+
+/** A saved invoice with its adjustments, snapshot and the creator's moves, for one invoice view. */
+interface SavedLifecycle extends SavedInvoice {
+  confirmations: InvoiceConfirmationFields;
+}
+
+/** Neither of the creator's moves: no saved invoice, or one they have not moved yet. */
+const NO_CONFIRMATIONS: InvoiceConfirmationFields = {
+  acknowledgedAt: null,
+  paidAt: null,
+};
+
+/** When the creator acknowledged and confirmed receipt, as the API names them (13.1). */
+function confirmationsOf(saved: {
+  acknowledged_at: Date | null;
+  paid_at: Date | null;
+}): InvoiceConfirmationFields {
+  return {
+    acknowledgedAt: saved.acknowledged_at?.toISOString() ?? null,
+    paidAt: saved.paid_at?.toISOString() ?? null,
+  };
 }
 
 function pick(rows: InvoiceCreatorRow[], today: Date): PickedCreator[] {
@@ -216,7 +244,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     filters: InvoiceFilters = {},
     sort: InvoiceSort = DEFAULT_INVOICE_SORT,
   ): Promise<InvoiceListResponse> {
-    const { items, invoiceIds, runningInvoices, formulaSet } =
+    const { items, invoiceIds, confirmations, runningInvoices, formulaSet } =
       await this.calculate(today, filters, sort);
 
     const { page, totalPages } = clampPage(asked, pageSize, items.length);
@@ -234,6 +262,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       items: adjusted.map((item) => ({
         ...item,
         paymentProof: proofs.get(item.contract.id) ?? null,
+        ...(confirmations.get(item.contract.id) ?? NO_CONFIRMATIONS),
       })),
       page,
       pageSize,
@@ -265,34 +294,74 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         : (row.contracts.find(({ id }) => id === contractId) ?? null));
     if (!row || !contract) return null;
 
-    const [byContract, statuses, formula, lifecycleByContract, proofs] =
+    const [[view], proofs] = await Promise.all([
+      this.views(row, [contract], today),
+      this.proofs.forContracts([contract.id], 'admin'),
+    ]);
+
+    return { ...view, paymentProof: proofs.get(contract.id) ?? null };
+  }
+
+  /**
+   * Every invoice of one creator, newest period first, for GET /me/invoices (13.1): each source
+   * is read once for all their contracts. The proof link is left to the caller, which knows
+   * whose route opens it.
+   */
+  async forCreator(
+    creatorId: string,
+    today = new Date(),
+  ): Promise<InvoiceView[]> {
+    const row = await this.prisma.creators.findUnique({
+      where: { id: creatorId },
+      select: INVOICE_SELECT,
+    });
+    if (!row || row.contracts.length === 0) return [];
+
+    const invoices = await this.views(row, row.contracts, today);
+    return invoices.sort((a, b) => b.periodNumber - a.periodNumber);
+  }
+
+  /**
+   * The invoice of each of a creator's given contracts, in their order, with each source read
+   * once for all of them. The one place an invoice view is put together, for the admin's detail
+   * and the creator's list alike.
+   */
+  private async views(
+    row: InvoiceCreatorRow,
+    contracts: readonly InvoiceContractRow[],
+    today: Date,
+  ): Promise<InvoiceView[]> {
+    const ids = contracts.map(({ id }) => id);
+    const [byContract, statuses, formula, lifecycleByContract] =
       await Promise.all([
-        this.contentsOf([contract.id]),
-        this.pipeline.statuses([contract.id]),
+        this.contentsOf(ids),
+        this.pipeline.statuses(ids),
         this.formulas.current(),
-        this.lifecycleForContracts([contract.id]),
-        this.proofs.forContracts([contract.id], 'admin'),
+        this.lifecycleForContracts(ids),
       ]);
 
-    const lifecycle = lifecycleByContract.get(contract.id);
+    return contracts.map((contract) => {
+      const lifecycle = lifecycleByContract.get(contract.id);
 
-    return {
-      ...toInvoiceItem(
-        row,
-        contract,
-        byContract.get(contract.id) ?? [],
-        formula,
-        today,
-        lifecycle,
-      ),
-      invoiceStatus: statuses.get(contract.id)!,
-      periodNumber: periodNumber(row, contract),
-      // A finalized invoice keeps the rules its saved totals were worked out with.
-      formula: lifecycle?.snapshot
-        ? (lifecycle.snapshot.formula ?? null)
-        : formula,
-      paymentProof: proofs.get(contract.id) ?? null,
-    };
+      return {
+        ...(lifecycle?.confirmations ?? NO_CONFIRMATIONS),
+        ...toInvoiceItem(
+          row,
+          contract,
+          // Stryker disable next-line ArrayDeclaration: equivalent mutant. The mutation hands a contract with no content one junk element; it has no status, deadline, type or platform, so no component counts it, and toInvoiceItem answers the same for every contract shape, formula and revoke date tried.
+          byContract.get(contract.id) ?? [],
+          formula,
+          today,
+          lifecycle,
+        ),
+        invoiceStatus: statuses.get(contract.id)!,
+        periodNumber: periodNumber(row, contract),
+        // A finalized invoice keeps the rules its saved totals were worked out with.
+        formula: lifecycle?.snapshot
+          ? (lifecycle.snapshot.formula ?? null)
+          : formula,
+      };
+    });
   }
 
   private async calculate(
@@ -367,6 +436,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       invoiceIds: new Map(
         [...saved].map(([contractId, invoice]) => [contractId, invoice.id]),
       ),
+      confirmations: new Map(
+        [...saved].map(([contractId, invoice]) => [
+          contractId,
+          invoice.confirmations,
+        ]),
+      ),
       runningInvoices: [...statuses.values()].filter(
         (status) => status === 'accruing',
       ).length,
@@ -377,12 +452,14 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
   /** Read saved adjustments and snapshots for the requested contracts, for the detail. */
   private async lifecycleForContracts(
     contractIds: string[],
-  ): Promise<Map<string, SavedInvoice>> {
+  ): Promise<Map<string, SavedLifecycle>> {
     const persisted = await this.prisma.invoices.findMany({
       where: { contract_id: { in: contractIds } },
       select: {
         contract_id: true,
         snapshot: true,
+        acknowledged_at: true,
+        paid_at: true,
         adjustments: {
           select: INVOICE_ADJUSTMENT_SELECT,
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
@@ -390,12 +467,13 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       },
     });
 
-    const result = new Map<string, SavedInvoice>();
+    const result = new Map<string, SavedLifecycle>();
 
     for (const invoice of persisted) {
       result.set(invoice.contract_id, {
         adjustments: invoice.adjustments.map(adjustmentDto),
         snapshot: savedSnapshot(invoice.snapshot),
+        confirmations: confirmationsOf(invoice),
       });
     }
 
@@ -410,7 +488,13 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     const saved = await this.prisma.invoices.findMany({
       where: { contract_id: { in: contractIds } },
-      select: { id: true, contract_id: true, snapshot: true },
+      select: {
+        id: true,
+        contract_id: true,
+        snapshot: true,
+        acknowledged_at: true,
+        paid_at: true,
+      },
     });
 
     return new Map(
@@ -419,6 +503,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         {
           id: invoice.id,
           snapshot: savedSnapshot(invoice.snapshot),
+          confirmations: confirmationsOf(invoice),
         },
       ]),
     );
@@ -528,6 +613,8 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
   async finalize(
     contractId: string,
+    /** The admin who freezes the invoice, from the session. */
+    finalizedBy: string,
     today = new Date(),
     request: FinalizeRequest = { acceptPendingBonus: false },
   ): Promise<{
@@ -621,6 +708,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
             status: 'finalized',
             snapshot: snapshot as unknown as Prisma.InputJsonValue,
             finalized_at: today,
+            finalized_by: finalizedBy,
           },
         });
 

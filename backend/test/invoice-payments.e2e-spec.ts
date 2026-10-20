@@ -89,21 +89,32 @@ describe('Invoice payment proof and comments (e2e)', () => {
     };
   }
 
-  /** Puts a contract's invoice where 13.1 leaves it once the creator acknowledged it. */
+  /** The user of the contract's creator, who makes the creator's moves on its invoice. */
+  async function creatorUserOf(contractId: string): Promise<string> {
+    const contract = await prisma.contracts.findUniqueOrThrow({
+      where: { id: contractId },
+      select: { creators: { select: { user_id: true } } },
+    });
+    return contract.creators.user_id;
+  }
+
+  /**
+   * Puts a contract's invoice where 13.1 leaves it once the creator acknowledged it, with the
+   * actor and time the database requires of an acknowledged invoice.
+   */
   async function acknowledged(contractId: string) {
+    const acknowledgedBy = await creatorUserOf(contractId);
+    const moved = {
+      status: 'creator_acked' as const,
+      finalized_at: new Date(),
+      snapshot: {},
+      acknowledged_at: new Date(),
+      acknowledged_by: acknowledgedBy,
+    };
     await prisma.invoices.upsert({
       where: { contract_id: contractId },
-      create: {
-        contract_id: contractId,
-        status: 'creator_acked',
-        finalized_at: new Date(),
-        snapshot: {},
-      },
-      update: {
-        status: 'creator_acked',
-        finalized_at: new Date(),
-        snapshot: {},
-      },
+      create: { contract_id: contractId, ...moved },
+      update: moved,
     });
   }
 
@@ -424,12 +435,20 @@ describe('Invoice payment proof and comments (e2e)', () => {
       'paid',
     ] as const)('takes comments while the invoice is %s', async (status) => {
       const frozen = status !== 'running';
+      // Each status holds the creator's moves it is past, as the database requires.
+      const acked = !['running', 'finalized'].includes(status);
+      const paid = status === 'paid';
+      const creatorUser = await creatorUserOf(kevinContract);
       await prisma.invoices.update({
         where: { contract_id: kevinContract },
         data: {
           status,
           finalized_at: frozen ? new Date() : null,
           snapshot: frozen ? {} : undefined,
+          acknowledged_at: acked ? new Date() : null,
+          acknowledged_by: acked ? creatorUser : null,
+          paid_at: paid ? new Date() : null,
+          paid_by: paid ? creatorUser : null,
         },
       });
 
