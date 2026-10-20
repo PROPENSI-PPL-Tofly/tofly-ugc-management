@@ -249,6 +249,56 @@ describe("CreatorTable", () => {
     ).toHaveAttribute("href", "/admin/creators");
   });
 
+  // Client feedback A1, on a phone: the seven columns scrolled sideways and Detail sat off-screen
+  // in the last one. Below lg each row reads as a card, as Task Saya's rows do. jsdom lays
+  // nothing out, so these pin the classes and labels the layout is built from.
+  describe("on a phone, below lg", () => {
+    function cells() {
+      return within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+    }
+
+    it("keeps table semantics while the rows stack as cards", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
+      expect(screen.getAllByRole("row")[1]).toHaveClass("max-lg:block");
+      expect(cells()).toHaveLength(7);
+    });
+
+    it("names every value by its column, since the column headers are hidden", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      expect(cells().map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Kontrak",
+        "Progres konten",
+        "Tepat waktu",
+        "Rata-rata revisi",
+        "Produktivitas",
+        null,
+      ]);
+    });
+
+    it("reads the numbers from the left in a card, and from the right in the table", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      const [, , , onTime, revisions] = cells();
+      for (const cell of [onTime, revisions]) {
+        expect(cell).toHaveClass("text-right");
+        expect(cell).toHaveClass("max-lg:text-left");
+      }
+    });
+
+    it("gives Detail a full-width touch target at least 44px tall", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      const link = screen.getByRole("link", { name: "Detail Rangga Pratama" });
+      expect(link).toHaveClass("max-lg:w-full");
+      expect(link).toHaveClass("max-lg:min-h-11");
+    });
+  });
+
   // PBI-4: the Creator Detail page takes the place of the Detail dialog and of the creator's
   // own Content Plan page, so a row has one way in.
   describe("opening a creator", () => {
