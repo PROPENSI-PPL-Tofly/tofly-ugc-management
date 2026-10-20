@@ -10,6 +10,7 @@ import type { BreakdownKind, InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { loadInvoiceBreakdown } from "@/lib/invoice-breakdown.server";
 import { BreakdownPopup, type BreakdownStatus } from "./breakdown-popup";
 import { InvoiceActions } from "./invoice-actions";
+import { InvoicePaymentSection } from "./invoice-payment-section";
 import { InvoiceRincian } from "./invoice-rincian";
 
 /** One money column, or "all" for the whole invoice in one panel (Rincian). */
@@ -148,6 +149,18 @@ export function useBreakdownPopups({
             onMutated={() => {
               read.current.clear();
               closeAll();
+              onMutated?.();
+            }}
+          />
+        }
+        payment={
+          // An upload reads the table again but keeps the panel open on the uploaded file.
+          <InvoicePaymentSection
+            contractId={popup.row.contractId}
+            status={popup.row.invoiceStatus}
+            payment={popup.row.payment}
+            onUploaded={() => {
+              read.current.clear();
               onMutated?.();
             }}
           />

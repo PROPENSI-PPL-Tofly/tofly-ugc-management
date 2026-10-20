@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
+import { InvoicePaymentsModule } from './invoice-payments.module.js';
+import { InvoiceConfirmationService } from './invoice-confirmation.service.js';
 import { INVOICE_STATUS_SOURCE } from './invoice-status.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesService } from './invoices.service.js';
@@ -8,7 +10,8 @@ import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 
 @Module({
-  imports: [RateFormulaModule],
+  // The payment proof each row shows (PBI-13).
+  imports: [RateFormulaModule, InvoicePaymentsModule],
   controllers: [InvoicesController],
   providers: [
     InvoicesService,
@@ -16,6 +19,10 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
     { provide: RATE_FORMULA_SOURCE, useClass: StoredRateFormulaSource },
     // Where each invoice stands, from the lifecycle finalizing saves (PBI-12).
     { provide: INVOICE_STATUS_SOURCE, useClass: PersistedInvoiceStatusSource },
+    // The creator's acknowledge and receipt confirmation (13.1).
+    InvoiceConfirmationService,
   ],
+  // The creator's routes in MeModule read their invoices and make their moves through these.
+  exports: [InvoicesService, InvoiceConfirmationService, InvoicePaymentsModule],
 })
 export class InvoicesModule {}

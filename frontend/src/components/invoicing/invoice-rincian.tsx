@@ -34,6 +34,7 @@ export function InvoiceRincian({
   onClose,
   onOpenContent,
   actions,
+  payment,
 }: Readonly<{
   row: InvoiceRow;
   /** Null until it has been read, and when there is none. */
@@ -43,6 +44,8 @@ export function InvoiceRincian({
   onClose: () => void;
   onOpenContent: (contentId: string) => void;
   actions?: ReactNode;
+  // The payment part (PBI-13, subtask 13.4), under the breakdown and its total.
+  payment?: ReactNode;
 }>) {
   let body: ReactNode;
   if (status === "failed") {
@@ -116,6 +119,7 @@ export function InvoiceRincian({
         {row.frozenAt !== null ? <Pill tone="green">{FINAL_LABEL}</Pill> : null}
       </div>
       {body}
+      {payment}
     </Modal>
   );
 }

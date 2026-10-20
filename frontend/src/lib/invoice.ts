@@ -5,6 +5,7 @@
 
 import { formatDeduction, formatRupiah } from "./format";
 import type { AdjustmentLine } from "./invoice-adjustment";
+import type { InvoicePayment } from "./invoice-payment-api";
 import { oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** The table shows ten creators a page, as the prototype pages it. */
@@ -115,6 +116,8 @@ export interface InvoiceRow {
   adjustments: AdjustmentLine[];
   /** When the invoice was frozen, an ISO instant; null while it still runs. */
   frozenAt: string | null;
+  // Where the payment stands (PBI-13, subtask 13.4), once the API sends it.
+  payment?: InvoicePayment;
 }
 
 /** What the page says about every invoice, not only the ones on this page. */

@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   // The framework banner tells an attacker what to probe for; nothing needs it.
   poweredByHeader: false,
+  // A server action refuses a body over 1 MB by default. The payment proof upload (PBI-13,
+  // subtask 13.4) takes files up to 5 MB, as the PRD proposes; 6 MB leaves room for the bytes
+  // multipart/form-data adds, and still caps what one request can make the server parse.
+  experimental: {
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   // Static hardening headers on every path, static assets included. The per-request ones
   // (the nonce-bearing Content-Security-Policy, X-Frame-Options) live in src/proxy.ts.
   async headers() {

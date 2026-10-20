@@ -1,4 +1,4 @@
-import { safeHref } from "./safe-href";
+import { isSameSitePath, safeHref } from "./safe-href";
 
 describe("safeHref", () => {
   it.each([
@@ -48,5 +48,22 @@ describe("safeHref", () => {
 
   it.each(["", "   "])("refuses the empty link %j", (link) => {
     expect(safeHref(link)).toBeNull();
+  });
+});
+
+describe("isSameSitePath", () => {
+  it("takes a path on this site, such as an /api proxy route", () => {
+    expect(isSameSitePath("/api/me/invoices/0b9c1f2e-3a4d-4e5f-8a9b-1c2d3e4f5a6b/payment-proof")).toBe(true);
+  });
+
+  // OWASP A01: a browser reads "//host" and "/\\host" as another site.
+  it.each([
+    ["another site without a scheme", "//evil.example/bukti.pdf"],
+    ["another site behind a backslash", "/\\evil.example/bukti.pdf"],
+    ["an absolute address", "https://evil.example/bukti.pdf"],
+    ["a relative path", "bukti.pdf"],
+    ["nothing", ""],
+  ])("refuses %s", (_, link) => {
+    expect(isSameSitePath(link)).toBe(false);
   });
 });

@@ -43,6 +43,28 @@ describe('PersistedInvoiceStatusSource', () => {
     );
   });
 
+  it('reads the steps after finalizing under their own names', async () => {
+    prisma.invoices.findMany.mockResolvedValue([
+      { contract_id: 'contract-1', status: 'creator_acked' },
+      { contract_id: 'contract-2', status: 'payment_uploaded' },
+      { contract_id: 'contract-3', status: 'paid' },
+    ]);
+
+    const statuses = await source.statuses([
+      'contract-1',
+      'contract-2',
+      'contract-3',
+    ]);
+
+    expect(statuses).toEqual(
+      new Map([
+        ['contract-1', 'creator_acked'],
+        ['contract-2', 'payment_uploaded'],
+        ['contract-3', 'paid'],
+      ]),
+    );
+  });
+
   it('reads a contract with no saved invoice yet as accruing', async () => {
     prisma.invoices.findMany.mockResolvedValue([
       { contract_id: 'contract-2', status: 'finalized' },
@@ -65,7 +87,7 @@ describe('PersistedInvoiceStatusSource', () => {
   // not know fails the read rather than being listed as some other status.
   it('fails closed on a saved status the lifecycle does not know', async () => {
     prisma.invoices.findMany.mockResolvedValue([
-      { contract_id: 'contract-1', status: 'paid' },
+      { contract_id: 'contract-1', status: 'archived' },
     ]);
 
     await expect(source.statuses(['contract-1'])).rejects.toThrow(
