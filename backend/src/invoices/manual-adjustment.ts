@@ -1,5 +1,8 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { MAX_FIXED_RATE } from '../creators/new-creator.js';
+
+/** One adjustment moves an invoice by at most a whole contract's fixed-rate cap, either way. */
+export const MAX_ADJUSTMENT = MAX_FIXED_RATE;
 
 export interface ManualAdjustmentInput {
   amount: number;
@@ -23,11 +26,13 @@ export function checkManualAdjustment(body: unknown): ManualAdjustmentInput {
   const amount = input.amount;
   if (
     typeof amount !== 'number' ||
-    !Number.isFinite(amount) ||
-    amount === 0 ||
-    new Prisma.Decimal(amount).decimalPlaces() > 2
+    !Number.isInteger(amount) ||
+    amount === 0
   ) {
-    errors.amount = 'Jumlah harus bukan nol dan maksimal dua angka desimal';
+    errors.amount = 'Jumlah harus angka bulat dan bukan nol';
+  } else if (Math.abs(amount) > MAX_ADJUSTMENT) {
+    // Checked before anything stores it: past 2^53 a number has already been rounded on parse.
+    errors.amount = 'Jumlah maksimal Rp10.000.000 per penyesuaian';
   }
 
   const reason = input.reason;

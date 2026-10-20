@@ -828,9 +828,9 @@ describe('Invoices API (e2e)', () => {
 
     const [a, b] = created;
     for (const [target, amount] of [
-      [a, 1_500_000.25],
-      [a, 0.5],
-      [b, -0.25],
+      [a, 1_500_000],
+      [a, 1],
+      [b, -1],
     ] as const) {
       await admin
         .post(`/invoices/${target.contractId}/adjustments`)
@@ -855,7 +855,7 @@ describe('Invoices API (e2e)', () => {
       );
     }
 
-    // A's Rp1.000.000 plus Rp1.500.000,75 outranks B's Rp2.000.000 less Rp0,25.
+    // A's Rp1.000.000 plus Rp1.500.001 outranks B's Rp2.000.000 less Rp1.
     expect(
       whole.items.map((item: { creatorName: string }) => item.creatorName),
     ).toEqual([a.name, b.name]);
@@ -863,7 +863,7 @@ describe('Invoices API (e2e)', () => {
       whole.items.map((item: { adjustments: { amount: number }[] }) =>
         item.adjustments.map((adjustment) => adjustment.amount),
       ),
-    ).toEqual([[1_500_000.25, 0.5], [-0.25]]);
+    ).toEqual([[1_500_000, 1], [-1]]);
     expect(whole.summary.total).toBe(
       whole.items[0].total + whole.items[1].total,
     );
