@@ -336,6 +336,20 @@ describe("CreatorInvoiceView", () => {
       expect(rincian).toHaveAttribute("aria-selected", "true");
     });
 
+    it("wraps back with ArrowLeft and leaves the tab alone for any other key", () => {
+      renderView();
+      const rincian = screen.getByRole("tab", { name: "Rincian" });
+      const aktivitas = screen.getByRole("tab", { name: /Aktivitas/ });
+
+      fireEvent.keyDown(rincian, { key: "ArrowLeft" });
+      expect(aktivitas).toHaveAttribute("aria-selected", "true");
+      fireEvent.keyDown(aktivitas, { key: "ArrowLeft" });
+      expect(rincian).toHaveAttribute("aria-selected", "true");
+
+      fireEvent.keyDown(rincian, { key: "a" });
+      expect(rincian).toHaveAttribute("aria-selected", "true");
+    });
+
     // Brand blue marks the current selection everywhere else (StatusTabs, Tabel/Kalender).
     it("marks the open tab in the brand blue, as every other tab list does", () => {
       renderView();
