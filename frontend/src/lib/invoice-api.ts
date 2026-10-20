@@ -20,6 +20,7 @@ import {
   type InvoiceStatus,
   type PendingBonus,
 } from "./invoice";
+import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
 export interface RawInvoiceLine {
@@ -47,7 +48,7 @@ export interface RawAdjustment {
 }
 
 /** One creator's running invoice, as GET /invoices answers it. */
-export interface RawInvoiceRow {
+export interface RawInvoiceRow extends RawInvoicePayment {
   creatorId: string;
   creatorName: string;
   contract: {
@@ -167,6 +168,7 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
       createdAt: adjustment.createdAt,
     })),
     frozenAt: raw.snapshot?.finalizedAt ?? null,
+    ...paymentOf(raw),
   };
 }
 

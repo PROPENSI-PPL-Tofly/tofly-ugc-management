@@ -71,3 +71,24 @@ export async function backendPost(path: string, body: unknown = {}): Promise<Res
     body: JSON.stringify(body),
   });
 }
+
+// The same request as a POST with a multipart form, for the payment proof upload. No content
+// type is set here: fetch writes the multipart boundary itself, and a hand-written one breaks it.
+export async function backendPostForm(path: string, form: FormData): Promise<Response> {
+  const backendUrl = process.env.BACKEND_URL;
+
+  if (!backendUrl) {
+    throw new Error("BACKEND_URL is not configured");
+  }
+
+  const cookie = await appSessionCookieHeader();
+  return fetch(`${withoutTrailingSlash(backendUrl)}${path}`, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      ...(await browserOriginHeaders()),
+      ...(cookie && { cookie }),
+    },
+    body: form,
+  });
+}
