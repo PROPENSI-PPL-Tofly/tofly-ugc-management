@@ -3,6 +3,7 @@ import {
   AMOUNT_EMPTY,
   AMOUNT_INVALID,
   AMOUNT_THOUSANDS,
+  AMOUNT_TOO_LARGE,
   REASON_EMPTY,
   REASON_MAX_LENGTH,
   REASON_TOO_LONG,
@@ -102,6 +103,17 @@ describe("AdjustmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 
     expect(screen.getByText(AMOUNT_INVALID)).toBeInTheDocument();
+    expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
+  });
+
+  it("refuses an amount past Rp10.000.000 before anything is sent, with no preview of it", () => {
+    form();
+    fill("99999999999999999", "nominal tidak wajar");
+
+    expect(screen.queryByText(/Akan dicatat/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(screen.getByText(AMOUNT_TOO_LARGE)).toBeInTheDocument();
     expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
   });
 
