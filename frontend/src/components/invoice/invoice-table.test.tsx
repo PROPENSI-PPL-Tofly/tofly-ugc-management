@@ -319,6 +319,60 @@ describe("InvoiceTable", () => {
       expect(screen.getByRole("columnheader", { name: /^Creator/ })).toHaveAttribute("aria-sort", "none");
     });
 
+    // Below lg the header row is hidden, so the four sorts need a visible control there; the
+    // headers' own buttons leave that width so none stays focusable unseen.
+    describe("on a phone, below lg", () => {
+      function phoneSort() {
+        return screen.getByRole("group", { name: "Urutkan" });
+      }
+
+      it("offers the four sortable columns as buttons, gone from lg up", () => {
+        render(<InvoiceTable rows={[FULL]} sort={sortProps("action")} />);
+
+        expect(phoneSort()).toHaveClass("lg:hidden");
+        expect(within(phoneSort()).getAllByRole("button").map((b) => b.textContent)).toEqual([
+          "Creator",
+          "Fixed Rate",
+          "Penalti",
+          "Total",
+        ]);
+      });
+
+      it("reports the column pressed, as the header would", () => {
+        const sort = sortProps("action");
+        render(<InvoiceTable rows={[FULL]} sort={sort} />);
+
+        fireEvent.click(within(phoneSort()).getByRole("button", { name: /^Penalti/ }));
+
+        expect(sort.onSort).toHaveBeenCalledWith("penalty");
+      });
+
+      it("marks the column sorted by and says its direction in words", () => {
+        render(<InvoiceTable rows={[FULL]} sort={sortProps("total", "desc")} />);
+
+        const total = within(phoneSort()).getByRole("button", { name: /^Total/ });
+        expect(total).toHaveAttribute("aria-pressed", "true");
+        expect(within(phoneSort()).getByRole("button", { name: /^Creator/ })).toHaveAttribute(
+          "aria-pressed",
+          "false",
+        );
+        expect(phoneSort()).toHaveTextContent("Total terbesar dulu");
+      });
+
+      it("removes the headers' sort buttons below lg, keeping the column names", () => {
+        render(<InvoiceTable rows={[FULL]} sort={sortProps("action")} />);
+
+        const header = screen.getByRole("columnheader", { name: /^Penalti/ });
+        expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      });
+
+      it("offers no phone sort when the board hands in no order", () => {
+        render(<InvoiceTable rows={[FULL]} />);
+
+        expect(screen.queryByRole("group", { name: "Urutkan" })).toBeNull();
+      });
+    });
+
     it("reports which column was pressed", () => {
       const sort = sortProps("action");
       render(<InvoiceTable rows={[FULL]} sort={sort} />);
