@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  NotFoundException,
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
