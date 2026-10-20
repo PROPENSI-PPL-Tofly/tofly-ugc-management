@@ -14,11 +14,12 @@ function errorsFor(body: unknown): Record<string, string> {
   return expect.unreachable('the adjustment must be rejected');
 }
 
-const AMOUNT_ERROR = 'Jumlah harus bukan nol dan maksimal dua angka desimal';
+const AMOUNT_ERROR = 'Jumlah harus angka bulat dan bukan nol';
+const AMOUNT_TOO_LARGE = 'Jumlah maksimal Rp10.000.000 per penyesuaian';
 
 describe('checkManualAdjustment', () => {
-  it.each([25_000, -75_000, 0.01, -1500.5, 99.99])(
-    'accepts the nonzero amount %d with at most two decimals',
+  it.each([25_000, -75_000, 1, -1, 10_000_000, -10_000_000])(
+    'accepts the whole, nonzero rupiah amount %d within the limit',
     (amount) => {
       expect(checkManualAdjustment({ amount, reason: 'Koreksi' })).toEqual({
         amount,
@@ -84,11 +85,24 @@ describe('checkManualAdjustment', () => {
     ['negative zero', -0],
     ['NaN', Number.NaN],
     ['infinite', Number.POSITIVE_INFINITY],
-    ['three decimals', 1.234],
-    ['a negative with three decimals', -0.001],
+    ['a fraction of a rupiah', 1.5],
+    ['a negative with decimals', -0.01],
   ])('rejects an amount that is %s', (_case, amount) => {
     expect(errorsFor({ amount, reason: 'Koreksi' })).toEqual({
       amount: AMOUNT_ERROR,
+    });
+  });
+
+  // OWASP Top 10:2025 A06 (Insecure Design): one adjustment cannot move an invoice by more than
+  // a whole contract's fixed rate, and a number past 2^53 can never be stored rounded.
+  it.each([
+    ['one rupiah over the limit', 10_000_001],
+    ['one rupiah under minus the limit', -10_000_001],
+    ['past the safe integer range', 9_007_199_254_740_993],
+    ['astronomically large', 1e20],
+  ])('rejects an amount that is %s', (_case, amount) => {
+    expect(errorsFor({ amount, reason: 'Koreksi' })).toEqual({
+      amount: AMOUNT_TOO_LARGE,
     });
   });
 

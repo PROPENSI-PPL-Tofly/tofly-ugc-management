@@ -549,7 +549,7 @@ describe('Invoices API (e2e)', () => {
 
   // OWASP Top 10:2025 A08 — amounts are kept exactly as written; the unconstrained numeric column
   // and its check refuse a third decimal, where numeric(14, 2) would round it before the check.
-  it('stores two-decimal adjustments and their total exactly and refuses a third decimal in the database itself', async () => {
+  it('reads stored two-decimal adjustments and their total exactly and refuses a third decimal in the database itself', async () => {
     const user = await prisma.users.create({
       data: { email: `${MARKER}-precision@example.com` },
     });
@@ -577,11 +577,21 @@ describe('Invoices API (e2e)', () => {
         .items[0];
 
     const before = await listed();
-    for (const amount of [0.01, -1500.55, 2_000_000.99]) {
-      await admin
-        .post(`/invoices/${precisionContractId}/adjustments`)
-        .send({ amount, reason: 'Precision adjustment' })
-        .expect(201);
+    // The API now takes whole rupiah only; rows with sen written before that rule are still read
+    // and summed exactly, so they are written here the way they sit in the table.
+    const { id: precisionInvoiceId } = await prisma.invoices.create({
+      data: { contract_id: precisionContractId },
+      select: { id: true },
+    });
+    for (const amount of ['0.01', '-1500.55', '2000000.99']) {
+      await prisma.invoice_adjustments.create({
+        data: {
+          invoice_id: precisionInvoiceId,
+          amount: new Prisma.Decimal(amount),
+          reason: 'Precision adjustment',
+          actor_user_id: adminId,
+        },
+      });
     }
     const after = await listed();
 
@@ -623,6 +633,27 @@ describe('Invoices API (e2e)', () => {
         where: { invoice_id: invoiceId },
       }),
     ).toBe(3);
+  });
+
+  // OWASP Top 10:2025 A06 — one adjustment stays within a contract's fixed-rate cap, in whole
+  // rupiah, so a typo or a number past 2^53 can never be stored rounded or inflate a payout.
+  it.each([
+    ['a fraction of a rupiah', 1.5, 'Jumlah harus angka bulat dan bukan nol'],
+    ['one rupiah over the limit', 10_000_001, 'Jumlah maksimal Rp10.000.000 per penyesuaian'],
+    ['past the safe integer range', 9_007_199_254_740_993, 'Jumlah maksimal Rp10.000.000 per penyesuaian'],
+  ])('refuses an amount that is %s and stores nothing', async (_case, amount, message) => {
+    await expectAdjustmentStateUnchanged(async () => {
+      const response = await admin
+        .post(adjustmentPath())
+        .send({ amount, reason: 'Out of range' })
+        .expect(422);
+      expect(response.body.errors).toEqual({ amount: message });
+    });
+  });
+
+  it('accepts exactly Rp10.000.000 either way', async () => {
+    await expectCreatedAdjustment(10_000_000, 'Limit plus');
+    await expectCreatedAdjustment(-10_000_000, 'Limit minus');
   });
 
   // OWASP Top 10:2025 A01 — clients cannot set server-controlled fields.
