@@ -10,7 +10,7 @@ import { creatorName } from './invoice-rows.js';
 /** The database operations this service uses. */
 export type InvoiceCommentsClient = Pick<
   PrismaService,
-  'contracts' | 'invoices' | 'invoice_comments'
+  'contracts' | 'invoices' | 'invoice_comments' | '$transaction'
 >;
 
 /**
@@ -109,7 +109,7 @@ export class InvoiceCommentsService implements InvoiceCommentReader {
 
   /**
    * Adds a comment at any stage. A contract nobody has adjusted yet gets its invoice row now,
-   * as an adjustment would.
+   * as an adjustment would, in the same transaction as the comment, so a failure leaves neither.
    */
   async add(
     contractId: string,
@@ -128,22 +128,24 @@ export class InvoiceCommentsService implements InvoiceCommentReader {
     });
     if (!contract) throw invoiceNotFound();
 
-    const invoice = await this.prisma.invoices.upsert({
-      where: { contract_id: contractId },
-      create: { contract_id: contractId },
-      update: {},
-      select: { id: true },
-    });
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoices.upsert({
+        where: { contract_id: contractId },
+        create: { contract_id: contractId },
+        update: {},
+        select: { id: true },
+      });
 
-    const saved = await this.prisma.invoice_comments.create({
-      data: {
-        invoice_id: invoice.id,
-        author_user_id:
-          author.role === 'admin' ? author.userId : contract.creators.user_id,
-        author_role: author.role,
-        text,
-      },
-      select: COMMENT_SELECT,
+      return tx.invoice_comments.create({
+        data: {
+          invoice_id: invoice.id,
+          author_user_id:
+            author.role === 'admin' ? author.userId : contract.creators.user_id,
+          author_role: author.role,
+          text,
+        },
+        select: COMMENT_SELECT,
+      });
     });
 
     return toDto(saved, creatorName(contract.creators));
