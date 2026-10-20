@@ -130,13 +130,13 @@ describe("AdjustmentForm", () => {
   it("sends the amount and the trimmed reason, then hands the invoice back to be read", async () => {
     const onMutated = vi.fn();
     form({ onMutated });
-    fill(" -100000.5 ", "  Koreksi  ");
+    fill(" -100000 ", "  Koreksi  ");
 
     fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 
     await vi.waitFor(() =>
       expect(moves.addInvoiceAdjustment).toHaveBeenCalledWith(CONTRACT, {
-        amount: " -100000.5 ",
+        amount: " -100000 ",
         reason: "  Koreksi  ",
       }),
     );

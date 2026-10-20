@@ -6,6 +6,7 @@
 // The wording of the field errors is the backend's own (checkManualAdjustment, invoice-lifecycle),
 // so the form and the server never tell an admin two different things about the same mistake.
 
+import { MAX_FIXED_RATE } from "./creator-form";
 import { formatDeduction, formatRupiah } from "./format";
 import type { InvoiceStatus } from "./invoice";
 
@@ -16,7 +17,8 @@ export const REASON_MAX_LENGTH = 500;
 export const FINAL_LABEL = "Final";
 
 export const AMOUNT_EMPTY = "Jumlah wajib diisi";
-export const AMOUNT_INVALID = "Jumlah harus bukan nol dan maksimal dua angka desimal";
+export const AMOUNT_INVALID = "Jumlah harus angka bulat dan bukan nol";
+export const AMOUNT_TOO_LARGE = "Jumlah maksimal Rp10.000.000 per penyesuaian";
 export const AMOUNT_THOUSANDS = "Tulis nominal tanpa titik pemisah ribuan, mis. 200000";
 export const REASON_EMPTY = "Alasan wajib diisi";
 export const REASON_TOO_LONG = "Alasan maksimal 500 karakter";
@@ -43,23 +45,33 @@ export interface AdjustmentErrors {
   reason?: string;
 }
 
-/** A signed number with at most two decimals, as the form types it and the API reads it. */
-const AMOUNT = /^-?(0|[1-9]\d*)(\.\d{1,2})?$/;
+/** A signed whole number of rupiah with no leading zero, as the form types it and the API reads it. */
+const AMOUNT = /^-?[1-9]\d*$/;
+
+/** One adjustment moves an invoice by at most this much either way (the fixed-rate cap). */
+export const MAX_ADJUSTMENT = MAX_FIXED_RATE;
 
 /** Rupiah as Indonesians write it, a dot between every three digits: 200.000, -1.500.000. */
 const THOUSANDS_DOTS = /^-?\d{1,3}(\.\d{3})+$/;
 
 /**
- * Reads one amount line. The whole amount rule in one place: mandatory, a finite non-zero
- * number, at most two decimals — exactly what checkManualAdjustment refuses on the server.
+ * Reads one amount line: a non-zero whole number of rupiah within the limit — exactly what
+ * checkManualAdjustment takes on the server.
  */
 function readAmount(raw: string): number | null {
   const typed = raw.trim();
-  if (typed === "") return null;
-  if (!AMOUNT.test(typed)) return null;
+  if (!AMOUNT.test(typed) || overLimit(typed)) return null;
+  return Number(typed);
+}
 
-  const value = Number(typed);
-  return Number.isFinite(value) && value !== 0 ? value : null;
+/**
+ * Whether a whole amount is past the limit, read from its digits: a number Number() could only
+ * round (past 2^53) is never read as a number first, so it can never pass as a smaller one.
+ */
+function overLimit(typed: string): boolean {
+  const digits = typed.replace("-", "");
+  const limit = String(MAX_ADJUSTMENT);
+  return digits.length > limit.length || (digits.length === limit.length && digits > limit);
 }
 
 /**
@@ -76,8 +88,10 @@ export function validateAdjustment(draft: AdjustmentDraft): AdjustmentErrors {
   } else if (THOUSANDS_DOTS.test(typed)) {
     // The API reads a dot as decimals; say how to write it rather than "two decimals at most".
     errors.amount = AMOUNT_THOUSANDS;
-  } else if (readAmount(typed) === null) {
+  } else if (!AMOUNT.test(typed)) {
     errors.amount = AMOUNT_INVALID;
+  } else if (overLimit(typed)) {
+    errors.amount = AMOUNT_TOO_LARGE;
   }
 
   // Counted as characters, not UTF-16 units, the way the backend counts a reason.
