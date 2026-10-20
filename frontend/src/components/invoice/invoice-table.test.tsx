@@ -221,6 +221,73 @@ describe("InvoiceTable", () => {
     }
   });
 
+  // Measured on the live page in Edge at true 320/375/390/430 px: the table is 965 px wide in a
+  // 286–396 px area, so only Creator and Fixed Rate show; the other amounts, the invoice status
+  // and Rincian sit off-screen. Below lg each contract becomes a card that reads like a
+  // statement. jsdom lays nothing out, so these pin what the layout is built from.
+  describe("on a phone, below lg", () => {
+    function rowOf(name: string) {
+      return screen.getByText(name).closest("tr") as HTMLElement;
+    }
+
+    it("keeps table semantics while each contract becomes a separate card", () => {
+      render(<InvoiceTable rows={[FULL, WAITING]} />);
+
+      const [head, body] = screen.getAllByRole("rowgroup");
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(head).toHaveClass("max-lg:sr-only");
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      expect(rowOf("Rangga Pratama")).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border");
+    });
+
+    it("names every amount and the invoice status by their columns", () => {
+      render(<InvoiceTable rows={[FULL]} action={() => <button type="button">Rincian</button>} />);
+
+      const cells = within(rowOf("Rangga Pratama")).getAllByRole("cell");
+      expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Fixed Rate",
+        "Fee Konten Tambahan",
+        "Bonus Performa",
+        "Penalti",
+        "Total",
+        "Status Invoice",
+        null,
+      ]);
+    });
+
+    it("sets each label against its amount, and the total apart as the sum", () => {
+      render(<InvoiceTable rows={[FULL]} />);
+
+      const cells = within(rowOf("Rangga Pratama")).getAllByRole("cell");
+      for (const amount of cells.slice(1, 6)) {
+        expect(amount).toHaveClass("max-lg:flex", "max-lg:justify-between");
+      }
+      expect(cells[5]).toHaveClass("max-lg:border-t");
+    });
+
+    it("lets a long creator name wrap in a card instead of cutting it off", () => {
+      render(<InvoiceTable rows={[FULL]} />);
+
+      expect(screen.getByText("Rangga Pratama")).toHaveClass("truncate", "max-lg:whitespace-normal");
+    });
+
+    it("gives the row's action a full-width touch target at least 44px tall", () => {
+      render(<InvoiceTable rows={[FULL]} action={() => <button type="button">Rincian</button>} />);
+
+      const actionCell = within(rowOf("Rangga Pratama")).getAllByRole("cell").at(-1);
+      expect(actionCell).toHaveClass("max-lg:[&_button]:w-full", "max-lg:[&_button]:min-h-11");
+    });
+
+    it("keeps the footer's sum as one line of its own under the cards", () => {
+      render(<InvoiceTable rows={[FULL]} summary={{ total: 12345000, count: 24 }} />);
+
+      const footer = screen.getAllByRole("rowgroup").at(-1)!;
+      expect(footer).toHaveClass("max-lg:block");
+      expect(within(footer).getByRole("row")).toHaveClass("max-lg:flex", "max-lg:justify-between");
+    });
+  });
+
   describe("sorting (when the board hands it an order)", () => {
     const sortProps = (key: "action" | "name" | "fixed" | "penalty" | "total", order: "asc" | "desc" = "desc") => ({
       key,
