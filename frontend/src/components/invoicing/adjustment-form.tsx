@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
-import { Modal } from "@/components/ui/modal";
 import {
   adjustmentAmount,
   adjustmentLabel,
@@ -19,6 +18,9 @@ import { addInvoiceAdjustment } from "@/lib/invoice-actions.server";
  * each mistake said below its own field in the backend's words. A refusal is shown in the form
  * and nothing closes until the server has accepted — the admin never sees an adjustment the
  * invoice does not have.
+ *
+ * It sits inside the Rincian panel, as the prototype has it, so the breakdown the admin is
+ * correcting stays in view and no dialog opens over another; the amount takes focus on open.
  */
 export function AdjustmentForm({
   contractId,
@@ -34,8 +36,17 @@ export function AdjustmentForm({
   const [errors, setErrors] = useState<AdjustmentErrors>({});
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const titleId = useId();
+  const amountRef = useRef<HTMLInputElement>(null);
   // What the typed amount will be recorded as, so the admin sees the rupiah before sending it.
   const typedAmount = adjustmentAmount(draft);
+
+  useEffect(() => {
+    const amount = amountRef.current;
+    amount?.focus();
+    // jsdom has no scrollIntoView; a browser brings the form into the panel's view.
+    amount?.scrollIntoView?.({ block: "nearest" });
+  }, []);
 
   async function submit() {
     const found = validateAdjustment(draft);
@@ -64,26 +75,17 @@ export function AdjustmentForm({
   }
 
   return (
-    <Modal
-      title="Tambah Penyesuaian"
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Batal
-          </Button>
-          <Button onClick={submit} disabled={busy}>
-            Tambahkan
-          </Button>
-        </>
-      }
-    >
+    <section aria-labelledby={titleId} className="flex flex-col gap-4 border-y border-rule py-4">
+      <h3 id={titleId} className="text-[13px] font-bold">
+        Tambah Penyesuaian
+      </h3>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5 text-[13px]">
           <label htmlFor="adjustment-amount" className="font-semibold">
             Nominal (Rp)
           </label>
           <input
+            ref={amountRef}
             id="adjustment-amount"
             type="text"
             inputMode="decimal"
@@ -139,6 +141,14 @@ export function AdjustmentForm({
           </p>
         ) : null}
       </div>
-    </Modal>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" onClick={onClose} disabled={busy}>
+          Batal
+        </Button>
+        <Button onClick={submit} disabled={busy}>
+          Tambahkan
+        </Button>
+      </div>
+    </section>
   );
 }

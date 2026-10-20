@@ -34,6 +34,7 @@ export function InvoiceRincian({
   onClose,
   onOpenContent,
   actions,
+  editor,
   payment,
 }: Readonly<{
   row: InvoiceRow;
@@ -44,6 +45,8 @@ export function InvoiceRincian({
   onClose: () => void;
   onOpenContent: (contentId: string) => void;
   actions?: ReactNode;
+  // A form opened from the actions (the manual adjustment), shown above the breakdown it changes.
+  editor?: ReactNode;
   // The payment part (PBI-13, subtask 13.4), under the breakdown and its total.
   payment?: ReactNode;
 }>) {
@@ -118,6 +121,7 @@ export function InvoiceRincian({
         {/* A frozen invoice is settled history: the prototype's word marks it. */}
         {row.frozenAt !== null ? <Pill tone="green">{FINAL_LABEL}</Pill> : null}
       </div>
+      {editor ? <div className="mb-5">{editor}</div> : null}
       {body}
       {payment}
     </Modal>

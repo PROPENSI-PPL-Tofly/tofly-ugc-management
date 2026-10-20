@@ -8,10 +8,15 @@ import {
 import { invoiceTitle, type InvoiceRow } from "@/lib/invoice";
 import type { BreakdownKind, InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { loadInvoiceBreakdown } from "@/lib/invoice-breakdown.server";
+import { AdjustmentForm } from "./adjustment-form";
 import { BreakdownPopup, type BreakdownStatus } from "./breakdown-popup";
 import { InvoiceActions } from "./invoice-actions";
 import { InvoicePaymentSection } from "./invoice-payment-section";
 import { InvoiceRincian } from "./invoice-rincian";
+
+/** What the admin is told after each move made in Rincian, in the prototype's words. */
+export const ADJUSTED_MESSAGE = "Penyesuaian ditambahkan.";
+export const PROOF_SENT_MESSAGE = "Bukti pembayaran terkirim, menunggu konfirmasi creator.";
 
 /** One money column, or "all" for the whole invoice in one panel (Rincian). */
 export type BreakdownView = BreakdownKind | "all";
@@ -66,17 +71,24 @@ export function useBreakdownPopups({
   load = loadInvoiceBreakdown,
   onDecided,
   onMutated,
+  rows,
 }: Readonly<{
   load?: BreakdownLoader;
   onDecided?: (decision: Decision) => void;
-  /** An invoice move (PBI-12) was accepted; the table reads its invoices again. */
-  onMutated?: () => void;
+  /** An invoice move was accepted, with what to tell the admin; the table reads its invoices again. */
+  onMutated?: (message: string) => void;
+  /**
+   * The rows the table shows now. An open Rincian follows its own row in them, so after a move
+   * the panel stays open and shows the status and amounts the table read again.
+   */
+  rows?: readonly InvoiceRow[];
 }> = {}): {
   open: (kind: BreakdownView, row: InvoiceRow) => void;
   layers: ReactNode;
 } {
   const [popup, setPopup] = useState<OpenBreakdown | null>(null);
   const [contentId, setContentId] = useState<string | null>(null);
+  const [adjusting, setAdjusting] = useState(false);
   const read = useRef(new Map<string, InvoiceBreakdown>());
   // Only the latest request may fill the popup: an answer for a popup since closed is dropped.
   const latest = useRef(0);
@@ -100,6 +112,7 @@ export function useBreakdownPopups({
   }
 
   function open(kind: BreakdownView, row: InvoiceRow) {
+    setAdjusting(false);
     const known = read.current.get(readKey(row));
     if (known) {
       latest.current += 1;
@@ -111,6 +124,7 @@ export function useBreakdownPopups({
 
   function closeAll() {
     latest.current += 1;
+    setAdjusting(false);
     setContentId(null);
     setPopup(null);
   }
@@ -133,35 +147,46 @@ export function useBreakdownPopups({
       />
     );
   } else if (popup?.kind === "all") {
+    // The table's fresh row once it has been read again; the one the panel opened with until then.
+    const row = rows?.find((each) => each.contractId === popup.row.contractId) ?? popup.row;
+    // A move keeps the panel open (prototype): what was read is forgotten and the breakdown is
+    // read again, while the table reads its rows again and hands the panel the new one.
+    const moved = (message: string) => {
+      read.current.clear();
+      setAdjusting(false);
+      fetchFor("all", row);
+      onMutated?.(message);
+    };
+
     layers = (
       <InvoiceRincian
-        row={popup.row}
+        row={row}
         breakdown={popup.breakdown}
         status={popup.status}
-        onRetry={() => fetchFor("all", popup.row)}
+        onRetry={() => fetchFor("all", row)}
         onClose={closeAll}
         onOpenContent={setContentId}
         actions={
-          // The two invoice moves (PBI-12) live beside Tutup; one accepted closes the layers
-          // and forgets what was read, so the table and panel read the invoice again.
-          <InvoiceActions
-            row={popup.row}
-            onMutated={() => {
-              read.current.clear();
-              closeAll();
-              onMutated?.();
-            }}
-          />
+          <InvoiceActions row={row} onAdjust={() => setAdjusting(true)} onMutated={moved} />
+        }
+        editor={
+          adjusting ? (
+            <AdjustmentForm
+              contractId={row.contractId}
+              onClose={() => setAdjusting(false)}
+              onMutated={() => moved(ADJUSTED_MESSAGE)}
+            />
+          ) : null
         }
         payment={
-          // An upload reads the table again but keeps the panel open on the uploaded file.
+          // An upload keeps the panel on the uploaded file; the table reads its rows again.
           <InvoicePaymentSection
-            contractId={popup.row.contractId}
-            status={popup.row.invoiceStatus}
-            payment={popup.row.payment}
+            contractId={row.contractId}
+            status={row.invoiceStatus}
+            payment={row.payment}
             onUploaded={() => {
               read.current.clear();
-              onMutated?.();
+              onMutated?.(PROOF_SENT_MESSAGE);
             }}
           />
         }

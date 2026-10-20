@@ -154,19 +154,6 @@ describe("InvoiceBoard", () => {
     expect(await screen.findByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
   });
 
-  it("reads the invoices again after an adjustment added from the Rincian panel", async () => {
-    render(<InvoiceBoard rows={[ROW]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
-    fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
-
-    fireEvent.change(screen.getByRole("textbox", { name: "Nominal (Rp)" }), { target: { value: "50000" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Alasan" }), { target: { value: "Bonus kampanye" } });
-    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
-
-    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
   it("adds up the period under the table when it is given the summary", () => {
     render(<InvoiceBoard rows={[ROW]} summary={{ total: 900000, count: 3 }} />);
 

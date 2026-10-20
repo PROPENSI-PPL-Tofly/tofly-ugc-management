@@ -134,6 +134,6 @@ describe("InvoiceActions", () => {
     await vi.waitFor(() =>
       expect(onMutated).toHaveBeenCalledWith("Invoice difinalisasi dan dikirim ke creator."),
     );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });
