@@ -5,6 +5,7 @@ import type {
 } from '../invoice-component.js';
 import type { InvoiceStatus } from '../invoice-status.js';
 import type { RateFormula } from '../rate-formula.js';
+import type { InvoicePaymentFields } from './invoice-payment.dto.js';
 
 /** One part of the invoice as the Rate & Invoicing table reads it. */
 export interface InvoiceComponentDto {
@@ -87,7 +88,7 @@ export interface InvoiceListItem extends CalculatedInvoice {
 /**
  * One creator's invoice with the contract period and formula used for its calculation.
  */
-export interface InvoiceDetail extends InvoiceListItem {
+export interface InvoiceDetail extends InvoiceListItem, InvoicePaymentFields {
   periodNumber: number;
   /**
    * The current formula while the invoice is calculated live; once finalized, the one saved with
@@ -107,7 +108,7 @@ export interface InvoiceListSummary {
 }
 
 export interface InvoiceListResponse {
-  items: InvoiceListItem[];
+  items: (InvoiceListItem & InvoicePaymentFields)[];
   page: number;
   pageSize: number;
   total: number;
