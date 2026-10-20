@@ -25,6 +25,7 @@ export function checkManualAdjustment(body: unknown): ManualAdjustmentInput {
 
   const amount = input.amount;
   if (
+    // Stryker disable next-line ConditionalExpression: equivalent mutant. Number.isInteger already answers false for anything that is not a number; the typeof check is there to narrow the type for Math.abs below.
     typeof amount !== 'number' ||
     !Number.isInteger(amount) ||
     amount === 0

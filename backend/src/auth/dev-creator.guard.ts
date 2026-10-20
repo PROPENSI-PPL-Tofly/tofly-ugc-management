@@ -73,6 +73,7 @@ export class DevCreatorGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<CreatorRequest>();
     const cookieId = request.cookies?.[this.sessions?.cookieName() ?? ''];
     if (cookieId !== undefined || process.env.NODE_ENV === 'production') {
+      // Stryker disable next-line StringLiteral: equivalent mutant. Any default other than a read method (the mutant's "Stryker was here!") is checked for origin exactly as '' is.
       if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method ?? '')) {
         assertSameOrigin(request);
       }
