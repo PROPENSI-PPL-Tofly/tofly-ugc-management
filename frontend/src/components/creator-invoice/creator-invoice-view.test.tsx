@@ -313,6 +313,37 @@ describe("CreatorInvoiceView", () => {
       expect(screen.getByRole("group", { name: "Penalti" })).toBeInTheDocument();
     });
 
+    // The WAI-ARIA tab pattern, as StatusTabs on Task Saya and Content Plan follows it.
+    it("moves between the tabs with the arrow keys, Home and End, as one Tab stop", () => {
+      renderView({ comments: [COMMENT] });
+      const rincian = screen.getByRole("tab", { name: "Rincian" });
+      const aktivitas = screen.getByRole("tab", { name: /Aktivitas/ });
+
+      expect(rincian).toHaveAttribute("tabindex", "0");
+      expect(aktivitas).toHaveAttribute("tabindex", "-1");
+
+      rincian.focus();
+      fireEvent.keyDown(rincian, { key: "ArrowRight" });
+      expect(aktivitas).toHaveFocus();
+      expect(aktivitas).toHaveAttribute("aria-selected", "true");
+
+      fireEvent.keyDown(aktivitas, { key: "ArrowRight" });
+      expect(rincian).toHaveFocus();
+
+      fireEvent.keyDown(rincian, { key: "End" });
+      expect(aktivitas).toHaveAttribute("aria-selected", "true");
+      fireEvent.keyDown(aktivitas, { key: "Home" });
+      expect(rincian).toHaveAttribute("aria-selected", "true");
+    });
+
+    // Brand blue marks the current selection everywhere else (StatusTabs, Tabel/Kalender).
+    it("marks the open tab in the brand blue, as every other tab list does", () => {
+      renderView();
+
+      expect(screen.getByRole("tab", { name: "Rincian" }).className).toContain("border-accent");
+      expect(screen.getByRole("tab", { name: /Aktivitas/ }).className).not.toContain("border-accent");
+    });
+
     it("keeps the summary and the creator's turn above the tabs, whichever is open", () => {
       renderView({ status: "finalized" });
 
