@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
 import { ContentPlanTable } from "./content-plan-table";
 
@@ -72,6 +72,65 @@ describe("ContentPlanTable", () => {
   });
 
   // The prototype opens the panel from anywhere on the row; the button stays for the keyboard.
+  // Measured in Edge at true 320/375/390/430 px on the live page: the table is 890 px wide in a
+  // 286–396 px area, so Deadline, Status, Tags and Tinjau/Detail sit off-screen. Below lg each
+  // row becomes a card, as Task Saya's and the Creator Database's do. jsdom lays nothing out,
+  // so these pin what the layout is built from; the browser measurement is the evidence.
+  describe("on a phone, below lg", () => {
+    function rowOf(name: string) {
+      return screen.getByText(name).closest("tr") as HTMLElement;
+    }
+
+    it("keeps table semantics while the rows become separate cards", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Unboxing Botol" }]);
+
+      const [head, body] = screen.getAllByRole("rowgroup");
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(head).toHaveClass("max-lg:sr-only");
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      for (const name of ["Video Review Kopi", "Unboxing Botol"]) {
+        expect(rowOf(name)).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border");
+      }
+    });
+
+    it("keeps the hidden headings inside the table's own area, so the page never widens", () => {
+      renderTable();
+
+      expect(screen.getByRole("table").closest(".overflow-x-auto")).toHaveClass("relative");
+    });
+
+    it("names every value by its column, since the column headers are hidden", () => {
+      renderTable([{ ...ROW, tags: ["overdue"], revisionCount: 2 }]);
+
+      const cells = within(rowOf("Video Review Kopi")).getAllByRole("cell");
+      expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Kreator",
+        "Tipe",
+        "Deadline",
+        "Status",
+        "Tags",
+        null,
+      ]);
+    });
+
+    it("leaves the Tags line out of a card that has no tag and no revision", () => {
+      renderTable();
+
+      const tags = within(rowOf("Video Review Kopi")).getAllByRole("cell")[5];
+      expect(tags).toBeEmptyDOMElement();
+      expect(tags).toHaveClass("max-lg:empty:hidden");
+    });
+
+    it("gives Tinjau and Detail a full-width touch target at least 44px tall", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Selesai", status: "link_submitted" }]);
+
+      for (const name of ["Tinjau Video Review Kopi", "Detail Selesai"]) {
+        expect(screen.getByRole("button", { name })).toHaveClass("max-lg:w-full", "max-lg:min-h-11");
+      }
+    });
+  });
+
   describe("opening from the row", () => {
     it("opens the content from a press anywhere on its row", () => {
       const { onOpen } = renderTable();
