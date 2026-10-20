@@ -60,16 +60,22 @@ function monthOf(day: string): CalendarMonth {
 export function TaskCalendar({
   tasks,
   today,
+  opensOn = null,
   onOpen,
 }: Readonly<{
   tasks: readonly MyTask[];
   /** Today's calendar day in Jakarta, "YYYY-MM-DD", read once by the server. */
   today: string;
+  /**
+   * The day whose month the calendar opens on, when a deadline range names one, so a range in
+   * another month is not shown as an empty grid. Today's month otherwise.
+   */
+  opensOn?: string | null;
   /** Called with the content id of the chip that was pressed. */
   onOpen: (contentId: string) => void;
 }>) {
   const current = monthOf(today);
-  const [shown, setShown] = useState<CalendarMonth>(current);
+  const [shown, setShown] = useState<CalendarMonth>(opensOn ? monthOf(opensOn) : current);
   const isCurrent = shown.year === current.year && shown.month === current.month;
 
   const cells = monthGrid(shown, tasks, today);

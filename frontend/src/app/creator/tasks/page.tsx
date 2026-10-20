@@ -70,6 +70,17 @@ async function load(state: MyTasksParams, view: TaskView): Promise<Loaded> {
   }
 }
 
+/**
+ * The day a custom deadline range starts on (the earlier day, as the list reads a range picked
+ * backwards), or ends on when only the end is picked, for the calendar to open on its month.
+ * A named period always reaches into today's month, so it keeps that one.
+ */
+function rangeStart(state: MyTasksParams): string | null {
+  if (state.period !== "custom") return null;
+  const days = [state.from, state.to].filter((day) => day !== "").sort();
+  return days[0] ?? null;
+}
+
 function LoadFailed({ signedOut, retryHref }: Readonly<{ signedOut: boolean; retryHref: string }>) {
   return (
       <div role="alert" className="px-5 py-14 text-center">
@@ -164,6 +175,7 @@ export default async function TaskSayaPage({
                     sort={state.sort}
                     filtered={isMyTasksFiltered(state)}
                     calendarToday={jakartaDay()}
+                    calendarOpensOn={rangeStart(state)}
                 />
               </>
           ) : null}

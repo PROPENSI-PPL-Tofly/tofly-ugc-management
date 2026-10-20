@@ -340,6 +340,12 @@ describe("Task Saya page views", () => {
       expect(screen.getByRole("heading", { name: "Januari 2027" })).toBeInTheDocument();
     });
 
+    it("opens on the earlier day of a range picked backwards, as the list reads it", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-02-10", to: "2026-12-03" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
     it("stays on this month for a day the period does not use", async () => {
       await renderPage({ view: "calendar", period: "next30", from: "2026-12-03" });
 

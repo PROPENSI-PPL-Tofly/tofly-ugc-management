@@ -72,6 +72,7 @@ export function MyTaskBoard({
   sort,
   filtered,
   calendarToday,
+  calendarOpensOn = null,
 }: Readonly<{
   tasks: MyTask[];
   tab: MyTaskTab;
@@ -80,6 +81,8 @@ export function MyTaskBoard({
   filtered: boolean;
   /** Today in Jakarta, "YYYY-MM-DD": given, the tasks are shown as a month, not as the table. */
   calendarToday?: string;
+  /** The day of the deadline range whose month the calendar opens on; null for today's. */
+  calendarOpensOn?: string | null;
 }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -233,7 +236,12 @@ export function MyTaskBoard({
         className="outline-none"
       >
         {calendarToday ? (
-          <TaskCalendar tasks={tasks} today={calendarToday} onOpen={setDetailContentId} />
+          <TaskCalendar
+            tasks={tasks}
+            today={calendarToday}
+            opensOn={calendarOpensOn}
+            onOpen={setDetailContentId}
+          />
         ) : (
           <MyTaskTable
             tasks={tasks}
