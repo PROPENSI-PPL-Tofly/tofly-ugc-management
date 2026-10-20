@@ -47,6 +47,54 @@ describe("CreatorContentTable", () => {
     expect(scrollArea).toHaveClass("relative");
   });
 
+  // Measured in Edge at true 320/375/390/430 px: the table is 628 px wide in a 286-396 px area,
+  // so Status, its tags and Detail/Tinjau all sat off-screen. Below lg each row reads as a card,
+  // as the roster and Task Saya do. jsdom lays nothing out, so these pin what the layout is built
+  // from; the browser measurement is the evidence for the layout itself.
+  describe("on a phone, below lg", () => {
+    function cells() {
+      return within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell");
+    }
+
+    it("keeps table semantics while the rows stack as cards", () => {
+      renderTable();
+
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
+      expect(rowOf("Evg_7_RanggaPratama_26092026")).toHaveClass("max-lg:block");
+      expect(cells()).toHaveLength(4);
+    });
+
+    it("names the deadline and the status by their columns, since the headers are hidden", () => {
+      renderTable();
+
+      expect(cells().map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Deadline",
+        "Status",
+        null,
+      ]);
+    });
+
+    it("lets a long name wrap instead of holding the card wider than the phone", () => {
+      renderTable();
+
+      const [name] = cells();
+      expect(name).toHaveClass("min-w-52");
+      expect(name).toHaveClass("max-lg:min-w-0");
+    });
+
+    it("gives Detail and Tinjau a full-width touch target at least 44px tall", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Spc_Done", status: "link_submitted" }]);
+
+      for (const name of ["Tinjau Evg_7_RanggaPratama_26092026", "Detail Spc_Done"]) {
+        const button = screen.getByRole("button", { name });
+        expect(button).toHaveClass("max-lg:w-full");
+        expect(button).toHaveClass("max-lg:min-h-11");
+      }
+    });
+  });
+
   it("fills a row with the content, its type under the name, and its formatted deadline", () => {
     renderTable();
 
