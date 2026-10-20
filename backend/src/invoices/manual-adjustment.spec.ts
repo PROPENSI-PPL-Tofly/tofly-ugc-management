@@ -98,7 +98,7 @@ describe('checkManualAdjustment', () => {
   it.each([
     ['one rupiah over the limit', 10_000_001],
     ['one rupiah under minus the limit', -10_000_001],
-    ['past the safe integer range', 9_007_199_254_740_993],
+    ['past the safe integer range', Number.MAX_SAFE_INTEGER + 2],
     ['astronomically large', 1e20],
   ])('rejects an amount that is %s', (_case, amount) => {
     expect(errorsFor({ amount, reason: 'Koreksi' })).toEqual({

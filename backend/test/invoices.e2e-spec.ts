@@ -640,7 +640,7 @@ describe('Invoices API (e2e)', () => {
   it.each([
     ['a fraction of a rupiah', 1.5, 'Jumlah harus angka bulat dan bukan nol'],
     ['one rupiah over the limit', 10_000_001, 'Jumlah maksimal Rp10.000.000 per penyesuaian'],
-    ['past the safe integer range', 9_007_199_254_740_993, 'Jumlah maksimal Rp10.000.000 per penyesuaian'],
+    ['past the safe integer range', Number.MAX_SAFE_INTEGER + 2, 'Jumlah maksimal Rp10.000.000 per penyesuaian'],
   ])('refuses an amount that is %s and stores nothing', async (_case, amount, message) => {
     await expectAdjustmentStateUnchanged(async () => {
       const response = await admin
