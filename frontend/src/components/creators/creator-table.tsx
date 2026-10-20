@@ -204,7 +204,7 @@ export function CreatorTable({
                       <p className="mt-1 text-xs text-muted">{EMPTY}</p>
                     ) : (
                       <>
-                        <p className="mt-1 whitespace-nowrap">
+                        <p className="mt-1 whitespace-nowrap max-lg:whitespace-normal">
                           {formatContractWindow(
                             creator.contract.startDate,
                             creator.contract.endDate,
@@ -219,7 +219,7 @@ export function CreatorTable({
 
                 <td role="cell" data-label="Progres konten" className={`${CELL} ${LABELLED}`}>
                   <div className="min-w-0">
-                    <p className="whitespace-nowrap">
+                    <p className="whitespace-nowrap max-lg:whitespace-normal">
                       {creator.progress.submitted}/{creator.progress.total} konten terkirim
                     </p>
 
