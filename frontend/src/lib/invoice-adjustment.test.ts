@@ -8,7 +8,6 @@ import {
   AMOUNT_TOO_LARGE,
   canAdjust,
   canFinalize,
-  FINAL_LABEL,
   REASON_EMPTY,
   REASON_MAX_LENGTH,
   REASON_TOO_LONG,
@@ -150,9 +149,6 @@ describe("canFinalize", () => {
 });
 
 describe("the words on the controls", () => {
-  it("marks a frozen invoice with the prototype's word", () => {
-    expect(FINAL_LABEL).toBe("Final");
-  });
 
   it("reads an adjustment as added or taken away", () => {
     expect(adjustmentLabel(200000)).toBe("+Rp200.000");

@@ -13,9 +13,6 @@ import type { InvoiceStatus } from "./invoice";
 /** The reason says why the amount moves; the backend takes at most this many characters. */
 export const REASON_MAX_LENGTH = 500;
 
-/** What a frozen invoice is marked with, beside its status. */
-export const FINAL_LABEL = "Final";
-
 export const AMOUNT_EMPTY = "Jumlah wajib diisi";
 export const AMOUNT_INVALID = "Jumlah harus angka bulat dan bukan nol";
 export const AMOUNT_TOO_LARGE = "Jumlah maksimal Rp10.000.000 per penyesuaian";
