@@ -4,6 +4,8 @@
 //
 // The endpoint is the 5.1 contract (GET /contents). Its query and its answer are spelled in
 // the API's own words, so both pass through content-list-api, the one module that knows them.
+// Single Responsibility: this module fetches (address, session, errors) and content-list-api
+// translates; each has one reason to change.
 
 import { NO_FILTERS } from "./creators";
 import { fetchCreators } from "./creators.server";

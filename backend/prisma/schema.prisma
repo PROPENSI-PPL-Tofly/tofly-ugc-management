@@ -42,11 +42,12 @@ model contracts {
   end_date      DateTime      @db.Date
   days_between  Int
   content_quota Int
-  fixed_rate    Decimal       @db.Decimal(14, 2)
+  fixed_rate    Decimal       @db.Decimal(12, 2)
   created_at    DateTime      @default(now()) @db.Timestamptz(6)
   updated_at    DateTime      @default(now()) @db.Timestamptz(6)
   contract_type contract_type
   contents      contents[]
+  invoice       invoices?
   creators      creators      @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([creator_id, end_date(sort: Desc)], map: "contracts_creator_end_date_idx")
@@ -118,14 +119,143 @@ model content_events {
 }
 
 model users {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email          String           @unique @db.Citext
-  is_admin       Boolean          @default(false)
-  created_at     DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
-  creators       creators?
-  app_sessions   app_sessions[]
-  content_events content_events[]
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                  String                   @unique @db.Citext
+  is_admin               Boolean                  @default(false)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  creators               creators?
+  app_sessions           app_sessions[]
+  content_events         content_events[]
+  invoice_adjustments    invoice_adjustments[]
+  invoice_comments       invoice_comments[]
+  invoice_payment_proofs invoice_payment_proofs[]
+  invoices_finalized     invoices[]               @relation("invoices_finalized_by")
+  invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
+  invoices_paid          invoices[]               @relation("invoices_paid_by")
+  rate_formula           rate_formula[]
+}
+
+enum invoice_status {
+  running
+  finalized
+  creator_acked
+  payment_uploaded
+  paid
+}
+
+/// Persisted lifecycle for one contract invoice; live calculation data remains derived.
+model invoices {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id     String                  @unique @db.Uuid
+  status          invoice_status          @default(running)
+  snapshot        Json?                   @db.JsonB
+  created_at      DateTime                @default(now()) @db.Timestamptz(6)
+  finalized_at    DateTime?               @db.Timestamptz(6)
+  /// The admin who finalized; null on an invoice finalized before it was recorded (13.1).
+  finalized_by    String?                 @db.Uuid
+  /// When and by whom the creator acknowledged the frozen amount (13.1).
+  acknowledged_at DateTime?               @db.Timestamptz(6)
+  acknowledged_by String?                 @db.Uuid
+  /// When and by whom the creator confirmed the payment arrived (13.1).
+  paid_at         DateTime?               @db.Timestamptz(6)
+  paid_by         String?                 @db.Uuid
+  contracts       contracts               @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  finalizer       users?                  @relation("invoices_finalized_by", fields: [finalized_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  acknowledger    users?                  @relation("invoices_acknowledged_by", fields: [acknowledged_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payee           users?                  @relation("invoices_paid_by", fields: [paid_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  adjustments     invoice_adjustments[]
+  comments        invoice_comments[]
+  payment_proof   invoice_payment_proofs?
+
+  @@index([finalized_by], map: "invoices_finalized_by_idx")
+  @@index([acknowledged_by], map: "invoices_acknowledged_by_idx")
+  @@index([paid_by], map: "invoices_paid_by_idx")
+}
+
+/// The proof an admin uploaded for one invoice; the file itself lives in object storage under
+/// object_key, and file_name is only shown.
+model invoice_payment_proofs {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id   String   @unique @db.Uuid
+  object_key   String   @unique @db.Uuid
+  file_name    String   @db.VarChar(255)
+  content_type String
+  size_bytes   Int
+  uploaded_by  String   @db.Uuid
+  uploaded_at  DateTime @default(now()) @db.Timestamptz(6)
+  invoices     invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users        users    @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([uploaded_by], map: "invoice_payment_proofs_uploaded_by_idx")
+}
+
+/// One message in an invoice's thread, from the admin or the invoice's creator.
+model invoice_comments {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id     String   @db.Uuid
+  author_user_id String   @db.Uuid
+  author_role    String
+  text           String   @db.VarChar(500)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  invoices       invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users    @relation(fields: [author_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([invoice_id, created_at, id], map: "invoice_comments_invoice_created_idx")
+  @@index([author_user_id], map: "invoice_comments_author_user_idx")
+}
+
+/// Auditable manual amounts attached to their invoice; actor and timestamp are server supplied.
+model invoice_adjustments {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id    String   @db.Uuid
+  /// Unconstrained numeric on purpose, as the rate_formula amounts: its check refuses zero and a
+  /// third decimal, which numeric(14, 2) would round away before the check could see it.
+  amount        Decimal  @db.Decimal
+  reason        String   @db.VarChar(500)
+  actor_user_id String   @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  invoices      invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users    @relation(fields: [actor_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([invoice_id, created_at, id], map: "invoice_adjustments_invoice_created_idx")
+  @@index([actor_user_id], map: "invoice_adjustments_actor_user_idx")
+}
+
+/// The one Atur Formula Rate row (PBI-8); its id can only be true.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rate_formula {
+  id                   Boolean  @id @default(true)
+  specific_bonus       Decimal  @db.Decimal
+  late_penalty_per_day Decimal  @db.Decimal
+  /// The most days one late content is penalised for; null for a formula saved before it existed.
+  max_penalty_days     Decimal? @db.Decimal
+  /// The admin who saved the formula last; the API never answers it.
+  updated_by           String?  @db.Uuid
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+  users                users?   @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
+/// What a platform's tier minimums count: one row per platform.
+model performance_bonus_metrics {
+  platform                social_platform           @id
+  metric                  performance_metric
+  performance_bonus_tiers performance_bonus_tiers[]
+}
+
+/// A platform's performance bonus tiers, numbered from 1 in minimum order.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model performance_bonus_tiers {
+  platform                  social_platform
+  position                  Int
+  /// The minimum count of the platform's metric that earns the bonus.
+  threshold                 Decimal                   @db.Decimal
+  bonus                     Decimal                   @db.Decimal
+  performance_bonus_metrics performance_bonus_metrics @relation(fields: [platform], references: [platform], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([platform, position])
+  @@unique([platform, threshold])
 }
 
 model app_sessions {
@@ -160,6 +290,13 @@ enum content_type {
 enum social_platform {
   instagram
   tiktok
+}
+
+enum performance_metric {
+  views
+  likes
+  comments
+  shares
 }
 
 enum contract_type {

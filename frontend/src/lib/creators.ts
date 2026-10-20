@@ -195,7 +195,9 @@ export const NO_FILTERS: CreatorFilterState = {
 };
 
 /** What Add Creator sends: the form as the admin filled it, plus the deadlines it scheduled. */
-export interface NewCreatorRequest extends CreatorFormInput {
+export interface NewCreatorRequest extends Omit<CreatorFormInput, "fixedRate"> {
+  /** In rupiah, from 0; the form only sends it once it is filled in. */
+  fixedRate: number;
   deadlines: string[];
 }
 

@@ -26,6 +26,16 @@ describe("AdminNav", () => {
     );
   });
 
+  it("lists Rate & Invoicing and marks it current on its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/invoicing");
+
+    render(<AdminNav />);
+
+    const link = screen.getByRole("link", { name: "Rate & Invoicing" });
+    expect(link).toHaveAttribute("href", "/admin/invoicing");
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
   it("marks Content Plan as current on its page", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/content-plan");
 
@@ -68,6 +78,28 @@ describe("AdminNav", () => {
 
     expect(screen.getByRole("link", { name: "Content Plan" })).not.toHaveAttribute(
       "aria-current",
+    );
+  });
+
+  it("marks Rate & Invoicing as current on its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/invoicing");
+
+    render(<AdminNav />);
+
+    expect(screen.getByRole("link", { name: "Rate & Invoicing" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("links Rate & Invoicing to its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    expect(screen.getByRole("link", { name: "Rate & Invoicing" })).toHaveAttribute(
+      "href",
+      "/admin/invoicing",
     );
   });
 });

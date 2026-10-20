@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import {
   SubmissionReviewService,
   type SubmissionReviewClient,
@@ -42,16 +41,9 @@ describe('SubmissionReviewService transactional approval race', () => {
       },
     };
 
-    const client: SubmissionReviewClient & {
-      $transaction: (
-        work: (tx: typeof transaction) => Promise<unknown>,
-      ) => Promise<unknown>;
-    } = {
+    const client: SubmissionReviewClient = {
       ...base,
-      $transaction: vi.fn(
-        async (work: (tx: typeof transaction) => Promise<unknown>) =>
-          work(transaction),
-      ),
+      $transaction: async (work) => work(transaction),
     };
 
     const service = new SubmissionReviewService(client);

@@ -20,10 +20,11 @@ describe("AddCreatorModal", () => {
   });
 
   // The fixed rate is agreed for the whole contract, not paid per content.
-  it("labels the fee as the contract's fixed rate", () => {
+  it("labels the fee as the contract's fixed rate, with an ⓘ explaining it", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-    expect(screen.getByLabelText(/^contract fixed rate \(rp\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^fixed rate kontrak \(rp\)/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Info Fixed Rate Kontrak" })).toBeInTheDocument();
     expect(screen.queryByText(/per konten/i)).not.toBeInTheDocument();
   });
 
@@ -40,7 +41,7 @@ describe("AddCreatorModal", () => {
     expect(names(creator)).toEqual(["Nama Creator", "Email", "Platform", "Username Social Media"]);
     expect(names(contract)).toEqual([
       "Jenis Kontrak",
-      "Contract Fixed Rate (Rp)",
+      "Fixed Rate Kontrak (Rp)",
       "Mulai Kontrak",
       "Akhir Kontrak",
       "Jumlah konten yang disepakati",
@@ -143,7 +144,7 @@ describe("AddCreatorModal", () => {
 
     const fixedRateInput = screen.getByLabelText(/fixed rate/i);
     expect(fixedRateInput).toHaveValue("");
-    expect(fixedRateInput).toHaveAttribute("placeholder", "mis. 500000");
+    expect(fixedRateInput).toHaveAttribute("placeholder", "mis. 5000000");
   });
 
   it("starts the content quota field empty with a placeholder", () => {
@@ -355,15 +356,57 @@ describe("AddCreatorModal", () => {
       expect(simpanButton()).toBeDisabled();
     });
 
-    // Manual UI review: 0 must not be mistaken for "not filled in yet" — it is a filled-in,
-    // invalid value, same treatment as a negative fixed rate.
-    it("stays disabled when the fixed rate is zero", () => {
+    // Subtask 8.2: the fixed rate may be 0 (min. 0); only an empty field is "not filled in yet".
+    it("becomes enabled at the lowest fixed rate the server takes, Rp1", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
       fillValidForm();
-      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "0" } });
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "1" } });
+
+      expect(simpanButton()).toBeEnabled();
+    });
+
+    it("stays disabled when the fixed rate is emptied", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "" } });
 
       expect(simpanButton()).toBeDisabled();
+    });
+
+    it.each([
+      ["-1000", "Fixed rate harus berupa angka bulat"],
+      ["1.5", "Fixed rate harus berupa angka bulat"],
+      ["Rp 7a5", "Fixed rate harus berupa angka bulat"],
+      ["0", "Fixed rate harus lebih dari 0"],
+      ["20000000", "Fixed rate maksimal Rp10.000.000"],
+      ["12345678901", "Fixed rate maksimal Rp10.000.000"],
+    ])(
+      "keeps %j as typed and says what is wrong with it, rather than changing it",
+      (typed, message) => {
+        render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+
+        fillValidForm();
+        const fixedRate = screen.getByLabelText(/fixed rate/i);
+        fireEvent.change(fixedRate, { target: { value: typed } });
+        fireEvent.blur(fixedRate);
+
+        expect(fixedRate).toHaveValue(typed);
+        expect(screen.getByText(message)).toBeInTheDocument();
+        expect(simpanButton()).toBeDisabled();
+      },
+    );
+
+    it("saves the highest fixed rate the server takes", () => {
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
+
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "10000000" } });
+      fireEvent.click(simpanButton());
+
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fixedRate: 10_000_000 }));
     });
 
     it("stays disabled when the content quota is zero", () => {
@@ -675,7 +718,7 @@ describe("AddCreatorModal", () => {
       "Jenis kontrak wajib dipilih",
       "Tanggal mulai wajib diisi",
       "Jarak antar-deadline minimal 1 hari",
-      "Fixed rate harus lebih dari 0",
+      "Fixed rate wajib diisi",
       "Jumlah konten harus lebih dari 0",
     ]) {
       expect(screen.getByText(message)).toBeInTheDocument();

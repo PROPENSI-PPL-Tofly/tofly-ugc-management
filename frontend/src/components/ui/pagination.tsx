@@ -17,10 +17,14 @@ function PendingLabel({ children }: { children: string }) {
   );
 }
 
-/** The list's own URL for a page: its filters first, page 1 without a page parameter. */
+/**
+ * The list's own URL for a page: its filters first, page 1 without a page parameter, even when
+ * the query handed in still names the page on show.
+ */
 function pageHref(basePath: string, query: Record<string, string>, page: number): string {
   const params = new URLSearchParams(query);
   if (page > 1) params.set("page", String(page));
+  else params.delete("page");
   const search = params.toString();
   return search ? `${basePath}?${search}` : basePath;
 }

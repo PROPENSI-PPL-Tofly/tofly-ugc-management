@@ -7,6 +7,12 @@ describe("Pill", () => {
     expect(screen.getByText("Baik")).toBeInTheDocument();
   });
 
+  // A two-word status such as "Invoice Terkirim" must not break into two lines in a table cell.
+  it("keeps its words on one line", () => {
+    render(<Pill tone="amber">Invoice Terkirim</Pill>);
+    expect(screen.getByText("Invoice Terkirim").className).toContain("whitespace-nowrap");
+  });
+
   it("falls back to the neutral tone", () => {
     render(<Pill>Tanpa data</Pill>);
     expect(screen.getByText("Tanpa data").className).toContain("surface-2");
