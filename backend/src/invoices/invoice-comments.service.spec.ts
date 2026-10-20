@@ -38,7 +38,12 @@ function stubs() {
     contracts: { findFirst: vi.fn() },
     invoices: { upsert: vi.fn() },
     invoice_comments: { create: vi.fn(), findMany: vi.fn() },
+    // The transaction client is the same stub, so each test reads what ran inside it.
+    $transaction: vi.fn(),
   };
+  prisma.$transaction.mockImplementation(
+    (work: (tx: typeof prisma) => Promise<unknown>) => work(prisma),
+  );
   prisma.contracts.findFirst.mockResolvedValue({
     id: CONTRACT,
     creators: { ...RANGGA, user_id: CREATOR_USER },
@@ -230,6 +235,37 @@ describe('InvoiceCommentsService', () => {
           }),
         }),
       );
+    });
+
+    // A failure between opening the invoice row and saving the comment must not leave an invoice
+    // row with no comment behind (review on #109): both are one transaction, one round trip.
+    it('opens the invoice row and saves the comment in one transaction', async () => {
+      const tx = {
+        invoices: { upsert: vi.fn().mockResolvedValue({ id: INVOICE }) },
+        invoice_comments: {
+          create: vi.fn().mockResolvedValue({
+            id: 'c11',
+            author_role: 'admin',
+            text: 'Halo',
+            created_at: AT,
+          }),
+        },
+      };
+      prisma.$transaction.mockImplementation(
+        (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      );
+
+      await service.add(
+        CONTRACT,
+        { text: 'Halo' },
+        { role: 'admin', userId: ADMIN },
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(tx.invoices.upsert).toHaveBeenCalledTimes(1);
+      expect(tx.invoice_comments.create).toHaveBeenCalledTimes(1);
+      expect(prisma.invoices.upsert).not.toHaveBeenCalled();
+      expect(prisma.invoice_comments.create).not.toHaveBeenCalled();
     });
 
     it("writes nothing on a contract that is not the creator's", async () => {
