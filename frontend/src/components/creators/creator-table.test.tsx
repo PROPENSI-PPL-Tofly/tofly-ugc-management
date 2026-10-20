@@ -266,6 +266,16 @@ describe("CreatorTable", () => {
       expect(cells()).toHaveLength(7);
     });
 
+    // Client feedback: consecutive creators read as one continuous panel split by hairlines.
+    it("sets each creator apart as its own card, 12px from the next", () => {
+      render(<CreatorTable creators={[creator(), creator({ id: "creator-2", name: "Salsa Amelia" })]} total={2} />);
+
+      expect(screen.getAllByRole("rowgroup")[1]).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      for (const row of screen.getAllByRole("row").slice(1)) {
+        expect(row).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border", "max-lg:bg-surface");
+      }
+    });
+
     it("names every value by its column, since the column headers are hidden", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
 
