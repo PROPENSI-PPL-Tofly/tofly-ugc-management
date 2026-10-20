@@ -1,4 +1,8 @@
-import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
+import {
+  ForbiddenException,
+  UnauthorizedException,
+  type ExecutionContext,
+} from '@nestjs/common';
 import type { Principal } from './google/ports.js';
 import type { CreatorRequest } from './creator-request.js';
 import type { AppSessionService } from './session/session.service.js';
@@ -295,25 +299,28 @@ describe('DevCreatorGuard', () => {
     expect(client.creators.findUnique).not.toHaveBeenCalled();
   });
 
-  it('rejects an admin principal on a creator-only route', async () => {
+  // OWASP Top 10:2025 A01: a signed-in admin is known but not allowed here, which is a 403 as
+  // AdminGuard answers a creator, not a "please sign in" that would send them to the login page.
+  it('forbids a signed-in admin on a creator-only route', async () => {
     vi.stubEnv('NODE_ENV', 'test');
 
     const { guard: subject } = sessionGuard({
       userId: 'admin-1',
       role: 'admin',
     });
+    const request: CreatorRequest = {
+      headers: {},
+      cookies: { '__session': 'opaque-id' },
+      method: 'GET',
+    };
 
-    await expect(
-      subject.canActivate(
-        context({
-          headers: {},
-          cookies: { '__session': 'opaque-id' },
-          method: 'GET',
-        }),
-      ),
-    ).rejects.toMatchObject({
-      response: { code: 'UNAUTHENTICATED' },
+    const refusal = subject.canActivate(context(request));
+
+    await expect(refusal).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(refusal).rejects.toMatchObject({
+      response: { code: 'FORBIDDEN', message: 'Halaman ini hanya untuk Creator' },
     });
+    expect(request.creatorId).toBeUndefined();
   });
 
   it('does not authenticate when session storage fails', async () => {
