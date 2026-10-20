@@ -12,6 +12,8 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
+      // Read only for a revoked creator; none of their contracts has begun.
+      contracts: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
@@ -51,6 +53,8 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
+      // Read only for a revoked creator; none of their contracts has begun.
+      contracts: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
@@ -95,6 +99,8 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
+      // Read only for a revoked creator; none of their contracts has begun.
+      contracts: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
@@ -139,6 +145,8 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
+      // Read only for a revoked creator; none of their contracts has begun.
+      contracts: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
@@ -242,6 +250,8 @@ describe('PrismaWhitelistResolver', () => {
           create: vi.fn(),
           upsert: vi.fn(),
         },
+        // Read only for a revoked creator; none of their contracts has begun.
+        contracts: { findMany: vi.fn().mockResolvedValue([]) },
       };
 
       const resolver = new PrismaWhitelistResolver(prisma);
@@ -282,6 +292,8 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
+      // Read only for a revoked creator; none of their contracts has begun.
+      contracts: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
@@ -333,6 +345,8 @@ describe('PrismaWhitelistResolver', () => {
         create: vi.fn(),
         upsert: vi.fn(),
       },
+      // Read only for a revoked creator; none of their contracts has begun.
+      contracts: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
     const resolver = new PrismaWhitelistResolver(prisma);
@@ -388,6 +402,8 @@ describe('PrismaWhitelistResolver', () => {
           create: vi.fn(),
           upsert: vi.fn(),
         },
+        // Read only for a revoked creator; none of their contracts has begun.
+        contracts: { findMany: vi.fn().mockResolvedValue([]) },
       };
 
       const resolver = new PrismaWhitelistResolver(prisma);

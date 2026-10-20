@@ -1,4 +1,5 @@
 import { jakartaDay } from '../../creators/evergreen.js';
+import { creatorMaySignIn, type BegunInvoice } from './creator-access.js';
 import type { Principal, WhitelistResolver } from './ports.js';
 
 type WhitelistUserRecord = {
@@ -25,6 +26,12 @@ type WhitelistPrismaClient = {
         };
       };
     }): Promise<WhitelistUserRecord | null>;
+  };
+  contracts: {
+    findMany(args: {
+      where: { creator_id: string; start_date: { lte: Date } };
+      select: { invoice: { select: { status: true; paid_at: true } } };
+    }): Promise<{ invoice: BegunInvoice }[]>;
   };
 };
 
@@ -81,8 +88,14 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
     const revokeDay =
       creator.access_revoke_date?.toISOString().slice(0, 10) ?? null;
 
-    // Access remains valid until the scheduled revoke date is reached.
-    if (revokeDay !== null && revokeDay <= today) {
+    // Access remains valid until the scheduled revoke date is reached, and past it while the
+    // creator still has an invoice to settle (PBI-13). Only a revoked creator's invoices are read,
+    // so every other request costs the one query it always did.
+    const begun =
+      revokeDay !== null && revokeDay <= today
+        ? await this.begunInvoices(creator.id, today)
+        : [];
+    if (!creatorMaySignIn(revokeDay, today, begun)) {
       return null;
     }
 
@@ -91,5 +104,20 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       role: 'creator',
       creatorId: creator.id,
     };
+  }
+
+  /** The invoice of each of the creator's contracts that has begun by today, in one query. */
+  private async begunInvoices(
+    creatorId: string,
+    today: string,
+  ): Promise<BegunInvoice[]> {
+    const contracts = await this.prisma.contracts.findMany({
+      where: {
+        creator_id: creatorId,
+        start_date: { lte: new Date(`${today}T00:00:00.000Z`) },
+      },
+      select: { invoice: { select: { status: true, paid_at: true } } },
+    });
+    return contracts.map(({ invoice }) => invoice);
   }
 }
