@@ -91,11 +91,16 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
     // Access remains valid until the scheduled revoke date is reached, and past it while the
     // creator still has an invoice to settle (PBI-13). Only a revoked creator's invoices are read,
     // so every other request costs the one query it always did.
-    const begun =
-      revokeDay !== null && revokeDay <= today
-        ? await this.begunInvoices(creator.id, today)
-        : [];
-    if (!creatorMaySignIn(revokeDay, today, begun)) {
+    // Stryker disable next-line ConditionalExpression: equivalent mutant. Without the null check, null <= "YYYY-MM-DD" compares 0 with NaN and is false, exactly what the check answers; it is there for the type checker.
+    const revoked = revokeDay !== null && revokeDay <= today;
+    if (
+      revoked &&
+      !creatorMaySignIn(
+        revokeDay,
+        today,
+        await this.begunInvoices(creator.id, today),
+      )
+    ) {
       return null;
     }
 
