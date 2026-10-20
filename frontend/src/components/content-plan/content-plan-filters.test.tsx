@@ -93,13 +93,13 @@ describe("ContentPlanFilters", () => {
       ["last90", "90 hari terakhir"],
       ["custom", "Pilih tanggal…"],
     ]);
-    expect(screen.queryByLabelText("Dari")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Deadline mulai")).not.toBeInTheDocument();
 
     view.rerenderWith(new URLSearchParams({ period: "custom" }), { period: "custom" });
-    expect(screen.getByLabelText("Dari")).toBeInTheDocument();
-    expect(screen.getByLabelText("Sampai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Deadline mulai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Deadline sampai")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Dari"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Deadline mulai"), { target: { value: "2026-10-01" } });
     expect(mockReplace).toHaveBeenLastCalledWith(
       "/admin/content-plan?period=custom&from=2026-10-01",
       { scroll: false },
@@ -255,7 +255,7 @@ describe("ContentPlanFilters", () => {
     });
 
     view = view.rerenderWith(new URLSearchParams({ period: "custom" }), { period: "custom" });
-    fireEvent.change(screen.getByLabelText("Sampai"), { target: { value: "2026-10-31" } });
+    fireEvent.change(screen.getByLabelText("Deadline sampai"), { target: { value: "2026-10-31" } });
     expect(mockReplace).toHaveBeenLastCalledWith(
       "/admin/content-plan?period=custom&to=2026-10-31",
       { scroll: false },
@@ -309,7 +309,7 @@ describe("ContentPlanFilters", () => {
     });
     renderFilters({ period: "custom", from: "2026-10-01", to: "2026-10-31" });
 
-    expect(screen.getByLabelText("Dari")).toHaveValue("2026-10-01");
-    expect(screen.getByLabelText("Sampai")).toHaveValue("2026-10-31");
+    expect(screen.getByLabelText("Deadline mulai")).toHaveValue("2026-10-01");
+    expect(screen.getByLabelText("Deadline sampai")).toHaveValue("2026-10-31");
   });
 });

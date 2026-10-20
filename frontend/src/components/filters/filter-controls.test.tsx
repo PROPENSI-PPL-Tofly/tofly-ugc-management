@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   FilterSelect,
   OVERDUE_OPTIONS,
@@ -73,7 +73,7 @@ describe("PeriodFilter", () => {
       "90 hari terakhir",
       "Pilih tanggal…",
     ]);
-    expect(screen.queryByLabelText("Dari")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Deadline mulai")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), {
       target: { value: "custom" },
@@ -81,19 +81,76 @@ describe("PeriodFilter", () => {
     expect(onChange).toHaveBeenCalledWith("period", "custom");
   });
 
-  it("shows Dari and Sampai for a custom period and hands back each day under its key", () => {
-    const onChange = renderPeriod("custom", false, "2026-10-01", "");
+  // Client feedback B1: "Dari" and "Sampai" did not say what they range over. They narrow the
+  // list by deadline (deadlineFrom / deadlineTo), so they are named for it and grouped as one.
+  describe("the custom deadline range", () => {
+    function range() {
+      return within(screen.getByRole("group", { name: "Rentang deadline" }));
+    }
 
-    expect(screen.getByLabelText("Dari")).toHaveValue("2026-10-01");
-    fireEvent.change(screen.getByLabelText("Sampai"), { target: { value: "2026-10-31" } });
+    it("groups the two days under one name and labels each by the deadline it bounds", () => {
+      renderPeriod("custom", false, "2026-10-01", "");
 
-    expect(onChange).toHaveBeenCalledWith("to", "2026-10-31");
-  });
+      expect(range().getByLabelText("Deadline mulai")).toHaveValue("2026-10-01");
+      expect(range().getByLabelText("Deadline sampai")).toHaveValue("");
+      expect(screen.queryByLabelText("Dari")).toBeNull();
+      expect(screen.queryByLabelText("Sampai")).toBeNull();
+    });
 
-  it("hands back the start day under from", () => {
-    const onChange = renderPeriod("custom");
-    fireEvent.change(screen.getByLabelText("Dari"), { target: { value: "2026-10-05" } });
-    expect(onChange).toHaveBeenCalledWith("from", "2026-10-05");
+    it("hands back each day under its own key", () => {
+      const onChange = renderPeriod("custom");
+
+      fireEvent.change(screen.getByLabelText("Deadline mulai"), { target: { value: "2026-10-05" } });
+      fireEvent.change(screen.getByLabelText("Deadline sampai"), { target: { value: "2026-10-31" } });
+
+      expect(onChange).toHaveBeenCalledWith("from", "2026-10-05");
+      expect(onChange).toHaveBeenCalledWith("to", "2026-10-31");
+    });
+
+    it("keeps the date pickers from offering a range that ends before it starts", () => {
+      renderPeriod("custom", false, "2026-10-01", "2026-10-31");
+
+      expect(screen.getByLabelText("Deadline mulai")).toHaveAttribute("max", "2026-10-31");
+      expect(screen.getByLabelText("Deadline sampai")).toHaveAttribute("min", "2026-10-01");
+    });
+
+    it.each([
+      ["both days", "2026-10-01", "2026-10-31", "Deadline 1 Okt – 31 Okt 2026"],
+      ["only the start", "2026-10-01", "", "Deadline mulai 1 Okt 2026"],
+      ["only the end", "", "2026-10-31", "Deadline sampai 31 Okt 2026"],
+      ["neither day", "", "", "Pilih salah satu atau kedua tanggal"],
+    ])("says which deadlines are shown with %s picked", (_, from, to, summary) => {
+      renderPeriod("custom", false, from, to);
+
+      const status = screen.getByRole("status");
+      expect(status).toHaveTextContent(summary);
+      expect(screen.getByLabelText("Deadline mulai").getAttribute("aria-describedby")).toBe(
+        status.id,
+      );
+    });
+
+    it("says a range typed backwards is read the right way round, as the list reads it", () => {
+      renderPeriod("custom", false, "2026-10-31", "2026-10-01");
+
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Deadline mulai jatuh setelah deadline sampai, jadi dibaca 1 Okt – 31 Okt 2026",
+      );
+    });
+
+    it("clears both days in one press, and offers it only while a day is picked", () => {
+      const onChange = renderPeriod("custom", false, "2026-10-01", "2026-10-31");
+
+      fireEvent.click(range().getByRole("button", { name: "Kosongkan tanggal" }));
+
+      expect(onChange).toHaveBeenCalledWith("from", "");
+      expect(onChange).toHaveBeenCalledWith("to", "");
+    });
+
+    it("offers no clearing while no day is picked", () => {
+      renderPeriod("custom");
+
+      expect(screen.queryByRole("button", { name: "Kosongkan tanggal" })).toBeNull();
+    });
   });
 
   it("says when the open tab ignores the period, in a colour that keeps its contrast on white", () => {

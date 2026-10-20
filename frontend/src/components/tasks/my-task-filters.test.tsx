@@ -172,7 +172,7 @@ describe("MyTaskFilters", () => {
   it("picks a period, and the custom days once Pilih tanggal is chosen", () => {
     renderOn({ period: "custom" }, { period: "custom" });
 
-    fireEvent.change(screen.getByLabelText("Dari"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Deadline mulai"), { target: { value: "2026-10-01" } });
 
     expect(replace).toHaveBeenLastCalledWith("/creator/tasks?period=custom&from=2026-10-01", {
       scroll: false,
