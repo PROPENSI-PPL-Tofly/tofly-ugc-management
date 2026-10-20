@@ -31,7 +31,7 @@ describe("MyTaskFilters", () => {
     renderOn();
 
     expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Tipe:/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Tipe" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Status:/ })).toBeInTheDocument();
     expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
     expect(screen.getByLabelText("Periode")).toBeInTheDocument();
@@ -92,13 +92,66 @@ describe("MyTaskFilters", () => {
     expect(replace).toHaveBeenCalledWith("/creator/tasks?tab=action&q=serum", { scroll: false });
   });
 
-  it("puts picked types in the address, comma-separated", () => {
-    renderOn();
+  // Client feedback C5: one type at a time reads plainer as a set of radio choices than as a
+  // checklist behind a pill. The address keeps the values it always had.
+  describe("Tipe, one choice at a time", () => {
+    it("offers Semua and every type as radios in one named group, Semua chosen by default", () => {
+      renderOn();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Specific" }));
+      const group = within(screen.getByRole("group", { name: "Tipe" }));
+      const radios = group.getAllByRole("radio");
+      expect(radios.map((radio) => radio.closest("label")?.textContent)).toEqual([
+        "Semua",
+        "Evergreen",
+        "Specific",
+      ]);
+      expect(group.getByRole("radio", { name: "Semua" })).toBeChecked();
+      // One name, so the arrow keys move between them and Tab stops on the group once.
+      expect(new Set(radios.map((radio) => radio.getAttribute("name"))).size).toBe(1);
+      expect(screen.queryByRole("button", { name: /^Tipe:/ })).not.toBeInTheDocument();
+    });
 
-    expect(replace).toHaveBeenLastCalledWith("/creator/tasks?type=specific", { scroll: false });
+    it.each([
+      ["Evergreen", "evergreen"],
+      ["Specific", "specific"],
+    ])("puts %s in the address under the value it always had", (name, value) => {
+      renderOn();
+
+      fireEvent.click(screen.getByRole("radio", { name }));
+
+      expect(replace).toHaveBeenLastCalledWith(`/creator/tasks?type=${value}`, { scroll: false });
+    });
+
+    it("shows the address's type as the chosen radio", () => {
+      renderOn({ type: "specific" }, { type: ["specific"] });
+
+      expect(screen.getByRole("radio", { name: "Specific" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "Semua" })).not.toBeChecked();
+    });
+
+    it("goes back to every type with Semua, keeping the tab and the other filters", () => {
+      renderOn({ tab: "waiting", type: "specific", overdue: "yes" }, { tab: "waiting", type: ["specific"] });
+
+      fireEvent.click(screen.getByRole("radio", { name: "Semua" }));
+
+      expect(replace).toHaveBeenLastCalledWith("/creator/tasks?tab=waiting&overdue=yes", { scroll: false });
+    });
+
+    it("moves from one type straight to the other, never to both", () => {
+      renderOn({ type: "evergreen" }, { type: ["evergreen"] });
+
+      fireEvent.click(screen.getByRole("radio", { name: "Specific" }));
+
+      expect(replace).toHaveBeenLastCalledWith("/creator/tasks?type=specific", { scroll: false });
+    });
+
+    it("is cleared by Reset with everything else", () => {
+      renderOn({ type: "evergreen", q: "serum" }, { type: ["evergreen"], q: "serum" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+      expect(replace).toHaveBeenLastCalledWith("/creator/tasks", { scroll: false });
+    });
   });
 
   it("puts picked statuses in the address", () => {
@@ -118,20 +171,21 @@ describe("MyTaskFilters", () => {
       { type: ["evergreen"], status: ["scheduled"] },
     );
 
-    expect(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Evergreen" })).toBeChecked();
     expect(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("Evergreen");
+    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(1);
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Scheduled");
   });
 
-  it("shows every pick of a type the address repeats, as the list is narrowed by all of them", () => {
+  // Every type named is every type: the list shows all of them, so the choice reads Semua.
+  it("reads an address naming every type, repeated or not, as Semua", () => {
     searchParams = new URLSearchParams("type=evergreen&type=specific");
     render(
       <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, type: ["evergreen", "specific"] }} />,
     );
 
-    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("2 dipilih");
+    expect(screen.getByRole("radio", { name: "Semua" })).toBeChecked();
+    expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
   });
 
   it("shows no chip for a status another tab holds", () => {
