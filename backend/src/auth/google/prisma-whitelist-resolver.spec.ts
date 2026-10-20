@@ -193,6 +193,17 @@ describe('PrismaWhitelistResolver', () => {
           create: vi.fn(),
           upsert: vi.fn(),
         },
+        // Every begun contract's invoice is paid, so nothing is left to settle.
+        contracts: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              invoice: {
+                status: 'paid',
+                paid_at: new Date('2026-09-25T03:00:00.000Z'),
+              },
+            },
+          ]),
+        },
       };
 
       const resolver = new PrismaWhitelistResolver(prisma);
@@ -402,9 +413,18 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
     creators: { select: { id: true, access_revoke_date: true } },
   };
 
-  function resolverFor(user: unknown) {
-    const prisma = { users: { findUnique: vi.fn().mockResolvedValue(user) } };
-    return { prisma, resolver: new PrismaWhitelistResolver(prisma) };
+  function resolverFor(
+    user: unknown,
+    begun: { invoice: { status: string; paid_at: Date | null } | null }[] = [],
+  ) {
+    const prisma = {
+      users: { findUnique: vi.fn().mockResolvedValue(user) },
+      contracts: { findMany: vi.fn().mockResolvedValue(begun) },
+    };
+    return {
+      prisma,
+      resolver: new PrismaWhitelistResolver(prisma as never),
+    };
   }
 
   afterEach(() => {
@@ -442,6 +462,80 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
     });
 
     await expect(resolver.resolveUser('user-1')).resolves.toBeNull();
+  });
+
+  // PBI-13: revoking a creator takes effect once there is nothing left for them to settle
+  // (prototype: "akses login dicabut H+1 setelah Paid"), so a creator whose contract ended can
+  // still acknowledge their invoice and confirm the payment arrived.
+  describe('a creator whose revoke date has been reached', () => {
+    const REVOKED = {
+      id: 'user-1',
+      is_admin: false,
+      creators: {
+        id: 'creator-1',
+        access_revoke_date: new Date('2026-10-06T00:00:00.000Z'),
+      },
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      // 20 Oct in Jakarta.
+      vi.setSystemTime(new Date('2026-10-20T03:00:00.000Z'));
+    });
+
+    it('keeps their access while an invoice of a begun contract is not yet paid', async () => {
+      const { prisma, resolver } = resolverFor(REVOKED, [
+        { invoice: { status: 'finalized', paid_at: null } },
+      ]);
+
+      await expect(resolver.resolveUser('user-1')).resolves.toEqual({
+        userId: 'user-1',
+        role: 'creator',
+        creatorId: 'creator-1',
+      });
+      expect(prisma.contracts.findMany).toHaveBeenCalledExactlyOnceWith({
+        where: {
+          creator_id: 'creator-1',
+          start_date: { lte: new Date('2026-10-20T00:00:00.000Z') },
+        },
+        select: { invoice: { select: { status: true, paid_at: true } } },
+      });
+    });
+
+    it('keeps the same access at sign-in as on each request', async () => {
+      const { resolver } = resolverFor(REVOKED, [{ invoice: null }]);
+
+      await expect(resolver.resolve('creator@example.com')).resolves.toEqual({
+        userId: 'user-1',
+        role: 'creator',
+        creatorId: 'creator-1',
+      });
+    });
+
+    it('ends their access the day after the last invoice is paid', async () => {
+      const { resolver } = resolverFor(REVOKED, [
+        {
+          invoice: {
+            status: 'paid',
+            paid_at: new Date('2026-10-19T03:00:00.000Z'),
+          },
+        },
+      ]);
+
+      await expect(resolver.resolveUser('user-1')).resolves.toBeNull();
+    });
+  });
+
+  it('reads no invoices for a creator whose access is not revoked', async () => {
+    const { prisma, resolver } = resolverFor({
+      id: 'user-1',
+      is_admin: false,
+      creators: { id: 'creator-1', access_revoke_date: null },
+    });
+
+    await resolver.resolveUser('user-1');
+
+    expect(prisma.contracts.findMany).not.toHaveBeenCalled();
   });
 
   it('refuses a user who no longer exists', async () => {

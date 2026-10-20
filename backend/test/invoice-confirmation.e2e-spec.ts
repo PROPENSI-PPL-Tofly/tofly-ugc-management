@@ -514,6 +514,45 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
     });
   });
 
+  // PBI-13 + prototype ("akses login dicabut H+1 setelah Paid"): revoking a creator takes effect
+  // once nothing is left for them to settle, so a creator whose access was revoked after their
+  // contract ended can still acknowledge and confirm their last invoice.
+  describe('a creator whose access was revoked', () => {
+    it('settles their last invoice, keeps access the day it is paid, and loses it the day after', async () => {
+      const revoked = await creator('Dicabut', [{ start: -60, end: -10 }]);
+      const [contractId] = revoked.contractIds;
+      await prisma.creators.update({
+        where: { id: revoked.creatorId },
+        data: { access_revoke_date: day(-5) },
+      });
+      await finalize(contractId);
+
+      const list = await revoked.client.get('/me/invoices');
+      const acked = await revoked.client.post(
+        `/me/invoices/${contractId}/acknowledge`,
+      );
+      expect([list.status, acked.status]).toEqual([200, 201]);
+
+      const uploaded = await admin
+        .post(`/invoices/${contractId}/payment-proof`)
+        .attach('file', PDF, 'transfer.pdf');
+      const paid = await revoked.client.post(
+        `/me/invoices/${contractId}/confirm-receipt`,
+      );
+      expect([uploaded.status, paid.status]).toEqual([201, 201]);
+
+      // Paid today: still in until tomorrow.
+      expect((await revoked.client.get('/me/invoices')).status).toBe(200);
+
+      // The day after it was paid, the revoke date is in force again.
+      await prisma.invoices.update({
+        where: { contract_id: contractId },
+        data: { paid_at: day(-1) },
+      });
+      expect((await revoked.client.get('/me/invoices')).status).toBe(401);
+    });
+  });
+
   describe('edge:', () => {
     // OWASP Top 10:2025 A06 (Insecure Design): two acknowledges at once move the invoice once.
     it('two acknowledges at once: one wins, the other is told it is already acknowledged', async () => {
