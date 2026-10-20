@@ -171,7 +171,14 @@ describe('InvoicesService', () => {
     /** Whatever the jsonb column holds, a well-formed snapshot or not. */
     snapshot: InvoiceSnapshotDto | Prisma.JsonValue;
     adjustments: ReturnType<typeof adjustmentRow>[];
+    /** When the creator acknowledged and confirmed receipt (13.1); absent reads as null. */
+    acknowledged_at?: Date | null;
+    paid_at?: Date | null;
   }
+
+  // The creator's two moves on an invoice (13.1).
+  const ACKED_AT = new Date('2026-09-14T03:00:00.000Z');
+  const PAID_AT = new Date('2026-09-16T09:30:00.000Z');
 
   /**
    * The invoices and invoice_adjustments tables holding `saved`, answering every query by its
@@ -196,6 +203,8 @@ describe('InvoicesService', () => {
       (args: { where: { contract_id: { in: string[] } } }) =>
         Promise.resolve(
           byContract(args).map((invoice) => ({
+            acknowledged_at: null,
+            paid_at: null,
             ...invoice,
             status: invoice.snapshot ? 'finalized' : 'running',
           })),
@@ -299,6 +308,45 @@ describe('InvoicesService', () => {
           item.contract.id === 'nadia-c' ? proof : null,
         );
       }
+    });
+
+    // PBI-13 (13.1): the admin sees when the creator acknowledged and confirmed receipt.
+    it('gives each row when the creator acknowledged the invoice and confirmed receipt, or null before', async () => {
+      pipeline = { 'nadia-c': 'paid' };
+      persist([
+        {
+          id: 'nadia-i',
+          contract_id: 'nadia-c',
+          snapshot: snapshotOf(2_000_000),
+          adjustments: [],
+          acknowledged_at: ACKED_AT,
+          paid_at: PAID_AT,
+        },
+        {
+          id: 'rangga-i',
+          contract_id: 'rangga-c',
+          snapshot: null,
+          adjustments: [],
+        },
+      ]);
+
+      const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+      const confirmations = Object.fromEntries(
+        items.map(({ contract, acknowledgedAt, paidAt }) => [
+          contract.id,
+          { acknowledgedAt, paidAt },
+        ]),
+      );
+
+      expect(confirmations).toEqual({
+        'nadia-c': {
+          acknowledgedAt: ACKED_AT.toISOString(),
+          paidAt: PAID_AT.toISOString(),
+        },
+        // A saved invoice the creator has not moved, and a contract with no saved invoice.
+        'rangga-c': { acknowledgedAt: null, paidAt: null },
+        'kevin-c': { acknowledgedAt: null, paidAt: null },
+      });
     });
 
     it('asks for no proofs when the page is empty', async () => {
@@ -629,7 +677,13 @@ describe('InvoicesService', () => {
         expect(prisma.invoices.findMany).toHaveBeenCalledTimes(1);
         expect(prisma.invoices.findMany).toHaveBeenCalledWith({
           where: { contract_id: { in: ['rangga-c'] } },
-          select: { id: true, contract_id: true, snapshot: true },
+          select: {
+            id: true,
+            contract_id: true,
+            snapshot: true,
+            acknowledged_at: true,
+            paid_at: true,
+          },
         });
       });
 
@@ -918,6 +972,34 @@ describe('InvoicesService', () => {
       });
     });
 
+    it('answers when the creator acknowledged and confirmed receipt, or null before', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+      pipeline = { 'contract-1': 'creator_acked' };
+      persist([
+        {
+          id: 'invoice-1',
+          contract_id: 'contract-1',
+          snapshot: snapshotOf(5_500_000),
+          adjustments: [],
+          acknowledged_at: ACKED_AT,
+        },
+      ]);
+
+      await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
+        acknowledgedAt: ACKED_AT.toISOString(),
+        paidAt: null,
+      });
+    });
+
+    it('answers neither move for a contract with no saved invoice yet', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+
+      await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
+        acknowledgedAt: null,
+        paidAt: null,
+      });
+    });
+
     it('answers the contract it is asked for, with the period it pays', async () => {
       prisma.creators.findUnique.mockResolvedValue(renewed);
 
@@ -1127,6 +1209,143 @@ describe('InvoicesService', () => {
   // The InvoiceStatusSource port answers where an invoice stands; the saved lifecycle row only
   // carries the adjustments and snapshot. In the app the port reads that same row, so the two
   // agree; these pin that the service never second-guesses the port when they do not.
+  // GET /me/invoices (13.1): every invoice of one creator, calculated once for all their
+  // contracts. Who may open a proof and the comment threads are the caller's to add.
+  describe('forCreator', () => {
+    const renewed = row({
+      contracts: [
+        contractFor('renewal', -60, 60),
+        contractFor('first', -200, -61, '5000000'),
+        contractFor('next', 61, 200, '6000000'),
+      ],
+    });
+
+    it('reads the one creator by id, with the columns an invoice is calculated from', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+
+      await service.forCreator('creator-1', TODAY);
+
+      expect(prisma.creators.findUnique).toHaveBeenCalledExactlyOnceWith({
+        where: { id: 'creator-1' },
+        select: expect.objectContaining({
+          id: true,
+          contracts: expect.any(Object),
+        }),
+      });
+    });
+
+    it("answers every one of the creator's contracts, newest period first, each with its status, period, formula and the creator's moves", async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+      pipeline = { first: 'paid' };
+      persist([
+        {
+          id: 'first-i',
+          contract_id: 'first',
+          snapshot: snapshotOf(4_800_000),
+          adjustments: [],
+          acknowledged_at: ACKED_AT,
+          paid_at: PAID_AT,
+        },
+      ]);
+
+      const invoices = await service.forCreator('creator-1', TODAY);
+
+      expect(
+        invoices.map((invoice) => [
+          invoice.contract.id,
+          invoice.periodNumber,
+          invoice.contract.status,
+          invoice.invoiceStatus,
+        ]),
+      ).toEqual([
+        ['next', 3, 'upcoming', 'accruing'],
+        ['renewal', 2, 'active', 'accruing'],
+        ['first', 1, 'expired', 'paid'],
+      ]);
+      expect(invoices[2]).toMatchObject({
+        creatorId: 'creator-1',
+        creatorName: 'Rangga Pratama',
+        snapshot: snapshotOf(4_800_000),
+        total: 4_800_000,
+        acknowledgedAt: ACKED_AT.toISOString(),
+        paidAt: PAID_AT.toISOString(),
+      });
+      expect(invoices[1]).toMatchObject({
+        snapshot: null,
+        total: 5_500_000,
+        formula: FORMULA,
+        acknowledgedAt: null,
+        paidAt: null,
+      });
+    });
+
+    it('reads content, statuses, saved invoices and the formula once for all the contracts', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+      persist([]);
+      const everyContract = ['renewal', 'first', 'next'];
+
+      await service.forCreator('creator-1', TODAY);
+
+      expect(prisma.contents.findMany).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          where: { contract_id: { in: everyContract } },
+          orderBy: { deadline: 'asc' },
+        }),
+      );
+      expect(statuses.statuses).toHaveBeenCalledExactlyOnceWith(everyContract);
+      expect(prisma.invoices.findMany).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          where: { contract_id: { in: everyContract } },
+        }),
+      );
+      expect(formulas.current).toHaveBeenCalledTimes(1);
+    });
+
+    // OWASP Top 10:2025 A08: a finalized invoice keeps the rules it was frozen with.
+    it('answers a finalized invoice with the formula saved in its snapshot', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+      pipeline = { 'contract-1': 'finalized' };
+      const atFinalization = { ...FORMULA, specificBonus: 250_000 };
+      persist([
+        {
+          id: 'invoice-1',
+          contract_id: 'contract-1',
+          snapshot: { ...snapshotOf(5_500_000), formula: atFinalization },
+          adjustments: [],
+        },
+      ]);
+
+      const [invoice] = await service.forCreator('creator-1', TODAY);
+
+      expect(invoice.formula).toEqual(atFinalization);
+    });
+
+    it('leaves the payment proof to the caller, who knows whose link to give', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+
+      const [invoice] = await service.forCreator('creator-1', TODAY);
+
+      expect(proofs.forContracts).not.toHaveBeenCalled();
+      expect(invoice).not.toHaveProperty('paymentProof');
+    });
+
+    it.each([
+      ['does not exist', null],
+      ['holds no contract', row({ contracts: [] })],
+    ])(
+      'answers no invoices for a creator who %s, reading nothing else',
+      async (_, creator) => {
+        prisma.creators.findUnique.mockResolvedValue(creator);
+
+        await expect(service.forCreator('creator-1', TODAY)).resolves.toEqual(
+          [],
+        );
+        expect(prisma.contents.findMany).not.toHaveBeenCalled();
+        expect(statuses.statuses).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   describe('the status source is the one authority on the invoice status', () => {
     const saved = (status: 'running' | 'finalized') => [
       {
