@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SCROLL_HINT, useScrollHint } from "@/components/ui/use-scroll-hint";
 
 export interface Place {
   href: string;
@@ -22,13 +23,18 @@ function isWithin(pathname: string, href: string): boolean {
  */
 export function ShellNav({ label, places }: Readonly<{ label: string; places: Place[] }>) {
   const pathname = usePathname();
+  const list = useScrollHint<HTMLUListElement>(pathname);
 
   return (
     <nav aria-label={label} className="min-w-0 flex-1">
       {/* On a phone the menu is one row beside the logo; it scrolls sideways within that row
           rather than clipping the last item or widening the page. The padding keeps the focus
-          ring, drawn outside each link, inside the scrolling row. */}
-      <ul className="flex gap-1 overflow-x-auto p-1 md:flex-col md:overflow-visible md:p-0">
+          ring, drawn outside each link, inside the scrolling row. The edge fades where more
+          places sit off-screen, and the current place is scrolled fully into the row. */}
+      <ul
+        ref={list}
+        className={`flex gap-1 overflow-x-auto p-1 md:flex-col md:overflow-visible md:p-0 ${SCROLL_HINT}`}
+      >
         {places.map((place) => {
           const current = [place.href, ...(place.covers ?? [])].some((href) =>
             isWithin(pathname, href),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, type KeyboardEvent } from "react";
+import { SCROLL_HINT, useScrollHint } from "./use-scroll-hint";
 
 const TAB_BASE =
   "shrink-0 cursor-pointer whitespace-nowrap rounded-t-(--radius-control) border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors";
@@ -51,6 +52,9 @@ export function StatusTabs<K extends string>({
   onSelect: (tab: K) => void;
 }>) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  // On a phone the row scrolls sideways: its edge fades where more tabs sit off-screen, and
+  // the selected tab is kept fully in view.
+  const list = useScrollHint<HTMLDivElement>(active);
 
   function move(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const last = tabs.length - 1;
@@ -70,9 +74,10 @@ export function StatusTabs<K extends string>({
 
   return (
     <div
+      ref={list}
       role="tablist"
       aria-label={label}
-      className="flex gap-1 overflow-x-auto border-b border-rule px-5"
+      className={`flex gap-1 overflow-x-auto border-b border-rule px-5 ${SCROLL_HINT}`}
     >
       {tabs.map((def, index) => {
         const count = counts[def.key];
