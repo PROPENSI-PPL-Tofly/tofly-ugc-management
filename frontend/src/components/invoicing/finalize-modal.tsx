@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { finalizeInvoice } from "@/lib/invoice-actions.server";
@@ -31,6 +31,8 @@ export function FinalizeModal({
 }>) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Freezing cannot be undone: focus starts on the safe answer, as ConfirmDialog does.
+  const cancelRef = useRef<HTMLButtonElement>(null);
   // A bonus still waiting for data is frozen at what was measured: the dialog shows that, not the
   // running "Menunggu data", so the admin confirms the amounts that will be kept.
   const pending = row.pendingBonus;
@@ -56,9 +58,10 @@ export function FinalizeModal({
     <Modal
       title={`Finalize invoice ${invoiceTitle(row)}`}
       onClose={onCancel}
+      initialFocus={cancelRef}
       footer={
         <>
-          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+          <Button ref={cancelRef} variant="ghost" onClick={onCancel} disabled={busy}>
             Batal
           </Button>
           <Button variant="danger" onClick={confirm} disabled={busy}>

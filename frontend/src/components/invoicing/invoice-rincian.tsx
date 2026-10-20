@@ -5,7 +5,6 @@ import { CONTRACT_TONES, INVOICE_TONES } from "@/components/invoice/invoice-tabl
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot } from "@/components/ui/pill";
-import { FINAL_LABEL } from "@/lib/invoice-adjustment";
 import {
   CONTRACT_STATUS_LABELS,
   finalLabel,
@@ -16,6 +15,12 @@ import {
 import { BREAKDOWN_KINDS, BREAKDOWN_TITLES, type InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { AdjustmentLines } from "./adjustment-lines";
 import { BreakdownLines, type BreakdownStatus } from "./breakdown-popup";
+
+/** The total's name, as the creator's page has it once the amounts are frozen (prototype). */
+function adminTotalLabel(row: InvoiceRow): string {
+  if (row.invoiceStatus === "paid") return "Total Dibayarkan";
+  return row.frozenAt === null ? "Total" : "Total Final";
+}
 
 /**
  * One creator's whole running invoice in one place (the prototype's "Rincian"): every part with
@@ -89,7 +94,7 @@ export function InvoiceRincian({
           className="flex items-start justify-between gap-4 border-t border-rule pt-3"
         >
           <div>
-            <p className="text-sm font-bold">Total</p>
+            <p className="text-sm font-bold">{adminTotalLabel(row)}</p>
             {row.floored ? <p className="text-xs text-red-ink">Penalti melebihi pembayaran</p> : null}
             {!row.floored && row.bonusAmount === null ? (
               <p className="text-xs text-muted">Belum termasuk bonus performa yang menunggu data.</p>
@@ -118,8 +123,6 @@ export function InvoiceRincian({
           {`Kontrak ${CONTRACT_STATUS_LABELS[row.contractStatus]}`}
         </StatusDot>
         <Pill tone={INVOICE_TONES[row.invoiceStatus]}>{INVOICE_STATUS_LABELS[row.invoiceStatus]}</Pill>
-        {/* A frozen invoice is settled history: the prototype's word marks it. */}
-        {row.frozenAt !== null ? <Pill tone="green">{FINAL_LABEL}</Pill> : null}
       </div>
       {editor ? <div className="mb-5">{editor}</div> : null}
       {body}
