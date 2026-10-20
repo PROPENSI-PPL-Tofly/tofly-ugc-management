@@ -28,7 +28,8 @@ export function InvoiceHistory({
   return (
     // Positioned, so the visually hidden Aksi heading is laid out inside this area, not the page.
     <div className="relative overflow-x-auto">
-      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
       <table role="table" aria-label="Riwayat Invoice" className="w-full text-[13px] max-lg:block">
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-muted">
@@ -60,17 +61,16 @@ export function InvoiceHistory({
                 role="row"
                 className="border-b border-rule-2 lg:last:border-b-0 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:border-rule max-lg:bg-surface max-lg:px-4 max-lg:py-3"
               >
-                <td role="cell" className={CELL}>
+                <td className={CELL}>
                   <span className="font-semibold">{`Periode ${invoice.periodNumber}`}</span>
                   <span className="block text-xs text-muted">
                     {formatContractWindow(invoice.periodStart, invoice.periodEnd)}
                   </span>
                 </td>
-                <td role="cell" data-label="Status" className={`${CELL} ${LABELLED}`}>
+                <td data-label="Status" className={`${CELL} ${LABELLED}`}>
                   <Pill tone={INVOICE_TONES[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Pill>
                 </td>
                 <td
-                  role="cell"
                   data-label="Total"
                   className={`${CELL} ${LABELLED} text-right font-semibold whitespace-nowrap tabular-nums max-lg:text-left`}
                 >

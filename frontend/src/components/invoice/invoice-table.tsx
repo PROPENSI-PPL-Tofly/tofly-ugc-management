@@ -213,7 +213,8 @@ export function InvoiceTable({
     // it, so nothing escapes it and widens the page.
     <div className="relative overflow-x-auto">
       {sort ? <PhoneSort sort={sort} /> : null}
-      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
       <table role="table" className="w-full text-[13px] max-lg:block">
         <colgroup className="max-lg:hidden">
           {columns.map(([column, width]) => (
@@ -263,7 +264,7 @@ export function InvoiceTable({
                 role="row"
                 className="border-b border-rule lg:last:border-b-0 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
               >
-                <td role="cell" className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>
+                <td className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>
                   <strong className="block truncate max-lg:whitespace-normal" title={invoiceTitle(row)}>
                     {invoiceTitle(row)}
                   </strong>
@@ -273,27 +274,26 @@ export function InvoiceTable({
                     </StatusDot>
                   </p>
                 </td>
-                <td role="cell" data-label="Fixed Rate" className={NUM}>
+                <td data-label="Fixed Rate" className={NUM}>
                   {amount ? amount("fixed", row) : amountCell(row.fixedAmount, amountLabel(row.fixedAmount))}
                 </td>
-                <td role="cell" data-label="Fee Konten Tambahan" className={NUM}>
+                <td data-label="Fee Konten Tambahan" className={NUM}>
                   {amount ? amount("extra", row) : amountCell(row.extraAmount, amountLabel(row.extraAmount))}
                 </td>
-                <td role="cell" data-label="Bonus Performa" className={NUM}>
+                <td data-label="Bonus Performa" className={NUM}>
                   {amount ? amount("bonus", row) : bonusCell(row)}
                 </td>
-                <td role="cell" data-label="Penalti" className={NUM}>
+                <td data-label="Penalti" className={NUM}>
                   {amount ? amount("penalty", row) : penaltyCell(row.penaltyAmount)}
                 </td>
                 {/* The sum, set apart under the amounts it adds up in a card. */}
                 <td
-                  role="cell"
                   data-label="Total"
                   className={`${NUM} max-lg:mt-1 max-lg:flex-wrap max-lg:border-t max-lg:border-rule-2 max-lg:pt-2`}
                 >
                   {finalCell(row)}
                 </td>
-                <td role="cell" data-label="Status Invoice" className={`${CELL} ${AGAINST}`}>
+                <td data-label="Status Invoice" className={`${CELL} ${AGAINST}`}>
                   <Pill tone={INVOICE_TONES[row.invoiceStatus]}>
                     {INVOICE_STATUS_LABELS[row.invoiceStatus]}
                   </Pill>
@@ -301,7 +301,6 @@ export function InvoiceTable({
                 {action ? (
                   // A full-width target on a phone, well above WCAG 2.5.8's 24 px.
                   <td
-                    role="cell"
                     className={`${CELL} text-right max-lg:pt-2 max-lg:[&_button]:min-h-11 max-lg:[&_button]:w-full`}
                   >
                     {action(row)}

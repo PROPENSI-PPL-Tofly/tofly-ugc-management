@@ -58,7 +58,8 @@ export function CreatorContentTable({
   return (
     // Positioned, so the sr-only heading below is laid out inside the scroll area, not the page.
     <div className="relative overflow-x-auto">
-      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
       <table role="table" className="w-full text-[13px] max-lg:block">
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-left text-muted">
@@ -94,20 +95,19 @@ export function CreatorContentTable({
                 }}
                 className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2 max-lg:block max-lg:px-5 max-lg:py-3"
               >
-                <td role="cell" className={`${CELL} min-w-52 max-lg:min-w-0`}>
+                <td className={`${CELL} min-w-52 max-lg:min-w-0`}>
                   <p className="font-semibold text-ink wrap-anywhere">{row.name}</p>
                   <p className="mt-1">
                     <Pill tone={TYPE_TONES[row.type]}>{CONTENT_TYPE_LABELS[row.type]}</Pill>
                   </p>
                 </td>
                 <td
-                  role="cell"
                   data-label="Deadline"
                   className={`${CELL} ${LABELLED} whitespace-nowrap`}
                 >
                   {formatDate(row.deadline)}
                 </td>
-                <td role="cell" data-label="Status" className={`${CELL} ${LABELLED}`}>
+                <td data-label="Status" className={`${CELL} ${LABELLED}`}>
                   <span className="flex flex-wrap items-center gap-1.5">
                     {/* A pill, as the prototype draws a status on this page. */}
                     <Pill tone={CONTENT_STATUS_TONES[row.status]}>
@@ -121,7 +121,7 @@ export function CreatorContentTable({
                     ) : null}
                   </span>
                 </td>
-                <td role="cell" className={`${CELL} max-lg:pt-2`}>
+                <td className={`${CELL} max-lg:pt-2`}>
                   <button
                     type="button"
                     // Every row has one; the content's name tells them apart when heard.

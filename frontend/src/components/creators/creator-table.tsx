@@ -137,7 +137,8 @@ export function CreatorTable({
   return (
     <>
       <div className="relative overflow-x-auto">
-        {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
+        {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+            A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
         <table role="table" className="w-full border-collapse max-lg:block">
           <caption className="sr-only">
             Daftar creator beserta kontrak, progres dan performa
@@ -176,7 +177,7 @@ export function CreatorTable({
                 }}
                 className="cursor-pointer transition-colors hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:border-rule max-lg:bg-surface max-lg:px-4 max-lg:py-3"
               >
-                <td role="cell" className={`${CELL} min-w-52 wrap-anywhere max-lg:min-w-0`}>
+                <td className={`${CELL} min-w-52 wrap-anywhere max-lg:min-w-0`}>
                   <p className="text-sm font-semibold text-ink">{creator.name}</p>
 
                   <p className="mt-0.5 text-xs text-muted">{creator.email}</p>
@@ -194,7 +195,7 @@ export function CreatorTable({
                   ) : null}
                 </td>
 
-                <td role="cell" data-label="Kontrak" className={`${CELL} ${LABELLED}`}>
+                <td data-label="Kontrak" className={`${CELL} ${LABELLED}`}>
                   <div className="min-w-0">
                     <StatusDot tone={CONTRACT_TONES[creator.contract.status]}>
                       {CONTRACT_LABELS[creator.contract.status]}
@@ -217,7 +218,7 @@ export function CreatorTable({
                   </div>
                 </td>
 
-                <td role="cell" data-label="Progres konten" className={`${CELL} ${LABELLED}`}>
+                <td data-label="Progres konten" className={`${CELL} ${LABELLED}`}>
                   <div className="min-w-0">
                     <p className="whitespace-nowrap max-lg:whitespace-normal">
                       {creator.progress.submitted}/{creator.progress.total} konten terkirim
@@ -234,21 +235,21 @@ export function CreatorTable({
                   </div>
                 </td>
 
-                <td role="cell" data-label="Tepat waktu" className={NUMERIC}>
+                <td data-label="Tepat waktu" className={NUMERIC}>
                   {formatPercent(creator.performance.onTimeRate)}
                 </td>
 
-                <td role="cell" data-label="Rata-rata revisi" className={NUMERIC}>
+                <td data-label="Rata-rata revisi" className={NUMERIC}>
                   {formatRevisions(creator.performance.avgRevisions)}
                 </td>
 
-                <td role="cell" data-label="Produktivitas" className={`${CELL} ${LABELLED}`}>
+                <td data-label="Produktivitas" className={`${CELL} ${LABELLED}`}>
                   <Pill tone={PRODUCTIVITY_TONES[creator.performance.productivity]}>
                     {creator.performance.productivityLabel}
                   </Pill>
                 </td>
 
-                <td role="cell" className={`${CELL} whitespace-nowrap max-lg:pt-2`}>
+                <td className={`${CELL} whitespace-nowrap max-lg:pt-2`}>
                   <Link
                     href={creatorDetailHref(creator.id, opened)}
                     // Every row has one; the creator's name tells them apart when heard.

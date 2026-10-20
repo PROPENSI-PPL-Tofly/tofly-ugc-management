@@ -67,7 +67,8 @@ export function ContentPlanTable({
     <div className="relative overflow-x-auto">
       {/* Below lg the header row is hidden, so the deadline sort gets a button of its own. */}
       <DeadlineSortButton sort={sort} onToggle={onSortToggle} />
-      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
       <table role="table" className="w-full text-[13px] max-lg:block">
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-left text-muted">
@@ -96,10 +97,10 @@ export function ContentPlanTable({
               }}
               className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
             >
-              <td role="cell" className={`${CELL} wrap-anywhere max-lg:pb-2 max-lg:text-sm max-lg:font-semibold`}>
+              <td className={`${CELL} wrap-anywhere max-lg:pb-2 max-lg:text-sm max-lg:font-semibold`}>
                 {row.name}
               </td>
-              <td role="cell" data-label="Kreator" className={`${CELL} ${LABELLED}`}>
+              <td data-label="Kreator" className={`${CELL} ${LABELLED}`}>
                 {/* The way to this creator's detail page, which holds their content plan. It is
                     a link of its own, so the row must not open the panel on the same press. */}
                 <Link
@@ -110,19 +111,19 @@ export function ContentPlanTable({
                   {row.creatorName}
                 </Link>
               </td>
-              <td role="cell" data-label="Tipe" className={`${CELL} ${LABELLED}`}>
+              <td data-label="Tipe" className={`${CELL} ${LABELLED}`}>
                 {CONTENT_TYPE_LABELS[row.type]}
               </td>
-              <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
+              <td data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 {formatDate(row.deadline)}
               </td>
-              <td role="cell" data-label="Status" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
+              <td data-label="Status" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                   {CONTENT_STATUS_LABELS[row.status]}
                 </StatusDot>
               </td>
               {/* Empty when there is nothing to flag, so a card shows no bare Tags line. */}
-              <td role="cell" data-label="Tags" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
+              <td data-label="Tags" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
                 {row.tags.length > 0 || row.revisionCount > 0 ? (
                   <span className="flex flex-wrap items-center gap-1.5">
                     {row.tags.map((tag) => (
@@ -138,7 +139,7 @@ export function ContentPlanTable({
                   </span>
                 ) : null}
               </td>
-              <td role="cell" className={`${CELL} max-lg:pt-2`}>
+              <td className={`${CELL} max-lg:pt-2`}>
                 <button
                   type="button"
                   // Every row has one; the content's name tells them apart when heard.

@@ -37,6 +37,30 @@ describe("InvoiceHistory", () => {
       return screen.getByText(period).closest("tr") as HTMLElement;
     }
 
+    // A table whose display changes can lose its semantics in some browsers, so the table, its
+    // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
+    it("reads each card as a row of cells, one per column, under explicit table roles", () => {
+      render(
+        <InvoiceHistory
+          invoices={[PAID, aCreatorInvoice({ contractId: "c-2", periodNumber: 2 })]}
+          onOpen={vi.fn()}
+        />,
+      );
+
+      const table = screen.getByRole("table");
+      expect(table).toHaveAttribute("role", "table");
+      for (const group of within(table).getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
+      }
+      const columns = within(table).getAllByRole("columnheader");
+      const [, ...records] = within(table).getAllByRole("row");
+      expect(records).toHaveLength(2);
+      for (const record of records) {
+        expect(record).toHaveAttribute("role", "row");
+        expect(within(record).getAllByRole("cell")).toHaveLength(columns.length);
+      }
+    });
+
     it("keeps the hidden Aksi heading inside the table's own area, so the page never widens", () => {
       render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
 
