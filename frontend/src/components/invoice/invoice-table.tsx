@@ -23,8 +23,13 @@ import type { BreakdownKind } from "@/lib/invoice-breakdown";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
 const NUM_HEAD = "px-5 py-3 text-right font-semibold";
-const CELL = "px-5 py-3 align-top";
-const NUM = `${CELL} whitespace-nowrap text-right tabular-nums`;
+
+// Below lg each contract is a card that reads like a statement: the header row is hidden, and
+// each amount sets its column's name (data-label) against the figure, label left, amount right.
+const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+const AGAINST =
+  "max-lg:flex max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:before:text-xs max-lg:before:font-normal max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
+const NUM = `${CELL} whitespace-nowrap text-right tabular-nums ${AGAINST}`;
 
 /** The contract dot, coloured apart with the app's own tones where the prototype used its. */
 export const CONTRACT_TONES: Record<ContractStatus, Tone> = {
@@ -102,7 +107,7 @@ function headerCell(
 ) {
   if (!sort) {
     return (
-      <th scope="col" className={align === "right" ? NUM_HEAD : HEAD}>
+      <th role="columnheader" scope="col" className={align === "right" ? NUM_HEAD : HEAD}>
         <span className={`inline-flex items-center gap-1 ${align === "right" ? "justify-end" : ""}`}>
           {label}
           {beside}
@@ -128,7 +133,7 @@ function finalCell(row: InvoiceRow) {
     <>
       <strong>{finalLabel(row)}</strong>
       {row.floored ? (
-        <span className="mt-1 block whitespace-normal text-xs text-red-ink">
+        <span className="mt-1 block whitespace-normal text-xs text-red-ink max-lg:basis-full max-lg:text-right">
           Penalti melebihi pembayaran
         </span>
       ) : null}
@@ -169,20 +174,21 @@ export function InvoiceTable({
     // relative: the scroll region is the containing block of anything absolutely placed inside
     // it, so nothing escapes it and widens the page.
     <div className="relative overflow-x-auto">
-      <table className="w-full text-[13px]">
-        <colgroup>
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
+      <table role="table" className="w-full text-[13px] max-lg:block">
+        <colgroup className="max-lg:hidden">
           {columns.map(([column, width]) => (
             <col key={column} className={width} />
           ))}
         </colgroup>
-        <thead>
-          <tr className="border-b border-rule text-muted">
+        <thead role="rowgroup" className="max-lg:sr-only">
+          <tr role="row" className="border-b border-rule text-muted">
             {headerCell("Creator", "name", sort, "left")}
             {headerCell("Fixed Rate", "fixed", sort, "right")}
-            <th scope="col" className={NUM_HEAD}>
+            <th role="columnheader" scope="col" className={NUM_HEAD}>
               Fee Konten Tambahan
             </th>
-            <th scope="col" className={NUM_HEAD}>
+            <th role="columnheader" scope="col" className={NUM_HEAD}>
               Bonus Performa
             </th>
             {headerCell("Penalti", "penalty", sort, "right")}
@@ -193,18 +199,18 @@ export function InvoiceTable({
               "right",
               <InfoTip label="Info rumus Total" text={TOTAL_FORMULA} align="end" />,
             )}
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               Status Invoice
             </th>
             {action ? (
-              <th scope="col" className={HEAD}>
+              <th role="columnheader" scope="col" className={HEAD}>
                 {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
                 <span className="sr-only">Aksi</span>
               </th>
             ) : null}
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3 max-lg:bg-paper max-lg:p-3">
           {rows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="px-5 py-14 text-center text-muted">
@@ -213,9 +219,13 @@ export function InvoiceTable({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.contractId} className="border-b border-rule last:border-b-0">
-                <td className={`${CELL} min-w-44`}>
-                  <strong className="block truncate" title={invoiceTitle(row)}>
+              <tr
+                key={row.contractId}
+                role="row"
+                className="border-b border-rule lg:last:border-b-0 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
+              >
+                <td role="cell" className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>
+                  <strong className="block truncate max-lg:whitespace-normal" title={invoiceTitle(row)}>
                     {invoiceTitle(row)}
                   </strong>
                   <p className="mt-1">
@@ -224,37 +234,58 @@ export function InvoiceTable({
                     </StatusDot>
                   </p>
                 </td>
-                <td className={NUM}>
+                <td role="cell" data-label="Fixed Rate" className={NUM}>
                   {amount ? amount("fixed", row) : amountCell(row.fixedAmount, amountLabel(row.fixedAmount))}
                 </td>
-                <td className={NUM}>
+                <td role="cell" data-label="Fee Konten Tambahan" className={NUM}>
                   {amount ? amount("extra", row) : amountCell(row.extraAmount, amountLabel(row.extraAmount))}
                 </td>
-                <td className={NUM}>{amount ? amount("bonus", row) : bonusCell(row)}</td>
-                <td className={NUM}>
+                <td role="cell" data-label="Bonus Performa" className={NUM}>
+                  {amount ? amount("bonus", row) : bonusCell(row)}
+                </td>
+                <td role="cell" data-label="Penalti" className={NUM}>
                   {amount ? amount("penalty", row) : penaltyCell(row.penaltyAmount)}
                 </td>
-                <td className={NUM}>{finalCell(row)}</td>
-                <td className={CELL}>
+                {/* The sum, set apart under the amounts it adds up in a card. */}
+                <td
+                  role="cell"
+                  data-label="Total"
+                  className={`${NUM} max-lg:mt-1 max-lg:flex-wrap max-lg:border-t max-lg:border-rule-2 max-lg:pt-2`}
+                >
+                  {finalCell(row)}
+                </td>
+                <td role="cell" data-label="Status Invoice" className={`${CELL} ${AGAINST}`}>
                   <Pill tone={INVOICE_TONES[row.invoiceStatus]}>
                     {INVOICE_STATUS_LABELS[row.invoiceStatus]}
                   </Pill>
                 </td>
-                {action ? <td className={`${CELL} text-right`}>{action(row)}</td> : null}
+                {action ? (
+                  // A full-width target on a phone, well above WCAG 2.5.8's 24 px.
+                  <td
+                    role="cell"
+                    className={`${CELL} text-right max-lg:pt-2 max-lg:[&_button]:min-h-11 max-lg:[&_button]:w-full`}
+                  >
+                    {action(row)}
+                  </td>
+                ) : null}
               </tr>
             ))
           )}
         </tbody>
         {summary && rows.length > 0 ? (
-          <tfoot>
-            <tr className="border-t border-rule bg-surface-2">
-              <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold`}>
+          // Below lg the sum is one line of its own under the cards.
+          <tfoot role="rowgroup" className="max-lg:block max-lg:px-3 max-lg:pb-3">
+            <tr
+              role="row"
+              className="border-t border-rule bg-surface-2 max-lg:flex max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:rounded-(--radius-panel) max-lg:border max-lg:px-4 max-lg:py-3"
+            >
+              <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold max-lg:p-0`}>
                 {`Total ${summary.count} invoice`}
               </th>
-              <td className={NUM}>
+              <td className={`${CELL} whitespace-nowrap text-right tabular-nums max-lg:p-0`}>
                 <strong>{formatRupiah(summary.total)}</strong>
               </td>
-              <td colSpan={columns.length - 6} className={CELL} />
+              <td colSpan={columns.length - 6} className={`${CELL} max-lg:hidden`} />
             </tr>
           </tfoot>
         ) : null}
