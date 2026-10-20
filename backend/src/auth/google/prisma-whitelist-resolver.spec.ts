@@ -528,6 +528,24 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
       });
     });
 
+    it('reads their invoices from the revoke day itself', async () => {
+      const { prisma, resolver } = resolverFor(
+        {
+          ...REVOKED,
+          creators: {
+            id: 'creator-1',
+            access_revoke_date: new Date('2026-10-20T00:00:00.000Z'),
+          },
+        },
+        [{ invoice: { status: 'creator_acked', paid_at: null } }],
+      );
+
+      await expect(resolver.resolveUser('user-1')).resolves.toMatchObject({
+        role: 'creator',
+      });
+      expect(prisma.contracts.findMany).toHaveBeenCalledTimes(1);
+    });
+
     it('ends their access the day after the last invoice is paid', async () => {
       const { resolver } = resolverFor(REVOKED, [
         {
@@ -542,15 +560,20 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
     });
   });
 
-  it('reads no invoices for a creator whose access is not revoked', async () => {
+  // Every request of a creator who is not revoked costs the one query it always did.
+  it.each([
+    ['never revoked', null],
+    ['revoked from a day still ahead', new Date('2099-01-01T00:00:00.000Z')],
+  ])('reads no invoices for a creator %s', async (_, accessRevokeDate) => {
     const { prisma, resolver } = resolverFor({
       id: 'user-1',
       is_admin: false,
-      creators: { id: 'creator-1', access_revoke_date: null },
+      creators: { id: 'creator-1', access_revoke_date: accessRevokeDate },
     });
 
-    await resolver.resolveUser('user-1');
-
+    await expect(resolver.resolveUser('user-1')).resolves.toMatchObject({
+      role: 'creator',
+    });
     expect(prisma.contracts.findMany).not.toHaveBeenCalled();
   });
 
