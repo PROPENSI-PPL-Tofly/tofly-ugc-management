@@ -32,8 +32,9 @@ const ROW: InvoiceRow = {
 
 function actions(row: InvoiceRow, today = "2026-10-18") {
   const onMutated = vi.fn();
-  render(<InvoiceActions row={row} today={today} onMutated={onMutated} />);
-  return { onMutated };
+  const onAdjust = vi.fn();
+  render(<InvoiceActions row={row} today={today} onMutated={onMutated} onAdjust={onAdjust} />);
+  return { onMutated, onAdjust };
 }
 
 describe("InvoiceActions", () => {
@@ -96,35 +97,14 @@ describe("InvoiceActions", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("opens the adjustment form from the adjustment button", async () => {
-    const { onMutated } = actions(ROW);
+  // The form lives inside the Rincian panel (prototype), so the button only asks the panel for it.
+  it("asks the panel for the adjustment form rather than opening a dialog of its own", () => {
+    const { onAdjust, onMutated } = actions(ROW);
 
     fireEvent.click(screen.getByRole("button", { name: "+ Tambah Penyesuaian" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Nominal (Rp)" }), {
-      target: { value: "200000" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Alasan" }), {
-      target: { value: "Koreksi" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 
-    await vi.waitFor(() =>
-      expect(moves.addInvoiceAdjustment).toHaveBeenCalledWith(ROW.contractId, {
-        amount: "200000",
-        reason: "Koreksi",
-      }),
-    );
-    await vi.waitFor(() => expect(onMutated).toHaveBeenCalled());
-  });
-
-  it("closes the adjustment form on Batal without adding anything", () => {
-    const { onMutated } = actions(ROW);
-
-    fireEvent.click(screen.getByRole("button", { name: "+ Tambah Penyesuaian" }));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Batal" }));
-
+    expect(onAdjust).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(moves.addInvoiceAdjustment).not.toHaveBeenCalled();
     expect(onMutated).not.toHaveBeenCalled();
   });
 
@@ -151,6 +131,9 @@ describe("InvoiceActions", () => {
     await vi.waitFor(() =>
       expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false }),
     );
-    await vi.waitFor(() => expect(onMutated).toHaveBeenCalled());
+    await vi.waitFor(() =>
+      expect(onMutated).toHaveBeenCalledWith("Invoice difinalisasi dan dikirim ke creator."),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

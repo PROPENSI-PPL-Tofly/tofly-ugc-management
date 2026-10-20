@@ -43,6 +43,14 @@ describe("AdjustmentForm", () => {
     moves.addInvoiceAdjustment.mockResolvedValue({ ok: true });
   });
 
+  it("sits in the page as a titled region with the amount focused, not as a dialog", () => {
+    form();
+
+    expect(screen.getByRole("region", { name: "Tambah Penyesuaian" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Nominal (Rp)" })).toHaveFocus();
+  });
+
   it("asks for an amount and a reason, and counts the reason", () => {
     form();
 
