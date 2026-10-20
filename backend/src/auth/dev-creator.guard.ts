@@ -10,7 +10,11 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { isUuid } from '../uuid.js';
 import { assertSameOrigin } from './same-origin.js';
 import { ACCESS_CHECK, type AccessCheck } from './session/access-check.js';
-import { unauthenticated, type CreatorRequest } from './creator-request.js';
+import {
+  creatorOnly,
+  unauthenticated,
+  type CreatorRequest,
+} from './creator-request.js';
 import { AppSessionService } from './session/session.service.js';
 
 // Creator identity uses the application session; a strictly local header remains available
@@ -76,8 +80,11 @@ export class DevCreatorGuard implements CanActivate {
         cookieId,
         context.switchToHttp().getResponse<Response>(),
       );
-      if (!principal || principal.role !== 'creator') {
+      if (!principal) {
         throw unauthenticated();
+      }
+      if (principal.role !== 'creator') {
+        throw creatorOnly();
       }
       // PRD 3.1: a session lasts until sign-out or until access is revoked, so the whitelist
       // is asked again rather than trusting the role recorded at sign-in.
