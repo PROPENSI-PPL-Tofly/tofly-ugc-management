@@ -90,10 +90,25 @@ describe("InvoiceFilters", () => {
     expect(hook.current.setSearch).toHaveBeenCalledWith("salsa");
   });
 
-  it("holds Reset while there is nothing to reset", () => {
+  // As Creator Database's bar does: no Reset until there is something to reset.
+  it("leaves Reset out while there is nothing to reset", () => {
     render(<InvoiceFilters />);
 
-    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Reset" })).toBeNull();
+  });
+
+  it("offers Reset once the table is sorted another way, so the sort can be undone", () => {
+    hook.current.param.mockImplementation((key) => (key === "sort" ? "total" : "all"));
+    render(<InvoiceFilters />);
+
+    expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
+  });
+
+  it("offers Reset once only the order is turned around", () => {
+    hook.current.param.mockImplementation((key) => (key === "order" ? "desc" : "all"));
+    render(<InvoiceFilters />);
+
+    expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
   });
 
   it("offers Reset once a filter is applied", () => {

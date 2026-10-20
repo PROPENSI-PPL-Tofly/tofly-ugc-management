@@ -174,6 +174,27 @@ describe("Pagination", () => {
     );
   });
 
+  // Rate & Invoicing hands over its whole query, page included: the way back to page 1 must not
+  // keep the page it is leaving.
+  it("drops a page the query still carries when linking back to the first page", () => {
+    render(
+      <Pagination
+        basePath="/admin/invoicing"
+        noun="invoice"
+        query={{ sort: "total", page: "2" }}
+        page={2}
+        pageSize={10}
+        total={13}
+        totalPages={2}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Sebelumnya" })).toHaveAttribute(
+      "href",
+      "/admin/invoicing?sort=total",
+    );
+  });
+
   it("stays on show for a single page when asked to, with nowhere to go", () => {
     render(
       <Pagination

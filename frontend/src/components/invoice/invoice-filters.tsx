@@ -24,6 +24,9 @@ const INVOICE_OPTIONS: FilterOption[] = [
   ...optionsOf(INVOICE_STATUS_LABELS),
 ];
 
+/** Every address parameter the bar's Reset clears: the search, both filters and the sort. */
+const RESETTABLE = ["q", "contract", "status", "sort", "order"] as const;
+
 /**
  * The filter bar over the Rate & Invoicing table: by creator name, by where their contract
  * stands and by where the invoice stands, as the prototype filters it. It reads and writes the
@@ -32,9 +35,10 @@ const INVOICE_OPTIONS: FilterOption[] = [
 export function InvoiceFilters() {
   const { search, setSearch, param, setParam, reset, pending } = useUrlFilters();
 
-  // Read from what the address holds, typed or not, so Reset is offered to clear it all.
+  // Read from what the address holds, typed or not, so Reset is offered to clear it all. The
+  // sort headers write the same address and Reset clears them too, so a changed sort counts.
   const isFilteredNow =
-    search !== "" || param("q") !== "all" || param("contract") !== "all" || param("status") !== "all";
+    search !== "" || RESETTABLE.some((key) => param(key) !== "all");
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
@@ -54,7 +58,8 @@ export function InvoiceFilters() {
         onChange={(value) => setParam("status", value)}
       />
 
-      <ResetFilters onReset={reset} disabled={pending || !isFilteredNow} />
+      {/* Left out until there is something to clear, as on Creator Database. */}
+      {isFilteredNow ? <ResetFilters onReset={reset} disabled={pending} /> : null}
     </div>
   );
 }
