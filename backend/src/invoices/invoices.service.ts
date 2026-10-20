@@ -348,6 +348,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         ...toInvoiceItem(
           row,
           contract,
+          // Stryker disable next-line ArrayDeclaration: equivalent mutant. The mutation hands a contract with no content one junk element; it has no status, deadline, type or platform, so no component counts it, and toInvoiceItem answers the same for every contract shape, formula and revoke date tried.
           byContract.get(contract.id) ?? [],
           formula,
           today,
