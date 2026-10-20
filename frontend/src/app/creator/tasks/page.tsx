@@ -77,7 +77,9 @@ async function load(state: MyTasksParams, view: TaskView): Promise<Loaded> {
  */
 function rangeStart(state: MyTasksParams): string | null {
   if (state.period !== "custom") return null;
-  const days = [state.from, state.to].filter((day) => day !== "").sort();
+  const days = [state.from, state.to]
+    .filter((day) => day !== "")
+    .sort((a, b) => a.localeCompare(b));
   return days[0] ?? null;
 }
 
