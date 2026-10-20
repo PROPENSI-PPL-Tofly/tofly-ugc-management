@@ -11,6 +11,7 @@
 import type { CreatorInvoice, InvoiceComment, PaymentProof } from "./creator-invoice";
 import { INVOICE_STATUSES } from "./invoice";
 import { toInvoiceBreakdown, type RawInvoiceComponent, type RawInvoiceDetail } from "./invoice-api";
+import { isSameSitePath } from "./safe-href";
 
 /** The proof the admin uploaded: a short-lived link to the file in Storage. */
 export interface RawPaymentProof {
@@ -83,7 +84,7 @@ export function isRawCreatorInvoices(body: unknown): body is RawCreatorInvoices 
  * file's name and loses the link.
  */
 function safeLink(url: string): string | null {
-  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) return url;
+  if (isSameSitePath(url)) return url;
   try {
     return new URL(url).protocol === "https:" ? url : null;
   } catch {

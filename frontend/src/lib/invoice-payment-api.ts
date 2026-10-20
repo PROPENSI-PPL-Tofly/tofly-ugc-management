@@ -2,7 +2,7 @@
 // subtask 13.4). The field names are the ones agreed for 13.1 and 13.2; everything that knows
 // them lives here (Adapter), so a rename on the backend changes this file only.
 
-import { safeHref } from "./safe-href";
+import { isSameSitePath, safeHref } from "./safe-href";
 
 // One saved payment proof as the API answers it, in the invoice and after an upload.
 export interface RawPaymentProof {
@@ -46,8 +46,7 @@ export function isRawPaymentProof(body: unknown): body is RawPaymentProof {
 // proxy serves with the session. Anything else (javascript:, data:, //another.host) could run or
 // leave the site on a click, so it is not offered (OWASP A05:2025 Injection).
 function proofHref(url: string): string | null {
-  const onThisSite = url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\");
-  return onThisSite ? url : safeHref(url);
+  return isSameSitePath(url) ? url : safeHref(url);
 }
 
 // One saved proof under the page's names; the one place the proof's fields are renamed.

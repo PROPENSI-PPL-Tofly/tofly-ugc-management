@@ -23,3 +23,12 @@ export function safeHref(link: string): string | null {
   // "JavaScript:" are read here exactly as a browser would read them.
   return WEB_PROTOCOLS.has(url.protocol) ? trimmed : null;
 }
+
+/**
+ * Whether a link is a path on this site, such as the /api proxy routes that open a file only with
+ * the signed-in user's session. "//host" and "/\\host" are read by browsers as another site, so
+ * they are not.
+ */
+export function isSameSitePath(link: string): boolean {
+  return link.startsWith("/") && !link.startsWith("//") && !link.startsWith("/\\");
+}
