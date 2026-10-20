@@ -346,6 +346,12 @@ describe("Task Saya page views", () => {
       expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
     });
 
+    it("stays on this month while Pilih tanggal is chosen but no day is picked yet", async () => {
+      await renderPage({ view: "calendar", period: "custom" });
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+
     it("stays on this month for a day the period does not use", async () => {
       await renderPage({ view: "calendar", period: "next30", from: "2026-12-03" });
 
