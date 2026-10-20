@@ -21,7 +21,7 @@ import {
 } from "@/lib/content-plan";
 import { creatorDetailBase } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
-import { DeadlineSortTh } from "./deadline-sort";
+import { DeadlineSortButton, DeadlineSortTh } from "./deadline-sort";
 
 const HEAD = "px-5 py-3 font-semibold";
 const CELL = "px-5 py-3 max-lg:block max-lg:px-0 max-lg:py-1";
@@ -65,6 +65,8 @@ export function ContentPlanTable({
   return (
     // Positioned, so the visually hidden headings below lg are laid out inside this area.
     <div className="relative overflow-x-auto">
+      {/* Below lg the header row is hidden, so the deadline sort gets a button of its own. */}
+      <DeadlineSortButton sort={sort} onToggle={onSortToggle} />
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
       <table role="table" className="w-full text-[13px] max-lg:block">
         <thead role="rowgroup" className="max-lg:sr-only">
@@ -72,7 +74,7 @@ export function ContentPlanTable({
             <th role="columnheader" className={HEAD}>Nama Konten</th>
             <th role="columnheader" className={HEAD}>Kreator</th>
             <th role="columnheader" className={HEAD}>Tipe</th>
-            <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
+            <DeadlineSortTh sort={sort} onToggle={onSortToggle} stacked />
             <th role="columnheader" className={HEAD}>Status</th>
             <th role="columnheader" className={HEAD}>Tags</th>
             <th role="columnheader" className={HEAD}>Aksi</th>

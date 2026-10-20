@@ -150,7 +150,8 @@ export function MyTaskTable({
               Nama Konten
             </th>
             {onSortToggle ? (
-              <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
+              // Below lg the board offers its own sort button; the header's leaves that width.
+              <DeadlineSortTh sort={sort} onToggle={onSortToggle} stacked />
             ) : (
               <th role="columnheader" scope="col" className={HEAD}>
                 Deadline
