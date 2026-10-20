@@ -119,33 +119,72 @@ model content_events {
 }
 
 model users {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email          String           @unique @db.Citext
-  is_admin       Boolean          @default(false)
-  created_at     DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
-  creators       creators?
-  app_sessions   app_sessions[]
-  content_events content_events[]
-  invoice_adjustments invoice_adjustments[]
-  rate_formula   rate_formula[]
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                  String                   @unique @db.Citext
+  is_admin               Boolean                  @default(false)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  creators               creators?
+  app_sessions           app_sessions[]
+  content_events         content_events[]
+  invoice_adjustments    invoice_adjustments[]
+  invoice_comments       invoice_comments[]
+  invoice_payment_proofs invoice_payment_proofs[]
+  rate_formula           rate_formula[]
 }
 
 enum invoice_status {
   running
   finalized
+  creator_acked
+  payment_uploaded
+  paid
 }
 
 /// Persisted lifecycle for one contract invoice; live calculation data remains derived.
 model invoices {
-  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contract_id String             @unique @db.Uuid
-  status      invoice_status     @default(running)
-  snapshot    Json?              @db.JsonB
-  created_at  DateTime           @default(now()) @db.Timestamptz(6)
-  finalized_at DateTime?         @db.Timestamptz(6)
-  contracts   contracts          @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  adjustments invoice_adjustments[]
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id   String                  @unique @db.Uuid
+  status        invoice_status          @default(running)
+  snapshot      Json?                   @db.JsonB
+  created_at    DateTime                @default(now()) @db.Timestamptz(6)
+  finalized_at  DateTime?               @db.Timestamptz(6)
+  contracts     contracts               @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  adjustments   invoice_adjustments[]
+  comments      invoice_comments[]
+  payment_proof invoice_payment_proofs?
+}
+
+/// The proof an admin uploaded for one invoice; the file itself lives in object storage under
+/// object_key, and file_name is only shown.
+model invoice_payment_proofs {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id   String   @unique @db.Uuid
+  object_key   String   @unique @db.Uuid
+  file_name    String   @db.VarChar(255)
+  content_type String
+  size_bytes   Int
+  uploaded_by  String   @db.Uuid
+  uploaded_at  DateTime @default(now()) @db.Timestamptz(6)
+  invoices     invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users        users    @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([uploaded_by], map: "invoice_payment_proofs_uploaded_by_idx")
+}
+
+/// One message in an invoice's thread, from the admin or the invoice's creator.
+model invoice_comments {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id     String   @db.Uuid
+  author_user_id String   @db.Uuid
+  author_role    String
+  text           String   @db.VarChar(500)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  invoices       invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users    @relation(fields: [author_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([invoice_id, created_at, id], map: "invoice_comments_invoice_created_idx")
+  @@index([author_user_id], map: "invoice_comments_author_user_idx")
 }
 
 /// Auditable manual amounts attached to their invoice; actor and timestamp are server supplied.

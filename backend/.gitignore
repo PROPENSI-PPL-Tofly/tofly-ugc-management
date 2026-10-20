@@ -21,6 +21,9 @@
 # sonar-scanner cache
 .scannerwork/
 
+# uploaded files kept on the local disk when STORAGE_BUCKET is unset
+/.local-storage/
+
 # mutation testing (Stryker) output and sandbox
 /reports
 .stryker-tmp/
