@@ -236,7 +236,8 @@ describe('InvoicesController', () => {
       expect(service.addAdjustment).not.toHaveBeenCalled();
     });
 
-    it('finalizes as of the time of the request', async () => {
+    // OWASP Top 10:2025 A01 — who finalized comes from the authenticated principal.
+    it('finalizes as the signed-in admin, as of the time of the request', async () => {
       const finalized = { invoiceStatus: 'finalized' };
       service.finalize.mockResolvedValue(finalized);
 
@@ -246,6 +247,7 @@ describe('InvoicesController', () => {
 
       expect(service.finalize).toHaveBeenCalledWith(
         contractId,
+        'admin-1',
         expect.any(Date),
         { acceptPendingBonus: false },
       );
@@ -254,10 +256,15 @@ describe('InvoicesController', () => {
     it('passes on that the admin accepted freezing a pending bonus', async () => {
       service.finalize.mockResolvedValue({ invoiceStatus: 'finalized' });
 
-      await controller.finalize(contractId, { acceptPendingBonus: true }, admin);
+      await controller.finalize(
+        contractId,
+        { acceptPendingBonus: true },
+        admin,
+      );
 
       expect(service.finalize).toHaveBeenCalledWith(
         contractId,
+        'admin-1',
         expect.any(Date),
         { acceptPendingBonus: true },
       );

@@ -1580,7 +1580,7 @@ describe('InvoicesService', () => {
     // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot is the calculator's
     // breakdown plus every adjustment, saved in the same locked transaction as the status change.
     it('saves the calculated breakdown, the adjustments and the totals as the snapshot', async () => {
-      const result = await service.finalize('contract-1', TODAY);
+      const result = await service.finalize('contract-1', 'admin-9', TODAY);
 
       expect(result).toMatchObject({
         invoiceStatus: 'finalized',
@@ -1612,6 +1612,8 @@ describe('InvoicesService', () => {
           status: 'finalized',
           snapshot: result.snapshot,
           finalized_at: new Date(result.snapshot.finalizedAt),
+          // Who finalized, from the session (13.1: every move keeps its actor).
+          finalized_by: 'admin-9',
         },
       });
     });
@@ -1619,7 +1621,11 @@ describe('InvoicesService', () => {
     // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the rules the totals were
     // worked out with are saved with them, so a later formula change cannot be shown beside them.
     it('saves the formula the breakdown was calculated with in the snapshot', async () => {
-      const { snapshot } = await service.finalize('contract-1', TODAY);
+      const { snapshot } = await service.finalize(
+        'contract-1',
+        'admin-9',
+        TODAY,
+      );
 
       expect(snapshot.formula).toEqual(FORMULA);
       expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
@@ -1636,7 +1642,7 @@ describe('InvoicesService', () => {
     it('stamps the snapshot and the row with the instant the breakdown was calculated as of', async () => {
       const at = new Date('2026-09-18T09:41:27.123Z');
 
-      const { snapshot } = await service.finalize('contract-1', at);
+      const { snapshot } = await service.finalize('contract-1', 'admin-9', at);
 
       expect(snapshot.finalizedAt).toBe('2026-09-18T09:41:27.123Z');
       expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
@@ -1651,7 +1657,11 @@ describe('InvoicesService', () => {
         adjustmentRow('adj-1', '-1500000'),
       ]);
 
-      const { snapshot } = await service.finalize('contract-1', TODAY);
+      const { snapshot } = await service.finalize(
+        'contract-1',
+        'admin-9',
+        TODAY,
+      );
 
       expect(snapshot).toMatchObject({
         rawTotal: -500_000,
@@ -1663,7 +1673,9 @@ describe('InvoicesService', () => {
     it('answers 404 for an unknown contract', async () => {
       prisma.contracts.findUnique.mockResolvedValue(null);
 
-      const error = await rejection(service.finalize('contract-1', TODAY));
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
 
       expect(error).toBeInstanceOf(NotFoundException);
       expect(prisma.invoices.upsert).not.toHaveBeenCalled();
@@ -1675,7 +1687,9 @@ describe('InvoicesService', () => {
         endedContract({ end_date: day(0) }),
       );
 
-      const error = await rejection(service.finalize('contract-1', TODAY));
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
 
       expect(error).toBeInstanceOf(ConflictException);
       expect(error).toMatchObject({
@@ -1697,7 +1711,7 @@ describe('InvoicesService', () => {
         }),
       );
 
-      const result = await service.finalize('contract-1', TODAY);
+      const result = await service.finalize('contract-1', 'admin-9', TODAY);
 
       expect(result.invoiceStatus).toBe('finalized');
       expect(prisma.invoices.updateMany).toHaveBeenCalled();
@@ -1712,7 +1726,9 @@ describe('InvoicesService', () => {
         }),
       );
 
-      const error = await rejection(service.finalize('contract-1', TODAY));
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
 
       expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_ENDED' } });
       expect(prisma.invoices.upsert).not.toHaveBeenCalled();
@@ -1724,7 +1740,9 @@ describe('InvoicesService', () => {
         status: 'finalized',
       });
 
-      const error = await rejection(service.finalize('contract-1', TODAY));
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
 
       expect(error).toBeInstanceOf(ConflictException);
       expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
@@ -1735,7 +1753,9 @@ describe('InvoicesService', () => {
       formulas.current.mockResolvedValue(null);
 
       const error = await rejection(
-        service.finalize('contract-1', TODAY, { acceptPendingBonus: true }),
+        service.finalize('contract-1', 'admin-9', TODAY, {
+          acceptPendingBonus: true,
+        }),
       );
 
       expect(error).toBeInstanceOf(UnprocessableEntityException);
@@ -1756,7 +1776,9 @@ describe('InvoicesService', () => {
 
       // OWASP Top 10:2025 A06 (Insecure Design): the admin is told before the bonus is frozen.
       it('refuses to finalize until the admin accepts freezing it', async () => {
-        const error = await rejection(service.finalize('contract-1', TODAY));
+        const error = await rejection(
+          service.finalize('contract-1', 'admin-9', TODAY),
+        );
 
         expect(error).toBeInstanceOf(UnprocessableEntityException);
         expect(error).toMatchObject({
@@ -1768,9 +1790,14 @@ describe('InvoicesService', () => {
       // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot says the bonus
       // was frozen before its data was complete, so the final amount stays traceable.
       it('freezes it at what was measured once accepted, and marks the snapshot so', async () => {
-        const { snapshot } = await service.finalize('contract-1', TODAY, {
-          acceptPendingBonus: true,
-        });
+        const { snapshot } = await service.finalize(
+          'contract-1',
+          'admin-9',
+          TODAY,
+          {
+            acceptPendingBonus: true,
+          },
+        );
 
         expect(snapshot).toMatchObject({
           performanceBonus: { amount: 0, status: 'calculated' },
@@ -1791,7 +1818,11 @@ describe('InvoicesService', () => {
     });
 
     it('marks a snapshot whose bonus had all its data as not pending', async () => {
-      const { snapshot } = await service.finalize('contract-1', TODAY);
+      const { snapshot } = await service.finalize(
+        'contract-1',
+        'admin-9',
+        TODAY,
+      );
 
       expect(snapshot.performanceBonusPending).toBe(false);
     });
@@ -1800,7 +1831,9 @@ describe('InvoicesService', () => {
     it('refuses when the running invoice was finalized by another request first', async () => {
       prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
 
-      const error = await rejection(service.finalize('contract-1', TODAY));
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
 
       expect(error).toBeInstanceOf(ConflictException);
       expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });

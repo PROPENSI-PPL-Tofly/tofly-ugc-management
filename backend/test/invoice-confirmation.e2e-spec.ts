@@ -213,6 +213,12 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         .send({ amount: 50_000, reason: 'Ongkos kirim produk' })
         .expect(201);
       await finalize(nadiaEarlier);
+      expect(
+        await prisma.invoices.findUniqueOrThrow({
+          where: { contract_id: nadiaEarlier },
+          select: { status: true, finalized_by: true },
+        }),
+      ).toEqual({ status: 'finalized', finalized_by: adminId });
 
       const acked = await nadia
         .post(`/me/invoices/${nadiaEarlier}/acknowledge`)
