@@ -122,8 +122,46 @@ function headerCell(
       hints={SORT_HINTS[key]}
       align={align}
       beside={beside}
+      // Below lg the cards hide this row; PhoneSort takes the press there.
+      stacked
       onToggle={() => sort.onSort(key)}
     />
+  );
+}
+
+/** The sortable columns, in the order the headers offer them. */
+const SORTABLE: readonly { key: Exclude<InvoiceSortKey, "action">; label: string }[] = [
+  { key: "name", label: "Creator" },
+  { key: "fixed", label: "Fixed Rate" },
+  { key: "penalty", label: "Penalti" },
+  { key: "total", label: "Total" },
+];
+
+/**
+ * The headers' sorts for the cards below lg, where the header row is hidden: one button per
+ * sortable column, pressed the same way (another column starts it, the same one turns it
+ * over), the column on show marked and its order said in words. Gone from lg up.
+ */
+function PhoneSort({ sort }: Readonly<{ sort: InvoiceTableSort }>) {
+  const active = sort.key === "action" ? null : sort.key;
+
+  return (
+    <div role="group" aria-label="Urutkan" className="flex flex-wrap items-center gap-2 px-5 pt-3 lg:hidden">
+      <span className="text-xs text-muted">Urutkan</span>
+      {SORTABLE.map(({ key, label }) => (
+        <button
+          key={key}
+          type="button"
+          aria-pressed={active === key}
+          onClick={() => sort.onSort(key)}
+          className="min-h-11 cursor-pointer rounded-full border border-rule bg-surface px-3 text-xs font-semibold text-ink-2 aria-pressed:border-accent aria-pressed:bg-accent-wash aria-pressed:text-accent-deep"
+        >
+          {label}
+          {active === key ? <span aria-hidden="true">{` ${sort.order === "asc" ? "↑" : "↓"}`}</span> : null}
+        </button>
+      ))}
+      {active ? <p className="basis-full text-xs text-muted">{SORT_HINTS[active][sort.order]}</p> : null}
+    </div>
   );
 }
 
@@ -174,6 +212,7 @@ export function InvoiceTable({
     // relative: the scroll region is the containing block of anything absolutely placed inside
     // it, so nothing escapes it and widens the page.
     <div className="relative overflow-x-auto">
+      {sort ? <PhoneSort sort={sort} /> : null}
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
       <table role="table" className="w-full text-[13px] max-lg:block">
         <colgroup className="max-lg:hidden">

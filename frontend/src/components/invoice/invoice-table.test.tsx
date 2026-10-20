@@ -377,7 +377,7 @@ describe("InvoiceTable", () => {
       const sort = sortProps("action");
       render(<InvoiceTable rows={[FULL]} sort={sort} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Penalti/ }));
+      fireEvent.click(within(screen.getByRole("columnheader", { name: /^Penalti/ })).getByRole("button", { name: /^Penalti/ }));
 
       expect(sort.onSort).toHaveBeenCalledWith("penalty");
     });
