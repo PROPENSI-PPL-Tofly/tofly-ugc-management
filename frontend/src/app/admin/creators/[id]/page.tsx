@@ -7,6 +7,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Panel } from "@/components/ui/panel";
 import {
+  creatorDatabaseHref,
   creatorDetailHref,
   parseCreatorDetailParams,
   type CreatorDetailView,
@@ -56,7 +57,7 @@ export default async function CreatorDetailPage({
       subtitle="Data, jadwal, dan content plan satu creator"
     >
       <Link
-        href="/admin/creators"
+        href={creatorDatabaseHref(state.back)}
         className="mb-4 inline-block text-[13px] font-semibold text-muted hover:text-ink"
       >
         ← Kembali ke Creator Database
@@ -66,7 +67,12 @@ export default async function CreatorDetailPage({
         <div className="flex flex-col gap-4">
           {/* The profile describes the creator's latest contract, whichever period is open. */}
           <CreatorProfilePanel creator={view.creator} current={view.periods[0] ?? null} />
-          <PeriodTabs creatorId={id} periods={view.periods} selected={view.selected} />
+          <PeriodTabs
+            creatorId={id}
+            periods={view.periods}
+            selected={view.selected}
+            back={state.back}
+          />
           <CreatorContentBoard creatorId={id} view={view} state={state} />
         </div>
       ) : (

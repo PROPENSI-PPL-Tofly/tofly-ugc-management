@@ -7,7 +7,7 @@ import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
-import { creatorDetailBase } from "@/lib/creator-detail";
+import { DEFAULT_CREATOR_DETAIL_PARAMS, creatorDetailHref } from "@/lib/creator-detail";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
@@ -110,13 +110,19 @@ export function CreatorTable({
   creators,
   total,
   filtered = false,
+  returnTo,
 }: {
   creators: CreatorSummary[];
   total: number;
   /** Whether a search or filter narrowed the list, which changes what an empty list means. */
   filtered?: boolean;
+  /** This view of the roster as its query, for the creator's page to lead back to. */
+  returnTo?: string;
 }) {
   const router = useRouter();
+  const opened = returnTo
+    ? { ...DEFAULT_CREATOR_DETAIL_PARAMS, back: returnTo }
+    : DEFAULT_CREATOR_DETAIL_PARAMS;
 
   if (creators.length === 0) {
     return <EmptyRoster total={total} filtered={filtered} />;
@@ -157,7 +163,7 @@ export function CreatorTable({
                 onClick={() => {
                   // Dragging across a name to copy it ends in a click here: copying, not opening.
                   if (window.getSelection()?.toString()) return;
-                  router.push(creatorDetailBase(creator.id));
+                  router.push(creatorDetailHref(creator.id, opened));
                 }}
                 className="cursor-pointer transition-colors hover:bg-surface-2"
               >
@@ -224,7 +230,7 @@ export function CreatorTable({
 
                 <td className={`${CELL} whitespace-nowrap`}>
                   <Link
-                    href={creatorDetailBase(creator.id)}
+                    href={creatorDetailHref(creator.id, opened)}
                     // Every row has one; the creator's name tells them apart when heard.
                     aria-label={`Detail ${creator.name}`}
                     // The row would hear this press too and open the page a second time.

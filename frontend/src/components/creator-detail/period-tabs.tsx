@@ -38,21 +38,23 @@ export function PeriodTabs({
   creatorId,
   periods,
   selected,
+  back,
 }: Readonly<{
   creatorId: string;
   /** Newest first, as the page's view carries them. */
   periods: readonly CreatorPeriod[];
   /** The period whose content is on show; null for a creator without a contract. */
   selected: CreatorPeriod | null;
+  /** The Creator Database view to return to, which every period's link keeps. */
+  back?: string;
 }>) {
   const newest = periods[0];
+  const bare = back ? { ...DEFAULT_CREATOR_DETAIL_PARAMS, back } : DEFAULT_CREATOR_DETAIL_PARAMS;
 
   function hrefOf(period: CreatorPeriod): string {
     return creatorDetailHref(
       creatorId,
-      period === newest
-        ? DEFAULT_CREATOR_DETAIL_PARAMS
-        : creatorDetailAfterContractChange(DEFAULT_CREATOR_DETAIL_PARAMS, period.contractId),
+      period === newest ? bare : creatorDetailAfterContractChange(bare, period.contractId),
     );
   }
 

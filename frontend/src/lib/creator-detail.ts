@@ -7,8 +7,17 @@ import type { Tone } from "@/components/ui/pill";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
-import type { ContentStatus, ContentTag } from "./creators";
+import {
+  parseFilters,
+  parsePage,
+  type ContentStatus,
+  type ContentTag,
+  type CreatorFilterState,
+} from "./creators";
 import { listOf, pageNumber, single, type SearchParams } from "./search-params";
+
+/** The Creator Database, where the way back from a creator's page always leads. */
+export const CREATOR_DATABASE_BASE = "/admin/creators";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
 export const CREATOR_DETAIL_PAGE_SIZE = 10;
@@ -32,6 +41,11 @@ export interface CreatorDetailParams {
   type: ContentType[];
   status: ContentStatus[];
   page: number;
+  /**
+   * The Creator Database view the admin came from, as its query ("q=nadia&page=2"); absent for
+   * the bare roster. Only what the roster reads is ever kept here.
+   */
+  back?: string;
 }
 
 export const DEFAULT_CREATOR_DETAIL_PARAMS: CreatorDetailParams = {
@@ -120,13 +134,55 @@ export interface CreatorDetailView {
  */
 export function parseCreatorDetailParams(params: SearchParams): CreatorDetailParams {
   const contract = single(params.contract);
+  const back = readCreatorDatabaseView(single(params.return));
 
   return {
     contract: isUuid(contract) ? contract : null,
     type: listOf(CONTENT_TYPES, params.type),
     status: listOf(CONTENT_STATUSES, params.status),
     page: pageNumber(params.page),
+    ...(back ? { back } : {}),
   };
+}
+
+/**
+ * A Creator Database view as the query that names it: the search, both filters and the page,
+ * defaults left out. The roster's own links and the way back write it the same way.
+ */
+export function creatorDatabaseQuery(
+  filters: CreatorFilterState,
+  page: number,
+): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (filters.q) query.q = filters.q;
+  if (filters.contractStatus !== "all") query.contractStatus = filters.contractStatus;
+  if (filters.productivity !== "all") query.productivity = filters.productivity;
+  if (page > 1) query.page = String(page);
+  return query;
+}
+
+/**
+ * `return` read the way the roster reads its own address, and written again from what was
+ * read. A key the roster does not know, a value it cannot hold or a whole address typed in its
+ * place is left behind, so the way back can only ever name a roster view (OWASP A01).
+ */
+function readCreatorDatabaseView(raw: string): string {
+  const given = new URLSearchParams(raw);
+  const params = {
+    q: given.get("q") ?? undefined,
+    contractStatus: given.get("contractStatus") ?? undefined,
+    productivity: given.get("productivity") ?? undefined,
+    page: given.get("page") ?? undefined,
+  };
+
+  return new URLSearchParams(
+    creatorDatabaseQuery(parseFilters(params), parsePage(params).page),
+  ).toString();
+}
+
+/** The way back: the roster view the admin came from, or the bare roster. */
+export function creatorDatabaseHref(back: string | undefined): string {
+  return back ? `${CREATOR_DATABASE_BASE}?${back}` : CREATOR_DATABASE_BASE;
 }
 
 /** The creator's own address; the id is encoded so it can never step out of its segment. */
@@ -144,6 +200,7 @@ export function buildCreatorDetailQuery(state: CreatorDetailParams): Record<stri
   if (state.type.length > 0) query.type = state.type.join(",");
   if (state.status.length > 0) query.status = state.status.join(",");
   if (state.page > 1) query.page = String(state.page);
+  if (state.back) query.return = state.back;
   return query;
 }
 
@@ -172,11 +229,16 @@ export function creatorDetailAfterFilterChange(
 
 /**
  * Another contract: its table opens unfiltered on its first page, as the prototype's period
- * tabs do. The filters and the page belonged to the contract that was left behind.
+ * tabs do. The filters and the page belonged to the contract that was left behind; the way
+ * back to the roster did not.
  */
 export function creatorDetailAfterContractChange(
-  _state: CreatorDetailParams,
+  state: CreatorDetailParams,
   contract: string,
 ): CreatorDetailParams {
-  return { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract };
+  return {
+    ...DEFAULT_CREATOR_DETAIL_PARAMS,
+    contract,
+    ...(state.back ? { back: state.back } : {}),
+  };
 }

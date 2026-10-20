@@ -26,10 +26,14 @@ export function CreatorContentFilters() {
     setParam(key, values.join(","));
   }
 
-  /** Clears both filters, but the period the admin is looking at survives. */
+  /** Clears both filters, but the open period and the way back to the roster survive. */
   function resetKeepingPeriod() {
     const contract = param("contract");
-    resetKeeping(contract === "all" ? {} : { contract });
+    const back = param("return");
+    resetKeeping({
+      ...(contract === "all" ? {} : { contract }),
+      ...(back === "all" ? {} : { return: back }),
+    });
   }
 
   // Read from what the address holds, offered or not, so Reset is there to clear it all.
