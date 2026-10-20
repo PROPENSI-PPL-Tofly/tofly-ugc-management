@@ -113,6 +113,64 @@ describe("PeriodTabs", () => {
     expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}?return=q%3Dnadia`);
   });
 
+  // Kania: Creator Detail should show the creator's performance. GET /creators/:id already
+  // answers it per period; the roster's labels and formats are reused so a number reads alike.
+  describe("the open period's performance", () => {
+    const measured = period({
+      progress: { submitted: 7, total: 12, percent: 58 },
+      performance: {
+        onTimeRate: 86,
+        avgRevisions: 1.33,
+        productivity: "watch",
+        productivityLabel: "Perlu Perhatian",
+      },
+    });
+
+    function performance() {
+      return within(screen.getByRole("region", { name: "Performa periode" }));
+    }
+
+    it("shows progress, on-time rate, revisions and productivity under the roster's names", () => {
+      render(<PeriodTabs creatorId={CREATOR} periods={[measured, OLDEST]} selected={measured} />);
+
+      expect(term("Progres konten")).toHaveTextContent("7/12 konten");
+      expect(term("Tepat waktu")).toHaveTextContent("86%");
+      expect(term("Rata-rata revisi")).toHaveTextContent("1,33x");
+      expect(term("Produktivitas")).toHaveTextContent("Perlu Perhatian");
+    });
+
+    it("draws the progress as a bar with its percentage spoken", () => {
+      render(<PeriodTabs creatorId={CREATOR} periods={[measured, OLDEST]} selected={measured} />);
+
+      expect(performance().getByRole("progressbar", { name: "Progres 58%" })).toHaveAttribute(
+        "value",
+        "58",
+      );
+    });
+
+    it("shows a dash, not 0%, while no deadline has passed to measure", () => {
+      const fresh = period({
+        progress: { submitted: 0, total: 3, percent: 0 },
+        performance: {
+          onTimeRate: null,
+          avgRevisions: 0,
+          productivity: "no_data",
+          productivityLabel: "Belum Ada Data",
+        },
+      });
+      render(<PeriodTabs creatorId={CREATOR} periods={[fresh]} selected={fresh} />);
+
+      expect(term("Tepat waktu")).toHaveTextContent("—");
+      expect(term("Produktivitas")).toHaveTextContent("Belum Ada Data");
+    });
+
+    it("leaves the section out when the period carries no measurements", () => {
+      render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+      expect(screen.queryByRole("region", { name: "Performa periode" })).toBeNull();
+    });
+  });
+
   it("shows the open period's terms", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
