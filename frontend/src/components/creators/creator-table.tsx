@@ -162,7 +162,7 @@ export function CreatorTable({
             </tr>
           </thead>
 
-          <tbody role="rowgroup" className="max-lg:block">
+          <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3 max-lg:bg-paper max-lg:p-3">
             {creators.map((creator) => (
               // A press anywhere on the row opens the creator's page (PBI-4). The link in the
               // last cell is the same door for the keyboard and for screen readers.
@@ -174,7 +174,7 @@ export function CreatorTable({
                   if (window.getSelection()?.toString()) return;
                   router.push(creatorDetailHref(creator.id, opened));
                 }}
-                className="cursor-pointer transition-colors hover:bg-surface-2 max-lg:block max-lg:border-b max-lg:border-rule max-lg:px-5 max-lg:py-3 max-lg:last:border-none"
+                className="cursor-pointer transition-colors hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:border-rule max-lg:bg-surface max-lg:px-4 max-lg:py-3"
               >
                 <td role="cell" className={`${CELL} min-w-52 wrap-anywhere max-lg:min-w-0`}>
                   <p className="text-sm font-semibold text-ink">{creator.name}</p>
