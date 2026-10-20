@@ -69,7 +69,8 @@ function ActionCell({
           <Button
             key={action}
             variant={actionVariant(task, action)}
-            className="whitespace-nowrap"
+            // Full width and 44 px tall on a phone, well above WCAG 2.5.8's 24 px.
+            className="whitespace-nowrap max-lg:min-h-11 max-lg:w-full"
             // Every row repeats the same labels, so each button names its task for a screen
             // reader, keeping the visible label at the front.
             aria-label={`${label}: ${task.name}`}
@@ -165,7 +166,9 @@ export function MyTaskTable({
             )}
           </tr>
         </thead>
-        <tbody role="rowgroup" className="max-lg:block">
+        {/* Below lg the cards sit apart on the page colour, 12 px between them, so one task never
+            reads as the end of the one above it. */}
+        <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3 max-lg:bg-paper max-lg:p-3">
           {tasks.map((task) => (
             // A press anywhere on the row opens its detail, as in the prototype: the name's button
             // is stretched over the row (relative here), so the press lands on a real button and
@@ -173,7 +176,7 @@ export function MyTaskTable({
             <tr
               key={task.id}
               role="row"
-              className={`border-b border-rule last:border-none max-lg:block max-lg:px-5 max-lg:py-3 lg:h-16 ${
+              className={`border-b border-rule lg:last:border-none max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3 lg:h-16 ${
                 onDetail ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
               }`}
             >
