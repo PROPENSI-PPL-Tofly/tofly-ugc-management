@@ -28,6 +28,54 @@ describe("InvoiceHistory", () => {
     expect(row).toHaveTextContent("Rp1.200.000");
   });
 
+  // Measured on this table's real markup in Edge at true 320–390 px: the table is 484 px wide,
+  // every Rincian sits off-screen, and the page itself widened to 411 px, because the hidden
+  // Aksi heading was laid out against the page rather than the table's scroll area. jsdom lays
+  // nothing out, so these pin what the fix is built from.
+  describe("on a phone, below lg", () => {
+    function rowOf(period: string) {
+      return screen.getByText(period).closest("tr") as HTMLElement;
+    }
+
+    it("keeps the hidden Aksi heading inside the table's own area, so the page never widens", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      expect(screen.getByText("Aksi").closest(".overflow-x-auto")).toHaveClass("relative");
+    });
+
+    it("sets each invoice apart as its own card, with the headers hidden but still read", () => {
+      render(
+        <InvoiceHistory
+          invoices={[PAID, aCreatorInvoice({ contractId: "c-2", periodNumber: 2 })]}
+          onOpen={vi.fn()}
+        />,
+      );
+
+      const table = screen.getByRole("table", { name: "Riwayat Invoice" });
+      const [head, body] = within(table).getAllByRole("rowgroup");
+      expect(table).toHaveClass("max-lg:block");
+      expect(head).toHaveClass("max-lg:sr-only");
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      expect(rowOf("Periode 1")).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border");
+    });
+
+    it("names the status and the total by their columns", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      const cells = within(rowOf("Periode 1")).getAllByRole("cell");
+      expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([null, "Status", "Total", null]);
+    });
+
+    it("gives Rincian a full-width touch target at least 44px tall", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      expect(screen.getByRole("button", { name: "Rincian invoice Periode 1" })).toHaveClass(
+        "max-lg:w-full",
+        "max-lg:min-h-11",
+      );
+    });
+  });
+
   it("opens an invoice's breakdown from its Rincian button", () => {
     const onOpen = vi.fn();
     render(<InvoiceHistory invoices={[PAID]} onOpen={onOpen} />);
