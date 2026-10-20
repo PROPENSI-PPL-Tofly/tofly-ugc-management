@@ -170,6 +170,25 @@ describe("CreatorContentFilters", () => {
     });
   });
 
+  it("resets the filters and keeps the Creator Database view to return to", () => {
+    renderOn({ contract: CONTRACT, type: "specific", return: "q=nadia&page=2" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      `${PAGE}?contract=${CONTRACT}&return=q%3Dnadia%26page%3D2`,
+      { scroll: false },
+    );
+  });
+
+  it("resets to the view to return to alone on the newest period", () => {
+    renderOn({ status: "pending", return: "page=2" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?return=page%3D2`, { scroll: false });
+  });
+
   // A typed or stale address can name what a content cannot hold. The table ignores it, so
   // the bar must not draw it as a pick either.
   it("shows no chip for a type or a status that does not exist", () => {

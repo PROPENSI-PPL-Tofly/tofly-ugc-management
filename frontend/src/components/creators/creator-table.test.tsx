@@ -265,6 +265,27 @@ describe("CreatorTable", () => {
       expect(within(row).getByRole("link")).toHaveTextContent("Detail");
     });
 
+    it("carries the roster view it was opened from, so the way back returns to it", () => {
+      render(
+        <CreatorTable
+          creators={[creator({ id: "creator-123" })]}
+          total={1}
+          returnTo="q=nadia&page=2"
+        />,
+      );
+
+      expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+        "href",
+        "/admin/creators/creator-123?return=q%3Dnadia%26page%3D2",
+      );
+
+      fireEvent.click(screen.getByText("rangga@example.com"));
+
+      expect(push).toHaveBeenCalledExactlyOnceWith(
+        "/admin/creators/creator-123?return=q%3Dnadia%26page%3D2",
+      );
+    });
+
     it("no longer offers the creator's own Content Plan page", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
 

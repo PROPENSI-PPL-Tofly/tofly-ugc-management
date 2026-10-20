@@ -41,6 +41,30 @@ describe("Creator database page", () => {
     expect(screen.getByText("Halaman 2 dari 2")).toBeInTheDocument();
   });
 
+  it("opens a creator with the search, filters and page to return to", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(
+      listResponse({ items: [creator({ id: "creator-9" })], page: 2, total: 12, totalPages: 2 }),
+    );
+
+    await renderPage({ q: "ra", contractStatus: "expired", productivity: "bogus", page: "2" });
+
+    expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+      "href",
+      "/admin/creators/creator-9?return=q%3Dra%26contractStatus%3Dexpired%26page%3D2",
+    );
+  });
+
+  it("opens a creator from the bare roster with nothing to return to", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(listResponse({ items: [creator({ id: "creator-9" })] }));
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+      "href",
+      "/admin/creators/creator-9",
+    );
+  });
+
   it("keeps the search and filters when moving to another page", async () => {
     vi.mocked(fetchCreators).mockResolvedValue(
       listResponse({ items: [creator()], page: 1, total: 12, totalPages: 2 }),

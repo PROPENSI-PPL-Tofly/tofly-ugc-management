@@ -3,6 +3,7 @@ import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   buildCreatorDetailQuery,
   creatorDetailAfterContractChange,
+  creatorDatabaseHref,
   creatorDetailAfterFilterChange,
   creatorDetailBase,
   creatorDetailHref,
@@ -200,6 +201,78 @@ describe("creatorDetailAfterFilterChange", () => {
     creatorDetailAfterFilterChange(state, { type: ["specific"] });
 
     expect(state).toEqual({ ...BARE, page: 3 });
+  });
+});
+
+// The Creator Database view the admin came from rides along as `return`, so the way back lands
+// on the same search, filters and page. Only what the roster itself reads is kept.
+describe("the Creator Database view to return to", () => {
+  it("keeps the roster's search, filters and page as they were", () => {
+    expect(
+      parseCreatorDetailParams({ return: "q=nadia&contractStatus=active&productivity=risk&page=3" })
+        .back,
+    ).toBe("q=nadia&contractStatus=active&productivity=risk&page=3");
+  });
+
+  it("keeps only the parts the roster had set", () => {
+    expect(parseCreatorDetailParams({ return: "productivity=watch" }).back).toBe(
+      "productivity=watch",
+    );
+    expect(parseCreatorDetailParams({ return: "page=2" }).back).toBe("page=2");
+  });
+
+  it("reads an empty or default roster view as nothing to return to", () => {
+    expect(parseCreatorDetailParams({ return: "" })).toEqual(BARE);
+    expect(
+      parseCreatorDetailParams({ return: "contractStatus=all&productivity=all&page=1&q=%20" }),
+    ).toEqual(BARE);
+  });
+
+  it("drops values the roster cannot hold and keys it does not read", () => {
+    expect(
+      parseCreatorDetailParams({
+        return: "contractStatus=bogus&productivity=risk&page=0&next=%2F%2Fevil.example&q=%20nadia%20",
+      }).back,
+    ).toBe("q=nadia&productivity=risk");
+  });
+
+  it("never takes an address in place of a roster view (OWASP A01)", () => {
+    expect(parseCreatorDetailParams({ return: "https://evil.example/admin/creators?q=x" })).toEqual(
+      BARE,
+    );
+    expect(parseCreatorDetailParams({ return: "//evil.example" })).toEqual(BARE);
+  });
+
+  it("reads the first value when the parameter is repeated", () => {
+    expect(parseCreatorDetailParams({ return: ["page=4", "page=9"] }).back).toBe("page=4");
+  });
+
+  it("writes it back into the page's own address, after everything else", () => {
+    const state: CreatorDetailParams = { ...BARE, contract: CONTRACT, page: 2, back: "q=nadia&page=3" };
+
+    expect(buildCreatorDetailQuery(state)).toEqual({
+      contract: CONTRACT,
+      page: "2",
+      return: "q=nadia&page=3",
+    });
+    expect(creatorDetailHref("creator-1", { ...BARE, back: "q=nadia&page=3" })).toBe(
+      "/admin/creators/creator-1?return=q%3Dnadia%26page%3D3",
+    );
+  });
+
+  it("survives a change of contract, which resets everything else", () => {
+    const state: CreatorDetailParams = { ...BARE, type: ["specific"], page: 2, back: "page=3" };
+
+    expect(creatorDetailAfterContractChange(state, OTHER_CONTRACT)).toEqual({
+      ...BARE,
+      contract: OTHER_CONTRACT,
+      back: "page=3",
+    });
+  });
+
+  it("leads back to the roster view it names, and to the bare roster otherwise", () => {
+    expect(creatorDatabaseHref("q=nadia&page=3")).toBe("/admin/creators?q=nadia&page=3");
+    expect(creatorDatabaseHref(undefined)).toBe("/admin/creators");
   });
 });
 

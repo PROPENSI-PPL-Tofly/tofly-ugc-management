@@ -123,6 +123,55 @@ describe("Creator Detail page", () => {
     );
   });
 
+  describe("the way back to the Creator Database", () => {
+    function backLink() {
+      return screen.getByRole("link", { name: "← Kembali ke Creator Database" });
+    }
+
+    it("returns to the search, filters and page the admin left", async () => {
+      await renderPage({ return: "q=nadia&contractStatus=active&productivity=risk&page=3" });
+
+      expect(backLink()).toHaveAttribute(
+        "href",
+        "/admin/creators?q=nadia&contractStatus=active&productivity=risk&page=3",
+      );
+    });
+
+    it("returns to only the parts of the view that were set", async () => {
+      await renderPage({ return: "productivity=no_data" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators?productivity=no_data");
+    });
+
+    it("returns to the bare roster when the view held nothing the roster reads", async () => {
+      await renderPage({ return: "contractStatus=bogus&page=-1&next=%2F%2Fevil.example" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators");
+    });
+
+    it("keeps the view to return to on the links to another period", async () => {
+      await renderPage({ return: "page=3" });
+
+      const periods = within(screen.getByRole("navigation", { name: "Pilih periode kontrak" }));
+      expect(periods.getByRole("link", { name: /Periode 1/ })).toHaveAttribute(
+        "href",
+        `${PAGE}?contract=${FIRST}&return=page%3D3`,
+      );
+      expect(periods.getByRole("link", { name: /Periode 2/ })).toHaveAttribute(
+        "href",
+        `${PAGE}?return=page%3D3`,
+      );
+    });
+
+    it("keeps the view to return to when the detail cannot be loaded", async () => {
+      vi.mocked(fetchCreatorDetail).mockRejectedValue(new Error("503"));
+
+      await renderPage({ return: "q=nadia" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators?q=nadia");
+    });
+  });
+
   // PBI-4: creator → contract history per period → content per contract, on one page.
   it("shows the creator, then the contract periods, then the open period's content", async () => {
     await renderPage();

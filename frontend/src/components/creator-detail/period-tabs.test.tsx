@@ -102,6 +102,17 @@ describe("PeriodTabs", () => {
     expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
   });
 
+  it("carries the Creator Database view to return to onto every period's link", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} back="q=nadia" />);
+
+    const [first, second] = tabs();
+    expect(first).toHaveAttribute(
+      "href",
+      `/admin/creators/${CREATOR}?contract=${FIRST}&return=q%3Dnadia`,
+    );
+    expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}?return=q%3Dnadia`);
+  });
+
   it("shows the open period's terms", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
