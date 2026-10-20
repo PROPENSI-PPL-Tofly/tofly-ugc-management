@@ -1301,6 +1301,43 @@ describe('InvoicesService', () => {
       expect(formulas.current).toHaveBeenCalledTimes(1);
     });
 
+    // The stub answers every column whatever is selected, so the select itself is pinned: a
+    // column left out would read as a move the creator never made.
+    it("reads when the creator made each move with the saved invoices' adjustments and snapshots", async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+
+      await service.forCreator('creator-1', TODAY);
+
+      expect(prisma.invoices.findMany).toHaveBeenCalledWith({
+        where: { contract_id: { in: ['contract-1'] } },
+        select: expect.objectContaining({
+          contract_id: true,
+          snapshot: true,
+          acknowledged_at: true,
+          paid_at: true,
+        }),
+      });
+    });
+
+    it('calculates a contract with no content from no content at all', async () => {
+      prisma.creators.findUnique.mockResolvedValue(
+        row({ contracts: [contractFor('contract-1', -60, -1)] }),
+      );
+
+      const [invoice] = await service.forCreator('creator-1', TODAY);
+
+      const { fixedRate, additionalContent, performanceBonus, penalty } =
+        invoice.components;
+      expect(fixedRate.lines).toEqual([
+        expect.objectContaining({ basis: { delivered: 0, quota: 11 } }),
+      ]);
+      expect([
+        ...additionalContent.lines,
+        ...performanceBonus.lines,
+        ...penalty.lines,
+      ]).toEqual([]);
+    });
+
     // OWASP Top 10:2025 A08: a finalized invoice keeps the rules it was frozen with.
     it('answers a finalized invoice with the formula saved in its snapshot', async () => {
       prisma.creators.findUnique.mockResolvedValue(row());
