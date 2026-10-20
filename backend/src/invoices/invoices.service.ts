@@ -293,35 +293,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         : (row.contracts.find(({ id }) => id === contractId) ?? null));
     if (!row || !contract) return null;
 
-    const [byContract, statuses, formula, lifecycleByContract, proofs] =
-      await Promise.all([
-        this.contentsOf([contract.id]),
-        this.pipeline.statuses([contract.id]),
-        this.formulas.current(),
-        this.lifecycleForContracts([contract.id]),
-        this.proofs.forContracts([contract.id], 'admin'),
-      ]);
+    const [[view], proofs] = await Promise.all([
+      this.views(row, [contract], today),
+      this.proofs.forContracts([contract.id], 'admin'),
+    ]);
 
-    const lifecycle = lifecycleByContract.get(contract.id);
-
-    return {
-      ...(lifecycle?.confirmations ?? NO_CONFIRMATIONS),
-      ...toInvoiceItem(
-        row,
-        contract,
-        byContract.get(contract.id) ?? [],
-        formula,
-        today,
-        lifecycle,
-      ),
-      invoiceStatus: statuses.get(contract.id)!,
-      periodNumber: periodNumber(row, contract),
-      // A finalized invoice keeps the rules its saved totals were worked out with.
-      formula: lifecycle?.snapshot
-        ? (lifecycle.snapshot.formula ?? null)
-        : formula,
-      paymentProof: proofs.get(contract.id) ?? null,
-    };
+    return { ...view, paymentProof: proofs.get(contract.id) ?? null };
   }
 
   /**
@@ -339,7 +316,21 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     });
     if (!row || row.contracts.length === 0) return [];
 
-    const ids = row.contracts.map(({ id }) => id);
+    const invoices = await this.views(row, row.contracts, today);
+    return invoices.sort((a, b) => b.periodNumber - a.periodNumber);
+  }
+
+  /**
+   * The invoice of each of a creator's given contracts, in their order, with each source read
+   * once for all of them. The one place an invoice view is put together, for the admin's detail
+   * and the creator's list alike.
+   */
+  private async views(
+    row: InvoiceCreatorRow,
+    contracts: readonly InvoiceContractRow[],
+    today: Date,
+  ): Promise<InvoiceView[]> {
+    const ids = contracts.map(({ id }) => id);
     const [byContract, statuses, formula, lifecycleByContract] =
       await Promise.all([
         this.contentsOf(ids),
@@ -348,7 +339,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         this.lifecycleForContracts(ids),
       ]);
 
-    const invoices = row.contracts.map((contract) => {
+    return contracts.map((contract) => {
       const lifecycle = lifecycleByContract.get(contract.id);
 
       return {
@@ -363,13 +354,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         ),
         invoiceStatus: statuses.get(contract.id)!,
         periodNumber: periodNumber(row, contract),
+        // A finalized invoice keeps the rules its saved totals were worked out with.
         formula: lifecycle?.snapshot
           ? (lifecycle.snapshot.formula ?? null)
           : formula,
       };
     });
-
-    return invoices.sort((a, b) => b.periodNumber - a.periodNumber);
   }
 
   private async calculate(
