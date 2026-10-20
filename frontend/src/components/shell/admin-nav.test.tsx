@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
+import { SCROLL_HINT } from "@/components/ui/use-scroll-hint";
 import { AdminNav } from "./admin-nav";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
@@ -101,5 +102,20 @@ describe("AdminNav", () => {
       "href",
       "/admin/invoicing",
     );
+  });
+
+  // On a phone the menu is one sideways-scrolling row; "Rate & Invoicing" sat cut off at the
+  // edge with nothing to say the row moves.
+  it("fades the edge of the phone menu where more places sit off-screen", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+    const list = screen.getByRole("list");
+    Object.defineProperty(list, "clientWidth", { configurable: true, value: 288 });
+    Object.defineProperty(list, "scrollWidth", { configurable: true, value: 381 });
+    fireEvent.scroll(list);
+
+    expect(list).toHaveAttribute("data-more", "end");
+    expect(list).toHaveClass(...SCROLL_HINT.split(" "));
   });
 });

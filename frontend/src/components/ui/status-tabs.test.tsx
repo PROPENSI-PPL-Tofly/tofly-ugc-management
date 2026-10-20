@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { StatusTabs, type StatusTabDef } from "./status-tabs";
+import { SCROLL_HINT } from "./use-scroll-hint";
 
 type Key = "all" | "todo" | "wait" | "done";
 
@@ -129,5 +130,16 @@ describe("StatusTabs", () => {
     const list = screen.getByRole("tablist");
     expect(list.className).toContain("overflow-x-auto");
     expect(list.className).not.toContain("flex-wrap");
+  });
+
+  it("fades the edge of the tab row where more tabs sit off-screen on a phone", () => {
+    renderTabs();
+    const list = screen.getByRole("tablist");
+    Object.defineProperty(list, "clientWidth", { configurable: true, value: 300 });
+    Object.defineProperty(list, "scrollWidth", { configurable: true, value: 420 });
+    fireEvent.scroll(list);
+
+    expect(list).toHaveAttribute("data-more", "end");
+    expect(list).toHaveClass(...SCROLL_HINT.split(" "));
   });
 });
