@@ -42,6 +42,13 @@ describe("FinalizeModal", () => {
     moves.finalizeInvoice.mockResolvedValue({ ok: true });
   });
 
+  // Freezing cannot be undone, so focus starts on the safe answer, as in every other confirmation.
+  it("opens with focus on Batal", () => {
+    render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Batal" })).toHaveFocus();
+  });
+
   it("shows the whole breakdown and the total before anything is frozen", () => {
     render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
 
