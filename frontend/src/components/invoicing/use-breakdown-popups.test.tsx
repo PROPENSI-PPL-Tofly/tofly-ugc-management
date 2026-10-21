@@ -468,7 +468,7 @@ describe("useBreakdownPopups after the table is read again", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
 
-      expect(await screen.findByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+      expect(await screen.findByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
       expect(await screen.findByRole("region", { name: "Penalti" })).toBeInTheDocument();
     });
 
@@ -512,7 +512,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
 
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      const rincian = screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" });
+      const rincian = screen.getByRole("dialog", { name: "Rincian Invoice" });
       expect(within(rincian).getByRole("region", { name: "Tambah Penyesuaian" })).toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Nominal (Rp)" })).toHaveFocus();
     });
@@ -526,7 +526,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       fireEvent.click(within(form).getByRole("button", { name: "Batal" }));
 
       expect(screen.queryByRole("region", { name: "Tambah Penyesuaian" })).not.toBeInTheDocument();
-      expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
     });
 
     it("keeps the panel open after a move, reads it again and says what was done", async () => {
@@ -545,7 +545,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       fireEvent.click(screen.getByRole("button", { name: "Tambahkan" }));
 
       await vi.waitFor(() => expect(onMutated).toHaveBeenCalledWith("Penyesuaian ditambahkan."));
-      expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
       expect(screen.queryByRole("region", { name: "Tambah Penyesuaian" })).not.toBeInTheDocument();
       await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     });
@@ -562,7 +562,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       };
       rerender(<Whole load={answering()} rows={[frozen]} />);
 
-      const rincian = screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" });
+      const rincian = screen.getByRole("dialog", { name: "Rincian Invoice" });
       expect(within(rincian).getByText("Invoice Terkirim")).toBeInTheDocument();
       expect(within(rincian).queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
     });
@@ -576,7 +576,7 @@ describe("useBreakdownPopups after the table is read again", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Tutup panel" }));
 
-      expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
     });
   });
 });

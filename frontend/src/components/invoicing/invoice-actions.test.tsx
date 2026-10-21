@@ -51,13 +51,13 @@ describe("InvoiceActions", () => {
     expect(screen.getByRole("button", { name: "Finalize" })).toBeEnabled();
   });
 
-  it("withholds freezing while the contract still runs, and says why", () => {
+  // When it can be finalized is the panel's footer hint ("Finalize mulai …"), said once there.
+  it("withholds freezing while the contract still runs, leaving the reason to the panel's footer", () => {
     actions({ ...ROW, contractStatus: "active", contractEnd: "2026-12-31" });
 
     expect(screen.queryByRole("button", { name: "Finalize" })).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Bisa difinalisasi setelah kontrak berakhir.",
-    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Tambah Penyesuaian" })).toBeInTheDocument();
   });
 
   it("counts a contract that ended early as ended", () => {

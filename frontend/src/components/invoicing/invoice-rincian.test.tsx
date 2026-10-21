@@ -55,47 +55,117 @@ const BREAKDOWN: InvoiceBreakdown = {
 
 type Props = ComponentProps<typeof InvoiceRincian>;
 
+const TODAY = "2026-08-20";
+
 function setup(props: Partial<Props> = {}) {
   const handlers = { onRetry: vi.fn(), onClose: vi.fn(), onOpenContent: vi.fn() };
-  render(<InvoiceRincian row={ROW} breakdown={BREAKDOWN} status="ready" {...handlers} {...props} />);
+  render(
+    <InvoiceRincian row={ROW} breakdown={BREAKDOWN} status="ready" today={TODAY} {...handlers} {...props} />,
+  );
   return handlers;
 }
 
-const section = (name: string) => screen.getByRole("region", { name });
+/** One part's row in the Rincian tab, by its title. */
+const part = (name: string) => screen.getByRole("group", { name });
+
+/** Opens a part's lines, as the admin presses its row. */
+function unfold(name: string) {
+  fireEvent.click(within(part(name)).getByRole("button"));
+}
 
 describe("InvoiceRincian", () => {
-  it("opens as a side panel titled after the creator", () => {
+  it("opens as a side panel titled Rincian Invoice, as the creator's page is", () => {
     setup();
 
-    expect(screen.getByRole("dialog", { name: "Rincian Invoice · Adit Prakoso" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
   });
 
-  it("says where the contract and the invoice stand, in words", () => {
+  it("leads with the creator, the period and the running total, as the creator's page does", () => {
     setup();
 
-    expect(screen.getByText("Kontrak Berakhir")).toBeInTheDocument();
-    expect(screen.getByText("Berjalan")).toBeInTheDocument();
+    const summary = screen.getByRole("group", { name: "Ringkasan invoice" });
+    expect(summary).toHaveTextContent("Adit Prakoso");
+    expect(summary).toHaveTextContent("Periode 1 · 2 Mar 2026 – 29 Agu 2026");
+    expect(summary).toHaveTextContent("Total Sementara");
+    expect(summary).toHaveTextContent("Rp350.000");
+    expect(within(summary).getByRole("button", { name: "Tentang Total Sementara" })).toBeInTheDocument();
   });
 
-  it("shows every part of the invoice in the table's order, each with its own lines and total", () => {
+  it("walks the invoice's steps, the current one marked for a screen reader", () => {
     setup();
 
-    expect(screen.getAllByRole("region").map((region) => region.getAttribute("aria-label"))).toEqual([
-      "Fixed Rate Kontrak",
-      "Fee Konten Tambahan",
-      "Bonus Performa",
-      "Penalti",
+    const steps = within(screen.getByRole("list", { name: "Progres invoice" })).getAllByRole("listitem");
+    expect(steps.map((step) => step.textContent)).toEqual([
+      "Berjalan2 Mar 2026",
+      "Final",
+      "Di-ack Creator",
+      "Bukti Bayar",
+      "Paid",
     ]);
-    expect(within(section("Fixed Rate Kontrak")).getByText("Kontrak Periode 2")).toBeInTheDocument();
-    expect(within(section("Fee Konten Tambahan")).getByText("Telat — tidak dibayar")).toBeInTheDocument();
-    expect(within(section("Bonus Performa")).getByText("Bonus performa: Menunggu data")).toBeInTheDocument();
-    expect(within(section("Penalti")).getAllByText("− Rp150.000")).toHaveLength(2);
+    expect(steps[0]).toHaveAttribute("aria-current", "step");
   });
 
-  it("ends with the invoice's total as the table shows it, and says the bonus is not in it yet", () => {
+  it("dates every step a paid invoice reached", () => {
+    setup({
+      row: {
+        ...ROW,
+        invoiceStatus: "paid",
+        frozenAt: "2026-08-30T03:00:00.000Z",
+        payment: {
+          acknowledgedAt: "2026-08-31T03:00:00.000Z",
+          receivedAt: "2026-09-02T03:00:00.000Z",
+          proof: { fileName: "bukti.pdf", href: "/api/invoices/x/payment-proof", uploadedAt: "2026-09-01T03:00:00.000Z" },
+        },
+      },
+    });
+
+    const steps = within(screen.getByRole("list", { name: "Progres invoice" })).getAllByRole("listitem");
+    expect(steps.map((step) => step.textContent)).toEqual([
+      "Berjalan, selesai2 Mar 2026",
+      "Final, selesai30 Agu 2026",
+      "Di-ack Creator, selesai31 Agu 2026",
+      "Bukti Bayar, selesai1 Sep 2026",
+      "Paid, selesai2 Sep 2026",
+    ]);
+    expect(screen.getByRole("group", { name: "Ringkasan invoice" })).toHaveTextContent("Total Dibayarkan");
+  });
+
+  it("lists every part as a row with its amount, a dash for one with nothing in it", () => {
+    setup({ row: { ...ROW, extraAmount: 0 }, breakdown: { ...BREAKDOWN, extra: { lines: [], total: 0 } } });
+
+    expect(part("Fixed Rate Kontrak")).toHaveTextContent("Rp400.000");
+    expect(part("Fee Konten Tambahan")).toHaveTextContent("—");
+    expect(within(part("Fee Konten Tambahan")).queryByRole("button")).toBeNull();
+    expect(part("Bonus Performa")).toHaveTextContent("Menunggu data");
+    expect(part("Penalti")).toHaveTextContent("− Rp150.000");
+    expect(part("Penyesuaian")).toHaveTextContent("—");
+  });
+
+  it("unfolds a part's lines on a press, and says so to a screen reader", () => {
+    setup();
+
+    const toggle = within(part("Penalti")).getByRole("button");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    unfold("Penalti");
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(part("Penalti")).getByText("Kembali lagi")).toBeInTheDocument();
+  });
+
+  it("opens a content from a part's lines", () => {
+    const { onOpenContent } = setup();
+
+    unfold("Penalti");
+    fireEvent.click(screen.getByRole("button", { name: "Kembali lagi" }));
+
+    expect(onOpenContent).toHaveBeenCalledWith("c-3");
+  });
+
+  it("ends the parts with the total under the admin's word for it, and says the bonus is not in it yet", () => {
     setup();
 
     const total = screen.getByRole("group", { name: "Total invoice" });
+    expect(total).toHaveTextContent("Total Sementara");
     expect(total).toHaveTextContent("Rp350.000");
     expect(total).toHaveTextContent("Belum termasuk bonus performa yang menunggu data.");
   });
@@ -105,23 +175,7 @@ describe("InvoiceRincian", () => {
 
     const total = screen.getByRole("group", { name: "Total invoice" });
     expect(total).toHaveTextContent("Rp0");
-    expect(total).toHaveTextContent("Penalti melebihi pembayaran");
-    expect(total).not.toHaveTextContent("Belum termasuk bonus");
-  });
-
-  it("opens a content from any part of the invoice", () => {
-    const { onOpenContent } = setup();
-
-    fireEvent.click(screen.getByRole("button", { name: "Kembali lagi" }));
-
-    expect(onOpenContent).toHaveBeenCalledWith("c-3");
-  });
-
-  it("leaves room for what the invoice pipeline will add (PBI-12), beside Tutup", () => {
-    setup({ actions: <button type="button">Finalize</button> });
-
-    expect(screen.getByRole("button", { name: "Finalize" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
+    expect(total).toHaveTextContent("Penalti melebihi pendapatan, total minimal Rp0.");
   });
 
   it("lists each manual adjustment with its reason, its moment and what it moved", () => {
@@ -139,45 +193,84 @@ describe("InvoiceRincian", () => {
       },
     });
 
-    expect(screen.getByRole("region", { name: "Penyesuaian manual" })).toBeInTheDocument();
+    unfold("Penyesuaian");
+
+    expect(part("Penyesuaian")).toHaveTextContent("− Rp75.000");
     expect(screen.getByText("Koreksi kelebihan tagihan")).toBeInTheDocument();
     expect(screen.getByText(formatTimestamp("2026-10-18T03:00:00.000Z"))).toBeInTheDocument();
-    expect(screen.getByText("− Rp75.000")).toBeInTheDocument();
   });
 
-  // One status badge, as everywhere else; "Final" names the total, as the creator's page does.
-  it("shows a frozen invoice's status once and calls its total Total Final", () => {
+  it("calls a frozen invoice's total Total Final", () => {
+    setup({ row: { ...ROW, invoiceStatus: "finalized", frozenAt: "2026-10-18T03:00:00.000Z" } });
+
+    expect(screen.getByRole("group", { name: "Total invoice" })).toHaveTextContent("Total Final");
+  });
+
+  it("shows the payment proof in the Rincian, once there is one", () => {
     setup({
       row: {
         ...ROW,
-        invoiceStatus: "finalized",
-        frozenAt: "2026-10-18T03:00:00.000Z",
+        invoiceStatus: "payment_uploaded",
+        frozenAt: "2026-08-30T03:00:00.000Z",
+        payment: {
+          acknowledgedAt: "2026-08-31T03:00:00.000Z",
+          receivedAt: null,
+          proof: { fileName: "bukti.pdf", href: "/api/invoices/x/payment-proof", uploadedAt: "2026-09-01T03:00:00.000Z" },
+        },
       },
     });
 
-    expect(screen.getByText("Invoice Terkirim")).toBeInTheDocument();
-    expect(screen.queryByText("Final")).not.toBeInTheDocument();
-    expect(screen.getByText("Total Final")).toBeInTheDocument();
-    expect(screen.queryByText("Berjalan")).not.toBeInTheDocument();
+    const proof = screen.getByRole("group", { name: "Bukti Bayar" });
+    expect(proof).toHaveTextContent("Diupload 1 Sep 2026");
+    expect(within(proof).getByRole("link", { name: "Lihat Bukti" })).toHaveAttribute("href", "/api/invoices/x/payment-proof");
   });
 
-  it("calls the total of a paid invoice Total Dibayarkan", () => {
+  it("keeps the activity and the thread behind their own tab, with the steps in the admin's words", () => {
     setup({
-      row: {
-        ...ROW,
-        invoiceStatus: "paid",
-        frozenAt: "2026-10-18T03:00:00.000Z",
-      },
+      row: { ...ROW, invoiceStatus: "finalized", frozenAt: "2026-08-30T03:00:00.000Z" },
+      thread: <p>Utas komentar</p>,
     });
 
-    expect(screen.getByText("Total Dibayarkan")).toBeInTheDocument();
+    expect(screen.queryByText("Utas komentar")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" }));
+
+    expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Invoice difinalisasi")).toBeInTheDocument();
+    expect(screen.getByText("30 Agu 2026")).toBeInTheDocument();
+    expect(screen.getByText("Utas komentar")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Total invoice" })).toBeNull();
   });
 
-  it("keeps adjustments and the Final word out of the panel while there are none", () => {
-    setup();
+  it("says a running invoice has no activity yet, above its thread", () => {
+    setup({ thread: <p>Utas komentar</p> });
 
-    expect(screen.queryByRole("region", { name: "Penyesuaian manual" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Final")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Aktivitas & Komentar" }));
+
+    expect(screen.getByText("Belum ada aktivitas.")).toBeInTheDocument();
+    expect(screen.getByText("Utas komentar")).toBeInTheDocument();
+  });
+
+  it("puts the adjustment form and the proof upload above the tabs, where the admin acts", () => {
+    setup({ editor: <form aria-label="Tambah Penyesuaian" />, upload: <p>Unggah bukti</p> });
+
+    const tabs = screen.getByRole("tablist", { name: "Bagian invoice" });
+    for (const node of [screen.getByRole("form", { name: "Tambah Penyesuaian" }), screen.getByText("Unggah bukti")]) {
+      expect(node.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it("says in the footer when a running invoice can be finalized, beside the moves and Tutup", () => {
+    setup({ actions: <button type="button">+ Tambah Penyesuaian</button> });
+
+    expect(screen.getByText("Finalize mulai 30 Agu 2026.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Tambah Penyesuaian" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tutup" })).toBeInTheDocument();
+  });
+
+  it("says Lunas in the footer for a paid invoice, in green and in words", () => {
+    setup({ row: { ...ROW, invoiceStatus: "paid", frozenAt: "2026-08-30T03:00:00.000Z" } });
+
+    expect(screen.getByText("Lunas")).toHaveClass("text-green-ink");
   });
 
   it("closes with Tutup", () => {
@@ -188,11 +281,12 @@ describe("InvoiceRincian", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("says it is loading before the breakdown arrives, already titled", () => {
+  it("says it is loading before the breakdown arrives, already titled, with no hint yet", () => {
     setup({ breakdown: null, status: "loading" });
 
-    expect(screen.getByRole("dialog", { name: "Rincian Invoice · Adit Prakoso" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Memuat rincian…");
+    expect(screen.queryByText(/Finalize mulai/)).toBeNull();
   });
 
   it("offers a retry when the breakdown could not be read", () => {
