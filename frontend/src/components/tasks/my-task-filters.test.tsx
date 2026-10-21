@@ -230,6 +230,19 @@ describe("MyTaskFilters", () => {
       );
     }
 
+    it("offers no Periode: the month on show is already the calendar's period", () => {
+      renderOnCalendar();
+
+      expect(screen.queryByLabelText("Periode")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
+    });
+
+    it("offers no Reset for a period left in an old calendar link, which narrows nothing", () => {
+      renderOnCalendar({ period: "month" });
+
+      expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
+    });
+
     it("stays on the calendar when a filter is picked", () => {
       renderOnCalendar();
 

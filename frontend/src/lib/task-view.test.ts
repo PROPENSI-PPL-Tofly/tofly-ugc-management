@@ -1,5 +1,5 @@
 import { DEFAULT_MY_TASKS_PARAMS, type MyTasksParams } from "./my-tasks";
-import { parseTaskView, TASK_VIEWS, taskViewHref, taskViewParams } from "./task-view";
+import { calendarParams, parseTaskView, TASK_VIEWS, taskViewHref, taskViewParams } from "./task-view";
 
 const BARE = DEFAULT_MY_TASKS_PARAMS;
 
@@ -14,6 +14,18 @@ describe("TASK_VIEWS", () => {
 
   it("labels the two views the way the switch reads", () => {
     expect(TASK_VIEWS.map((view) => view.label)).toEqual(["Tabel", "Kalender"]);
+  });
+});
+
+describe("calendarParams", () => {
+  it("drops the period and its days, which the calendar has no use for", () => {
+    const state = on({ tab: "waiting", overdue: "no", period: "custom", from: "2026-10-01", to: "2026-10-31" });
+
+    expect(calendarParams(state)).toEqual(on({ tab: "waiting", overdue: "no" }));
+  });
+
+  it("leaves a state without a period as it was", () => {
+    expect(calendarParams(BARE)).toEqual(BARE);
   });
 });
 
@@ -98,7 +110,14 @@ describe("taskViewHref", () => {
       "&period=custom&from=2026-10-01&to=2026-10-31&sort=desc";
 
     expect(taskViewHref("table", state)).toBe(`/creator/tasks?${kept}`);
-    expect(taskViewHref("calendar", state)).toBe(`/creator/tasks?${kept}&view=calendar`);
+    expect(taskViewHref("calendar", state)).toBe(
+      "/creator/tasks?tab=action&q=serum&type=evergreen&status=scheduled%2Cdraft_approved" +
+        "&overdue=yes&sort=desc&view=calendar",
+    );
+  });
+
+  it("leaves the period behind on the way to the calendar, whose month is its scope", () => {
+    expect(taskViewHref("calendar", on({ period: "next30" }))).toBe("/creator/tasks?view=calendar");
   });
 
   it("never carries a page number, so a switch of view starts from the first page", () => {
