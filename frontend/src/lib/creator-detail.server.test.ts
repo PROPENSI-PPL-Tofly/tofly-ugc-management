@@ -36,6 +36,8 @@ const DETAIL: RawCreatorDetail = {
       contentQuota: 3,
       daysBetween: 7,
       remainingEvergreenQuota: 2,
+      progress: { submitted: 2, total: 6, percent: 33 },
+      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     },
     {
       id: NEWEST,
@@ -47,6 +49,8 @@ const DETAIL: RawCreatorDetail = {
       contentQuota: 6,
       daysBetween: 14,
       remainingEvergreenQuota: 5,
+      progress: { submitted: 2, total: 6, percent: 33 },
+      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     },
   ],
 };
@@ -88,11 +92,19 @@ function forCalendar(url: string): boolean {
   return new URL(url).searchParams.get("pageSize") === "50";
 }
 
+/** GET /invoices/:creatorId?contract= as Rate & Invoicing answers it, cut to what the card reads. */
+const INVOICE = { total: 2500000, floored: false, invoiceStatus: "finalized" };
+
+function forInvoice(url: string): boolean {
+  return new URL(url).pathname.startsWith("/invoices");
+}
+
 function backend({
   detail = answer(200, DETAIL),
   contents = answer(200, CONTENTS),
   calendar = answer(200, CONTENTS),
-}: { detail?: Reply; contents?: Reply | Reply[]; calendar?: Reply | Reply[] } = {}) {
+  invoice = answer(200, INVOICE),
+}: { detail?: Reply; contents?: Reply | Reply[]; calendar?: Reply | Reply[]; invoice?: Reply } = {}) {
   const queue = Array.isArray(contents) ? [...contents] : [contents];
   const calendarQueue = Array.isArray(calendar) ? [...calendar] : [calendar];
   const next = (from: Reply[]) => (from.length > 1 ? from.shift()! : from[0]);
@@ -100,7 +112,7 @@ function backend({
   vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
     const url = String(input);
     const forContents = new URL(url).pathname.startsWith("/contents");
-    let reply = detail;
+    let reply = forInvoice(url) ? invoice : detail;
     if (forContents) reply = forCalendar(url) ? next(calendarQueue) : next(queue);
     if (reply instanceof Error) throw reply;
     return reply.clone();
@@ -125,9 +137,9 @@ function allRequests(): [string, RequestInit][] {
   return vi.mocked(globalThis.fetch).mock.calls as [string, RequestInit][];
 }
 
-/** The detail's and the table's requests, without the calendar's. */
+/** The detail's and the table's requests, without the calendar's and the invoice's. */
 function requests(): [string, RequestInit][] {
-  return allRequests().filter(([url]) => !forCalendar(url));
+  return allRequests().filter(([url]) => !forCalendar(url) && !forInvoice(url));
 }
 
 function urls(): string[] {
@@ -213,6 +225,27 @@ describe("fetchCreatorDetail", () => {
     expect(view?.selected).toBeNull();
     expect(view?.rows).toEqual([]);
     expect(view?.calendar).toEqual([]);
+  });
+
+  describe("the performance cards' earnings", () => {
+    it("reads the open period's invoice beside its content", async () => {
+      const view = await fetchCreatorDetail(CREATOR, { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: OLDER });
+
+      expect(allRequests().map(([url]) => url)).toContain(`${BACKEND}/invoices/${CREATOR}?contract=${OLDER}`);
+      expect(view?.earnings).toEqual({ amount: 2500000, status: "finalized" });
+    });
+
+    it.each([
+      ["answers with an error", answer(500, {})],
+      ["cannot be reached", new Error("network down")],
+    ])("leaves the earnings unknown, not the page, when the invoice %s", async (_, invoice) => {
+      backend({ invoice });
+
+      const view = await fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
+
+      expect(view?.earnings).toBeNull();
+      expect(view?.rows).toHaveLength(1);
+    });
   });
 
   describe("the calendar", () => {

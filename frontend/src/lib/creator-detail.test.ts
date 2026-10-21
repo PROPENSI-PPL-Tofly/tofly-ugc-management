@@ -8,6 +8,7 @@ import {
   creatorDetailBase,
   creatorDetailHref,
   creatorAccess,
+  periodProductivity,
   isCreatorDetailFiltered,
   parseCreatorDetailParams,
   type CreatorDetailParams,
@@ -319,5 +320,21 @@ describe("creatorAccess", () => {
 
   it("adds nothing for a revoke on or after the contract's last day", () => {
     expect(creatorAccess("2026-10-01", "2026-10-01", TODAY).note).toBe("Sejak 1 Okt 2026");
+  });
+});
+
+describe("periodProductivity", () => {
+  const performance = { onTimeRate: 90, avgRevisions: 0.5, productivity: "good" as const, productivityLabel: "Baik" };
+
+  it("reads a running or ended period's band as the API judged it", () => {
+    expect(periodProductivity({ status: "active", performance })).toEqual({ label: "Baik", tone: "green" });
+    expect(periodProductivity({ status: "expired", performance })).toEqual({ label: "Baik", tone: "green" });
+  });
+
+  it("does not judge a period that has not started", () => {
+    expect(periodProductivity({ status: "upcoming", performance })).toEqual({
+      label: "Belum Dinilai",
+      tone: "neutral",
+    });
   });
 });

@@ -25,6 +25,8 @@ function period(id: string, extra: Partial<RawCreatorPeriod> = {}): RawCreatorPe
     contentQuota: 6,
     daysBetween: 14,
     remainingEvergreenQuota: 4,
+    progress: { submitted: 2, total: 6, percent: 33 },
+    performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     ...extra,
   };
 }
@@ -45,6 +47,8 @@ const RAW: RawCreatorDetail = {
       endDate: "2026-02-28",
       status: "expired",
       remainingEvergreenQuota: 6,
+      progress: { submitted: 2, total: 6, percent: 33 },
+      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     }),
     period(MIDDLE, {
       periodNumber: 2,
@@ -55,6 +59,8 @@ const RAW: RawCreatorDetail = {
       contentQuota: 3,
       daysBetween: 7,
       remainingEvergreenQuota: 0,
+      progress: { submitted: 2, total: 6, percent: 33 },
+      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     }),
     period(NEWEST),
   ],
@@ -191,6 +197,39 @@ describe("toCreatorContentsQuery", () => {
   });
 });
 
+describe("toCreatorDetailView earnings and performance", () => {
+  it("carries each period's progress and performance, as GET /creators/:id counts them", () => {
+    const [newest] = toCreatorDetailView(RAW, CONTENTS, BARE).periods;
+
+    expect(newest.progress).toEqual({ submitted: 2, total: 6, percent: 33 });
+    expect(newest.performance.productivity).toBe("watch");
+  });
+
+  it("reads the open period's invoice as what it earns and where it stands", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], {
+      total: 2500000,
+      floored: false,
+      invoiceStatus: "finalized",
+    });
+
+    expect(view.earnings).toEqual({ amount: 2500000, status: "finalized" });
+  });
+
+  it("reads a total the penalty used up as a real Rp0", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], {
+      total: -150000,
+      floored: true,
+      invoiceStatus: "accruing",
+    });
+
+    expect(view.earnings).toEqual({ amount: 0, status: "accruing" });
+  });
+
+  it("has no earnings when no invoice was read", () => {
+    expect(toCreatorDetailView(RAW, CONTENTS, BARE).earnings).toBeNull();
+  });
+});
+
 describe("toCreatorCalendarQuery", () => {
   it("asks for one page of fifty of the whole period, nearest deadline first, with no filter", () => {
     expect(toCreatorCalendarQuery(NEWEST, 2).toString()).toBe(
@@ -288,6 +327,8 @@ describe("toCreatorDetailView", () => {
       contentQuota: 3,
       evergreenCount: 3,
       remainingEvergreenQuota: 0,
+      progress: { submitted: 2, total: 6, percent: 33 },
+      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
       daysBetween: 7,
     });
   });
@@ -306,6 +347,8 @@ describe("toCreatorDetailView", () => {
           contentQuota: 6,
           fixedRate: 400000,
           remainingEvergreenQuota: 4,
+          progress: { submitted: 2, total: 6, percent: 33 },
+          performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
           type: "regular",
           status: "expired",
           completed: 2,
@@ -327,6 +370,8 @@ describe("toCreatorDetailView", () => {
       contentQuota: 6,
       evergreenCount: 2,
       remainingEvergreenQuota: 4,
+      progress: { submitted: 2, total: 6, percent: 33 },
+      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
       daysBetween: 14,
     });
   });

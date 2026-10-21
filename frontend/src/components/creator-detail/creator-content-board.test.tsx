@@ -96,6 +96,8 @@ const PERIOD: CreatorPeriod = {
   contentQuota: 19,
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
+  progress: { submitted: 2, total: 6, percent: 33 },
+  performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
   daysBetween: 14,
 };
 
@@ -131,6 +133,7 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
     totalPages: Math.max(1, Math.ceil(total / 10)),
     counts: { all: total, action: 0, waiting: total, done: 0 },
     calendar: [{ ...row(99), name: "Konten Kalender", deadline: "2026-10-05" }],
+    earnings: null,
   };
 }
 

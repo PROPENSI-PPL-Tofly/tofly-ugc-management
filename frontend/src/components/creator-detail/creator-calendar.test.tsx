@@ -12,6 +12,8 @@ const PERIOD: CreatorPeriod = {
   contentQuota: 4,
   evergreenCount: 3,
   remainingEvergreenQuota: 1,
+  progress: { submitted: 2, total: 6, percent: 33 },
+  performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
   daysBetween: 14,
 };
 

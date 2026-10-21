@@ -43,6 +43,8 @@ const NEWEST: CreatorPeriod = {
   contentQuota: 19,
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
+  progress: { submitted: 2, total: 6, percent: 33 },
+  performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
   daysBetween: 14,
 };
 
@@ -56,6 +58,8 @@ const OLDEST: CreatorPeriod = {
   contentQuota: 3,
   evergreenCount: 3,
   remainingEvergreenQuota: 0,
+  progress: { submitted: 2, total: 6, percent: 33 },
+  performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
   daysBetween: 7,
 };
 
@@ -86,6 +90,7 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
     totalPages: 1,
     counts: { all: 1, action: 1, waiting: 0, done: 0 },
     calendar: [],
+    earnings: null,
     ...overrides,
   };
 }
