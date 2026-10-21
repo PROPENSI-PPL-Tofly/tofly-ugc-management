@@ -175,5 +175,39 @@ describe("InfoTip", () => {
 
       expect(screen.getByRole("tooltip")).toHaveClass("hidden");
     });
+
+    it("opens on keyboard focus alone", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+
+      fireEvent.focus(screen.getByRole("button", { name: "Info" }));
+
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+    });
+
+    // Measured at 375px on Rate & Invoicing: a tap on the open Total bubble went through it to
+    // the cell beneath, and the press counted as one elsewhere, so the bubble being read shut.
+    // The bubble takes its own presses now; jsdom does no hit-testing, so the browser checks it.
+    it("takes a press on its own open bubble, which stays open", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      fireEvent.click(screen.getByRole("button", { name: "Info" }));
+      const tooltip = screen.getByRole("tooltip");
+
+      expect(tooltip).not.toHaveClass("pointer-events-none");
+      fireEvent.pointerDown(tooltip);
+
+      expect(tooltip).toHaveClass("block");
+    });
+  });
+
+  // Measured at 1280px: the bubble shut the moment the pointer reached it, so a long explanation
+  // could not be followed with the pointer (a tablet's trackpad included). The bubble sits 6px
+  // below the icon; a strip above it covers that gap, so the pointer never leaves the tip.
+  it("keeps the bubble open as the pointer crosses from the icon onto it", () => {
+    render(<InfoTip label="Info" text="Teks" />);
+    const tooltip = screen.getByRole("tooltip");
+
+    expect(tooltip).toHaveClass("group-hover:block", "mt-1.5");
+    expect(tooltip).not.toHaveClass("pointer-events-none");
+    expect(tooltip).toHaveClass("before:absolute", "before:inset-x-0", "before:-top-1.5", "before:h-1.5");
   });
 });
