@@ -308,7 +308,8 @@ describe("InvoiceTable", () => {
       for (const amount of cells.slice(1, 6)) {
         expect(amount).toHaveClass("max-lg:flex", "max-lg:justify-between");
       }
-      expect(cells[5]).toHaveClass("max-lg:border-t");
+      // A rule over the sum, at the approved 1.5px (plain border-t outranks it and drew 1px).
+      expect(cells[5]).toHaveClass("max-lg:border-t-[1.5px]");
     });
 
     it("lets a long creator name wrap in a card instead of cutting it off", () => {

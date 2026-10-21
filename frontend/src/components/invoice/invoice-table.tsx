@@ -170,7 +170,7 @@ function finalCell(row: InvoiceRow) {
   // The backend's running total; while the bonus waits the Bonus cell says so beside it.
   return (
     <>
-      <strong>{finalLabel(row)}</strong>
+      <strong className="max-lg:text-xl max-lg:font-extrabold">{finalLabel(row)}</strong>
       {row.floored ? (
         <span className="mt-1 block whitespace-normal text-xs text-red-ink max-lg:basis-full max-lg:text-right">
           Penalti melebihi pembayaran
@@ -294,7 +294,7 @@ export function InvoiceTable({
                     written out rather than drawn from data-label, so the ⓘ can sit beside it. */}
                 <td
                   data-label="Total"
-                  className={`${CELL} whitespace-nowrap text-right tabular-nums max-lg:mt-1 max-lg:flex max-lg:flex-wrap max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:border-t max-lg:border-rule-2 max-lg:pt-2`}
+                  className={`${CELL} whitespace-nowrap text-right tabular-nums max-lg:-mx-4 max-lg:mt-2 max-lg:flex max-lg:flex-wrap max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:border-t-[1.5px] max-lg:border-rule max-lg:bg-surface-2 max-lg:px-4 max-lg:py-3`}
                 >
                   <span className="inline-flex items-center gap-1 text-xs font-normal text-muted lg:hidden">
                     Total
