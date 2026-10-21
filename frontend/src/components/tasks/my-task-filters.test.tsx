@@ -233,6 +233,22 @@ describe("MyTaskFilters", () => {
     });
   });
 
+  // Like the period chip: both days go in one navigation, so no address with one day left on
+  // it is ever opened. The range stays picked, and so do the tab and the other filters.
+  it("clears both custom days in one navigation with Kosongkan tanggal", () => {
+    renderOn(
+      { tab: "waiting", type: "specific", period: "custom", from: "2026-10-01", to: "2026-10-31" },
+      { tab: "waiting", period: "custom" },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Kosongkan tanggal" }));
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith(
+      "/creator/tasks?tab=waiting&type=specific&period=custom",
+      { scroll: false },
+    );
+  });
+
   it("says Perlu Dikerjakan ignores the period, since work to do never hides behind a date", () => {
     renderOn({ tab: "action", period: "month" }, { tab: "action", period: "month" });
     expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();

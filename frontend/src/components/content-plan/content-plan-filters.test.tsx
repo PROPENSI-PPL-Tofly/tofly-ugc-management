@@ -263,6 +263,26 @@ describe("ContentPlanFilters", () => {
     view.unmount();
   });
 
+  // Like the period chip: both days go in one navigation, so no address with one day left on
+  // it is ever opened. The range stays picked, and so do the tab and the other filters.
+  it("clears both custom days in one navigation with Kosongkan tanggal", () => {
+    searchParams = new URLSearchParams({
+      tab: "waiting",
+      creator: "id-1",
+      period: "custom",
+      from: "2026-10-01",
+      to: "2026-10-31",
+    });
+    renderFilters({ tab: "waiting", period: "custom", from: "2026-10-01", to: "2026-10-31" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Kosongkan tanggal" }));
+
+    expect(mockReplace).toHaveBeenCalledExactlyOnceWith(
+      "/admin/content-plan?tab=waiting&creator=id-1&period=custom",
+      { scroll: false },
+    );
+  });
+
   it("offers Reset only while something narrows the view, and keeps the tab on it", () => {
     const view = renderFilters();
     expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
