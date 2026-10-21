@@ -52,6 +52,19 @@ describe("CreatorContentTable", () => {
     ).toEqual(["Konten", "Deadline↑", "Status", "Aksi"]);
   });
 
+  it("drops the action column on Selesai, where nothing waits on the admin any more", () => {
+    const { onOpen } = renderTable([{ ...ROW, status: "link_submitted" }], { tab: "done" });
+
+    expect(screen.getAllByRole("columnheader").map((heading) => heading.textContent)).toEqual([
+      "Konten",
+      "Deadline↑",
+      "Status",
+    ]);
+    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail)/ })).toBeNull();
+    fireEvent.click(rowOf("Evg_7_RanggaPratama_26092026"));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+  });
+
   it("sorts by deadline from its header, as the Content Plan does, and says which way", () => {
     const { onSortToggle } = renderTable([ROW], { sort: "desc" });
 

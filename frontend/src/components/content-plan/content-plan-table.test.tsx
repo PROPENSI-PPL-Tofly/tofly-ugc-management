@@ -236,6 +236,17 @@ describe("ContentPlanTable", () => {
     expect(screen.queryByText(/Revisi ke-/)).toBeNull();
   });
 
+  it("drops Tags and Aksi on Selesai, where nothing is flagged and nothing waits on the admin", () => {
+    const { onOpen } = renderTable([{ ...ROW, status: "link_submitted" }], { tab: "done" });
+
+    const headings = screen.getAllByRole("columnheader").map((heading) => heading.textContent);
+    expect(headings).not.toContain("Tags");
+    expect(headings).not.toContain("Aksi");
+    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail)/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+  });
+
   it("says the tab's own nothing when the list is simply empty", () => {
     renderTable([], { tab: "action" });
     expect(screen.getByText("Tidak ada yang perlu di-approve.")).toBeInTheDocument();
