@@ -17,10 +17,12 @@ function boundingArea(bubble: HTMLElement): DOMRect | null {
 }
 
 /**
- * Moves an open bubble back inside its scrolling area and the window: a start-aligned one is
- * pulled left by its overhang, an end-aligned one pushed right, never past the other edge.
+ * Moves an open bubble back inside its scrolling area and the window: pulled left by its
+ * overhang past the right edge, or pushed right by its overhang past the left, never past the
+ * other edge. It is moved by the edge it hangs from alone; setting the other as well
+ * over-constrains it, and the browser then keeps `left` whatever the alignment.
  */
-function fit(bubble: HTMLElement) {
+function fit(bubble: HTMLElement, align: "start" | "end") {
   bubble.style.left = "";
   bubble.style.right = "";
 
@@ -30,19 +32,22 @@ function fit(bubble: HTMLElement) {
   const left = Math.max(0, area?.left ?? 0) + EDGE_MARGIN;
 
   const pull = Math.min(box.right - right, box.left - left);
-  if (pull > 0) {
-    bubble.style.left = `${-pull}px`;
-    return;
-  }
   const push = Math.min(left - box.left, right - box.right);
-  if (push > 0) bubble.style.right = `${-push}px`;
+  let shift = 0;
+  if (pull > 0) shift = -pull;
+  else if (push > 0) shift = push;
+  if (shift === 0) return;
+
+  if (align === "start") bubble.style.left = `${shift}px`;
+  else bubble.style.right = `${-shift}px`;
 }
 
 /**
  * The ⓘ beside a label or heading that explains it. The explanation shows on hover, on
- * keyboard focus and on a tap, closes on Escape, on leaving it or on a press elsewhere, and is tied to the button through aria-describedby so a screen reader reads
- * it too. `label` names the button (what it explains); `align` says which edge of the icon the
- * bubble lines up with, so one near the right edge of a dialog does not run off it.
+ * keyboard focus and on a tap, and closes on Escape, on leaving it or on a press elsewhere. It
+ * is tied to the button through aria-describedby so a screen reader reads it too. `label`
+ * names the button (what it explains); `align` says which edge of the icon the bubble lines up
+ * with, so one near the right edge of a dialog does not run off it.
  *
  * Closed, the bubble takes no room: laid out but invisible, it once widened a creator's invoice
  * sheet on a phone so the sheet scrolled sideways. Opened, it is measured and moved back inside
@@ -66,7 +71,7 @@ export function InfoTip({
   // Measured a frame after it opens, once hover, focus or a tap has shown it.
   function fitSoon() {
     requestAnimationFrame(() => {
-      if (bubble.current) fit(bubble.current);
+      if (bubble.current) fit(bubble.current, align);
     });
   }
 
