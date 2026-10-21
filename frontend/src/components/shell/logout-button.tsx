@@ -25,7 +25,10 @@ function SignOutIcon() {
   );
 }
 
-export function LogoutButton() {
+// The rail's own colours unless the frame hands in its theme's.
+const DEFAULT_TONE = "text-ink-2 hover:bg-surface-2 hover:text-ink active:bg-rule-2";
+
+export function LogoutButton({ tone = DEFAULT_TONE }: Readonly<{ tone?: string }>) {
   const router = useRouter();
   const [error, setError] = useState(false);
   const [pending, setPending] = useState(false);
@@ -56,7 +59,7 @@ export function LogoutButton() {
         type="button"
         onClick={logout}
         disabled={pending}
-        className={`flex w-full items-center gap-2 rounded-(--radius-control) px-3 py-2 text-left text-[13px] font-semibold text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink active:bg-rule-2 disabled:opacity-60 ${PHONE_TARGET}`}
+        className={`flex w-full items-center gap-2 rounded-(--radius-control) px-3 py-2 text-left text-[13px] font-semibold transition-colors disabled:opacity-60 ${tone} ${PHONE_TARGET}`}
       >
         <SignOutIcon />
         {pending ? "Keluar…" : "Keluar"}

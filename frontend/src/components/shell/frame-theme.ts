@@ -39,7 +39,7 @@ export const FRAME_THEMES: Record<Role, FrameTheme> = {
     account: "md:border-rule md:text-muted",
     logout:
       "max-md:text-accent-ink max-md:hover:bg-accent-ink/15 max-md:active:bg-accent-ink/25 md:text-ink-2 md:hover:bg-surface-2 md:hover:text-ink md:active:bg-rule-2",
-    place: "md:text-ink-2 md:hover:bg-surface-2 md:hover:text-ink",
+    place: "md:bg-transparent md:text-ink-2 md:hover:bg-surface-2 md:hover:text-ink",
     placeOn:
       "aria-[current=page]:bg-accent-deep aria-[current=page]:text-accent-ink md:aria-[current=page]:bg-accent",
   },
