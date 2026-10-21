@@ -68,7 +68,7 @@ describe("CreatorInvoiceView", () => {
       renderView({ status: "finalized", reachedAt: { ...NONE_REACHED, finalized: "2026-12-01T02:00:00Z" } });
 
       const tracker = screen.getByRole("list", { name: "Progres invoice" });
-      expect(within(tracker).getAllByRole("listitem")[1]).toHaveAttribute("aria-current", "step");
+      expect(within(tracker).getAllByRole("listitem")[2]).toHaveAttribute("aria-current", "step");
     });
   });
 

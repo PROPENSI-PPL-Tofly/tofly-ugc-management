@@ -98,8 +98,8 @@ describe("the payment part of the Rincian panel", () => {
     await openRincian(rowAt("creator_acked", ACKNOWLEDGED));
 
     const steps = within(screen.getByRole("list", { name: "Progres invoice" })).getAllByRole("listitem");
-    expect(steps[2]).toHaveTextContent("Di-ack Creator20 Okt 2026");
-    expect(steps[2]).toHaveAttribute("aria-current", "step");
+    expect(steps[2]).toHaveTextContent("Di-ack Creator, selesai20 Okt 2026");
+    expect(steps[3]).toHaveAttribute("aria-current", "step");
     expect(screen.getByLabelText("File bukti pembayaran")).toBeInTheDocument();
   });
 

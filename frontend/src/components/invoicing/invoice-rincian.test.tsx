@@ -96,13 +96,14 @@ describe("InvoiceRincian", () => {
 
     const steps = within(screen.getByRole("list", { name: "Progres invoice" })).getAllByRole("listitem");
     expect(steps.map((step) => step.textContent)).toEqual([
-      "Berjalan2 Mar 2026",
+      "Berjalan, selesai2 Mar 2026",
       "Final",
       "Di-ack Creator",
       "Bukti Bayar",
       "Paid",
     ]);
-    expect(steps[0]).toHaveAttribute("aria-current", "step");
+    // The ring is on the step the invoice waits for, not the one it has reached.
+    expect(steps[1]).toHaveAttribute("aria-current", "step");
   });
 
   it("dates every step a paid invoice reached", () => {
