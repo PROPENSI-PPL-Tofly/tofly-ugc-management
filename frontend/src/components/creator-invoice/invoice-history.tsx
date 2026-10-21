@@ -4,6 +4,7 @@ import { Pill } from "@/components/ui/pill";
 import { totalAmountLabel, type CreatorInvoice } from "@/lib/creator-invoice";
 import { formatContractWindow } from "@/lib/format";
 import { INVOICE_STATUS_LABELS } from "@/lib/invoice";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
 
@@ -27,7 +28,7 @@ export function InvoiceHistory({
 }>) {
   return (
     // Positioned, so the visually hidden Aksi heading is laid out inside this area, not the page.
-    <div className="relative overflow-x-auto">
+    <ScrollFrame>
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
           A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
       <table role="table" aria-label="Riwayat Invoice" className="w-full text-[13px] max-lg:block">
@@ -92,6 +93,6 @@ export function InvoiceHistory({
           )}
         </tbody>
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

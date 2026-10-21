@@ -17,6 +17,7 @@ import {
   formatPercent,
   formatRevisions,
 } from "@/lib/format";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const CONTRACT_LABELS: Record<ContractStatus, string> = {
   active: "Kontrak aktif",
@@ -136,7 +137,7 @@ export function CreatorTable({
 
   return (
     <>
-      <div className="relative overflow-x-auto">
+      <ScrollFrame>
         {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
             A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
         <table role="table" className="w-full border-collapse max-lg:block">
@@ -266,7 +267,7 @@ export function CreatorTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollFrame>
     </>
   );
 }

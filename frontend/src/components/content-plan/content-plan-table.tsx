@@ -23,6 +23,7 @@ import {
 import { creatorDetailBase } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
 import { DeadlineSortButton, DeadlineSortTh } from "./deadline-sort";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 font-semibold";
 const CELL = "px-5 py-3 max-lg:block max-lg:px-0 max-lg:py-1";
@@ -65,7 +66,7 @@ export function ContentPlanTable({
 
   return (
     // Positioned, so the visually hidden headings below lg are laid out inside this area.
-    <div className="relative overflow-x-auto">
+    <ScrollFrame>
       {/* Below lg the header row is hidden, so the deadline sort gets a button of its own. */}
       <DeadlineSortButton sort={sort} onToggle={onSortToggle} />
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
@@ -161,6 +162,6 @@ export function ContentPlanTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

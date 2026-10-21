@@ -12,6 +12,7 @@ import type { DeadlineSort } from "@/lib/content-plan";
 import { formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
 import { creatorActionLabel } from "@/lib/panel-actions";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 // From lg up this is a plain table. Below it (where the sidebar leaves too little width for four
 // columns) each row stacks into a card so the deadline, status and action stay on screen instead
@@ -133,7 +134,7 @@ export function MyTaskTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <ScrollFrame>
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
       <table role="table" className="w-full text-[13px] max-lg:block lg:table-fixed">
         <caption className="sr-only">Daftar Tugas Saya</caption>
@@ -219,6 +220,6 @@ export function MyTaskTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

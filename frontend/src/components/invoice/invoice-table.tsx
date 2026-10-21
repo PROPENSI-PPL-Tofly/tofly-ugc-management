@@ -20,6 +20,7 @@ import {
   type InvoiceStatus,
 } from "@/lib/invoice";
 import type { BreakdownKind } from "@/lib/invoice-breakdown";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
 const NUM_HEAD = "px-5 py-3 text-right font-semibold";
@@ -211,7 +212,7 @@ export function InvoiceTable({
   return (
     // relative: the scroll region is the containing block of anything absolutely placed inside
     // it, so nothing escapes it and widens the page.
-    <div className="relative overflow-x-auto">
+    <ScrollFrame>
       {sort ? <PhoneSort sort={sort} /> : null}
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
           A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
@@ -336,6 +337,6 @@ export function InvoiceTable({
           </tfoot>
         ) : null}
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

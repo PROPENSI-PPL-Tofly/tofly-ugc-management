@@ -13,6 +13,7 @@ import { needsReview } from "@/lib/content-plan";
 import type { ContentType } from "@/lib/contents";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 font-semibold";
 
@@ -57,7 +58,7 @@ export function CreatorContentTable({
 
   return (
     // Positioned, so the sr-only heading below is laid out inside the scroll area, not the page.
-    <div className="relative overflow-x-auto">
+    <ScrollFrame>
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
           A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
       <table role="table" className="w-full text-[13px] max-lg:block">
@@ -143,6 +144,6 @@ export function CreatorContentTable({
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollFrame>
   );
 }
