@@ -1,6 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
-import { SCROLL_HINT } from "@/components/ui/use-scroll-hint";
 import { AdminNav } from "./admin-nav";
 import { expectPhoneTarget } from "@/test/touch-target";
 
@@ -105,19 +104,35 @@ describe("AdminNav", () => {
     );
   });
 
-  // On a phone the menu is one sideways-scrolling row; "Rate & Invoicing" sat cut off at the
-  // edge with nothing to say the row moves.
-  it("fades the edge of the phone menu where more places sit off-screen", () => {
+  // The approved design replaces the phone's sideways-scrolling row (where "Rate & Invoicing"
+  // sat cut off at the edge) with three equal tiles at the foot of the screen: every place is
+  // in sight, so there is nothing left to scroll to and no edge to fade.
+  it("lays the places out as three equal tiles on a phone, none of them cut off", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators");
 
     render(<AdminNav />);
     const list = screen.getByRole("list");
-    Object.defineProperty(list, "clientWidth", { configurable: true, value: 288 });
-    Object.defineProperty(list, "scrollWidth", { configurable: true, value: 381 });
-    fireEvent.scroll(list);
 
-    expect(list).toHaveAttribute("data-more", "end");
-    expect(list).toHaveClass(...SCROLL_HINT.split(" "));
+    expect(list).toHaveClass("grid", "grid-cols-3");
+    expect(list).not.toHaveClass("overflow-x-auto");
+    expect(list).not.toHaveAttribute("data-more");
+  });
+
+  // A tile carries an icon above its words; the icon is decoration, so a place keeps its name.
+  it("gives each place an icon that screen readers skip", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    for (const link of screen.getAllByRole("link")) {
+      const icon = link.querySelector("svg");
+      expect(icon).toHaveAttribute("aria-hidden", "true");
+    }
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Creator Database",
+      "Content Plan",
+      "Rate & Invoicing",
+    ]);
   });
 
   // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
