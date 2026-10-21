@@ -14,6 +14,7 @@ import { Panel } from "@/components/ui/panel";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import {
+  CREATOR_DETAIL_DEFAULT_SORT,
   CREATOR_DETAIL_PAGE_SIZE,
   DEFAULT_CREATOR_DETAIL_PARAMS,
   PERIOD_STATUS_LABELS,
@@ -23,8 +24,9 @@ import {
   type CreatorDetailParams,
   type CreatorDetailView,
 } from "@/lib/creator-detail";
-import { useUrlQuery } from "@/lib/url-query";
+import { latestQuery, useUrlQuery } from "@/lib/url-query";
 import { CreatorContentFilters } from "./creator-content-filters";
+import { CREATOR_CONTENT_LIST_ID, CreatorContentTabBar } from "./creator-content-tab-bar";
 import { CreatorContentTable } from "./creator-content-table";
 
 /**
@@ -54,10 +56,29 @@ export function CreatorContentBoard({
 
   const period = view.selected;
 
-  /** The empty filtered table's way back: every filter goes, the open period stays. */
+  /** The empty filtered table's way back: every filter goes, the open period and tab stay. */
   function resetFilters() {
-    const query = buildCreatorDetailQuery({ ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: state.contract });
+    const query = buildCreatorDetailQuery({
+      ...DEFAULT_CREATOR_DETAIL_PARAMS,
+      contract: state.contract,
+      tab: state.tab,
+    });
     replaceQuery(new URLSearchParams(query).toString());
+  }
+
+  /**
+   * The deadline header's press: the order turns over and the old page no longer means
+   * anything. Built on what was last sent, so a filter ticked a moment ago is kept and a second
+   * quick press turns back.
+   */
+  function toggleSort() {
+    const next = new URLSearchParams(latestQuery());
+    const now = next.get("sort") ?? CREATOR_DETAIL_DEFAULT_SORT;
+    const flipped = now === "asc" ? "desc" : "asc";
+    if (flipped === CREATOR_DETAIL_DEFAULT_SORT) next.delete("sort");
+    else next.set("sort", flipped);
+    next.delete("page");
+    replaceQuery(next.toString());
   }
 
   /** What the list shows has changed: say so, and read it again. */
@@ -99,14 +120,21 @@ export function CreatorContentBoard({
           )}
         </div>
 
-        <CreatorContentFilters />
+        <CreatorContentTabBar active={state.tab} counts={view.counts} />
 
-        <CreatorContentTable
-          rows={view.rows}
-          filtered={isCreatorDetailFiltered(state)}
-          onOpen={setOpenContentId}
-          onReset={resetFilters}
-        />
+        <CreatorContentFilters tab={state.tab} />
+
+        <div id={CREATOR_CONTENT_LIST_ID} role="tabpanel" aria-label="Daftar konten periode">
+          <CreatorContentTable
+            rows={view.rows}
+            filtered={isCreatorDetailFiltered(state)}
+            tab={state.tab}
+            sort={state.sort}
+            onSortToggle={toggleSort}
+            onOpen={setOpenContentId}
+            onReset={resetFilters}
+          />
+        </div>
 
         <Pagination
           basePath={creatorDetailBase(creatorId)}

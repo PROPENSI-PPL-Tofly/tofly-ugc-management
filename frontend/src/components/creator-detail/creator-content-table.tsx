@@ -1,6 +1,7 @@
 "use client";
 
 import { ContentTags } from "@/components/contents/content-tags";
+import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,6 +12,7 @@ import {
   CONTENT_TYPE_LABELS,
   tableTags,
 } from "@/lib/content-labels";
+import { CONTENT_PLAN_EMPTY, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
 
@@ -26,21 +28,30 @@ const CELL = "px-5 py-3 align-top";
 export function CreatorContentTable({
   rows,
   filtered,
+  tab,
+  sort,
+  onSortToggle,
   onOpen,
   onReset,
 }: Readonly<{
   rows: readonly CreatorContentRow[];
-  /** Whether a filter narrowed the table, which changes what an empty table means. */
+  /** Whether a search or filter narrowed the table, which changes what an empty table means. */
   filtered: boolean;
+  /** The tab on show, whose own words an empty table says. */
+  tab: ContentPlanTab;
+  sort: DeadlineSort;
+  onSortToggle: () => void;
   onOpen: (contentId: string) => void;
   /** Clears the filters that emptied the table. */
   onReset: () => void;
 }>) {
   if (rows.length === 0) {
-    return filtered ? (
-      <FilteredEmpty title="Tidak ada konten sesuai filter." onReset={onReset} />
-    ) : (
-      <EmptyState title="Belum ada konten pada periode kontrak ini." />
+    if (filtered) return <FilteredEmpty title="Tidak ada konten sesuai filter." onReset={onReset} />;
+    // Semua is the whole period; every other tab says what it is waiting for.
+    return (
+      <EmptyState
+        title={tab === "all" ? "Belum ada konten pada periode kontrak ini." : CONTENT_PLAN_EMPTY[tab]}
+      />
     );
   }
 
@@ -53,9 +64,7 @@ export function CreatorContentTable({
             <th scope="col" className={HEAD}>
               Konten
             </th>
-            <th scope="col" className={HEAD}>
-              Deadline
-            </th>
+            <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
             <th scope="col" className={HEAD}>
               Status
             </th>

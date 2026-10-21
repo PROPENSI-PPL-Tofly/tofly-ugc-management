@@ -292,6 +292,9 @@ describe("CreatorContentTable", () => {
       <CreatorContentTable
         rows={[{ ...ROW, name: '<img src=x onerror="alert(1)">' }]}
         filtered={false}
+        tab="all"
+        sort="asc"
+        onSortToggle={vi.fn()}
         onOpen={vi.fn()}
         onReset={vi.fn()}
       />,

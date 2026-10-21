@@ -152,7 +152,7 @@ describe("CreatorContentFilters", () => {
 
   it("shows every pick of a filter the address repeats, as the table is narrowed by all of them", () => {
     searchParams = new URLSearchParams("status=scheduled&status=pending");
-    render(<CreatorContentFilters />);
+    render(<CreatorContentFilters tab="all" />);
 
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("2 dipilih");
   });

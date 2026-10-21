@@ -7,7 +7,15 @@
 //
 // Pure module: no next/headers, so it runs anywhere.
 
-import type { RawContentList, RawContentListItem } from "./content-list-api";
+import {
+  API_OVERDUE,
+  API_SORT,
+  API_TAB,
+  MAX_SEARCH_LENGTH,
+  toTabCounts,
+  type RawContentList,
+  type RawContentListItem,
+} from "./content-list-api";
 import type {
   CreatorContentRow,
   CreatorDetailParams,
@@ -72,13 +80,19 @@ export function toCreatorContentsQuery(
 ): URLSearchParams {
   const query = new URLSearchParams();
 
+  // In the API's own words, from the tables content-list-api keeps for the Content Plan, so a
+  // parameter renamed there is renamed here too and no filter silently narrows nothing.
   query.set("contract", contractId);
+  if (state.tab !== "all") query.set("tab", API_TAB[state.tab]);
+  if (state.q) query.set("q", state.q.slice(0, MAX_SEARCH_LENGTH));
   for (const type of new Set(state.type)) query.append("type", type);
   for (const status of new Set(state.status)) query.append("status", status);
 
-  // Earliest deadline first, as the per-creator Content Plan this page replaces listed it: what
-  // is due today or overdue belongs on the first page. The API's own default is latest first.
-  query.set("sort", "deadline_asc");
+  const overdue = API_OVERDUE[state.overdue];
+  if (overdue) query.set("overdue", overdue);
+
+  // Always sent: the API's own default is the latest first, the page's the nearest.
+  query.set("sort", API_SORT[state.sort]);
 
   // The API counts on a page number whichever page is asked for, page one included.
   query.set("page", String(state.page));
@@ -159,5 +173,6 @@ export function toCreatorDetailView(
     page: Math.min(contents?.page ?? 1, totalPages),
     total: contents?.total ?? 0,
     totalPages,
+    counts: toTabCounts(contents ?? { tabCounts: {} as RawContentList["tabCounts"] }),
   };
 }

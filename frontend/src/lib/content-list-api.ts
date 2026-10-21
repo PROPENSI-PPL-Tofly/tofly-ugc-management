@@ -27,7 +27,7 @@ import { periodRange } from "./deadline-period";
 export const MAX_FILTER_VALUES = 50;
 
 /** The longest search the API takes. */
-const MAX_SEARCH_LENGTH = 100;
+export const MAX_SEARCH_LENGTH = 100;
 
 /** What an id looks like to the API: 8-4-4-4-12 hexadecimal, and nothing more. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,20 +38,20 @@ type ApiTab = "all" | "needs_approval" | "waiting_creator" | "done";
 // it is given.
 // Open/Closed Principle: these three tables are data, so a new tab, sort or overdue choice is
 // a new line in a table and toContentListQuery below is not edited.
-const API_TAB: Record<ContentPlanTab, ApiTab> = {
+export const API_TAB: Record<ContentPlanTab, ApiTab> = {
   all: "all",
   action: "needs_approval",
   waiting: "waiting_creator",
   done: "done",
 };
 
-const API_SORT: Record<DeadlineSort, string> = {
+export const API_SORT: Record<DeadlineSort, string> = {
   asc: "deadline_asc",
   desc: "deadline_desc",
 };
 
 /** Null where the filter is not applied, so nothing is sent for it. */
-const API_OVERDUE: Record<OverdueFilter, string | null> = {
+export const API_OVERDUE: Record<OverdueFilter, string | null> = {
   all: null,
   yes: "true",
   no: "false",
@@ -118,11 +118,16 @@ export function toContentListQuery(state: ContentPlanParams, today: string): URL
   return query;
 }
 
-/** The API's answer under the page's names: `id` as `contentId`, each counter under its tab. */
-export function toContentPlanResponse(raw: RawContentList): ContentPlanResponse {
-  const counts = Object.fromEntries(
+/** Each of the API's tab counters under the page's tab name; a counter left out is zero. */
+export function toTabCounts(raw: Pick<RawContentList, "tabCounts">): ContentPlanCounts {
+  return Object.fromEntries(
     (Object.keys(API_TAB) as ContentPlanTab[]).map((tab) => [tab, raw.tabCounts[API_TAB[tab]] ?? 0]),
   ) as unknown as ContentPlanCounts;
+}
+
+/** The API's answer under the page's names: `id` as `contentId`, each counter under its tab. */
+export function toContentPlanResponse(raw: RawContentList): ContentPlanResponse {
+  const counts = toTabCounts(raw);
 
   return {
     items: raw.items.map(({ id, ...row }) => ({ contentId: id, ...row })),

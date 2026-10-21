@@ -143,6 +143,7 @@ describe("fetchCreatorDetail", () => {
 
   it("asks for the period the address names, with its filters and page, in the API's own words", async () => {
     await fetchCreatorDetail(CREATOR, {
+      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: OLDER,
       type: ["evergreen", "specific"],
       status: ["scheduled"],
@@ -300,6 +301,7 @@ describe("fetchCreatorDetail", () => {
       backend({ contents: [contentsOf(99, 14), contentsOf(2, 14, 4)] });
 
       const view = await fetchCreatorDetail(CREATOR, {
+        ...DEFAULT_CREATOR_DETAIL_PARAMS,
         contract: OLDER,
         type: ["evergreen"],
         status: ["scheduled", "pending"],

@@ -14,10 +14,12 @@ const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CONTRACT = "22222222-2222-4222-8222-222222222222";
 const PAGE = `/admin/creators/${CREATOR}`;
 
+let searchParams = new URLSearchParams();
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh, replace }),
   usePathname: () => PAGE,
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => searchParams,
 }));
 
 // The panel and the modal are tested where they live. Here each is a stand-in that shows what
@@ -140,6 +142,7 @@ function renderBoard(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  searchParams = new URLSearchParams();
 });
 
 describe("CreatorContentBoard", () => {
@@ -168,7 +171,7 @@ describe("CreatorContentBoard", () => {
   });
 
   it("turns the deadline order over from the header, back to page one", () => {
-    window.history.pushState({}, "", `${PAGE}?contract=${CONTRACT}&page=2`);
+    searchParams = new URLSearchParams({ contract: CONTRACT, page: "2" });
     renderBoard(viewOf(25, 2), { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: CONTRACT, page: 2 });
 
     fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));

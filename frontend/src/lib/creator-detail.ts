@@ -5,11 +5,18 @@
 
 import type { Tone } from "@/components/ui/pill";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
+import {
+  CONTENT_PLAN_TAB_KEYS,
+  type ContentPlanCounts,
+  type ContentPlanTab,
+  type DeadlineSort,
+  type OverdueFilter,
+} from "./content-plan";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
 import type { ContentStatus, ContentTag } from "./creators";
 import { formatDate } from "./format";
-import { listOf, pageNumber, single, type SearchParams } from "./search-params";
+import { listOf, oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
 export const CREATOR_DETAIL_PAGE_SIZE = 10;
@@ -18,6 +25,14 @@ export const CREATOR_DETAIL_PAGE_SIZE = 10;
 // to the lifecycle is a filter choice here without being listed a second time.
 const CONTENT_STATUSES = Object.keys(CONTENT_STATUS_LABELS) as ContentStatus[];
 const CONTENT_TYPES = Object.keys(CONTENT_TYPE_LABELS) as ContentType[];
+const OVERDUE_FILTERS: readonly OverdueFilter[] = ["all", "yes", "no"];
+const SORT_DIRECTIONS: readonly DeadlineSort[] = ["asc", "desc"];
+
+/**
+ * Nearest deadline first, as the per-creator Content Plan this page replaced listed it: what is
+ * due today or overdue belongs on the first page of one creator's period. The header turns it.
+ */
+export const CREATOR_DETAIL_DEFAULT_SORT: DeadlineSort = "asc";
 
 /** What an id looks like to the API: 8-4-4-4-12 hexadecimal, and nothing more. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,18 +42,30 @@ export function isUuid(value: string): boolean {
   return UUID.test(value);
 }
 
+/**
+ * The table's state, in the Content Plan's own words (tab, q, overdue, sort), so the two pages
+ * that list content read and link the same way.
+ */
 export interface CreatorDetailParams {
   /** The contract whose content is on show; null for the newest one. */
   contract: string | null;
+  tab: ContentPlanTab;
+  q: string;
   type: ContentType[];
   status: ContentStatus[];
+  overdue: OverdueFilter;
+  sort: DeadlineSort;
   page: number;
 }
 
 export const DEFAULT_CREATOR_DETAIL_PARAMS: CreatorDetailParams = {
   contract: null,
+  tab: "all",
+  q: "",
   type: [],
   status: [],
+  overdue: "all",
+  sort: CREATOR_DETAIL_DEFAULT_SORT,
   page: 1,
 };
 
@@ -160,6 +187,8 @@ export interface CreatorDetailView {
   /** The open period's content across every page, after the filters. */
   total: number;
   totalPages: number;
+  /** How much of the open period sits in each tab, under the search and filters. */
+  counts: ContentPlanCounts;
 }
 
 /**
@@ -172,8 +201,12 @@ export function parseCreatorDetailParams(params: SearchParams): CreatorDetailPar
 
   return {
     contract: isUuid(contract) ? contract : null,
+    tab: oneOf(CONTENT_PLAN_TAB_KEYS, single(params.tab), "all"),
+    q: single(params.q).trim(),
     type: listOf(CONTENT_TYPES, params.type),
     status: listOf(CONTENT_STATUSES, params.status),
+    overdue: oneOf(OVERDUE_FILTERS, single(params.overdue), "all"),
+    sort: oneOf(SORT_DIRECTIONS, single(params.sort), CREATOR_DETAIL_DEFAULT_SORT),
     page: pageNumber(params.page),
   };
 }
@@ -190,8 +223,12 @@ export function creatorDetailBase(creatorId: string): string {
 export function buildCreatorDetailQuery(state: CreatorDetailParams): Record<string, string> {
   const query: Record<string, string> = {};
   if (state.contract) query.contract = state.contract;
+  if (state.tab !== "all") query.tab = state.tab;
+  if (state.q) query.q = state.q;
   if (state.type.length > 0) query.type = state.type.join(",");
   if (state.status.length > 0) query.status = state.status.join(",");
+  if (state.overdue !== "all") query.overdue = state.overdue;
+  if (state.sort !== CREATOR_DETAIL_DEFAULT_SORT) query.sort = state.sort;
   if (state.page > 1) query.page = String(state.page);
   return query;
 }
@@ -204,11 +241,13 @@ export function creatorDetailHref(creatorId: string, state: CreatorDetailParams)
 }
 
 /**
- * Whether a filter narrowed the table, which changes what an empty table means. Choosing a
- * contract or a page narrows nothing.
+ * Whether a search or a filter narrowed the table, which changes what an empty table means.
+ * Choosing a contract, a tab, an order or a page narrows nothing.
  */
 export function isCreatorDetailFiltered(state: CreatorDetailParams): boolean {
-  return state.type.length > 0 || state.status.length > 0;
+  return (
+    state.q !== "" || state.type.length > 0 || state.status.length > 0 || state.overdue !== "all"
+  );
 }
 
 /** A filter change: the patch applies and the old page number no longer means anything. */
@@ -217,6 +256,17 @@ export function creatorDetailAfterFilterChange(
   patch: Partial<Pick<CreatorDetailParams, "type" | "status">>,
 ): CreatorDetailParams {
   return { ...state, ...patch, page: 1 };
+}
+
+/**
+ * A tab change, as on the Content Plan: the search and the filters carry over, but the status
+ * picks, the order and the page belong to the tab that was left behind.
+ */
+export function creatorDetailAfterTabChange(
+  state: CreatorDetailParams,
+  tab: ContentPlanTab,
+): CreatorDetailParams {
+  return { ...state, tab, status: [], sort: CREATOR_DETAIL_DEFAULT_SORT, page: 1 };
 }
 
 /**

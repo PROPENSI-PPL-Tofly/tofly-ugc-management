@@ -1,5 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
-import type { CreatorDetailView, CreatorPeriod } from "@/lib/creator-detail";
+import {
+  DEFAULT_CREATOR_DETAIL_PARAMS,
+  type CreatorDetailView,
+  type CreatorPeriod,
+} from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 import CreatorDetailPage, { metadata } from "./page";
 
@@ -156,18 +160,14 @@ describe("Creator Detail page", () => {
   it("asks for the creator in the address on the bare view", async () => {
     await renderPage();
 
-    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
-      contract: null,
-      type: [],
-      status: [],
-      page: 1,
-    });
+    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
   });
 
   it("asks with the period, the filters and the page the address names", async () => {
     await renderPage({ contract: FIRST, type: "specific", status: "scheduled,pending", page: "2" });
 
     expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
+      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: FIRST,
       type: ["specific"],
       status: ["scheduled", "pending"],
@@ -183,12 +183,7 @@ describe("Creator Detail page", () => {
       page: "-4",
     });
 
-    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
-      contract: null,
-      type: [],
-      status: [],
-      page: 1,
-    });
+    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
   });
 
   it("describes the latest contract in the profile even while an older period is open", async () => {
