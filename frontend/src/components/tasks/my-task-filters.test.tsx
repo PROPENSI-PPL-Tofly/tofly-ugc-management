@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { DEFAULT_MY_TASKS_PARAMS, type MyTasksParams } from "@/lib/my-tasks";
+import { DEFAULT_MY_TASKS_PARAMS, type MyTasksCounts, type MyTasksParams } from "@/lib/my-tasks";
 import { MyTaskFilters } from "./my-task-filters";
+import { MyTaskTabBar } from "./my-task-tab-bar";
 
 const replace = vi.fn();
 let searchParams = new URLSearchParams();
@@ -11,10 +12,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/creator/tasks",
 }));
 
+const COUNTS: MyTasksCounts = { all: 5, action: 3, waiting: 1, done: 1 };
+
 /** Renders the bar on an address, with the server's reading of it as the bar's state. */
 function renderOn(query: Record<string, string> = {}, state: Partial<MyTasksParams> = {}) {
   searchParams = new URLSearchParams(query);
-  return render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} />);
+  return render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} counts={COUNTS} />);
 }
 
 beforeEach(() => {
@@ -296,7 +299,7 @@ describe("MyTaskFilters", () => {
     ) {
       searchParams = new URLSearchParams({ view: "calendar", ...query });
       return render(
-        <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} view="calendar" />,
+        <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} view="calendar" counts={COUNTS} />,
       );
     }
 
@@ -341,7 +344,7 @@ describe("MyTaskFilters", () => {
 
   it("keeps the table's address free of a view when it is told the view is the table", () => {
     searchParams = new URLSearchParams({ overdue: "yes" });
-    render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, overdue: "yes" }} view="table" />);
+    render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, overdue: "yes" }} view="table" counts={COUNTS} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
@@ -365,6 +368,44 @@ describe("MyTaskFilters", () => {
 
       expect(screen.getByRole("button", { name: "Filter, 5 aktif" })).toBeInTheDocument();
       expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+    });
+
+    // The approved design moves the tabs into the folded filters on a phone, as one choice.
+    it("offers the tabs as one Tampilkan choice, each with its count", () => {
+      renderOn({ tab: "waiting" }, { tab: "waiting" });
+
+      expect(screen.getByRole("combobox", { name: "Tampilkan" })).toHaveValue("waiting");
+      expect(
+        Array.from(screen.getByRole("combobox", { name: "Tampilkan" }).querySelectorAll("option")).map(
+          (option) => option.textContent,
+        ),
+      ).toEqual(["Semua (5)", "Perlu Dikerjakan (3)", "Menunggu Admin (1)", "Selesai (1)"]);
+    });
+
+    // Picking a tab in the filters must be the very same move as pressing it in the tab row:
+    // one navigation, to the same address (the tab's contract applied, the view kept).
+    it("picks a tab exactly as pressing it does: one navigation to the same address", () => {
+      const query = { type: "specific", status: "scheduled", period: "month", view: "calendar", page: "2" };
+      const state = { type: ["specific" as const], status: ["scheduled" as const], period: "month" as const };
+
+      searchParams = new URLSearchParams(query);
+      const bar = render(<MyTaskTabBar active="all" counts={COUNTS} />);
+      fireEvent.click(screen.getByRole("tab", { name: /Menunggu Admin/ }));
+      expect(replace).toHaveBeenCalledOnce();
+      const pressed = replace.mock.calls[0];
+      bar.unmount();
+      replace.mockClear();
+
+      renderOn(query, state);
+      fireEvent.change(screen.getByRole("combobox", { name: "Tampilkan" }), { target: { value: "waiting" } });
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith(...pressed);
+    });
+
+    it("counts a tab other than Semua as a filter in use", () => {
+      renderOn({ tab: "waiting" }, { tab: "waiting" });
+
+      expect(screen.getByRole("button", { name: "Filter, 1 aktif" })).toBeInTheDocument();
     });
 
     it("counts nothing while nothing is narrowed, the search being its own box", () => {

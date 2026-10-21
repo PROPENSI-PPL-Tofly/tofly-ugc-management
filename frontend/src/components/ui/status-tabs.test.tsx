@@ -32,6 +32,14 @@ function renderTabs(active: Key = "all", counts = COUNTS) {
 const tabs = () => screen.getAllByRole("tab");
 
 describe("StatusTabs", () => {
+  // The approved design: on a phone the tabs are one Tampilkan choice inside the folded filters
+  // (TabChoice), so the row of tabs steps aside below sm and stays as it is from sm up.
+  it("steps aside on a phone, where the tabs are a choice in the filters", () => {
+    renderTabs();
+
+    expect(screen.getByRole("tablist", { name: "Tab Task Saya" })).toHaveClass("max-sm:hidden");
+  });
+
   it("names its tab list and offers each tab in order, counting only those that count", () => {
     renderTabs();
 

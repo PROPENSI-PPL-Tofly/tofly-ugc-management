@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ContentPlanParams } from "@/lib/content-plan";
 import { DEFAULT_CONTENT_PLAN_PARAMS } from "@/lib/content-plan";
 import { ContentPlanFilters } from "./content-plan-filters";
+import { ContentPlanTabBar } from "./content-plan-tab-bar";
 
 const mockReplace = vi.fn();
 let searchParams = new URLSearchParams();
@@ -17,11 +18,14 @@ const CREATORS = [
   { id: "id-2", name: "Rangga" },
 ];
 
+const COUNTS = { all: 58, action: 3, waiting: 10, done: 45 };
+
 function renderFilters(state: Partial<ContentPlanParams> = {}) {
   const view = render(
     <ContentPlanFilters
       state={{ ...DEFAULT_CONTENT_PLAN_PARAMS, ...state }}
       creators={CREATORS}
+      counts={COUNTS}
     />,
   );
   return {
@@ -342,6 +346,39 @@ describe("ContentPlanFilters", () => {
 
       expect(screen.getByRole("button", { name: "Filter, 4 aktif" })).toBeInTheDocument();
       expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+    });
+
+    // The approved design moves the tabs into the folded filters on a phone, as one choice.
+    it("offers the tabs as one Tampilkan choice, each with its count", () => {
+      searchParams = new URLSearchParams({ tab: "action" });
+      renderFilters({ tab: "action" });
+
+      const choice = screen.getByRole("combobox", { name: "Tampilkan" });
+      expect(choice).toHaveValue("action");
+      expect(Array.from(choice.querySelectorAll("option")).map((option) => option.textContent)).toEqual([
+        "Semua (58)",
+        "Perlu Approval (3)",
+        "Menunggu Kreator (10)",
+        "Selesai (45)",
+      ]);
+      expect(screen.getByRole("button", { name: "Filter, 1 aktif" })).toBeInTheDocument();
+    });
+
+    it("picks a tab exactly as pressing it does: one navigation to the same address", () => {
+      const query = { creator: "id-1", status: "scheduled", sort: "asc", page: "3" };
+      searchParams = new URLSearchParams(query);
+      const bar = render(<ContentPlanTabBar active="all" counts={COUNTS} />);
+      fireEvent.click(screen.getByRole("tab", { name: /Menunggu Kreator/ }));
+      expect(mockReplace).toHaveBeenCalledOnce();
+      const pressed = mockReplace.mock.calls[0];
+      bar.unmount();
+      mockReplace.mockClear();
+
+      searchParams = new URLSearchParams(query);
+      renderFilters({ creator: ["id-1"], status: ["scheduled"], sort: "asc" });
+      fireEvent.change(screen.getByRole("combobox", { name: "Tampilkan" }), { target: { value: "waiting" } });
+
+      expect(mockReplace).toHaveBeenCalledExactlyOnceWith(...pressed);
     });
 
     // E1: a period is taken off where it is chosen. Picking Semua periode takes the period and

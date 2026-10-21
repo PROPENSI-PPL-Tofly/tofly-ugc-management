@@ -19,6 +19,7 @@ import {
   PERIOD_FREE_MY_TAB,
   myStatusOptionsFor,
   taskStatusLabel,
+  type MyTasksCounts,
   type MyTasksParams,
 } from "@/lib/my-tasks";
 import { taskViewParams, type TaskView } from "@/lib/task-view";
@@ -44,6 +45,8 @@ export function MyTaskFilters({
   view = "table",
 }: Readonly<{
   state: MyTasksParams;
+  /** Stub until the tabs come to the phone's filters: accepted, not yet used. */
+  counts?: MyTasksCounts;
   /** The view being shown, kept when the filters are reset. */
   view?: TaskView;
 }>) {

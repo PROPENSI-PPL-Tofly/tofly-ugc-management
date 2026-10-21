@@ -16,6 +16,7 @@ import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-selec
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
   statusOptionsFor,
+  type ContentPlanCounts,
   type ContentPlanCreatorOption,
   type ContentPlanParams,
 } from "@/lib/content-plan";
@@ -29,7 +30,12 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 export function ContentPlanFilters({
   state,
   creators,
-}: Readonly<{ state: ContentPlanParams; creators: readonly ContentPlanCreatorOption[] }>) {
+}: Readonly<{
+  state: ContentPlanParams;
+  creators: readonly ContentPlanCreatorOption[];
+  /** Stub until the tabs come to the phone's filters: accepted, not yet used. */
+  counts?: ContentPlanCounts;
+}>) {
   const { search, setSearch, param, listParam, setParam, setParams, setPeriod, resetKeeping, pending } =
     useUrlFilters();
 
