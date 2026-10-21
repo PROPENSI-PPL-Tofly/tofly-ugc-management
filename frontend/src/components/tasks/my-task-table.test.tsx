@@ -542,4 +542,12 @@ describe("MyTaskTable", () => {
       }
     });
   });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as every list table does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
+  });
 });

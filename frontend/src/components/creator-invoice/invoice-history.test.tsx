@@ -131,4 +131,12 @@ describe("InvoiceHistory", () => {
       "Belum ada invoice dari periode sebelumnya.",
     );
   });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as every list table does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+    expect(screen.getByRole("table", { name: "Riwayat Invoice" }).closest("[data-scroll-frame]")).not.toBeNull();
+  });
 });

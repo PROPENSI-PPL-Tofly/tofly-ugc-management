@@ -471,4 +471,12 @@ describe("CreatorTable", () => {
       expect(screen.queryByRole("button", { name: "Detail" })).not.toBeInTheDocument();
     });
   });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (727 of 972px at 1024px).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
+  });
 });

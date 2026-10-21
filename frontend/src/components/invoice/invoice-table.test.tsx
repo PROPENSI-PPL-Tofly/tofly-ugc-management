@@ -465,4 +465,12 @@ describe("InvoiceTable", () => {
     expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rincian Rangga Pratama" })).toBeInTheDocument();
   });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (727 of 965px at 1024px).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
+  });
 });
