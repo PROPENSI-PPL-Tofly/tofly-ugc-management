@@ -292,10 +292,11 @@ describe("MyTaskBoard", () => {
     expect(replace).toHaveBeenCalledWith("/creator/tasks", { scroll: false });
   });
 
-  it("drops the Aksi column on Selesai, where nothing is left to do", () => {
+  it("keeps the Aksi column on Selesai, with each finished content's Detail button, as the prototype does", () => {
     render(<MyTaskBoard tasks={[task({ status: "link_submitted", actions: [] })]} tab="done" />);
 
-    expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Detail: / })).toBeInTheDocument();
   });
 
   it("keeps the Aksi column on every other tab", () => {
