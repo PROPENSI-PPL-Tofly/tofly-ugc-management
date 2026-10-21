@@ -112,6 +112,8 @@ export function InfoTip({
         ref={bubble}
         id={tipId}
         role="tooltip"
+        // A press here would take focus off the button, and its blur would shut the bubble.
+        onMouseDown={(event) => event.preventDefault()}
         // The bubble takes its own presses, so a tap on it neither shuts it nor reaches what
         // lies beneath; the strip above it bridges the 6px gap, so a pointer crossing from the
         // icon to the bubble never leaves the tip.
