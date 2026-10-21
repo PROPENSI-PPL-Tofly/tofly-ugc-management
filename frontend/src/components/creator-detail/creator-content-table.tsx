@@ -9,6 +9,7 @@ import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
+  tableTags,
 } from "@/lib/content-labels";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
@@ -90,12 +91,7 @@ export function CreatorContentTable({
                   <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                     {CONTENT_STATUS_LABELS[row.status]}
                   </StatusDot>
-                  <ContentTags tags={row.tags} />
-                  {row.revisionCount > 0 ? (
-                    <span className="text-xs font-semibold text-amber-ink">
-                      Revisi ke-{row.revisionCount}
-                    </span>
-                  ) : null}
+                  <ContentTags tags={tableTags(row.tags)} />
                 </span>
               </td>
               <td className={CELL}>

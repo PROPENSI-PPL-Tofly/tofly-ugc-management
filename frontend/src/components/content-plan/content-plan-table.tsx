@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
+import { ContentTags } from "@/components/contents/content-tags";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Pill, StatusDot } from "@/components/ui/pill";
+import { StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
-  CONTENT_TAG_LABELS,
-  CONTENT_TAG_TONES,
   CONTENT_TYPE_LABELS,
+  tableTags,
 } from "@/lib/content-labels";
 import {
   CONTENT_PLAN_EMPTY,
@@ -104,18 +104,7 @@ export function ContentPlanTable({
                 </StatusDot>
               </td>
               <td className="px-5 py-3">
-                <span className="flex flex-wrap items-center gap-1.5">
-                  {row.tags.map((tag) => (
-                    <Pill key={tag} tone={CONTENT_TAG_TONES[tag]}>
-                      {CONTENT_TAG_LABELS[tag]}
-                    </Pill>
-                  ))}
-                  {row.revisionCount > 0 ? (
-                    <span className="text-xs font-semibold text-amber-ink">
-                      Revisi ke-{row.revisionCount}
-                    </span>
-                  ) : null}
-                </span>
+                <ContentTags tags={tableTags(row.tags)} />
               </td>
               <td className="px-5 py-3">
                 <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />

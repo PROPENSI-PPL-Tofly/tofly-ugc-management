@@ -40,6 +40,17 @@ export const CONTENT_TAG_LABELS: Record<ContentTag, string> = {
   approval_bypassed: "Approval di-bypass",
 };
 
+/** The tags a table row shows; the others are read in the content's panel, beside its story. */
+const TABLE_TAGS: readonly ContentTag[] = ["overdue"];
+
+/**
+ * A row's tags as a table shows them: only Overdue, the one that asks for something now. A late
+ * hand-in or a skipped approval is history, and a table full of it hides the rows that matter.
+ */
+export function tableTags(tags: readonly ContentTag[]): ContentTag[] {
+  return tags.filter((tag) => TABLE_TAGS.includes(tag));
+}
+
 /**
  * Tags are judgements on top of the status, so they read as pills. Red for a deadline that was
  * missed, whether the hand-in came late or has not come at all; amber for a skipped approval,
