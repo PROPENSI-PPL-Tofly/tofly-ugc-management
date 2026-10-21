@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { fetchCreatorDashboard, type CreatorDashboard } from "@/lib/creator-dashboard.server";
 import { MyTasksError, type MyTask } from "@/lib/my-tasks";
 import CreatorDashboardPage from "./page";
@@ -243,6 +243,91 @@ describe("Creator dashboard page", () => {
       expect(Object.fromEntries(query)).toEqual({
         status: "scheduled,draft_review,draft_revision,draft_approved",
         overdue: "yes",
+      });
+    });
+
+    // The approved design sets each list's title in a band of its own above the rows, so the eye
+    // lands on the title first: red for what is late, blue for what is due next.
+    it("sets each list's title and count in its own band, red for overdue and blue for what is next", async () => {
+      mockedFetch.mockResolvedValue(
+        dashboard({ overdue: { items: [task({ tags: ["overdue"] })], total: 1 }, upcoming: { items: [task()], total: 1 } }),
+      );
+
+      await renderPage();
+
+      const lateBand = screen.getByRole("region", { name: /Overdue/ }).querySelector("[data-band]");
+      const nextBand = upcoming().querySelector("[data-band]");
+      expect(lateBand).toHaveAttribute("data-band", "late");
+      expect(nextBand).toHaveAttribute("data-band", "next");
+      expect(lateBand).toContainElement(within(screen.getByRole("region", { name: /Overdue/ })).getByRole("heading"));
+      expect(nextBand).toContainElement(within(upcoming()).getByRole("heading"));
+    });
+
+    // The approved design pages the overdue tasks in place: on a phone one at a time, so the
+    // section stays short, turned with the arrows; up to five come with the page already, so
+    // turning needs no request of its own.
+    describe("paging the overdue tasks", () => {
+      const LATE = ["Review Fitur Speaking", "Evg_1", "Tips Reading", "Latihan Structure"].map((name, index) =>
+        task({ id: `late-${index}`, name, deadline: `2026-10-0${index + 1}`, tags: ["overdue"] }),
+      );
+
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      function late() {
+        return screen.getByRole("region", { name: /Overdue/ });
+      }
+
+      function shown() {
+        return within(late()).getAllByRole("listitem").map((item) => item.textContent ?? "");
+      }
+
+      it("shows one overdue task at a time on a phone and turns to the next", async () => {
+        mockedFetch.mockResolvedValue(dashboard({ overdue: { items: LATE, total: 4 } }));
+
+        await renderPage();
+
+        expect(shown()).toHaveLength(1);
+        expect(shown()[0]).toContain("Review Fitur Speaking");
+        expect(within(late()).getByText("1 dari 4")).toBeInTheDocument();
+
+        fireEvent.click(within(late()).getByRole("button", { name: "Task overdue berikutnya" }));
+
+        expect(shown()[0]).toContain("Evg_1");
+        expect(within(late()).getByText("2 dari 4")).toBeInTheDocument();
+      });
+
+      it("shows three overdue tasks at a time on a wide screen", async () => {
+        vi.stubGlobal("matchMedia", (media: string) => ({
+          matches: true,
+          media,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }));
+        mockedFetch.mockResolvedValue(dashboard({ overdue: { items: LATE, total: 4 } }));
+
+        await renderPage();
+
+        expect(shown()).toHaveLength(3);
+        expect(within(late()).getByText("1–3 dari 4")).toBeInTheDocument();
+      });
+
+      it("keeps the way to every overdue task beside the pager when the page holds only part", async () => {
+        mockedFetch.mockResolvedValue(dashboard({ overdue: { items: LATE, total: 9 } }));
+
+        await renderPage();
+
+        expect(within(late()).getByRole("navigation", { name: "Halaman task overdue" })).toBeInTheDocument();
+        expect(within(late()).getByRole("link", { name: "Lihat semua 9 di Task Saya" })).toBeInTheDocument();
+      });
+
+      it("draws no pager for a single overdue task", async () => {
+        mockedFetch.mockResolvedValue(dashboard({ overdue: { items: LATE.slice(0, 1), total: 1 } }));
+
+        await renderPage();
+
+        expect(within(late()).queryByRole("navigation")).not.toBeInTheDocument();
       });
     });
 
