@@ -72,6 +72,7 @@ describe("CreatorTable", () => {
       "Tepat waktu",
       "Rata-rata revisi",
       "Produktivitas",
+      "",
     ]);
   });
 
@@ -289,7 +290,6 @@ describe("CreatorTable", () => {
       expect(within(cells.at(-1)!).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveTextContent(
         "Detail",
       );
-      expect(screen.getAllByRole("columnheader").at(-1)).toHaveTextContent("Aksi");
     });
 
     it("opens the creator's page once when its Detail button is pressed, not again through the row", () => {
