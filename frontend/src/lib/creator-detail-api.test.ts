@@ -2,6 +2,7 @@ import type { RawContentList } from "./content-list-api";
 import { DEFAULT_CREATOR_DETAIL_PARAMS, type CreatorDetailParams } from "./creator-detail";
 import {
   openContractId,
+  toCreatorCalendarQuery,
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
@@ -190,7 +191,25 @@ describe("toCreatorContentsQuery", () => {
   });
 });
 
+describe("toCreatorCalendarQuery", () => {
+  it("asks for one page of fifty of the whole period, nearest deadline first, with no filter", () => {
+    expect(toCreatorCalendarQuery(NEWEST, 2).toString()).toBe(
+      `contract=${NEWEST}&sort=deadline_asc&pageSize=50&page=2`,
+    );
+  });
+});
+
 describe("toCreatorDetailView", () => {
+  it("carries the period's whole content for the calendar, under the page's names", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, CONTENTS.items);
+
+    expect(view.calendar).toEqual(view.rows);
+  });
+
+  it("has an empty calendar when none was read", () => {
+    expect(toCreatorDetailView(RAW, CONTENTS, BARE).calendar).toEqual([]);
+  });
+
   it("counts each tab of the open period under the page's tab names", () => {
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).counts).toEqual({ all: 11, action: 1, waiting: 9, done: 1 });
   });

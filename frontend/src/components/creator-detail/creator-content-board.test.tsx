@@ -130,6 +130,7 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
     total,
     totalPages: Math.max(1, Math.ceil(total / 10)),
     counts: { all: total, action: 0, waiting: total, done: 0 },
+    calendar: [{ ...row(99), name: "Konten Kalender", deadline: "2026-10-05" }],
   };
 }
 
@@ -137,7 +138,9 @@ function renderBoard(
   view: CreatorDetailView = viewOf(3),
   state: CreatorDetailParams = DEFAULT_CREATOR_DETAIL_PARAMS,
 ) {
-  return render(<CreatorContentBoard creatorId={CREATOR} view={view} state={state} />);
+  return render(
+    <CreatorContentBoard creatorId={CREATOR} view={view} state={state} today="2026-10-21" />,
+  );
 }
 
 beforeEach(() => {
@@ -168,6 +171,18 @@ describe("CreatorContentBoard", () => {
     const list = screen.getByRole("tabpanel", { name: "Daftar konten periode" });
     expect(list).toContainElement(screen.getByRole("table"));
     expect(tabs.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows the period's calendar above its Content Plan, and opens a content from its chip", () => {
+    renderBoard();
+
+    const calendar = screen.getByRole("heading", { level: 2, name: "Jadwal Konten" });
+    const plan = screen.getByRole("heading", { level: 2, name: "Content Plan" });
+    expect(calendar.compareDocumentPosition(plan) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Konten Kalender · Scheduled" }));
+
+    expect(screen.getByRole("dialog", { name: "Detail konten" })).toHaveTextContent("content-99 sebagai admin");
   });
 
   it("turns the deadline order over from the header, back to page one", () => {
@@ -381,5 +396,6 @@ describe("CreatorContentBoard", () => {
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.queryByRole("button", { name: "+ Tambah Konten" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Tipe:/ })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Jadwal Konten" })).toBeNull();
   });
 });
