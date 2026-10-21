@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { MultiSelect } from "./multi-select";
+import { PHONE_TARGET } from "./touch-target";
 
 const OPTIONS = [
   { value: "id-1", label: "Salsa" },
@@ -402,5 +403,16 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
         expect(box).toHaveClass("accent-accent");
       }
     });
+  });
+});
+
+// Measured at 375px: the trigger was 32px tall and each pick's chip 20px. On a phone they are the
+// presses that narrow the list and widen it again, so each gets 44px.
+describe("MultiSelect on a phone", () => {
+  it("gives the trigger and each pick's chip a 44px press", () => {
+    renderSelect(["id-1"]);
+
+    expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveClass(PHONE_TARGET);
+    expect(screen.getByRole("button", { name: /^Hapus filter Creator:/ })).toHaveClass(PHONE_TARGET);
   });
 });

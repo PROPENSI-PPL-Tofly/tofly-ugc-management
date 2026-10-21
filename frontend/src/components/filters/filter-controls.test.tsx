@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   FilterBar,
+  FilterRadio,
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
@@ -8,6 +9,7 @@ import {
   SearchBox,
   offeredPicks,
 } from "./filter-controls";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
 describe("offeredPicks", () => {
   const OPTIONS = [
@@ -279,5 +281,60 @@ describe("FilterBar", () => {
 
     expect(toggle).toHaveAccessibleName("Filter");
     expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+  });
+});
+
+// Measured by hit-testing at 375px (Task Saya, Content Plan, Rate & Invoicing): the search box and
+// the selects were 32-34px tall, the Filter button 32px, a Tipe choice 28px, a chip 20px and Reset
+// 24px. On a phone each is the press that narrows or widens the list, so each gets 44px.
+describe("on a phone, every filter control is a 44px press", () => {
+  it("covers the search, a select, a range day and Reset", () => {
+    const { rerender } = render(<SearchBox label="Cari" value="" onChange={vi.fn()} />);
+    expect(screen.getByRole("searchbox", { name: "Cari" })).toHaveClass(PHONE_TARGET);
+
+    rerender(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
+    expect(screen.getByRole("combobox", { name: "Overdue" })).toHaveClass(PHONE_TARGET);
+
+    rerender(<ResetFilters onReset={vi.fn()} disabled={false} />);
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveClass(PHONE_TARGET);
+  });
+
+  it("covers both days of a custom range", () => {
+    render(<PeriodFilter period="custom" from="" to="" ignored={false} onChange={vi.fn()} />);
+
+    const days = document.querySelectorAll('input[type="date"]');
+    expect(days).toHaveLength(2);
+    for (const day of days) expect(day).toHaveClass(PHONE_TARGET);
+  });
+
+  it("covers each Tipe choice, where the label is what a finger presses", () => {
+    render(
+      <FilterRadio
+        label="Tipe"
+        value="all"
+        options={[
+          { value: "all", label: "Semua" },
+          { value: "evergreen", label: "Evergreen" },
+        ]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    for (const radio of screen.getAllByRole("radio")) expect(radio.closest("label")).toHaveClass(PHONE_TARGET);
+  });
+
+  it("covers the Filter button and each active-filter chip", () => {
+    render(
+      <FilterBar
+        search={null}
+        active={[{ id: "overdue", text: "Overdue", onRemove: vi.fn() }]}
+        reset={null}
+      >
+        {null}
+      </FilterBar>,
+    );
+
+    expect(screen.getByRole("button", { name: /^Filter/ })).toHaveClass(PHONE_TARGET);
+    expect(screen.getByRole("button", { name: "Hapus Overdue" })).toHaveClass(PHONE_TARGET);
   });
 });

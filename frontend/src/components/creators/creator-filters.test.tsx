@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { CreatorFilters } from "./creator-filters";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
 function renderFilters(overrides: Record<string, string> = {}) {
   searchParams = new URLSearchParams(overrides);
@@ -186,5 +187,16 @@ describe("CreatorFilters", () => {
     rerender(<CreatorFilters />);
 
     expect(search()).toHaveValue("salsa");
+  });
+
+  // Measured at 375px: the search box 34px tall and the selects 32px. On a phone they are the
+  // presses that narrow the roster, so each gets 44px, as Reset does.
+  it("gives the search, both selects and Reset a 44px press on a phone", () => {
+    renderFilters({ q: "nadia" });
+
+    expect(search()).toHaveClass(PHONE_TARGET);
+    expect(contractStatus()).toHaveClass(PHONE_TARGET);
+    expect(screen.getByRole("combobox", { name: /produktivitas/i })).toHaveClass(PHONE_TARGET);
+    expect(screen.getByRole("button", { name: /reset/i })).toHaveClass(PHONE_TARGET);
   });
 });
