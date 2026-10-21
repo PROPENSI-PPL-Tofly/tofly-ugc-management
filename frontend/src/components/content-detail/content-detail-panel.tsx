@@ -151,7 +151,7 @@ const STEP_TEXT: Record<ContentDetail["status"], string> = {
 // The dot beside each event, always next to its title so colour is never the only signal. It
 // takes the tone of the status the event led to, as the status dots do: neutral once scheduled,
 // brand blue for a draft waiting on the admin, amber for one sent back, green from approval on.
-// Red is left to a missed deadline, which the Overdue and Late Submission tags carry.
+// Red is left to a missed deadline, which the Overdue tag carries.
 const EVENT_DOTS: Record<DetailEventType, string> = {
   scheduled: "bg-muted ring-muted",
   draft_submitted: "bg-accent ring-accent",
