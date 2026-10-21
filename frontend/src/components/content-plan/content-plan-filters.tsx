@@ -30,7 +30,8 @@ export function ContentPlanFilters({
   state,
   creators,
 }: Readonly<{ state: ContentPlanParams; creators: readonly ContentPlanCreatorOption[] }>) {
-  const { search, setSearch, param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
+  const { search, setSearch, param, listParam, setParam, setParams, resetKeeping, pending } =
+    useUrlFilters();
 
   const statusChoices = statusOptionsFor(state.tab);
   const creatorOptions: MultiSelectOption[] = creators.map((c) => ({ value: c.id, label: c.name }));
@@ -84,11 +85,9 @@ export function ContentPlanFilters({
       ? pickFilters("Status", statuses, statusOptions, (next) => setListParam("status", next))
       : []),
     ...(state.tab === "done" ? [] : overdueFilter(param("overdue"), () => setParam("overdue", "all"))),
-    ...periodFilter(param("period"), from, to, periodIgnored, () => {
-      setParam("period", "all");
-      setParam("from", "");
-      setParam("to", "");
-    }),
+    ...periodFilter(param("period"), from, to, periodIgnored, () =>
+      setParams({ period: "all", from: "", to: "" }),
+    ),
   ];
 
   return (

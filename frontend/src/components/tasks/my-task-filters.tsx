@@ -47,7 +47,8 @@ export function MyTaskFilters({
   /** The view being shown, kept when the filters are reset. */
   view?: TaskView;
 }>) {
-  const { search, setSearch, param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
+  const { search, setSearch, param, listParam, setParam, setParams, resetKeeping, pending } =
+    useUrlFilters();
 
   const statusOptions: MultiSelectOption[] = myStatusOptionsFor(state.tab).map((value) => ({
     value,
@@ -76,11 +77,9 @@ export function MyTaskFilters({
       ? pickFilters("Status", statuses, statusOptions, (next) => setParam("status", next.join(",")))
       : []),
     ...(state.tab === "done" ? [] : overdueFilter(param("overdue"), () => setParam("overdue", "all"))),
-    ...periodFilter(param("period"), day("from"), day("to"), periodIgnored, () => {
-      setParam("period", "all");
-      setParam("from", "");
-      setParam("to", "");
-    }),
+    ...periodFilter(param("period"), day("from"), day("to"), periodIgnored, () =>
+      setParams({ period: "all", from: "", to: "" }),
+    ),
   ];
 
   return (

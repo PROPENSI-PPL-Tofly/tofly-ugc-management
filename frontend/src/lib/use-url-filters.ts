@@ -37,16 +37,27 @@ export function useUrlFilters() {
     }
   }, [q]);
 
-  /** Sets one filter; an empty value or "all" removes it from the URL. */
-  const setParam = useCallback(
-    (key: string, value: string) => {
+  /**
+   * Sets several filters in one navigation, for a change that is one step to the person (a
+   * period and its days); an empty value or "all" removes that filter from the URL.
+   */
+  const setParams = useCallback(
+    (changes: Readonly<Record<string, string>>) => {
       const next = new URLSearchParams(latestQuery());
-      if (value && value !== "all") next.set(key, value);
-      else next.delete(key);
+      for (const [key, value] of Object.entries(changes)) {
+        if (value && value !== "all") next.set(key, value);
+        else next.delete(key);
+      }
       next.delete("page");
       replaceQuery(next.toString());
     },
     [replaceQuery],
+  );
+
+  /** Sets one filter; an empty value or "all" removes it from the URL. */
+  const setParam = useCallback(
+    (key: string, value: string) => setParams({ [key]: value }),
+    [setParams],
   );
 
   // One request per pause in typing rather than one per keystroke.
@@ -92,5 +103,5 @@ export function useUrlFilters() {
     [filters],
   );
 
-  return { search, setSearch, param, listParam, setParam, reset, resetKeeping, pending };
+  return { search, setSearch, param, listParam, setParam, setParams, reset, resetKeeping, pending };
 }

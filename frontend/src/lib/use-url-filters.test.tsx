@@ -90,6 +90,17 @@ describe("useUrlFilters", () => {
     expect(replace).toHaveBeenCalledWith("/admin/creators?q=ra", { scroll: false });
   });
 
+  it("sets and removes several filters in one navigation, keeping the rest and dropping the page", () => {
+    searchParams = new URLSearchParams({ tab: "waiting", period: "custom", from: "2026-10-01", page: "2" });
+    const { result } = renderHook(() => useUrlFilters());
+
+    act(() => result.current.setParams({ period: "all", from: "", to: "", type: "specific" }));
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith("/admin/creators?tab=waiting&type=specific", {
+      scroll: false,
+    });
+  });
+
   // The UAT bug: the URL still held the old search while the reset was on its way, so the
   // debounce sent "q cleared" on top of the old filters and put them back.
   it("resets the search and every filter, and nothing puts them back afterwards", () => {
