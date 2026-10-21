@@ -112,7 +112,10 @@ export function InfoTip({
         ref={bubble}
         id={tipId}
         role="tooltip"
-        className={`pointer-events-none absolute top-full z-10 mt-1.5 w-max max-w-[260px] rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink group-hover:block ${shown ? "block" : "hidden"} ${align === "end" ? "right-0" : "left-0"}`}
+        // The bubble takes its own presses, so a tap on it neither shuts it nor reaches what
+        // lies beneath; the strip above it bridges the 6px gap, so a pointer crossing from the
+        // icon to the bubble never leaves the tip.
+        className={`absolute top-full z-10 mt-1.5 w-max before:absolute before:inset-x-0 before:-top-1.5 before:h-1.5 before:content-[''] max-w-[260px] rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink group-hover:block ${shown ? "block" : "hidden"} ${align === "end" ? "right-0" : "left-0"}`}
       >
         {text}
       </span>
