@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
 import { ContentPlanTable } from "./content-plan-table";
 
@@ -217,15 +217,23 @@ describe("ContentPlanTable", () => {
     expect(screen.getByRole("button", { name: "Video Review Kopi" })).toHaveAttribute("type", "button");
   });
 
-  it("reads each tag as a coloured pill beside the status", () => {
-    renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+  it("keeps only the Overdue tag in the table; the rest belong to the content's panel", () => {
+    renderTable([{ ...ROW, tags: ["late_submission", "overdue", "approval_bypassed"] }]);
+
+    const tags = screen.getByRole("list", { name: "Tanda konten" });
+    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Overdue"]);
   });
 
-  it("says how many times a piece came back for revision", () => {
+  it("draws no tag list for a row whose only tags stay out of the table", () => {
+    renderTable([{ ...ROW, tags: ["late_submission", "approval_bypassed"] }]);
+
+    expect(screen.queryByRole("list", { name: "Tanda konten" })).toBeNull();
+    expect(screen.queryByText("Late Submission")).toBeNull();
+  });
+
+  it("leaves the revision count to the content's panel", () => {
     renderTable([{ ...ROW, revisionCount: 2 }]);
-    expect(screen.getByText("Revisi ke-2")).toBeInTheDocument();
+    expect(screen.queryByText(/Revisi ke-/)).toBeNull();
   });
 
   it("says the tab's own nothing when the list is simply empty", () => {
