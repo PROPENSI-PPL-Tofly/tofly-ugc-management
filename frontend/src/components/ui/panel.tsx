@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { PlaceIconName } from "@/components/shell/place-icon";
 
 /**
  * The bordered surface a section of the admin interface sits on. One containment layer.
@@ -34,4 +35,23 @@ export function PanelHead({
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
+}
+
+/** A list panel's title band, tinted by tone: the creator's accent, the admin's ink, or quiet. */
+export type BandTone = "accent" | "ink" | "quiet";
+
+/** Stub until the bands land: accepts the band's parts, draws nothing yet. */
+export function PanelBand(
+  _props: Readonly<{
+    title: string;
+    tone: BandTone;
+    icon: PlaceIconName;
+    count?: number;
+    noun?: string;
+    aside?: ReactNode;
+    action?: ReactNode;
+    hint?: string;
+  }>,
+) {
+  return null;
 }

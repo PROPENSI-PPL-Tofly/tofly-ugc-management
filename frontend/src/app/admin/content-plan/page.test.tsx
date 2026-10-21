@@ -197,3 +197,25 @@ describe("Content Plan page", () => {
     expect(screen.queryByText("Belum ada konten.")).not.toBeInTheDocument();
   });
 });
+
+// Approved design: the plan is titled Konten in the admin's ink band, with how many contents
+// the tab and filters hold, and on a phone the open tab's name, since the tabs fold away there.
+describe("Content Plan's list band", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams = new URLSearchParams();
+    window.history.replaceState({}, "", "/admin/content-plan");
+    fetchCreators.mockResolvedValue([{ id: "id-1", name: "Salsa Wijaya" }]);
+  });
+
+  it("titles the plan in the ink band with the contents it holds and the open tab", async () => {
+    fetchPlan.mockResolvedValue(planOf({ total: 12, counts: { all: 42, action: 3, waiting: 12, done: 27 } }));
+
+    await renderPage({ tab: "waiting" });
+
+    const band = screen.getByRole("heading", { level: 2, name: "Konten" }).closest("[data-tone]") as HTMLElement;
+    expect(band).toHaveAttribute("data-tone", "ink");
+    expect(band.querySelector("[data-count]")).toHaveTextContent("12 konten");
+    expect(band).toHaveTextContent("Menunggu Kreator");
+  });
+});

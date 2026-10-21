@@ -496,3 +496,35 @@ describe("Task Saya page views", () => {
     expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
   });
 });
+
+// Approved design: the list is titled in the creator's accent band, with how many tasks the
+// tab and filters hold, and on a phone, where the tabs fold into Filter, the open tab's name.
+describe("Task Saya's list band", () => {
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
+  });
+
+  function band() {
+    return screen.getByRole("heading", { name: "Daftar Tugas Saya" }).closest("[data-tone]") as HTMLElement;
+  }
+
+  it("titles the list in the accent band with the tasks it holds", async () => {
+    mockedFetch.mockResolvedValue(answer());
+
+    await renderPage();
+
+    expect(band()).toHaveAttribute("data-tone", "accent");
+    expect(band().querySelector("[data-count]")).toHaveTextContent("11 task");
+    expect(within(band()).getByText("Semua")).toHaveClass("sm:hidden");
+  });
+
+  it("names the open tab in the band", async () => {
+    mockedFetch.mockResolvedValue(answer({ total: 2 }));
+
+    await renderPage({ tab: "waiting" });
+
+    expect(band().querySelector("[data-count]")).toHaveTextContent("2 task");
+    expect(within(band()).getByText("Menunggu Admin")).toBeInTheDocument();
+  });
+});

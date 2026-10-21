@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { creator, listResponse } from "@/components/creators/creator.fixture";
 import { fetchCreators } from "@/lib/creators.server";
 import CreatorsPage from "./page";
@@ -194,5 +194,24 @@ describe("Creator database page", () => {
     fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
 
     expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+  });
+});
+
+// Approved design: the roster is titled in the admin's ink band, with how many creators match.
+describe("Creator Database's list band", () => {
+  beforeEach(() => {
+    vi.mocked(fetchCreators).mockReset();
+    vi.mocked(fetchCreators).mockResolvedValue(
+      listResponse({ items: [creator()], page: 1, total: 12, totalPages: 2 }),
+    );
+  });
+
+  it("titles the roster in the ink band with the creators that match", async () => {
+    await renderPage();
+
+    const band = screen.getByRole("heading", { level: 2, name: "Semua creator" }).closest("[data-tone]") as HTMLElement;
+    expect(band).toHaveAttribute("data-tone", "ink");
+    expect(band.querySelector("[data-count]")).toHaveTextContent("12 creator");
+    expect(within(band).getByRole("button", { name: /tambah creator/i })).toBeInTheDocument();
   });
 });
