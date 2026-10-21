@@ -25,6 +25,7 @@ import {
   type CreatorDetailView,
 } from "@/lib/creator-detail";
 import { latestQuery, useUrlQuery } from "@/lib/url-query";
+import { CreatorCalendar } from "./creator-calendar";
 import { CreatorContentFilters } from "./creator-content-filters";
 import { CREATOR_CONTENT_LIST_ID, CreatorContentTabBar } from "./creator-content-tab-bar";
 import { CreatorContentTable } from "./creator-content-table";
@@ -42,11 +43,14 @@ export function CreatorContentBoard({
   creatorId,
   view,
   state,
+  today,
 }: Readonly<{
   creatorId: string;
   view: CreatorDetailView;
   /** The address as the server read it, which the page links are built on. */
   state: CreatorDetailParams;
+  /** Today in Jakarta, "YYYY-MM-DD", which the calendar marks and opens on. */
+  today: string;
 }>) {
   const router = useRouter();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
@@ -101,6 +105,15 @@ export function CreatorContentBoard({
 
   return (
     <>
+      {/* Keyed by period: another period's calendar opens on its own month. */}
+      <CreatorCalendar
+        key={period.contractId}
+        period={period}
+        entries={view.calendar}
+        today={today}
+        onOpen={setOpenContentId}
+      />
+
       {/* Unclipped: the filter popups hang below the bar and past the panel's foot. */}
       <Panel clip={false}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-5">

@@ -164,6 +164,26 @@ describe("CreatorContentTable", () => {
     expect(screen.queryByText("Overdue")).toBeNull();
   });
 
+  it("leaves the panel shut when the press ended a drag that selected the name to copy it", () => {
+    vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "Evg_7" } as Selection);
+    const { onOpen } = renderTable();
+
+    fireEvent.click(rowOf("Evg_7_RanggaPratama_26092026"));
+
+    expect(onOpen).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("opens a row whose press left no selection to read at all", () => {
+    vi.spyOn(window, "getSelection").mockReturnValue(null);
+    const { onOpen } = renderTable();
+
+    fireEvent.click(rowOf("Evg_7_RanggaPratama_26092026"));
+
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+    vi.restoreAllMocks();
+  });
+
   it("keeps the rows in the order they were given", () => {
     renderTable([
       { ...ROW, contentId: "c-2", name: "Konten Kedua" },

@@ -100,6 +100,22 @@ export function toCreatorContentsQuery(
   return query;
 }
 
+/** The most rows GET /contents hands out in one request. */
+export const CALENDAR_PAGE_SIZE = 50;
+
+/**
+ * One page of the open period for its calendar: everything in it, unfiltered, nearest deadline
+ * first. A month needs every content of the period, not the table's page of ten.
+ */
+export function toCreatorCalendarQuery(contractId: string, page: number): URLSearchParams {
+  return new URLSearchParams({
+    contract: contractId,
+    sort: API_SORT.asc,
+    pageSize: String(CALENDAR_PAGE_SIZE),
+    page: String(page),
+  });
+}
+
 function toProfile(raw: RawCreatorDetail): CreatorProfile {
   const socials: CreatorProfile["socials"] = {};
   if (raw.socials.instagram) socials.instagram = raw.socials.instagram;
@@ -149,13 +165,15 @@ function toRow(item: RawContentListItem): CreatorContentRow {
 }
 
 /**
- * The API's two answers under the page's names. `contents` is the open period's page of the
- * content list, or null for a creator without a contract, who has none to list.
+ * The API's answers under the page's names. `contents` is the open period's page of the
+ * content list, or null for a creator without a contract, who has none to list; `calendar` is
+ * every content of that period, for its month view.
  */
 export function toCreatorDetailView(
   raw: RawCreatorDetail,
   contents: RawContentList | null,
   state: CreatorDetailParams,
+  calendar: readonly RawContentListItem[] = [],
 ): CreatorDetailView {
   // The tabs and the profile read the periods newest first.
   const periods = raw.contractHistory.map(toPeriod).reverse();
@@ -174,5 +192,6 @@ export function toCreatorDetailView(
     total: contents?.total ?? 0,
     totalPages,
     counts: toTabCounts(contents ?? { tabCounts: {} as RawContentList["tabCounts"] }),
+    calendar: calendar.map(toRow),
   };
 }

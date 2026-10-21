@@ -189,6 +189,8 @@ export interface CreatorDetailView {
   totalPages: number;
   /** How much of the open period sits in each tab, under the search and filters. */
   counts: ContentPlanCounts;
+  /** The open period's whole content, unfiltered and in deadline order, for its calendar. */
+  calendar: CreatorContentRow[];
 }
 
 /**

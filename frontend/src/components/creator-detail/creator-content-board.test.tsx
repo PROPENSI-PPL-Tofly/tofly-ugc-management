@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   type CreatorContentRow,
@@ -143,6 +143,11 @@ function renderBoard(
   );
 }
 
+/** The period's content list, apart from the calendar's own grid above it. */
+function contentList() {
+  return within(screen.getByRole("tabpanel", { name: "Daftar konten periode" }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   searchParams = new URLSearchParams();
@@ -169,7 +174,7 @@ describe("CreatorContentBoard", () => {
     const tabs = screen.getByRole("tablist", { name: "Tab konten periode" });
     expect(screen.getByRole("tab", { name: "Menunggu Kreator3" })).toHaveAttribute("aria-selected", "true");
     const list = screen.getByRole("tabpanel", { name: "Daftar konten periode" });
-    expect(list).toContainElement(screen.getByRole("table"));
+    expect(list).toContainElement(contentList().getByRole("table"));
     expect(tabs.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -183,6 +188,15 @@ describe("CreatorContentBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Konten Kalender · Scheduled" }));
 
     expect(screen.getByRole("dialog", { name: "Detail konten" })).toHaveTextContent("content-99 sebagai admin");
+  });
+
+  it("turns a turned order back to the nearest deadline first, the bare address", () => {
+    searchParams = new URLSearchParams({ sort: "desc" });
+    renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "desc" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
+
+    expect(replace).toHaveBeenCalledWith(PAGE, { scroll: false });
   });
 
   it("turns the deadline order over from the header, back to page one", () => {
@@ -203,7 +217,7 @@ describe("CreatorContentBoard", () => {
       // Below the table: the slice comes after the last row in the page.
       const slice = screen.getByText("Menampilkan 1–10 dari 25 konten");
       expect(
-        screen.getByRole("table").compareDocumentPosition(slice) & Node.DOCUMENT_POSITION_FOLLOWING,
+        contentList().getByRole("table").compareDocumentPosition(slice) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     });
 
@@ -222,7 +236,7 @@ describe("CreatorContentBoard", () => {
       renderBoard(viewOf(25));
 
       // The heading row and the ten of this page.
-      expect(screen.getAllByRole("row")).toHaveLength(11);
+      expect(contentList().getAllByRole("row")).toHaveLength(11);
       expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
         "href",
         `${PAGE}?page=2`,

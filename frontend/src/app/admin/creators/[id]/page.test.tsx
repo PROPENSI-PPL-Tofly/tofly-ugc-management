@@ -143,12 +143,13 @@ describe("Creator Detail page", () => {
   });
 
   // PBI-4: creator → contract history per period → content per contract, on one page.
-  it("shows the creator, then the contract periods, then the open period's content", async () => {
+  it("shows the creator, then the contract periods, then the open period's calendar and content", async () => {
     await renderPage();
 
-    const [profile, periods, plan] = screen.getAllByRole("heading", { level: 2 });
+    const [profile, periods, calendar, plan] = screen.getAllByRole("heading", { level: 2 });
     expect(profile).toHaveTextContent("Rangga Pratama");
     expect(periods).toHaveTextContent("Periode Kontrak");
+    expect(calendar).toHaveTextContent("Jadwal Konten");
     expect(plan).toHaveTextContent("Content Plan");
 
     expect(screen.getByText("rangga@example.com")).toBeInTheDocument();

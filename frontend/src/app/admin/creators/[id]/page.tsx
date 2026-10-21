@@ -72,7 +72,7 @@ export default async function CreatorDetailPage({
             today={jakartaDay()}
           />
           <PeriodTabs creatorId={id} periods={view.periods} selected={view.selected} />
-          <CreatorContentBoard creatorId={id} view={view} state={state} />
+          <CreatorContentBoard creatorId={id} view={view} state={state} today={jakartaDay()} />
         </div>
       ) : (
         <Panel>

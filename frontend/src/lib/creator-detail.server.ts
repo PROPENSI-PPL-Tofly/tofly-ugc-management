@@ -7,10 +7,11 @@
 // Their queries and answers are spelled in the API's own words, so both pass through
 // creator-detail-api, the one module that knows them.
 
-import type { RawContentList } from "./content-list-api";
+import type { RawContentList, RawContentListItem } from "./content-list-api";
 import { isUuid, type CreatorDetailParams, type CreatorDetailView } from "./creator-detail";
 import {
   openContractId,
+  toCreatorCalendarQuery,
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
@@ -86,7 +87,33 @@ export async function fetchCreatorDetail(
     return (await response.json()) as RawContentList;
   };
 
-  let contents = await readContents(state);
+  /**
+   * Every content of the period, for the calendar: the first page says how many there are, the
+   * rest are read together. A failure on any page fails the read, since a month missing some of
+   * its content would look complete and be wrong.
+   */
+  const readCalendar = async (): Promise<RawContentListItem[]> => {
+    const page = async (number: number): Promise<RawContentList> => {
+      const response = await read(`/contents?${toCreatorCalendarQuery(contract, number)}`);
+
+      if (!response.ok) {
+        throw new Error(`Loading the period's calendar failed with HTTP ${response.status}`);
+      }
+
+      return (await response.json()) as RawContentList;
+    };
+
+    const first = await page(1);
+    const rest = await Promise.all(
+      Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => page(index + 2)),
+    );
+
+    return [first, ...rest].flatMap((answer) => answer.items);
+  };
+
+  // The table's page and the calendar are asked for together: neither waits on the other.
+  const [firstRead, calendar] = await Promise.all([readContents(state), readCalendar()]);
+  let contents = firstRead;
 
   // A page past the end (an old link, or a period that shrank as content was decided) comes
   // back with no rows, which would read as a period without content. Its last page is asked
@@ -95,5 +122,5 @@ export async function fetchCreatorDetail(
     contents = await readContents({ ...state, page: contents.totalPages });
   }
 
-  return toCreatorDetailView(raw, contents, state);
+  return toCreatorDetailView(raw, contents, state, calendar);
 }
