@@ -185,6 +185,13 @@ describe("InvoiceTable", () => {
     expect(screen.getByText("Tidak ada creator sesuai filter.")).toBeInTheDocument();
   });
 
+  // Approved design: on a desktop the row under the pointer is tinted, as on the other tables.
+  it("tints the row under the pointer on a desktop", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    expect(screen.getAllByRole("row")[1]).toHaveClass("lg:hover:bg-surface-2", "transition-colors");
+  });
+
   // Approved design: on a phone each card closes on its Total as the line the amounts add up
   // to, set on a tinted strip across the card, the sum larger than the parts.
   it("closes each phone card on its Total, set apart as the sum", () => {

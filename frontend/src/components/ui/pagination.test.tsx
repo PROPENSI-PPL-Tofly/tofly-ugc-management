@@ -66,6 +66,16 @@ describe("Pagination", () => {
     );
   });
 
+  // Same press as the buttons beside it (approved design), still for reduced motion.
+  it("gives a little when a page link is pressed, unless motion is reduced", () => {
+    render(<Pagination {...CREATORS} page={2} pageSize={10} total={23} totalPages={3} />);
+
+    expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveClass(
+      "active:scale-[.97]",
+      "motion-reduce:active:scale-100",
+    );
+  });
+
   it("disables the way back on the first page", () => {
     render(
       <Pagination

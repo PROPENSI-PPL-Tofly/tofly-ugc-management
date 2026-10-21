@@ -20,6 +20,17 @@ describe("Button", () => {
     for (const button of screen.getAllByRole("button")) expectPhoneTarget(button);
   });
 
+  // Approved design: a pressed control gives a little under the finger, as the ToFly site does;
+  // left still for anyone who asks the system for less motion.
+  it("gives a little when pressed, unless motion is reduced", () => {
+    render(<Button>Batal</Button>);
+
+    expect(screen.getByRole("button", { name: "Batal" })).toHaveClass(
+      "active:scale-[.97]",
+      "motion-reduce:active:scale-100",
+    );
+  });
+
   it("lends the same press to a link drawn as a button", () => {
     expect(buttonClasses("accent").split(" ")).toContain(PHONE_TARGET);
   });
