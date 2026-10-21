@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ContentPlanParams } from "@/lib/content-plan";
 import { DEFAULT_CONTENT_PLAN_PARAMS } from "@/lib/content-plan";
 import { ContentPlanFilters } from "./content-plan-filters";
@@ -333,35 +333,21 @@ describe("ContentPlanFilters", () => {
     expect(screen.getByLabelText("Deadline sampai")).toHaveValue("2026-10-31");
   });
 
-  describe("active filters, folded on a phone", () => {
-    it("names each picked creator, the type and the overdue filter as a chip", () => {
+  // The approved design folds the filters behind one Filter button on a phone, with no row of
+  // chips: the button counts what is on, and the open controls show each choice themselves.
+  describe("folded on a phone", () => {
+    it("counts every active filter on the Filter button and draws no chip row", () => {
       searchParams = new URLSearchParams({ creator: "id-1,id-2", type: "specific", overdue: "no" });
       renderFilters();
 
-      const chips = within(screen.getByRole("list", { name: "Filter aktif" }));
-      expect(chips.getAllByRole("listitem").map((item) => item.textContent?.replace("×", ""))).toEqual([
-        "Creator: Salsa",
-        "Creator: Rangga",
-        "Tipe: Specific",
-        "Tidak overdue",
-      ]);
       expect(screen.getByRole("button", { name: "Filter, 4 aktif" })).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
     });
 
-    it("takes off one creator and keeps the other picks", () => {
-      searchParams = new URLSearchParams({ creator: "id-1,id-2", type: "specific" });
-      renderFilters();
-
-      fireEvent.click(screen.getByRole("button", { name: "Hapus Creator: Salsa" }));
-
-      expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?creator=id-2&type=specific", {
-        scroll: false,
-      });
-    });
-
-    // One press is one navigation: the period and its days go together, so the plan renders
-    // once and no address with half the period on it is ever opened.
-    it("takes off the deadline range in one navigation, keeping the tab and every other filter", () => {
+    // E1: a period is taken off where it is chosen. Picking Semua periode takes the period and
+    // both custom days off in one navigation, so the plan renders once and no address with half
+    // a period on it is ever opened; the tab and every other filter stay.
+    it("takes the deadline range off in one navigation when Semua periode is picked", () => {
       searchParams = new URLSearchParams({
         tab: "waiting",
         creator: "id-1",
@@ -372,7 +358,7 @@ describe("ContentPlanFilters", () => {
       });
       renderFilters({ tab: "waiting", period: "custom", from: "2026-10-01", to: "2026-10-31" });
 
-      fireEvent.click(screen.getByRole("button", { name: /^Hapus Deadline/ }));
+      fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), { target: { value: "all" } });
 
       expect(mockReplace).toHaveBeenCalledExactlyOnceWith(
         "/admin/content-plan?tab=waiting&creator=id-1&q=serum",
@@ -380,13 +366,13 @@ describe("ContentPlanFilters", () => {
       );
     });
 
-    it("takes off a named period in one navigation", () => {
-      searchParams = new URLSearchParams({ type: "specific", period: "month" });
-      renderFilters({ period: "month" });
+    it("swaps a custom range for a named period in one navigation, the days going with it", () => {
+      searchParams = new URLSearchParams({ type: "specific", period: "custom", from: "2026-10-01" });
+      renderFilters({ period: "custom", from: "2026-10-01" });
 
-      fireEvent.click(screen.getByRole("button", { name: "Hapus Periode: Bulan ini" }));
+      fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), { target: { value: "month" } });
 
-      expect(mockReplace).toHaveBeenCalledExactlyOnceWith("/admin/content-plan?type=specific", {
+      expect(mockReplace).toHaveBeenCalledExactlyOnceWith("/admin/content-plan?type=specific&period=month", {
         scroll: false,
       });
     });

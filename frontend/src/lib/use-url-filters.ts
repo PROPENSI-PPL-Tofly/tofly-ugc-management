@@ -54,6 +54,9 @@ export function useUrlFilters() {
     [replaceQuery],
   );
 
+  /** Stub until E1 moves to the period itself: sets the period alone, as setParam does. */
+  const setPeriod = useCallback((period: string) => setParams({ period }), [setParams]);
+
   /** Sets one filter; an empty value or "all" removes it from the URL. */
   const setParam = useCallback(
     (key: string, value: string) => setParams({ [key]: value }),
@@ -103,5 +106,16 @@ export function useUrlFilters() {
     [filters],
   );
 
-  return { search, setSearch, param, listParam, setParam, setParams, reset, resetKeeping, pending };
+  return {
+    search,
+    setSearch,
+    param,
+    listParam,
+    setParam,
+    setParams,
+    setPeriod,
+    reset,
+    resetKeeping,
+    pending,
+  };
 }

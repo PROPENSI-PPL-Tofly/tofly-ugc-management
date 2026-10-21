@@ -59,17 +59,41 @@ describe("FilterSelect", () => {
   });
 });
 
+// The approved design marks a filter in use where it is chosen: the select stands out and, on a
+// phone, its name carries an "Aktif" tag, so the folded bar needs no chips to say what is on.
+describe("FilterSelect", () => {
+  it("marks a choice other than the first as active, and says so on a phone", () => {
+    render(<FilterSelect label="Overdue" value="yes" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
+
+    const select = screen.getByRole("combobox", { name: "Overdue" });
+    expect(select).toHaveAttribute("data-active", "true");
+    const tag = screen.getByText("Aktif");
+    expect(tag).toHaveClass("sm:hidden");
+    expect(select).toHaveAccessibleName("Overdue");
+  });
+
+  it("leaves the first choice plain", () => {
+    render(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
+
+    expect(screen.getByRole("combobox", { name: "Overdue" })).not.toHaveAttribute("data-active");
+    expect(screen.queryByText("Aktif")).not.toBeInTheDocument();
+  });
+});
+
 describe("PeriodFilter", () => {
   let onClear = vi.fn();
+  let onPeriod = vi.fn();
   const renderPeriod = (period: string, ignored = false, from = "", to = "") => {
     const onChange = vi.fn();
     onClear = vi.fn();
+    onPeriod = vi.fn();
     render(
       <PeriodFilter
         period={period}
         from={from}
         to={to}
         ignored={ignored}
+        onPeriod={onPeriod}
         onChange={onChange}
         onClear={onClear}
       />,
@@ -92,7 +116,9 @@ describe("PeriodFilter", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), {
       target: { value: "custom" },
     });
-    expect(onChange).toHaveBeenCalledWith("period", "custom");
+    // The period goes back on its own, for the bar to apply with its days in one change.
+    expect(onPeriod).toHaveBeenCalledExactlyOnceWith("custom");
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   // Client feedback B1: "Dari" and "Sampai" did not say what they range over. They narrow the
@@ -259,33 +285,24 @@ describe("FilterBar", () => {
     expect(panel).not.toContainElement(screen.getByRole("button", { name: "Reset" }));
   });
 
-  it("counts what is active on the Filter button and names each as a chip while folded", () => {
+  // The approved design drops the row of chips under a folded bar: the Filter button counts
+  // what is active, and the open controls show each choice themselves (marked Aktif).
+  it("counts what is active on the Filter button and draws no chip row, folded or open", () => {
     const { toggle } = renderBar();
 
     expect(toggle).toHaveAccessibleName("Filter, 2 aktif");
-    const chips = screen.getByRole("list", { name: "Filter aktif" });
-    expect(chips).toHaveClass("sm:hidden");
-    expect(within(chips).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Tipe: Evergreen×",
-      "Overdue×",
-    ]);
+    expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
   });
 
-  it("takes off only the filter whose chip is pressed", () => {
-    renderBar();
-
-    fireEvent.click(screen.getByRole("button", { name: "Hapus Overdue" }));
-
-    expect(ACTIVE[1].onRemove).toHaveBeenCalledOnce();
-    expect(ACTIVE[0].onRemove).not.toHaveBeenCalled();
-  });
-
-  it("shows the chips only while folded, so an open bar does not say the same thing twice", () => {
+  it("shows the Filter button pressed while the controls are open", () => {
     const { toggle } = renderBar();
 
     fireEvent.click(toggle);
 
-    expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveClass("aria-expanded:bg-accent-wash");
   });
 
   it("says nothing is active when nothing is", () => {
@@ -318,6 +335,7 @@ describe("on a phone, every filter control is a 44px press", () => {
         from=""
         to=""
         ignored={false}
+        onPeriod={vi.fn()}
         onChange={vi.fn()}
         onClear={vi.fn()}
       />,
@@ -344,7 +362,7 @@ describe("on a phone, every filter control is a 44px press", () => {
     for (const radio of screen.getAllByRole("radio")) expectPhoneTarget(radio.closest("label"));
   });
 
-  it("covers the Filter button and each active-filter chip", () => {
+  it("covers the Filter button", () => {
     render(
       <FilterBar
         search={null}
@@ -356,6 +374,5 @@ describe("on a phone, every filter control is a 44px press", () => {
     );
 
     expectPhoneTarget(screen.getByRole("button", { name: /^Filter/ }));
-    expectPhoneTarget(screen.getByRole("button", { name: "Hapus Overdue" }));
   });
 });

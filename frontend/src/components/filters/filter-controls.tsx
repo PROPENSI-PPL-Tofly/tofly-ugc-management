@@ -259,6 +259,8 @@ export function PeriodFilter({
   from: string;
   to: string;
   ignored: boolean;
+  /** Stub until E1 moves to the period itself: accepted, not yet called. */
+  onPeriod?: (period: string) => void;
   onChange: (key: "period" | "from" | "to", value: string) => void;
   /** Clears both custom days in one change. */
   onClear: () => void;
