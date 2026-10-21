@@ -40,6 +40,16 @@ describe("SearchBox", () => {
     fireEvent.change(box, { target: { value: "serum" } });
     expect(onChange).toHaveBeenCalledWith("serum");
   });
+
+  // Measured at 375px: a full-width box pushed the Filter press onto a row of its own. The
+  // approved design keeps them side by side, the box taking whatever the press leaves.
+  it("shares the phone row with the Filter press, taking the room left", () => {
+    render(<SearchBox label="Cari" value="" onChange={vi.fn()} />);
+
+    const box = screen.getByRole("searchbox", { name: "Cari" });
+    expect(box).toHaveClass("max-sm:min-w-0", "max-sm:flex-1");
+    expect(box).not.toHaveClass("max-sm:w-full");
+  });
 });
 
 describe("FilterSelect", () => {
@@ -62,6 +72,15 @@ describe("FilterSelect", () => {
 // The approved design marks a filter in use where it is chosen: the select stands out and, on a
 // phone, its name carries an "Aktif" tag, so the folded bar needs no chips to say what is on.
 describe("FilterSelect", () => {
+  // Inside the open phone card each name sits over its own full-width select, as approved; a
+  // name beside the select wrapped and left the selects ragged.
+  it("stacks its name over the select on a phone, side by side from sm up", () => {
+    render(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
+
+    const label = screen.getByRole("combobox", { name: "Overdue" }).closest("label");
+    expect(label).toHaveClass("max-sm:flex-col", "max-sm:items-stretch", "items-center");
+  });
+
   it("marks a choice other than the first as active, and says so on a phone", () => {
     render(<FilterSelect label="Overdue" value="yes" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
 
@@ -276,6 +295,17 @@ describe("FilterBar", () => {
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(panel).toHaveClass("max-sm:hidden");
+  });
+
+  // The approved design opens the fold as one card across the bar, its controls in a column;
+  // from sm up the controls stay in the bar's own row.
+  it("opens on a phone as one card across the bar, its controls in a column", () => {
+    const { toggle, panel } = renderBar();
+
+    expect(panel).not.toHaveClass("max-sm:flex");
+    fireEvent.click(toggle);
+
+    expect(panel).toHaveClass("max-sm:flex", "max-sm:basis-full", "max-sm:flex-col", "sm:contents");
   });
 
   it("keeps the search and Reset outside the fold", () => {
