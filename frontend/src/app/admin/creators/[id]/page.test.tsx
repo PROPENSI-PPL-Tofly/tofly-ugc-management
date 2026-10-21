@@ -62,6 +62,7 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
       name: "Rangga Pratama",
       email: "rangga@example.com",
       socials: { instagram: "rangga.creates" },
+      accessRevokeDate: null,
     },
     periods: [NEWEST, OLDEST],
     selected: NEWEST,
@@ -106,6 +107,18 @@ describe("Creator Detail page", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Detail Creator" })).toBeInTheDocument();
     expect(metadata.title).toBe("Detail Creator — Tofly");
+  });
+
+  it("says on the profile whether the creator can still sign in, judged against today", async () => {
+    const view = viewOf();
+    vi.mocked(fetchCreatorDetail).mockResolvedValue({
+      ...view,
+      creator: { ...view.creator, accessRevokeDate: "2020-01-01" },
+    });
+
+    await renderPage();
+
+    expect(screen.getByText("Akses").nextElementSibling).toHaveTextContent("Dicabut");
   });
 
   it("is subtitled as the prototype subtitles it", async () => {

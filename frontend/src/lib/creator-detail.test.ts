@@ -6,6 +6,7 @@ import {
   creatorDetailAfterFilterChange,
   creatorDetailBase,
   creatorDetailHref,
+  creatorAccess,
   isCreatorDetailFiltered,
   parseCreatorDetailParams,
   type CreatorDetailParams,
@@ -216,5 +217,38 @@ describe("creatorDetailAfterContractChange", () => {
       ...BARE,
       contract: OTHER_CONTRACT,
     });
+  });
+});
+
+describe("creatorAccess", () => {
+  const TODAY = "2026-10-21";
+
+  it("reads a creator with no revoke date as signed-in-able", () => {
+    expect(creatorAccess(null, "2026-12-31", TODAY)).toEqual({ state: "active", note: null });
+  });
+
+  it("names the day a revoke still to come takes effect", () => {
+    expect(creatorAccess("2026-11-15", "2026-12-31", TODAY)).toEqual({
+      state: "scheduled",
+      note: "Dicabut mulai 15 Nov 2026",
+    });
+  });
+
+  it("counts the revoke day itself as revoked, as sign-in does", () => {
+    expect(creatorAccess(TODAY, null, TODAY)).toEqual({
+      state: "revoked",
+      note: "Sejak 21 Okt 2026",
+    });
+  });
+
+  it("says a revoke came before the contract's end, and which end it cut short", () => {
+    expect(creatorAccess("2026-10-01", "2026-12-31", TODAY)).toEqual({
+      state: "revoked",
+      note: "Sejak 1 Okt 2026, sebelum kontrak berakhir (31 Des 2026)",
+    });
+  });
+
+  it("adds nothing for a revoke on or after the contract's last day", () => {
+    expect(creatorAccess("2026-10-01", "2026-10-01", TODAY).note).toBe("Sejak 1 Okt 2026");
   });
 });

@@ -114,7 +114,13 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
   const shown = Math.max(0, Math.min(10, total - (page - 1) * 10));
 
   return {
-    creator: { id: CREATOR, name: "Rangga Pratama", email: "rangga@example.com", socials: {} },
+    creator: {
+      id: CREATOR,
+      name: "Rangga Pratama",
+      email: "rangga@example.com",
+      socials: {},
+      accessRevokeDate: null,
+    },
     periods: selected ? [selected] : [],
     selected,
     rows: Array.from({ length: shown }, (_, index) => row((page - 1) * 10 + index + 1)),

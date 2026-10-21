@@ -181,7 +181,14 @@ describe("toCreatorDetailView", () => {
       name: "Lestari Wulandari",
       email: "lestari@example.com",
       socials: { instagram: "lestariw", tiktok: "lestari.w" },
+      accessRevokeDate: null,
     });
+  });
+
+  it("carries the day the creator's access is revoked, for the profile's Akses", () => {
+    const raw = { ...RAW, accessRevokeDate: "2026-11-15" };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).creator.accessRevokeDate).toBe("2026-11-15");
   });
 
   it.each([
@@ -197,13 +204,13 @@ describe("toCreatorDetailView", () => {
     const answered = {
       ...RAW,
       phoneNumber: "+62811111111",
-      accessRevokeDate: null,
       performance: { onTimeRate: 80 },
       contents: [],
       drafts: [],
     } as unknown as RawCreatorDetail;
 
     expect(Object.keys(toCreatorDetailView(answered, CONTENTS, BARE).creator).sort()).toEqual([
+      "accessRevokeDate",
       "email",
       "id",
       "name",
