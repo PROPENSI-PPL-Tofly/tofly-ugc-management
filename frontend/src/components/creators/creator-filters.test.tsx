@@ -153,6 +153,12 @@ describe("CreatorFilters", () => {
     expect(search()).toHaveValue("");
   });
 
+  // The box says what it searches, as it did before the bar was shared.
+  it("asks for a name or an email in the empty search box", () => {
+    renderFilters();
+    expect(search()).toHaveAttribute("placeholder", "Nama atau email…");
+  });
+
   it("stops the search box at the length the API accepts", () => {
     renderFilters();
     expect(search()).toHaveAttribute("maxLength", "100");

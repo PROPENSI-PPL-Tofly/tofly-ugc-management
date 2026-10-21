@@ -47,13 +47,20 @@ const LABEL = "flex items-center gap-2 text-[13px]";
 /** The search box; `label` names it and, with an ellipsis, is its placeholder too. */
 export function SearchBox({
   label,
+  placeholder = `${label}…`,
   value,
   onChange,
-}: Readonly<{ label: string; value: string; onChange: (value: string) => void }>) {
+}: Readonly<{
+  label: string;
+  /** What the empty box says; the label with an ellipsis unless the bar has better words. */
+  placeholder?: string;
+  value: string;
+  onChange: (value: string) => void;
+}>) {
   return (
     <input
       type="search"
-      placeholder={`${label}…`}
+      placeholder={placeholder}
       aria-label={label}
       maxLength={MAX_SEARCH_LENGTH}
       value={value}

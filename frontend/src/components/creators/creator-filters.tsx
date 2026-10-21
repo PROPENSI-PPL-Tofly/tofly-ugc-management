@@ -1,12 +1,15 @@
 "use client";
 
+import {
+  FilterBar,
+  FilterSelect,
+  ResetFilters,
+  SearchBox,
+  type ActiveFilter,
+  type FilterOption,
+} from "@/components/filters/filter-controls";
 import { CONTRACT_STATUS_FILTERS, PRODUCTIVITY_FILTERS } from "@/lib/creators";
-import { MAX_SEARCH_LENGTH, useUrlFilters } from "@/lib/use-url-filters";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
-
-const FIELD = `rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2 ${PHONE_TARGET}`;
-
-const RESET = `cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink ${PHONE_TARGET}`;
+import { useUrlFilters } from "@/lib/use-url-filters";
 
 const CONTRACT_LABELS: Record<(typeof CONTRACT_STATUS_FILTERS)[number], string> = {
   all: "Semua",
@@ -23,67 +26,68 @@ const PRODUCTIVITY_LABELS: Record<(typeof PRODUCTIVITY_FILTERS)[number], string>
   no_data: "Belum Ada Data",
 };
 
+const CONTRACT_OPTIONS: FilterOption[] = CONTRACT_STATUS_FILTERS.map((value) => ({
+  value,
+  label: CONTRACT_LABELS[value],
+}));
+
+const PRODUCTIVITY_OPTIONS: FilterOption[] = PRODUCTIVITY_FILTERS.map((value) => ({
+  value,
+  label: PRODUCTIVITY_LABELS[value],
+}));
+
+/** A select in use as the folded bar counts it: "Produktivitas: Berisiko". */
+function selectFilter(
+  key: string,
+  label: string,
+  value: string,
+  options: readonly FilterOption[],
+  onRemove: () => void,
+): ActiveFilter[] {
+  const option = options.find((candidate) => candidate.value === value);
+  return value === "all" || !option ? [] : [{ id: key, text: `${label}: ${option.label}`, onRemove }];
+}
+
+/**
+ * The Creator Database's filter bar, on the same FilterBar as Task Saya and the Content Plan:
+ * from sm up the search and both selects share one row; on a phone the selects fold behind one
+ * Filter press that counts the ones in use, so the search keeps the row to itself.
+ */
 export function CreatorFilters() {
   const { search, setSearch, param, setParam, reset, pending } = useUrlFilters();
   const contractStatus = param("contractStatus");
   const productivity = param("productivity");
   const isFiltered = search !== "" || contractStatus !== "all" || productivity !== "all";
 
+  // What the folded phone bar counts, in the order of the controls.
+  const active = [
+    ...selectFilter("productivity", "Produktivitas", productivity, PRODUCTIVITY_OPTIONS, () =>
+      setParam("productivity", "all"),
+    ),
+    ...selectFilter("contractStatus", "Status kontrak", contractStatus, CONTRACT_OPTIONS, () =>
+      setParam("contractStatus", "all"),
+    ),
+  ];
+
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
-      <label className="flex items-center gap-2 text-[13px]">
-        <span className="text-muted">Cari</span>
-        <input
-          type="search"
-          name="q"
-          aria-label="Cari creator"
-          placeholder="Nama atau email…"
-          maxLength={MAX_SEARCH_LENGTH}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className={`${FIELD} w-48`}
-        />
-      </label>
+    <FilterBar
+      search={<SearchBox label="Cari creator" placeholder="Nama atau email…" value={search} onChange={setSearch} />}
+      active={active}
+      reset={isFiltered ? <ResetFilters onReset={reset} disabled={pending} /> : null}
+    >
+      <FilterSelect
+        label="Produktivitas"
+        value={productivity}
+        options={PRODUCTIVITY_OPTIONS}
+        onChange={(value) => setParam("productivity", value)}
+      />
 
-      <label className="flex items-center gap-2 text-[13px]">
-        <span className="text-muted">Status kontrak</span>
-        <select
-          name="contractStatus"
-          aria-label="Status kontrak"
-          value={contractStatus}
-          onChange={(event) => setParam("contractStatus", event.target.value)}
-          className={FIELD}
-        >
-          {CONTRACT_STATUS_FILTERS.map((value) => (
-            <option key={value} value={value}>
-              {CONTRACT_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex items-center gap-2 text-[13px]">
-        <span className="text-muted">Produktivitas</span>
-        <select
-          name="productivity"
-          aria-label="Produktivitas"
-          value={productivity}
-          onChange={(event) => setParam("productivity", event.target.value)}
-          className={FIELD}
-        >
-          {PRODUCTIVITY_FILTERS.map((value) => (
-            <option key={value} value={value}>
-              {PRODUCTIVITY_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      {isFiltered ? (
-        <button type="button" onClick={reset} disabled={pending} className={RESET}>
-          Reset
-        </button>
-      ) : null}
-    </div>
+      <FilterSelect
+        label="Status kontrak"
+        value={contractStatus}
+        options={CONTRACT_OPTIONS}
+        onChange={(value) => setParam("contractStatus", value)}
+      />
+    </FilterBar>
   );
 }
