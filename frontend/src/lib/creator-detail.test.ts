@@ -75,6 +75,18 @@ describe("parseCreatorDetailParams", () => {
     expect(state.status).toEqual(["scheduled"]);
   });
 
+  it("parses the Content Plan tab, title search, Overdue and deadline order for Creator Detail", () => {
+    expect(
+      parseCreatorDetailParams({
+        tab: "done",
+        q: " kopi ",
+        overdue: "yes",
+        sort: "desc",
+        page: "3",
+      }),
+    ).toMatchObject({ tab: "done", q: "kopi", overdue: "yes", sort: "desc", page: 3 });
+  });
+
   it.each(["0", "-2", "abc", "1.5", "", " 2"])(
     "reads the page %j as the first page",
     (page) => {

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { ComponentType } from "react";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { CreatorContentTable } from "./creator-content-table";
 
@@ -261,5 +262,33 @@ describe("CreatorContentTable", () => {
 
     expect(screen.getByText('<img src=x onerror="alert(1)">')).toBeInTheDocument();
     expect(container.querySelector("img, script")).toBeNull();
+  });
+
+  it("follows Content Plan's Selesai convention and omits the action column for finished content", () => {
+    const TabbedTable = CreatorContentTable as unknown as ComponentType<{
+      rows: readonly CreatorContentRow[];
+      filtered: boolean;
+      tab: "done";
+      sort: "asc";
+      onSortToggle: () => void;
+      onOpen: (id: string) => void;
+      onReset: () => void;
+    }>;
+    render(
+      <TabbedTable
+        rows={[{ ...ROW, status: "link_submitted", tags: ["overdue"] }]}
+        filtered={false}
+        tab="done"
+        sort="asc"
+        onSortToggle={vi.fn()}
+        onOpen={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Evg_7_RanggaPratama_26092026")).toBeInTheDocument();
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Aksi" })).toBeNull();
   });
 });

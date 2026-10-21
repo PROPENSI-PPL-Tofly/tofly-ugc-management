@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentType } from "react";
 import { CreatorContentFilters } from "./creator-content-filters";
 
 const mockReplace = vi.fn();
@@ -194,5 +195,27 @@ describe("CreatorContentFilters", () => {
 
     expect(screen.queryByRole("button", { name: /^Hapus filter/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument();
+  });
+
+  it("includes the Content Plan search and Overdue controls, and keeps the selected contract", () => {
+    renderOn({ contract: CONTRACT, page: "3" });
+
+    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "yes" } });
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?contract=${CONTRACT}&overdue=yes`, {
+      scroll: false,
+    });
+  });
+
+  it("can show the search as filtered and not offer Overdue on Selesai", () => {
+    const FiltersForTab = CreatorContentFilters as unknown as ComponentType<{ tab: "all" | "done" }>;
+    searchParams = new URLSearchParams("tab=done&q=kopi");
+    render(<FiltersForTab tab="done" />);
+
+    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toHaveValue("kopi");
+    expect(screen.queryByLabelText("Overdue")).toBeNull();
   });
 });
