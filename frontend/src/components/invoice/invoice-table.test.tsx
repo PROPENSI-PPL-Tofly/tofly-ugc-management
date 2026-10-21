@@ -411,6 +411,25 @@ describe("InvoiceTable", () => {
     );
   });
 
+  // Below lg the header row is only read aloud (sr-only), so an ⓘ left in it was a tab stop no
+  // one could see and a tip no finger could reach. On a phone the explanation sits by the Total
+  // each card shows; on a desktop it stays in the header. One of the two at each width.
+  it("keeps the header's formula ⓘ out of the phone layout, where the header is only read aloud", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    const header = screen.getByRole("button", { name: "Info rumus Total" });
+    expect(header.closest(".max-lg\\:hidden")).not.toBeNull();
+  });
+
+  it("explains the total beside each card's Total label on a phone, and only there", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    const total = screen.getAllByRole("cell").find((cell) => cell.textContent?.startsWith("Total"))!;
+    const tip = within(total).getByRole("button", { name: "Info rumus Total Rangga Pratama" });
+    expect(tip).toHaveAccessibleDescription(TOTAL_FORMULA);
+    expect(tip.closest(".lg\\:hidden")).not.toBeNull();
+  });
+
   it("adds up every creator the filters keep under the table, across pages", () => {
     render(<InvoiceTable rows={[FULL]} summary={{ total: 12345000, count: 24 }} />);
 
