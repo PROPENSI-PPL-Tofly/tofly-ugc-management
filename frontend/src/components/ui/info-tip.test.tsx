@@ -52,7 +52,7 @@ describe("InfoTip", () => {
     it("takes no room while closed, so it can never widen the sheet it sits in", () => {
       const tooltip = renderInSheet();
 
-      expect(tooltip).toHaveClass("hidden", "group-hover:block", "group-focus-within:block");
+      expect(tooltip).toHaveClass("hidden", "group-hover:block");
       expect(tooltip).not.toHaveClass("invisible");
     });
 
@@ -84,6 +84,70 @@ describe("InfoTip", () => {
 
       await new Promise((done) => setTimeout(done, 50));
       expect(tooltip.style.left).toBe("");
+    });
+  });
+
+  // A phone browser need not focus a button it is tapped on (Safari does not), so a bubble that
+  // opened on focus alone never opened under a finger. A tap opens it, and it closes the ways a
+  // tooltip should: Escape, leaving it, or a press anywhere else.
+  describe("on a touch screen", () => {
+    it("opens on a tap, focused or not", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Info" }));
+
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+      expect(screen.getByRole("tooltip")).not.toHaveClass("hidden");
+    });
+
+    it("stays open when the tap also focused it", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      const button = screen.getByRole("button", { name: "Info" });
+
+      fireEvent.focus(button);
+      fireEvent.click(button);
+
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+    });
+
+    it("closes on Escape without moving focus", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      const button = screen.getByRole("button", { name: "Info" });
+      button.focus();
+      fireEvent.click(button);
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+
+      fireEvent.keyDown(button, { key: "Escape" });
+
+      expect(screen.getByRole("tooltip")).toHaveClass("hidden");
+      expect(button).toHaveFocus();
+    });
+
+    it("closes on a press anywhere else", () => {
+      render(
+        <>
+          <InfoTip label="Info" text="Teks" />
+          <p>Di luar</p>
+        </>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Info" }));
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+
+      fireEvent.pointerDown(screen.getByText("Di luar"));
+
+      expect(screen.getByRole("tooltip")).toHaveClass("hidden");
+    });
+
+    it("closes when focus leaves it", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      const button = screen.getByRole("button", { name: "Info" });
+      fireEvent.focus(button);
+      fireEvent.click(button);
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+
+      fireEvent.blur(button);
+
+      expect(screen.getByRole("tooltip")).toHaveClass("hidden");
     });
   });
 });
