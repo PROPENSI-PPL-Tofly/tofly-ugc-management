@@ -23,12 +23,8 @@ function input(overrides: Partial<ContentTagInput> = {}): ContentTagInput {
 }
 
 describe('CONTENT_TAGS', () => {
-  it('lists the tags in the order they are reported', () => {
-    expect(CONTENT_TAGS).toEqual([
-      'late_submission',
-      'overdue',
-      'approval_bypassed',
-    ]);
+  it('lists the two tags in the order they are reported, with no separate late tag', () => {
+    expect(CONTENT_TAGS).toEqual(['overdue', 'approval_bypassed']);
   });
 });
 
@@ -37,8 +33,8 @@ describe('contentTags', () => {
     expect(contentTags(input({ deadline: day(3) }), TODAY)).toEqual([]);
   });
 
-  describe('late_submission', () => {
-    it('is not late when the draft arrives on the deadline day', () => {
+  describe('overdue for a late hand-in', () => {
+    it('is not overdue when the draft arrives on the deadline day', () => {
       const tags = contentTags(
         input({
           deadline: day(0),
@@ -74,10 +70,10 @@ describe('contentTags', () => {
         TODAY,
       );
 
-      expect(tags).toEqual(['late_submission']);
+      expect(tags).toEqual(['overdue']);
     });
 
-    it('is late when the video link is handed in after the deadline day', () => {
+    it('stays overdue once a video link arrives after the deadline day, so Selesai still shows it', () => {
       const tags = contentTags(
         input({
           deadline: day(-2),
@@ -87,10 +83,10 @@ describe('contentTags', () => {
         TODAY,
       );
 
-      expect(tags).toEqual(['late_submission']);
+      expect(tags).toEqual(['overdue']);
     });
 
-    it('is not late when the video link is handed in on the deadline day', () => {
+    it('is not overdue when the video link is handed in on the deadline day', () => {
       const tags = contentTags(
         input({
           deadline: day(-2),
@@ -104,7 +100,7 @@ describe('contentTags', () => {
       expect(tags).toEqual([]);
     });
 
-    it('stays late for a late draft even when the video arrived on time', () => {
+    it('stays overdue for a late draft even when the video arrived on time', () => {
       const tags = contentTags(
         input({
           deadline: day(-2),
@@ -115,7 +111,7 @@ describe('contentTags', () => {
         TODAY,
       );
 
-      expect(tags).toEqual(['late_submission']);
+      expect(tags).toEqual(['overdue']);
     });
   });
 
@@ -172,7 +168,7 @@ describe('contentTags', () => {
       ).toEqual([]);
     });
 
-    it('combines with a late draft that is still waiting on its video', () => {
+    it('reports overdue once for a late draft that is still waiting on its video', () => {
       const tags = contentTags(
         input({
           deadline: day(-3),
@@ -182,7 +178,7 @@ describe('contentTags', () => {
         TODAY,
       );
 
-      expect(tags).toEqual(['late_submission', 'overdue']);
+      expect(tags).toEqual(['overdue']);
     });
   });
 
@@ -201,7 +197,7 @@ describe('contentTags', () => {
       expect(tags).toEqual(['approval_bypassed']);
     });
 
-    it('reports all three tags in the fixed order', () => {
+    it('reports both tags in the fixed order', () => {
       const tags = contentTags(
         input({
           deadline: day(-3),
@@ -212,7 +208,7 @@ describe('contentTags', () => {
         TODAY,
       );
 
-      expect(tags).toEqual(['late_submission', 'overdue', 'approval_bypassed']);
+      expect(tags).toEqual(['overdue', 'approval_bypassed']);
     });
   });
 });

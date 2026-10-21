@@ -353,8 +353,8 @@ describe('CreatorsService', () => {
     ).toEqual({
       'content-1': [],
       'content-2': [],
-      'content-late-bypassed': ['late_submission', 'approval_bypassed'],
-      'content-overdue': ['late_submission', 'overdue'],
+      'content-late-bypassed': ['overdue', 'approval_bypassed'],
+      'content-overdue': ['overdue'],
     });
   });
 

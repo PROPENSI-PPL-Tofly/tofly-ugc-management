@@ -222,7 +222,7 @@ describe('ContentListService.list', () => {
         EVERYTHING,
       );
 
-      expect(answer.items[0].tags).toEqual(['late_submission', 'overdue']);
+      expect(answer.items[0].tags).toEqual(['overdue']);
     });
 
     it('is tagged late and bypassed from its stored link day and bypass flag', async () => {
@@ -237,10 +237,7 @@ describe('ContentListService.list', () => {
 
       const answer = await service.list(PAGE, NOW, EVERYTHING);
 
-      expect(answer.items[0].tags).toEqual([
-        'late_submission',
-        'approval_bypassed',
-      ]);
+      expect(answer.items[0].tags).toEqual(['overdue', 'approval_bypassed']);
     });
   });
 
@@ -514,7 +511,7 @@ describe('ContentListService.list', () => {
 
         expect(answer.items.map((item) => [item.name, item.tags])).toEqual([
           ['Lewat, terjadwal', ['overdue']],
-          ['Selesai terlambat', ['late_submission']],
+          ['Selesai terlambat', ['overdue']],
         ]);
         expect(answer.tabCounts).toEqual({
           all: 2,

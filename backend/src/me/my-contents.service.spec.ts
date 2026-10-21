@@ -21,7 +21,9 @@ const query = (filters: Partial<MyTaskFilters> = {}, paging = PAGE) => ({
 let seq = 0;
 
 function row(
-  overrides: Partial<Omit<MyContentRow, 'deadline' | 'submissions' | 'video_submitted_at'>> & {
+  overrides: Partial<
+    Omit<MyContentRow, 'deadline' | 'submissions' | 'video_submitted_at'>
+  > & {
     deadline?: string;
     revisionNotes?: string | null;
     /** When the latest draft was handed in, if any. */
@@ -38,7 +40,9 @@ function row(
     brief: overrides.brief ?? 'Review produk',
     deadline: new Date(`${overrides.deadline ?? '2026-10-30'}T00:00:00.000Z`),
     status: overrides.status ?? 'scheduled',
-    video_submitted_at: overrides.linkDay ? new Date(`${overrides.linkDay}T00:00:00.000Z`) : null,
+    video_submitted_at: overrides.linkDay
+      ? new Date(`${overrides.linkDay}T00:00:00.000Z`)
+      : null,
     approval_bypassed: overrides.approval_bypassed ?? false,
     submissions:
       overrides.revisionNotes === undefined && overrides.draftAt === undefined
@@ -46,7 +50,9 @@ function row(
         : [
             {
               revision_notes: overrides.revisionNotes ?? null,
-              created_at: new Date(overrides.draftAt ?? '2026-10-01T03:00:00.000Z'),
+              created_at: new Date(
+                overrides.draftAt ?? '2026-10-01T03:00:00.000Z',
+              ),
             },
           ],
   };
@@ -117,7 +123,9 @@ describe('MyContentsService.list', () => {
     await service.list(CREATOR_ID, query({ types: ['specific'] }), NOW);
 
     expect(client.contents.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { ...OWN, type: { in: ['specific'] } } }),
+      expect.objectContaining({
+        where: { ...OWN, type: { in: ['specific'] } },
+      }),
     );
   });
 
@@ -141,7 +149,9 @@ describe('MyContentsService.list', () => {
                 lte: new Date('2026-10-31T00:00:00.000Z'),
               },
             },
-            { status: { in: ['scheduled', 'draft_revision', 'draft_approved'] } },
+            {
+              status: { in: ['scheduled', 'draft_revision', 'draft_approved'] },
+            },
             // Today is 10 October in WIB, so the H-1 link is open on a deadline up to the 11th.
             {
               status: 'draft_review',
@@ -176,8 +186,18 @@ describe('MyContentsService.list', () => {
   it('lists open work first, nearest deadline first, and finished work after it', async () => {
     const { service } = stub([
       row({ id: 'later', deadline: '2026-11-15' }),
-      row({ id: 'done-old', deadline: '2026-09-01', status: 'link_submitted', linkDay: '2026-09-01' }),
-      row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted', linkDay: '2026-10-01' }),
+      row({
+        id: 'done-old',
+        deadline: '2026-09-01',
+        status: 'link_submitted',
+        linkDay: '2026-09-01',
+      }),
+      row({
+        id: 'done',
+        deadline: '2026-10-01',
+        status: 'link_submitted',
+        linkDay: '2026-10-01',
+      }),
       row({ id: 'sooner', deadline: '2026-10-20', status: 'draft_review' }),
     ]);
 
@@ -191,25 +211,48 @@ describe('MyContentsService.list', () => {
 
   it('keeps open work ahead of finished work when the furthest deadline is asked first', async () => {
     const { service } = stub([
-      row({ id: 'done', deadline: '2026-12-01', status: 'link_submitted', linkDay: '2026-12-01' }),
+      row({
+        id: 'done',
+        deadline: '2026-12-01',
+        status: 'link_submitted',
+        linkDay: '2026-12-01',
+      }),
       row({ id: 'sooner', deadline: '2026-10-20' }),
-      row({ id: 'done-old', deadline: '2026-09-01', status: 'link_submitted', linkDay: '2026-09-01' }),
+      row({
+        id: 'done-old',
+        deadline: '2026-09-01',
+        status: 'link_submitted',
+        linkDay: '2026-09-01',
+      }),
       row({ id: 'later', deadline: '2026-11-15' }),
     ]);
 
-    const response = await service.list(CREATOR_ID, query({ sort: 'deadline_desc' }), NOW);
+    const response = await service.list(
+      CREATOR_ID,
+      query({ sort: 'deadline_desc' }),
+      NOW,
+    );
 
     expect(ids(response)).toEqual(['later', 'sooner', 'done', 'done-old']);
   });
 
   it('pages across the two blocks as one list', async () => {
     const { service } = stub([
-      row({ id: 'done', deadline: '2026-10-01', status: 'link_submitted', linkDay: '2026-10-01' }),
+      row({
+        id: 'done',
+        deadline: '2026-10-01',
+        status: 'link_submitted',
+        linkDay: '2026-10-01',
+      }),
       row({ id: 'open-a', deadline: '2026-10-20' }),
       row({ id: 'open-b', deadline: '2026-10-21' }),
     ]);
 
-    const second = await service.list(CREATOR_ID, query({}, { page: 2, pageSize: 2 }), NOW);
+    const second = await service.list(
+      CREATOR_ID,
+      query({}, { page: 2, pageSize: 2 }),
+      NOW,
+    );
 
     expect(ids(second)).toEqual(['done']);
     expect(second).toMatchObject({ total: 3, totalPages: 2 });
@@ -255,7 +298,12 @@ describe('MyContentsService.list', () => {
       row({ id: 'review', status: 'draft_review', deadline: '2026-10-22' }),
       row({ id: 'rev', status: 'draft_revision', deadline: '2026-10-23' }),
       row({ id: 'ok', status: 'draft_approved', deadline: '2026-10-24' }),
-      row({ id: 'link', status: 'link_submitted', deadline: '2026-10-25', linkDay: '2026-10-25' }),
+      row({
+        id: 'link',
+        status: 'link_submitted',
+        deadline: '2026-10-25',
+        linkDay: '2026-10-25',
+      }),
     ]);
 
     expect(ids(await service.list(CREATOR_ID, query({ tab }), NOW))).toEqual(
@@ -268,20 +316,36 @@ describe('MyContentsService.list', () => {
     ['the day before its deadline', '2026-10-11'],
     ['on its deadline', '2026-10-10'],
     ['past its deadline', '2026-10-08'],
-  ])('moves a draft in review to Perlu Dikerjakan %s, when its link can be sent', async (_label, deadline) => {
-    const { service } = stub([
-      row({ id: 'review-h1', status: 'draft_review', deadline }),
-      row({ id: 'review-far', status: 'draft_review', deadline: '2026-10-12' }),
-    ]);
+  ])(
+    'moves a draft in review to Perlu Dikerjakan %s, when its link can be sent',
+    async (_label, deadline) => {
+      const { service } = stub([
+        row({ id: 'review-h1', status: 'draft_review', deadline }),
+        row({
+          id: 'review-far',
+          status: 'draft_review',
+          deadline: '2026-10-12',
+        }),
+      ]);
 
-    const toDo = await service.list(CREATOR_ID, query({ tab: 'to_do' }), NOW);
-    const waiting = await service.list(CREATOR_ID, query({ tab: 'waiting_admin' }), NOW);
+      const toDo = await service.list(CREATOR_ID, query({ tab: 'to_do' }), NOW);
+      const waiting = await service.list(
+        CREATOR_ID,
+        query({ tab: 'waiting_admin' }),
+        NOW,
+      );
 
-    expect(ids(toDo)).toEqual(['review-h1']);
-    expect(toDo.items[0].actions).toEqual(['submit_video']);
-    expect(ids(waiting)).toEqual(['review-far']);
-    expect(toDo.tabCounts).toEqual({ all: 2, to_do: 1, waiting_admin: 1, done: 0 });
-  });
+      expect(ids(toDo)).toEqual(['review-h1']);
+      expect(toDo.items[0].actions).toEqual(['submit_video']);
+      expect(ids(waiting)).toEqual(['review-far']);
+      expect(toDo.tabCounts).toEqual({
+        all: 2,
+        to_do: 1,
+        waiting_admin: 1,
+        done: 0,
+      });
+    },
+  );
 
   it('keeps a draft in review whose link can be sent in Perlu Dikerjakan whatever the period', async () => {
     const { service } = stub([
@@ -290,11 +354,20 @@ describe('MyContentsService.list', () => {
     const period = { deadlineFrom: '2026-11-01', deadlineTo: '2026-11-30' };
 
     const semua = await service.list(CREATOR_ID, query(period), NOW);
-    const toDo = await service.list(CREATOR_ID, query({ ...period, tab: 'to_do' }), NOW);
+    const toDo = await service.list(
+      CREATOR_ID,
+      query({ ...period, tab: 'to_do' }),
+      NOW,
+    );
 
     expect(ids(semua)).toEqual([]);
     expect(ids(toDo)).toEqual(['review-h1']);
-    expect(toDo.tabCounts).toEqual({ all: 0, to_do: 1, waiting_admin: 0, done: 0 });
+    expect(toDo.tabCounts).toEqual({
+      all: 0,
+      to_do: 1,
+      waiting_admin: 0,
+      done: 0,
+    });
   });
 
   it('counts every tab whichever is open, so the badges never change with the tab', async () => {
@@ -305,7 +378,11 @@ describe('MyContentsService.list', () => {
       row({ status: 'link_submitted', linkDay: '2026-10-01' }),
     ]);
 
-    const response = await service.list(CREATOR_ID, query({ tab: 'done' }), NOW);
+    const response = await service.list(
+      CREATOR_ID,
+      query({ tab: 'done' }),
+      NOW,
+    );
 
     expect(response.tabCounts).toEqual({
       all: 4,
@@ -348,19 +425,36 @@ describe('MyContentsService.list', () => {
   it.each([
     [true, ['overdue', 'late']],
     [false, ['open', 'on-time']],
-  ])('keeps overdue=%s rows by the same tags the row shows', async (overdue, expected) => {
-    const { service } = stub([
-      row({ id: 'overdue', status: 'draft_revision', deadline: '2026-10-05' }),
-      row({ id: 'late', status: 'link_submitted', deadline: '2026-10-04', linkDay: '2026-10-07' }),
-      row({ id: 'on-time', status: 'link_submitted', deadline: '2026-10-06', linkDay: '2026-10-05' }),
-      row({ id: 'open', status: 'scheduled', deadline: '2026-10-30' }),
-    ]);
+  ])(
+    'keeps overdue=%s rows by the same tags the row shows',
+    async (overdue, expected) => {
+      const { service } = stub([
+        row({
+          id: 'overdue',
+          status: 'draft_revision',
+          deadline: '2026-10-05',
+        }),
+        row({
+          id: 'late',
+          status: 'link_submitted',
+          deadline: '2026-10-04',
+          linkDay: '2026-10-07',
+        }),
+        row({
+          id: 'on-time',
+          status: 'link_submitted',
+          deadline: '2026-10-06',
+          linkDay: '2026-10-05',
+        }),
+        row({ id: 'open', status: 'scheduled', deadline: '2026-10-30' }),
+      ]);
 
-    const response = await service.list(CREATOR_ID, query({ overdue }), NOW);
+      const response = await service.list(CREATOR_ID, query({ overdue }), NOW);
 
-    expect(ids(response)).toEqual(expected);
-    expect(response.tabCounts.all).toBe(2);
-  });
+      expect(ids(response)).toEqual(expected);
+      expect(response.tabCounts.all).toBe(2);
+    },
+  );
 
   it('leaves a row outside the period out of Semua and its counter, but keeps work to do in Perlu Dikerjakan', async () => {
     // The database hands back the to-do row outside the period because of the OR above.
@@ -371,31 +465,68 @@ describe('MyContentsService.list', () => {
     const period = { deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' };
 
     const semua = await service.list(CREATOR_ID, query(period), NOW);
-    const toDo = await service.list(CREATOR_ID, query({ ...period, tab: 'to_do' }), NOW);
+    const toDo = await service.list(
+      CREATOR_ID,
+      query({ ...period, tab: 'to_do' }),
+      NOW,
+    );
 
     expect(ids(semua)).toEqual(['review-in']);
     expect(ids(toDo)).toEqual(['todo-old']);
-    expect(semua.tabCounts).toEqual({ all: 1, to_do: 1, waiting_admin: 1, done: 0 });
+    expect(semua.tabCounts).toEqual({
+      all: 1,
+      to_do: 1,
+      waiting_admin: 1,
+      done: 0,
+    });
   });
 
   it('keeps every other tab to the period, rows and counter alike', async () => {
     // A row the database would not return, handed back anyway: the period still decides.
     const { service } = stub([
-      row({ id: 'review-later', status: 'draft_review', deadline: '2026-12-01' }),
-      row({ id: 'done-old', status: 'link_submitted', deadline: '2026-09-02', linkDay: '2026-09-02' }),
+      row({
+        id: 'review-later',
+        status: 'draft_review',
+        deadline: '2026-12-01',
+      }),
+      row({
+        id: 'done-old',
+        status: 'link_submitted',
+        deadline: '2026-09-02',
+        linkDay: '2026-09-02',
+      }),
     ]);
     const period = { deadlineFrom: '2026-10-01', deadlineTo: '2026-10-31' };
 
-    const waiting = await service.list(CREATOR_ID, query({ ...period, tab: 'waiting_admin' }), NOW);
+    const waiting = await service.list(
+      CREATOR_ID,
+      query({ ...period, tab: 'waiting_admin' }),
+      NOW,
+    );
 
     expect(ids(waiting)).toEqual([]);
-    expect(waiting.tabCounts).toEqual({ all: 0, to_do: 0, waiting_admin: 0, done: 0 });
+    expect(waiting.tabCounts).toEqual({
+      all: 0,
+      to_do: 0,
+      waiting_admin: 0,
+      done: 0,
+    });
   });
 
   it('keeps both ends of the period inclusive', async () => {
     const { service } = stub([
-      row({ id: 'before', status: 'link_submitted', deadline: '2026-09-30', linkDay: '2026-09-30' }),
-      row({ id: 'first', status: 'link_submitted', deadline: '2026-10-01', linkDay: '2026-10-01' }),
+      row({
+        id: 'before',
+        status: 'link_submitted',
+        deadline: '2026-09-30',
+        linkDay: '2026-09-30',
+      }),
+      row({
+        id: 'first',
+        status: 'link_submitted',
+        deadline: '2026-10-01',
+        linkDay: '2026-10-01',
+      }),
       row({ id: 'last', status: 'draft_review', deadline: '2026-10-31' }),
       row({ id: 'after', status: 'draft_review', deadline: '2026-11-01' }),
     ]);
@@ -449,21 +580,30 @@ describe('MyContentsService.list', () => {
         linkDay: '2026-10-07',
         approval_bypassed: true,
       }),
-      row({ id: 'on-time', status: 'link_submitted', deadline: '2026-10-07', linkDay: '2026-10-07' }),
+      row({
+        id: 'on-time',
+        status: 'link_submitted',
+        deadline: '2026-10-07',
+        linkDay: '2026-10-07',
+      }),
     ]);
 
     const { items } = await service.list(CREATOR_ID, query(), NOW);
 
     expect(items.map((item) => [item.id, item.tags])).toEqual([
       ['overdue', ['overdue']],
-      ['late-bypassed', ['late_submission', 'approval_bypassed']],
+      ['late-bypassed', ['overdue', 'approval_bypassed']],
       ['on-time', []],
     ]);
   });
 
   it("carries the admin's latest revision notes on a row waiting for a resubmit", async () => {
     const { service } = stub([
-      row({ id: 'c1', status: 'draft_revision', revisionNotes: 'Perjelas intro' }),
+      row({
+        id: 'c1',
+        status: 'draft_revision',
+        revisionNotes: 'Perjelas intro',
+      }),
     ]);
 
     const [item] = (await service.list(CREATOR_ID, query(), NOW)).items;
@@ -473,8 +613,16 @@ describe('MyContentsService.list', () => {
 
   it('leaves out revision notes once the revision has been handed in or approved', async () => {
     const { service } = stub([
-      row({ id: 'c1', status: 'draft_review', revisionNotes: 'Perjelas intro' }),
-      row({ id: 'c2', status: 'draft_approved', revisionNotes: 'Perjelas intro' }),
+      row({
+        id: 'c1',
+        status: 'draft_review',
+        revisionNotes: 'Perjelas intro',
+      }),
+      row({
+        id: 'c2',
+        status: 'draft_approved',
+        revisionNotes: 'Perjelas intro',
+      }),
     ]);
 
     const { items } = await service.list(CREATOR_ID, query(), NOW);
@@ -505,7 +653,10 @@ describe('MyContentsService.list', () => {
 
   it('cuts the requested page out of the sorted rows and reports totals across every page', async () => {
     const rows = Array.from({ length: 12 }, (_, i) =>
-      row({ id: `c${String(i).padStart(2, '0')}`, deadline: `2026-10-${String(i + 11)}` }),
+      row({
+        id: `c${String(i).padStart(2, '0')}`,
+        deadline: `2026-10-${String(i + 11)}`,
+      }),
     );
     const { service } = stub(rows);
 
