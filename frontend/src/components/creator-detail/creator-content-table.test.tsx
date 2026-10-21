@@ -31,7 +31,7 @@ describe("CreatorContentTable", () => {
 
     expect(
       screen.getAllByRole("columnheader").map((heading) => heading.textContent),
-    ).toEqual(["Konten", "Deadline", "Status", "Aksi"]);
+    ).toEqual(["Konten", "Deadline↑", "Status", "Aksi"]);
   });
 
   it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {

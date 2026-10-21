@@ -7,14 +7,17 @@
 // Their queries and answers are spelled in the API's own words, so both pass through
 // creator-detail-api, the one module that knows them.
 
-import type { RawContentList } from "./content-list-api";
+import type { RawContentList, RawContentListItem } from "./content-list-api";
 import { isUuid, type CreatorDetailParams, type CreatorDetailView } from "./creator-detail";
 import {
   openContractId,
+  toCreatorCalendarQuery,
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
+  type RawPeriodInvoice,
 } from "./creator-detail-api";
+import { jakartaDay } from "./format";
 import { appSessionCookieHeader } from "./session-cookie";
 
 function withoutTrailingSlash(url: string): string {
@@ -51,6 +54,7 @@ export async function fetchCreatorDetail(
   }
 
   const backend = withoutTrailingSlash(backendUrl);
+  const today = jakartaDay();
 
   // Admin-only: each request carries the browser's session, and only it (OWASP A01).
   const cookie = await appSessionCookieHeader();
@@ -77,7 +81,7 @@ export async function fetchCreatorDetail(
   if (contract === null) return toCreatorDetailView(raw, null, state);
 
   const readContents = async (wanted: CreatorDetailParams): Promise<RawContentList> => {
-    const response = await read(`/contents?${toCreatorContentsQuery(contract, wanted)}`);
+    const response = await read(`/contents?${toCreatorContentsQuery(contract, wanted, today)}`);
 
     if (!response.ok) {
       throw new Error(`Loading the creator's content failed with HTTP ${response.status}`);
@@ -86,7 +90,41 @@ export async function fetchCreatorDetail(
     return (await response.json()) as RawContentList;
   };
 
-  let contents = await readContents(state);
+  /** Every row in the period, paged in the API's maximum batches for the calendar. */
+  const readCalendar = async (): Promise<RawContentListItem[]> => {
+    const page = async (number: number): Promise<RawContentList> => {
+      const response = await read(`/contents?${toCreatorCalendarQuery(contract, number, today)}`);
+      if (!response.ok) {
+        throw new Error(`Loading the period's calendar failed with HTTP ${response.status}`);
+      }
+      return (await response.json()) as RawContentList;
+    };
+
+    const first = await page(1);
+    const rest = await Promise.all(
+      Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => page(index + 2)),
+    );
+    return [first, ...rest].flatMap((answer) => answer.items);
+  };
+
+  /** Invoice failures affect only the earnings card; the rest of the creator view stays usable. */
+  const readInvoice = async (): Promise<RawPeriodInvoice | null> => {
+    try {
+      const response = await read(
+        `/invoices/${encodeURIComponent(id)}?${new URLSearchParams({ contract })}`,
+      );
+      return response.ok ? ((await response.json()) as RawPeriodInvoice) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const [firstRead, calendar, invoice] = await Promise.all([
+    readContents(state),
+    readCalendar(),
+    readInvoice(),
+  ]);
+  let contents = firstRead;
 
   // A page past the end (an old link, or a period that shrank as content was decided) comes
   // back with no rows, which would read as a period without content. Its last page is asked
@@ -95,5 +133,5 @@ export async function fetchCreatorDetail(
     contents = await readContents({ ...state, page: contents.totalPages });
   }
 
-  return toCreatorDetailView(raw, contents, state);
+  return toCreatorDetailView(raw, contents, state, calendar, invoice);
 }

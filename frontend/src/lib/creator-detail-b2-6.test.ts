@@ -69,7 +69,8 @@ describe("Creator Detail's Content Plan query adapter", () => {
     expect(query.getAll("type")).toEqual(["specific"]);
     expect(query.getAll("status")).toEqual(["link_submitted"]);
     expect(query.get("overdue")).toBe("true");
-    expect(query.get("sort")).toBe("deadline_desc");
+    // Content Plan's API default is deadline_desc, so the shared adapter omits it.
+    expect(query.get("sort")).toBeNull();
     expect(query.get("page")).toBe("2");
   });
 

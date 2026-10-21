@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   type CreatorContentRow,
@@ -95,6 +95,8 @@ const PERIOD: CreatorPeriod = {
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  progress: { submitted: 0, total: 19, percent: 0 },
+  performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
 
 function row(index: number): CreatorContentRow {
@@ -114,13 +116,16 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
   const shown = Math.max(0, Math.min(10, total - (page - 1) * 10));
 
   return {
-    creator: { id: CREATOR, name: "Rangga Pratama", email: "rangga@example.com", socials: {} },
+    creator: { id: CREATOR, name: "Rangga Pratama", email: "rangga@example.com", socials: {}, accessRevokeDate: null },
     periods: selected ? [selected] : [],
     selected,
     rows: Array.from({ length: shown }, (_, index) => row((page - 1) * 10 + index + 1)),
     page,
     total,
     totalPages: Math.max(1, Math.ceil(total / 10)),
+    counts: { all: total, action: 0, waiting: total, done: 0 },
+    calendar: [],
+    earnings: null,
   };
 }
 
@@ -159,7 +164,7 @@ describe("CreatorContentBoard", () => {
       // Below the table: the slice comes after the last row in the page.
       const slice = screen.getByText("Menampilkan 1–10 dari 25 konten");
       expect(
-        screen.getByRole("table").compareDocumentPosition(slice) & Node.DOCUMENT_POSITION_FOLLOWING,
+        screen.getByRole("tabpanel").querySelector("table")!.compareDocumentPosition(slice) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     });
 
@@ -178,7 +183,7 @@ describe("CreatorContentBoard", () => {
       renderBoard(viewOf(25));
 
       // The heading row and the ten of this page.
-      expect(screen.getAllByRole("row")).toHaveLength(11);
+      expect(within(screen.getByRole("tabpanel")).getAllByRole("row")).toHaveLength(11);
       expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
         "href",
         `${PAGE}?page=2`,
@@ -188,6 +193,7 @@ describe("CreatorContentBoard", () => {
 
     it("carries the open period and the filters into the page links", () => {
       const state: CreatorDetailParams = {
+        ...DEFAULT_CREATOR_DETAIL_PARAMS,
         contract: CONTRACT,
         type: [],
         status: ["scheduled"],

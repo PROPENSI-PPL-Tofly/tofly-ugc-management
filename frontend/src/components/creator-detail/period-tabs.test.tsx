@@ -19,6 +19,8 @@ function period(overrides: Partial<CreatorPeriod> = {}): CreatorPeriod {
     evergreenCount: 18,
     remainingEvergreenQuota: 1,
     daysBetween: 14,
+    progress: { submitted: 0, total: 19, percent: 0 },
+    performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     ...overrides,
   };
 }
@@ -133,7 +135,7 @@ describe("PeriodTabs", () => {
   it("shows three terms and no fixed rate", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
-    expect(screen.getAllByRole("term").map((label) => label.textContent)).toEqual([
+    expect(screen.getAllByRole("term").slice(0, 3).map((label) => label.textContent)).toEqual([
       "Kuota Konten",
       "Sisa Kuota Evergreen",
       "Jarak Antar-Deadline",

@@ -35,8 +35,8 @@ describe("CreatorContentFilters", () => {
 
     expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("Semua");
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Semua");
-    expect(screen.queryByRole("searchbox")).toBeNull();
-    expect(screen.queryByLabelText("Overdue")).toBeNull();
+    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
     expect(screen.queryByLabelText("Periode")).toBeNull();
   });
 

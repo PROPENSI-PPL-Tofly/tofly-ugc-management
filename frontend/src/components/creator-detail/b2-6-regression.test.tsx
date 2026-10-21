@@ -6,6 +6,7 @@ import type {
   CreatorDetailView,
   CreatorPeriod,
   CreatorProfile,
+  PeriodEarnings,
 } from "@/lib/creator-detail";
 import { CreatorContentBoard } from "./creator-content-board";
 import { CreatorProfilePanel } from "./creator-profile";
@@ -34,6 +35,8 @@ const PERIOD_BASE: CreatorPeriod = {
   evergreenCount: 3,
   remainingEvergreenQuota: 3,
   daysBetween: 14,
+  progress: { submitted: 0, total: 6, percent: 0 },
+  performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
 
 const PERFORMANCE = {
@@ -46,10 +49,11 @@ const CREATOR_PROFILE: CreatorProfile = {
   name: "Rangga Pratama",
   email: "rangga@example.com",
   socials: { instagram: "rangga.creates" },
+  accessRevokeDate: null,
 };
 
-type Earnings = { amount: number; status: "accruing" | "finalized" | "sent" | "paid" };
-type PerformancePeriod = CreatorPeriod & typeof PERFORMANCE;
+type Earnings = PeriodEarnings;
+type PerformancePeriod = CreatorPeriod;
 type PeriodTabsProps = {
   creatorId: string;
   creatorName: string;
@@ -155,12 +159,12 @@ describe("B2.6 period performance", () => {
   });
 });
 
-type AccessCreator = CreatorProfile & { accessRevokeDate: string | null };
+type AccessCreator = CreatorProfile & { accessRevokeDate: string | null | undefined };
 type AccessProps = { creator: AccessCreator; current: CreatorPeriod | null; today: string };
 const AccessProfile = CreatorProfilePanel as unknown as ComponentType<AccessProps>;
 
 describe("B2.6 creator access display", () => {
-  function renderAccess(accessRevokeDate: string | null, current: CreatorPeriod | null = PERIOD_BASE) {
+  function renderAccess(accessRevokeDate: string | null | undefined, current: CreatorPeriod | null = PERIOD_BASE) {
     render(<AccessProfile creator={{ ...CREATOR_PROFILE, accessRevokeDate }} current={current} today="2026-10-21" />);
     return screen.getByText("Akses").nextElementSibling as HTMLElement;
   }
@@ -189,6 +193,12 @@ describe("B2.6 creator access display", () => {
     const access = renderAccess("2026-10-01", null);
     expect(access).toHaveTextContent("Sejak 1 Okt 2026");
     expect(access).not.toHaveTextContent("sebelum kontrak berakhir");
+  });
+
+  it("does not claim active access when the API omitted its access field", () => {
+    const access = renderAccess(undefined);
+    expect(access).toHaveTextContent("Tidak diketahui");
+    expect(access).toHaveTextContent("Informasi akses tidak tersedia.");
   });
 });
 
@@ -231,7 +241,7 @@ describe("B2.6 content calendar and table conventions", () => {
     render(<CreatorContentBoard creatorId={CREATOR} view={EXTRA_VIEW} state={EXTRA_STATE} />);
     const calendar = screen.getByRole("heading", { level: 2, name: "Jadwal Konten" });
     const tabs = screen.getByRole("tablist", { name: "Tab konten periode" });
-    const table = screen.getByRole("table");
+    const table = within(screen.getByRole("tabpanel")).getByRole("table");
     expect(calendar.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(tabs.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Selesai" })).toBeInTheDocument();
@@ -241,8 +251,8 @@ describe("B2.6 content calendar and table conventions", () => {
 
   it("keeps late submitted content in Selesai and omits actions that no longer apply", () => {
     render(<CreatorContentBoard creatorId={CREATOR} view={EXTRA_VIEW} state={{ ...EXTRA_STATE, tab: "done" } as CreatorDetailParams} />);
-    expect(screen.getByText("Late hand-in")).toBeInTheDocument();
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getAllByText("Late hand-in").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Overdue").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Tinjau/ })).toBeNull();
     expect(screen.getByRole("tab", { name: "Selesai" })).toHaveAttribute("aria-selected", "true");
   });

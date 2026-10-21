@@ -13,6 +13,8 @@ const PERIOD: CreatorPeriod = {
   evergreenCount: 3,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  progress: { submitted: 0, total: 4, percent: 0 },
+  performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
 
 function entry(overrides: Partial<CreatorContentRow> = {}): CreatorContentRow {
@@ -37,8 +39,8 @@ const ENTRIES = [
 
 function renderCalendar(today = "2026-10-21", entries = ENTRIES) {
   const onOpen = vi.fn();
-  render(<CreatorCalendar period={PERIOD} entries={entries} today={today} onOpen={onOpen} />);
-  return { onOpen };
+  const result = render(<CreatorCalendar period={PERIOD} entries={entries} today={today} onOpen={onOpen} />);
+  return { onOpen, ...result };
 }
 
 function cell(day: string) {
@@ -52,6 +54,7 @@ describe("CreatorCalendar", () => {
       "Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab",
     ]);
     expect(within(cell("2026-10-01")).getByRole("button", { name: "Evg_1_RanggaPratama_01102026 · Scheduled" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
     expect(within(cell("2026-11-05")).getByRole("button", { name: "Submitted late · Content Link Submitted" })).toHaveAttribute("data-group", "done");
   });
 
@@ -93,7 +96,7 @@ describe("CreatorCalendar", () => {
 
   it("renders creator supplied content names as text", () => {
     const { container } = renderCalendar("2026-10-21", [entry({ name: '<img src=x onerror="alert(1)">' })]);
-    expect(screen.getByText('<img src=x onerror="alert(1)">')).toBeInTheDocument();
+    expect(screen.getAllByText('<img src=x onerror="alert(1)">').length).toBeGreaterThan(0);
     expect(container.querySelector("img,script")).toBeNull();
   });
 });

@@ -97,14 +97,14 @@ describe("fetchCreatorDetail B2.6 data sources", () => {
       sort: "desc",
     } as CreatorDetailParams);
     const requests = urls();
-    const table = requests.find((url) => !url.searchParams.has("pageSize"));
+    const table = requests.find((url) => url.searchParams.get("q") === "brief");
     const calendar = requests.find((url) => url.searchParams.has("pageSize"));
     const invoice = requests.find((url) => url.pathname.startsWith("/invoices/"));
     expect(table?.searchParams.get("contract")).toBe(CONTRACT);
     expect(table?.searchParams.get("tab")).toBe("done");
     expect(table?.searchParams.get("q")).toBe("brief");
     expect(table?.searchParams.get("overdue")).toBe("true");
-    expect(table?.searchParams.get("sort")).toBe("deadline_desc");
+    expect(table?.searchParams.get("sort")).toBeNull();
     expect(calendar?.searchParams.get("contract")).toBe(CONTRACT);
     expect(calendar?.searchParams.get("pageSize")).toBe("50");
     expect(invoice?.searchParams.get("contract")).toBe(CONTRACT);
