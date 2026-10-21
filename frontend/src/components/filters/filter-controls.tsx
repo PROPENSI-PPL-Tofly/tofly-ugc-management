@@ -42,7 +42,8 @@ export function offeredPicks(raw: string, options: readonly FilterOption[]): str
 
 export const FILTER_FIELD = `rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink ${PHONE_TARGET}`;
 
-const LABEL = "flex items-center gap-2 text-[13px]";
+// Side by side from sm up; inside the open phone card, the name over a full-width control.
+const LABEL = "flex items-center gap-2 text-[13px] max-sm:flex-col max-sm:items-stretch";
 
 /** The search box; `label` names it and, with an ellipsis, is its placeholder too. */
 export function SearchBox({
@@ -65,7 +66,8 @@ export function SearchBox({
       maxLength={MAX_SEARCH_LENGTH}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className={`${FILTER_FIELD} w-52 max-sm:w-full`}
+      // On a phone the box shares its row with the Filter press, taking what the press leaves.
+      className={`${FILTER_FIELD} w-52 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1`}
     />
   );
 }
@@ -93,7 +95,7 @@ export function FilterSelect({
 
   return (
     <label className={LABEL}>
-      <span className="flex items-center gap-1.5 text-muted">
+      <span className="flex items-center gap-1.5 text-muted max-sm:font-bold max-sm:text-ink-2">
         {label}
         {active ? (
           <span className="rounded-full bg-accent px-1.5 py-px text-[10.5px] font-bold uppercase tracking-wide text-accent-ink sm:hidden">
@@ -176,7 +178,7 @@ function DayField({
   onChange: (value: string) => void;
 }>) {
   return (
-    <label className={`${LABEL} max-sm:flex-1 max-sm:flex-col max-sm:items-stretch max-sm:gap-1`}>
+    <label className={`${LABEL} max-sm:flex-1 max-sm:gap-1`}>
       <span className="text-muted">{label}</span>
       <input
         type="date"
@@ -381,10 +383,14 @@ export function periodFilter(
   return [{ id: "period", text: ignored ? `${text} (tidak berlaku di tab ini)` : text, onRemove }];
 }
 
-// mr-auto sends Reset to the far end of the button's row on a phone.
-const TOGGLE = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink transition-colors hover:border-ink active:bg-surface-2 aria-expanded:border-accent aria-expanded:bg-accent-wash max-sm:mr-auto sm:hidden`;
+const TOGGLE = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink transition-colors hover:border-ink active:bg-surface-2 aria-expanded:border-accent aria-expanded:bg-accent-wash sm:hidden`;
 
 const TOGGLE_COUNT = "rounded-full bg-accent-wash px-1.5 text-[11px] font-semibold text-accent-deep";
+
+// Open on a phone: one card under the search row (order-last keeps Reset in that row), a
+// control per line. From sm up, display: contents leaves the controls in the bar's own row.
+const PANEL_OPEN =
+  "max-sm:order-last max-sm:flex max-sm:basis-full max-sm:flex-col max-sm:gap-3.5 max-sm:rounded-xl max-sm:border-[1.5px] max-sm:border-rule max-sm:bg-surface max-sm:p-3.5 max-sm:shadow-sm sm:contents";
 
 /**
  * A list's filter bar. From sm up every control sits in one wrapping row, as it always has. On
@@ -423,8 +429,7 @@ export function FilterBar({
         {active.length > 0 ? <span className={TOGGLE_COUNT}>{active.length}</span> : null}
       </button>
 
-      {/* display: contents keeps the controls in the bar's own row from sm up. */}
-      <div id={panelId} className={open ? "contents" : "contents max-sm:hidden"}>
+      <div id={panelId} className={open ? PANEL_OPEN : "contents max-sm:hidden"}>
         {children}
       </div>
 
