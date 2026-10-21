@@ -38,8 +38,8 @@ describe("creatorCalendarGroup", () => {
     expect(creatorCalendarGroup({ status: "draft_review", tags: ["overdue"] })).toBe("overdue");
   });
 
-  it("leaves a late hand-in where its status puts it: late is history, not something to do", () => {
-    expect(creatorCalendarGroup({ status: "link_submitted", tags: ["late_submission"] })).toBe("done");
+  it("keeps a late hand-in under Selesai: late is history, not something to do", () => {
+    expect(creatorCalendarGroup({ status: "link_submitted", tags: ["overdue"] })).toBe("done");
   });
 });
 

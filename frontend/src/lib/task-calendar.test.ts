@@ -78,8 +78,8 @@ describe("calendarGroup", () => {
     },
   );
 
-  it("keeps a finished task under Selesai even when its link came in late", () => {
-    expect(calendarGroup(task("link_submitted", ["late_submission"]))).toBe("done");
+  it("keeps a finished task under Selesai even when it came in late and reads overdue", () => {
+    expect(calendarGroup(task("link_submitted", ["overdue"]))).toBe("done");
   });
 
   it("is not moved by the approval-bypassed tag, which says nothing about the deadline", () => {
@@ -292,7 +292,7 @@ describe("calendarChipLabel", () => {
   it("puts no mark on a finished task whose link came in late: it is done, not overdue", () => {
     expect(
       calendarChipLabel(
-        chip("Tutorial Latihan Listening", "specific", "link_submitted", ["late_submission"]),
+        chip("Tutorial Latihan Listening", "specific", "link_submitted", ["overdue"]),
       ),
     ).toBe("Tutorial Latihan Listening");
   });

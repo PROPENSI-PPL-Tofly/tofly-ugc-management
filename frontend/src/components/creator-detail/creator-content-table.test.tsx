@@ -156,12 +156,18 @@ describe("CreatorContentTable", () => {
     expect(typeLabel).toHaveClass("text-muted");
   });
 
-  it("shows only the Overdue tag beside the status", () => {
-    renderTable([{ ...ROW, tags: ["late_submission", "overdue", "approval_bypassed"] }]);
+  it("shows Overdue and Approval di-bypass beside the status", () => {
+    renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
 
     expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.queryByText("Late Submission")).toBeNull();
-    expect(screen.queryByText("Approval di-bypass")).toBeNull();
+    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+  });
+
+  it("still tags a content on Selesai that came in late or skipped approval", () => {
+    renderTable([{ ...ROW, status: "link_submitted", tags: ["overdue", "approval_bypassed"] }], { tab: "done" });
+
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
   });
 
   it("leaves the revision count to the content's panel", () => {

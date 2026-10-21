@@ -8,8 +8,8 @@ describe("ContentTags", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("lists each tag by its label, in the order given, leaving a late hand-in out", () => {
-    render(<ContentTags tags={["late_submission", "overdue", "approval_bypassed"]} />);
+  it("lists each tag by its label, in the order given", () => {
+    render(<ContentTags tags={["overdue", "approval_bypassed"]} />);
 
     const list = screen.getByRole("list", { name: "Tanda konten" });
     expect(
@@ -17,12 +17,6 @@ describe("ContentTags", () => {
         .getAllByRole("listitem")
         .map((item) => item.textContent),
     ).toEqual(["Overdue", "Approval di-bypass"]);
-  });
-
-  it("renders nothing for a content whose only tag is a late hand-in", () => {
-    const { container } = render(<ContentTags tags={["late_submission"]} />);
-
-    expect(container).toBeEmptyDOMElement();
   });
 
   it("names each tag in text and tints it by its tone, so colour is never the only signal", () => {
@@ -33,7 +27,7 @@ describe("ContentTags", () => {
   });
 
   it("wraps onto further lines instead of widening a narrow cell", () => {
-    render(<ContentTags tags={["late_submission", "approval_bypassed"]} />);
+    render(<ContentTags tags={["overdue", "approval_bypassed"]} />);
 
     expect(screen.getByRole("list", { name: "Tanda konten" })).toHaveClass("flex-wrap", "min-w-0");
   });

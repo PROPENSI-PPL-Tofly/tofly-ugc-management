@@ -312,7 +312,7 @@ describe("ContentDetailPanel", () => {
         type: "specific",
         creatorName: "",
         brief: "",
-        tags: ["late_submission", "overdue", "approval_bypassed"],
+        tags: ["overdue", "approval_bypassed"],
       }),
     );
 
@@ -757,7 +757,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
     });
 
     it("lists the tags the way every other screen does, in the order the API sends them", async () => {
-      show({ tags: ["late_submission", "overdue", "approval_bypassed"] });
+      show({ tags: ["overdue", "approval_bypassed"] });
 
       const meta = await screen.findByTestId("modal-meta");
       const tags = within(meta).getByRole("list", { name: "Tanda konten" });

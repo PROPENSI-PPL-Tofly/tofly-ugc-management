@@ -217,18 +217,14 @@ describe("ContentPlanTable", () => {
     expect(screen.getByRole("button", { name: "Video Review Kopi" })).toHaveAttribute("type", "button");
   });
 
-  it("keeps only the Overdue tag in the table; the rest belong to the content's panel", () => {
-    renderTable([{ ...ROW, tags: ["late_submission", "overdue", "approval_bypassed"] }]);
+  it("shows Overdue and Approval di-bypass in the Tags column", () => {
+    renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
 
     const tags = screen.getByRole("list", { name: "Tanda konten" });
-    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Overdue"]);
-  });
-
-  it("draws no tag list for a row whose only tags stay out of the table", () => {
-    renderTable([{ ...ROW, tags: ["late_submission", "approval_bypassed"] }]);
-
-    expect(screen.queryByRole("list", { name: "Tanda konten" })).toBeNull();
-    expect(screen.queryByText("Late Submission")).toBeNull();
+    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Overdue",
+      "Approval di-bypass",
+    ]);
   });
 
   it("leaves the revision count to the content's panel", () => {
@@ -236,12 +232,17 @@ describe("ContentPlanTable", () => {
     expect(screen.queryByText(/Revisi ke-/)).toBeNull();
   });
 
-  it("drops Tags and Aksi on Selesai, where nothing is flagged and nothing waits on the admin", () => {
-    const { onOpen } = renderTable([{ ...ROW, status: "link_submitted" }], { tab: "done" });
+  it("keeps Tags but drops Aksi on Selesai, so a late or bypassed content still shows, with nothing to act on", () => {
+    const { onOpen } = renderTable(
+      [{ ...ROW, status: "link_submitted", tags: ["overdue", "approval_bypassed"] }],
+      { tab: "done" },
+    );
 
     const headings = screen.getAllByRole("columnheader").map((heading) => heading.textContent);
-    expect(headings).not.toContain("Tags");
+    expect(headings).toContain("Tags");
     expect(headings).not.toContain("Aksi");
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^(Tinjau|Detail)/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
     expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");

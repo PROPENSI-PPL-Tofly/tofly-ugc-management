@@ -26,23 +26,26 @@ function rows() {
 }
 
 describe("MyTaskTable", () => {
-  it("shows only the Overdue tag beside a row's status, as the admin's tables do", () => {
+  it("shows a row's tags beside its status, a finished late one included, as the admin's tables do", () => {
     render(
       <MyTaskTable
         tasks={[
-          task({ id: "overdue", tags: ["overdue", "approval_bypassed"] }),
-          task({ id: "late", status: "link_submitted", tags: ["late_submission", "approval_bypassed"], actions: [] }),
+          task({ id: "late", status: "link_submitted", tags: ["overdue", "approval_bypassed"], actions: [] }),
+          task({ id: "clean" }),
         ]}
         onAction={vi.fn()}
         onDetail={vi.fn()}
       />,
     );
 
-    const [overdue, late] = rows();
-    const tags = within(overdue).getByRole("list", { name: "Tanda konten" });
-    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Overdue"]);
+    const [late, clean] = rows();
+    const tags = within(late).getByRole("list", { name: "Tanda konten" });
+    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Overdue",
+      "Approval di-bypass",
+    ]);
     expect(within(late).getByText("Content Link Submitted")).toBeInTheDocument();
-    expect(within(late).queryByRole("list", { name: "Tanda konten" })).toBeNull();
+    expect(within(clean).queryByRole("list", { name: "Tanda konten" })).toBeNull();
   });
 
   describe("columns", () => {

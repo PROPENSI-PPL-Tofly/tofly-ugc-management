@@ -3,7 +3,6 @@ import {
   CONTENT_STATUS_TONES,
   CONTENT_TAG_LABELS,
   CONTENT_TAG_TONES,
-  tableTags,
 } from "./content-labels";
 
 describe("CONTENT_STATUS_LABELS", () => {
@@ -37,22 +36,11 @@ describe("CONTENT_STATUS_TONES", () => {
 });
 
 describe("CONTENT_TAG_LABELS", () => {
-  it("names the two tags a screen shows, and no Late Submission", () => {
+  it("names the two tags the API sends, in its order", () => {
     expect(Object.entries(CONTENT_TAG_LABELS)).toEqual([
       ["overdue", "Overdue"],
       ["approval_bypassed", "Approval di-bypass"],
     ]);
-  });
-});
-
-describe("tableTags", () => {
-  it("keeps only Overdue, the one tag a table row shows", () => {
-    expect(tableTags(["late_submission", "overdue", "approval_bypassed"])).toEqual(["overdue"]);
-  });
-
-  it("leaves nothing of a row with no overdue tag", () => {
-    expect(tableTags(["late_submission", "approval_bypassed"])).toEqual([]);
-    expect(tableTags([])).toEqual([]);
   });
 });
 
