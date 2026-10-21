@@ -107,7 +107,9 @@ describe("InvoiceTable", () => {
     const { container } = render(<InvoiceTable rows={[FULL]} />);
 
     // An absolutely placed child (a screen-reader label) would otherwise widen the whole page.
-    expect(container.firstElementChild).toHaveClass("relative", "overflow-x-auto");
+    const region = container.querySelector("[data-scroll-frame]");
+    expect(region).toHaveClass("relative", "overflow-x-auto");
+    expect(region).toContainElement(screen.getByRole("table"));
   });
 
   it("names the creator, and says where their contract stands under it", () => {
