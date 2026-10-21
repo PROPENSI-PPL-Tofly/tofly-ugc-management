@@ -193,10 +193,13 @@ function DeadlineRange({
   from,
   to,
   onChange,
+  onClear,
 }: Readonly<{
   from: string;
   to: string;
   onChange: (key: "from" | "to", value: string) => void;
+  /** Clears both days in one change, so no address with one day left on it is opened. */
+  onClear: () => void;
 }>) {
   const summaryId = useId();
 
@@ -222,10 +225,7 @@ function DeadlineRange({
       {from || to ? (
         <button
           type="button"
-          onClick={() => {
-            onChange("from", "");
-            onChange("to", "");
-          }}
+          onClick={onClear}
           className="cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink"
         >
           Kosongkan tanggal
@@ -253,12 +253,15 @@ export function PeriodFilter({
   to,
   ignored,
   onChange,
+  onClear,
 }: Readonly<{
   period: string;
   from: string;
   to: string;
   ignored: boolean;
   onChange: (key: "period" | "from" | "to", value: string) => void;
+  /** Clears both custom days in one change. */
+  onClear: () => void;
 }>) {
   return (
     <>
@@ -269,7 +272,7 @@ export function PeriodFilter({
         onChange={(value) => onChange("period", value)}
       />
 
-      {period === "custom" ? <DeadlineRange from={from} to={to} onChange={onChange} /> : null}
+      {period === "custom" ? <DeadlineRange from={from} to={to} onChange={onChange} onClear={onClear} /> : null}
 
       {/* amber-ink, not amber: the plain amber token is too light to read on white. */}
       {ignored ? (

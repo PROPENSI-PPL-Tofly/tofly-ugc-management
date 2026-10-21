@@ -135,6 +135,7 @@ export function ContentPlanFilters({
         to={to}
         ignored={periodIgnored}
         onChange={setParam}
+        onClear={() => setParams({ from: "", to: "" })}
       />
     </FilterBar>
   );

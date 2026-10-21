@@ -60,9 +60,20 @@ describe("FilterSelect", () => {
 });
 
 describe("PeriodFilter", () => {
+  let onClear = vi.fn();
   const renderPeriod = (period: string, ignored = false, from = "", to = "") => {
     const onChange = vi.fn();
-    render(<PeriodFilter period={period} from={from} to={to} ignored={ignored} onChange={onChange} />);
+    onClear = vi.fn();
+    render(
+      <PeriodFilter
+        period={period}
+        from={from}
+        to={to}
+        ignored={ignored}
+        onChange={onChange}
+        onClear={onClear}
+      />,
+    );
     return onChange;
   };
 
@@ -145,8 +156,9 @@ describe("PeriodFilter", () => {
 
       fireEvent.click(range().getByRole("button", { name: "Kosongkan tanggal" }));
 
-      expect(onChange).toHaveBeenCalledWith("from", "");
-      expect(onChange).toHaveBeenCalledWith("to", "");
+      // One change for both days, not one per day.
+      expect(onClear).toHaveBeenCalledOnce();
+      expect(onChange).not.toHaveBeenCalled();
     });
 
     it("offers no clearing while no day is picked", () => {
@@ -300,7 +312,16 @@ describe("on a phone, every filter control is a 44px press", () => {
   });
 
   it("covers both days of a custom range", () => {
-    render(<PeriodFilter period="custom" from="" to="" ignored={false} onChange={vi.fn()} />);
+    render(
+      <PeriodFilter
+        period="custom"
+        from=""
+        to=""
+        ignored={false}
+        onChange={vi.fn()}
+        onClear={vi.fn()}
+      />,
+    );
 
     const days = document.querySelectorAll('input[type="date"]');
     expect(days).toHaveLength(2);

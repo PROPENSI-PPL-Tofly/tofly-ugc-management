@@ -131,6 +131,7 @@ export function MyTaskFilters({
         to={day("to")}
         ignored={periodIgnored}
         onChange={setParam}
+        onClear={() => setParams({ from: "", to: "" })}
       />
     </FilterBar>
   );
