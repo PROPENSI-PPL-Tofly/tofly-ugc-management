@@ -80,6 +80,7 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
     page: 1,
     total: 1,
     totalPages: 1,
+    counts: { all: 1, action: 1, waiting: 0, done: 0 },
     ...overrides,
   };
 }

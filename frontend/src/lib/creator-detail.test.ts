@@ -4,6 +4,7 @@ import {
   buildCreatorDetailQuery,
   creatorDetailAfterContractChange,
   creatorDetailAfterFilterChange,
+  creatorDetailAfterTabChange,
   creatorDetailBase,
   creatorDetailHref,
   creatorAccess,
@@ -17,8 +18,12 @@ const OTHER_CONTRACT = "9a1c7e52-0b3d-4f68-8e2a-6c5d4b3a2f10";
 
 const BARE: CreatorDetailParams = {
   contract: null,
+  tab: "all",
+  q: "",
   type: [],
   status: [],
+  overdue: "all",
+  sort: "asc",
   page: 1,
 };
 
@@ -38,16 +43,28 @@ describe("parseCreatorDetailParams", () => {
     expect(
       parseCreatorDetailParams({
         contract: CONTRACT,
+        tab: "action",
+        q: "  kopi  ",
         type: "specific",
         status: "draft_review,draft_revision",
+        overdue: "yes",
+        sort: "desc",
         page: "3",
       }),
     ).toEqual({
       contract: CONTRACT,
+      tab: "action",
+      q: "kopi",
       type: ["specific"],
       status: ["draft_review", "draft_revision"],
+      overdue: "yes",
+      sort: "desc",
       page: 3,
     });
+  });
+
+  it("falls back to the defaults for a tab, an overdue choice or a sort it does not know", () => {
+    expect(parseCreatorDetailParams({ tab: "pending", overdue: "maybe", sort: "random" })).toEqual(BARE);
   });
 
   it("takes a contract id in capitals, as an id is the same id either way", () => {
@@ -125,18 +142,35 @@ describe("buildCreatorDetailQuery", () => {
   it("writes only what differs from the default, in a stable order", () => {
     const query = buildCreatorDetailQuery({
       contract: CONTRACT,
+      tab: "waiting",
+      q: "kopi",
       type: ["evergreen", "specific"],
       status: ["scheduled"],
+      overdue: "no",
+      sort: "desc",
       page: 2,
     });
 
     expect(query).toEqual({
       contract: CONTRACT,
+      tab: "waiting",
+      q: "kopi",
       type: "evergreen,specific",
       status: "scheduled",
+      overdue: "no",
+      sort: "desc",
       page: "2",
     });
-    expect(Object.keys(query)).toEqual(["contract", "type", "status", "page"]);
+    expect(Object.keys(query)).toEqual([
+      "contract",
+      "tab",
+      "q",
+      "type",
+      "status",
+      "overdue",
+      "sort",
+      "page",
+    ]);
   });
 
   it("leaves page one out", () => {
@@ -148,8 +182,12 @@ describe("buildCreatorDetailQuery", () => {
   it("reads back as the state it was built from", () => {
     const state: CreatorDetailParams = {
       contract: CONTRACT,
+      tab: "done",
+      q: "review",
       type: ["specific"],
-      status: ["draft_approved", "link_submitted"],
+      status: ["link_submitted"],
+      overdue: "yes",
+      sort: "desc",
       page: 4,
     };
 
@@ -174,13 +212,17 @@ describe("isCreatorDetailFiltered", () => {
     expect(isCreatorDetailFiltered(BARE)).toBe(false);
   });
 
-  it("is false when only the contract or the page was chosen, as neither narrows the table", () => {
-    expect(isCreatorDetailFiltered({ ...BARE, contract: CONTRACT, page: 3 })).toBe(false);
+  it("is false when only the contract, the tab, the sort or the page was chosen, as none narrows the table", () => {
+    expect(
+      isCreatorDetailFiltered({ ...BARE, contract: CONTRACT, tab: "done", sort: "desc", page: 3 }),
+    ).toBe(false);
   });
 
-  it("is true once a type or a status is picked", () => {
+  it("is true once a search, a type, a status or an overdue choice narrows it", () => {
+    expect(isCreatorDetailFiltered({ ...BARE, q: "kopi" })).toBe(true);
     expect(isCreatorDetailFiltered({ ...BARE, type: ["evergreen"] })).toBe(true);
     expect(isCreatorDetailFiltered({ ...BARE, status: ["scheduled"] })).toBe(true);
+    expect(isCreatorDetailFiltered({ ...BARE, overdue: "no" })).toBe(true);
   });
 });
 
@@ -189,10 +231,10 @@ describe("creatorDetailAfterFilterChange", () => {
     const state: CreatorDetailParams = { ...BARE, contract: CONTRACT, type: ["evergreen"], page: 3 };
 
     expect(creatorDetailAfterFilterChange(state, { status: ["scheduled"] })).toEqual({
+      ...BARE,
       contract: CONTRACT,
       type: ["evergreen"],
       status: ["scheduled"],
-      page: 1,
     });
   });
 
@@ -208,14 +250,41 @@ describe("creatorDetailAfterContractChange", () => {
   it("opens the other contract unfiltered on page one, as the prototype does on a period tab", () => {
     const state: CreatorDetailParams = {
       contract: CONTRACT,
+      tab: "action",
+      q: "kopi",
       type: ["specific"],
       status: ["draft_review"],
+      overdue: "yes",
+      sort: "desc",
       page: 2,
     };
 
     expect(creatorDetailAfterContractChange(state, OTHER_CONTRACT)).toEqual({
       ...BARE,
       contract: OTHER_CONTRACT,
+    });
+  });
+});
+
+describe("creatorDetailAfterTabChange", () => {
+  it("keeps the period, the search, the type and overdue, and lets the status, sort and page go", () => {
+    const state: CreatorDetailParams = {
+      contract: CONTRACT,
+      tab: "all",
+      q: "kopi",
+      type: ["evergreen"],
+      status: ["scheduled"],
+      overdue: "yes",
+      sort: "desc",
+      page: 3,
+    };
+
+    expect(creatorDetailAfterTabChange(state, "waiting")).toEqual({
+      ...state,
+      tab: "waiting",
+      status: [],
+      sort: "asc",
+      page: 1,
     });
   });
 });

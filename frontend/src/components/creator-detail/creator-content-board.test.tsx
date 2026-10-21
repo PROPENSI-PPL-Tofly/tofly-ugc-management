@@ -127,6 +127,7 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
     page,
     total,
     totalPages: Math.max(1, Math.ceil(total / 10)),
+    counts: { all: total, action: 0, waiting: total, done: 0 },
   };
 }
 
@@ -154,6 +155,25 @@ describe("CreatorContentBoard", () => {
 
     expect(screen.getByRole("button", { name: /^Tipe:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Status:/ })).toBeInTheDocument();
+  });
+
+  it("lays the period's content out as the Content Plan does: tabs, then filters, then the list", () => {
+    renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, tab: "waiting" });
+
+    const tabs = screen.getByRole("tablist", { name: "Tab konten periode" });
+    expect(screen.getByRole("tab", { name: "Menunggu Kreator3" })).toHaveAttribute("aria-selected", "true");
+    const list = screen.getByRole("tabpanel", { name: "Daftar konten periode" });
+    expect(list).toContainElement(screen.getByRole("table"));
+    expect(tabs.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("turns the deadline order over from the header, back to page one", () => {
+    window.history.pushState({}, "", `${PAGE}?contract=${CONTRACT}&page=2`);
+    renderBoard(viewOf(25, 2), { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: CONTRACT, page: 2 });
+
+    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
+
+    expect(replace).toHaveBeenCalledWith(`${PAGE}?contract=${CONTRACT}&sort=desc`, { scroll: false });
   });
 
   describe("pagination", () => {
@@ -194,8 +214,8 @@ describe("CreatorContentBoard", () => {
 
     it("carries the open period and the filters into the page links", () => {
       const state: CreatorDetailParams = {
+        ...DEFAULT_CREATOR_DETAIL_PARAMS,
         contract: CONTRACT,
-        type: [],
         status: ["scheduled"],
         page: 2,
       };

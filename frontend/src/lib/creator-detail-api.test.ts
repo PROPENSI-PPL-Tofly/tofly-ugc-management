@@ -122,22 +122,37 @@ describe("toCreatorContentsQuery", () => {
     );
   });
 
-  // The per-creator Content Plan this page replaces listed the earliest deadline first, so what
-  // is due today or overdue is on the first page. The API's own default is the latest first.
-  it("always asks for the earliest deadline first, whatever the page or the filters", () => {
-    const filtered = toCreatorContentsQuery(MIDDLE, {
-      contract: MIDDLE,
-      type: ["specific"],
-      status: ["draft_review"],
-      page: 4,
-    });
-
+  // Earliest deadline first unless the header was turned: what is due today or overdue belongs
+  // on the first page. The API's own default is the latest first, so the order is always sent.
+  it("asks for the deadline order the header shows, in the API's words", () => {
     expect(toCreatorContentsQuery(NEWEST, BARE).getAll("sort")).toEqual(["deadline_asc"]);
-    expect(filtered.getAll("sort")).toEqual(["deadline_asc"]);
+    expect(toCreatorContentsQuery(NEWEST, { ...BARE, sort: "desc" }).getAll("sort")).toEqual([
+      "deadline_desc",
+    ]);
+  });
+
+  // The names GET /contents reads (content-list.controller.ts): a filter spelled any other way
+  // would be ignored by the API and narrow nothing, while the page claims it did.
+  it("sends the tab, the search and overdue under the API's own names and values", () => {
+    const query = toCreatorContentsQuery(NEWEST, { ...BARE, tab: "action", q: "kopi", overdue: "yes" });
+
+    expect(query.get("tab")).toBe("needs_approval");
+    expect(query.get("q")).toBe("kopi");
+    expect(query.get("overdue")).toBe("true");
+    expect(toCreatorContentsQuery(NEWEST, { ...BARE, tab: "waiting", overdue: "no" }).toString()).toBe(
+      `contract=${NEWEST}&tab=waiting_creator&overdue=false&sort=deadline_asc&page=1`,
+    );
+  });
+
+  it("cuts a search to the hundred characters the API takes", () => {
+    const query = toCreatorContentsQuery(NEWEST, { ...BARE, q: "k".repeat(120) });
+
+    expect(query.get("q")).toHaveLength(100);
   });
 
   it("names the contract, one parameter per pick, and the page", () => {
     const query = toCreatorContentsQuery(MIDDLE, {
+      ...BARE,
       contract: MIDDLE,
       type: ["evergreen", "specific"],
       status: ["scheduled", "draft_review"],
@@ -168,7 +183,7 @@ describe("toCreatorContentsQuery", () => {
     expect(query.getAll("status")).toEqual(["scheduled", "pending"]);
   });
 
-  it("sends nothing else the Content Plan's own filters would: no tab and no search", () => {
+  it("sends nothing for the defaults: no tab, no search and no overdue", () => {
     const query = toCreatorContentsQuery(NEWEST, { ...BARE, type: ["specific"], page: 2 });
 
     expect([...query.keys()].sort()).toEqual(["contract", "page", "sort", "type"]);
@@ -176,6 +191,14 @@ describe("toCreatorContentsQuery", () => {
 });
 
 describe("toCreatorDetailView", () => {
+  it("counts each tab of the open period under the page's tab names", () => {
+    expect(toCreatorDetailView(RAW, CONTENTS, BARE).counts).toEqual({ all: 11, action: 1, waiting: 9, done: 1 });
+  });
+
+  it("counts nothing for a creator without a contract", () => {
+    expect(toCreatorDetailView(RAW, null, BARE).counts).toEqual({ all: 0, action: 0, waiting: 0, done: 0 });
+  });
+
   it("names the creator with the accounts they have", () => {
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).creator).toEqual({
       id: "creator-1",

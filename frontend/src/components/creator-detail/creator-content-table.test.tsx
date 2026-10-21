@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { ContentPlanTab, DeadlineSort } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { CreatorContentTable } from "./creator-content-table";
 
@@ -12,11 +13,29 @@ const ROW: CreatorContentRow = {
   revisionCount: 0,
 };
 
-function renderTable(rows: CreatorContentRow[] = [ROW], { filtered = false } = {}) {
+function renderTable(
+  rows: CreatorContentRow[] = [ROW],
+  {
+    filtered = false,
+    tab = "all",
+    sort = "asc",
+  }: { filtered?: boolean; tab?: ContentPlanTab; sort?: DeadlineSort } = {},
+) {
   const onOpen = vi.fn();
   const onReset = vi.fn();
-  render(<CreatorContentTable rows={rows} filtered={filtered} onOpen={onOpen} onReset={onReset} />);
-  return { onOpen, onReset };
+  const onSortToggle = vi.fn();
+  render(
+    <CreatorContentTable
+      rows={rows}
+      filtered={filtered}
+      tab={tab}
+      sort={sort}
+      onSortToggle={onSortToggle}
+      onOpen={onOpen}
+      onReset={onReset}
+    />,
+  );
+  return { onOpen, onReset, onSortToggle };
 }
 
 /** The table row a content's name sits in. */
@@ -30,7 +49,25 @@ describe("CreatorContentTable", () => {
 
     expect(
       screen.getAllByRole("columnheader").map((heading) => heading.textContent),
-    ).toEqual(["Konten", "Deadline", "Status", "Aksi"]);
+    ).toEqual(["Konten", "Deadline↑", "Status", "Aksi"]);
+  });
+
+  it("sorts by deadline from its header, as the Content Plan does, and says which way", () => {
+    const { onSortToggle } = renderTable([ROW], { sort: "desc" });
+
+    expect(screen.getByRole("columnheader", { name: /Deadline/ })).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
+    expect(onSortToggle).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["action", "Tidak ada yang perlu di-approve."],
+    ["waiting", "Tidak ada konten yang menunggu kreator."],
+    ["done", "Belum ada konten selesai."],
+  ] as const)("says the %s tab's own nothing when it is simply empty", (tab, text) => {
+    renderTable([], { tab });
+
+    expect(screen.getByText(text)).toBeInTheDocument();
   });
 
   it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {
