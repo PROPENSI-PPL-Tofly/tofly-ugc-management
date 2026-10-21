@@ -55,6 +55,9 @@ export function ContentPlanTable({
     );
   }
 
+  // On Selesai nothing waits on the admin and nothing can be overdue: no action, no tag.
+  const settled = tab === "done";
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
@@ -65,8 +68,8 @@ export function ContentPlanTable({
             <th className="px-5 py-3 font-semibold">Tipe</th>
             <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
             <th className="px-5 py-3 font-semibold">Status</th>
-            <th className="px-5 py-3 font-semibold">Tags</th>
-            <th className="px-5 py-3 font-semibold">Aksi</th>
+            {settled ? null : <th className="px-5 py-3 font-semibold">Tags</th>}
+            {settled ? null : <th className="px-5 py-3 font-semibold">Aksi</th>}
           </tr>
         </thead>
         <tbody>
@@ -103,12 +106,16 @@ export function ContentPlanTable({
                   {CONTENT_STATUS_LABELS[row.status]}
                 </StatusDot>
               </td>
-              <td className="px-5 py-3">
-                <ContentTags tags={tableTags(row.tags)} />
-              </td>
-              <td className="px-5 py-3">
-                <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
-              </td>
+              {settled ? null : (
+                <>
+                  <td className="px-5 py-3">
+                    <ContentTags tags={tableTags(row.tags)} />
+                  </td>
+                  <td className="px-5 py-3">
+                    <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
+                  </td>
+                </>
+              )}
             </tr>
           ))}
         </tbody>

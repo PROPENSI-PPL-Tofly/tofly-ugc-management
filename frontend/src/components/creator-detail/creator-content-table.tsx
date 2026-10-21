@@ -68,10 +68,13 @@ export function CreatorContentTable({
             <th scope="col" className={HEAD}>
               Status
             </th>
-            <th scope="col" className={HEAD}>
-              {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
-              <span className="sr-only">Aksi</span>
-            </th>
+            {/* On Selesai nothing waits on the admin, so the column goes; the row still opens. */}
+            {tab === "done" ? null : (
+              <th scope="col" className={HEAD}>
+                {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
+                <span className="sr-only">Aksi</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -103,9 +106,11 @@ export function CreatorContentTable({
                   <ContentTags tags={tableTags(row.tags)} />
                 </span>
               </td>
-              <td className={CELL}>
-                <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
-              </td>
+              {tab === "done" ? null : (
+                <td className={CELL}>
+                  <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
