@@ -30,6 +30,13 @@ function grid() {
   return within(screen.getByRole("table"));
 }
 
+/** The task chips in a day's cell, leaving out the button that chooses the day. */
+function chips(cell: HTMLElement): HTMLElement[] {
+  return within(cell)
+    .queryAllByRole("button")
+    .filter((button) => button.hasAttribute("data-group"));
+}
+
 /** The cell of one calendar day. */
 function day(container: HTMLElement, iso: string): HTMLElement {
   const cell = container.querySelector<HTMLElement>(`[data-day="${iso}"]`);
@@ -73,7 +80,7 @@ describe("TaskCalendar", () => {
         name: "Tutorial Latihan Listening · Scheduled",
       }),
     ).toHaveTextContent("Tutorial Latihan Listening");
-    expect(within(day(container, "2026-10-13")).queryByRole("button")).not.toBeInTheDocument();
+    expect(chips(day(container, "2026-10-13"))).toEqual([]);
   });
 
   it("shortens an Evergreen chip but still names the content in full for a screen reader", () => {
@@ -114,11 +121,10 @@ describe("TaskCalendar", () => {
       task({ id: "b", name: "Kedua" }),
     ]);
 
-    expect(
-      within(day(container, "2026-10-12"))
-        .getAllByRole("button")
-        .map((chip) => chip.textContent),
-    ).toEqual(["Pertama", "Kedua"]);
+    expect(chips(day(container, "2026-10-12")).map((chip) => chip.textContent)).toEqual([
+      "Pertama",
+      "Kedua",
+    ]);
   });
 
   it("asks to open the content a chip stands for", () => {
