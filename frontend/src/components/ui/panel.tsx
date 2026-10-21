@@ -69,7 +69,8 @@ export function PanelBand({
 }: Readonly<{
   title: string;
   tone: BandTone;
-  icon: PlaceIconName;
+  /** Left out where the design titles a box by its name alone (Pembayaran). */
+  icon?: PlaceIconName;
   count?: number;
   noun?: string;
   aside?: ReactNode;
@@ -82,9 +83,10 @@ export function PanelBand({
     <>
       <div
         data-tone={tone}
-        className={`flex flex-wrap items-center gap-2 border-b-[1.5px] px-5 py-3 max-sm:px-4 ${theme.band}`}
+        // Rounded itself, so a panel left unclipped for its popups still shows round corners.
+        className={`flex flex-wrap items-center gap-2 rounded-t-[calc(var(--radius-panel)-1.5px)] border-b-[1.5px] px-5 py-3 max-sm:px-4 ${theme.band}`}
       >
-        <PlaceIcon name={icon} className="size-[18px] shrink-0" />
+        {icon ? <PlaceIcon name={icon} className="size-[18px] shrink-0" /> : null}
         <h2 className="text-base font-extrabold">{title}</h2>
         {count === undefined ? null : (
           <span

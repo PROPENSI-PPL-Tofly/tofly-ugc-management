@@ -149,15 +149,15 @@ export function InvoiceParts({
         <div
           role="group"
           aria-label="Total invoice"
-          className="-mt-px flex items-start justify-between gap-4 border-t-[1.5px] border-ink px-0.5 pt-3 pb-1"
+          className="mt-2 flex items-start justify-between gap-4 rounded-(--radius-control) bg-ink px-3 py-3 text-accent-ink"
         >
           <div>
             <p className="text-sm font-bold">{label}</p>
             {invoice.floored ? (
-              <p className="text-xs text-red-ink">Penalti melebihi pendapatan, total minimal Rp0.</p>
+              <p className="text-xs font-semibold text-red-wash">Penalti melebihi pendapatan, total minimal Rp0.</p>
             ) : null}
             {invoice.bonusAmount === null ? (
-              <p className="text-xs text-muted">Belum termasuk bonus performa yang menunggu data.</p>
+              <p className="text-xs text-rule">Belum termasuk bonus performa yang menunggu data.</p>
             ) : null}
           </div>
           <strong className={`${AMOUNT} text-sm`}>{total}</strong>
