@@ -70,7 +70,7 @@ function contractNote(creator: CreatorSummary): string {
   return `${contractTypePrefix(creator.contract.type)}${note}`;
 }
 
-const LINK_BUTTON = buttonClasses();
+const LINK_BUTTON = `inline-flex items-center ${buttonClasses()}`;
 
 /**
  * Why the table is empty. Three different situations, three different next steps: nobody has

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { PHONE_TARGET } from "./touch-target";
 
 export interface MultiSelectOption {
   value: string;
@@ -9,8 +10,7 @@ export interface MultiSelectOption {
 
 // A pill, as the prototype draws every filter: a quiet label, the value in strong type, and a
 // caret that says there is more behind it.
-const TRIGGER =
-  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[12.5px] text-ink hover:border-ink";
+const TRIGGER = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[12.5px] text-ink hover:border-ink`;
 
 const CARET = "ml-0.5 size-1.5 -translate-y-px rotate-45 border-b-[1.6px] border-r-[1.6px] border-muted";
 
@@ -25,8 +25,7 @@ const POPUP =
 /** How far a popup stays from the edge of the window, in pixels. */
 const WINDOW_MARGIN = 8;
 
-const CHIP =
-  "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
+const CHIP = `inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2 ${PHONE_TARGET}`;
 
 /**
  * A filter shown as a chip that takes itself off when pressed. The multi-select's picks use it,

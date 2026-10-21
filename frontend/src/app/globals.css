@@ -129,6 +129,18 @@ h3 {
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
 }
 
+/* Safari on a phone or tablet zooms the page in on any field it focuses whose text is under 16px,
+   and leaves it zoomed, so the page then scrolls sideways. Under a finger every text field and
+   select reads at 16px; under a mouse they keep the design's sizes. Unlayered, like the focus
+   ring above, so it outranks the utilities. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

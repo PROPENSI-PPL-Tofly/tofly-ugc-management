@@ -95,11 +95,11 @@ function LoadFailed({ signedOut, retryHref }: Readonly<{ signedOut: boolean; ret
         </p>
 
         {signedOut ? (
-            <a href="/login" className={`mt-4 inline-block ${buttonClasses("accent")}`}>
+            <a href="/login" className={`mt-4 inline-flex items-center ${buttonClasses("accent")}`}>
               Masuk
             </a>
         ) : (
-            <a href={retryHref} className={`mt-4 inline-block ${buttonClasses()}`}>
+            <a href={retryHref} className={`mt-4 inline-flex items-center ${buttonClasses()}`}>
               Muat ulang
             </a>
         )}

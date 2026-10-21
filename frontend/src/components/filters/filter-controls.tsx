@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 import { FilterChip } from "@/components/ui/multi-select";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import { formatContractWindow, formatDate } from "@/lib/format";
 import { list } from "@/lib/search-params";
 import { MAX_SEARCH_LENGTH } from "@/lib/use-url-filters";
@@ -40,8 +41,7 @@ export function offeredPicks(raw: string, options: readonly FilterOption[]): str
   return list(raw).filter((part) => options.some((option) => option.value === part));
 }
 
-export const FILTER_FIELD =
-  "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink";
+export const FILTER_FIELD = `rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink ${PHONE_TARGET}`;
 
 const LABEL = "flex items-center gap-2 text-[13px]";
 
@@ -95,8 +95,7 @@ export function FilterSelect({
   );
 }
 
-const CHOICE =
-  "inline-flex h-7 cursor-pointer items-center rounded-full px-3 text-[12.5px] font-semibold text-ink-2 transition-colors hover:text-ink has-checked:bg-accent-wash has-checked:text-accent-deep has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-accent";
+const CHOICE = `inline-flex h-7 ${PHONE_TARGET} cursor-pointer items-center rounded-full px-3 text-[12.5px] font-semibold text-ink-2 transition-colors hover:text-ink has-checked:bg-accent-wash has-checked:text-accent-deep has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-accent`;
 
 /**
  * One choice out of a few, as native radios in a named group: Tab reaches the group once, the
@@ -290,7 +289,7 @@ export function ResetFilters({
       type="button"
       onClick={onReset}
       disabled={disabled}
-      className="cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:opacity-60"
+      className={`cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:opacity-60 ${PHONE_TARGET}`}
     >
       Reset
     </button>
@@ -353,8 +352,7 @@ export function periodFilter(
 }
 
 // mr-auto sends Reset to the far end of the button's row on a phone.
-const TOGGLE =
-  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink hover:border-ink max-sm:mr-auto sm:hidden";
+const TOGGLE = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink hover:border-ink max-sm:mr-auto sm:hidden`;
 
 const TOGGLE_COUNT = "rounded-full bg-accent-wash px-1.5 text-[11px] font-semibold text-accent-deep";
 

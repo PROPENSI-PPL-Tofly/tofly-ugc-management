@@ -2,12 +2,11 @@
 
 import { CONTRACT_STATUS_FILTERS, PRODUCTIVITY_FILTERS } from "@/lib/creators";
 import { MAX_SEARCH_LENGTH, useUrlFilters } from "@/lib/use-url-filters";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
-const FIELD =
-  "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
+const FIELD = `rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2 ${PHONE_TARGET}`;
 
-const RESET =
-  "cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink";
+const RESET = `cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink ${PHONE_TARGET}`;
 
 const CONTRACT_LABELS: Record<(typeof CONTRACT_STATUS_FILTERS)[number], string> = {
   all: "Semua",
