@@ -36,14 +36,17 @@ const STATUS_GROUP: Record<ContentStatus, Exclude<CalendarGroup, "overdue">> = {
 };
 
 /**
- * A task past its deadline with no link is overdue first; otherwise it follows its status. A
- * draft in review that offers the creator its H-1 link is theirs to finish, as on the tabs.
+ * A finished task is done, however late it came; any other past its deadline is overdue first;
+ * otherwise it follows its status. A draft in review that offers the creator its H-1 link is
+ * theirs to finish, as on the tabs.
  */
 export function calendarGroup(task: {
   status: ContentStatus;
   tags: readonly ContentTag[];
   actions?: readonly MyTaskAction[];
 }): CalendarGroup {
+  // A finished content that came in late is still finished: its overdue tag is history.
+  if (task.status === "link_submitted") return "done";
   if (task.tags.includes("overdue")) return "overdue";
   if (task.status === "draft_review" && task.actions?.includes("submit_video")) return "todo";
 

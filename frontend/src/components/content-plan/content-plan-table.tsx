@@ -10,7 +10,6 @@ import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
-  tableTags,
 } from "@/lib/content-labels";
 import {
   CONTENT_PLAN_EMPTY,
@@ -55,7 +54,8 @@ export function ContentPlanTable({
     );
   }
 
-  // On Selesai nothing waits on the admin and nothing can be overdue: no action, no tag.
+  // On Selesai nothing waits on the admin, so there is no action; the tags stay, saying which
+  // came in late or skipped approval.
   const settled = tab === "done";
 
   return (
@@ -68,7 +68,7 @@ export function ContentPlanTable({
             <th className="px-5 py-3 font-semibold">Tipe</th>
             <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
             <th className="px-5 py-3 font-semibold">Status</th>
-            {settled ? null : <th className="px-5 py-3 font-semibold">Tags</th>}
+            <th className="px-5 py-3 font-semibold">Tags</th>
             {settled ? null : <th className="px-5 py-3 font-semibold">Aksi</th>}
           </tr>
         </thead>
@@ -106,15 +106,13 @@ export function ContentPlanTable({
                   {CONTENT_STATUS_LABELS[row.status]}
                 </StatusDot>
               </td>
+              <td className="px-5 py-3">
+                <ContentTags tags={row.tags} />
+              </td>
               {settled ? null : (
-                <>
-                  <td className="px-5 py-3">
-                    <ContentTags tags={tableTags(row.tags)} />
-                  </td>
-                  <td className="px-5 py-3">
-                    <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
-                  </td>
-                </>
+                <td className="px-5 py-3">
+                  <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
+                </td>
               )}
             </tr>
           ))}

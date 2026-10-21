@@ -33,39 +33,17 @@ export const CONTENT_STATUS_TONES: Record<ContentStatus, Tone> = {
   link_submitted: "green",
 };
 
-/**
- * The tags a screen shows. The API still flags a late hand-in, but no screen says it: once the
- * content is in, how late it came is the deadline's story, read in the panel's timeline.
- */
-export type ShownTag = Exclude<ContentTag, "late_submission">;
-
-/** Whether a tag is one any screen shows. */
-export function isShownTag(tag: ContentTag): tag is ShownTag {
-  return tag !== "late_submission";
-}
-
 /** Worded as the prototype words them, on every screen that shows a tag. */
-export const CONTENT_TAG_LABELS: Record<ShownTag, string> = {
+export const CONTENT_TAG_LABELS: Record<ContentTag, string> = {
   overdue: "Overdue",
   approval_bypassed: "Approval di-bypass",
 };
 
-/** The tags a table row shows; the others are read in the content's panel, beside its story. */
-const TABLE_TAGS: readonly ContentTag[] = ["overdue"];
-
 /**
- * A row's tags as a table shows them: only Overdue, the one that asks for something now. A late
- * hand-in or a skipped approval is history, and a table full of it hides the rows that matter.
+ * Tags are judgements on top of the status, so they read as pills. Red for a missed deadline,
+ * whether the work is still open or came in late; amber for a skipped approval, which is allowed but wants a second look.
  */
-export function tableTags(tags: readonly ContentTag[]): ContentTag[] {
-  return tags.filter((tag) => TABLE_TAGS.includes(tag));
-}
-
-/**
- * Tags are judgements on top of the status, so they read as pills. Red for a deadline missed
- * with nothing handed in; amber for a skipped approval, which is allowed but wants a second look.
- */
-export const CONTENT_TAG_TONES: Record<ShownTag, Tone> = {
+export const CONTENT_TAG_TONES: Record<ContentTag, Tone> = {
   overdue: "red",
   approval_bypassed: "amber",
 };

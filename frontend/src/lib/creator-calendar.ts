@@ -31,11 +31,15 @@ export const CREATOR_CALENDAR_GROUPS: readonly CreatorCalendarGroupDef[] = [
 
 const TAB_GROUPS: readonly Exclude<CreatorCalendarGroup, "overdue">[] = ["action", "waiting", "done"];
 
-/** A content past its deadline is overdue first; otherwise it sits in the tab that holds it. */
+/**
+ * A finished content sits under Selesai, however late it came; any other content past its
+ * deadline is overdue first; otherwise it sits in the tab that holds it.
+ */
 export function creatorCalendarGroup(content: {
   status: ContentStatus;
   tags: readonly ContentTag[];
 }): CreatorCalendarGroup {
+  if (content.status === "link_submitted") return "done";
   if (content.tags.includes("overdue")) return "overdue";
 
   // Every status is in exactly one of the three tabs, so the search always finds one.

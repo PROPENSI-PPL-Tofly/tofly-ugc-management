@@ -10,7 +10,6 @@ import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
-  tableTags,
 } from "@/lib/content-labels";
 import { CONTENT_PLAN_EMPTY, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
@@ -103,7 +102,7 @@ export function CreatorContentTable({
                   <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                     {CONTENT_STATUS_LABELS[row.status]}
                   </StatusDot>
-                  <ContentTags tags={tableTags(row.tags)} />
+                  <ContentTags tags={row.tags} />
                 </span>
               </td>
               {tab === "done" ? null : (

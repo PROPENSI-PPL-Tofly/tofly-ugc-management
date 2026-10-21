@@ -7,7 +7,7 @@ import type { Variant } from "@/components/ui/button-classes";
 import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/pill";
-import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS, tableTags } from "@/lib/content-labels";
+import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import type { DeadlineSort } from "@/lib/content-plan";
 import { formatDate } from "@/lib/format";
 import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
@@ -203,7 +203,7 @@ export function MyTaskTable({
                   <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
                     {taskStatusLabel(task.status)}
                   </StatusDot>
-                  <ContentTags tags={tableTags(task.tags)} />
+                  <ContentTags tags={task.tags} />
                 </div>
               </td>
               {hideActions ? null : (
