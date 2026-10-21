@@ -11,11 +11,24 @@ export interface PageView<T> {
 }
 
 /**
- * Stub until paging lands: every row on one page whatever is asked, so the tests that pin the
- * paging run and fail on what is missing.
+ * The rows of one page. The page asked for is held inside the list (a list that shrank, or a
+ * screen that widened to fewer pages, lands on its last page rather than on nothing), and a
+ * page size under one shows one row at a time. An empty list is one empty page.
  */
 export function pageOf<T>(items: readonly T[], page: number, size: number): PageView<T> {
-  void page;
-  void size;
-  return { rows: [...items], page: 0, pages: 1, first: items.length > 0 ? 1 : 0, last: items.length, total: items.length };
+  const perPage = Math.max(1, Math.floor(size));
+  const total = items.length;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const current = Math.min(Math.max(0, page), pages - 1);
+  const start = current * perPage;
+  const rows = items.slice(start, start + perPage);
+
+  return {
+    rows,
+    page: current,
+    pages,
+    first: rows.length > 0 ? start + 1 : 0,
+    last: start + rows.length,
+    total,
+  };
 }
