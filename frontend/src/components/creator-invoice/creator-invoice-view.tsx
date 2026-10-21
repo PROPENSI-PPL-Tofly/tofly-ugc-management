@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { InfoTip } from "@/components/ui/info-tip";
 import {
   creatorNextStep,
@@ -17,6 +17,7 @@ import {
 import { formatContractWindow } from "@/lib/format";
 import { InvoiceActivity } from "./invoice-activity";
 import { InvoiceParts, ProofLink } from "./invoice-parts";
+import { InvoiceTabs } from "./invoice-tabs";
 import { InvoiceTracker } from "./invoice-tracker";
 
 /**
@@ -52,58 +53,6 @@ function NextStep({
 }
 
 type InvoiceTab = "rincian" | "aktivitas";
-
-const TAB_ORDER: readonly InvoiceTab[] = ["rincian", "aktivitas"];
-
-/**
- * The tab a key moves to, as the WAI-ARIA tab pattern (and StatusTabs) has it: the arrows step
- * with wrap-around, Home and End jump to either end; any other key moves nowhere.
- */
-function tabFor(key: string, from: InvoiceTab): InvoiceTab | null {
-  const index = TAB_ORDER.indexOf(from);
-  const last = TAB_ORDER.length - 1;
-  const targets: Partial<Record<string, number>> = {
-    ArrowRight: index === last ? 0 : index + 1,
-    ArrowLeft: index === 0 ? last : index - 1,
-    Home: 0,
-    End: last,
-  };
-  const target = targets[key];
-  return target === undefined ? null : TAB_ORDER[target];
-}
-
-/** One tab of the view: one Tab stop for the list, brand blue for the open one, as StatusTabs. */
-function Tab({
-  id,
-  panel,
-  selected,
-  onSelect,
-  onKey,
-  children,
-}: Readonly<{
-  id: string;
-  panel: string;
-  selected: boolean;
-  onSelect: () => void;
-  onKey: (event: KeyboardEvent<HTMLButtonElement>) => void;
-  children: ReactNode;
-}>) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={id}
-      aria-selected={selected}
-      aria-controls={panel}
-      tabIndex={selected ? 0 : -1}
-      onClick={onSelect}
-      onKeyDown={onKey}
-      className={`-mb-px cursor-pointer border-x-0 border-t-0 border-b-2 bg-transparent px-2.5 py-2 text-[12.5px] font-semibold ${selected ? "border-accent text-accent-deep" : "border-transparent text-muted hover:text-ink"}`}
-    >
-      {children}
-    </button>
-  );
-}
 
 /**
  * One invoice as its creator reads it (PBI-13, subtask 13.3), laid out as the prototype's
@@ -142,16 +91,6 @@ export function CreatorInvoiceView({
   const total = totalAmountLabel(invoice);
   const activityCount = invoiceActivity(shown).length;
   const [tab, setTab] = useState<InvoiceTab>("rincian");
-  const tabsId = useId();
-  const panelId = useId();
-
-  function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
-    const next = tabFor(event.key, tab);
-    if (next === null) return;
-    event.preventDefault();
-    setTab(next);
-    document.getElementById(`${tabsId}-${next}`)?.focus();
-  }
 
   return (
     <div>
@@ -171,17 +110,17 @@ export function CreatorInvoiceView({
 
       <NextStep next={next} invoice={invoice} renderAction={renderAction} />
 
-      <div role="tablist" aria-label="Bagian invoice" className="mt-3.5 mb-1.5 flex gap-1 border-b border-rule">
-        <Tab id={`${tabsId}-rincian`} panel={panelId} selected={tab === "rincian"} onSelect={() => setTab("rincian")} onKey={moveTab}>
-          Rincian
-        </Tab>
-        <Tab id={`${tabsId}-aktivitas`} panel={panelId} selected={tab === "aktivitas"} onSelect={() => setTab("aktivitas")} onKey={moveTab}>
-          Aktivitas &amp; Komentar
-          {activityCount > 0 ? ` (${activityCount})` : null}
-        </Tab>
-      </div>
-
-      <div role="tabpanel" id={panelId} aria-labelledby={`${tabsId}-${tab}`}>
+      <InvoiceTabs
+        tabs={[
+          { key: "rincian", label: "Rincian" },
+          {
+            key: "aktivitas",
+            label: `Aktivitas & Komentar${activityCount > 0 ? ` (${activityCount})` : ""}`,
+          },
+        ]}
+        active={tab}
+        onSelect={setTab}
+      >
         {tab === "rincian" ? (
           <InvoiceParts invoice={invoice} onOpenContent={onOpenContent} />
         ) : (
@@ -190,7 +129,7 @@ export function CreatorInvoiceView({
             onCommented={(comment) => (comment ? setSent((was) => [...was, comment]) : onCommented())}
           />
         )}
-      </div>
+      </InvoiceTabs>
     </div>
   );
 }
