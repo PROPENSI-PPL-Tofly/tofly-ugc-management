@@ -237,7 +237,10 @@ export function InvoiceTable({
               "total",
               sort,
               "right",
-              <InfoTip label="Info rumus Total" text={TOTAL_FORMULA} align="end" />,
+              // Below lg this row is only read aloud; each card carries the ⓘ by its own Total.
+              <span className="inline-flex max-lg:hidden">
+                <InfoTip label="Info rumus Total" text={TOTAL_FORMULA} align="end" />
+              </span>,
             )}
             <th role="columnheader" scope="col" className={HEAD}>
               Status Invoice
@@ -286,11 +289,16 @@ export function InvoiceTable({
                 <td data-label="Penalti" className={NUM}>
                   {amount ? amount("penalty", row) : penaltyCell(row.penaltyAmount)}
                 </td>
-                {/* The sum, set apart under the amounts it adds up in a card. */}
+                {/* The sum, set apart under the amounts it adds up in a card. Its label is
+                    written out rather than drawn from data-label, so the ⓘ can sit beside it. */}
                 <td
                   data-label="Total"
-                  className={`${NUM} max-lg:mt-1 max-lg:flex-wrap max-lg:border-t max-lg:border-rule-2 max-lg:pt-2`}
+                  className={`${CELL} whitespace-nowrap text-right tabular-nums max-lg:mt-1 max-lg:flex max-lg:flex-wrap max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:border-t max-lg:border-rule-2 max-lg:pt-2`}
                 >
+                  <span className="inline-flex items-center gap-1 text-xs font-normal text-muted lg:hidden">
+                    Total
+                    <InfoTip label={`Info rumus Total ${invoiceTitle(row)}`} text={TOTAL_FORMULA} />
+                  </span>
                   {finalCell(row)}
                 </td>
                 <td data-label="Status Invoice" className={`${CELL} ${AGAINST}`}>

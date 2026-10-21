@@ -192,7 +192,11 @@ describe("InvoiceTable", () => {
       render(<InvoiceTable rows={[FULL]} amount={trigger} />);
 
       const body = screen.getAllByRole("rowgroup")[1];
-      expect(within(body).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      // The card's Total ⓘ is a button too, but no breakdown trigger.
+      const triggers = within(body)
+        .getAllByRole("button")
+        .filter((button) => !button.getAttribute("aria-describedby"));
+      expect(triggers.map((button) => button.textContent)).toEqual([
         "fixed of Rangga Pratama",
         "extra of Rangga Pratama",
         "bonus of Rangga Pratama",
