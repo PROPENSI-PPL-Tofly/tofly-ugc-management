@@ -94,16 +94,14 @@ export function ContentPlanFilters({
   const active = [
     ...(state.tab === "all"
       ? []
-      : [{ id: "tab", text: `Tampilkan: ${tabDef(state.tab).label}`, onRemove: () => selectTab("all") }]),
-    ...pickFilters("Creator", creatorPicks, creatorOptions, (next) => setListParam("creator", next)),
-    ...pickFilters("Tipe", types, typeOptions, (next) => setListParam("type", next)),
+      : [{ id: "tab", text: `Tampilkan: ${tabDef(state.tab).label}` }]),
+    ...pickFilters("Creator", creatorPicks, creatorOptions),
+    ...pickFilters("Tipe", types, typeOptions),
     ...(statusOptions.length > 1
-      ? pickFilters("Status", statuses, statusOptions, (next) => setListParam("status", next))
+      ? pickFilters("Status", statuses, statusOptions)
       : []),
-    ...(state.tab === "done" ? [] : overdueFilter(param("overdue"), () => setParam("overdue", "all"))),
-    ...periodFilter(param("period"), from, to, periodIgnored, () =>
-      setParams({ period: "all", from: "", to: "" }),
-    ),
+    ...(state.tab === "done" ? [] : overdueFilter(param("overdue"))),
+    ...periodFilter(param("period"), from, to, periodIgnored),
   ];
 
   return (

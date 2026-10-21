@@ -42,10 +42,9 @@ function selectFilter(
   label: string,
   value: string,
   options: readonly FilterOption[],
-  onRemove: () => void,
 ): ActiveFilter[] {
   const option = options.find((candidate) => candidate.value === value);
-  return value === "all" || !option ? [] : [{ id: key, text: `${label}: ${option.label}`, onRemove }];
+  return value === "all" || !option ? [] : [{ id: key, text: `${label}: ${option.label}` }];
 }
 
 /**
@@ -61,12 +60,8 @@ export function CreatorFilters() {
 
   // What the folded phone bar counts, in the order of the controls.
   const active = [
-    ...selectFilter("productivity", "Produktivitas", productivity, PRODUCTIVITY_OPTIONS, () =>
-      setParam("productivity", "all"),
-    ),
-    ...selectFilter("contractStatus", "Status kontrak", contractStatus, CONTRACT_OPTIONS, () =>
-      setParam("contractStatus", "all"),
-    ),
+    ...selectFilter("productivity", "Produktivitas", productivity, PRODUCTIVITY_OPTIONS),
+    ...selectFilter("contractStatus", "Status kontrak", contractStatus, CONTRACT_OPTIONS),
   ];
 
   return (

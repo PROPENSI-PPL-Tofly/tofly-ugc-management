@@ -83,15 +83,13 @@ export function MyTaskFilters({
   const active = [
     ...(state.tab === "all"
       ? []
-      : [{ id: "tab", text: `Tampilkan: ${tabLabel(state.tab)}`, onRemove: () => selectTab("all") }]),
-    ...pickFilters("Tipe", type === "all" ? [] : [type], TYPE_OPTIONS, () => setParam("type", "all")),
+      : [{ id: "tab", text: `Tampilkan: ${tabLabel(state.tab)}` }]),
+    ...pickFilters("Tipe", type === "all" ? [] : [type], TYPE_OPTIONS),
     ...(statusOptions.length > 1
-      ? pickFilters("Status", statuses, statusOptions, (next) => setParam("status", next.join(",")))
+      ? pickFilters("Status", statuses, statusOptions)
       : []),
-    ...(state.tab === "done" ? [] : overdueFilter(param("overdue"), () => setParam("overdue", "all"))),
-    ...periodFilter(param("period"), day("from"), day("to"), periodIgnored, () =>
-      setParams({ period: "all", from: "", to: "" }),
-    ),
+    ...(state.tab === "done" ? [] : overdueFilter(param("overdue"))),
+    ...periodFilter(param("period"), day("from"), day("to"), periodIgnored),
   ];
 
   function tabLabel(tab: MyTasksParams["tab"]): string {

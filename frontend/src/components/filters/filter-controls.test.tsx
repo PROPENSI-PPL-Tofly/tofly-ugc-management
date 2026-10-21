@@ -252,11 +252,11 @@ describe("ResetFilters", () => {
 
 // Measured on a phone (Task Saya, 320px): the search, Tipe, Status, Overdue and Periode each took
 // a row of their own, about 230px before the first task. Below sm the controls fold behind one
-// Filter button, and what is active stays in sight as chips that each take off one filter.
+// Filter button that counts what is active; each control in the open panel marks its own.
 describe("FilterBar", () => {
   const ACTIVE = [
-    { id: "type:evergreen", text: "Tipe: Evergreen", onRemove: vi.fn() },
-    { id: "overdue", text: "Overdue", onRemove: vi.fn() },
+    { id: "type:evergreen", text: "Tipe: Evergreen" },
+    { id: "overdue", text: "Overdue" },
   ];
 
   function renderBar(active = ACTIVE) {
@@ -396,7 +396,7 @@ describe("on a phone, every filter control is a 44px press", () => {
     render(
       <FilterBar
         search={null}
-        active={[{ id: "overdue", text: "Overdue", onRemove: vi.fn() }]}
+        active={[{ id: "overdue", text: "Overdue" }]}
         reset={null}
       >
         {null}

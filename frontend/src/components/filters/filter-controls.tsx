@@ -328,11 +328,13 @@ export function ResetFilters({
   );
 }
 
-/** One active filter as the folded bar names it, with the press that takes it off. */
+/**
+ * One filter in use, as the folded bar counts it. Taking one off is done at its control, in the
+ * open panel, since the bar draws no chips (approved design).
+ */
 export interface ActiveFilter {
   id: string;
   text: string;
-  onRemove: () => void;
 }
 
 /** Each pick of a multi-select as its own active filter: "Tipe: Evergreen". */
@@ -340,19 +342,17 @@ export function pickFilters(
   group: string,
   picks: readonly string[],
   options: readonly FilterOption[],
-  onChange: (next: string[]) => void,
 ): ActiveFilter[] {
   return picks.map((value) => ({
     id: `${group}:${value}`,
     text: `${group}: ${options.find((option) => option.value === value)?.label ?? value}`,
-    onRemove: () => onChange(picks.filter((pick) => pick !== value)),
   }));
 }
 
 /** The Overdue choice, under the select's own words for it. */
-export function overdueFilter(value: string, onRemove: () => void): ActiveFilter[] {
+export function overdueFilter(value: string): ActiveFilter[] {
   const option = OVERDUE_OPTIONS.find((candidate) => candidate.value === value);
-  return value === "all" || !option ? [] : [{ id: "overdue", text: option.label, onRemove }];
+  return value === "all" || !option ? [] : [{ id: "overdue", text: option.label }];
 }
 
 /** A custom range in words, read the right way round as the list reads it. */
@@ -366,21 +366,20 @@ function rangeChip(from: string, to: string): string {
 }
 
 /**
- * The period: a named one, or the custom range in words. Taking it off is the caller's, since
- * it clears the custom days too. `ignored` says the open tab does not narrow by period.
+ * The period: a named one, or the custom range in words. `ignored` says the open tab does not
+ * narrow by period.
  */
 export function periodFilter(
   period: string,
   from: string,
   to: string,
   ignored: boolean,
-  onRemove: () => void,
 ): ActiveFilter[] {
   const option = PERIOD_OPTIONS.find((candidate) => candidate.value === period);
   if (period === "all" || !option) return [];
 
   const text = period === "custom" ? rangeChip(from, to) : `Periode: ${option.label}`;
-  return [{ id: "period", text: ignored ? `${text} (tidak berlaku di tab ini)` : text, onRemove }];
+  return [{ id: "period", text: ignored ? `${text} (tidak berlaku di tab ini)` : text }];
 }
 
 const TOGGLE = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink transition-colors hover:border-ink active:bg-surface-2 aria-expanded:border-accent aria-expanded:bg-accent-wash sm:hidden`;
