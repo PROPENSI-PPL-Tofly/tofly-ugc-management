@@ -3,6 +3,7 @@
 // be linked, bookmarked and reloaded. Pure module — no next/headers — so client components can
 // share it.
 
+import { PRODUCTIVITY_TONES } from "@/components/creators/productivity-tones";
 import type { Tone } from "@/components/ui/pill";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import {
@@ -14,8 +15,9 @@ import {
 } from "./content-plan";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
-import type { ContentStatus, ContentTag } from "./creators";
+import type { ContentStatus, ContentTag, ContractPeriod } from "./creators";
 import { formatDate } from "./format";
+import type { InvoiceStatus } from "./invoice";
 import { listOf, oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
@@ -162,6 +164,35 @@ export interface CreatorPeriod {
   remainingEvergreenQuota: number;
   /** The default interval between deadlines, in days. */
   daysBetween: number;
+  /** The period's own content handed in, as the API counts it. */
+  progress: ContractPeriod["progress"];
+  /** The period's on-time rate, revisions and productivity band, as the API judges them. */
+  performance: ContractPeriod["performance"];
+}
+
+/** What the open period earns so far and where its invoice stands, for the Total Pendapatan card. */
+export interface PeriodEarnings {
+  /** Rupiah, never below zero. */
+  amount: number;
+  status: InvoiceStatus;
+}
+
+/** How the Produktivitas card is judged, in the prototype's words (its ⓘ). */
+export const PRODUCTIVITY_TIP =
+  "Baik: tepat waktu 80% ke atas dan revisi maksimal 1x. Berisiko: tepat waktu di bawah 40% atau revisi di atas 2x. Selain itu Perlu Perhatian. Belum Dinilai: kontrak belum dimulai. Belum Ada Data: kontrak sudah berjalan, belum ada konten selesai.";
+
+/**
+ * The productivity pill of a period: the API's band, except for a period that has not started,
+ * which is not judged at all (the prototype's Belum Dinilai) rather than read as having no data.
+ */
+export function periodProductivity(
+  period: Pick<CreatorPeriod, "status" | "performance">,
+): { label: string; tone: Tone } {
+  if (period.status === "upcoming") return { label: "Belum Dinilai", tone: "neutral" };
+  return {
+    label: period.performance.productivityLabel,
+    tone: PRODUCTIVITY_TONES[period.performance.productivity],
+  };
 }
 
 export interface CreatorContentRow {
@@ -191,6 +222,8 @@ export interface CreatorDetailView {
   counts: ContentPlanCounts;
   /** The open period's whole content, unfiltered and in deadline order, for its calendar. */
   calendar: CreatorContentRow[];
+  /** The open period's earnings; null when there is no period or its invoice could not be read. */
+  earnings: PeriodEarnings | null;
 }
 
 /**

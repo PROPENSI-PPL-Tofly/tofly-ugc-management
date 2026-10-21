@@ -24,6 +24,7 @@ import type {
   CreatorProfile,
 } from "./creator-detail";
 import type { ContractPeriod } from "./creators";
+import type { InvoiceStatus } from "./invoice";
 
 /**
  * One contract period as GET /creators/:id sends it, picked from the mirror of the backend's
@@ -42,7 +43,16 @@ export type RawCreatorPeriod = Pick<
   | "contentQuota"
   | "daysBetween"
   | "remainingEvergreenQuota"
+  | "progress"
+  | "performance"
 >;
+
+/** The open period's invoice as GET /invoices/:creatorId?contract= answers it, cut to the card's needs. */
+export interface RawPeriodInvoice {
+  total: number;
+  floored: boolean;
+  invoiceStatus: InvoiceStatus;
+}
 
 export interface RawCreatorDetail {
   id: string;
@@ -148,6 +158,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
     daysBetween: period.daysBetween,
+    progress: period.progress,
+    performance: period.performance,
   };
 }
 
@@ -174,6 +186,7 @@ export function toCreatorDetailView(
   contents: RawContentList | null,
   state: CreatorDetailParams,
   calendar: readonly RawContentListItem[] = [],
+  invoice: RawPeriodInvoice | null = null,
 ): CreatorDetailView {
   // The tabs and the profile read the periods newest first.
   const periods = raw.contractHistory.map(toPeriod).reverse();
@@ -193,5 +206,7 @@ export function toCreatorDetailView(
     totalPages,
     counts: toTabCounts(contents ?? { tabCounts: {} as RawContentList["tabCounts"] }),
     calendar: calendar.map(toRow),
+    // A total the penalty used up is a real Rp0, as the backend holds it.
+    earnings: invoice ? { amount: invoice.floored ? 0 : invoice.total, status: invoice.invoiceStatus } : null,
   };
 }

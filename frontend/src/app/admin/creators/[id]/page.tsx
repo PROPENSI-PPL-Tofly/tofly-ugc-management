@@ -71,7 +71,13 @@ export default async function CreatorDetailPage({
             current={view.periods[0] ?? null}
             today={jakartaDay()}
           />
-          <PeriodTabs creatorId={id} periods={view.periods} selected={view.selected} />
+          <PeriodTabs
+            creatorId={id}
+            creatorName={view.creator.name}
+            periods={view.periods}
+            selected={view.selected}
+            earnings={view.earnings}
+          />
           <CreatorContentBoard creatorId={id} view={view} state={state} today={jakartaDay()} />
         </div>
       ) : (

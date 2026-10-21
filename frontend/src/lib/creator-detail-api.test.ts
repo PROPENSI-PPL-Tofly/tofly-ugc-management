@@ -347,15 +347,13 @@ describe("toCreatorDetailView", () => {
           contentQuota: 6,
           fixedRate: 400000,
           remainingEvergreenQuota: 4,
-          progress: { submitted: 2, total: 6, percent: 33 },
-          performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
           type: "regular",
           status: "expired",
           completed: 2,
           total: 4,
           isCurrent: true,
           progress: { submitted: 2, total: 4, percent: 50 },
-          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk" },
+          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
         },
       ],
     } as unknown as RawCreatorDetail;
@@ -370,8 +368,8 @@ describe("toCreatorDetailView", () => {
       contentQuota: 6,
       evergreenCount: 2,
       remainingEvergreenQuota: 4,
-      progress: { submitted: 2, total: 6, percent: 33 },
-      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
+      progress: { submitted: 2, total: 4, percent: 50 },
+      performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
       daysBetween: 14,
     });
   });

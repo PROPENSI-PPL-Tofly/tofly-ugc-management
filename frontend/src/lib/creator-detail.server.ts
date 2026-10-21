@@ -15,6 +15,7 @@ import {
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
+  type RawPeriodInvoice,
 } from "./creator-detail-api";
 import { appSessionCookieHeader } from "./session-cookie";
 
@@ -111,8 +112,27 @@ export async function fetchCreatorDetail(
     return [first, ...rest].flatMap((answer) => answer.items);
   };
 
-  // The table's page and the calendar are asked for together: neither waits on the other.
-  const [firstRead, calendar] = await Promise.all([readContents(state), readCalendar()]);
+  /**
+   * The open period's invoice, for the Total Pendapatan card. A failure costs that card only,
+   * never the page: what the creator earns is a summary, and the rest still stands without it.
+   */
+  const readInvoice = async (): Promise<RawPeriodInvoice | null> => {
+    try {
+      const response = await read(
+        `/invoices/${encodeURIComponent(id)}?${new URLSearchParams({ contract })}`,
+      );
+      return response.ok ? ((await response.json()) as RawPeriodInvoice) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // The table's page, the calendar and the invoice are asked for together: none waits on another.
+  const [firstRead, calendar, invoice] = await Promise.all([
+    readContents(state),
+    readCalendar(),
+    readInvoice(),
+  ]);
   let contents = firstRead;
 
   // A page past the end (an old link, or a period that shrank as content was decided) comes
@@ -122,5 +142,5 @@ export async function fetchCreatorDetail(
     contents = await readContents({ ...state, page: contents.totalPages });
   }
 
-  return toCreatorDetailView(raw, contents, state, calendar);
+  return toCreatorDetailView(raw, contents, state, calendar, invoice);
 }

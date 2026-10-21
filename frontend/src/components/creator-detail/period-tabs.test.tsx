@@ -137,7 +137,8 @@ describe("PeriodTabs", () => {
   it("shows three terms and no fixed rate", () => {
     render(<PeriodTabs creatorId={CREATOR} creatorName="Rangga Pratama" earnings={null} periods={PERIODS} selected={NEWEST} />);
 
-    expect(screen.getAllByRole("term").map((label) => label.textContent)).toEqual([
+    // The three terms come first; the performance cards follow in their own section.
+    expect(screen.getAllByRole("term").slice(0, 3).map((label) => label.textContent)).toEqual([
       "Kuota Konten",
       "Sisa Kuota Evergreen",
       "Jarak Antar-Deadline",
@@ -186,11 +187,12 @@ describe("PeriodTabs performance cards", () => {
   it("shows the prototype's five cards for the open period, in its order", () => {
     const region = cards();
 
-    expect(region.getAllByRole("term").map((term) => term.textContent)).toEqual([
+    // Each card's own words, before the ⓘ that explains Produktivitas.
+    expect(region.getAllByRole("term").map((term) => term.childNodes[0].textContent)).toEqual([
       "Progres Konten",
       "Tepat Waktu",
       "Rata-rata Revisi",
-      "ProduktivitasTentang Produktivitas",
+      "Produktivitas",
       "Total Pendapatan",
     ]);
   });
