@@ -130,17 +130,18 @@ export function instantDay(instant: string | null): string | null {
 }
 
 /**
- * The dated tracker under the total: every step before the invoice's own is done, its own is
- * current, and a paid invoice has walked them all. A contract that has not started has no step
- * yet; its first step says when it begins.
+ * The dated tracker under the total: every step the invoice has reached is done, its own
+ * included, so a dated step is always a green one; the step after it is current, the one the
+ * invoice waits on; a paid invoice has walked them all. A contract that has not started waits on
+ * its first step, which says when it begins.
  */
 export function invoiceSteps(invoice: CreatorInvoice): InvoiceStep[] {
-  const current = invoice.notStarted ? -1 : STEPS.findIndex((step) => step.status === invoice.status);
+  const reached = invoice.notStarted ? -1 : STEPS.findIndex((step) => step.status === invoice.status);
 
   return STEPS.map((step, index) => {
     let state: StepState = "todo";
-    if (index < current || (index === current && step.status === "paid")) state = "done";
-    else if (index === current) state = "current";
+    if (index <= reached) state = "done";
+    else if (index === reached + 1) state = "current";
 
     let caption: string | null;
     if (step.status === "accruing") {
