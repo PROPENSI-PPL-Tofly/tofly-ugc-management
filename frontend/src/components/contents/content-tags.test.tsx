@@ -8,7 +8,7 @@ describe("ContentTags", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("lists each tag by its label, in the order given", () => {
+  it("lists each tag by its label, in the order given, leaving a late hand-in out", () => {
     render(<ContentTags tags={["late_submission", "overdue", "approval_bypassed"]} />);
 
     const list = screen.getByRole("list", { name: "Tanda konten" });
@@ -16,13 +16,18 @@ describe("ContentTags", () => {
       within(list)
         .getAllByRole("listitem")
         .map((item) => item.textContent),
-    ).toEqual(["Late Submission", "Overdue", "Approval di-bypass"]);
+    ).toEqual(["Overdue", "Approval di-bypass"]);
+  });
+
+  it("renders nothing for a content whose only tag is a late hand-in", () => {
+    const { container } = render(<ContentTags tags={["late_submission"]} />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("names each tag in text and tints it by its tone, so colour is never the only signal", () => {
-    render(<ContentTags tags={["late_submission", "overdue", "approval_bypassed"]} />);
+    render(<ContentTags tags={["overdue", "approval_bypassed"]} />);
 
-    expect(screen.getByText("Late Submission")).toHaveClass("text-red-ink");
     expect(screen.getByText("Overdue")).toHaveClass("text-red-ink");
     expect(screen.getByText("Approval di-bypass")).toHaveClass("text-amber-ink");
   });

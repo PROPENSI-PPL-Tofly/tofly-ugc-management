@@ -321,7 +321,7 @@ describe("ContentDetailPanel", () => {
     expect(screen.queryByText("—")).not.toBeInTheDocument();
     expect(screen.queryByText("Brief")).not.toBeInTheDocument();
     expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText("Late Submission")).toBeInTheDocument();
+    expect(screen.queryByText("Late Submission")).not.toBeInTheDocument();
     expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
   });
 
@@ -765,7 +765,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         within(tags)
           .getAllByRole("listitem")
           .map((item) => item.textContent),
-      ).toEqual(["Late Submission", "Overdue", "Approval di-bypass"]);
+      ).toEqual(["Overdue", "Approval di-bypass"]);
     });
 
     it("draws no tag list for a content nothing is flagged on", async () => {
