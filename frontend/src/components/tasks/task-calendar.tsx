@@ -40,8 +40,10 @@ const GROUP_BY_KEY = Object.fromEntries(
   CALENDAR_GROUPS.map((group) => [group.key, group]),
 ) as Record<CalendarGroup, CalendarGroupDef>;
 
-const CHIP =
-  "block w-full cursor-pointer truncate rounded-(--radius-control) border-none px-1.5 py-0.5 text-left text-[11.5px] font-semibold";
+// On a phone a chip is only a dot, and seven days share the row: the press spans its whole day
+// (the cell's padding included) and is 44px tall, while the wash behind the dot is dropped, so
+// the press grows and the mark does not. The day grows to fit.
+const CHIP = `block w-full cursor-pointer truncate rounded-(--radius-control) border-none px-1.5 py-0.5 text-left text-[11.5px] font-semibold ${PHONE_TARGET} max-sm:-mx-1.5 max-sm:w-auto max-sm:bg-transparent`;
 
 const NAV = `cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 text-base leading-7 text-ink-2 hover:border-ink-2 ${PHONE_TARGET} max-sm:min-w-11`;
 
