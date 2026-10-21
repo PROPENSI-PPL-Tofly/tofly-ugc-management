@@ -12,6 +12,7 @@ import {
   type CreatorDetailView,
 } from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
+import { jakartaDay } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,11 @@ export default async function CreatorDetailPage({
       {view ? (
         <div className="flex flex-col gap-4">
           {/* The profile describes the creator's latest contract, whichever period is open. */}
-          <CreatorProfilePanel creator={view.creator} current={view.periods[0] ?? null} />
+          <CreatorProfilePanel
+            creator={view.creator}
+            current={view.periods[0] ?? null}
+            today={jakartaDay()}
+          />
           <PeriodTabs creatorId={id} periods={view.periods} selected={view.selected} />
           <CreatorContentBoard creatorId={id} view={view} state={state} />
         </div>

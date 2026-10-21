@@ -24,6 +24,7 @@ const DETAIL: RawCreatorDetail = {
   name: "Lestari Wulandari",
   email: "lestari@example.com",
   socials: { instagram: "lestariw" },
+  accessRevokeDate: null,
   contractHistory: [
     {
       id: OLDER,
@@ -171,6 +172,7 @@ describe("fetchCreatorDetail", () => {
       name: "Lestari Wulandari",
       email: "lestari@example.com",
       socials: { instagram: "lestariw" },
+      accessRevokeDate: null,
     });
     expect(view?.periods.map((period) => period.contractId)).toEqual([NEWEST, OLDER]);
     expect(view?.selected?.contractId).toBe(NEWEST);

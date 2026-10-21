@@ -8,6 +8,7 @@ import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
 import type { ContentStatus, ContentTag } from "./creators";
+import { formatDate } from "./format";
 import { listOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
@@ -50,6 +51,54 @@ export interface CreatorProfile {
   email: string;
   /** Only the handles the creator has. */
   socials: Partial<Record<"instagram" | "tiktok", string>>;
+  /** The day the creator can no longer sign in, "YYYY-MM-DD"; null when none is set. */
+  accessRevokeDate: string | null;
+}
+
+/**
+ * Whether the creator can sign in. Sign-in reads only the revoke day, never the contract's
+ * dates, so this does too: a creator between contracts still gets in.
+ */
+export type AccessState = "active" | "scheduled" | "revoked";
+
+export const ACCESS_STATE_LABELS: Record<AccessState, string> = {
+  active: "Aktif",
+  scheduled: "Aktif",
+  revoked: "Dicabut",
+};
+
+/** Green while it lasts, amber once its end is set, red when it is over; never colour alone. */
+export const ACCESS_STATE_TONES: Record<AccessState, Tone> = {
+  active: "green",
+  scheduled: "amber",
+  revoked: "red",
+};
+
+export interface CreatorAccess {
+  state: AccessState;
+  /** The day that explains the state, in words; null when there is nothing to add. */
+  note: string | null;
+}
+
+/**
+ * The creator's access as the profile words it. The revoke day itself already counts as
+ * revoked, as sign-in counts it. A revoke before the contract's last day is said to have cut
+ * it short, so the admin reads that the contract did not simply run out.
+ */
+export function creatorAccess(
+  revokeDate: string | null,
+  contractEnd: string | null,
+  today: string,
+): CreatorAccess {
+  if (revokeDate === null) return { state: "active", note: null };
+  if (revokeDate > today) return { state: "scheduled", note: `Dicabut mulai ${formatDate(revokeDate)}` };
+
+  const cutShort =
+    contractEnd !== null && revokeDate < contractEnd
+      ? `, sebelum kontrak berakhir (${formatDate(contractEnd)})`
+      : "";
+
+  return { state: "revoked", note: `Sejak ${formatDate(revokeDate)}${cutShort}` };
 }
 
 /** A contract always has dates, so it is running, over or yet to start. */

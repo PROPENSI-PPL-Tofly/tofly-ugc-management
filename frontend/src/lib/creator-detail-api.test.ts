@@ -36,6 +36,7 @@ const RAW: RawCreatorDetail = {
   name: "Lestari Wulandari",
   email: "lestari@example.com",
   socials: { instagram: "lestariw", tiktok: "lestari.w" },
+  accessRevokeDate: null,
   contractHistory: [
     period(OLDEST, {
       periodNumber: 1,
@@ -183,6 +184,12 @@ describe("toCreatorDetailView", () => {
       socials: { instagram: "lestariw", tiktok: "lestari.w" },
       accessRevokeDate: null,
     });
+  });
+
+  it("reads an answer that predates the revoke field as no revoke set", () => {
+    const older = { ...RAW, accessRevokeDate: undefined } as unknown as RawCreatorDetail;
+
+    expect(toCreatorDetailView(older, CONTENTS, BARE).creator.accessRevokeDate).toBeNull();
   });
 
   it("carries the day the creator's access is revoked, for the profile's Akses", () => {

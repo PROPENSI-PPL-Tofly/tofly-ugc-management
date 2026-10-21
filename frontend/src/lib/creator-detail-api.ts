@@ -41,6 +41,7 @@ export interface RawCreatorDetail {
   name: string;
   email: string;
   socials: Partial<Record<"instagram" | "tiktok", string>>;
+  accessRevokeDate: string | null;
   /** Oldest first. */
   contractHistory: RawCreatorPeriod[];
 }
@@ -90,7 +91,14 @@ function toProfile(raw: RawCreatorDetail): CreatorProfile {
   if (raw.socials.instagram) socials.instagram = raw.socials.instagram;
   if (raw.socials.tiktok) socials.tiktok = raw.socials.tiktok;
 
-  return { id: raw.id, name: raw.name, email: raw.email, socials };
+  return {
+    id: raw.id,
+    name: raw.name,
+    email: raw.email,
+    socials,
+    // An answer from before the field was sent reads as no revoke set.
+    accessRevokeDate: raw.accessRevokeDate ?? null,
+  };
 }
 
 function toPeriod(period: RawCreatorPeriod): CreatorPeriod {

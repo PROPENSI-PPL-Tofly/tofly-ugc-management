@@ -87,7 +87,7 @@ describe("CreatorProfilePanel", () => {
     render(<CreatorProfilePanel today={TODAY} creator={CREATOR} current={{ ...PERIOD, type: "regular", status: "active" }} />);
 
     expect(screen.getByText("Regular")).not.toHaveClass("rounded-full");
-    const state = screen.getByText("Aktif");
+    const state = within(screen.getByText("Kontrak").nextElementSibling as HTMLElement).getByText("Aktif");
     expect(state).not.toHaveClass("rounded-full");
     expect(state.querySelector('[aria-hidden="true"]')).toHaveClass("bg-green");
   });
