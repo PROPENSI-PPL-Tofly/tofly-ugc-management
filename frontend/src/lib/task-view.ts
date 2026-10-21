@@ -3,7 +3,7 @@
 // bookmarked and reloaded. The month the calendar is turned to is not in the address: it is
 // kept by the calendar itself and starts again from today.
 
-import { MY_TASKS_BASE, buildMyTasksQuery, type MyTasksParams } from "./my-tasks";
+import { DEFAULT_MY_TASKS_PARAMS, MY_TASKS_BASE, buildMyTasksQuery, type MyTasksParams } from "./my-tasks";
 
 export type TaskView = "table" | "calendar";
 
@@ -35,12 +35,24 @@ export function taskViewParams(view: TaskView): Record<string, string> {
 }
 
 /**
+ * The state the calendar is shown under: the period and its days are dropped, because the month
+ * on show is already the calendar's period. A period kept from the table, or from an old link,
+ * would quietly empty the months outside it, a filter nobody can see or clear.
+ */
+export function calendarParams(state: MyTasksParams): MyTasksParams {
+  const { period, from, to } = DEFAULT_MY_TASKS_PARAMS;
+  return { ...state, period, from, to };
+}
+
+/**
  * Where a view's button leads. The tab, the search and the filters come along; the page number
  * does not, since a page of the table means nothing on the calendar and the other way round.
+ * Neither does the period on the way to the calendar, which has none.
  */
 export function taskViewHref(view: TaskView, state: MyTasksParams): string {
+  const shown = view === "calendar" ? calendarParams(state) : state;
   const search = new URLSearchParams({
-    ...buildMyTasksQuery({ ...state, page: 1 }),
+    ...buildMyTasksQuery({ ...shown, page: 1 }),
     ...taskViewParams(view),
   }).toString();
 
