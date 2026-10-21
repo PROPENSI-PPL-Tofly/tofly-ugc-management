@@ -20,7 +20,7 @@ export interface PagerProps {
 
 // A 44px square a thumb can hit at every width; pressed, it darkens and shrinks a little.
 const ARROW =
-  "grid size-11 cursor-pointer place-items-center rounded-(--radius-control) border-[1.5px] border-rule bg-surface text-lg font-extrabold text-ink transition-[background-color,transform] hover:bg-surface-2 active:scale-[.94] active:bg-rule-2 disabled:cursor-default disabled:opacity-40 disabled:active:scale-100";
+  "grid size-11 cursor-pointer place-items-center rounded-(--radius-control) border-[1.5px] border-rule bg-surface text-lg font-extrabold text-ink transition-[background-color,scale] hover:bg-surface-2 active:scale-[.94] motion-reduce:active:scale-100 active:bg-rule-2 disabled:cursor-default disabled:opacity-40 disabled:active:scale-100";
 
 /**
  * Presentational: where a page sits in its list ("2 dari 4", or "1–3 dari 5" when a page holds

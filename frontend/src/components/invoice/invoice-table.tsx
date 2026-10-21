@@ -266,7 +266,7 @@ export function InvoiceTable({
               <tr
                 key={row.contractId}
                 role="row"
-                className="border-b border-rule lg:last:border-b-0 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
+                className="border-b border-rule transition-colors lg:last:border-b-0 lg:hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
               >
                 <td className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>
                   <strong className="block truncate max-lg:whitespace-normal" title={invoiceTitle(row)}>

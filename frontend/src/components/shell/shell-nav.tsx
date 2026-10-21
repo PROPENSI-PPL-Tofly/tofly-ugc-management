@@ -23,7 +23,7 @@ function isWithin(pathname: string, href: string): boolean {
 // press about 56px tall (its padding, icon and name) that darkens and shrinks a little under the
 // finger. From md up it is a row of the rail, icon beside name. The colours of the resting and
 // the current place are the theme's.
-const TILE = `flex flex-col items-center justify-center gap-1 rounded-xl bg-surface-2 px-1 py-2 text-center text-[11.5px] font-bold leading-tight text-ink-2 transition-[background-color,color,transform] hover:bg-rule-2 hover:text-ink active:scale-[.96] md:min-h-10 md:flex-row md:justify-start md:gap-2.5 md:rounded-(--radius-control) md:px-3 md:py-0 md:text-left md:text-[13px] md:font-semibold ${PHONE_TARGET}`;
+const TILE = `flex flex-col items-center justify-center gap-1 rounded-xl bg-surface-2 px-1 py-2 text-center text-[11.5px] font-bold leading-tight text-ink-2 transition-[background-color,color,scale] hover:bg-rule-2 hover:text-ink active:scale-[.96] motion-reduce:active:scale-100 md:min-h-10 md:flex-row md:justify-start md:gap-2.5 md:rounded-(--radius-control) md:px-3 md:py-0 md:text-left md:text-[13px] md:font-semibold ${PHONE_TARGET}`;
 
 /**
  * The menu shared by every role: each role passes its places and its frame's colours, so a new

@@ -19,10 +19,17 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 /**
+ * A control gives a little under the finger, as on the ToFly site (approved design); it stays
+ * still for anyone whose system asks for less motion. A disabled one never moves.
+ */
+export const PRESS =
+  "transition-[color,background-color,border-color,scale] active:scale-[.97] disabled:active:scale-100 motion-reduce:active:scale-100";
+
+/**
  * The button look on its own, for a link that should read as a button (e.g. a page's main way in).
  * A 44px press on a phone; a link or label drawn with it is an inline-flex box, so the height
  * applies and the text stays centred in it.
  */
 export function buttonClasses(variant: Variant = "default"): string {
-  return `cursor-pointer rounded-(--radius-control) border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${PHONE_TARGET} ${VARIANTS[variant]}`;
+  return `cursor-pointer rounded-(--radius-control) border px-3 py-1.5 text-[12.5px] font-semibold ${PRESS} disabled:cursor-not-allowed disabled:opacity-40 ${PHONE_TARGET} ${VARIANTS[variant]}`;
 }
