@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 /** How far an open bubble stays from the edge of the area it opens in, in pixels. */
 const EDGE_MARGIN = 8;
@@ -39,8 +39,8 @@ function fit(bubble: HTMLElement) {
 }
 
 /**
- * The ⓘ beside a label or heading that explains it. The explanation shows on hover and on
- * keyboard focus, and is tied to the button through aria-describedby so a screen reader reads
+ * The ⓘ beside a label or heading that explains it. The explanation shows on hover, on
+ * keyboard focus and on a tap, closes on Escape, on leaving it or on a press elsewhere, and is tied to the button through aria-describedby so a screen reader reads
  * it too. `label` names the button (what it explains); `align` says which edge of the icon the
  * bubble lines up with, so one near the right edge of a dialog does not run off it.
  *
@@ -58,21 +58,46 @@ export function InfoTip({
   align?: "start" | "end";
 }) {
   const tipId = useId();
+  const root = useRef<HTMLSpanElement>(null);
   const bubble = useRef<HTMLSpanElement>(null);
+  // Open by focus or a tap; hover needs no state, CSS shows the bubble under a pointer.
+  const [shown, setShown] = useState(false);
 
-  // Measured a frame after it opens, once hover or focus has shown it.
-  function open() {
+  // Measured a frame after it opens, once hover, focus or a tap has shown it.
+  function fitSoon() {
     requestAnimationFrame(() => {
       if (bubble.current) fit(bubble.current);
     });
   }
 
+  function show() {
+    setShown(true);
+    fitSoon();
+  }
+
+  // A tap that does not focus the button leaves no blur to close on: a press elsewhere does.
+  useEffect(() => {
+    if (!shown) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!root.current?.contains(event.target as Node)) setShown(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [shown]);
+
   return (
-    <span className="group relative inline-flex align-middle" onFocus={open} onPointerEnter={open}>
+    <span ref={root} className="group relative inline-flex align-middle" onPointerEnter={fitSoon}>
+      {/* The icon is 16px; the ::before around it widens the press to 24px, 44px under a finger. */}
       <button
         type="button"
         aria-describedby={tipId}
-        className="grid size-4 cursor-help place-items-center rounded-full text-[13px] leading-none text-muted transition-colors hover:text-ink"
+        onFocus={show}
+        onClick={show}
+        onBlur={() => setShown(false)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setShown(false);
+        }}
+        className="relative grid size-4 cursor-help place-items-center rounded-full text-[13px] leading-none text-muted transition-colors before:absolute before:-inset-1 before:content-[''] hover:text-ink pointer-coarse:before:-inset-3.5"
       >
         <span aria-hidden="true">ⓘ</span>
         {/* Text, not aria-label: a label on this button would also answer for the field it sits by. */}
@@ -82,7 +107,7 @@ export function InfoTip({
         ref={bubble}
         id={tipId}
         role="tooltip"
-        className={`pointer-events-none absolute top-full z-10 mt-1.5 hidden w-max max-w-[260px] rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink group-focus-within:block group-hover:block ${align === "end" ? "right-0" : "left-0"}`}
+        className={`pointer-events-none absolute top-full z-10 mt-1.5 w-max max-w-[260px] rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink group-hover:block ${shown ? "block" : "hidden"} ${align === "end" ? "right-0" : "left-0"}`}
       >
         {text}
       </span>
