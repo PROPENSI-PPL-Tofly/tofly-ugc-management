@@ -3,8 +3,14 @@
 // place it leads to both come from its status.
 
 import { daysUntil, EMPTY, formatDaysLeft } from "./format";
-import { DEFAULT_MY_TASKS_PARAMS, myTabOf, type TaskStatusFilter } from "./my-tasks";
+import { DEFAULT_MY_TASKS_PARAMS, myTabOf, type MyTask, type TaskStatusFilter } from "./my-tasks";
 import { taskViewHref } from "./task-view";
+
+/** One of the dashboard's deadline lists: the rows it shows and how many there are in all. */
+export interface DeadlineList {
+  items: MyTask[];
+  total: number;
+}
 
 export interface StatCard {
   /** The status whose tasks the card counts, and the one Task Saya opens on when it is clicked. */

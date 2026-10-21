@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { fetchCreatorDashboard, type CreatorDashboard } from "@/lib/creator-dashboard.server";
-import { MyTasksError } from "@/lib/my-tasks";
+import { MyTasksError, type MyTask } from "@/lib/my-tasks";
 import CreatorDashboardPage from "./page";
 
 vi.mock("@/lib/creator-dashboard.server", () => ({
@@ -23,6 +23,23 @@ function dashboard(overrides: Partial<CreatorDashboard> = {}): CreatorDashboard 
   return {
     counts: { scheduled: 3, draft_revision: 1, draft_approved: 2 },
     nearestDeadline: "2026-10-12",
+    overdue: { items: [], total: 0 },
+    upcoming: { items: [], total: 0 },
+    ...overrides,
+  };
+}
+
+function task(overrides: Partial<MyTask> = {}): MyTask {
+  return {
+    id: "content-1",
+    name: "Evg_1_RanggaPratama_12102026",
+    type: "evergreen",
+    brief: "",
+    deadline: "2026-10-12",
+    status: "scheduled",
+    tags: [],
+    actions: ["submit_draft"],
+    revisionNotes: null,
     ...overrides,
   };
 }
@@ -127,5 +144,114 @@ describe("Creator dashboard page", () => {
       "/creator/dashboard",
     );
     expect(screen.queryByText("Draft Perlu Disubmit")).not.toBeInTheDocument();
+  });
+
+  // Under the cards, what to work on next: what is late, then what falls due in the next 14 days,
+  // each task one press from its detail on Task Saya.
+  describe("the deadline agenda", () => {
+    const upcoming = () => screen.getByRole("region", { name: /Deadline 14 hari ke depan/ });
+
+    it("lists the next 14 days' deadlines with the date, days left and status, each leading to its task", async () => {
+      mockedFetch.mockResolvedValue(
+        dashboard({
+          upcoming: {
+            items: [
+              task({ id: "a", name: "Review serum", deadline: "2026-10-09", status: "draft_revision" }),
+              task({ id: "b", name: "Unboxing botol", deadline: "2026-10-12", type: "specific" }),
+            ],
+            total: 2,
+          },
+        }),
+      );
+
+      await renderPage();
+
+      const rows = within(upcoming()).getAllByRole("listitem");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveTextContent("Review serum");
+      expect(rows[0]).toHaveTextContent("Hari ini");
+      expect(rows[0]).toHaveTextContent("Draft Perlu Revisi");
+      expect(rows[1]).toHaveTextContent("Unboxing botol");
+      expect(rows[1]).toHaveTextContent("Specific");
+      expect(rows[1]).toHaveTextContent("12 Okt 2026");
+      expect(rows[1]).toHaveTextContent("H-3");
+      expect(within(rows[1]).getByRole("link")).toHaveAttribute("href", "/creator/tasks?content=b");
+    });
+
+    it("puts overdue work first, saying how late each task is", async () => {
+      mockedFetch.mockResolvedValue(
+        dashboard({
+          overdue: {
+            items: [task({ id: "late", name: "Haul kemasan", deadline: "2026-10-07", tags: ["overdue"] })],
+            total: 1,
+          },
+          upcoming: { items: [task()], total: 1 },
+        }),
+      );
+
+      await renderPage();
+
+      const late = screen.getByRole("region", { name: /Overdue/ });
+      expect(within(late).getByRole("listitem")).toHaveTextContent("Lewat 2 hari");
+      // Overdue comes before the next 14 days in reading order.
+      expect(late.compareDocumentPosition(upcoming()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("leaves the overdue section out while nothing is late", async () => {
+      mockedFetch.mockResolvedValue(dashboard());
+
+      await renderPage();
+
+      expect(screen.queryByRole("region", { name: /Overdue/ })).not.toBeInTheDocument();
+    });
+
+    it("says so when nothing falls due in the next 14 days", async () => {
+      mockedFetch.mockResolvedValue(dashboard());
+
+      await renderPage();
+
+      expect(upcoming()).toHaveTextContent("Tidak ada deadline dalam 14 hari ke depan.");
+      expect(within(upcoming()).queryByRole("listitem")).not.toBeInTheDocument();
+    });
+
+    it("counts the whole list in its heading and leads to all of it on Task Saya when it shows only part", async () => {
+      mockedFetch.mockResolvedValue(dashboard({ upcoming: { items: [task()], total: 8 } }));
+
+      await renderPage();
+
+      expect(within(upcoming()).getByRole("heading")).toHaveTextContent("8");
+      const all = within(upcoming()).getByRole("link", { name: "Lihat semua 8 di Task Saya" });
+      const query = new URL(all.getAttribute("href") ?? "", "http://x").searchParams;
+      expect(Object.fromEntries(query)).toEqual({
+        status: "scheduled,draft_review,draft_revision,draft_approved",
+        overdue: "no",
+        period: "custom",
+        from: "2026-10-09",
+        to: "2026-10-23",
+      });
+    });
+
+    it("leads to every overdue task on Task Saya when it shows only part of them", async () => {
+      mockedFetch.mockResolvedValue(
+        dashboard({ overdue: { items: [task({ tags: ["overdue"] })], total: 6 } }),
+      );
+
+      await renderPage();
+
+      const all = screen.getByRole("link", { name: "Lihat semua 6 di Task Saya" });
+      const query = new URL(all.getAttribute("href") ?? "", "http://x").searchParams;
+      expect(Object.fromEntries(query)).toEqual({
+        status: "scheduled,draft_review,draft_revision,draft_approved",
+        overdue: "yes",
+      });
+    });
+
+    it("offers no such link when every task is already shown", async () => {
+      mockedFetch.mockResolvedValue(dashboard({ upcoming: { items: [task()], total: 1 } }));
+
+      await renderPage();
+
+      expect(screen.queryByRole("link", { name: /^Lihat semua/ })).not.toBeInTheDocument();
+    });
   });
 });

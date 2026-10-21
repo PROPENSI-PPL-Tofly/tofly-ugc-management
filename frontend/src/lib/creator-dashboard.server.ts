@@ -2,7 +2,7 @@
 // API through fetchMyTasks, which carries the browser's session, so it lives apart from the
 // shared creator-dashboard module that client components may import.
 
-import { STAT_CARDS } from "./creator-dashboard";
+import { STAT_CARDS, type DeadlineList } from "./creator-dashboard";
 import { jakartaDay } from "./format";
 import {
   DEFAULT_MY_TASKS_PARAMS,
@@ -19,6 +19,10 @@ export interface CreatorDashboard {
   counts: Partial<Record<TaskStatusFilter, number>>;
   /** The nearest deadline still open, as a calendar day; null when nothing is open. */
   nearestDeadline: string | null;
+  /** Unfinished work past its deadline. */
+  overdue: DeadlineList;
+  /** Unfinished work due in the next 14 days. */
+  upcoming: DeadlineList;
 }
 
 /**
@@ -42,5 +46,8 @@ export async function fetchCreatorDashboard(): Promise<CreatorDashboard> {
       STAT_CARDS.map((card, index) => [card.status, perStatus[index].total]),
     ),
     nearestDeadline: open.items[0]?.deadline ?? null,
+    // Stub until the agenda lands: neither list is asked for yet.
+    overdue: { items: [], total: 0 },
+    upcoming: { items: [], total: 0 },
   };
 }
