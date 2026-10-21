@@ -493,4 +493,41 @@ describe("TaskCalendar", () => {
     expect(days.length).toBeGreaterThan(27);
     for (const button of days) expectPhoneTarget(button);
   });
+
+  // Measured with the app's CSS at 375px: a task chip, only a dot on a phone, answered 35x12px
+  // in a 48px-wide day. Seven days share the row, so a chip cannot be 44px wide; on a phone it
+  // spans its whole day (the cell's padding included) and is 44px tall, the day growing to fit.
+  // What shows stays the dot: the chip's wash is dropped there, so the press grows, not the mark.
+  it("makes each task chip a 44px press across its day on a phone that still opens the task", () => {
+    const { container, onOpen } = renderCalendar([
+      task({ id: "content-7", deadline: "2026-10-12" }),
+      task({ id: "content-8", name: "Kedua", deadline: "2026-10-12" }),
+    ]);
+    const chipsOn12 = chips(day(container, "2026-10-12"));
+    expect(chipsOn12).toHaveLength(2);
+
+    for (const chip of chipsOn12) {
+      expectPhoneTarget(chip);
+      // Across the day: width from the margins, not w-full, so the cell's padding is covered.
+      expect(chip).toHaveClass("max-sm:-mx-1.5", "max-sm:w-auto");
+      // The mark stays an 8px dot, without the chip's wash behind it.
+      expect(chip).toHaveClass("max-sm:bg-transparent");
+      expect(chip.querySelector('[aria-hidden="true"]')).toHaveClass("size-2", "sm:hidden");
+    }
+
+    fireEvent.click(chipsOn12[1]);
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("content-8");
+  });
+
+  it("keeps a task chip's look from sm up, where it shows the task's name", () => {
+    const { container } = renderCalendar([task({ id: "content-7", deadline: "2026-10-12" })]);
+    const [chip] = chips(day(container, "2026-10-12"));
+
+    expect(chip).toHaveClass("w-full", "px-1.5", "py-0.5", "bg-amber-wash");
+    for (const name of chip.className.split(" ")) {
+      if (name.includes("min-h") || name.includes("-mx-") || name.includes("w-auto")) {
+        expect(name.startsWith("max-sm:")).toBe(true);
+      }
+    }
+  });
 });
