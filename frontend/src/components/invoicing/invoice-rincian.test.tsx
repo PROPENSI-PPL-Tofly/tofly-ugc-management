@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { formatTimestamp } from "@/lib/format";
-import type { InvoiceRow } from "@/lib/invoice";
+import { DASH, type InvoiceRow } from "@/lib/invoice";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { InvoiceRincian } from "./invoice-rincian";
 
@@ -85,7 +85,7 @@ describe("InvoiceRincian", () => {
 
     const summary = screen.getByRole("group", { name: "Ringkasan invoice" });
     expect(summary).toHaveTextContent("Adit Prakoso");
-    expect(summary).toHaveTextContent("Periode 1 · 2 Mar 2026 – 29 Agu 2026");
+    expect(summary).toHaveTextContent("Periode 1 · 2 Mar – 29 Agu 2026");
     expect(summary).toHaveTextContent("Total Sementara");
     expect(summary).toHaveTextContent("Rp350.000");
     expect(within(summary).getByRole("button", { name: "Tentang Total Sementara" })).toBeInTheDocument();
@@ -134,11 +134,11 @@ describe("InvoiceRincian", () => {
     setup({ row: { ...ROW, extraAmount: 0 }, breakdown: { ...BREAKDOWN, extra: { lines: [], total: 0 } } });
 
     expect(part("Fixed Rate Kontrak")).toHaveTextContent("Rp400.000");
-    expect(part("Fee Konten Tambahan")).toHaveTextContent("—");
+    expect(part("Fee Konten Tambahan")).toHaveTextContent(DASH);
     expect(within(part("Fee Konten Tambahan")).queryByRole("button")).toBeNull();
     expect(part("Bonus Performa")).toHaveTextContent("Menunggu data");
     expect(part("Penalti")).toHaveTextContent("− Rp150.000");
-    expect(part("Penyesuaian")).toHaveTextContent("—");
+    expect(part("Penyesuaian")).toHaveTextContent(DASH);
   });
 
   it("unfolds a part's lines on a press, and says so to a screen reader", () => {
@@ -235,8 +235,9 @@ describe("InvoiceRincian", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" }));
 
     expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Invoice difinalisasi")).toBeInTheDocument();
-    expect(screen.getByText("30 Agu 2026")).toBeInTheDocument();
+    const activity = within(screen.getByRole("list", { name: "Aktivitas invoice" }));
+    expect(activity.getByText("Invoice difinalisasi")).toBeInTheDocument();
+    expect(activity.getByText("30 Agu 2026")).toBeInTheDocument();
     expect(screen.getByText("Utas komentar")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Total invoice" })).toBeNull();
   });

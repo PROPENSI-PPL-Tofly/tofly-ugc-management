@@ -16,8 +16,9 @@ export const FINALIZED_MESSAGE = "Invoice difinalisasi dan dikirim ke creator.";
  * Both live here rather than in the table, so the breakdown an admin reads before moving money
  * is the same one the move is made from. A frozen invoice shows neither — it is settled history.
  *
- * Finalizing is withheld, with its reason, while the contract still runs or a part of the
- * invoice still waits for data: the server refuses both, and the button says so first.
+ * Finalizing is withheld while the contract still runs (the panel's footer names the day it
+ * opens) or a part of the invoice still waits for data, which the button says itself: the
+ * server refuses both, and the panel says so first.
  *
  * The adjustment form is the panel's to place (inline, as in the prototype); this button only
  * asks for it through `onAdjust`.
@@ -51,24 +52,18 @@ export function InvoiceActions({
         + Tambah Penyesuaian
       </Button>
 
-      {finalizable ? (
-        row.dataWaiting ? (
-          <>
-            <Button disabled title={REFUSAL_MESSAGES.INVOICE_DATA_INCOMPLETE}>
-              Finalize
-            </Button>
-            <p className="basis-full text-xs text-muted" role="status">
-              {REFUSAL_MESSAGES.INVOICE_DATA_INCOMPLETE}
-            </p>
-          </>
-        ) : (
-          <Button onClick={() => setFinalizing(true)}>Finalize</Button>
-        )
-      ) : (
-        <p className="basis-full text-xs text-muted" role="status">
-          Bisa difinalisasi setelah kontrak berakhir.
-        </p>
-      )}
+      {/* Before the contract ends, the panel's footer says from when it can be finalized. */}
+      {finalizable && row.dataWaiting ? (
+        <>
+          <Button disabled title={REFUSAL_MESSAGES.INVOICE_DATA_INCOMPLETE}>
+            Finalize
+          </Button>
+          <p className="basis-full text-xs text-muted" role="status">
+            {REFUSAL_MESSAGES.INVOICE_DATA_INCOMPLETE}
+          </p>
+        </>
+      ) : null}
+      {finalizable && !row.dataWaiting ? <Button onClick={() => setFinalizing(true)}>Finalize</Button> : null}
 
       {finalizing ? (
         <FinalizeModal

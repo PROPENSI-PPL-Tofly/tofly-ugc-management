@@ -469,7 +469,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
 
       expect(await screen.findByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
-      expect(await screen.findByRole("region", { name: "Penalti" })).toBeInTheDocument();
+      expect(await screen.findByRole("group", { name: "Penalti" })).toBeInTheDocument();
     });
 
     it("reads the breakdown once for the panel and the cells of the same row", async () => {
@@ -477,7 +477,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       render(<Whole load={load} />);
 
       fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
-      await screen.findByRole("region", { name: "Penalti" });
+      await screen.findByRole("group", { name: "Penalti" });
       fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
       fireEvent.click(cell(/^Konten Tambahan Rangga/));
 
@@ -491,7 +491,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
       fireEvent.click(await screen.findByRole("button", { name: "Coba lagi" }));
 
-      expect(await screen.findByRole("region", { name: "Penalti" })).toBeInTheDocument();
+      expect(await screen.findByRole("group", { name: "Penalti" })).toBeInTheDocument();
       expect(load).toHaveBeenCalledTimes(2);
     });
 
@@ -563,7 +563,8 @@ describe("useBreakdownPopups after the table is read again", () => {
       rerender(<Whole load={answering()} rows={[frozen]} />);
 
       const rincian = screen.getByRole("dialog", { name: "Rincian Invoice" });
-      expect(within(rincian).getByText("Invoice Terkirim")).toBeInTheDocument();
+      expect(within(rincian).getByRole("group", { name: "Total invoice" })).toHaveTextContent("Total Final");
+      expect(within(rincian).getByText("Menunggu ack creator.")).toBeInTheDocument();
       expect(within(rincian).queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
     });
 
@@ -571,7 +572,9 @@ describe("useBreakdownPopups after the table is read again", () => {
       render(<Whole load={answering()} />);
 
       fireEvent.click(screen.getByRole("button", { name: "Rincian Rangga" }));
-      fireEvent.click(await screen.findByRole("button", { name: "Evg_3_Rangga_15102026" }));
+      // A part's lines fold away until its row is pressed.
+      fireEvent.click(within(await screen.findByRole("group", { name: "Penalti" })).getByRole("button"));
+      fireEvent.click(screen.getByRole("button", { name: "Evg_3_Rangga_15102026" }));
       expect(panel()).toHaveAttribute("data-content", "c-3");
 
       fireEvent.click(screen.getByRole("button", { name: "Tutup panel" }));

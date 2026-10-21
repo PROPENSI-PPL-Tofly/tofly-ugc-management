@@ -91,6 +91,11 @@ export function ProofLink({ proof }: Readonly<{ proof: PaymentProof }>) {
   );
 }
 
+/** The proof row on the creator's page: none while the banner above asks them to confirm it. */
+function creatorOwnProof(invoice: CreatorInvoice): PaymentProof | null {
+  return creatorNextStep(invoice).action === "confirm" ? null : invoice.proof;
+}
+
 function amountOf(kind: BreakdownKind, invoice: CreatorInvoice): { amount: string; tone: string } {
   switch (kind) {
     case "fixed":
@@ -105,16 +110,29 @@ function amountOf(kind: BreakdownKind, invoice: CreatorInvoice): { amount: strin
   }
 }
 
-/** The Rincian tab: each part with its lines, the adjustments, the total and the proof. */
+/**
+ * The Rincian tab: each part with its lines, the adjustments, the total and the proof. The
+ * creator's page and the admin's panel both show it; the admin names the total in its own words
+ * and always shows the proof, which the creator's page moves into its banner while it asks.
+ */
 export function InvoiceParts({
   invoice,
   onOpenContent,
-}: Readonly<{ invoice: CreatorInvoice; onOpenContent: (contentId: string) => void }>) {
-  const label = totalLabel(invoice.status);
+  totalName = totalLabel(invoice.status),
+  proof,
+}: Readonly<{
+  invoice: CreatorInvoice;
+  onOpenContent: (contentId: string) => void;
+  /** The total's name; the creator's word for it unless another is handed in. */
+  totalName?: string;
+  /** The proof to show as a row; left out, the creator's page decides. */
+  proof?: PaymentProof | null;
+}>) {
+  const label = totalName;
   const total = totalAmountLabel(invoice);
   const adjusted = invoice.adjustments.reduce((sum, adjustment) => sum + adjustment.amount, 0);
   // While the proof waits for the creator's confirmation, it is linked where they are asked.
-  const rowProof = creatorNextStep(invoice).action === "confirm" ? null : invoice.proof;
+  const rowProof = proof === undefined ? creatorOwnProof(invoice) : proof;
 
   return (
     <div className="mt-2">

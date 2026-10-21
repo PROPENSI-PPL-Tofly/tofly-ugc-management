@@ -1,35 +1,38 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { CONTRACT_TONES, INVOICE_TONES } from "@/components/invoice/invoice-table";
+import { useState, type ReactNode } from "react";
+import { InvoiceParts } from "@/components/creator-invoice/invoice-parts";
+import { InvoiceTabs } from "@/components/creator-invoice/invoice-tabs";
+import { InvoiceTracker } from "@/components/creator-invoice/invoice-tracker";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Modal } from "@/components/ui/modal";
-import { Pill, StatusDot } from "@/components/ui/pill";
 import {
-  CONTRACT_STATUS_LABELS,
-  finalLabel,
-  invoiceTitle,
-  INVOICE_STATUS_LABELS,
-  type InvoiceRow,
-} from "@/lib/invoice";
-import { BREAKDOWN_KINDS, BREAKDOWN_TITLES, type InvoiceBreakdown } from "@/lib/invoice-breakdown";
-import { AdjustmentLines } from "./adjustment-lines";
-import { BreakdownLines, type BreakdownStatus } from "./breakdown-popup";
+  ADMIN_EVENT_TEXT,
+  adminInvoiceHint,
+  adminInvoiceView,
+  adminTotalLabel,
+  adminTotalNote,
+} from "@/lib/admin-invoice-view";
+import { instantDay, invoiceActivity, invoiceSteps, totalAmountLabel } from "@/lib/creator-invoice";
+import { formatContractWindow, jakartaDay } from "@/lib/format";
+import type { InvoiceRow } from "@/lib/invoice";
+import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
+import type { BreakdownStatus } from "./breakdown-popup";
 
-/** The total's name, as the creator's page has it once the amounts are frozen (prototype). */
-function adminTotalLabel(row: InvoiceRow): string {
-  if (row.invoiceStatus === "paid") return "Total Dibayarkan";
-  return row.frozenAt === null ? "Total" : "Total Final";
-}
+type RincianTab = "rincian" | "aktivitas";
 
 /**
- * One creator's whole running invoice in one place (the prototype's "Rincian"): every part with
- * its lines, in the table's order, then the total as the table shows it. It is what an admin
- * reads before paying a creator or answering a question about an amount; the four column popups
- * stay as shortcuts. A content's name opens its Content Detail, which the caller places.
+ * One creator's invoice for the admin (the prototype's "Rincian"), in the layout the creator's
+ * Pembayaran page reads it in: who and which period, the total, the dated tracker, then two
+ * tabs. Rincian folds each part open on a press, so the admin scans five amounts before any
+ * line; Aktivitas & Komentar tells the invoice's story beside its thread. The tracker, the parts
+ * and the tabs are the creator page's own components, fed through adminInvoiceView, so both
+ * roles always read the same numbers in the same words.
  *
- * `actions` sits beside Tutup and is empty for now: the invoice pipeline (PBI-12) puts Finalize
- * there without this panel changing.
+ * The moves stay the caller's: `actions` beside Tutup, `editor` (the adjustment form) and
+ * `upload` (the payment proof) above the tabs where the admin acts, `thread` under the activity.
+ * The footer says what the invoice waits for, so a missing button is never a silent one.
  */
 export function InvoiceRincian({
   row,
@@ -40,7 +43,9 @@ export function InvoiceRincian({
   onOpenContent,
   actions,
   editor,
-  payment,
+  upload,
+  thread,
+  today = jakartaDay(),
 }: Readonly<{
   row: InvoiceRow;
   /** Null until it has been read, and when there is none. */
@@ -50,12 +55,20 @@ export function InvoiceRincian({
   onClose: () => void;
   onOpenContent: (contentId: string) => void;
   actions?: ReactNode;
-  // A form opened from the actions (the manual adjustment), shown above the breakdown it changes.
+  /** A form opened from the actions (the manual adjustment), shown above what it changes. */
   editor?: ReactNode;
-  // The payment part (PBI-13, subtask 13.4), under the breakdown and its total.
-  payment?: ReactNode;
+  /** The payment proof upload, while the invoice waits for it. */
+  upload?: ReactNode;
+  /** The invoice's comment thread, under its activity. */
+  thread?: ReactNode;
+  /** The day the finalize hint is read against; Jakarta's, unless a test says otherwise. */
+  today?: string;
 }>) {
+  const [tab, setTab] = useState<RincianTab>("rincian");
+  const view = breakdown ? adminInvoiceView(row, breakdown) : null;
+
   let body: ReactNode;
+  let hint: string | null = null;
   if (status === "failed") {
     body = (
       <div role="alert" className="flex flex-col items-center gap-3 py-6 text-center text-[13px]">
@@ -65,68 +78,92 @@ export function InvoiceRincian({
     );
   } else if (status === "missing") {
     body = <p className="py-6 text-center text-[13px] text-muted">Tidak ada rincian untuk creator ini.</p>;
-  } else if (breakdown === null) {
+  } else if (view === null) {
     body = (
       <p role="status" className="py-6 text-center text-[13px] text-muted">
         Memuat rincian…
       </p>
     );
   } else {
+    hint = adminInvoiceHint(view, row.contractEnd, today);
+    const label = adminTotalLabel(view.status);
+    const note = adminTotalNote(view.status);
+    const events = invoiceActivity(view, ADMIN_EVENT_TEXT);
+
     body = (
-      <div className="flex flex-col gap-5">
-        {BREAKDOWN_KINDS.map((kind) => (
-          <section key={kind} aria-label={BREAKDOWN_TITLES[kind]} className="flex flex-col gap-1.5">
-            <h3 className="text-[13px] font-bold">{BREAKDOWN_TITLES[kind]}</h3>
-            <BreakdownLines kind={kind} breakdown={breakdown} onOpenContent={onOpenContent} />
-          </section>
-        ))}
-
-        {row.adjustments.length > 0 ? (
-          <section aria-label="Penyesuaian manual" className="flex flex-col gap-1.5">
-            <h3 className="text-[13px] font-bold">Penyesuaian</h3>
-            <AdjustmentLines adjustments={row.adjustments} />
-          </section>
-        ) : null}
-
-        <div
-          role="group"
-          aria-label="Total invoice"
-          className="flex items-start justify-between gap-4 border-t border-rule pt-3"
-        >
-          <div>
-            <p className="text-sm font-bold">{adminTotalLabel(row)}</p>
-            {row.floored ? <p className="text-xs text-red-ink">Penalti melebihi pembayaran</p> : null}
-            {!row.floored && row.bonusAmount === null ? (
-              <p className="text-xs text-muted">Belum termasuk bonus performa yang menunggu data.</p>
-            ) : null}
-          </div>
-          <strong className="whitespace-nowrap text-sm tabular-nums">{finalLabel(row)}</strong>
+      <>
+        <div role="group" aria-label="Ringkasan invoice">
+          <p className="text-sm font-semibold">{row.creatorName}</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {`Periode ${view.periodNumber} · ${formatContractWindow(view.periodStart, view.periodEnd)}`}
+          </p>
+          <p className="mt-3 flex items-center gap-1 text-xs text-muted">
+            {label}
+            {note === null ? null : <InfoTip text={note} label={`Tentang ${label}`} />}
+          </p>
+          <p className="mt-0.5 text-[26px] leading-tight font-bold tabular-nums">{totalAmountLabel(view)}</p>
         </div>
-      </div>
+
+        <InvoiceTracker steps={invoiceSteps(view)} />
+
+        {editor ? <div className="mt-4">{editor}</div> : null}
+        {upload ? <div className="mt-4">{upload}</div> : null}
+
+        <InvoiceTabs
+          tabs={[
+            { key: "rincian", label: "Rincian" },
+            {
+              key: "aktivitas",
+              label: `Aktivitas & Komentar${events.length > 0 ? ` (${events.length})` : ""}`,
+            },
+          ]}
+          active={tab}
+          onSelect={setTab}
+        >
+          {tab === "rincian" ? (
+            <InvoiceParts invoice={view} onOpenContent={onOpenContent} totalName={label} proof={view.proof} />
+          ) : (
+            <div className="flex flex-col gap-4">
+              {events.length === 0 ? (
+                <p className="py-3 text-center text-[13px] text-muted">Belum ada aktivitas.</p>
+              ) : (
+                <ul aria-label="Aktivitas invoice" className="divide-y divide-dashed divide-rule">
+                  {events.map((event) => (
+                    <li key={event.id} className="flex justify-between gap-3 py-2 text-[12.5px] text-muted">
+                      <span>{event.text}</span>
+                      <span className="whitespace-nowrap">{instantDay(event.at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {thread}
+            </div>
+          )}
+        </InvoiceTabs>
+      </>
     );
   }
 
   return (
     <Modal
-      title={`Rincian Invoice · ${invoiceTitle(row)}`}
+      title="Rincian Invoice"
       placement="side"
       onClose={onClose}
       footer={
         <>
+          {hint === null ? null : (
+            <p
+              className={`mr-auto self-center text-xs ${view?.status === "paid" ? "font-semibold text-green-ink" : "text-muted"}`}
+            >
+              {hint}
+            </p>
+          )}
           {actions}
           <Button onClick={onClose}>Tutup</Button>
         </>
       }
     >
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-[13px]">
-        <StatusDot tone={CONTRACT_TONES[row.contractStatus]}>
-          {`Kontrak ${CONTRACT_STATUS_LABELS[row.contractStatus]}`}
-        </StatusDot>
-        <Pill tone={INVOICE_TONES[row.invoiceStatus]}>{INVOICE_STATUS_LABELS[row.invoiceStatus]}</Pill>
-      </div>
-      {editor ? <div className="mb-5">{editor}</div> : null}
       {body}
-      {payment}
     </Modal>
   );
 }

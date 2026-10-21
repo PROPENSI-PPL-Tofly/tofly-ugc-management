@@ -226,10 +226,14 @@ const EVENT_TEXT: Record<keyof ReachedAt, string> = {
  * reached woven together with the comments. A step comes before a comment written at the same
  * moment. An admin writes as "Admin", never by person, as the Content Detail timeline does.
  */
-export function invoiceActivity(invoice: CreatorInvoice): ActivityEntry[] {
-  const events: ActivityEntry[] = (Object.keys(EVENT_TEXT) as (keyof ReachedAt)[]).flatMap((step) => {
+export function invoiceActivity(
+  invoice: CreatorInvoice,
+  /** How each step reads; the creator's words unless the admin's are handed in. */
+  texts: Record<keyof ReachedAt, string> = EVENT_TEXT,
+): ActivityEntry[] {
+  const events: ActivityEntry[] = (Object.keys(texts) as (keyof ReachedAt)[]).flatMap((step) => {
     const at = invoice.reachedAt[step];
-    return at === null ? [] : [{ kind: "event" as const, id: step, text: EVENT_TEXT[step], at }];
+    return at === null ? [] : [{ kind: "event" as const, id: step, text: texts[step], at }];
   });
   const comments: ActivityEntry[] = invoice.comments.map((comment) => ({
     kind: "comment",
