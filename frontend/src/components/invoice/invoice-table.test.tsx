@@ -185,6 +185,16 @@ describe("InvoiceTable", () => {
     expect(screen.getByText("Tidak ada creator sesuai filter.")).toBeInTheDocument();
   });
 
+  // Approved design: on a phone each card closes on its Total as the line the amounts add up
+  // to, set on a tinted strip across the card, the sum larger than the parts.
+  it("closes each phone card on its Total, set apart as the sum", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    const total = document.querySelector('[data-label="Total"]') as HTMLElement;
+    expect(total).toHaveClass("max-lg:border-t-[1.5px]", "max-lg:bg-surface-2", "max-lg:-mx-4");
+    expect(total.querySelector("strong")).toHaveClass("max-lg:text-xl", "max-lg:font-extrabold");
+  });
+
   describe("with the breakdown triggers of 8.5", () => {
     const trigger = (kind: string, row: InvoiceRow) => (
       <button type="button">{`${kind} of ${row.creatorName}`}</button>

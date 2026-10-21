@@ -224,11 +224,34 @@ describe("Rate & Invoicing page", () => {
       expect(screen.queryByRole("status", { name: "Formula rate belum diatur" })).not.toBeInTheDocument();
     });
 
+    // Scoped to the table: the approved design repeats the sum in the Ringkasan tile above.
     it("adds up the whole filtered list under the table", async () => {
       await renderPage();
 
-      expect(screen.getByText("Total 24 invoice")).toBeInTheDocument();
-      expect(screen.getByText("Rp9.800.000")).toBeInTheDocument();
+      const table = screen.getByRole("table");
+      expect(within(table).getByText("Total 24 invoice")).toBeInTheDocument();
+      expect(within(table).getByText("Rp9.800.000")).toBeInTheDocument();
+    });
+
+    // Approved design: the filtered list's sum leads the page as a navy tile, how many and
+    // what they come to, with the rule that adds each one up.
+    it("leads with the filtered list's sum in a navy Ringkasan tile", async () => {
+      await renderPage();
+
+      const tile = screen.getByRole("region", { name: "Ringkasan" });
+      expect(tile).toHaveClass("bg-ink", "text-accent-ink");
+      expect(tile).toHaveTextContent("Total 24 invoice");
+      expect(tile).toHaveTextContent("Rp9.800.000");
+      expect(tile).toHaveTextContent("Total = Fixed Rate + Konten Tambahan + Bonus − Penalti");
+    });
+
+    it("titles the list in the ink band with its count and the formula button", async () => {
+      await renderPage();
+
+      const band = screen.getByRole("heading", { level: 2, name: "Invoice" }).closest("[data-tone]") as HTMLElement;
+      expect(band).toHaveAttribute("data-tone", "ink");
+      expect(band.querySelector("[data-count]")).toHaveTextContent("24 invoice");
+      expect(within(band).getByRole("button", { name: /atur formula rate/i })).toBeInTheDocument();
     });
 
     it("asks the list for the order in the URL", async () => {
