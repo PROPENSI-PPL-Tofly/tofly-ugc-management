@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MIN_TARGET } from "@/components/ui/touch-target";
 import { Pill, StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
@@ -106,7 +107,7 @@ export function ContentPlanTable({
                 <Link
                   href={creatorDetailBase(row.creatorId)}
                   onClick={(event) => event.stopPropagation()}
-                  className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
+                  className={`inline-flex items-center underline decoration-rule underline-offset-[3px] hover:decoration-ink ${MIN_TARGET}`}
                 >
                   {row.creatorName}
                 </Link>

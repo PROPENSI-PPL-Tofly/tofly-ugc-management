@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/pill";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
 import { formatDate } from "@/lib/format";
 import type { MyTask } from "@/lib/my-tasks";
@@ -42,13 +43,12 @@ const GROUP_BY_KEY = Object.fromEntries(
 const CHIP =
   "block w-full cursor-pointer truncate rounded-(--radius-control) border-none px-1.5 py-0.5 text-left text-[11.5px] font-semibold";
 
-const NAV =
-  "cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 text-base leading-7 text-ink-2 hover:border-ink-2";
+const NAV = `cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 text-base leading-7 text-ink-2 hover:border-ink-2 ${PHONE_TARGET} max-sm:min-w-11`;
 
 const DAYS_PER_WEEK = WEEKDAYS.length;
 
 // A day's date is the button that chooses it; plain text until hovered, like the date it was.
-const DAY = "mb-1 flex h-6 w-full cursor-pointer items-center rounded-(--radius-control) px-1 text-left text-xs";
+const DAY = `mb-1 flex h-6 w-full cursor-pointer items-center rounded-(--radius-control) px-1 text-left text-xs ${PHONE_TARGET}`;
 
 /** How a day button reads: its date and how many tasks fall on it. */
 function dayLabel(day: string, count: number): string {

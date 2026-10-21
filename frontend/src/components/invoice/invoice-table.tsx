@@ -29,7 +29,7 @@ const NUM_HEAD = "px-5 py-3 text-right font-semibold";
 const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
 const AGAINST =
   "max-lg:flex max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:before:text-xs max-lg:before:font-normal max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
-const NUM = `${CELL} whitespace-nowrap text-right tabular-nums ${AGAINST}`;
+const NUM = `${CELL} whitespace-nowrap text-right tabular-nums max-lg:relative ${AGAINST}`;
 
 /** The contract dot, coloured apart with the app's own tones where the prototype used its. */
 export const CONTRACT_TONES: Record<ContractStatus, Tone> = {
