@@ -232,10 +232,10 @@ describe("MyTaskTable", () => {
       ).toBeInTheDocument();
     });
 
-    // UAT B2.3: the prototype ends a row with nothing to do on a quiet Detail button, so the
-    // creator sees where each content's detail opens.
+    // UAT B2.3: the prototype ends a row with nothing to do on a Detail button, so the creator
+    // sees where each content's detail opens; it is bordered like the Creator Database's.
     it.each(["draft_review", "link_submitted"] as const)(
-      "offers a quiet Detail button for a %s task, which has nothing to do, as the prototype does",
+      "offers a Detail button for a %s task, which has nothing to do, as the prototype does",
       (status) => {
         render(
           <MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} onDetail={vi.fn()} />,
@@ -246,7 +246,8 @@ describe("MyTaskTable", () => {
           name: "Detail: Evg_1_RanggaPratama_12102026",
         });
         expect(detail).toHaveTextContent("Detail");
-        expect(detail.className).toContain("bg-transparent");
+        expect(detail.className).toContain("border-rule");
+        expect(detail.className).toContain("bg-surface");
         expect(within(row).queryByText("Menunggu review admin")).not.toBeInTheDocument();
       },
     );

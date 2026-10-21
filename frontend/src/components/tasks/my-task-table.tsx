@@ -56,11 +56,11 @@ function ActionCell({
 }>) {
   if (task.actions.length === 0 && onDetail) {
     return (
-      // Nothing to do: a quiet Detail, as the prototype ends such a row, lifted above the
-      // row-wide name button so one press opens the detail once.
+      // Nothing to do: a Detail button, as the prototype ends such a row, bordered like the
+      // Creator Database's, lifted above the row-wide name button so one press opens it once.
       <div className="relative z-10">
         <Button
-          variant="ghost"
+          variant="default"
           className="whitespace-nowrap"
           aria-label={`Detail: ${task.name}`}
           aria-haspopup="dialog"
