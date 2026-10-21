@@ -77,7 +77,8 @@ export function StatusTabs<K extends string>({
       ref={list}
       role="tablist"
       aria-label={label}
-      className={`flex gap-1 overflow-x-auto border-b border-rule px-5 ${SCROLL_HINT}`}
+      // Below sm the tabs are one Tampilkan choice in the folded filters (TabChoice).
+      className={`flex gap-1 overflow-x-auto border-b border-rule px-5 max-sm:hidden ${SCROLL_HINT}`}
     >
       {tabs.map((def, index) => {
         const count = counts[def.key];

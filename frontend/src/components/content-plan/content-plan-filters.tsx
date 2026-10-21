@@ -13,31 +13,38 @@ import {
   pickFilters,
 } from "@/components/filters/filter-controls";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import { TabChoice } from "@/components/ui/tab-choice";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
+  CONTENT_PLAN_TABS,
   statusOptionsFor,
+  tabDef,
   type ContentPlanCounts,
   type ContentPlanCreatorOption,
   type ContentPlanParams,
 } from "@/lib/content-plan";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { useContentPlanTabSelect } from "./content-plan-tab-bar";
 
 /**
  * The Content Plan's filter bar. The server hands in the validated tab so the status choices
  * can stay scoped to it; every other control reads the live URL through the shared hook, so a
- * pick is one replace away and Reset keeps the tab it was pressed on.
+ * pick is one replace away and Reset keeps the tab it was pressed on. On a phone the tabs are
+ * folded in too, as the Tampilkan choice, switched exactly as the row switches them.
  */
 export function ContentPlanFilters({
   state,
   creators,
+  counts,
 }: Readonly<{
   state: ContentPlanParams;
   creators: readonly ContentPlanCreatorOption[];
-  /** Stub until the tabs come to the phone's filters: accepted, not yet used. */
-  counts?: ContentPlanCounts;
+  /** Each tab's size, named in the phone's Tampilkan choice. */
+  counts: ContentPlanCounts;
 }>) {
   const { search, setSearch, param, listParam, setParam, setParams, setPeriod, resetKeeping, pending } =
     useUrlFilters();
+  const selectTab = useContentPlanTabSelect();
 
   const statusChoices = statusOptionsFor(state.tab);
   const creatorOptions: MultiSelectOption[] = creators.map((c) => ({ value: c.id, label: c.name }));
@@ -85,6 +92,9 @@ export function ContentPlanFilters({
 
   // What the folded phone bar names, in the order of the controls.
   const active = [
+    ...(state.tab === "all"
+      ? []
+      : [{ id: "tab", text: `Tampilkan: ${tabDef(state.tab).label}`, onRemove: () => selectTab("all") }]),
     ...pickFilters("Creator", creatorPicks, creatorOptions, (next) => setListParam("creator", next)),
     ...pickFilters("Tipe", types, typeOptions, (next) => setListParam("type", next)),
     ...(statusOptions.length > 1
@@ -102,6 +112,8 @@ export function ContentPlanFilters({
       active={active}
       reset={isFilteredNow ? <ResetFilters onReset={resetKeepingTab} disabled={pending} /> : null}
     >
+      <TabChoice tabs={CONTENT_PLAN_TABS} counts={counts} active={state.tab} onSelect={selectTab} />
+
       <MultiSelect
         label="Creator"
         options={creatorOptions}

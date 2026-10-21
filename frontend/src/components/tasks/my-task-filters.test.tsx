@@ -184,7 +184,10 @@ describe("MyTaskFilters", () => {
   it("reads an address naming every type, repeated or not, as Semua", () => {
     searchParams = new URLSearchParams("type=evergreen&type=specific");
     render(
-      <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, type: ["evergreen", "specific"] }} />,
+      <MyTaskFilters
+        state={{ ...DEFAULT_MY_TASKS_PARAMS, type: ["evergreen", "specific"] }}
+        counts={COUNTS}
+      />,
     );
 
     expect(screen.getByRole("radio", { name: "Semua" })).toBeChecked();

@@ -169,7 +169,7 @@ export default async function TaskSayaPage({
               <>
                 <MyTaskTabBar active={state.tab} counts={loaded.counts} />
 
-                <MyTaskFilters state={state} view={view} />
+                <MyTaskFilters state={state} counts={loaded.counts} view={view} />
 
                 <MyTaskBoard
                     tasks={loaded.tasks}
@@ -186,7 +186,7 @@ export default async function TaskSayaPage({
               <>
                 <MyTaskTabBar active={state.tab} counts={loaded.result.counts} />
 
-                <MyTaskFilters state={state} />
+                <MyTaskFilters state={state} counts={loaded.result.counts} />
 
                 <MyTaskBoard
                     tasks={loaded.result.items}

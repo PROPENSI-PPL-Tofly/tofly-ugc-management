@@ -16,20 +16,18 @@ import { latestQuery, useUrlQuery } from "@/lib/url-query";
 export const MY_TASK_LIST_ID = "my-task-list";
 
 /**
- * Task Saya's tabs, grouped by whose turn it is. A press rewrites the URL with the tab's
- * contract applied — the search and the filters carry over, the status picks, sort and page of
- * the old tab fall away — so every tab is a linkable, reloadable address like the rest of the
- * page. The view is not the tab's to change: a tab pressed above the calendar keeps it open.
+ * Switches Task Saya's tab: rewrites the URL with the tab's contract applied — the search and
+ * the filters carry over, the status picks, sort and page of the old tab fall away — so every
+ * tab is a linkable, reloadable address. The view is not the tab's to change: a tab picked
+ * above the calendar keeps it open. Shared by the row of tabs and the phone's Tampilkan choice,
+ * so both make the very same move.
  */
-export function MyTaskTabBar({
-  active,
-  counts,
-}: Readonly<{ active: MyTaskTab; counts: MyTasksCounts }>) {
+export function useMyTaskTabSelect(): (tab: MyTaskTab) => void {
   const { replaceQuery } = useUrlQuery();
 
   // Read from what was last sent, not from the address bar: a filter ticked a moment ago is
   // not in the address yet, and a tab built on the address would drop it.
-  function select(tab: MyTaskTab) {
+  return function select(tab: MyTaskTab) {
     const sent = Object.fromEntries(new URLSearchParams(latestQuery()).entries());
     const next = myTasksAfterTabChange(parseMyTasksParams(sent), tab);
     replaceQuery(
@@ -38,7 +36,15 @@ export function MyTaskTabBar({
         ...taskViewParams(parseTaskView(sent)),
       }).toString(),
     );
-  }
+  };
+}
+
+/** Task Saya's tabs, grouped by whose turn it is (a row from sm up; a choice in the filters below). */
+export function MyTaskTabBar({
+  active,
+  counts,
+}: Readonly<{ active: MyTaskTab; counts: MyTasksCounts }>) {
+  const select = useMyTaskTabSelect();
 
   return (
     <StatusTabs
