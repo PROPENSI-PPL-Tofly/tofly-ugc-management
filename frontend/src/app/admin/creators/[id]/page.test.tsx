@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import type { CreatorDetailView, CreatorPeriod } from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 import CreatorDetailPage, { metadata } from "./page";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
 const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const FIRST = "11111111-1111-4111-8111-111111111111";
@@ -127,6 +128,14 @@ describe("Creator Detail page", () => {
     function backLink() {
       return screen.getByRole("link", { name: "← Kembali ke Creator Database" });
     }
+
+    // A one-line text link was 20px tall: under the 24px WCAG 2.5.8 asks for, on the page's
+    // only way back. On a phone it gets the 44px a main way around needs.
+    it("is a 44px press on a phone", async () => {
+      await renderPage();
+
+      expect(backLink()).toHaveClass(PHONE_TARGET);
+    });
 
     it("returns to the search, filters and page the admin left", async () => {
       await renderPage({ return: "q=nadia&contractStatus=active&productivity=risk&page=3" });

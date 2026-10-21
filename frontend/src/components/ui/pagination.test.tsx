@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { useLinkStatus } from "next/link";
 import { Pagination } from "./pagination";
+import { PHONE_TARGET } from "./touch-target";
 
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
@@ -234,5 +235,14 @@ describe("Pagination", () => {
     // The page count and both buttons need about 300 px; a 320 px panel leaves them 246.
     const controls = screen.getByText("Halaman 2 dari 4").parentElement;
     expect(controls).toHaveClass("flex-wrap");
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives the neighbouring pages a 44px press on a phone, and the page it cannot leave for", () => {
+    render(<Pagination {...CREATORS} page={1} pageSize={10} total={23} totalPages={3} />);
+
+    expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveClass(PHONE_TARGET);
+    expect(screen.getByText("Sebelumnya")).toHaveClass(PHONE_TARGET);
   });
 });

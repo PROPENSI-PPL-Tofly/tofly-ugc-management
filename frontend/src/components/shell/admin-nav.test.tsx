@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
 import { SCROLL_HINT } from "@/components/ui/use-scroll-hint";
 import { AdminNav } from "./admin-nav";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
@@ -117,5 +118,15 @@ describe("AdminNav", () => {
 
     expect(list).toHaveAttribute("data-more", "end");
     expect(list).toHaveClass(...SCROLL_HINT.split(" "));
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives each place a 44px press on a phone", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    for (const link of screen.getAllByRole("link")) expect(link).toHaveClass(PHONE_TARGET);
   });
 });

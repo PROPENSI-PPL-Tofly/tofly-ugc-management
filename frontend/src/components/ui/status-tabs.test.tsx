@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { StatusTabs, type StatusTabDef } from "./status-tabs";
 import { SCROLL_HINT } from "./use-scroll-hint";
+import { PHONE_TARGET } from "./touch-target";
 
 type Key = "all" | "todo" | "wait" | "done";
 
@@ -141,5 +142,13 @@ describe("StatusTabs", () => {
 
     expect(list).toHaveAttribute("data-more", "end");
     expect(list).toHaveClass(...SCROLL_HINT.split(" "));
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives each tab a 44px press on a phone, chosen or not", () => {
+    renderTabs("wait");
+
+    for (const tab of tabs()) expect(tab).toHaveClass(PHONE_TARGET);
   });
 });

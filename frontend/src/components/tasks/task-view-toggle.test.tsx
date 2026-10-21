@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { DEFAULT_MY_TASKS_PARAMS } from "@/lib/my-tasks";
 import { TaskViewToggle } from "./task-view-toggle";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
 const BARE = DEFAULT_MY_TASKS_PARAMS;
 
@@ -71,5 +72,13 @@ describe("TaskViewToggle", () => {
       "href",
       "/creator/tasks?tab=waiting&q=serum&view=calendar",
     );
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives both views a 44px press on a phone", () => {
+    render(<TaskViewToggle view="table" state={BARE} />);
+
+    for (const link of screen.getAllByRole("link")) expect(link).toHaveClass(PHONE_TARGET);
   });
 });
