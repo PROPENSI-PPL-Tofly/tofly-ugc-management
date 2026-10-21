@@ -197,6 +197,22 @@ describe("InfoTip", () => {
 
       expect(tooltip).toHaveClass("block");
     });
+
+    // Measured at 375px: the tap on the bubble took focus off the button it opened from, and
+    // the blur shut it. Pressing the bubble leaves focus where it is.
+    it("keeps focus on the button, and the bubble open, when the bubble is pressed", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      const button = screen.getByRole("button", { name: "Info" });
+      button.focus();
+      fireEvent.click(button);
+      const tooltip = screen.getByRole("tooltip");
+
+      const focusMoved = fireEvent.mouseDown(tooltip);
+
+      expect(focusMoved).toBe(false);
+      expect(button).toHaveFocus();
+      expect(tooltip).toHaveClass("block");
+    });
   });
 
   // Measured at 1280px: the bubble shut the moment the pointer reached it, so a long explanation
