@@ -281,6 +281,16 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       expect(screen.getByText("Rangga", { selector: "b" })).toHaveClass("font-semibold");
     });
 
+    // In the open phone filter card every control is a full-width field (approved design); the
+    // pill stayed its own width and left Creator, Tipe and Status ragged under the selects.
+    it("spans the phone filter card as a field, and stays a pill from sm up", () => {
+      renderSelect();
+
+      expect(trigger()).toHaveClass("rounded-full", "max-sm:w-full", "max-sm:rounded-(--radius-control)");
+      expect(trigger().parentElement).toHaveClass("max-sm:w-full");
+      expect(trigger().closest("div")).toHaveClass("max-sm:w-full");
+    });
+
     it("opens the popup under the trigger, never over it", () => {
       renderSelect();
 
