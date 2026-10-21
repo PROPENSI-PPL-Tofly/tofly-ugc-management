@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Panel } from "@/components/ui/panel";
+import { MIN_TARGET } from "@/components/ui/touch-target";
 import { loginErrorMessage } from "@/lib/login-errors";
 import { APP_NAME, homeFor, type Role } from "@/lib/session";
 import { currentRole } from "@/lib/session.server";
@@ -97,7 +98,7 @@ export default async function LoginPage({
         <p className="mt-4 text-center text-[12.5px]">
           <Link
             href="/privasi"
-            className="text-muted underline underline-offset-2 hover:text-ink"
+            className={`inline-flex items-center text-muted underline underline-offset-2 hover:text-ink ${MIN_TARGET}`}
           >
             Kebijakan Privasi
           </Link>

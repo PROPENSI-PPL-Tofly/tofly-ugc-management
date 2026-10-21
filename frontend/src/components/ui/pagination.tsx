@@ -1,9 +1,9 @@
 "use client";
 
 import Link, { useLinkStatus } from "next/link";
+import { PHONE_TARGET } from "./touch-target";
 
-const CONTROL =
-  "inline-flex min-h-9 items-center rounded-(--radius-control) border px-3 text-xs font-semibold transition-colors";
+const CONTROL = `inline-flex min-h-9 items-center rounded-(--radius-control) border px-3 text-xs font-semibold transition-colors ${PHONE_TARGET}`;
 const ENABLED = `${CONTROL} border-rule bg-surface text-ink hover:border-ink-2 active:bg-surface-2`;
 const DISABLED = `${CONTROL} cursor-not-allowed border-rule-2 text-muted opacity-60`;
 

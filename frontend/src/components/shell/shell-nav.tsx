@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import { SCROLL_HINT, useScrollHint } from "@/components/ui/use-scroll-hint";
 
 export interface Place {
@@ -44,7 +45,7 @@ export function ShellNav({ label, places }: Readonly<{ label: string; places: Pl
               <Link
                 href={place.href}
                 aria-current={current ? "page" : undefined}
-                className="block truncate rounded-(--radius-control) px-3 py-2 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink active:bg-rule-2 aria-[current=page]:bg-accent-wash aria-[current=page]:text-accent-deep"
+                className={`block truncate rounded-(--radius-control) px-3 py-2 max-sm:flex max-sm:items-center ${PHONE_TARGET} text-[13px] font-semibold text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink active:bg-rule-2 aria-[current=page]:bg-accent-wash aria-[current=page]:text-accent-deep`}
               >
                 {place.label}
               </Link>
