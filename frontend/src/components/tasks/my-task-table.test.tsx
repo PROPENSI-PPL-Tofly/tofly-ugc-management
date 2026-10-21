@@ -232,27 +232,24 @@ describe("MyTaskTable", () => {
       ).toBeInTheDocument();
     });
 
-    it.each(["draft_review"] as const)(
-      "says a %s task is waiting for the admin instead of offering a button",
+    // UAT B2.3: the prototype ends a row with nothing to do on a quiet Detail button, so the
+    // creator sees where each content's detail opens.
+    it.each(["draft_review", "link_submitted"] as const)(
+      "offers a quiet Detail button for a %s task, which has nothing to do, as the prototype does",
       (status) => {
-        render(<MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} />);
+        render(
+          <MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} onDetail={vi.fn()} />,
+        );
 
         const [row] = rows();
-        expect(within(row).queryByRole("button")).not.toBeInTheDocument();
-        expect(within(row).getByText("Menunggu review admin")).toBeInTheDocument();
+        const detail = within(within(row).getAllByRole("cell")[3]).getByRole("button", {
+          name: "Detail: Evg_1_RanggaPratama_12102026",
+        });
+        expect(detail).toHaveTextContent("Detail");
+        expect(detail.className).toContain("bg-transparent");
+        expect(within(row).queryByText("Menunggu review admin")).not.toBeInTheDocument();
       },
     );
-
-    it("offers nothing for a finished task", () => {
-      render(
-        <MyTaskTable tasks={[task({ status: "link_submitted", actions: [] })]} onAction={vi.fn()} />,
-      );
-
-      const [row] = rows();
-      expect(within(row).queryByRole("button")).not.toBeInTheDocument();
-      // Nothing to do reads as an empty cell: a dash beside every finished row was only noise.
-      expect(within(row).getAllByRole("cell")[3]).toHaveTextContent("");
-    });
 
     // UAT: every status and every button looked the same. Each action now takes the tone of
     // the state it answers, so a revision request stands out from a fresh draft.
@@ -361,13 +358,12 @@ describe("MyTaskTable", () => {
   });
 
   describe("opening a task", () => {
-    it("opens the detail from the content name itself, with no separate Detail button", () => {
+    it("opens the detail from the content name itself", () => {
       const onDetail = vi.fn();
       const target = task();
       render(<MyTaskTable tasks={[target]} onAction={vi.fn()} onDetail={onDetail} />);
 
       const [row] = rows();
-      expect(within(row).queryByRole("button", { name: /^Detail/ })).not.toBeInTheDocument();
       const name = within(row).getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
       expect(name).toHaveAttribute("aria-haspopup", "dialog");
       fireEvent.click(name);
@@ -400,6 +396,19 @@ describe("MyTaskTable", () => {
       expect(name.className).not.toContain("font-semibold");
       expect(name.className).toContain("focus-visible:after:outline-focus");
       expect(rows()[0].className).toContain("cursor-pointer");
+    });
+
+    it("opens the detail once from a row's Detail button, not again through the stretched name", () => {
+      const onDetail = vi.fn();
+      const target = task({ status: "draft_review", actions: [] });
+      render(<MyTaskTable tasks={[target]} onAction={vi.fn()} onDetail={onDetail} />);
+
+      const detail = screen.getByRole("button", { name: "Detail: Evg_1_RanggaPratama_12102026" });
+      expect(detail.parentElement?.className).toContain("z-10");
+      fireEvent.click(detail);
+
+      expect(onDetail).toHaveBeenCalledTimes(1);
+      expect(onDetail).toHaveBeenCalledWith(target);
     });
 
     it("lifts the actions above the stretched name, so pressing one runs only that action", () => {
