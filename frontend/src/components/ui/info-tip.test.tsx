@@ -38,10 +38,10 @@ describe("InfoTip", () => {
       return { left, right, width: right - left, top: 0, bottom: 20, height: 20, x: left, y: 0, toJSON: () => ({}) };
     }
 
-    function renderInSheet() {
+    function renderInSheet(align: "start" | "end" = "start") {
       render(
         <div data-testid="sheet" style={{ overflowY: "auto" }}>
-          <InfoTip label="Tentang Estimasi Pendapatan" text="Bisa berubah sampai kamu acknowledge invoice." />
+          <InfoTip label="Tentang Estimasi Pendapatan" text="Bisa berubah sampai kamu acknowledge invoice." align={align} />
         </div>,
       );
       Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: 375 });
@@ -84,6 +84,32 @@ describe("InfoTip", () => {
 
       await new Promise((done) => setTimeout(done, 50));
       expect(tooltip.style.left).toBe("");
+    });
+
+    // A bubble hangs from one edge (left-0 or right-0) and is moved by that edge alone: setting
+    // the other as well over-constrains it, and the browser keeps left, so an end-aligned bubble
+    // pulled in by `left` jumped to start at the icon and ran 200px past the window. Measured on
+    // Rate & Invoicing's "Info rumus Total" at 1024px: 952..1212 in a 1009px window.
+    it("pulls an end-aligned bubble in by its right edge, the side it hangs from", async () => {
+      const tooltip = renderInSheet("end");
+      vi.spyOn(tooltip, "getBoundingClientRect").mockReturnValue(rect(120, 380));
+
+      fireEvent.focus(screen.getByRole("button", { name: "Tentang Estimasi Pendapatan" }));
+
+      // 380 - (375 - 8)
+      await waitFor(() => expect(tooltip.style.right).toBe("13px"));
+      expect(tooltip.style.left).toBe("");
+    });
+
+    it("pushes a start-aligned bubble right by its left edge", async () => {
+      const tooltip = renderInSheet();
+      vi.spyOn(tooltip, "getBoundingClientRect").mockReturnValue(rect(-30, 230));
+
+      fireEvent.focus(screen.getByRole("button", { name: "Tentang Estimasi Pendapatan" }));
+
+      // 8 - (-30)
+      await waitFor(() => expect(tooltip.style.left).toBe("38px"));
+      expect(tooltip.style.right).toBe("");
     });
   });
 
