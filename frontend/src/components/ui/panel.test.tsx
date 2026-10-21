@@ -62,6 +62,12 @@ describe("PanelBand", () => {
     expect(band().querySelector("[data-count]")).toHaveTextContent("12 creator");
   });
 
+  it("draws a bare count when no noun is given", () => {
+    render(<PanelBand title="Semua creator" tone="ink" icon="people" count={12} />);
+
+    expect(band().querySelector("[data-count]")?.textContent).toBe("12");
+  });
+
   it("draws no count when the list's size is not known", () => {
     render(<PanelBand title="Semua creator" tone="ink" icon="people" />);
 

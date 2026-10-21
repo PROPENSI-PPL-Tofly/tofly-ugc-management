@@ -148,6 +148,18 @@ describe("PagedList", () => {
     expect(screen.getByText("2 dari 4")).toBeInTheDocument();
   });
 
+  it("turns back to the page before", () => {
+    stubScreen(false);
+    render(<PagedList label="Halaman task overdue" noun="Task overdue" phone={1} wide={3}>{ROWS}</PagedList>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Task overdue berikutnya" }));
+    fireEvent.click(screen.getByRole("button", { name: "Task overdue berikutnya" }));
+    fireEvent.click(screen.getByRole("button", { name: "Task overdue sebelumnya" }));
+
+    expect(rows()).toEqual(["Dua"]);
+    expect(screen.getByText("2 dari 4")).toBeInTheDocument();
+  });
+
   it("shows three rows at a time on a wide screen", () => {
     stubScreen(true);
     render(<PagedList label="Halaman task overdue" noun="Task overdue" phone={1} wide={3}>{ROWS}</PagedList>);
