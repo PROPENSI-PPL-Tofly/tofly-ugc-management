@@ -14,7 +14,6 @@ import { Panel } from "@/components/ui/panel";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import {
-  CREATOR_DETAIL_DEFAULT_SORT,
   CREATOR_DETAIL_PAGE_SIZE,
   DEFAULT_CREATOR_DETAIL_PARAMS,
   PERIOD_STATUS_LABELS,
@@ -24,10 +23,8 @@ import {
   type CreatorDetailParams,
   type CreatorDetailView,
 } from "@/lib/creator-detail";
-import { latestQuery, useUrlQuery } from "@/lib/url-query";
-import { CreatorCalendar } from "./creator-calendar";
+import { useUrlQuery } from "@/lib/url-query";
 import { CreatorContentFilters } from "./creator-content-filters";
-import { CREATOR_CONTENT_LIST_ID, CreatorContentTabBar } from "./creator-content-tab-bar";
 import { CreatorContentTable } from "./creator-content-table";
 
 /**
@@ -43,14 +40,11 @@ export function CreatorContentBoard({
   creatorId,
   view,
   state,
-  today,
 }: Readonly<{
   creatorId: string;
   view: CreatorDetailView;
   /** The address as the server read it, which the page links are built on. */
   state: CreatorDetailParams;
-  /** Today in Jakarta, "YYYY-MM-DD", which the calendar marks and opens on. */
-  today: string;
 }>) {
   const router = useRouter();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
@@ -60,29 +54,10 @@ export function CreatorContentBoard({
 
   const period = view.selected;
 
-  /** The empty filtered table's way back: every filter goes, the open period and tab stay. */
+  /** The empty filtered table's way back: every filter goes, the open period stays. */
   function resetFilters() {
-    const query = buildCreatorDetailQuery({
-      ...DEFAULT_CREATOR_DETAIL_PARAMS,
-      contract: state.contract,
-      tab: state.tab,
-    });
+    const query = buildCreatorDetailQuery({ ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: state.contract });
     replaceQuery(new URLSearchParams(query).toString());
-  }
-
-  /**
-   * The deadline header's press: the order turns over and the old page no longer means
-   * anything. Built on what was last sent, so a filter ticked a moment ago is kept and a second
-   * quick press turns back.
-   */
-  function toggleSort() {
-    const next = new URLSearchParams(latestQuery());
-    const now = next.get("sort") ?? CREATOR_DETAIL_DEFAULT_SORT;
-    const flipped = now === "asc" ? "desc" : "asc";
-    if (flipped === CREATOR_DETAIL_DEFAULT_SORT) next.delete("sort");
-    else next.set("sort", flipped);
-    next.delete("page");
-    replaceQuery(next.toString());
   }
 
   /** What the list shows has changed: say so, and read it again. */
@@ -105,15 +80,6 @@ export function CreatorContentBoard({
 
   return (
     <>
-      {/* Keyed by period: another period's calendar opens on its own month. */}
-      <CreatorCalendar
-        key={period.contractId}
-        period={period}
-        entries={view.calendar}
-        today={today}
-        onOpen={setOpenContentId}
-      />
-
       {/* Unclipped: the filter popups hang below the bar and past the panel's foot. */}
       <Panel clip={false}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-5">
@@ -133,21 +99,14 @@ export function CreatorContentBoard({
           )}
         </div>
 
-        <CreatorContentTabBar active={state.tab} counts={view.counts} />
+        <CreatorContentFilters />
 
-        <CreatorContentFilters tab={state.tab} />
-
-        <div id={CREATOR_CONTENT_LIST_ID} role="tabpanel" aria-label="Daftar konten periode">
-          <CreatorContentTable
-            rows={view.rows}
-            filtered={isCreatorDetailFiltered(state)}
-            tab={state.tab}
-            sort={state.sort}
-            onSortToggle={toggleSort}
-            onOpen={setOpenContentId}
-            onReset={resetFilters}
-          />
-        </div>
+        <CreatorContentTable
+          rows={view.rows}
+          filtered={isCreatorDetailFiltered(state)}
+          onOpen={setOpenContentId}
+          onReset={resetFilters}
+        />
 
         <Pagination
           basePath={creatorDetailBase(creatorId)}

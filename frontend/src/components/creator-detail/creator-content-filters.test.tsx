@@ -1,5 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import type { ContentPlanTab } from "@/lib/content-plan";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { CreatorContentFilters } from "./creator-content-filters";
 
 const mockReplace = vi.fn();
@@ -15,9 +14,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 /** Renders the bar on an address, the way the page would after that address was opened. */
-function renderOn(params: Record<string, string> = {}, tab: ContentPlanTab = "all") {
+function renderOn(params: Record<string, string> = {}) {
   searchParams = new URLSearchParams(params);
-  return render(<CreatorContentFilters tab={tab} />);
+  return render(<CreatorContentFilters />);
 }
 
 function lastAddress(): string {
@@ -30,64 +29,14 @@ beforeEach(() => {
 });
 
 describe("CreatorContentFilters", () => {
-  it("offers the Content Plan's search, Tipe, Status and Overdue, but no Periode: the period is the tab above", () => {
+  it("offers the type and the status, and nothing 4.2 does not ask for", () => {
     renderOn();
 
-    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("Semua");
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Semua");
-    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Periode")).toBeNull();
-  });
-
-  it("offers only the statuses Perlu Approval holds on that tab", () => {
-    renderOn({ tab: "action" }, "action");
-    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
-
-    expect(screen.getByRole("checkbox", { name: "Pending" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Draft Menunggu Review" })).toBeInTheDocument();
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
-  });
-
-  it("offers neither Status nor Overdue on Selesai, where one status is left and nothing is late", () => {
-    renderOn({ tab: "done" }, "done");
-
-    expect(screen.queryByRole("button", { name: /^Status:/ })).toBeNull();
+    expect(screen.queryByRole("searchbox")).toBeNull();
     expect(screen.queryByLabelText("Overdue")).toBeNull();
-  });
-
-  it("writes a search to the address once typing stops, on the period it was typed on", () => {
-    vi.useFakeTimers();
-    try {
-      renderOn({ contract: CONTRACT });
-
-      fireEvent.change(screen.getByRole("searchbox", { name: "Cari judul konten" }), {
-        target: { value: "kopi" },
-      });
-      act(() => {
-        vi.runAllTimers();
-      });
-
-      expect(lastAddress()).toBe(`${PAGE}?contract=${CONTRACT}&q=kopi`);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("writes an overdue choice to the address", () => {
-    renderOn({ contract: CONTRACT });
-
-    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "yes" } });
-
-    expect(lastAddress()).toBe(`${PAGE}?contract=${CONTRACT}&overdue=yes`);
-  });
-
-  it("resets the search and the filters but keeps the period and the tab it was pressed on", () => {
-    renderOn({ contract: CONTRACT, tab: "waiting", q: "kopi", overdue: "no" }, "waiting");
-
-    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
-
-    expect(lastAddress()).toBe(`${PAGE}?contract=${CONTRACT}&tab=waiting`);
+    expect(screen.queryByLabelText("Periode")).toBeNull();
   });
 
   it("offers both content types", () => {
@@ -152,7 +101,7 @@ describe("CreatorContentFilters", () => {
 
   it("shows every pick of a filter the address repeats, as the table is narrowed by all of them", () => {
     searchParams = new URLSearchParams("status=scheduled&status=pending");
-    render(<CreatorContentFilters tab="all" />);
+    render(<CreatorContentFilters />);
 
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("2 dipilih");
   });

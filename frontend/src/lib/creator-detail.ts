@@ -3,22 +3,12 @@
 // be linked, bookmarked and reloaded. Pure module — no next/headers — so client components can
 // share it.
 
-import { PRODUCTIVITY_TONES } from "@/components/creators/productivity-tones";
 import type { Tone } from "@/components/ui/pill";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
-import {
-  CONTENT_PLAN_TAB_KEYS,
-  type ContentPlanCounts,
-  type ContentPlanTab,
-  type DeadlineSort,
-  type OverdueFilter,
-} from "./content-plan";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
-import type { ContentStatus, ContentTag, ContractPeriod } from "./creators";
-import { formatDate } from "./format";
-import type { InvoiceStatus } from "./invoice";
-import { listOf, oneOf, pageNumber, single, type SearchParams } from "./search-params";
+import type { ContentStatus, ContentTag } from "./creators";
+import { listOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
 export const CREATOR_DETAIL_PAGE_SIZE = 10;
@@ -27,14 +17,6 @@ export const CREATOR_DETAIL_PAGE_SIZE = 10;
 // to the lifecycle is a filter choice here without being listed a second time.
 const CONTENT_STATUSES = Object.keys(CONTENT_STATUS_LABELS) as ContentStatus[];
 const CONTENT_TYPES = Object.keys(CONTENT_TYPE_LABELS) as ContentType[];
-const OVERDUE_FILTERS: readonly OverdueFilter[] = ["all", "yes", "no"];
-const SORT_DIRECTIONS: readonly DeadlineSort[] = ["asc", "desc"];
-
-/**
- * Nearest deadline first, as the per-creator Content Plan this page replaced listed it: what is
- * due today or overdue belongs on the first page of one creator's period. The header turns it.
- */
-export const CREATOR_DETAIL_DEFAULT_SORT: DeadlineSort = "asc";
 
 /** What an id looks like to the API: 8-4-4-4-12 hexadecimal, and nothing more. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,30 +26,18 @@ export function isUuid(value: string): boolean {
   return UUID.test(value);
 }
 
-/**
- * The table's state, in the Content Plan's own words (tab, q, overdue, sort), so the two pages
- * that list content read and link the same way.
- */
 export interface CreatorDetailParams {
   /** The contract whose content is on show; null for the newest one. */
   contract: string | null;
-  tab: ContentPlanTab;
-  q: string;
   type: ContentType[];
   status: ContentStatus[];
-  overdue: OverdueFilter;
-  sort: DeadlineSort;
   page: number;
 }
 
 export const DEFAULT_CREATOR_DETAIL_PARAMS: CreatorDetailParams = {
   contract: null,
-  tab: "all",
-  q: "",
   type: [],
   status: [],
-  overdue: "all",
-  sort: CREATOR_DETAIL_DEFAULT_SORT,
   page: 1,
 };
 
@@ -80,54 +50,6 @@ export interface CreatorProfile {
   email: string;
   /** Only the handles the creator has. */
   socials: Partial<Record<"instagram" | "tiktok", string>>;
-  /** The day the creator can no longer sign in, "YYYY-MM-DD"; null when none is set. */
-  accessRevokeDate: string | null;
-}
-
-/**
- * Whether the creator can sign in. Sign-in reads only the revoke day, never the contract's
- * dates, so this does too: a creator between contracts still gets in.
- */
-export type AccessState = "active" | "scheduled" | "revoked";
-
-export const ACCESS_STATE_LABELS: Record<AccessState, string> = {
-  active: "Aktif",
-  scheduled: "Aktif",
-  revoked: "Dicabut",
-};
-
-/** Green while it lasts, amber once its end is set, red when it is over; never colour alone. */
-export const ACCESS_STATE_TONES: Record<AccessState, Tone> = {
-  active: "green",
-  scheduled: "amber",
-  revoked: "red",
-};
-
-export interface CreatorAccess {
-  state: AccessState;
-  /** The day that explains the state, in words; null when there is nothing to add. */
-  note: string | null;
-}
-
-/**
- * The creator's access as the profile words it. The revoke day itself already counts as
- * revoked, as sign-in counts it. A revoke before the contract's last day is said to have cut
- * it short, so the admin reads that the contract did not simply run out.
- */
-export function creatorAccess(
-  revokeDate: string | null,
-  contractEnd: string | null,
-  today: string,
-): CreatorAccess {
-  if (revokeDate === null) return { state: "active", note: null };
-  if (revokeDate > today) return { state: "scheduled", note: `Dicabut mulai ${formatDate(revokeDate)}` };
-
-  const cutShort =
-    contractEnd !== null && revokeDate < contractEnd
-      ? `, sebelum kontrak berakhir (${formatDate(contractEnd)})`
-      : "";
-
-  return { state: "revoked", note: `Sejak ${formatDate(revokeDate)}${cutShort}` };
 }
 
 /** A contract always has dates, so it is running, over or yet to start. */
@@ -164,35 +86,6 @@ export interface CreatorPeriod {
   remainingEvergreenQuota: number;
   /** The default interval between deadlines, in days. */
   daysBetween: number;
-  /** The period's own content handed in, as the API counts it. */
-  progress: ContractPeriod["progress"];
-  /** The period's on-time rate, revisions and productivity band, as the API judges them. */
-  performance: ContractPeriod["performance"];
-}
-
-/** What the open period earns so far and where its invoice stands, for the Total Pendapatan card. */
-export interface PeriodEarnings {
-  /** Rupiah, never below zero. */
-  amount: number;
-  status: InvoiceStatus;
-}
-
-/** How the Produktivitas card is judged, in the prototype's words (its ⓘ). */
-export const PRODUCTIVITY_TIP =
-  "Baik: tepat waktu 80% ke atas dan revisi maksimal 1x. Berisiko: tepat waktu di bawah 40% atau revisi di atas 2x. Selain itu Perlu Perhatian. Belum Dinilai: kontrak belum dimulai. Belum Ada Data: kontrak sudah berjalan, belum ada konten selesai.";
-
-/**
- * The productivity pill of a period: the API's band, except for a period that has not started,
- * which is not judged at all (the prototype's Belum Dinilai) rather than read as having no data.
- */
-export function periodProductivity(
-  period: Pick<CreatorPeriod, "status" | "performance">,
-): { label: string; tone: Tone } {
-  if (period.status === "upcoming") return { label: "Belum Dinilai", tone: "neutral" };
-  return {
-    label: period.performance.productivityLabel,
-    tone: PRODUCTIVITY_TONES[period.performance.productivity],
-  };
 }
 
 export interface CreatorContentRow {
@@ -218,12 +111,6 @@ export interface CreatorDetailView {
   /** The open period's content across every page, after the filters. */
   total: number;
   totalPages: number;
-  /** How much of the open period sits in each tab, under the search and filters. */
-  counts: ContentPlanCounts;
-  /** The open period's whole content, unfiltered and in deadline order, for its calendar. */
-  calendar: CreatorContentRow[];
-  /** The open period's earnings; null when there is no period or its invoice could not be read. */
-  earnings: PeriodEarnings | null;
 }
 
 /**
@@ -236,12 +123,8 @@ export function parseCreatorDetailParams(params: SearchParams): CreatorDetailPar
 
   return {
     contract: isUuid(contract) ? contract : null,
-    tab: oneOf(CONTENT_PLAN_TAB_KEYS, single(params.tab), "all"),
-    q: single(params.q).trim(),
     type: listOf(CONTENT_TYPES, params.type),
     status: listOf(CONTENT_STATUSES, params.status),
-    overdue: oneOf(OVERDUE_FILTERS, single(params.overdue), "all"),
-    sort: oneOf(SORT_DIRECTIONS, single(params.sort), CREATOR_DETAIL_DEFAULT_SORT),
     page: pageNumber(params.page),
   };
 }
@@ -258,12 +141,8 @@ export function creatorDetailBase(creatorId: string): string {
 export function buildCreatorDetailQuery(state: CreatorDetailParams): Record<string, string> {
   const query: Record<string, string> = {};
   if (state.contract) query.contract = state.contract;
-  if (state.tab !== "all") query.tab = state.tab;
-  if (state.q) query.q = state.q;
   if (state.type.length > 0) query.type = state.type.join(",");
   if (state.status.length > 0) query.status = state.status.join(",");
-  if (state.overdue !== "all") query.overdue = state.overdue;
-  if (state.sort !== CREATOR_DETAIL_DEFAULT_SORT) query.sort = state.sort;
   if (state.page > 1) query.page = String(state.page);
   return query;
 }
@@ -276,13 +155,11 @@ export function creatorDetailHref(creatorId: string, state: CreatorDetailParams)
 }
 
 /**
- * Whether a search or a filter narrowed the table, which changes what an empty table means.
- * Choosing a contract, a tab, an order or a page narrows nothing.
+ * Whether a filter narrowed the table, which changes what an empty table means. Choosing a
+ * contract or a page narrows nothing.
  */
 export function isCreatorDetailFiltered(state: CreatorDetailParams): boolean {
-  return (
-    state.q !== "" || state.type.length > 0 || state.status.length > 0 || state.overdue !== "all"
-  );
+  return state.type.length > 0 || state.status.length > 0;
 }
 
 /** A filter change: the patch applies and the old page number no longer means anything. */
@@ -291,17 +168,6 @@ export function creatorDetailAfterFilterChange(
   patch: Partial<Pick<CreatorDetailParams, "type" | "status">>,
 ): CreatorDetailParams {
   return { ...state, ...patch, page: 1 };
-}
-
-/**
- * A tab change, as on the Content Plan: the search and the filters carry over, but the status
- * picks, the order and the page belong to the tab that was left behind.
- */
-export function creatorDetailAfterTabChange(
-  state: CreatorDetailParams,
-  tab: ContentPlanTab,
-): CreatorDetailParams {
-  return { ...state, tab, status: [], sort: CREATOR_DETAIL_DEFAULT_SORT, page: 1 };
 }
 
 /**

@@ -2,7 +2,6 @@ import type { RawContentList } from "./content-list-api";
 import { DEFAULT_CREATOR_DETAIL_PARAMS, type CreatorDetailParams } from "./creator-detail";
 import {
   openContractId,
-  toCreatorCalendarQuery,
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
@@ -25,8 +24,6 @@ function period(id: string, extra: Partial<RawCreatorPeriod> = {}): RawCreatorPe
     contentQuota: 6,
     daysBetween: 14,
     remainingEvergreenQuota: 4,
-    progress: { submitted: 2, total: 6, percent: 33 },
-    performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     ...extra,
   };
 }
@@ -39,7 +36,6 @@ const RAW: RawCreatorDetail = {
   name: "Lestari Wulandari",
   email: "lestari@example.com",
   socials: { instagram: "lestariw", tiktok: "lestari.w" },
-  accessRevokeDate: null,
   contractHistory: [
     period(OLDEST, {
       periodNumber: 1,
@@ -47,8 +43,6 @@ const RAW: RawCreatorDetail = {
       endDate: "2026-02-28",
       status: "expired",
       remainingEvergreenQuota: 6,
-      progress: { submitted: 2, total: 6, percent: 33 },
-      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     }),
     period(MIDDLE, {
       periodNumber: 2,
@@ -59,8 +53,6 @@ const RAW: RawCreatorDetail = {
       contentQuota: 3,
       daysBetween: 7,
       remainingEvergreenQuota: 0,
-      progress: { submitted: 2, total: 6, percent: 33 },
-      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     }),
     period(NEWEST),
   ],
@@ -129,37 +121,22 @@ describe("toCreatorContentsQuery", () => {
     );
   });
 
-  // Earliest deadline first unless the header was turned: what is due today or overdue belongs
-  // on the first page. The API's own default is the latest first, so the order is always sent.
-  it("asks for the deadline order the header shows, in the API's words", () => {
+  // The per-creator Content Plan this page replaces listed the earliest deadline first, so what
+  // is due today or overdue is on the first page. The API's own default is the latest first.
+  it("always asks for the earliest deadline first, whatever the page or the filters", () => {
+    const filtered = toCreatorContentsQuery(MIDDLE, {
+      contract: MIDDLE,
+      type: ["specific"],
+      status: ["draft_review"],
+      page: 4,
+    });
+
     expect(toCreatorContentsQuery(NEWEST, BARE).getAll("sort")).toEqual(["deadline_asc"]);
-    expect(toCreatorContentsQuery(NEWEST, { ...BARE, sort: "desc" }).getAll("sort")).toEqual([
-      "deadline_desc",
-    ]);
-  });
-
-  // The names GET /contents reads (content-list.controller.ts): a filter spelled any other way
-  // would be ignored by the API and narrow nothing, while the page claims it did.
-  it("sends the tab, the search and overdue under the API's own names and values", () => {
-    const query = toCreatorContentsQuery(NEWEST, { ...BARE, tab: "action", q: "kopi", overdue: "yes" });
-
-    expect(query.get("tab")).toBe("needs_approval");
-    expect(query.get("q")).toBe("kopi");
-    expect(query.get("overdue")).toBe("true");
-    expect(toCreatorContentsQuery(NEWEST, { ...BARE, tab: "waiting", overdue: "no" }).toString()).toBe(
-      `contract=${NEWEST}&tab=waiting_creator&overdue=false&sort=deadline_asc&page=1`,
-    );
-  });
-
-  it("cuts a search to the hundred characters the API takes", () => {
-    const query = toCreatorContentsQuery(NEWEST, { ...BARE, q: "k".repeat(120) });
-
-    expect(query.get("q")).toHaveLength(100);
+    expect(filtered.getAll("sort")).toEqual(["deadline_asc"]);
   });
 
   it("names the contract, one parameter per pick, and the page", () => {
     const query = toCreatorContentsQuery(MIDDLE, {
-      ...BARE,
       contract: MIDDLE,
       type: ["evergreen", "specific"],
       status: ["scheduled", "draft_review"],
@@ -190,93 +167,21 @@ describe("toCreatorContentsQuery", () => {
     expect(query.getAll("status")).toEqual(["scheduled", "pending"]);
   });
 
-  it("sends nothing for the defaults: no tab, no search and no overdue", () => {
+  it("sends nothing else the Content Plan's own filters would: no tab and no search", () => {
     const query = toCreatorContentsQuery(NEWEST, { ...BARE, type: ["specific"], page: 2 });
 
     expect([...query.keys()].sort()).toEqual(["contract", "page", "sort", "type"]);
   });
 });
 
-describe("toCreatorDetailView earnings and performance", () => {
-  it("carries each period's progress and performance, as GET /creators/:id counts them", () => {
-    const [newest] = toCreatorDetailView(RAW, CONTENTS, BARE).periods;
-
-    expect(newest.progress).toEqual({ submitted: 2, total: 6, percent: 33 });
-    expect(newest.performance.productivity).toBe("watch");
-  });
-
-  it("reads the open period's invoice as what it earns and where it stands", () => {
-    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], {
-      total: 2500000,
-      floored: false,
-      invoiceStatus: "finalized",
-    });
-
-    expect(view.earnings).toEqual({ amount: 2500000, status: "finalized" });
-  });
-
-  it("reads a total the penalty used up as a real Rp0", () => {
-    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], {
-      total: -150000,
-      floored: true,
-      invoiceStatus: "accruing",
-    });
-
-    expect(view.earnings).toEqual({ amount: 0, status: "accruing" });
-  });
-
-  it("has no earnings when no invoice was read", () => {
-    expect(toCreatorDetailView(RAW, CONTENTS, BARE).earnings).toBeNull();
-  });
-});
-
-describe("toCreatorCalendarQuery", () => {
-  it("asks for one page of fifty of the whole period, nearest deadline first, with no filter", () => {
-    expect(toCreatorCalendarQuery(NEWEST, 2).toString()).toBe(
-      `contract=${NEWEST}&sort=deadline_asc&pageSize=50&page=2`,
-    );
-  });
-});
-
 describe("toCreatorDetailView", () => {
-  it("carries the period's whole content for the calendar, under the page's names", () => {
-    const view = toCreatorDetailView(RAW, CONTENTS, BARE, CONTENTS.items);
-
-    expect(view.calendar).toEqual(view.rows);
-  });
-
-  it("has an empty calendar when none was read", () => {
-    expect(toCreatorDetailView(RAW, CONTENTS, BARE).calendar).toEqual([]);
-  });
-
-  it("counts each tab of the open period under the page's tab names", () => {
-    expect(toCreatorDetailView(RAW, CONTENTS, BARE).counts).toEqual({ all: 11, action: 1, waiting: 9, done: 1 });
-  });
-
-  it("counts nothing for a creator without a contract", () => {
-    expect(toCreatorDetailView(RAW, null, BARE).counts).toEqual({ all: 0, action: 0, waiting: 0, done: 0 });
-  });
-
   it("names the creator with the accounts they have", () => {
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).creator).toEqual({
       id: "creator-1",
       name: "Lestari Wulandari",
       email: "lestari@example.com",
       socials: { instagram: "lestariw", tiktok: "lestari.w" },
-      accessRevokeDate: null,
     });
-  });
-
-  it("reads an answer that predates the revoke field as no revoke set", () => {
-    const older = { ...RAW, accessRevokeDate: undefined } as unknown as RawCreatorDetail;
-
-    expect(toCreatorDetailView(older, CONTENTS, BARE).creator.accessRevokeDate).toBeNull();
-  });
-
-  it("carries the day the creator's access is revoked, for the profile's Akses", () => {
-    const raw = { ...RAW, accessRevokeDate: "2026-11-15" };
-
-    expect(toCreatorDetailView(raw, CONTENTS, BARE).creator.accessRevokeDate).toBe("2026-11-15");
   });
 
   it.each([
@@ -292,13 +197,13 @@ describe("toCreatorDetailView", () => {
     const answered = {
       ...RAW,
       phoneNumber: "+62811111111",
+      accessRevokeDate: null,
       performance: { onTimeRate: 80 },
       contents: [],
       drafts: [],
     } as unknown as RawCreatorDetail;
 
     expect(Object.keys(toCreatorDetailView(answered, CONTENTS, BARE).creator).sort()).toEqual([
-      "accessRevokeDate",
       "email",
       "id",
       "name",
@@ -327,8 +232,6 @@ describe("toCreatorDetailView", () => {
       contentQuota: 3,
       evergreenCount: 3,
       remainingEvergreenQuota: 0,
-      progress: { submitted: 2, total: 6, percent: 33 },
-      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
       daysBetween: 7,
     });
   });
@@ -353,7 +256,7 @@ describe("toCreatorDetailView", () => {
           total: 4,
           isCurrent: true,
           progress: { submitted: 2, total: 4, percent: 50 },
-          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
+          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk" },
         },
       ],
     } as unknown as RawCreatorDetail;
@@ -368,8 +271,6 @@ describe("toCreatorDetailView", () => {
       contentQuota: 6,
       evergreenCount: 2,
       remainingEvergreenQuota: 4,
-      progress: { submitted: 2, total: 4, percent: 50 },
-      performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
       daysBetween: 14,
     });
   });

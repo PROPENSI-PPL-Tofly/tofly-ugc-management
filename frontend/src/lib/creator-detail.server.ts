@@ -7,15 +7,13 @@
 // Their queries and answers are spelled in the API's own words, so both pass through
 // creator-detail-api, the one module that knows them.
 
-import type { RawContentList, RawContentListItem } from "./content-list-api";
+import type { RawContentList } from "./content-list-api";
 import { isUuid, type CreatorDetailParams, type CreatorDetailView } from "./creator-detail";
 import {
   openContractId,
-  toCreatorCalendarQuery,
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
-  type RawPeriodInvoice,
 } from "./creator-detail-api";
 import { appSessionCookieHeader } from "./session-cookie";
 
@@ -88,52 +86,7 @@ export async function fetchCreatorDetail(
     return (await response.json()) as RawContentList;
   };
 
-  /**
-   * Every content of the period, for the calendar: the first page says how many there are, the
-   * rest are read together. A failure on any page fails the read, since a month missing some of
-   * its content would look complete and be wrong.
-   */
-  const readCalendar = async (): Promise<RawContentListItem[]> => {
-    const page = async (number: number): Promise<RawContentList> => {
-      const response = await read(`/contents?${toCreatorCalendarQuery(contract, number)}`);
-
-      if (!response.ok) {
-        throw new Error(`Loading the period's calendar failed with HTTP ${response.status}`);
-      }
-
-      return (await response.json()) as RawContentList;
-    };
-
-    const first = await page(1);
-    const rest = await Promise.all(
-      Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => page(index + 2)),
-    );
-
-    return [first, ...rest].flatMap((answer) => answer.items);
-  };
-
-  /**
-   * The open period's invoice, for the Total Pendapatan card. A failure costs that card only,
-   * never the page: what the creator earns is a summary, and the rest still stands without it.
-   */
-  const readInvoice = async (): Promise<RawPeriodInvoice | null> => {
-    try {
-      const response = await read(
-        `/invoices/${encodeURIComponent(id)}?${new URLSearchParams({ contract })}`,
-      );
-      return response.ok ? ((await response.json()) as RawPeriodInvoice) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  // The table's page, the calendar and the invoice are asked for together: none waits on another.
-  const [firstRead, calendar, invoice] = await Promise.all([
-    readContents(state),
-    readCalendar(),
-    readInvoice(),
-  ]);
-  let contents = firstRead;
+  let contents = await readContents(state);
 
   // A page past the end (an old link, or a period that shrank as content was decided) comes
   // back with no rows, which would read as a period without content. Its last page is asked
@@ -142,5 +95,5 @@ export async function fetchCreatorDetail(
     contents = await readContents({ ...state, page: contents.totalPages });
   }
 
-  return toCreatorDetailView(raw, contents, state, calendar, invoice);
+  return toCreatorDetailView(raw, contents, state);
 }

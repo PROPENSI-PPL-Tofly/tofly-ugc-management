@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { ContentPlanTab, DeadlineSort } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { CreatorContentTable } from "./creator-content-table";
 
@@ -13,29 +12,11 @@ const ROW: CreatorContentRow = {
   revisionCount: 0,
 };
 
-function renderTable(
-  rows: CreatorContentRow[] = [ROW],
-  {
-    filtered = false,
-    tab = "all",
-    sort = "asc",
-  }: { filtered?: boolean; tab?: ContentPlanTab; sort?: DeadlineSort } = {},
-) {
+function renderTable(rows: CreatorContentRow[] = [ROW], { filtered = false } = {}) {
   const onOpen = vi.fn();
   const onReset = vi.fn();
-  const onSortToggle = vi.fn();
-  render(
-    <CreatorContentTable
-      rows={rows}
-      filtered={filtered}
-      tab={tab}
-      sort={sort}
-      onSortToggle={onSortToggle}
-      onOpen={onOpen}
-      onReset={onReset}
-    />,
-  );
-  return { onOpen, onReset, onSortToggle };
+  render(<CreatorContentTable rows={rows} filtered={filtered} onOpen={onOpen} onReset={onReset} />);
+  return { onOpen, onReset };
 }
 
 /** The table row a content's name sits in. */
@@ -49,38 +30,7 @@ describe("CreatorContentTable", () => {
 
     expect(
       screen.getAllByRole("columnheader").map((heading) => heading.textContent),
-    ).toEqual(["Konten", "Deadline↑", "Status", "Aksi"]);
-  });
-
-  it("drops the action column on Selesai, where nothing waits on the admin any more", () => {
-    const { onOpen } = renderTable([{ ...ROW, status: "link_submitted" }], { tab: "done" });
-
-    expect(screen.getAllByRole("columnheader").map((heading) => heading.textContent)).toEqual([
-      "Konten",
-      "Deadline↑",
-      "Status",
-    ]);
-    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail)/ })).toBeNull();
-    fireEvent.click(rowOf("Evg_7_RanggaPratama_26092026"));
-    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
-  });
-
-  it("sorts by deadline from its header, as the Content Plan does, and says which way", () => {
-    const { onSortToggle } = renderTable([ROW], { sort: "desc" });
-
-    expect(screen.getByRole("columnheader", { name: /Deadline/ })).toHaveAttribute("aria-sort", "descending");
-    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
-    expect(onSortToggle).toHaveBeenCalledOnce();
-  });
-
-  it.each([
-    ["action", "Tidak ada yang perlu di-approve."],
-    ["waiting", "Tidak ada konten yang menunggu kreator."],
-    ["done", "Belum ada konten selesai."],
-  ] as const)("says the %s tab's own nothing when it is simply empty", (tab, text) => {
-    renderTable([], { tab });
-
-    expect(screen.getByText(text)).toBeInTheDocument();
+    ).toEqual(["Konten", "Deadline", "Status", "Aksi"]);
   });
 
   it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {
@@ -163,13 +113,6 @@ describe("CreatorContentTable", () => {
     expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
   });
 
-  it("still tags a content on Selesai that came in late or skipped approval", () => {
-    renderTable([{ ...ROW, status: "link_submitted", tags: ["overdue", "approval_bypassed"] }], { tab: "done" });
-
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
-  });
-
   it("leaves the revision count to the content's panel", () => {
     renderTable([{ ...ROW, status: "draft_revision", revisionCount: 2 }]);
 
@@ -181,26 +124,6 @@ describe("CreatorContentTable", () => {
 
     expect(screen.queryByText(/Revisi ke-/)).toBeNull();
     expect(screen.queryByText("Overdue")).toBeNull();
-  });
-
-  it("leaves the panel shut when the press ended a drag that selected the name to copy it", () => {
-    vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "Evg_7" } as Selection);
-    const { onOpen } = renderTable();
-
-    fireEvent.click(rowOf("Evg_7_RanggaPratama_26092026"));
-
-    expect(onOpen).not.toHaveBeenCalled();
-    vi.restoreAllMocks();
-  });
-
-  it("opens a row whose press left no selection to read at all", () => {
-    vi.spyOn(window, "getSelection").mockReturnValue(null);
-    const { onOpen } = renderTable();
-
-    fireEvent.click(rowOf("Evg_7_RanggaPratama_26092026"));
-
-    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
-    vi.restoreAllMocks();
   });
 
   it("keeps the rows in the order they were given", () => {
@@ -331,9 +254,6 @@ describe("CreatorContentTable", () => {
       <CreatorContentTable
         rows={[{ ...ROW, name: '<img src=x onerror="alert(1)">' }]}
         filtered={false}
-        tab="all"
-        sort="asc"
-        onSortToggle={vi.fn()}
         onOpen={vi.fn()}
         onReset={vi.fn()}
       />,

@@ -7,15 +7,7 @@
 //
 // Pure module: no next/headers, so it runs anywhere.
 
-import {
-  API_OVERDUE,
-  API_SORT,
-  API_TAB,
-  MAX_SEARCH_LENGTH,
-  toTabCounts,
-  type RawContentList,
-  type RawContentListItem,
-} from "./content-list-api";
+import type { RawContentList, RawContentListItem } from "./content-list-api";
 import type {
   CreatorContentRow,
   CreatorDetailParams,
@@ -24,7 +16,6 @@ import type {
   CreatorProfile,
 } from "./creator-detail";
 import type { ContractPeriod } from "./creators";
-import type { InvoiceStatus } from "./invoice";
 
 /**
  * One contract period as GET /creators/:id sends it, picked from the mirror of the backend's
@@ -43,23 +34,13 @@ export type RawCreatorPeriod = Pick<
   | "contentQuota"
   | "daysBetween"
   | "remainingEvergreenQuota"
-  | "progress"
-  | "performance"
 >;
-
-/** The open period's invoice as GET /invoices/:creatorId?contract= answers it, cut to the card's needs. */
-export interface RawPeriodInvoice {
-  total: number;
-  floored: boolean;
-  invoiceStatus: InvoiceStatus;
-}
 
 export interface RawCreatorDetail {
   id: string;
   name: string;
   email: string;
   socials: Partial<Record<"instagram" | "tiktok", string>>;
-  accessRevokeDate: string | null;
   /** Oldest first. */
   contractHistory: RawCreatorPeriod[];
 }
@@ -90,19 +71,13 @@ export function toCreatorContentsQuery(
 ): URLSearchParams {
   const query = new URLSearchParams();
 
-  // In the API's own words, from the tables content-list-api keeps for the Content Plan, so a
-  // parameter renamed there is renamed here too and no filter silently narrows nothing.
   query.set("contract", contractId);
-  if (state.tab !== "all") query.set("tab", API_TAB[state.tab]);
-  if (state.q) query.set("q", state.q.slice(0, MAX_SEARCH_LENGTH));
   for (const type of new Set(state.type)) query.append("type", type);
   for (const status of new Set(state.status)) query.append("status", status);
 
-  const overdue = API_OVERDUE[state.overdue];
-  if (overdue) query.set("overdue", overdue);
-
-  // Always sent: the API's own default is the latest first, the page's the nearest.
-  query.set("sort", API_SORT[state.sort]);
+  // Earliest deadline first, as the per-creator Content Plan this page replaces listed it: what
+  // is due today or overdue belongs on the first page. The API's own default is latest first.
+  query.set("sort", "deadline_asc");
 
   // The API counts on a page number whichever page is asked for, page one included.
   query.set("page", String(state.page));
@@ -110,35 +85,12 @@ export function toCreatorContentsQuery(
   return query;
 }
 
-/** The most rows GET /contents hands out in one request. */
-export const CALENDAR_PAGE_SIZE = 50;
-
-/**
- * One page of the open period for its calendar: everything in it, unfiltered, nearest deadline
- * first. A month needs every content of the period, not the table's page of ten.
- */
-export function toCreatorCalendarQuery(contractId: string, page: number): URLSearchParams {
-  return new URLSearchParams({
-    contract: contractId,
-    sort: API_SORT.asc,
-    pageSize: String(CALENDAR_PAGE_SIZE),
-    page: String(page),
-  });
-}
-
 function toProfile(raw: RawCreatorDetail): CreatorProfile {
   const socials: CreatorProfile["socials"] = {};
   if (raw.socials.instagram) socials.instagram = raw.socials.instagram;
   if (raw.socials.tiktok) socials.tiktok = raw.socials.tiktok;
 
-  return {
-    id: raw.id,
-    name: raw.name,
-    email: raw.email,
-    socials,
-    // An answer from before the field was sent reads as no revoke set.
-    accessRevokeDate: raw.accessRevokeDate ?? null,
-  };
+  return { id: raw.id, name: raw.name, email: raw.email, socials };
 }
 
 function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
@@ -158,8 +110,6 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
     daysBetween: period.daysBetween,
-    progress: period.progress,
-    performance: period.performance,
   };
 }
 
@@ -177,16 +127,13 @@ function toRow(item: RawContentListItem): CreatorContentRow {
 }
 
 /**
- * The API's answers under the page's names. `contents` is the open period's page of the
- * content list, or null for a creator without a contract, who has none to list; `calendar` is
- * every content of that period, for its month view.
+ * The API's two answers under the page's names. `contents` is the open period's page of the
+ * content list, or null for a creator without a contract, who has none to list.
  */
 export function toCreatorDetailView(
   raw: RawCreatorDetail,
   contents: RawContentList | null,
   state: CreatorDetailParams,
-  calendar: readonly RawContentListItem[] = [],
-  invoice: RawPeriodInvoice | null = null,
 ): CreatorDetailView {
   // The tabs and the profile read the periods newest first.
   const periods = raw.contractHistory.map(toPeriod).reverse();
@@ -204,9 +151,5 @@ export function toCreatorDetailView(
     page: Math.min(contents?.page ?? 1, totalPages),
     total: contents?.total ?? 0,
     totalPages,
-    counts: toTabCounts(contents ?? { tabCounts: {} as RawContentList["tabCounts"] }),
-    calendar: calendar.map(toRow),
-    // A total the penalty used up is a real Rp0, as the backend holds it.
-    earnings: invoice ? { amount: invoice.floored ? 0 : invoice.total, status: invoice.invoiceStatus } : null,
   };
 }

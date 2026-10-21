@@ -24,7 +24,6 @@ const DETAIL: RawCreatorDetail = {
   name: "Lestari Wulandari",
   email: "lestari@example.com",
   socials: { instagram: "lestariw" },
-  accessRevokeDate: null,
   contractHistory: [
     {
       id: OLDER,
@@ -36,8 +35,6 @@ const DETAIL: RawCreatorDetail = {
       contentQuota: 3,
       daysBetween: 7,
       remainingEvergreenQuota: 2,
-      progress: { submitted: 2, total: 6, percent: 33 },
-      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     },
     {
       id: NEWEST,
@@ -49,8 +46,6 @@ const DETAIL: RawCreatorDetail = {
       contentQuota: 6,
       daysBetween: 14,
       remainingEvergreenQuota: 5,
-      progress: { submitted: 2, total: 6, percent: 33 },
-      performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
     },
   ],
 };
@@ -87,33 +82,15 @@ type Reply = Response | Error;
  * Answers each endpoint by its path, as the backend would, whichever order they are asked in.
  * A list of content replies is given out one request at a time, the last one from then on.
  */
-/** Whether a request is the calendar's read of the whole period: fifty to a page. */
-function forCalendar(url: string): boolean {
-  return new URL(url).searchParams.get("pageSize") === "50";
-}
-
-/** GET /invoices/:creatorId?contract= as Rate & Invoicing answers it, cut to what the card reads. */
-const INVOICE = { total: 2500000, floored: false, invoiceStatus: "finalized" };
-
-function forInvoice(url: string): boolean {
-  return new URL(url).pathname.startsWith("/invoices");
-}
-
 function backend({
   detail = answer(200, DETAIL),
   contents = answer(200, CONTENTS),
-  calendar = answer(200, CONTENTS),
-  invoice = answer(200, INVOICE),
-}: { detail?: Reply; contents?: Reply | Reply[]; calendar?: Reply | Reply[]; invoice?: Reply } = {}) {
+}: { detail?: Reply; contents?: Reply | Reply[] } = {}) {
   const queue = Array.isArray(contents) ? [...contents] : [contents];
-  const calendarQueue = Array.isArray(calendar) ? [...calendar] : [calendar];
-  const next = (from: Reply[]) => (from.length > 1 ? from.shift()! : from[0]);
 
   vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
-    const url = String(input);
-    const forContents = new URL(url).pathname.startsWith("/contents");
-    let reply = forInvoice(url) ? invoice : detail;
-    if (forContents) reply = forCalendar(url) ? next(calendarQueue) : next(queue);
+    const forContents = new URL(String(input)).pathname.startsWith("/contents");
+    const reply = forContents ? (queue.length > 1 ? queue.shift()! : queue[0]) : detail;
     if (reply instanceof Error) throw reply;
     return reply.clone();
   });
@@ -133,23 +110,12 @@ function contentsOf(page: number, total: number, rows = 0): Response {
   });
 }
 
-function allRequests(): [string, RequestInit][] {
-  return vi.mocked(globalThis.fetch).mock.calls as [string, RequestInit][];
-}
-
-/** The detail's and the table's requests, without the calendar's and the invoice's. */
 function requests(): [string, RequestInit][] {
-  return allRequests().filter(([url]) => !forCalendar(url) && !forInvoice(url));
+  return vi.mocked(globalThis.fetch).mock.calls as [string, RequestInit][];
 }
 
 function urls(): string[] {
   return requests().map(([url]) => url);
-}
-
-function calendarUrls(): string[] {
-  return allRequests()
-    .map(([url]) => url)
-    .filter(forCalendar);
 }
 
 describe("fetchCreatorDetail", () => {
@@ -176,7 +142,6 @@ describe("fetchCreatorDetail", () => {
 
   it("asks for the period the address names, with its filters and page, in the API's own words", async () => {
     await fetchCreatorDetail(CREATOR, {
-      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: OLDER,
       type: ["evergreen", "specific"],
       status: ["scheduled"],
@@ -206,7 +171,6 @@ describe("fetchCreatorDetail", () => {
       name: "Lestari Wulandari",
       email: "lestari@example.com",
       socials: { instagram: "lestariw" },
-      accessRevokeDate: null,
     });
     expect(view?.periods.map((period) => period.contractId)).toEqual([NEWEST, OLDER]);
     expect(view?.selected?.contractId).toBe(NEWEST);
@@ -221,89 +185,9 @@ describe("fetchCreatorDetail", () => {
 
     const view = await fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
 
-    expect(allRequests().map(([url]) => url)).toEqual([`${BACKEND}/creators/${CREATOR}`]);
+    expect(urls()).toEqual([`${BACKEND}/creators/${CREATOR}`]);
     expect(view?.selected).toBeNull();
     expect(view?.rows).toEqual([]);
-    expect(view?.calendar).toEqual([]);
-  });
-
-  describe("the performance cards' earnings", () => {
-    it("reads the open period's invoice beside its content", async () => {
-      const view = await fetchCreatorDetail(CREATOR, { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: OLDER });
-
-      expect(allRequests().map(([url]) => url)).toContain(`${BACKEND}/invoices/${CREATOR}?contract=${OLDER}`);
-      expect(view?.earnings).toEqual({ amount: 2500000, status: "finalized" });
-    });
-
-    it.each([
-      ["answers with an error", answer(500, {})],
-      ["cannot be reached", new Error("network down")],
-    ])("leaves the earnings unknown, not the page, when the invoice %s", async (_, invoice) => {
-      backend({ invoice });
-
-      const view = await fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
-
-      expect(view?.earnings).toBeNull();
-      expect(view?.rows).toHaveLength(1);
-    });
-  });
-
-  describe("the calendar", () => {
-    it("reads the whole open period, unfiltered, beside the table's page", async () => {
-      const view = await fetchCreatorDetail(CREATOR, {
-        ...DEFAULT_CREATOR_DETAIL_PARAMS,
-        contract: OLDER,
-        tab: "done",
-        type: ["specific"],
-        page: 2,
-      });
-
-      expect(calendarUrls()).toEqual([
-        `${BACKEND}/contents?contract=${OLDER}&sort=deadline_asc&pageSize=50&page=1`,
-      ]);
-      expect(view?.calendar.map((row) => row.contentId)).toEqual(["content-1"]);
-    });
-
-    it("asks for the table and the calendar together, not one after the other", async () => {
-      let release: () => void = () => undefined;
-      const held = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
-        const url = new URL(String(input));
-        if (!url.pathname.startsWith("/contents")) return answer(200, DETAIL);
-        // The table's page waits until the calendar's request has gone out as well.
-        if (!forCalendar(String(input))) await held;
-        else release();
-        return answer(200, CONTENTS);
-      });
-
-      await expect(fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS)).resolves.not.toBeNull();
-    });
-
-    it("reads every page of a period too long for one request, the rest together", async () => {
-      const page = (number: number) =>
-        answer(200, {
-          ...CONTENTS,
-          items: [{ ...CONTENTS.items[0], id: `content-${number}` }],
-          page: number,
-          totalPages: 3,
-        });
-      backend({ calendar: [page(1), page(2), page(3)] });
-
-      const view = await fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
-
-      expect(calendarUrls().map((url) => new URL(url).searchParams.get("page"))).toEqual(["1", "2", "3"]);
-      expect(view?.calendar.map((row) => row.contentId)).toEqual(["content-1", "content-2", "content-3"]);
-    });
-
-    it("fails the page when the calendar cannot be read, rather than show a month missing content", async () => {
-      backend({ calendar: answer(500, {}) });
-
-      await expect(fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS)).rejects.toThrow(
-        "Loading the period's calendar failed with HTTP 500",
-      );
-    });
   });
 
   it("always reads fresh, as a decision a moment ago changes what the table shows", async () => {
@@ -414,7 +298,6 @@ describe("fetchCreatorDetail", () => {
       backend({ contents: [contentsOf(99, 14), contentsOf(2, 14, 4)] });
 
       const view = await fetchCreatorDetail(CREATOR, {
-        ...DEFAULT_CREATOR_DETAIL_PARAMS,
         contract: OLDER,
         type: ["evergreen"],
         status: ["scheduled", "pending"],

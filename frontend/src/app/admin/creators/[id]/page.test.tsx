@@ -1,9 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import {
-  DEFAULT_CREATOR_DETAIL_PARAMS,
-  type CreatorDetailView,
-  type CreatorPeriod,
-} from "@/lib/creator-detail";
+import type { CreatorDetailView, CreatorPeriod } from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 import CreatorDetailPage, { metadata } from "./page";
 
@@ -43,8 +39,6 @@ const NEWEST: CreatorPeriod = {
   contentQuota: 19,
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
-  progress: { submitted: 2, total: 6, percent: 33 },
-  performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
   daysBetween: 14,
 };
 
@@ -58,8 +52,6 @@ const OLDEST: CreatorPeriod = {
   contentQuota: 3,
   evergreenCount: 3,
   remainingEvergreenQuota: 0,
-  progress: { submitted: 2, total: 6, percent: 33 },
-  performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
   daysBetween: 7,
 };
 
@@ -70,7 +62,6 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
       name: "Rangga Pratama",
       email: "rangga@example.com",
       socials: { instagram: "rangga.creates" },
-      accessRevokeDate: null,
     },
     periods: [NEWEST, OLDEST],
     selected: NEWEST,
@@ -88,9 +79,6 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
     page: 1,
     total: 1,
     totalPages: 1,
-    counts: { all: 1, action: 1, waiting: 0, done: 0 },
-    calendar: [],
-    earnings: null,
     ...overrides,
   };
 }
@@ -120,18 +108,6 @@ describe("Creator Detail page", () => {
     expect(metadata.title).toBe("Detail Creator — Tofly");
   });
 
-  it("says on the profile whether the creator can still sign in, judged against today", async () => {
-    const view = viewOf();
-    vi.mocked(fetchCreatorDetail).mockResolvedValue({
-      ...view,
-      creator: { ...view.creator, accessRevokeDate: "2020-01-01" },
-    });
-
-    await renderPage();
-
-    expect(screen.getByText("Akses").nextElementSibling).toHaveTextContent("Dicabut");
-  });
-
   it("is subtitled as the prototype subtitles it", async () => {
     await renderPage();
 
@@ -148,13 +124,12 @@ describe("Creator Detail page", () => {
   });
 
   // PBI-4: creator → contract history per period → content per contract, on one page.
-  it("shows the creator, then the contract periods, then the open period's calendar and content", async () => {
+  it("shows the creator, then the contract periods, then the open period's content", async () => {
     await renderPage();
 
-    const [profile, periods, calendar, plan] = screen.getAllByRole("heading", { level: 2 });
+    const [profile, periods, plan] = screen.getAllByRole("heading", { level: 2 });
     expect(profile).toHaveTextContent("Rangga Pratama");
     expect(periods).toHaveTextContent("Periode Kontrak");
-    expect(calendar).toHaveTextContent("Jadwal Konten");
     expect(plan).toHaveTextContent("Content Plan");
 
     expect(screen.getByText("rangga@example.com")).toBeInTheDocument();
@@ -167,14 +142,18 @@ describe("Creator Detail page", () => {
   it("asks for the creator in the address on the bare view", async () => {
     await renderPage();
 
-    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
+    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
+      contract: null,
+      type: [],
+      status: [],
+      page: 1,
+    });
   });
 
   it("asks with the period, the filters and the page the address names", async () => {
     await renderPage({ contract: FIRST, type: "specific", status: "scheduled,pending", page: "2" });
 
     expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
-      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: FIRST,
       type: ["specific"],
       status: ["scheduled", "pending"],
@@ -190,7 +169,12 @@ describe("Creator Detail page", () => {
       page: "-4",
     });
 
-    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
+    expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
+      contract: null,
+      type: [],
+      status: [],
+      page: 1,
+    });
   });
 
   it("describes the latest contract in the profile even while an older period is open", async () => {

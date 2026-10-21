@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   type CreatorContentRow,
@@ -14,12 +14,10 @@ const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CONTRACT = "22222222-2222-4222-8222-222222222222";
 const PAGE = `/admin/creators/${CREATOR}`;
 
-let searchParams = new URLSearchParams();
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh, replace }),
   usePathname: () => PAGE,
-  useSearchParams: () => searchParams,
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // The panel and the modal are tested where they live. Here each is a stand-in that shows what
@@ -96,8 +94,6 @@ const PERIOD: CreatorPeriod = {
   contentQuota: 19,
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
-  progress: { submitted: 2, total: 6, percent: 33 },
-  performance: { onTimeRate: 50, avgRevisions: 1, productivity: "watch", productivityLabel: "Perlu Perhatian" },
   daysBetween: 14,
 };
 
@@ -118,22 +114,13 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
   const shown = Math.max(0, Math.min(10, total - (page - 1) * 10));
 
   return {
-    creator: {
-      id: CREATOR,
-      name: "Rangga Pratama",
-      email: "rangga@example.com",
-      socials: {},
-      accessRevokeDate: null,
-    },
+    creator: { id: CREATOR, name: "Rangga Pratama", email: "rangga@example.com", socials: {} },
     periods: selected ? [selected] : [],
     selected,
     rows: Array.from({ length: shown }, (_, index) => row((page - 1) * 10 + index + 1)),
     page,
     total,
     totalPages: Math.max(1, Math.ceil(total / 10)),
-    counts: { all: total, action: 0, waiting: total, done: 0 },
-    calendar: [{ ...row(99), name: "Konten Kalender", deadline: "2026-10-05" }],
-    earnings: null,
   };
 }
 
@@ -141,19 +128,11 @@ function renderBoard(
   view: CreatorDetailView = viewOf(3),
   state: CreatorDetailParams = DEFAULT_CREATOR_DETAIL_PARAMS,
 ) {
-  return render(
-    <CreatorContentBoard creatorId={CREATOR} view={view} state={state} today="2026-10-21" />,
-  );
-}
-
-/** The period's content list, apart from the calendar's own grid above it. */
-function contentList() {
-  return within(screen.getByRole("tabpanel", { name: "Daftar konten periode" }));
+  return render(<CreatorContentBoard creatorId={CREATOR} view={view} state={state} />);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  searchParams = new URLSearchParams();
 });
 
 describe("CreatorContentBoard", () => {
@@ -171,46 +150,6 @@ describe("CreatorContentBoard", () => {
     expect(screen.getByRole("button", { name: /^Status:/ })).toBeInTheDocument();
   });
 
-  it("lays the period's content out as the Content Plan does: tabs, then filters, then the list", () => {
-    renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, tab: "waiting" });
-
-    const tabs = screen.getByRole("tablist", { name: "Tab konten periode" });
-    expect(screen.getByRole("tab", { name: "Menunggu Kreator3" })).toHaveAttribute("aria-selected", "true");
-    const list = screen.getByRole("tabpanel", { name: "Daftar konten periode" });
-    expect(list).toContainElement(contentList().getByRole("table"));
-    expect(tabs.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("shows the period's calendar above its Content Plan, and opens a content from its chip", () => {
-    renderBoard();
-
-    const calendar = screen.getByRole("heading", { level: 2, name: "Jadwal Konten" });
-    const plan = screen.getByRole("heading", { level: 2, name: "Content Plan" });
-    expect(calendar.compareDocumentPosition(plan) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Konten Kalender · Scheduled" }));
-
-    expect(screen.getByRole("dialog", { name: "Detail konten" })).toHaveTextContent("content-99 sebagai admin");
-  });
-
-  it("turns a turned order back to the nearest deadline first, the bare address", () => {
-    searchParams = new URLSearchParams({ sort: "desc" });
-    renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "desc" });
-
-    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
-
-    expect(replace).toHaveBeenCalledWith(PAGE, { scroll: false });
-  });
-
-  it("turns the deadline order over from the header, back to page one", () => {
-    searchParams = new URLSearchParams({ contract: CONTRACT, page: "2" });
-    renderBoard(viewOf(25, 2), { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: CONTRACT, page: 2 });
-
-    fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
-
-    expect(replace).toHaveBeenCalledWith(`${PAGE}?contract=${CONTRACT}&sort=desc`, { scroll: false });
-  });
-
   describe("pagination", () => {
     it("pages a longer period once, below the table, like every other list", () => {
       renderBoard(viewOf(25));
@@ -220,7 +159,7 @@ describe("CreatorContentBoard", () => {
       // Below the table: the slice comes after the last row in the page.
       const slice = screen.getByText("Menampilkan 1–10 dari 25 konten");
       expect(
-        contentList().getByRole("table").compareDocumentPosition(slice) & Node.DOCUMENT_POSITION_FOLLOWING,
+        screen.getByRole("table").compareDocumentPosition(slice) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     });
 
@@ -239,7 +178,7 @@ describe("CreatorContentBoard", () => {
       renderBoard(viewOf(25));
 
       // The heading row and the ten of this page.
-      expect(contentList().getAllByRole("row")).toHaveLength(11);
+      expect(screen.getAllByRole("row")).toHaveLength(11);
       expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
         "href",
         `${PAGE}?page=2`,
@@ -249,8 +188,8 @@ describe("CreatorContentBoard", () => {
 
     it("carries the open period and the filters into the page links", () => {
       const state: CreatorDetailParams = {
-        ...DEFAULT_CREATOR_DETAIL_PARAMS,
         contract: CONTRACT,
+        type: [],
         status: ["scheduled"],
         page: 2,
       };
@@ -413,6 +352,5 @@ describe("CreatorContentBoard", () => {
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.queryByRole("button", { name: "+ Tambah Konten" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Tipe:/ })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Jadwal Konten" })).toBeNull();
   });
 });
