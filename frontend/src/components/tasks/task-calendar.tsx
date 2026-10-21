@@ -227,7 +227,7 @@ export function TaskCalendar({
             <button
               type="button"
               onClick={() => setChosen(null)}
-              className="cursor-pointer rounded-(--radius-control) px-2 py-1 text-xs font-semibold text-accent-deep hover:bg-surface-2"
+              className={`cursor-pointer rounded-(--radius-control) px-2 py-1 text-xs font-semibold text-accent-deep hover:bg-surface-2 ${PHONE_TARGET}`}
             >
               Lihat sebulan
             </button>
