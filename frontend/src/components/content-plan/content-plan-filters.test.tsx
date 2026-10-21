@@ -338,5 +338,37 @@ describe("ContentPlanFilters", () => {
         scroll: false,
       });
     });
+
+    // One press is one navigation: the period and its days go together, so the plan renders
+    // once and no address with half the period on it is ever opened.
+    it("takes off the deadline range in one navigation, keeping the tab and every other filter", () => {
+      searchParams = new URLSearchParams({
+        tab: "waiting",
+        creator: "id-1",
+        q: "serum",
+        period: "custom",
+        from: "2026-10-01",
+        to: "2026-10-31",
+      });
+      renderFilters({ tab: "waiting", period: "custom", from: "2026-10-01", to: "2026-10-31" });
+
+      fireEvent.click(screen.getByRole("button", { name: /^Hapus Deadline/ }));
+
+      expect(mockReplace).toHaveBeenCalledExactlyOnceWith(
+        "/admin/content-plan?tab=waiting&creator=id-1&q=serum",
+        { scroll: false },
+      );
+    });
+
+    it("takes off a named period in one navigation", () => {
+      searchParams = new URLSearchParams({ type: "specific", period: "month" });
+      renderFilters({ period: "month" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus Periode: Bulan ini" }));
+
+      expect(mockReplace).toHaveBeenCalledExactlyOnceWith("/admin/content-plan?type=specific", {
+        scroll: false,
+      });
+    });
   });
 });

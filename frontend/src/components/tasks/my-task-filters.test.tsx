@@ -408,6 +408,32 @@ describe("MyTaskFilters", () => {
       );
     });
 
+    // One press is one navigation: the period and its days go together, so the list renders
+    // once and no address with half the period on it is ever opened.
+    it("takes off the deadline range in one navigation, keeping the tab, the view and the search", () => {
+      renderOn(
+        { ...NARROWED, tab: "waiting", view: "calendar", q: "serum" },
+        { tab: "waiting", period: "custom" },
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus Deadline 3 Des – 20 Des 2026" }));
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith(
+        "/creator/tasks?type=evergreen&status=scheduled%2Cdraft_revision&overdue=yes&tab=waiting&view=calendar&q=serum",
+        { scroll: false },
+      );
+    });
+
+    it("takes off a named period in one navigation, keeping every other filter", () => {
+      renderOn({ type: "specific", period: "month", tab: "waiting" }, { tab: "waiting", period: "month" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Hapus Periode: Bulan ini" }));
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith("/creator/tasks?type=specific&tab=waiting", {
+        scroll: false,
+      });
+    });
+
     it("shows no chip row while nothing is narrowed", () => {
       renderOn({ q: "serum" });
 
