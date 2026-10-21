@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { MultiSelect } from "./multi-select";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const OPTIONS = [
   { value: "id-1", label: "Salsa" },
@@ -280,6 +281,16 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       expect(screen.getByText("Rangga", { selector: "b" })).toHaveClass("font-semibold");
     });
 
+    // In the open phone filter card every control is a full-width field (approved design); the
+    // pill stayed its own width and left Creator, Tipe and Status ragged under the selects.
+    it("spans the phone filter card as a field, and stays a pill from sm up", () => {
+      renderSelect();
+
+      expect(trigger()).toHaveClass("rounded-full", "max-sm:w-full", "max-sm:rounded-(--radius-control)");
+      expect(trigger().parentElement).toHaveClass("max-sm:w-full");
+      expect(trigger().closest("div")).toHaveClass("max-sm:w-full");
+    });
+
     it("opens the popup under the trigger, never over it", () => {
       renderSelect();
 
@@ -402,5 +413,16 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
         expect(box).toHaveClass("accent-accent");
       }
     });
+  });
+});
+
+// Measured at 375px: the trigger was 32px tall and each pick's chip 20px. On a phone they are the
+// presses that narrow the list and widen it again, so each gets 44px.
+describe("MultiSelect on a phone", () => {
+  it("gives the trigger and each pick's chip a 44px press", () => {
+    renderSelect(["id-1"]);
+
+    expectPhoneTarget(screen.getByRole("button", { name: /^Creator:/ }));
+    expectPhoneTarget(screen.getByRole("button", { name: /^Hapus filter Creator:/ }));
   });
 });

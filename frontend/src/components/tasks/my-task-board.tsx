@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
+import { DeadlineSortButton } from "@/components/content-plan/deadline-sort";
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
 import type { TaskContent } from "@/components/my-task/task-summary";
@@ -49,9 +50,6 @@ function contentOfDetail(detail: PanelActionFacts): TaskContent {
 /** The search parameter a notification or a bookmark uses to open one content's panel. */
 const CONTENT_PARAM = "content";
 
-/** What each deadline order means, as the header's own title says it. */
-const SORT_HINTS: Record<DeadlineSort, string> = { asc: "Terdekat dulu", desc: "Terjauh dulu" };
-
 const SUBMITTED: Record<MyTaskAction, string> = {
   submit_draft: "Draft terkirim. Admin akan meninjaunya.",
   resubmit_draft: "Draft terkirim. Admin akan meninjaunya.",
@@ -72,6 +70,7 @@ export function MyTaskBoard({
   sort,
   filtered,
   calendarToday,
+  calendarOpensOn = null,
 }: Readonly<{
   tasks: MyTask[];
   tab: MyTaskTab;
@@ -80,6 +79,8 @@ export function MyTaskBoard({
   filtered: boolean;
   /** Today in Jakarta, "YYYY-MM-DD": given, the tasks are shown as a month, not as the table. */
   calendarToday?: string;
+  /** The day of the deadline range whose month the calendar opens on; null for today's. */
+  calendarOpensOn?: string | null;
 }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -209,18 +210,7 @@ export function MyTaskBoard({
       {/* Below lg the rows stack into cards and the header row is only read aloud, so the sort
           gets its own button there. A month has no order to turn over. */}
       {tasks.length > 0 && !calendarToday ? (
-        <div className="flex justify-end px-5 pt-3 lg:hidden">
-          <Button
-            variant="ghost"
-            className="inline-flex items-center gap-1.5"
-            aria-label={`Urutkan deadline: ${SORT_HINTS[sort].toLowerCase()}`}
-            onClick={toggleSort}
-          >
-            <span className="text-muted">Deadline</span>
-            <span>{SORT_HINTS[sort]}</span>
-            <span aria-hidden="true">{sort === "asc" ? "↑" : "↓"}</span>
-          </Button>
-        </div>
+        <DeadlineSortButton sort={sort} onToggle={toggleSort} />
       ) : null}
 
       {/* The region the tabs switch, named by the tabs' aria-controls. */}
@@ -233,7 +223,12 @@ export function MyTaskBoard({
         className="outline-none"
       >
         {calendarToday ? (
-          <TaskCalendar tasks={tasks} today={calendarToday} onOpen={setDetailContentId} />
+          <TaskCalendar
+            tasks={tasks}
+            today={calendarToday}
+            opensOn={calendarOpensOn}
+            onOpen={setDetailContentId}
+          />
         ) : (
           <MyTaskTable
             tasks={tasks}

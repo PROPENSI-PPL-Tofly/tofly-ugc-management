@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import PrivacyPage, { metadata } from "./page";
+import { expectMinTarget } from "@/test/touch-target";
 
 describe("Privacy page", () => {
   it("is titled as Tofly's privacy policy", () => {
@@ -46,5 +47,12 @@ describe("Privacy page", () => {
       "href",
       "/login",
     );
+  });
+
+  // On its own line it is no link inside a sentence, so WCAG 2.5.8's 24px applies; it was 17px.
+  it("gives the way back at least a 24px press", () => {
+    render(<PrivacyPage />);
+
+    expectMinTarget(screen.getByRole("link", { name: "Kembali ke halaman masuk" }));
   });
 });

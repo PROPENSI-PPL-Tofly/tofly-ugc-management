@@ -155,6 +155,51 @@ describe("MyTaskTable", () => {
       }
     });
 
+    // Measured on this table's real markup in Edge at true 320–430 px: the rows already stack,
+    // but they read as one continuous panel split by hairlines, and each action is a 33 px button
+    // only as wide as its label. jsdom lays nothing out, so these pin what the layout is built
+    // from; the browser measurement is the evidence for the layout itself.
+    it("sets each task apart as its own card below lg, with room between cards", () => {
+      render(<MyTaskTable tasks={[task(), task({ id: "content-2" })]} onAction={vi.fn()} />);
+
+      const body = screen.getAllByRole("rowgroup")[1];
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      for (const row of rows()) {
+        expect(row).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border", "max-lg:bg-surface");
+        // The table's own hairline between rows stays from lg up.
+        expect(row).toHaveClass("border-b");
+      }
+    });
+
+    it("gives every action a full-width touch target at least 44px tall below lg", () => {
+      render(
+        <MyTaskTable
+          tasks={[
+            task(),
+            task({ id: "content-2", status: "draft_revision", actions: ["resubmit_draft"] }),
+            task({ id: "content-3", status: "draft_approved", actions: ["submit_video"] }),
+          ]}
+          onAction={vi.fn()}
+          now={NOW}
+        />,
+      );
+
+      for (const name of [/^Submit Draft/, /^Resubmit Draft/, /^Submit Link Video/]) {
+        const button = screen.getByRole("button", { name });
+        expect(button).toHaveClass("max-lg:w-full", "max-lg:min-h-11");
+      }
+    });
+
+    // Below lg the board offers its own visible sort button; the header's stayed focusable while
+    // unseen inside the hidden header row, so phones had two sort controls, one invisible.
+    it("removes the header's sort button below lg, keeping the column's name", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onSortToggle={vi.fn()} />);
+
+      const header = screen.getByRole("columnheader", { name: /Deadline/ });
+      expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
+    });
+
     it("labels the deadline and status cells with their column", () => {
       render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
 
@@ -496,5 +541,13 @@ describe("MyTaskTable", () => {
         expect(row.className).toContain("lg:h-16");
       }
     });
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as every list table does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });

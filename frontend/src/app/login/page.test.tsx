@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { redirect } from "next/navigation";
 import { currentRole } from "@/lib/session.server";
 import LoginPage, { metadata } from "./page";
+import { expectMinTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
@@ -53,6 +54,14 @@ describe("Login page", () => {
       "href",
       "/privasi",
     );
+  });
+
+  // On its own line under the panel it is no link inside a sentence, so WCAG 2.5.8's 24px applies;
+  // it was 17px tall.
+  it("gives the privacy link at least a 24px press", async () => {
+    await renderLogin();
+
+    expectMinTarget(screen.getByRole("link", { name: "Kebijakan Privasi" }));
   });
 
   it("shows no alert on a normal visit", async () => {

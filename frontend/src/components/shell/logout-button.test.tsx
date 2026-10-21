@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LogoutButton } from "./logout-button";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const { replace, refresh } = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -43,5 +44,13 @@ describe("LogoutButton", () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Gagal keluar. Coba lagi.');
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("is a 44px press on a phone", () => {
+    render(<LogoutButton />);
+
+    expectPhoneTarget(screen.getByRole('button', { name: 'Keluar' }));
   });
 });

@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { CreatorFilters } from "./creator-filters";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 function renderFilters(overrides: Record<string, string> = {}) {
   searchParams = new URLSearchParams(overrides);
@@ -152,6 +153,12 @@ describe("CreatorFilters", () => {
     expect(search()).toHaveValue("");
   });
 
+  // The box says what it searches, as it did before the bar was shared.
+  it("asks for a name or an email in the empty search box", () => {
+    renderFilters();
+    expect(search()).toHaveAttribute("placeholder", "Nama atau email…");
+  });
+
   it("stops the search box at the length the API accepts", () => {
     renderFilters();
     expect(search()).toHaveAttribute("maxLength", "100");
@@ -186,5 +193,62 @@ describe("CreatorFilters", () => {
     rerender(<CreatorFilters />);
 
     expect(search()).toHaveValue("salsa");
+  });
+
+  // Measured at 375px: the search box 34px tall and the selects 32px. On a phone they are the
+  // presses that narrow the roster, so each gets 44px, as Reset does.
+  it("gives the search, both selects and Reset a 44px press on a phone", () => {
+    renderFilters({ q: "nadia" });
+
+    expectPhoneTarget(search());
+    expectPhoneTarget(contractStatus());
+    expectPhoneTarget(screen.getByRole("combobox", { name: /produktivitas/i }));
+    expectPhoneTarget(screen.getByRole("button", { name: /reset/i }));
+  });
+
+  // The approved phone design: the roster's two selects fold behind one Filter press, as on
+  // Task Saya and the Content Plan, so the search keeps the row and nothing wraps or scrolls.
+  describe("folded on a phone", () => {
+    function toggle() {
+      return screen.getByRole("button", { name: /^Filter/ });
+    }
+
+    it("puts both selects behind a Filter press that opens and closes them", () => {
+      renderFilters();
+
+      expect(toggle()).toHaveAttribute("aria-expanded", "false");
+      const panel = document.getElementById(toggle().getAttribute("aria-controls")!);
+      expect(panel).toContainElement(contractStatus());
+      expect(panel).toHaveClass("max-sm:hidden");
+
+      fireEvent.click(toggle());
+
+      expect(toggle()).toHaveAttribute("aria-expanded", "true");
+      expect(panel).not.toHaveClass("max-sm:hidden");
+    });
+
+    // The search shows itself in its own box; only what is folded away is counted.
+    it("counts the selects in use on the press, not the search", () => {
+      renderFilters({ q: "rangga", contractStatus: "active", productivity: "risk" });
+
+      expect(toggle()).toHaveAccessibleName("Filter, 2 aktif");
+    });
+
+    it("marks a select in use where it is made", () => {
+      renderFilters({ productivity: "risk" });
+
+      expect(screen.getByRole("combobox", { name: /produktivitas/i })).toHaveAttribute("data-active", "true");
+      expect(contractStatus()).not.toHaveAttribute("data-active");
+    });
+
+    // Productivity is what the roster is mostly narrowed by, so it is the first choice offered.
+    it("offers Produktivitas before Status kontrak", () => {
+      renderFilters();
+
+      expect(screen.getAllByRole("combobox").map((select) => select.getAttribute("aria-label"))).toEqual([
+        "Produktivitas",
+        "Status kontrak",
+      ]);
+    });
   });
 });

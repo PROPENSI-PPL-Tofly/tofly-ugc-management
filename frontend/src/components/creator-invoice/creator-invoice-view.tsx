@@ -40,9 +40,15 @@ function NextStep({
   return (
     <section
       aria-label="Giliran kamu"
-      className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-2.5 rounded-(--radius-control) border border-accent bg-accent-wash px-3 py-2.5 text-[12.5px]"
+      className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-2.5 rounded-(--radius-control) border-[1.5px] border-accent bg-accent-wash px-3 py-2.5 text-[12.5px]"
     >
-      <span>{next.hint}</span>
+      <span>
+        {/* Seen, not read: the region already carries the name, and capitals get spelled out. */}
+        <span aria-hidden="true" className="block text-[11px] font-extrabold uppercase tracking-wide text-accent-deep">
+          Giliran kamu
+        </span>
+        {next.hint}
+      </span>
       <span className="flex flex-wrap items-center gap-2">
         {next.action === "confirm" && invoice.proof !== null ? <ProofLink proof={invoice.proof} /> : null}
         {renderAction?.(next.action)}

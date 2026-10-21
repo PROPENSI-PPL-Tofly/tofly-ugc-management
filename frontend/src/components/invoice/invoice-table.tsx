@@ -20,11 +20,17 @@ import {
   type InvoiceStatus,
 } from "@/lib/invoice";
 import type { BreakdownKind } from "@/lib/invoice-breakdown";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
 const NUM_HEAD = "px-5 py-3 text-right font-semibold";
-const CELL = "px-5 py-3 align-top";
-const NUM = `${CELL} whitespace-nowrap text-right tabular-nums`;
+
+// Below lg each contract is a card that reads like a statement: the header row is hidden, and
+// each amount sets its column's name (data-label) against the figure, label left, amount right.
+const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+const AGAINST =
+  "max-lg:flex max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:before:text-xs max-lg:before:font-normal max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
+const NUM = `${CELL} whitespace-nowrap text-right tabular-nums max-lg:relative ${AGAINST}`;
 
 /** The contract dot, coloured apart with the app's own tones where the prototype used its. */
 export const CONTRACT_TONES: Record<ContractStatus, Tone> = {
@@ -102,7 +108,7 @@ function headerCell(
 ) {
   if (!sort) {
     return (
-      <th scope="col" className={align === "right" ? NUM_HEAD : HEAD}>
+      <th role="columnheader" scope="col" className={align === "right" ? NUM_HEAD : HEAD}>
         <span className={`inline-flex items-center gap-1 ${align === "right" ? "justify-end" : ""}`}>
           {label}
           {beside}
@@ -117,8 +123,46 @@ function headerCell(
       hints={SORT_HINTS[key]}
       align={align}
       beside={beside}
+      // Below lg the cards hide this row; PhoneSort takes the press there.
+      stacked
       onToggle={() => sort.onSort(key)}
     />
+  );
+}
+
+/** The sortable columns, in the order the headers offer them. */
+const SORTABLE: readonly { key: Exclude<InvoiceSortKey, "action">; label: string }[] = [
+  { key: "name", label: "Creator" },
+  { key: "fixed", label: "Fixed Rate" },
+  { key: "penalty", label: "Penalti" },
+  { key: "total", label: "Total" },
+];
+
+/**
+ * The headers' sorts for the cards below lg, where the header row is hidden: one button per
+ * sortable column, pressed the same way (another column starts it, the same one turns it
+ * over), the column on show marked and its order said in words. Gone from lg up.
+ */
+function PhoneSort({ sort }: Readonly<{ sort: InvoiceTableSort }>) {
+  const active = sort.key === "action" ? null : sort.key;
+
+  return (
+    <div role="group" aria-label="Urutkan" className="flex flex-wrap items-center gap-2 px-5 pt-3 lg:hidden">
+      <span className="text-xs text-muted">Urutkan</span>
+      {SORTABLE.map(({ key, label }) => (
+        <button
+          key={key}
+          type="button"
+          aria-pressed={active === key}
+          onClick={() => sort.onSort(key)}
+          className="min-h-11 cursor-pointer rounded-full border border-rule bg-surface px-3 text-xs font-semibold text-ink-2 aria-pressed:border-accent aria-pressed:bg-accent-wash aria-pressed:text-accent-deep"
+        >
+          {label}
+          {active === key ? <span aria-hidden="true">{` ${sort.order === "asc" ? "↑" : "↓"}`}</span> : null}
+        </button>
+      ))}
+      {active ? <p className="basis-full text-xs text-muted">{SORT_HINTS[active][sort.order]}</p> : null}
+    </div>
   );
 }
 
@@ -126,9 +170,9 @@ function finalCell(row: InvoiceRow) {
   // The backend's running total; while the bonus waits the Bonus cell says so beside it.
   return (
     <>
-      <strong>{finalLabel(row)}</strong>
+      <strong className="max-lg:text-xl max-lg:font-extrabold">{finalLabel(row)}</strong>
       {row.floored ? (
-        <span className="mt-1 block whitespace-normal text-xs text-red-ink">
+        <span className="mt-1 block whitespace-normal text-xs text-red-ink max-lg:basis-full max-lg:text-right">
           Penalti melebihi pembayaran
         </span>
       ) : null}
@@ -168,21 +212,24 @@ export function InvoiceTable({
   return (
     // relative: the scroll region is the containing block of anything absolutely placed inside
     // it, so nothing escapes it and widens the page.
-    <div className="relative overflow-x-auto">
-      <table className="w-full text-[13px]">
-        <colgroup>
+    <ScrollFrame>
+      {sort ? <PhoneSort sort={sort} /> : null}
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
+      <table role="table" className="w-full text-[13px] max-lg:block">
+        <colgroup className="max-lg:hidden">
           {columns.map(([column, width]) => (
             <col key={column} className={width} />
           ))}
         </colgroup>
-        <thead>
-          <tr className="border-b border-rule text-muted">
+        <thead role="rowgroup" className="max-lg:sr-only">
+          <tr role="row" className="border-b border-rule text-muted">
             {headerCell("Creator", "name", sort, "left")}
             {headerCell("Fixed Rate", "fixed", sort, "right")}
-            <th scope="col" className={NUM_HEAD}>
+            <th role="columnheader" scope="col" className={NUM_HEAD}>
               Fee Konten Tambahan
             </th>
-            <th scope="col" className={NUM_HEAD}>
+            <th role="columnheader" scope="col" className={NUM_HEAD}>
               Bonus Performa
             </th>
             {headerCell("Penalti", "penalty", sort, "right")}
@@ -191,20 +238,23 @@ export function InvoiceTable({
               "total",
               sort,
               "right",
-              <InfoTip label="Info rumus Total" text={TOTAL_FORMULA} align="end" />,
+              // Below lg this row is only read aloud; each card carries the ⓘ by its own Total.
+              <span className="inline-flex max-lg:hidden">
+                <InfoTip label="Info rumus Total" text={TOTAL_FORMULA} align="end" />
+              </span>,
             )}
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               Status Invoice
             </th>
             {action ? (
-              <th scope="col" className={HEAD}>
+              <th role="columnheader" scope="col" className={HEAD}>
                 {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
                 <span className="sr-only">Aksi</span>
               </th>
             ) : null}
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3 max-lg:bg-paper max-lg:p-3">
           {rows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="px-5 py-14 text-center text-muted">
@@ -213,9 +263,13 @@ export function InvoiceTable({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.contractId} className="border-b border-rule last:border-b-0">
-                <td className={`${CELL} min-w-44`}>
-                  <strong className="block truncate" title={invoiceTitle(row)}>
+              <tr
+                key={row.contractId}
+                role="row"
+                className="border-b border-rule transition-colors lg:last:border-b-0 lg:hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
+              >
+                <td className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>
+                  <strong className="block truncate max-lg:whitespace-normal" title={invoiceTitle(row)}>
                     {invoiceTitle(row)}
                   </strong>
                   <p className="mt-1">
@@ -224,41 +278,65 @@ export function InvoiceTable({
                     </StatusDot>
                   </p>
                 </td>
-                <td className={NUM}>
+                <td data-label="Fixed Rate" className={NUM}>
                   {amount ? amount("fixed", row) : amountCell(row.fixedAmount, amountLabel(row.fixedAmount))}
                 </td>
-                <td className={NUM}>
+                <td data-label="Fee Konten Tambahan" className={NUM}>
                   {amount ? amount("extra", row) : amountCell(row.extraAmount, amountLabel(row.extraAmount))}
                 </td>
-                <td className={NUM}>{amount ? amount("bonus", row) : bonusCell(row)}</td>
-                <td className={NUM}>
+                <td data-label="Bonus Performa" className={NUM}>
+                  {amount ? amount("bonus", row) : bonusCell(row)}
+                </td>
+                <td data-label="Penalti" className={NUM}>
                   {amount ? amount("penalty", row) : penaltyCell(row.penaltyAmount)}
                 </td>
-                <td className={NUM}>{finalCell(row)}</td>
-                <td className={CELL}>
+                {/* The sum, set apart under the amounts it adds up in a card. Its label is
+                    written out rather than drawn from data-label, so the ⓘ can sit beside it. */}
+                <td
+                  data-label="Total"
+                  className={`${CELL} whitespace-nowrap text-right tabular-nums max-lg:-mx-4 max-lg:mt-2 max-lg:flex max-lg:flex-wrap max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:border-t-[1.5px] max-lg:border-rule max-lg:bg-surface-2 max-lg:px-4 max-lg:py-3`}
+                >
+                  <span className="inline-flex items-center gap-1 text-xs font-normal text-muted lg:hidden">
+                    Total
+                    <InfoTip label={`Info rumus Total ${invoiceTitle(row)}`} text={TOTAL_FORMULA} />
+                  </span>
+                  {finalCell(row)}
+                </td>
+                <td data-label="Status Invoice" className={`${CELL} ${AGAINST}`}>
                   <Pill tone={INVOICE_TONES[row.invoiceStatus]}>
                     {INVOICE_STATUS_LABELS[row.invoiceStatus]}
                   </Pill>
                 </td>
-                {action ? <td className={`${CELL} text-right`}>{action(row)}</td> : null}
+                {action ? (
+                  // A full-width target on a phone, well above WCAG 2.5.8's 24 px.
+                  <td
+                    className={`${CELL} text-right max-lg:pt-2 max-lg:[&_button]:min-h-11 max-lg:[&_button]:w-full`}
+                  >
+                    {action(row)}
+                  </td>
+                ) : null}
               </tr>
             ))
           )}
         </tbody>
         {summary && rows.length > 0 ? (
-          <tfoot>
-            <tr className="border-t border-rule bg-surface-2">
-              <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold`}>
+          // Below lg the sum is one line of its own under the cards.
+          <tfoot role="rowgroup" className="max-lg:block max-lg:px-3 max-lg:pb-3">
+            <tr
+              role="row"
+              className="border-t border-rule bg-surface-2 max-lg:flex max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:rounded-(--radius-panel) max-lg:border max-lg:px-4 max-lg:py-3"
+            >
+              <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold max-lg:p-0`}>
                 {`Total ${summary.count} invoice`}
               </th>
-              <td className={NUM}>
+              <td className={`${CELL} whitespace-nowrap text-right tabular-nums max-lg:p-0`}>
                 <strong>{formatRupiah(summary.total)}</strong>
               </td>
-              <td colSpan={columns.length - 6} className={CELL} />
+              <td colSpan={columns.length - 6} className={`${CELL} max-lg:hidden`} />
             </tr>
           </tfoot>
         ) : null}
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

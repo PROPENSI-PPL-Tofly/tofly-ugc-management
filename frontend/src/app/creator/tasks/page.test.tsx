@@ -318,6 +318,59 @@ describe("Task Saya page views", () => {
     expect(mockedFetch).not.toHaveBeenCalled();
   });
 
+  describe("a deadline range carried onto the calendar", () => {
+    it("keeps the range on the switch from the table to the calendar", async () => {
+      await renderPage({ period: "custom", from: "2026-12-03", to: "2026-12-20" });
+
+      expect(switchLink("Kalender")).toHaveAttribute(
+        "href",
+        "/creator/tasks?period=custom&from=2026-12-03&to=2026-12-20&view=calendar",
+      );
+    });
+
+    it("opens the calendar on the month the range starts in", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2026-12-03", to: "2027-01-20" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the month of the end day when only the end is picked", async () => {
+      await renderPage({ view: "calendar", period: "custom", to: "2027-01-15" });
+
+      expect(screen.getByRole("heading", { name: "Januari 2027" })).toBeInTheDocument();
+    });
+
+    it("opens on the earlier day of a range picked backwards, as the list reads it", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-02-10", to: "2026-12-03" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the earlier day of a backwards range that crosses into the next year", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-01-02", to: "2026-12-31" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the month of the start day when only the start is picked", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-03-05" });
+
+      expect(screen.getByRole("heading", { name: "Maret 2027" })).toBeInTheDocument();
+    });
+
+    it("stays on this month while Pilih tanggal is chosen but no day is picked yet", async () => {
+      await renderPage({ view: "calendar", period: "custom" });
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+
+    it("stays on this month for a day the period does not use", async () => {
+      await renderPage({ view: "calendar", period: "next30", from: "2026-12-03" });
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+  });
+
   it("shows no pager on the calendar: a month is not paged", async () => {
     await renderPage({ view: "calendar" });
 
@@ -441,5 +494,37 @@ describe("Task Saya page views", () => {
       "/creator/tasks?tab=done&view=calendar",
     );
     expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
+  });
+});
+
+// Approved design: the list is titled in the creator's accent band, with how many tasks the
+// tab and filters hold, and on a phone, where the tabs fold into Filter, the open tab's name.
+describe("Task Saya's list band", () => {
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
+  });
+
+  function band() {
+    return screen.getByRole("heading", { name: "Daftar Tugas Saya" }).closest("[data-tone]") as HTMLElement;
+  }
+
+  it("titles the list in the accent band with the tasks it holds", async () => {
+    mockedFetch.mockResolvedValue(answer());
+
+    await renderPage();
+
+    expect(band()).toHaveAttribute("data-tone", "accent");
+    expect(band().querySelector("[data-count]")).toHaveTextContent("11 task");
+    expect(within(band()).getByText("Semua")).toHaveClass("sm:hidden");
+  });
+
+  it("names the open tab in the band", async () => {
+    mockedFetch.mockResolvedValue(answer({ total: 2 }));
+
+    await renderPage({ tab: "waiting" });
+
+    expect(band().querySelector("[data-count]")).toHaveTextContent("2 task");
+    expect(within(band()).getByText("Menunggu Admin")).toBeInTheDocument();
   });
 });

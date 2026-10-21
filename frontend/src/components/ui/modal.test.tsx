@@ -351,4 +351,16 @@ describe("Modal as a side sheet", () => {
 
     expect(dialog).toHaveClass("shadow-sheet");
   });
+
+  // Measured in the creator's invoice side sheet: the ✕ was a 23x18px target, under WCAG
+  // 2.5.8's 24px minimum, and small for a thumb on a phone.
+  it("gives the close button a target at least 32px square, 44px on a phone", () => {
+    render(
+      <Modal title="Invoice Periode 1" onClose={vi.fn()}>
+        Isi
+      </Modal>,
+    );
+
+    expect(screen.getByRole("button", { name: "Tutup dialog" })).toHaveClass("size-8", "max-sm:size-11");
+  });
 });
