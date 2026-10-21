@@ -426,6 +426,19 @@ describe("TaskCalendar", () => {
       expect(agenda()).toHaveAccessibleName("Task bulan ini");
     });
 
+    // Measured at 375px: 24px tall, beside a heading in a row that has room for 44px. On a phone
+    // it is the way out of a day's agenda, so it is a 44px press there like the days are.
+    it("makes Lihat sebulan a 44px press on a phone that still goes back to the month", () => {
+      renderCalendar([ON_12, ON_20]);
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      const back = within(agenda()).getByRole("button", { name: "Lihat sebulan" });
+      expectPhoneTarget(back);
+
+      fireEvent.click(back);
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+    });
+
     it("announces the agenda's new heading as it changes", () => {
       renderCalendar([ON_12]);
 
