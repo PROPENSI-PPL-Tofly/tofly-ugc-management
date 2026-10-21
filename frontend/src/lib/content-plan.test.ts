@@ -331,3 +331,22 @@ describe("CONTENT_PLAN_EMPTY", () => {
     expect(CONTENT_PLAN_EMPTY.all).toBe("Belum ada konten.");
   });
 });
+
+// OWASP A05:2025 Injection / A01:2025 Broken Access Control: as for Task Saya, the Content
+// Plan's ?tab= comes from the address bar as much as from the Tampilkan choice.
+describe("parseContentPlanParams, a forged tab", () => {
+  const PARSE = parseContentPlanParams;
+  it.each([
+    ["an unknown name", "bogus"],
+    ["markup", "<img src=x onerror=alert(1)>"],
+    ["a case variant", "Waiting"],
+    ["an empty value", ""],
+  ])("reads %s as the Semua tab", (_, tab) => {
+    expect(PARSE({ tab }).tab).toBe("all");
+  });
+
+  it("reads a repeated tab by its first value only, still from the allow-list", () => {
+    expect(PARSE({ tab: ["waiting", "bogus"] }).tab).toBe("waiting");
+    expect(PARSE({ tab: ["bogus", "waiting"] }).tab).toBe("all");
+  });
+});
