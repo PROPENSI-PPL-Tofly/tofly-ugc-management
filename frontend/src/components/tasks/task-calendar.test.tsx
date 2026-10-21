@@ -332,4 +332,128 @@ describe("TaskCalendar", () => {
       "Hari Ini",
     ]);
   });
+
+  // Client feedback C2: on a phone the grid only shows dots, and the list under it holds the
+  // whole month. Choosing a day narrows that list to the day, without touching the filters,
+  // the tab or the view: the calendar only shows the tasks it is handed.
+  describe("choosing a day", () => {
+    const ON_12 = task({ id: "a", name: "Review serum", deadline: "2026-10-12" });
+    const ON_20 = task({ id: "b", name: "Unboxing botol", deadline: "2026-10-20", status: "draft_review" });
+
+    function agenda() {
+      return screen.getByRole("region", { name: /^Task / });
+    }
+
+    function entries() {
+      return within(agenda())
+        .queryAllByRole("listitem")
+        .map((item) => item.textContent);
+    }
+
+    it("offers each day as a button named by its date and how many tasks fall on it", () => {
+      renderCalendar([ON_12]);
+
+      expect(grid().getByRole("button", { name: "12 Okt 2026, 1 task" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+      expect(grid().getByRole("button", { name: "13 Okt 2026, tidak ada task" })).toBeInTheDocument();
+    });
+
+    it("lists only the chosen day's tasks, and marks the day as chosen", () => {
+      const { container } = renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      expect(grid().getByRole("button", { name: "12 Okt 2026, 1 task" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(day(container, "2026-10-12")).toHaveAttribute("data-selected");
+      expect(agenda()).toHaveAccessibleName("Task 12 Okt 2026");
+      expect(entries()).toEqual([expect.stringContaining("Review serum")]);
+    });
+
+    it("moves to another day on the next press, letting go of the first", () => {
+      renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+
+      expect(agenda()).toHaveAccessibleName("Task 20 Okt 2026");
+      expect(entries()).toEqual([expect.stringContaining("Unboxing botol")]);
+      expect(grid().getByRole("button", { name: "12 Okt 2026, 1 task" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("says so when the chosen day has no task", () => {
+      renderCalendar([ON_12]);
+
+      fireEvent.click(grid().getByRole("button", { name: "13 Okt 2026, tidak ada task" }));
+
+      expect(within(agenda()).getByText("Tidak ada task di tanggal ini.")).toBeInTheDocument();
+      expect(entries()).toEqual([]);
+    });
+
+    it("opens the content an entry of the chosen day stands for", () => {
+      const { onOpen } = renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+      fireEvent.click(within(agenda()).getByRole("button", { name: /Unboxing botol/ }));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("b");
+    });
+
+    it("goes back to the whole month, from its own button or by pressing the day again", () => {
+      renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      fireEvent.click(within(agenda()).getByRole("button", { name: "Lihat sebulan" }));
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+      expect(entries()).toHaveLength(2);
+
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+    });
+
+    it("announces the agenda's new heading as it changes", () => {
+      renderCalendar([ON_12]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      const heading = within(agenda()).getByRole("heading", { name: "Task 12 Okt 2026" });
+      expect(heading.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+    });
+
+    it("shows the chosen day's agenda at every width, where the month's list is for phones only", () => {
+      renderCalendar([ON_12]);
+
+      expect(agenda()).toHaveClass("sm:hidden");
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      expect(agenda()).not.toHaveClass("sm:hidden");
+    });
+
+    it("keeps the chosen day when a filter hands it different tasks", () => {
+      const { rerender, onOpen } = renderCalendar([ON_12, ON_20]);
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      const other = task({ id: "c", name: "Haul kemasan", deadline: "2026-10-12", type: "evergreen" });
+      rerender(<TaskCalendar tasks={[other]} today={TODAY} onOpen={onOpen} />);
+
+      expect(agenda()).toHaveAccessibleName("Task 12 Okt 2026");
+      expect(entries()).toEqual([expect.stringContaining("Haul kemasan")]);
+    });
+
+    it("lets go of the chosen day when the month is turned", () => {
+      renderCalendar([ON_12]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
+
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+    });
+  });
 });
