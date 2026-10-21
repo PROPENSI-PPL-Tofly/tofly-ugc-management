@@ -9,7 +9,7 @@ import {
   SearchBox,
   offeredPicks,
 } from "./filter-controls";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 describe("offeredPicks", () => {
   const OPTIONS = [
@@ -290,13 +290,13 @@ describe("FilterBar", () => {
 describe("on a phone, every filter control is a 44px press", () => {
   it("covers the search, a select, a range day and Reset", () => {
     const { rerender } = render(<SearchBox label="Cari" value="" onChange={vi.fn()} />);
-    expect(screen.getByRole("searchbox", { name: "Cari" })).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(screen.getByRole("searchbox", { name: "Cari" }));
 
     rerender(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
-    expect(screen.getByRole("combobox", { name: "Overdue" })).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(screen.getByRole("combobox", { name: "Overdue" }));
 
     rerender(<ResetFilters onReset={vi.fn()} disabled={false} />);
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(screen.getByRole("button", { name: "Reset" }));
   });
 
   it("covers both days of a custom range", () => {
@@ -304,7 +304,7 @@ describe("on a phone, every filter control is a 44px press", () => {
 
     const days = document.querySelectorAll('input[type="date"]');
     expect(days).toHaveLength(2);
-    for (const day of days) expect(day).toHaveClass(PHONE_TARGET);
+    for (const day of days) expectPhoneTarget(day);
   });
 
   it("covers each Tipe choice, where the label is what a finger presses", () => {
@@ -320,7 +320,7 @@ describe("on a phone, every filter control is a 44px press", () => {
       />,
     );
 
-    for (const radio of screen.getAllByRole("radio")) expect(radio.closest("label")).toHaveClass(PHONE_TARGET);
+    for (const radio of screen.getAllByRole("radio")) expectPhoneTarget(radio.closest("label"));
   });
 
   it("covers the Filter button and each active-filter chip", () => {
@@ -334,7 +334,7 @@ describe("on a phone, every filter control is a 44px press", () => {
       </FilterBar>,
     );
 
-    expect(screen.getByRole("button", { name: /^Filter/ })).toHaveClass(PHONE_TARGET);
-    expect(screen.getByRole("button", { name: "Hapus Overdue" })).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(screen.getByRole("button", { name: /^Filter/ }));
+    expectPhoneTarget(screen.getByRole("button", { name: "Hapus Overdue" }));
   });
 });

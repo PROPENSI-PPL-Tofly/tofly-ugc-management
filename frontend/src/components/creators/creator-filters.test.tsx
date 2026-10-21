@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { CreatorFilters } from "./creator-filters";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 function renderFilters(overrides: Record<string, string> = {}) {
   searchParams = new URLSearchParams(overrides);
@@ -194,9 +194,9 @@ describe("CreatorFilters", () => {
   it("gives the search, both selects and Reset a 44px press on a phone", () => {
     renderFilters({ q: "nadia" });
 
-    expect(search()).toHaveClass(PHONE_TARGET);
-    expect(contractStatus()).toHaveClass(PHONE_TARGET);
-    expect(screen.getByRole("combobox", { name: /produktivitas/i })).toHaveClass(PHONE_TARGET);
-    expect(screen.getByRole("button", { name: /reset/i })).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(search());
+    expectPhoneTarget(contractStatus());
+    expectPhoneTarget(screen.getByRole("combobox", { name: /produktivitas/i }));
+    expectPhoneTarget(screen.getByRole("button", { name: /reset/i }));
   });
 });

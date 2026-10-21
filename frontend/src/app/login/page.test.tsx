@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { redirect } from "next/navigation";
 import { currentRole } from "@/lib/session.server";
 import LoginPage, { metadata } from "./page";
-import { MIN_TARGET } from "@/components/ui/touch-target";
+import { expectMinTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
@@ -61,7 +61,7 @@ describe("Login page", () => {
   it("gives the privacy link at least a 24px press", async () => {
     await renderLogin();
 
-    expect(screen.getByRole("link", { name: "Kebijakan Privasi" })).toHaveClass(MIN_TARGET);
+    expectMinTarget(screen.getByRole("link", { name: "Kebijakan Privasi" }));
   });
 
   it("shows no alert on a normal visit", async () => {

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
-import { MIN_TARGET } from "@/components/ui/touch-target";
+import { expectMinTarget } from "@/test/touch-target";
 import { ContentPlanTable } from "./content-plan-table";
 
 const ROW: ContentPlanRow = {
@@ -342,7 +342,7 @@ describe("ContentPlanTable", () => {
   it("gives the creator's link at least a 24px press", () => {
     renderTable();
 
-    expect(screen.getByRole("link", { name: "Salsa" })).toHaveClass(MIN_TARGET);
+    expectMinTarget(screen.getByRole("link", { name: "Salsa" }));
   });
 
   // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;

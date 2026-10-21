@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { MyTask } from "@/lib/my-tasks";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 import { TaskCalendar } from "./task-calendar";
 
 const TODAY = "2026-10-09";
@@ -471,12 +471,13 @@ describe("TaskCalendar", () => {
     renderCalendar();
 
     for (const name of ["Bulan Sebelumnya", "Bulan Berikutnya"]) {
-      expect(screen.getByRole("button", { name })).toHaveClass(PHONE_TARGET, "max-sm:min-w-11");
+      expectPhoneTarget(screen.getByRole("button", { name }));
+      expect(screen.getByRole("button", { name })).toHaveClass("max-sm:min-w-11");
     }
     const days = grid()
       .getAllByRole("button")
       .filter((button) => button.hasAttribute("aria-pressed"));
     expect(days.length).toBeGreaterThan(27);
-    for (const button of days) expect(button).toHaveClass(PHONE_TARGET);
+    for (const button of days) expectPhoneTarget(button);
   });
 });

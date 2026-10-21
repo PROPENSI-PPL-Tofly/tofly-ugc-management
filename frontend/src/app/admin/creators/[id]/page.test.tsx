@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import type { CreatorDetailView, CreatorPeriod } from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 import CreatorDetailPage, { metadata } from "./page";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const FIRST = "11111111-1111-4111-8111-111111111111";
@@ -134,7 +134,7 @@ describe("Creator Detail page", () => {
     it("is a 44px press on a phone", async () => {
       await renderPage();
 
-      expect(backLink()).toHaveClass(PHONE_TARGET);
+      expectPhoneTarget(backLink());
     });
 
     it("returns to the search, filters and page the admin left", async () => {

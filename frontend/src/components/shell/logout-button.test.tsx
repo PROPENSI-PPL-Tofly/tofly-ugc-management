@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LogoutButton } from "./logout-button";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const { replace, refresh } = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -51,6 +51,6 @@ describe("LogoutButton", () => {
   it("is a 44px press on a phone", () => {
     render(<LogoutButton />);
 
-    expect(screen.getByRole('button', { name: 'Keluar' })).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(screen.getByRole('button', { name: 'Keluar' }));
   });
 });

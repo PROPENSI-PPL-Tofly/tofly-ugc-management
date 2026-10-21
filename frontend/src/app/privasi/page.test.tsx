@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import PrivacyPage, { metadata } from "./page";
-import { MIN_TARGET } from "@/components/ui/touch-target";
+import { expectMinTarget } from "@/test/touch-target";
 
 describe("Privacy page", () => {
   it("is titled as Tofly's privacy policy", () => {
@@ -53,6 +53,6 @@ describe("Privacy page", () => {
   it("gives the way back at least a 24px press", () => {
     render(<PrivacyPage />);
 
-    expect(screen.getByRole("link", { name: "Kembali ke halaman masuk" })).toHaveClass(MIN_TARGET);
+    expectMinTarget(screen.getByRole("link", { name: "Kembali ke halaman masuk" }));
   });
 });

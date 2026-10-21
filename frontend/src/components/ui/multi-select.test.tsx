@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { MultiSelect } from "./multi-select";
-import { PHONE_TARGET } from "./touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const OPTIONS = [
   { value: "id-1", label: "Salsa" },
@@ -412,7 +412,7 @@ describe("MultiSelect on a phone", () => {
   it("gives the trigger and each pick's chip a 44px press", () => {
     renderSelect(["id-1"]);
 
-    expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveClass(PHONE_TARGET);
-    expect(screen.getByRole("button", { name: /^Hapus filter Creator:/ })).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(screen.getByRole("button", { name: /^Creator:/ }));
+    expectPhoneTarget(screen.getByRole("button", { name: /^Hapus filter Creator:/ }));
   });
 });

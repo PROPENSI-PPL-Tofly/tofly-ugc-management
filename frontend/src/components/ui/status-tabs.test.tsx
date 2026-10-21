@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { StatusTabs, type StatusTabDef } from "./status-tabs";
 import { SCROLL_HINT } from "./use-scroll-hint";
-import { PHONE_TARGET } from "./touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 type Key = "all" | "todo" | "wait" | "done";
 
@@ -149,6 +149,6 @@ describe("StatusTabs", () => {
   it("gives each tab a 44px press on a phone, chosen or not", () => {
     renderTabs("wait");
 
-    for (const tab of tabs()) expect(tab).toHaveClass(PHONE_TARGET);
+    for (const tab of tabs()) expectPhoneTarget(tab);
   });
 });

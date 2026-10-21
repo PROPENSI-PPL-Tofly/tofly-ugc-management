@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { useLinkStatus } from "next/link";
 import { Pagination } from "./pagination";
-import { PHONE_TARGET } from "./touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
@@ -242,7 +242,7 @@ describe("Pagination", () => {
   it("gives the neighbouring pages a 44px press on a phone, and the page it cannot leave for", () => {
     render(<Pagination {...CREATORS} page={1} pageSize={10} total={23} totalPages={3} />);
 
-    expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveClass(PHONE_TARGET);
-    expect(screen.getByText("Sebelumnya")).toHaveClass(PHONE_TARGET);
+    expectPhoneTarget(screen.getByRole("link", { name: "Berikutnya" }));
+    expectPhoneTarget(screen.getByText("Sebelumnya"));
   });
 });

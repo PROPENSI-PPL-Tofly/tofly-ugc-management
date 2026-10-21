@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
 import { SCROLL_HINT } from "@/components/ui/use-scroll-hint";
 import { AdminNav } from "./admin-nav";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
@@ -127,6 +127,6 @@ describe("AdminNav", () => {
 
     render(<AdminNav />);
 
-    for (const link of screen.getAllByRole("link")) expect(link).toHaveClass(PHONE_TARGET);
+    for (const link of screen.getAllByRole("link")) expectPhoneTarget(link);
   });
 });

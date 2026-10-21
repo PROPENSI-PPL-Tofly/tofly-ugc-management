@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { DEFAULT_MY_TASKS_PARAMS } from "@/lib/my-tasks";
 import { TaskViewToggle } from "./task-view-toggle";
-import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const BARE = DEFAULT_MY_TASKS_PARAMS;
 
@@ -79,6 +79,6 @@ describe("TaskViewToggle", () => {
   it("gives both views a 44px press on a phone", () => {
     render(<TaskViewToggle view="table" state={BARE} />);
 
-    for (const link of screen.getAllByRole("link")) expect(link).toHaveClass(PHONE_TARGET);
+    for (const link of screen.getAllByRole("link")) expectPhoneTarget(link);
   });
 });
