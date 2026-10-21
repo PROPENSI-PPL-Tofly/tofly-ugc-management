@@ -81,7 +81,7 @@ export interface ContentDetail {
   deadline: string;
   status: content_status;
   creatorName: string;
-  /** Late, overdue or approval bypassed, in that order; empty when nothing needs attention. */
+  /** Overdue or approval bypassed, in that order; empty when nothing needs attention. */
   tags: ContentTag[];
   waitingOn: DetailWaitingOn;
   latestSubmissionId: string | null;
@@ -118,7 +118,14 @@ function said(note: string | null): note is string {
 export function buildEvents(
   row: Pick<
     ContentDetailRow,
-    'id' | 'status' | 'created_at' | 'updated_at' | 'video_link' | 'video_submitted_at' | 'contracts' | 'submissions'
+    | 'id'
+    | 'status'
+    | 'created_at'
+    | 'updated_at'
+    | 'video_link'
+    | 'video_submitted_at'
+    | 'contracts'
+    | 'submissions'
   >,
 ): ContentEvent[] {
   const creatorName = joinName(row.contracts.creators);
@@ -136,7 +143,9 @@ export function buildEvents(
   ];
 
   const ordered = [...row.submissions].sort(
-    (a, b) => a.created_at.getTime() - b.created_at.getTime() || a.id.localeCompare(b.id),
+    (a, b) =>
+      a.created_at.getTime() - b.created_at.getTime() ||
+      a.id.localeCompare(b.id),
   );
 
   ordered.forEach((submission, index) => {
@@ -148,7 +157,9 @@ export function buildEvents(
       payload: {
         version: index + 1,
         link: submission.link,
-        ...(said(submission.creator_notes) && { note: submission.creator_notes }),
+        ...(said(submission.creator_notes) && {
+          note: submission.creator_notes,
+        }),
       },
     });
 
@@ -192,11 +203,16 @@ export function buildEvents(
   return events;
 }
 
-export function toContentDetail(row: ContentDetailRow, now: Date): ContentDetail {
+export function toContentDetail(
+  row: ContentDetailRow,
+  now: Date,
+): ContentDetail {
   const today = jakartaDay(now);
   const deadlineDay = row.deadline.toISOString().slice(0, 10);
   const latest = [...row.submissions].sort(
-    (a, b) => b.created_at.getTime() - a.created_at.getTime() || b.id.localeCompare(a.id),
+    (a, b) =>
+      b.created_at.getTime() - a.created_at.getTime() ||
+      b.id.localeCompare(a.id),
   )[0];
 
   return {
@@ -222,6 +238,8 @@ export function toContentDetail(row: ContentDetailRow, now: Date): ContentDetail
     creatorActions: taskActions(row.status, deadlineDay, today),
     // The stored history is the record; a content with none falls back to what its rows prove.
     events:
-      row.content_events.length > 0 ? fromStoredHistory(row.content_events) : buildEvents(row),
+      row.content_events.length > 0
+        ? fromStoredHistory(row.content_events)
+        : buildEvents(row),
   };
 }

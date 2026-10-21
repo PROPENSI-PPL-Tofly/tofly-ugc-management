@@ -17,7 +17,7 @@ export interface ContentListItem {
   deadline: string;
   /** Raw lifecycle status; the frontend owns its label. */
   status: ContentStatus;
-  /** Late, overdue or approval bypassed; empty when nothing is flagged. */
+  /** Overdue or approval bypassed; empty when nothing is flagged. */
   tags: ContentTag[];
   /** How many times an admin asked for a revision, counted from the moment it is asked. */
   revisionCount: number;
