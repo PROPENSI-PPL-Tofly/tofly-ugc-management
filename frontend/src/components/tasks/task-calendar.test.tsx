@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { MyTask } from "@/lib/my-tasks";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import { TaskCalendar } from "./task-calendar";
 
 const TODAY = "2026-10-09";
@@ -461,5 +462,21 @@ describe("TaskCalendar", () => {
 
       expect(agenda()).toHaveAccessibleName("Task bulan ini");
     });
+  });
+
+  // Measured by hit-testing at 375px: the month arrows answered 24x30px and a day 30x24px. On a
+  // phone they are how the month is turned and a day's agenda opened, so each is 44px tall (the
+  // arrows 44px wide as well; seven days share the row, so a day keeps the width it has).
+  it("gives the month arrows and each day a 44px press on a phone", () => {
+    renderCalendar();
+
+    for (const name of ["Bulan Sebelumnya", "Bulan Berikutnya"]) {
+      expect(screen.getByRole("button", { name })).toHaveClass(PHONE_TARGET, "max-sm:min-w-11");
+    }
+    const days = grid()
+      .getAllByRole("button")
+      .filter((button) => button.hasAttribute("aria-pressed"));
+    expect(days.length).toBeGreaterThan(27);
+    for (const button of days) expect(button).toHaveClass(PHONE_TARGET);
   });
 });

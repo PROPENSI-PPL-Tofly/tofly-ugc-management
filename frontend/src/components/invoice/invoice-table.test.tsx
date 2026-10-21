@@ -204,6 +204,16 @@ describe("InvoiceTable", () => {
       ]);
     });
 
+    it("holds each card's breakdown press inside its own money line", () => {
+      render(<InvoiceTable rows={[FULL]} amount={trigger} />);
+
+      for (const name of ["fixed", "extra", "bonus", "penalty"]) {
+        expect(screen.getByRole("button", { name: `${name} of Rangga Pratama` }).closest("td")).toHaveClass(
+          "max-lg:relative",
+        );
+      }
+    });
+
     it("leaves the final rate and the invoice as they are, as neither opens a breakdown", () => {
       render(<InvoiceTable rows={[FULL]} amount={trigger} />);
 

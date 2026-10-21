@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
+import { MIN_TARGET } from "@/components/ui/touch-target";
 import { ContentPlanTable } from "./content-plan-table";
 
 const ROW: ContentPlanRow = {
@@ -334,5 +335,13 @@ describe("ContentPlanTable", () => {
     const { onSortToggle } = renderTable();
     fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
     expect(onSortToggle).toHaveBeenCalledOnce();
+  });
+
+  // Measured by hit-testing: the creator's name answered 20px tall on a phone's card and 17px in
+  // the desktop row, under WCAG 2.5.8's 24px. It is a lone link to the creator, so it gets 24px.
+  it("gives the creator's link at least a 24px press", () => {
+    renderTable();
+
+    expect(screen.getByRole("link", { name: "Salsa" })).toHaveClass(MIN_TARGET);
   });
 });

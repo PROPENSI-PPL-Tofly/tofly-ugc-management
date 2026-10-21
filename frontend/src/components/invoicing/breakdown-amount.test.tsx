@@ -127,4 +127,13 @@ describe("BreakdownAmount", () => {
 
     expect(screen.getByRole("button")).toHaveClass("text-muted");
   });
+
+  // Measured by hit-testing at 375px: on a contract's card each amount answered 70-97x20px. There
+  // the press spans its whole statement line (label and amount, the cell the table makes
+  // relative), so the line a finger lands on opens its breakdown.
+  it("spreads its press over the whole statement line on a card", () => {
+    renderAmount("fixed");
+
+    expect(screen.getByRole("button")).toHaveClass("max-lg:after:absolute", "max-lg:after:inset-0");
+  });
 });
