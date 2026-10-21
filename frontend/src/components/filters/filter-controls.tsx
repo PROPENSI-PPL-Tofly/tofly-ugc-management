@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { FilterChip } from "@/components/ui/multi-select";
 import { PHONE_TARGET } from "@/components/ui/touch-target";
 import { formatContractWindow, formatDate } from "@/lib/format";
 import { list } from "@/lib/search-params";
@@ -64,7 +63,14 @@ export function SearchBox({
   );
 }
 
-/** A native select with its visible name beside it. */
+// A select whose choice is not its first (the "all" one) is a filter in use: it stands out.
+const FIELD_ACTIVE = "data-active:border-accent data-active:bg-accent-wash data-active:font-semibold data-active:text-accent-deep";
+
+/**
+ * A native select with its visible name beside it. A choice other than the first is a filter in
+ * use: the select stands out and, on a phone, the name carries an "Aktif" tag (the folded bar
+ * draws no chips, so the control says it itself). The tag sits outside the select's own name.
+ */
 export function FilterSelect({
   label,
   value,
@@ -76,14 +82,24 @@ export function FilterSelect({
   options: readonly FilterOption[];
   onChange: (value: string) => void;
 }>) {
+  const active = options.length > 0 && value !== options[0].value;
+
   return (
     <label className={LABEL}>
-      <span className="text-muted">{label}</span>
+      <span className="flex items-center gap-1.5 text-muted">
+        {label}
+        {active ? (
+          <span className="rounded-full bg-accent px-1.5 py-px text-[10.5px] font-bold uppercase tracking-wide text-accent-ink sm:hidden">
+            Aktif
+          </span>
+        ) : null}
+      </span>
       <select
         aria-label={label}
         value={value}
+        data-active={active ? "true" : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={FILTER_FIELD}
+        className={`${FILTER_FIELD} ${FIELD_ACTIVE}`}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -252,6 +268,7 @@ export function PeriodFilter({
   from,
   to,
   ignored,
+  onPeriod,
   onChange,
   onClear,
 }: Readonly<{
@@ -259,8 +276,9 @@ export function PeriodFilter({
   from: string;
   to: string;
   ignored: boolean;
-  /** Stub until E1 moves to the period itself: accepted, not yet called. */
-  onPeriod?: (period: string) => void;
+  /** The period picked, for the bar to apply together with its days (useUrlFilters.setPeriod). */
+  onPeriod: (period: string) => void;
+  /** A custom day, under its own key. */
   onChange: (key: "period" | "from" | "to", value: string) => void;
   /** Clears both custom days in one change. */
   onClear: () => void;
@@ -271,7 +289,7 @@ export function PeriodFilter({
         label="Periode"
         value={period}
         options={PERIOD_OPTIONS}
-        onChange={(value) => onChange("period", value)}
+        onChange={onPeriod}
       />
 
       {period === "custom" ? <DeadlineRange from={from} to={to} onChange={onChange} onClear={onClear} /> : null}
@@ -357,16 +375,15 @@ export function periodFilter(
 }
 
 // mr-auto sends Reset to the far end of the button's row on a phone.
-const TOGGLE = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink hover:border-ink max-sm:mr-auto sm:hidden`;
+const TOGGLE = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink transition-colors hover:border-ink active:bg-surface-2 aria-expanded:border-accent aria-expanded:bg-accent-wash max-sm:mr-auto sm:hidden`;
 
 const TOGGLE_COUNT = "rounded-full bg-accent-wash px-1.5 text-[11px] font-semibold text-accent-deep";
 
 /**
  * A list's filter bar. From sm up every control sits in one wrapping row, as it always has. On
- * a phone the controls fold behind one Filter button that counts what is active, so the list
- * starts sooner, and while folded each active filter stays in sight as a chip that takes off
- * only itself. Open, the controls show their own state and the chips step aside, so nothing is
- * said twice. The search and Reset stay outside the fold.
+ * a phone the controls fold behind one Filter button that counts what is active (and shows
+ * itself pressed while open), so the list starts sooner; open, each control marks its own
+ * choice, so no row of chips repeats them. The search and Reset stay outside the fold.
  */
 export function FilterBar({
   search,
@@ -406,21 +423,6 @@ export function FilterBar({
 
       {reset}
 
-      {/* A row of its own under the button, so each chip keeps its words together. */}
-      {!open && active.length > 0 ? (
-        <ul aria-label="Filter aktif" className="flex min-w-0 basis-full flex-wrap gap-1.5 sm:hidden">
-          {active.map((filter) => (
-            <li key={filter.id} className="max-w-full">
-              <FilterChip
-                text={filter.text}
-                removeLabel={`Hapus ${filter.text}`}
-                onRemove={filter.onRemove}
-                wrap
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   );
 }

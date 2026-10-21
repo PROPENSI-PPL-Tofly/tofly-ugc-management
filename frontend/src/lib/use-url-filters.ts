@@ -54,8 +54,15 @@ export function useUrlFilters() {
     [replaceQuery],
   );
 
-  /** Stub until E1 moves to the period itself: sets the period alone, as setParam does. */
-  const setPeriod = useCallback((period: string) => setParams({ period }), [setParams]);
+  /**
+   * Picks the deadline period. Only Pilih tanggal… has days, so any other period takes the
+   * custom days off with it, in the same navigation: the list renders once and no address with
+   * half a period on it is ever opened.
+   */
+  const setPeriod = useCallback(
+    (period: string) => setParams(period === "custom" ? { period } : { period, from: "", to: "" }),
+    [setParams],
+  );
 
   /** Sets one filter; an empty value or "all" removes it from the URL. */
   const setParam = useCallback(

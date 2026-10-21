@@ -47,7 +47,7 @@ export function MyTaskFilters({
   /** The view being shown, kept when the filters are reset. */
   view?: TaskView;
 }>) {
-  const { search, setSearch, param, listParam, setParam, setParams, resetKeeping, pending } =
+  const { search, setSearch, param, listParam, setParam, setParams, setPeriod, resetKeeping, pending } =
     useUrlFilters();
 
   const statusOptions: MultiSelectOption[] = myStatusOptionsFor(state.tab).map((value) => ({
@@ -130,6 +130,7 @@ export function MyTaskFilters({
         from={day("from")}
         to={day("to")}
         ignored={periodIgnored}
+        onPeriod={setPeriod}
         onChange={setParam}
         onClear={() => setParams({ from: "", to: "" })}
       />

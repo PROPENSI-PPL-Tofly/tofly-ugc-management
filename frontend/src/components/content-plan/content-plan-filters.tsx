@@ -30,7 +30,7 @@ export function ContentPlanFilters({
   state,
   creators,
 }: Readonly<{ state: ContentPlanParams; creators: readonly ContentPlanCreatorOption[] }>) {
-  const { search, setSearch, param, listParam, setParam, setParams, resetKeeping, pending } =
+  const { search, setSearch, param, listParam, setParam, setParams, setPeriod, resetKeeping, pending } =
     useUrlFilters();
 
   const statusChoices = statusOptionsFor(state.tab);
@@ -134,6 +134,7 @@ export function ContentPlanFilters({
         from={from}
         to={to}
         ignored={periodIgnored}
+        onPeriod={setPeriod}
         onChange={setParam}
         onClear={() => setParams({ from: "", to: "" })}
       />
