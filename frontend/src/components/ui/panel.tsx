@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { PlaceIconName } from "@/components/shell/place-icon";
+import { PlaceIcon, type PlaceIconName } from "@/components/shell/place-icon";
 
 /**
  * The bordered surface a section of the admin interface sits on. One containment layer.
@@ -40,18 +40,71 @@ export function PanelHead({
 /** A list panel's title band, tinted by tone: the creator's accent, the admin's ink, or quiet. */
 export type BandTone = "accent" | "ink" | "quiet";
 
-/** Stub until the bands land: accepts the band's parts, draws nothing yet. */
-export function PanelBand(
-  _props: Readonly<{
-    title: string;
-    tone: BandTone;
-    icon: PlaceIconName;
-    count?: number;
-    noun?: string;
-    aside?: ReactNode;
-    action?: ReactNode;
-    hint?: string;
-  }>,
-) {
-  return null;
+// Strategy table: each tone is the band's tint and its count's fill, nothing else changes.
+const BAND_TONES: Record<BandTone, { band: string; count: string; aside: string }> = {
+  accent: {
+    band: "border-accent/35 bg-accent-wash text-accent-deep",
+    count: "bg-accent text-accent-ink",
+    aside: "border-accent/35",
+  },
+  ink: { band: "border-ink/20 bg-surface-2 text-ink", count: "bg-ink text-accent-ink", aside: "border-ink/20" },
+  quiet: { band: "border-rule bg-surface-2 text-ink-2", count: "bg-ink-2 text-accent-ink", aside: "border-rule" },
+};
+
+/**
+ * A list panel's title, as the approved screens draw it: a tinted band with a decorative icon,
+ * the list's name, and how many it holds (read as "12 creator", not a bare number). The aside
+ * is for a phone only, where the tabs fold into Filter and the band names the open one. A hint
+ * stays under the band, so no explanation is lost to the new title.
+ */
+export function PanelBand({
+  title,
+  tone,
+  icon,
+  count,
+  noun,
+  aside,
+  action,
+  hint,
+}: Readonly<{
+  title: string;
+  tone: BandTone;
+  icon: PlaceIconName;
+  count?: number;
+  noun?: string;
+  aside?: ReactNode;
+  action?: ReactNode;
+  hint?: string;
+}>) {
+  const theme = BAND_TONES[tone];
+
+  return (
+    <>
+      <div
+        data-tone={tone}
+        className={`flex flex-wrap items-center gap-2 border-b-[1.5px] px-5 py-3 max-sm:px-4 ${theme.band}`}
+      >
+        <PlaceIcon name={icon} className="size-[18px] shrink-0" />
+        <h2 className="text-base font-extrabold">{title}</h2>
+        {count === undefined ? null : (
+          <span
+            data-count
+            className={`grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-[12.5px] font-extrabold tabular-nums ${theme.count}`}
+          >
+            {count}
+            {noun ? <span className="sr-only"> {noun}</span> : null}
+          </span>
+        )}
+        {aside ? (
+          <span
+            className={`ml-auto rounded-full border bg-surface px-2 py-0.5 text-xs font-bold sm:hidden ${theme.aside}`}
+          >
+            {aside}
+          </span>
+        ) : null}
+        {action ? <div className={`shrink-0 ${aside ? "" : "ml-auto"}`}>{action}</div> : null}
+      </div>
+      {hint ? <p className="max-w-[64ch] px-5 pt-3 text-[12.5px] text-muted max-sm:px-4">{hint}</p> : null}
+    </>
+  );
 }

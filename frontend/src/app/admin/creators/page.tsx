@@ -4,7 +4,7 @@ import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
-import { Panel, PanelHead } from "@/components/ui/panel";
+import { Panel, PanelBand } from "@/components/ui/panel";
 import { creatorDatabaseQuery } from "@/lib/creator-detail";
 import {
   hasActiveFilters,
@@ -64,8 +64,12 @@ export default async function CreatorsPage({
       ) : null}
 
       <Panel>
-        <PanelHead
+        <PanelBand
           title={filtered ? "Hasil pencarian" : "Semua creator"}
+          tone="ink"
+          icon="people"
+          count={result?.total}
+          noun="creator"
           hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
           action={<AddCreatorTrigger existingEmails={existingEmails} />}
         />

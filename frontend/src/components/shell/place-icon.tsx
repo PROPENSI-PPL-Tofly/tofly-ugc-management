@@ -12,7 +12,10 @@ const PATHS: Record<PlaceIconName, readonly string[]> = {
 };
 
 /** Decorative: the place's name is the link's text, so screen readers skip the drawing. */
-export function PlaceIcon({ name }: Readonly<{ name: PlaceIconName }>) {
+export function PlaceIcon({
+  name,
+  className = "size-[22px] shrink-0 md:size-[18px]",
+}: Readonly<{ name: PlaceIconName; className?: string }>) {
   return (
     <svg
       aria-hidden="true"
@@ -23,7 +26,7 @@ export function PlaceIcon({ name }: Readonly<{ name: PlaceIconName }>) {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="size-[22px] shrink-0 md:size-[18px]"
+      className={className}
     >
       {PATHS[name].map((path) => (
         <path key={path} d={path} />

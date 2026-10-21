@@ -4,7 +4,7 @@ import { ContentPlanFilters } from "@/components/content-plan/content-plan-filte
 import { ContentPlanTabBar } from "@/components/content-plan/content-plan-tab-bar";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
-import { Panel } from "@/components/ui/panel";
+import { Panel, PanelBand } from "@/components/ui/panel";
 import {
   CONTENT_PLAN_BASE,
   CONTENT_PLAN_PAGE_SIZE,
@@ -12,6 +12,7 @@ import {
   contentPlanHref,
   isFiltered,
   parseContentPlanParams,
+  tabDef,
   type ContentPlanCreatorOption,
   type ContentPlanResponse,
 } from "@/lib/content-plan";
@@ -91,6 +92,14 @@ export default async function ContentPlanPage({
       {result ? (
         // Unclipped: the filter popups hang below the bar and past the panel's foot.
         <Panel clip={false}>
+          <PanelBand
+            title="Konten"
+            tone="ink"
+            icon="calendar"
+            count={result.total}
+            noun="konten"
+            aside={tabDef(state.tab).label}
+          />
           <ContentPlanTabBar active={state.tab} counts={result.counts} />
           <ContentPlanFilters state={state} creators={creators} counts={result.counts} />
           <ContentPlanBoard
