@@ -199,4 +199,50 @@ describe("CreatorFilters", () => {
     expectPhoneTarget(screen.getByRole("combobox", { name: /produktivitas/i }));
     expectPhoneTarget(screen.getByRole("button", { name: /reset/i }));
   });
+
+  // The approved phone design: the roster's two selects fold behind one Filter press, as on
+  // Task Saya and the Content Plan, so the search keeps the row and nothing wraps or scrolls.
+  describe("folded on a phone", () => {
+    function toggle() {
+      return screen.getByRole("button", { name: /^Filter/ });
+    }
+
+    it("puts both selects behind a Filter press that opens and closes them", () => {
+      renderFilters();
+
+      expect(toggle()).toHaveAttribute("aria-expanded", "false");
+      const panel = document.getElementById(toggle().getAttribute("aria-controls")!);
+      expect(panel).toContainElement(contractStatus());
+      expect(panel).toHaveClass("max-sm:hidden");
+
+      fireEvent.click(toggle());
+
+      expect(toggle()).toHaveAttribute("aria-expanded", "true");
+      expect(panel).not.toHaveClass("max-sm:hidden");
+    });
+
+    // The search shows itself in its own box; only what is folded away is counted.
+    it("counts the selects in use on the press, not the search", () => {
+      renderFilters({ q: "rangga", contractStatus: "active", productivity: "risk" });
+
+      expect(toggle()).toHaveAccessibleName("Filter, 2 aktif");
+    });
+
+    it("marks a select in use where it is made", () => {
+      renderFilters({ productivity: "risk" });
+
+      expect(screen.getByRole("combobox", { name: /produktivitas/i })).toHaveAttribute("data-active", "true");
+      expect(contractStatus()).not.toHaveAttribute("data-active");
+    });
+
+    // Productivity is what the roster is mostly narrowed by, so it is the first choice offered.
+    it("offers Produktivitas before Status kontrak", () => {
+      renderFilters();
+
+      expect(screen.getAllByRole("combobox").map((select) => select.getAttribute("aria-label"))).toEqual([
+        "Produktivitas",
+        "Status kontrak",
+      ]);
+    });
+  });
 });
