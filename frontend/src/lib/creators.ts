@@ -24,7 +24,7 @@ export type ContentStatus =
 export type Productivity = "good" | "watch" | "risk" | "no_data";
 
 /** Facts the backend flags on a content beside its status, always in this order. */
-export type ContentTag = "late_submission" | "overdue" | "approval_bypassed";
+export type ContentTag = "overdue" | "approval_bypassed";
 
 // "all" plus every value the API accepts, spelled the way the API spells them: these go
 // straight into the query string, so a name that drifts from the backend is a filter that

@@ -10,7 +10,7 @@ import { parsePage } from "@/lib/creators";
 import { jakartaDay } from "@/lib/format";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
 import { fetchAllMyTasks } from "@/lib/task-calendar.server";
-import { parseTaskView, taskViewParams, type TaskView } from "@/lib/task-view";
+import { calendarParams, parseTaskView, taskViewParams, type TaskView } from "@/lib/task-view";
 import {
   MY_TASKS_BASE,
   MyTasksError,
@@ -109,9 +109,11 @@ export default async function TaskSayaPage({
 }>) {
   const params = await searchParams;
   const { invalid } = parsePage(params);
-  const state = parseMyTasksParams(params);
-  const invalidStatuses = unknownStatuses(params);
   const view = parseTaskView(params);
+  // The calendar has no period: its month is the scope, so an old link's period is let go.
+  const parsed = parseMyTasksParams(params);
+  const state = view === "calendar" ? calendarParams(parsed) : parsed;
+  const invalidStatuses = unknownStatuses(params);
   const loaded = await load(state, view);
   const firstPage = buildMyTasksQuery({ ...state, page: 1 });
   const retrySearch = new URLSearchParams({

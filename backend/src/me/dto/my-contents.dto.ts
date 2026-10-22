@@ -16,7 +16,7 @@ export interface MyContentItem {
   deadline: string;
   /** Raw workflow status, never a pending proposal; the frontend owns its label. */
   status: MyTaskStatus;
-  /** Late, overdue or approval bypassed, as the admin sees them; empty when nothing is flagged. */
+  /** Overdue or approval bypassed, as the admin sees them; empty when nothing is flagged. */
   tags: ContentTag[];
   /** The buttons this row shows today, in display order; empty means none. */
   actions: TaskAction[];

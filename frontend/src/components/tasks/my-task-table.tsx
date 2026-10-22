@@ -47,11 +47,31 @@ function ActionCell({
   task,
   now,
   onAction,
+  onDetail,
 }: Readonly<{
   task: MyTask;
   now: Date;
   onAction?: (task: MyTask, action: MyTaskAction) => void;
+  onDetail?: (task: MyTask) => void;
 }>) {
+  if (task.actions.length === 0 && onDetail) {
+    return (
+      // Nothing to do: a Detail button, as the prototype ends such a row, bordered like the
+      // Creator Database's, lifted above the row-wide name button so one press opens it once.
+      <div className="relative z-10">
+        <Button
+          variant="default"
+          className="whitespace-nowrap"
+          aria-label={`Detail: ${task.name}`}
+          aria-haspopup="dialog"
+          onClick={() => onDetail(task)}
+        >
+          Detail
+        </Button>
+      </div>
+    );
+  }
+
   if (task.actions.length === 0) {
     const idle = idleText(task);
     return idle ? <span className="text-xs text-muted">{idle}</span> : null;
@@ -208,7 +228,7 @@ export function MyTaskTable({
               </td>
               {hideActions ? null : (
                 <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
-                  <ActionCell task={task} now={now} onAction={onAction} />
+                  <ActionCell task={task} now={now} onAction={onAction} onDetail={onDetail} />
                 </td>
               )}
             </tr>

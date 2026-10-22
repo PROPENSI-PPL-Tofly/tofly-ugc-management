@@ -72,6 +72,7 @@ describe("CreatorTable", () => {
       "Tepat waktu",
       "Rata-rata revisi",
       "Produktivitas",
+      "",
     ]);
   });
 
@@ -265,23 +266,42 @@ describe("CreatorTable", () => {
   // PBI-4: the Creator Detail page takes the place of the Detail dialog and of the creator's
   // own Content Plan page, so a row has one way in.
   describe("opening a creator", () => {
-    it("makes the creator's name the row's one link, to the creator's own page", () => {
+    it("offers the creator's name and a Detail link, both to the creator's own page", () => {
       render(<CreatorTable creators={[creator({ id: "creator-123" })]} total={1} />);
 
       const row = screen.getAllByRole("row")[1];
 
-      expect(within(row).getAllByRole("link")).toHaveLength(1);
+      expect(within(row).getAllByRole("link")).toHaveLength(2);
       expect(within(row).getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
+        "href",
+        "/admin/creators/creator-123",
+      );
+      expect(within(row).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
         "href",
         "/admin/creators/creator-123",
       );
     });
 
-    it("offers no separate Detail button, since the row already opens the creator", () => {
+    it("offers a Detail button in the last column, as the prototype does", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
 
-      expect(screen.queryByText("Detail")).toBeNull();
-      expect(screen.queryByRole("link", { name: /^Detail/ })).toBeNull();
+      const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+
+      expect(within(cells.at(-1)!).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveTextContent(
+        "Detail",
+      );
+    });
+
+    it("opens the creator's page once when its Detail button is pressed, not again through the row", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      const link = screen.getByRole("link", { name: "Detail Rangga Pratama" });
+      // The link's own navigation is the browser's; here only the row's share is watched.
+      link.addEventListener("click", (event) => event.preventDefault());
+
+      fireEvent.click(link);
+
+      expect(push).not.toHaveBeenCalled();
     });
 
     it("no longer offers the creator's own Content Plan page", () => {

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
+import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { ContentDetailPanel } from "./content-detail-panel";
 
 const refresh = vi.fn();
@@ -142,6 +143,17 @@ describe("ContentDetailPanel", () => {
 
     fireEvent.change(note, { target: { value: "Audio terlalu pelan." } });
     expect(kirim).toBeEnabled();
+  });
+
+  // B2.4: the note is required, yet its label carried no asterisk as every other required field does.
+  it("marks the revision note as required with the asterisk the other forms draw, keeping it out of the field's name", async () => {
+    open(detail());
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+
+    // The exact name: the asterisk is drawn by CSS, so a screen reader hears "required", not "star".
+    expect(screen.getByRole("textbox", { name: "Catatan revisi untuk creator" })).toBeRequired();
+    expect(screen.getByText("Catatan revisi untuk creator")).toHaveClass(...REQUIRED_MARK.split(" "));
   });
 
   it("sends the trimmed note and reports the decision upward", async () => {
@@ -312,7 +324,7 @@ describe("ContentDetailPanel", () => {
         type: "specific",
         creatorName: "",
         brief: "",
-        tags: ["late_submission", "overdue", "approval_bypassed"],
+        tags: ["overdue", "approval_bypassed"],
       }),
     );
 
@@ -321,7 +333,7 @@ describe("ContentDetailPanel", () => {
     expect(screen.queryByText("—")).not.toBeInTheDocument();
     expect(screen.queryByText("Brief")).not.toBeInTheDocument();
     expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText("Late Submission")).toBeInTheDocument();
+    expect(screen.queryByText("Late Submission")).not.toBeInTheDocument();
     expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
   });
 
@@ -615,6 +627,15 @@ describe("ContentDetailPanel", () => {
       expect(rejectProposal).not.toHaveBeenCalled();
     });
 
+    it("leaves the optional reason without the required mark, as nothing has to be written", async () => {
+      open(proposal());
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+
+      expect(screen.getByRole("textbox", { name: "Alasan penolakan (opsional)" })).not.toBeRequired();
+      expect(screen.getByText("Alasan penolakan (opsional)")).not.toHaveClass("after:content-['*']");
+    });
+
     it("rejects with the reason trimmed and reports it by name", async () => {
       const rejectProposal = vi.fn().mockResolvedValue(undefined);
       const onDecided = vi.fn();
@@ -757,7 +778,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
     });
 
     it("lists the tags the way every other screen does, in the order the API sends them", async () => {
-      show({ tags: ["late_submission", "overdue", "approval_bypassed"] });
+      show({ tags: ["overdue", "approval_bypassed"] });
 
       const meta = await screen.findByTestId("modal-meta");
       const tags = within(meta).getByRole("list", { name: "Tanda konten" });
@@ -765,7 +786,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         within(tags)
           .getAllByRole("listitem")
           .map((item) => item.textContent),
-      ).toEqual(["Late Submission", "Overdue", "Approval di-bypass"]);
+      ).toEqual(["Overdue", "Approval di-bypass"]);
     });
 
     it("draws no tag list for a content nothing is flagged on", async () => {

@@ -57,7 +57,9 @@ function stored(
   };
 }
 
-function submission(overrides: Partial<ContentDetailRow['submissions'][number]> = {}) {
+function submission(
+  overrides: Partial<ContentDetailRow['submissions'][number]> = {},
+) {
   return {
     id: '22222222-2222-2222-2222-222222222222',
     link: 'https://drive.google.com/draft-v1',
@@ -129,12 +131,16 @@ describe('buildEvents', () => {
       row({
         status: 'draft_revision',
         submissions: [
-          submission({ revision_notes: 'Durasi lewat 30 detik, mohon dipangkas.' }),
+          submission({
+            revision_notes: 'Durasi lewat 30 detik, mohon dipangkas.',
+          }),
         ],
       }),
     );
 
-    const revision = events.find((event) => event.type === 'revision_requested');
+    const revision = events.find(
+      (event) => event.type === 'revision_requested',
+    );
     expect(revision).toMatchObject({
       at: '2026-09-11T08:00:00.000Z',
       actor: { role: 'admin' },
@@ -147,12 +153,16 @@ describe('buildEvents', () => {
       row({
         status: 'draft_review',
         submissions: [
-          submission({ creator_notes: 'Hook sudah diganti, musik royalty-free.' }),
+          submission({
+            creator_notes: 'Hook sudah diganti, musik royalty-free.',
+          }),
         ],
       }),
     );
 
-    expect(events.find((event) => event.type === 'draft_submitted')).toMatchObject({
+    expect(
+      events.find((event) => event.type === 'draft_submitted'),
+    ).toMatchObject({
       actor: { name: 'Rangga Pratama', role: 'creator' },
       payload: {
         version: 1,
@@ -166,7 +176,10 @@ describe('buildEvents', () => {
     'leaves the note out of a draft whose creator note is %j',
     (creatorNotes) => {
       const events = buildEvents(
-        row({ status: 'draft_review', submissions: [submission({ creator_notes: creatorNotes })] }),
+        row({
+          status: 'draft_review',
+          submissions: [submission({ creator_notes: creatorNotes })],
+        }),
       );
 
       const draft = events.find((event) => event.type === 'draft_submitted');
@@ -182,7 +195,9 @@ describe('buildEvents', () => {
       }),
     );
 
-    expect(events.some((event) => event.type === 'revision_requested')).toBe(false);
+    expect(events.some((event) => event.type === 'revision_requested')).toBe(
+      false,
+    );
   });
 
   it('adds the approval only while the content still sits in Draft Approved', () => {
@@ -194,7 +209,9 @@ describe('buildEvents', () => {
       }),
     );
 
-    expect(events.find((event) => event.type === 'draft_approved')).toMatchObject({
+    expect(
+      events.find((event) => event.type === 'draft_approved'),
+    ).toMatchObject({
       at: '2026-09-12T09:00:00.000Z',
       actor: { role: 'admin' },
     });
@@ -284,8 +301,14 @@ describe('buildEvents', () => {
     const events = buildEvents(
       row({
         submissions: [
-          submission({ id: 'bbbbbbbb-0000-0000-0000-000000000002', created_at: same }),
-          submission({ id: 'bbbbbbbb-0000-0000-0000-000000000001', created_at: same }),
+          submission({
+            id: 'bbbbbbbb-0000-0000-0000-000000000002',
+            created_at: same,
+          }),
+          submission({
+            id: 'bbbbbbbb-0000-0000-0000-000000000001',
+            created_at: same,
+          }),
         ],
       }),
     );
@@ -331,7 +354,9 @@ describe('toContentDetail', () => {
       on('2026-09-20'),
     );
 
-    expect(detail.latestSubmissionId).toBe('cccccccc-0000-0000-0000-000000000002');
+    expect(detail.latestSubmissionId).toBe(
+      'cccccccc-0000-0000-0000-000000000002',
+    );
     expect(detail.waitingOn).toBe('admin');
   });
 
@@ -354,7 +379,9 @@ describe('toContentDetail', () => {
       on('2026-09-20'),
     );
 
-    expect(detail.latestSubmissionId).toBe('cccccccc-0000-0000-0000-000000000002');
+    expect(detail.latestSubmissionId).toBe(
+      'cccccccc-0000-0000-0000-000000000002',
+    );
   });
 
   it('flags overdue work and never finished work', () => {
@@ -363,7 +390,10 @@ describe('toContentDetail', () => {
       on('2026-10-01'),
     );
     const done = toContentDetail(
-      row({ status: 'link_submitted', video_submitted_at: new Date('2026-09-28T00:00:00.000Z') }),
+      row({
+        status: 'link_submitted',
+        video_submitted_at: new Date('2026-09-28T00:00:00.000Z'),
+      }),
       on('2026-10-01'),
     );
 
@@ -379,7 +409,10 @@ describe('toContentDetail', () => {
   });
 
   it('never tags a pending proposal as overdue', () => {
-    const detail = toContentDetail(row({ status: 'pending' }), on('2026-10-05'));
+    const detail = toContentDetail(
+      row({ status: 'pending' }),
+      on('2026-10-05'),
+    );
 
     expect(detail.tags).toEqual([]);
   });
@@ -402,16 +435,19 @@ describe('toContentDetail', () => {
       on('2026-10-03'),
     );
 
-    expect(detail.tags).toEqual(['late_submission', 'overdue']);
+    expect(detail.tags).toEqual(['overdue']);
   });
 
   it('tags a video link that came in after the deadline day as a late submission', () => {
     const detail = toContentDetail(
-      row({ status: 'link_submitted', video_submitted_at: new Date('2026-10-02T00:00:00.000Z') }),
+      row({
+        status: 'link_submitted',
+        video_submitted_at: new Date('2026-10-02T00:00:00.000Z'),
+      }),
       on('2026-10-03'),
     );
 
-    expect(detail.tags).toEqual(['late_submission']);
+    expect(detail.tags).toEqual(['overdue']);
   });
 
   it('tags a link handed in without an approval from the flag stored at hand-in', () => {
@@ -431,7 +467,10 @@ describe('toContentDetail', () => {
     // 18:00 UTC on the 28th is 01:00 on the 29th in Jakarta, the day before the deadline.
     const inReview = row({ status: 'draft_review' });
     const before = toContentDetail(inReview, on('2026-09-28'));
-    const dayBefore = toContentDetail(inReview, new Date('2026-09-28T18:00:00.000Z'));
+    const dayBefore = toContentDetail(
+      inReview,
+      new Date('2026-09-28T18:00:00.000Z'),
+    );
 
     expect(before.creatorActions).toEqual([]);
     expect(dayBefore.creatorActions).toEqual(['submit_video']);
@@ -461,7 +500,11 @@ describe('toContentDetail with a stored history', () => {
     }),
     stored('e5', 'Draft Approved', '2026-09-18T07:00:00.000Z', ADMIN),
     stored('e4', 'Draft Submitted', '2026-09-16T03:00:00.000Z', {
-      event_data: { version: 2, link: 'https://drive.google.com/v2', note: 'Hook sudah diganti.' },
+      event_data: {
+        version: 2,
+        link: 'https://drive.google.com/v2',
+        note: 'Hook sudah diganti.',
+      },
     }),
     stored('e3', 'Revision Requested', '2026-09-12T07:00:00.000Z', {
       ...ADMIN,
@@ -492,13 +535,22 @@ describe('toContentDetail with a stored history', () => {
         actor: { name: 'Rangga Pratama', role: 'creator' },
         payload: { link: 'https://www.tiktok.com/@rangga/video/1' },
       },
-      { id: 'e5', type: 'draft_approved', at: '2026-09-18T07:00:00.000Z', actor: { name: null, role: 'admin' } },
+      {
+        id: 'e5',
+        type: 'draft_approved',
+        at: '2026-09-18T07:00:00.000Z',
+        actor: { name: null, role: 'admin' },
+      },
       {
         id: 'e4',
         type: 'draft_submitted',
         at: '2026-09-16T03:00:00.000Z',
         actor: { name: 'Rangga Pratama', role: 'creator' },
-        payload: { version: 2, link: 'https://drive.google.com/v2', note: 'Hook sudah diganti.' },
+        payload: {
+          version: 2,
+          link: 'https://drive.google.com/v2',
+          note: 'Hook sudah diganti.',
+        },
       },
       {
         id: 'e3',
@@ -514,7 +566,12 @@ describe('toContentDetail with a stored history', () => {
         actor: { name: 'Rangga Pratama', role: 'creator' },
         payload: { version: 1, link: 'https://drive.google.com/v1' },
       },
-      { id: 'e1', type: 'scheduled', at: '2026-09-01T03:00:00.000Z', actor: { name: null, role: 'admin' } },
+      {
+        id: 'e1',
+        type: 'scheduled',
+        at: '2026-09-01T03:00:00.000Z',
+        actor: { name: null, role: 'admin' },
+      },
     ]);
   });
 
@@ -524,7 +581,9 @@ describe('toContentDetail with a stored history', () => {
       on('2026-09-21'),
     );
 
-    expect(detail.events.map((event) => event.type)).toContain('draft_approved');
+    expect(detail.events.map((event) => event.type)).toContain(
+      'draft_approved',
+    );
   });
 
   it("never sends an admin's stored name, even one written before names were scrubbed (OWASP A01)", () => {
@@ -558,8 +617,14 @@ describe('toContentDetail with a stored history', () => {
       on('2026-09-21'),
     );
 
-    expect(detail.events.map((event) => [event.type, event.actor, event.payload])).toEqual([
-      ['creator_comment', { name: 'Rangga Pratama', role: 'creator' }, { note: 'Boleh mundur sehari?' }],
+    expect(
+      detail.events.map((event) => [event.type, event.actor, event.payload]),
+    ).toEqual([
+      [
+        'creator_comment',
+        { name: 'Rangga Pratama', role: 'creator' },
+        { note: 'Boleh mundur sehari?' },
+      ],
       ['proposal_approved', { name: null, role: 'admin' }, undefined],
       ['scheduled', { name: 'Rangga Pratama', role: 'creator' }, undefined],
     ]);
@@ -609,7 +674,9 @@ describe('toContentDetail with a stored history', () => {
     const detail = toContentDetail(
       row({
         content_events: [
-          stored('e1', 'Link Submitted', '2026-09-01T03:00:00.000Z', { event_data: null }),
+          stored('e1', 'Link Submitted', '2026-09-01T03:00:00.000Z', {
+            event_data: null,
+          }),
         ],
       }),
       on('2026-09-21'),
@@ -627,10 +694,16 @@ describe('toContentDetail with a stored history', () => {
   });
 
   it('falls back to the journey its rows prove when nothing was stored for it', () => {
-    const detail = toContentDetail(row({ content_events: [] }), on('2026-09-21'));
+    const detail = toContentDetail(
+      row({ content_events: [] }),
+      on('2026-09-21'),
+    );
 
     expect(detail.events).toEqual([
-      expect.objectContaining({ type: 'scheduled', actor: { name: null, role: 'admin' } }),
+      expect.objectContaining({
+        type: 'scheduled',
+        actor: { name: null, role: 'admin' },
+      }),
     ]);
   });
 });

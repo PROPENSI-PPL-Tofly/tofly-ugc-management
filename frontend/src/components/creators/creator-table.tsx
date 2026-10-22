@@ -154,6 +154,7 @@ export function CreatorTable({
                 </th>
               ))}
 
+              <th scope="col" className={HEAD} />
             </tr>
           </thead>
 
@@ -240,6 +241,18 @@ export function CreatorTable({
                   </Pill>
                 </td>
 
+                <td className={`${CELL} whitespace-nowrap`}>
+                  <Link
+                    href={creatorDetailBase(creator.id)}
+                    // Every row has one; the creator's name tells them apart when heard.
+                    aria-label={`Detail ${creator.name}`}
+                    // The row would hear this press too and open the page a second time.
+                    onClick={(event) => event.stopPropagation()}
+                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
+                  >
+                    Detail
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

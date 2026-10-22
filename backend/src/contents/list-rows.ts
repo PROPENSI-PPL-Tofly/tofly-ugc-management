@@ -38,7 +38,7 @@ export function compareByDeadline(sort: DeadlineSort) {
 
 /** Past its deadline with no link yet, or finished after it: both read as overdue. */
 export function isOverdue(tags: readonly ContentTag[]): boolean {
-  return tags.includes('overdue') || tags.includes('late_submission');
+  return tags.includes('overdue');
 }
 
 /** A calendar day as Postgres `date` columns hold it: midnight UTC. */

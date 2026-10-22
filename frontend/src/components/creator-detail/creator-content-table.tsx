@@ -91,11 +91,6 @@ export function CreatorContentTable({
                     {CONTENT_STATUS_LABELS[row.status]}
                   </StatusDot>
                   <ContentTags tags={row.tags} />
-                  {row.revisionCount > 0 ? (
-                    <span className="text-xs font-semibold text-amber-ink">
-                      Revisi ke-{row.revisionCount}
-                    </span>
-                  ) : null}
                 </span>
               </td>
               <td className={CELL}>

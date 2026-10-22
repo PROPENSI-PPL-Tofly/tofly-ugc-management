@@ -59,10 +59,10 @@ describe("toContentDetail", () => {
 
   it("keeps the tags as the API lists them, in its order", () => {
     const detail = toContentDetail(
-      raw({ tags: ["late_submission", "overdue", "approval_bypassed"] }),
+      raw({ tags: ["overdue", "approval_bypassed"] }),
     );
 
-    expect(detail.tags).toEqual(["late_submission", "overdue", "approval_bypassed"]);
+    expect(detail.tags).toEqual(["overdue", "approval_bypassed"]);
   });
 
   it("keeps the endpoint's newest-first event order instead of re-sorting it", () => {

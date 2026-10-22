@@ -11,6 +11,7 @@ import { loadInvoiceBreakdown } from "@/lib/invoice-breakdown.server";
 import { AdjustmentForm } from "./adjustment-form";
 import { BreakdownPopup, type BreakdownStatus } from "./breakdown-popup";
 import { InvoiceActions } from "./invoice-actions";
+import { InvoiceComments } from "./invoice-comments";
 import { InvoicePaymentSection } from "./invoice-payment-section";
 import { InvoiceRincian } from "./invoice-rincian";
 
@@ -178,18 +179,18 @@ export function useBreakdownPopups({
             />
           ) : null
         }
-        payment={
+        upload={
           // An upload keeps the panel on the uploaded file; the table reads its rows again.
           <InvoicePaymentSection
             contractId={row.contractId}
             status={row.invoiceStatus}
-            payment={row.payment}
             onUploaded={() => {
               read.current.clear();
               onMutated?.(PROOF_SENT_MESSAGE);
             }}
           />
         }
+        thread={<InvoiceComments contractId={row.contractId} />}
       />
     );
   } else if (popup) {

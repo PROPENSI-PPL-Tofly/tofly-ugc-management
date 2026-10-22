@@ -60,15 +60,15 @@ describe("invoiceSteps", () => {
     ]);
   });
 
-  it("marks a running invoice's first step as current, dated by the contract's start", () => {
+  it("marks a running invoice's first step done, dated by the contract's start, and waits on Final", () => {
     const [running, ...rest] = invoiceSteps(invoice());
 
-    expect(running).toMatchObject({ state: "current", caption: "1 Sep 2026" });
-    expect(rest.map((step) => step.state)).toEqual(["todo", "todo", "todo", "todo"]);
+    expect(running).toMatchObject({ state: "done", caption: "1 Sep 2026" });
+    expect(rest.map((step) => step.state)).toEqual(["current", "todo", "todo", "todo"]);
     expect(rest.map((step) => step.caption)).toEqual([null, null, null, null]);
   });
 
-  it("marks the steps before the invoice's status as done and dates each one reached", () => {
+  it("marks every step reached as done, its own included, and the next as the one it waits on", () => {
     const steps = invoiceSteps(
       invoice({
         status: "creator_acked",
@@ -76,7 +76,7 @@ describe("invoiceSteps", () => {
       }),
     );
 
-    expect(steps.map((step) => step.state)).toEqual(["done", "done", "current", "todo", "todo"]);
+    expect(steps.map((step) => step.state)).toEqual(["done", "done", "done", "current", "todo"]);
     expect(steps.map((step) => step.caption)).toEqual(["1 Sep 2026", "1 Des 2026", "2 Des 2026", null, null]);
   });
 
@@ -103,10 +103,10 @@ describe("invoiceSteps", () => {
     expect(finalized.caption).toBeNull();
   });
 
-  it("has no current step for a contract that has not started, and says when it starts", () => {
+  it("waits on Berjalan for a contract that has not started, and says when it starts", () => {
     const steps = invoiceSteps(invoice({ notStarted: true, periodStart: "2026-11-01" }));
 
-    expect(steps.map((step) => step.state)).toEqual(["todo", "todo", "todo", "todo", "todo"]);
+    expect(steps.map((step) => step.state)).toEqual(["current", "todo", "todo", "todo", "todo"]);
     expect(steps[0].caption).toBe("mulai 1 Nov 2026");
   });
 });

@@ -232,10 +232,7 @@ describe('GET /contents (e2e)', () => {
       )?.tags;
 
     expect(tagsOf('overdue')).toEqual(['overdue']);
-    expect(tagsOf('late link')).toEqual([
-      'late_submission',
-      'approval_bypassed',
-    ]);
+    expect(tagsOf('late link')).toEqual(['overdue', 'approval_bypassed']);
     expect(tagsOf('scheduled')).toEqual([]);
   });
 

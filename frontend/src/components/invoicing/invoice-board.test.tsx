@@ -114,7 +114,7 @@ describe("InvoiceBoard", () => {
 
     expect(await screen.findByText("Penyesuaian ditambahkan.")).toBeInTheDocument();
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
   });
 
   describe("sorting", () => {
@@ -151,7 +151,7 @@ describe("InvoiceBoard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
 
-    expect(await screen.findByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
   });
 
   it("adds up the period under the table when it is given the summary", () => {

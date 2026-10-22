@@ -103,7 +103,7 @@ export interface ContentEntry {
   status: ContentStatus;
   outcome: ContentOutcome;
 
-  /** Late, overdue or approval bypassed; empty when nothing needs attention. */
+  /** Overdue or approval bypassed; empty when nothing needs attention. */
   tags: ContentTag[];
 
   videoLink: string | null;

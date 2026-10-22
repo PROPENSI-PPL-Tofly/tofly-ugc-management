@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
 import { ContentPlanTable } from "./content-plan-table";
 
@@ -217,15 +217,35 @@ describe("ContentPlanTable", () => {
     expect(screen.getByRole("button", { name: "Video Review Kopi" })).toHaveAttribute("type", "button");
   });
 
-  it("reads each tag as a coloured pill beside the status", () => {
+  it("shows Overdue and Approval di-bypass in the Tags column", () => {
     renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+
+    const tags = screen.getByRole("list", { name: "Tanda konten" });
+    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Overdue",
+      "Approval di-bypass",
+    ]);
   });
 
-  it("says how many times a piece came back for revision", () => {
+  it("leaves the revision count to the content's panel", () => {
     renderTable([{ ...ROW, revisionCount: 2 }]);
-    expect(screen.getByText("Revisi ke-2")).toBeInTheDocument();
+    expect(screen.queryByText(/Revisi ke-/)).toBeNull();
+  });
+
+  it("keeps Tags but drops Aksi on Selesai, so a late or bypassed content still shows, with nothing to act on", () => {
+    const { onOpen } = renderTable(
+      [{ ...ROW, status: "link_submitted", tags: ["overdue", "approval_bypassed"] }],
+      { tab: "done" },
+    );
+
+    const headings = screen.getAllByRole("columnheader").map((heading) => heading.textContent);
+    expect(headings).toContain("Tags");
+    expect(headings).not.toContain("Aksi");
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail)/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
   });
 
   it("says the tab's own nothing when the list is simply empty", () => {

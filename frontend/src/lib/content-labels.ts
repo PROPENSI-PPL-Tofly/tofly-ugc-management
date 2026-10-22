@@ -35,18 +35,15 @@ export const CONTENT_STATUS_TONES: Record<ContentStatus, Tone> = {
 
 /** Worded as the prototype words them, on every screen that shows a tag. */
 export const CONTENT_TAG_LABELS: Record<ContentTag, string> = {
-  late_submission: "Late Submission",
   overdue: "Overdue",
   approval_bypassed: "Approval di-bypass",
 };
 
 /**
- * Tags are judgements on top of the status, so they read as pills. Red for a deadline that was
- * missed, whether the hand-in came late or has not come at all; amber for a skipped approval,
- * which is allowed but wants a second look.
+ * Tags are judgements on top of the status, so they read as pills. Red for a missed deadline,
+ * whether the work is still open or came in late; amber for a skipped approval, which is allowed but wants a second look.
  */
 export const CONTENT_TAG_TONES: Record<ContentTag, Tone> = {
-  late_submission: "red",
   overdue: "red",
   approval_bypassed: "amber",
 };

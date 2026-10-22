@@ -94,21 +94,20 @@ async function openRincian(row: InvoiceRow, onMutated = vi.fn()) {
 }
 
 describe("the payment part of the Rincian panel", () => {
-  it("shows when the creator acknowledged and offers the proof upload while acknowledged", async () => {
+  it("dates the acknowledgement on the tracker and offers the proof upload while acknowledged", async () => {
     await openRincian(rowAt("creator_acked", ACKNOWLEDGED));
 
-    expect(screen.getByRole("region", { name: "Pembayaran" })).toBeInTheDocument();
-    expect(screen.getByText("Diakui creator").nextElementSibling).toHaveTextContent(
-      "20 Okt 2026, 09.15 WIB",
-    );
+    const steps = within(screen.getByRole("list", { name: "Progres invoice" })).getAllByRole("listitem");
+    expect(steps[2]).toHaveTextContent("Di-ack Creator, selesai20 Okt 2026");
+    expect(steps[3]).toHaveAttribute("aria-current", "step");
     expect(screen.getByLabelText("File bukti pembayaran")).toBeInTheDocument();
   });
 
-  it("says Belum for every step of an invoice the API has not sent a payment for yet", async () => {
+  it("dates no step past Final for an invoice the API has not sent a payment for yet", async () => {
     await openRincian(rowAt("finalized"));
 
-    expect(screen.getByText("Diakui creator").nextElementSibling).toHaveTextContent("Belum");
-    expect(screen.getByText("Bukti pembayaran").nextElementSibling).toHaveTextContent("Belum");
+    const steps = within(screen.getByRole("list", { name: "Progres invoice" })).getAllByRole("listitem");
+    expect(steps.slice(2).map((step) => step.textContent)).toEqual(["Di-ack Creator", "Bukti Bayar", "Paid"]);
   });
 
   it("keeps a Paid invoice read-only except for comments", async () => {
@@ -117,6 +116,7 @@ describe("the payment part of the Rincian panel", () => {
     expect(screen.queryByLabelText("File bukti pembayaran")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Finalize" })).not.toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole("tab", { name: /Aktivitas & Komentar/ })));
     expect(screen.getByLabelText("Tulis komentar")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Tulis komentar"), { target: { value: "Sudah diterima, terima kasih." } });
     expect(screen.getByRole("button", { name: "Kirim" })).toBeEnabled();
@@ -133,23 +133,8 @@ describe("the payment part of the Rincian panel", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Kirim Bukti" })));
 
     expect(onMutated).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("dialog", { name: "Rincian Invoice · Rangga Pratama" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "bukti.pdf" })).toHaveAttribute("href", PROOF_HREF);
-  });
-
-  it("shows the uploaded proof in the payment box and offers no second upload, rather than Belum", async () => {
-    vi.mocked(uploadPaymentProof).mockResolvedValue({ ok: true, proof: PAID.proof! });
-    await openRincian(rowAt("creator_acked", ACKNOWLEDGED));
-
-    fireEvent.change(screen.getByLabelText("File bukti pembayaran"), {
-      target: { files: [new File(["%PDF-1.7"], "bukti.pdf", { type: "application/pdf" })] },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Upload bukti" }));
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Kirim Bukti" })));
-
-    const proofValue = screen.getByText("Bukti pembayaran").nextElementSibling as HTMLElement;
-    expect(proofValue).not.toHaveTextContent("Belum");
-    expect(within(proofValue).getByRole("link", { name: "bukti.pdf" })).toHaveAttribute("href", PROOF_HREF);
     expect(screen.queryByLabelText("File bukti pembayaran")).not.toBeInTheDocument();
   });
 });

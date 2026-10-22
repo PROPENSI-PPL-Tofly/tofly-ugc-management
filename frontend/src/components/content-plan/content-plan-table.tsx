@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
+import { ContentTags } from "@/components/contents/content-tags";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Pill, StatusDot } from "@/components/ui/pill";
+import { StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
-  CONTENT_TAG_LABELS,
-  CONTENT_TAG_TONES,
   CONTENT_TYPE_LABELS,
 } from "@/lib/content-labels";
 import {
@@ -55,6 +54,10 @@ export function ContentPlanTable({
     );
   }
 
+  // On Selesai nothing waits on the admin, so there is no action; the tags stay, saying which
+  // came in late or skipped approval.
+  const settled = tab === "done";
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
@@ -66,7 +69,7 @@ export function ContentPlanTable({
             <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
             <th className="px-5 py-3 font-semibold">Status</th>
             <th className="px-5 py-3 font-semibold">Tags</th>
-            <th className="px-5 py-3 font-semibold">Aksi</th>
+            {settled ? null : <th className="px-5 py-3 font-semibold">Aksi</th>}
           </tr>
         </thead>
         <tbody>
@@ -104,22 +107,13 @@ export function ContentPlanTable({
                 </StatusDot>
               </td>
               <td className="px-5 py-3">
-                <span className="flex flex-wrap items-center gap-1.5">
-                  {row.tags.map((tag) => (
-                    <Pill key={tag} tone={CONTENT_TAG_TONES[tag]}>
-                      {CONTENT_TAG_LABELS[tag]}
-                    </Pill>
-                  ))}
-                  {row.revisionCount > 0 ? (
-                    <span className="text-xs font-semibold text-amber-ink">
-                      Revisi ke-{row.revisionCount}
-                    </span>
-                  ) : null}
-                </span>
+                <ContentTags tags={row.tags} />
               </td>
-              <td className="px-5 py-3">
-                <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
-              </td>
+              {settled ? null : (
+                <td className="px-5 py-3">
+                  <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

@@ -245,7 +245,6 @@ export function MyTaskBoard({
             emptyHint={tab === "all" || tab === "action" ? undefined : null}
             sort={sort}
             onSortToggle={toggleSort}
-            hideActions={tab === "done"}
             onAction={(task, action) => setOpened({ content: contentOf(task), action })}
             onDetail={(task) => setDetailContentId(task.id)}
           />

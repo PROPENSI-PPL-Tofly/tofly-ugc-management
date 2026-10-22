@@ -2,7 +2,7 @@ import { Pill } from "@/components/ui/pill";
 import { CONTENT_TAG_LABELS, CONTENT_TAG_TONES } from "@/lib/content-labels";
 import type { ContentTag } from "@/lib/creators";
 
-/** The late, overdue and approval bypassed flags on a content, each a labelled pill. */
+/** The overdue and approval bypassed flags on a content, each a labelled pill. */
 export function ContentTags({ tags }: { tags: readonly ContentTag[] }) {
   if (tags.length === 0) return null;
 

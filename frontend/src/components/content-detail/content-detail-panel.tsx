@@ -6,6 +6,7 @@ import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
+import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
@@ -151,7 +152,7 @@ const STEP_TEXT: Record<ContentDetail["status"], string> = {
 // The dot beside each event, always next to its title so colour is never the only signal. It
 // takes the tone of the status the event led to, as the status dots do: neutral once scheduled,
 // brand blue for a draft waiting on the admin, amber for one sent back, green from approval on.
-// Red is left to a missed deadline, which the Overdue and Late Submission tags carry.
+// Red is left to a missed deadline, which the Overdue tag carries.
 const EVENT_DOTS: Record<DetailEventType, string> = {
   scheduled: "bg-muted ring-muted",
   draft_submitted: "bg-accent ring-accent",
@@ -600,7 +601,10 @@ export function ContentDetailPanel({
                 ) : null}
 
                 <label className="flex flex-col gap-1 text-[13px]">
-                  <span className="font-semibold text-ink">{formSpec.label}</span>
+                  {/* A required note is marked as every required field is; the optional reason is not. */}
+                  <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
+                    {formSpec.label}
+                  </span>
                   <textarea
                     ref={focusOnMount}
                     required={formSpec.required}

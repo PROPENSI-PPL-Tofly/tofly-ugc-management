@@ -266,7 +266,7 @@ describe('toContentEntries', () => {
     ).toMatchObject({
       videoLink: 'https://www.tiktok.com/@ayu/video/1',
       outcome: 'submitted_late',
-      tags: ['late_submission'],
+      tags: ['overdue'],
     });
   });
 
@@ -286,7 +286,7 @@ describe('toContentEntries', () => {
       }),
     );
 
-    expect(row.tags).toEqual(['late_submission', 'overdue']);
+    expect(row.tags).toEqual(['overdue']);
   });
 
   it('keeps the deadline day itself open', () => {

@@ -349,6 +349,12 @@ describe("Task Saya page views", () => {
     );
   });
 
+  it("loads the calendar without the period an old link names, so no month is hidden by it", async () => {
+    await renderPage({ view: "calendar", period: "custom", from: "2026-10-01", to: "2026-10-31" });
+
+    expect(mockedFetchAll).toHaveBeenCalledExactlyOnceWith(DEFAULT_MY_TASKS_PARAMS, TODAY);
+  });
+
   it("carries the tab and filters from the table over to the calendar, without the page", async () => {
     await renderPage({ tab: "done", type: "evergreen", page: "2" });
 

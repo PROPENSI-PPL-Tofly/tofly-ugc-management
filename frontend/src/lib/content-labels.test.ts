@@ -36,9 +36,8 @@ describe("CONTENT_STATUS_TONES", () => {
 });
 
 describe("CONTENT_TAG_LABELS", () => {
-  it("names the three tags as the prototype words them, in the order the API sends them", () => {
+  it("names the two tags the API sends, in its order", () => {
     expect(Object.entries(CONTENT_TAG_LABELS)).toEqual([
-      ["late_submission", "Late Submission"],
       ["overdue", "Overdue"],
       ["approval_bypassed", "Approval di-bypass"],
     ]);
@@ -46,9 +45,8 @@ describe("CONTENT_TAG_LABELS", () => {
 });
 
 describe("CONTENT_TAG_TONES", () => {
-  it("marks a late hand-in and a missed deadline red, and a skipped approval amber", () => {
+  it("marks a missed deadline red and a skipped approval amber", () => {
     expect(CONTENT_TAG_TONES).toEqual({
-      late_submission: "red",
       overdue: "red",
       approval_bypassed: "amber",
     });

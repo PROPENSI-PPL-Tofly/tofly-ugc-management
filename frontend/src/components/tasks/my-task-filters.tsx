@@ -25,7 +25,7 @@ const TYPE_OPTIONS: MultiSelectOption[] = (
 
 /**
  * Task Saya's filter bar: the search, Tipe, Status, Overdue and Periode, as in the admin
- * Content Plan. The server hands in the validated tab, so the status choices stay scoped to
+ * Content Plan. The calendar leaves Periode out: its month is already the period on show. The server hands in the validated tab, so the status choices stay scoped to
  * what the tab can hold (hidden where that is a single status) and Overdue leaves Selesai,
  * where nothing waits any more. Every control reads the live URL through the shared hook, so a
  * pick is one replace away and Reset keeps the tab it was pressed on. The view is in the same
@@ -46,13 +46,16 @@ export function MyTaskFilters({
     label: taskStatusLabel(value),
   }));
 
-  // Read from what the address holds, offered or not, so Reset is there to clear it all.
+  const withPeriod = view !== "calendar";
+
+  // Read from what the address holds, offered or not, so Reset is there to clear it all. A
+  // period in a calendar link narrows nothing there, so it asks for no Reset.
   const isFilteredNow =
     search !== "" ||
     param("type") !== "all" ||
     param("status") !== "all" ||
     param("overdue") !== "all" ||
-    param("period") !== "all";
+    (withPeriod && param("period") !== "all");
 
   const day = (key: string) => (param(key) === "all" ? "" : param(key));
 
@@ -85,13 +88,15 @@ export function MyTaskFilters({
         />
       )}
 
-      <PeriodFilter
-        period={param("period")}
-        from={day("from")}
-        to={day("to")}
-        ignored={state.tab === PERIOD_FREE_MY_TAB && param("period") !== "all"}
-        onChange={setParam}
-      />
+      {withPeriod ? (
+        <PeriodFilter
+          period={param("period")}
+          from={day("from")}
+          to={day("to")}
+          ignored={state.tab === PERIOD_FREE_MY_TAB && param("period") !== "all"}
+          onChange={setParam}
+        />
+      ) : null}
 
       {isFilteredNow ? (
         <ResetFilters

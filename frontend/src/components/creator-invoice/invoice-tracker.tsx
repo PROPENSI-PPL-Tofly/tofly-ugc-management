@@ -7,16 +7,18 @@ const DOT: Record<StepState, string> = {
   todo: "border-rule bg-surface",
 };
 
+// The line into a step is green once the step is reached; the awaited one is not yet.
 const LINE: Record<StepState, string> = {
   done: "bg-green",
-  current: "bg-green",
+  current: "bg-rule",
   todo: "bg-rule",
 };
 
 /**
  * How far an invoice has walked: Berjalan → Final → Di-ack Creator → Bukti Bayar → Paid, each
- * reached step dated. The current step is marked for a screen reader with aria-current and a
- * done one says so in words, so the progress never lives in colour alone (WCAG 1.4.1).
+ * reached step green and dated, the ring on the step it waits on next. That step is marked for
+ * a screen reader with aria-current and a done one says so in words, so the progress never
+ * lives in colour alone (WCAG 1.4.1).
  */
 export function InvoiceTracker({ steps }: Readonly<{ steps: readonly InvoiceStep[] }>) {
   return (

@@ -106,18 +106,17 @@ describe("CreatorContentTable", () => {
     expect(typeLabel).toHaveClass("text-muted");
   });
 
-  it("shows every tag the content carries beside its status", () => {
-    renderTable([{ ...ROW, tags: ["late_submission", "overdue", "approval_bypassed"] }]);
+  it("shows Overdue and Approval di-bypass beside the status", () => {
+    renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
 
-    expect(screen.getByText("Late Submission")).toBeInTheDocument();
     expect(screen.getByText("Overdue")).toBeInTheDocument();
     expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
   });
 
-  it("counts the revisions an admin asked for", () => {
+  it("leaves the revision count to the content's panel", () => {
     renderTable([{ ...ROW, status: "draft_revision", revisionCount: 2 }]);
 
-    expect(screen.getByText("Revisi ke-2")).toBeInTheDocument();
+    expect(screen.queryByText(/Revisi ke-/)).toBeNull();
   });
 
   it("adds nothing to a row with no tag and no revision", () => {
