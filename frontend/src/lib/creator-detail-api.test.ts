@@ -24,6 +24,8 @@ function period(id: string, extra: Partial<RawCreatorPeriod> = {}): RawCreatorPe
     contentQuota: 6,
     daysBetween: 14,
     remainingEvergreenQuota: 4,
+    progress: { submitted: 0, total: 6, percent: 0 },
+    performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     ...extra,
   };
 }
@@ -36,6 +38,7 @@ const RAW: RawCreatorDetail = {
   name: "Lestari Wulandari",
   email: "lestari@example.com",
   socials: { instagram: "lestariw", tiktok: "lestari.w" },
+  accessRevokeDate: null,
   contractHistory: [
     period(OLDEST, {
       periodNumber: 1,
@@ -125,6 +128,7 @@ describe("toCreatorContentsQuery", () => {
   // is due today or overdue is on the first page. The API's own default is the latest first.
   it("always asks for the earliest deadline first, whatever the page or the filters", () => {
     const filtered = toCreatorContentsQuery(MIDDLE, {
+      ...BARE,
       contract: MIDDLE,
       type: ["specific"],
       status: ["draft_review"],
@@ -137,6 +141,7 @@ describe("toCreatorContentsQuery", () => {
 
   it("names the contract, one parameter per pick, and the page", () => {
     const query = toCreatorContentsQuery(MIDDLE, {
+      ...BARE,
       contract: MIDDLE,
       type: ["evergreen", "specific"],
       status: ["scheduled", "draft_review"],
@@ -181,6 +186,7 @@ describe("toCreatorDetailView", () => {
       name: "Lestari Wulandari",
       email: "lestari@example.com",
       socials: { instagram: "lestariw", tiktok: "lestari.w" },
+      accessRevokeDate: null,
     });
   });
 
@@ -204,6 +210,7 @@ describe("toCreatorDetailView", () => {
     } as unknown as RawCreatorDetail;
 
     expect(Object.keys(toCreatorDetailView(answered, CONTENTS, BARE).creator).sort()).toEqual([
+      "accessRevokeDate",
       "email",
       "id",
       "name",
@@ -233,6 +240,8 @@ describe("toCreatorDetailView", () => {
       evergreenCount: 3,
       remainingEvergreenQuota: 0,
       daysBetween: 7,
+      progress: { submitted: 0, total: 6, percent: 0 },
+      performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     });
   });
 
@@ -256,7 +265,7 @@ describe("toCreatorDetailView", () => {
           total: 4,
           isCurrent: true,
           progress: { submitted: 2, total: 4, percent: 50 },
-          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk" },
+          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
         },
       ],
     } as unknown as RawCreatorDetail;
@@ -272,6 +281,8 @@ describe("toCreatorDetailView", () => {
       evergreenCount: 2,
       remainingEvergreenQuota: 4,
       daysBetween: 14,
+      progress: { submitted: 2, total: 4, percent: 50 },
+      performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
     });
   });
 

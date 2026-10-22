@@ -24,8 +24,11 @@ import {
   type CreatorDetailView,
 } from "@/lib/creator-detail";
 import { useUrlQuery } from "@/lib/url-query";
+import { jakartaDay } from "@/lib/format";
 import { CreatorContentFilters } from "./creator-content-filters";
 import { CreatorContentTable } from "./creator-content-table";
+import { CREATOR_CONTENT_LIST_ID, CreatorContentTabBar } from "./creator-content-tab-bar";
+import { CreatorCalendar } from "./creator-calendar";
 
 /**
  * The open period's Content Plan: its filters, its table and the detail panel a row opens. The
@@ -40,11 +43,13 @@ export function CreatorContentBoard({
   creatorId,
   view,
   state,
+  today,
 }: Readonly<{
   creatorId: string;
   view: CreatorDetailView;
   /** The address as the server read it, which the page links are built on. */
   state: CreatorDetailParams;
+  today?: string;
 }>) {
   const router = useRouter();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
@@ -56,8 +61,13 @@ export function CreatorContentBoard({
 
   /** The empty filtered table's way back: every filter goes, the open period stays. */
   function resetFilters() {
-    const query = buildCreatorDetailQuery({ ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: state.contract });
+    const query = buildCreatorDetailQuery({ ...DEFAULT_CREATOR_DETAIL_PARAMS, contract: state.contract, tab: state.tab });
     replaceQuery(new URLSearchParams(query).toString());
+  }
+
+  function toggleSort() {
+    const next = { ...state, sort: state.sort === "asc" ? "desc" as const : "asc" as const, page: 1 };
+    replaceQuery(new URLSearchParams(buildCreatorDetailQuery(next)).toString());
   }
 
   /** What the list shows has changed: say so, and read it again. */
@@ -99,14 +109,29 @@ export function CreatorContentBoard({
           )}
         </div>
 
-        <CreatorContentFilters />
-
-        <CreatorContentTable
-          rows={view.rows}
-          filtered={isCreatorDetailFiltered(state)}
+        <CreatorCalendar
+          key={period.contractId}
+          entries={view.calendar}
+          period={period}
+          state={state}
+          today={today ?? jakartaDay()}
           onOpen={setOpenContentId}
-          onReset={resetFilters}
         />
+
+        <CreatorContentTabBar active={state.tab} counts={view.counts} />
+        <CreatorContentFilters tab={state.tab} />
+
+        <div id={CREATOR_CONTENT_LIST_ID} role="tabpanel" aria-label="Konten kreator">
+          <CreatorContentTable
+            rows={view.rows}
+            filtered={isCreatorDetailFiltered(state)}
+            tab={state.tab}
+            sort={state.sort}
+            onSortToggle={toggleSort}
+            onOpen={setOpenContentId}
+            onReset={resetFilters}
+          />
+        </div>
 
         <Pagination
           basePath={creatorDetailBase(creatorId)}

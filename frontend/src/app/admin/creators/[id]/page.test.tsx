@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import type { CreatorDetailView, CreatorPeriod } from "@/lib/creator-detail";
+import { DEFAULT_CREATOR_DETAIL_PARAMS, type CreatorDetailView, type CreatorPeriod } from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 import CreatorDetailPage, { metadata } from "./page";
 
@@ -40,6 +40,8 @@ const NEWEST: CreatorPeriod = {
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  progress: { submitted: 0, total: 19, percent: 0 },
+  performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
 
 const OLDEST: CreatorPeriod = {
@@ -53,6 +55,8 @@ const OLDEST: CreatorPeriod = {
   evergreenCount: 3,
   remainingEvergreenQuota: 0,
   daysBetween: 7,
+  progress: { submitted: 3, total: 3, percent: 100 },
+  performance: { onTimeRate: 100, avgRevisions: 0, productivity: "good", productivityLabel: "Baik" },
 };
 
 function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
@@ -62,6 +66,7 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
       name: "Rangga Pratama",
       email: "rangga@example.com",
       socials: { instagram: "rangga.creates" },
+      accessRevokeDate: null,
     },
     periods: [NEWEST, OLDEST],
     selected: NEWEST,
@@ -79,6 +84,9 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
     page: 1,
     total: 1,
     totalPages: 1,
+    counts: { all: 1, action: 1, waiting: 0, done: 0 },
+    calendar: [],
+    earnings: null,
     ...overrides,
   };
 }
@@ -143,10 +151,8 @@ describe("Creator Detail page", () => {
     await renderPage();
 
     expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
+      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: null,
-      type: [],
-      status: [],
-      page: 1,
     });
   });
 
@@ -154,6 +160,7 @@ describe("Creator Detail page", () => {
     await renderPage({ contract: FIRST, type: "specific", status: "scheduled,pending", page: "2" });
 
     expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
+      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: FIRST,
       type: ["specific"],
       status: ["scheduled", "pending"],
@@ -170,6 +177,7 @@ describe("Creator Detail page", () => {
     });
 
     expect(fetchCreatorDetail).toHaveBeenCalledExactlyOnceWith(CREATOR, {
+      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: null,
       type: [],
       status: [],

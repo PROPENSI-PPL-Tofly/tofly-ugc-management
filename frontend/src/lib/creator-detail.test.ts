@@ -14,12 +14,7 @@ import {
 const CONTRACT = "3f2b8c1e-5d4a-4e7b-9c1d-2a6f8b0e4d11";
 const OTHER_CONTRACT = "9a1c7e52-0b3d-4f68-8e2a-6c5d4b3a2f10";
 
-const BARE: CreatorDetailParams = {
-  contract: null,
-  type: [],
-  status: [],
-  page: 1,
-};
+const BARE: CreatorDetailParams = DEFAULT_CREATOR_DETAIL_PARAMS;
 
 describe("CREATOR_DETAIL_PAGE_SIZE", () => {
   it("is the ten rows a page that 4.1 serves and 4.2 shows", () => {
@@ -42,6 +37,7 @@ describe("parseCreatorDetailParams", () => {
         page: "3",
       }),
     ).toEqual({
+      ...BARE,
       contract: CONTRACT,
       type: ["specific"],
       status: ["draft_review", "draft_revision"],
@@ -73,6 +69,18 @@ describe("parseCreatorDetailParams", () => {
 
     expect(state.type).toEqual(["evergreen"]);
     expect(state.status).toEqual(["scheduled"]);
+  });
+
+  it("parses the Content Plan tab, title search, Overdue and deadline order for Creator Detail", () => {
+    expect(
+      parseCreatorDetailParams({
+        tab: "done",
+        q: " kopi ",
+        overdue: "yes",
+        sort: "desc",
+        page: "3",
+      }),
+    ).toMatchObject({ tab: "done", q: "kopi", overdue: "yes", sort: "desc", page: 3 });
   });
 
   it.each(["0", "-2", "abc", "1.5", "", " 2"])(
@@ -123,6 +131,7 @@ describe("buildCreatorDetailQuery", () => {
 
   it("writes only what differs from the default, in a stable order", () => {
     const query = buildCreatorDetailQuery({
+      ...BARE,
       contract: CONTRACT,
       type: ["evergreen", "specific"],
       status: ["scheduled"],
@@ -146,6 +155,7 @@ describe("buildCreatorDetailQuery", () => {
 
   it("reads back as the state it was built from", () => {
     const state: CreatorDetailParams = {
+      ...BARE,
       contract: CONTRACT,
       type: ["specific"],
       status: ["draft_approved", "link_submitted"],
@@ -188,6 +198,7 @@ describe("creatorDetailAfterFilterChange", () => {
     const state: CreatorDetailParams = { ...BARE, contract: CONTRACT, type: ["evergreen"], page: 3 };
 
     expect(creatorDetailAfterFilterChange(state, { status: ["scheduled"] })).toEqual({
+      ...BARE,
       contract: CONTRACT,
       type: ["evergreen"],
       status: ["scheduled"],
@@ -206,6 +217,7 @@ describe("creatorDetailAfterFilterChange", () => {
 describe("creatorDetailAfterContractChange", () => {
   it("opens the other contract unfiltered on page one, as the prototype does on a period tab", () => {
     const state: CreatorDetailParams = {
+      ...BARE,
       contract: CONTRACT,
       type: ["specific"],
       status: ["draft_review"],

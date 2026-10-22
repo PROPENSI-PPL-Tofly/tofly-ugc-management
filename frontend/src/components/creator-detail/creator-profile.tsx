@@ -1,12 +1,14 @@
 import { Panel } from "@/components/ui/panel";
 import { StatusDot } from "@/components/ui/pill";
 import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
+import { ACCESS_STATE_LABELS, ACCESS_STATE_TONES, creatorAccess } from "@/lib/creator-detail";
 import {
   PERIOD_STATUS_LABELS,
   PERIOD_STATUS_TONES,
   type CreatorPeriod,
   type CreatorProfile,
 } from "@/lib/creator-detail";
+import { jakartaDay } from "@/lib/format";
 
 /** How each platform is captioned on its chip, in the order the chips are laid out. */
 const PLATFORMS = [
@@ -24,12 +26,16 @@ const CAPTION = "text-xs text-muted";
 export function CreatorProfilePanel({
   creator,
   current,
+  today = jakartaDay(),
 }: Readonly<{
   creator: CreatorProfile;
   /** The creator's latest contract; null for a creator without one. */
   current: CreatorPeriod | null;
+  /** Jakarta calendar day, injected by the server so the access state is deterministic. */
+  today?: string;
 }>) {
   const accounts = PLATFORMS.filter(({ key }) => creator.socials[key]);
+  const access = creatorAccess(creator.accessRevokeDate, current?.endDate ?? null, today);
 
   return (
     <Panel>
@@ -57,19 +63,29 @@ export function CreatorProfilePanel({
           )}
         </div>
 
-        {current ? (
-          <dl className="grid shrink-0 grid-cols-[auto_auto] items-center gap-x-4 gap-y-2">
-            <dt className={CAPTION}>Tipe</dt>
-            <dd className="text-[13px] font-semibold">{CONTRACT_TYPE_LABELS[current.type]}</dd>
+        <dl className="grid shrink-0 grid-cols-[auto_auto] items-center gap-x-4 gap-y-2">
+          {current ? (
+            <>
+              <dt className={CAPTION}>Tipe</dt>
+              <dd className="text-[13px] font-semibold">{CONTRACT_TYPE_LABELS[current.type]}</dd>
 
-            <dt className={CAPTION}>Kontrak</dt>
-            <dd>
-              <StatusDot tone={PERIOD_STATUS_TONES[current.status]}>
-                {PERIOD_STATUS_LABELS[current.status]}
-              </StatusDot>
-            </dd>
-          </dl>
-        ) : null}
+              <dt className={CAPTION}>Kontrak</dt>
+              <dd>
+                <StatusDot tone={PERIOD_STATUS_TONES[current.status]}>
+                  {PERIOD_STATUS_LABELS[current.status]}
+                </StatusDot>
+              </dd>
+            </>
+          ) : null}
+
+          <dt className={CAPTION}>Akses</dt>
+          <dd>
+            <StatusDot tone={ACCESS_STATE_TONES[access.state]}>
+              {ACCESS_STATE_LABELS[access.state]}
+            </StatusDot>
+            {access.note ? <p className="mt-1 max-w-64 text-xs text-muted">{access.note}</p> : null}
+          </dd>
+        </dl>
       </div>
     </Panel>
   );

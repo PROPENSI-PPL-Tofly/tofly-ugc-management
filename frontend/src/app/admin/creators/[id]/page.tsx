@@ -11,6 +11,7 @@ import {
   parseCreatorDetailParams,
   type CreatorDetailView,
 } from "@/lib/creator-detail";
+import { jakartaDay } from "@/lib/format";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ export default async function CreatorDetailPage({
 
   // Outside the try, so the not-found signal is never mistaken for a failed request.
   if (view === null) notFound();
+  const today = jakartaDay();
 
   return (
     <AppShell
@@ -65,9 +67,15 @@ export default async function CreatorDetailPage({
       {view ? (
         <div className="flex flex-col gap-4">
           {/* The profile describes the creator's latest contract, whichever period is open. */}
-          <CreatorProfilePanel creator={view.creator} current={view.periods[0] ?? null} />
-          <PeriodTabs creatorId={id} periods={view.periods} selected={view.selected} />
-          <CreatorContentBoard creatorId={id} view={view} state={state} />
+          <CreatorProfilePanel creator={view.creator} current={view.periods[0] ?? null} today={today} />
+          <PeriodTabs
+            creatorId={id}
+            creatorName={view.creator.name}
+            periods={view.periods}
+            selected={view.selected}
+            earnings={view.earnings}
+          />
+          <CreatorContentBoard creatorId={id} view={view} state={state} today={today} />
         </div>
       ) : (
         <Panel>

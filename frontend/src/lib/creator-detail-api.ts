@@ -7,7 +7,8 @@
 //
 // Pure module: no next/headers, so it runs anywhere.
 
-import type { RawContentList, RawContentListItem } from "./content-list-api";
+import { toContentListQuery, type RawContentList, type RawContentListItem } from "./content-list-api";
+import { DEFAULT_CONTENT_PLAN_PARAMS, type ContentPlanParams } from "./content-plan";
 import type {
   CreatorContentRow,
   CreatorDetailParams,
@@ -16,6 +17,8 @@ import type {
   CreatorProfile,
 } from "./creator-detail";
 import type { ContractPeriod } from "./creators";
+import type { RawInvoiceDetail } from "./invoice-api";
+import { jakartaDay } from "./format";
 
 /**
  * One contract period as GET /creators/:id sends it, picked from the mirror of the backend's
@@ -34,13 +37,19 @@ export type RawCreatorPeriod = Pick<
   | "contentQuota"
   | "daysBetween"
   | "remainingEvergreenQuota"
+  | "progress"
+  | "performance"
 >;
+
+/** The invoice card needs only the endpoint's total, floor and status. */
+export type RawPeriodInvoice = Pick<RawInvoiceDetail, "total" | "floored" | "invoiceStatus">;
 
 export interface RawCreatorDetail {
   id: string;
   name: string;
   email: string;
   socials: Partial<Record<"instagram" | "tiktok", string>>;
+  accessRevokeDate?: string | null;
   /** Oldest first. */
   contractHistory: RawCreatorPeriod[];
 }
@@ -68,20 +77,44 @@ export function openContractId(raw: RawCreatorDetail, state: CreatorDetailParams
 export function toCreatorContentsQuery(
   contractId: string,
   state: CreatorDetailParams,
+  today: string = jakartaDay(),
 ): URLSearchParams {
-  const query = new URLSearchParams();
+  // Use the Content Plan adapter so its tab names, search cap, overdue logic, status/type
+  // filtering, and sort mapping remain the single source of API vocabulary.
+  const planState: ContentPlanParams = {
+    ...DEFAULT_CONTENT_PLAN_PARAMS,
+    tab: state.tab,
+    page: state.page,
+    q: state.q,
+    type: state.type,
+    status: state.status,
+    overdue: state.overdue,
+    sort: state.sort,
+  };
+  const translated = toContentListQuery(planState, today);
+  const query = new URLSearchParams({ contract: contractId });
+  for (const [key, value] of translated) query.append(key, value);
+  return query;
+}
 
-  query.set("contract", contractId);
-  for (const type of new Set(state.type)) query.append("type", type);
-  for (const status of new Set(state.status)) query.append("status", status);
+/** All period rows, in deadline order, for the calendar's month grid. */
+export const CREATOR_CALENDAR_PAGE_SIZE = 50;
 
-  // Earliest deadline first, as the per-creator Content Plan this page replaces listed it: what
-  // is due today or overdue belongs on the first page. The API's own default is latest first.
-  query.set("sort", "deadline_asc");
-
-  // The API counts on a page number whichever page is asked for, page one included.
-  query.set("page", String(state.page));
-
+export function toCreatorCalendarQuery(
+  contractId: string,
+  page: number,
+  today: string = jakartaDay(),
+): URLSearchParams {
+  const translated = toContentListQuery(
+    { ...DEFAULT_CONTENT_PLAN_PARAMS, sort: "asc", page },
+    today,
+  );
+  const query = new URLSearchParams({
+    contract: contractId,
+    sort: translated.get("sort") ?? "deadline_asc",
+    pageSize: String(CREATOR_CALENDAR_PAGE_SIZE),
+    page: String(page),
+  });
   return query;
 }
 
@@ -90,7 +123,13 @@ function toProfile(raw: RawCreatorDetail): CreatorProfile {
   if (raw.socials.instagram) socials.instagram = raw.socials.instagram;
   if (raw.socials.tiktok) socials.tiktok = raw.socials.tiktok;
 
-  return { id: raw.id, name: raw.name, email: raw.email, socials };
+  return {
+    id: raw.id,
+    name: raw.name,
+    email: raw.email,
+    socials,
+    accessRevokeDate: raw.accessRevokeDate,
+  };
 }
 
 function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
@@ -110,6 +149,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
     daysBetween: period.daysBetween,
+    progress: period.progress,
+    performance: period.performance,
   };
 }
 
@@ -134,6 +175,8 @@ export function toCreatorDetailView(
   raw: RawCreatorDetail,
   contents: RawContentList | null,
   state: CreatorDetailParams,
+  calendar: readonly RawContentListItem[] = [],
+  invoice: RawPeriodInvoice | null = null,
 ): CreatorDetailView {
   // The tabs and the profile read the periods newest first.
   const periods = raw.contractHistory.map(toPeriod).reverse();
@@ -151,5 +194,15 @@ export function toCreatorDetailView(
     page: Math.min(contents?.page ?? 1, totalPages),
     total: contents?.total ?? 0,
     totalPages,
+    counts: {
+      all: contents?.tabCounts?.all ?? 0,
+      action: contents?.tabCounts?.needs_approval ?? 0,
+      waiting: contents?.tabCounts?.waiting_creator ?? 0,
+      done: contents?.tabCounts?.done ?? 0,
+    },
+    calendar: calendar.map(toRow),
+    earnings: invoice
+      ? { amount: invoice.floored ? 0 : invoice.total, status: invoice.invoiceStatus }
+      : null,
   };
 }

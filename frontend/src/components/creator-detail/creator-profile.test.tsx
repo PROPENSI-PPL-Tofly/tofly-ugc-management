@@ -7,6 +7,7 @@ const CREATOR: CreatorProfile = {
   name: "Rangga Pratama",
   email: "rangga@example.com",
   socials: { instagram: "rangga.creates", tiktok: "ranggacreates" },
+  accessRevokeDate: null,
 };
 
 const PERIOD: CreatorPeriod = {
@@ -20,6 +21,8 @@ const PERIOD: CreatorPeriod = {
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  progress: { submitted: 0, total: 19, percent: 0 },
+  performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
 
 function socials() {
@@ -84,7 +87,7 @@ describe("CreatorProfilePanel", () => {
     render(<CreatorProfilePanel creator={CREATOR} current={{ ...PERIOD, type: "regular", status: "active" }} />);
 
     expect(screen.getByText("Regular")).not.toHaveClass("rounded-full");
-    const state = screen.getByText("Aktif");
+    const state = within(screen.getByText("Akses").nextElementSibling as HTMLElement).getByText("Aktif");
     expect(state).not.toHaveClass("rounded-full");
     expect(state.querySelector('[aria-hidden="true"]')).toHaveClass("bg-green");
   });

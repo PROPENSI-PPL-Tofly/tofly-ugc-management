@@ -24,6 +24,7 @@ const DETAIL: RawCreatorDetail = {
   name: "Lestari Wulandari",
   email: "lestari@example.com",
   socials: { instagram: "lestariw" },
+  accessRevokeDate: null,
   contractHistory: [
     {
       id: OLDER,
@@ -35,6 +36,8 @@ const DETAIL: RawCreatorDetail = {
       contentQuota: 3,
       daysBetween: 7,
       remainingEvergreenQuota: 2,
+      progress: { submitted: 0, total: 3, percent: 0 },
+      performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     },
     {
       id: NEWEST,
@@ -46,6 +49,8 @@ const DETAIL: RawCreatorDetail = {
       contentQuota: 6,
       daysBetween: 14,
       remainingEvergreenQuota: 5,
+      progress: { submitted: 0, total: 6, percent: 0 },
+      performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     },
   ],
 };
@@ -89,8 +94,16 @@ function backend({
   const queue = Array.isArray(contents) ? [...contents] : [contents];
 
   vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
-    const forContents = new URL(String(input)).pathname.startsWith("/contents");
-    const reply = forContents ? (queue.length > 1 ? queue.shift()! : queue[0]) : detail;
+    const url = new URL(String(input));
+    const forTable = url.pathname === "/contents" && !url.searchParams.has("pageSize");
+    const forCalendar = url.pathname === "/contents" && url.searchParams.has("pageSize");
+    const reply = forTable
+      ? (queue.length > 1 ? queue.shift()! : queue[0])
+      : forCalendar
+        ? answer(200, CONTENTS)
+        : url.pathname.startsWith("/invoices/")
+          ? answer(404, {})
+          : detail;
     if (reply instanceof Error) throw reply;
     return reply.clone();
   });
@@ -111,7 +124,11 @@ function contentsOf(page: number, total: number, rows = 0): Response {
 }
 
 function requests(): [string, RequestInit][] {
-  return vi.mocked(globalThis.fetch).mock.calls as [string, RequestInit][];
+  return (vi.mocked(globalThis.fetch).mock.calls as [string, RequestInit][]).filter(([input]) => {
+    const url = new URL(String(input));
+    return url.pathname.startsWith("/creators/") ||
+      (url.pathname === "/contents" && !url.searchParams.has("pageSize"));
+  });
 }
 
 function urls(): string[] {
@@ -142,6 +159,7 @@ describe("fetchCreatorDetail", () => {
 
   it("asks for the period the address names, with its filters and page, in the API's own words", async () => {
     await fetchCreatorDetail(CREATOR, {
+      ...DEFAULT_CREATOR_DETAIL_PARAMS,
       contract: OLDER,
       type: ["evergreen", "specific"],
       status: ["scheduled"],
@@ -171,6 +189,7 @@ describe("fetchCreatorDetail", () => {
       name: "Lestari Wulandari",
       email: "lestari@example.com",
       socials: { instagram: "lestariw" },
+      accessRevokeDate: null,
     });
     expect(view?.periods.map((period) => period.contractId)).toEqual([NEWEST, OLDER]);
     expect(view?.selected?.contractId).toBe(NEWEST);
@@ -298,6 +317,7 @@ describe("fetchCreatorDetail", () => {
       backend({ contents: [contentsOf(99, 14), contentsOf(2, 14, 4)] });
 
       const view = await fetchCreatorDetail(CREATOR, {
+        ...DEFAULT_CREATOR_DETAIL_PARAMS,
         contract: OLDER,
         type: ["evergreen"],
         status: ["scheduled", "pending"],
