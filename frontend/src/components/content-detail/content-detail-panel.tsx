@@ -6,6 +6,7 @@ import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
+import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
@@ -600,7 +601,10 @@ export function ContentDetailPanel({
                 ) : null}
 
                 <label className="flex flex-col gap-1 text-[13px]">
-                  <span className="font-semibold text-ink">{formSpec.label}</span>
+                  {/* A required note is marked as every required field is; the optional reason is not. */}
+                  <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
+                    {formSpec.label}
+                  </span>
                   <textarea
                     ref={focusOnMount}
                     required={formSpec.required}
