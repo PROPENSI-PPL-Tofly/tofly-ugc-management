@@ -20,6 +20,7 @@ import {
   type InvoiceStatus,
   type PendingBonus,
 } from "./invoice";
+import { periodRange } from "./deadline-period";
 import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -109,11 +110,16 @@ export interface RawInvoiceDetail extends RawInvoiceRow {
 }
 
 /** The page's state as the query GET /invoices reads: the filters that are applied, the page and its size. */
-export function toInvoiceListQuery(state: InvoiceParams): URLSearchParams {
+export function toInvoiceListQuery(state: InvoiceParams, today: string): URLSearchParams {
   const query = new URLSearchParams();
   if (state.q) query.set("q", state.q);
   if (state.contract !== "all") query.set("contract", state.contract);
   if (state.status !== "all") query.set("status", state.status);
+
+  // The contract-end period, as the two days it stands for (contractEndFrom/To).
+  const [from, to] = periodRange(state, today);
+  if (from) query.set("contractEndFrom", from);
+  if (to) query.set("contractEndTo", to);
   if (state.sort !== "action" || state.order !== "asc") {
     query.set("sort", state.sort);
     query.set("order", state.order);
