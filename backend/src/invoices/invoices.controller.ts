@@ -48,13 +48,15 @@ export class InvoicesController {
     @Query('q') q?: string,
     @Query('contract') contract?: string,
     @Query('status') status?: string,
+    @Query('contractEndFrom') contractEndFrom?: string,
+    @Query('contractEndTo') contractEndTo?: string,
     @Query('sort') sort?: string,
     @Query('order') order?: string,
   ): Promise<InvoiceListResponse> {
     return this.invoices.list(
       checkPaging(page, pageSize),
       new Date(),
-      checkInvoiceFilters(q, contract, status),
+      checkInvoiceFilters(q, contract, status, contractEndFrom, contractEndTo),
       checkInvoiceSort(sort, order),
     );
   }
