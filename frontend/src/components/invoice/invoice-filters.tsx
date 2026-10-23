@@ -2,6 +2,7 @@
 
 import {
   FilterSelect,
+  PeriodFilter,
   ResetFilters,
   SearchBox,
   type FilterOption,
@@ -24,8 +25,8 @@ const INVOICE_OPTIONS: FilterOption[] = [
   ...optionsOf(INVOICE_STATUS_LABELS),
 ];
 
-/** Every address parameter the bar's Reset clears: the search, both filters and the sort. */
-const RESETTABLE = ["q", "contract", "status", "sort", "order"] as const;
+/** Every address parameter the bar's Reset clears: the search, both filters, the period and the sort. */
+const RESETTABLE = ["q", "contract", "status", "period", "from", "to", "sort", "order"] as const;
 
 /**
  * The filter bar over the Rate & Invoicing table: by creator name, by where their contract
@@ -56,6 +57,17 @@ export function InvoiceFilters() {
         value={param("status")}
         options={INVOICE_OPTIONS}
         onChange={(value) => setParam("status", value)}
+      />
+
+      {/* The contract-end period (I2.3): named, or its two days. Named so on this table it can
+          never be read as a contract's period number. */}
+      <PeriodFilter
+        period={param("period")}
+        from={param("from") === "all" ? "" : param("from")}
+        to={param("to") === "all" ? "" : param("to")}
+        ignored={false}
+        label="Periode Berakhir Kontrak"
+        onChange={setParam}
       />
 
       {/* Left out until there is something to clear, as on Creator Database. */}
