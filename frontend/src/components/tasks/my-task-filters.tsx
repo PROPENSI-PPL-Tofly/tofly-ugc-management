@@ -4,10 +4,10 @@ import {
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
-  ResetFilters,
   SearchBox,
   offeredPicks,
 } from "@/components/filters/filter-controls";
+import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
@@ -59,56 +59,79 @@ export function MyTaskFilters({
 
   const day = (key: string) => (param(key) === "all" ? "" : param(key));
 
+  const typePicks = offeredPicks(listParam("type"), TYPE_OPTIONS);
+  const statusPicks = offeredPicks(listParam("status"), statusOptions);
+
+  function resetKeepingTabAndView() {
+    resetKeeping({
+      ...(state.tab === "all" ? {} : { tab: state.tab }),
+      ...taskViewParams(view),
+    });
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
-      <SearchBox label="Cari judul konten" value={search} onChange={setSearch} />
+    <>
+      <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
+        <SearchBox label="Cari judul konten" value={search} onChange={setSearch} />
 
-      <MultiSelect
-        label="Tipe"
-        options={TYPE_OPTIONS}
-        selected={offeredPicks(listParam("type"), TYPE_OPTIONS)}
-        onChange={(next) => setParam("type", next.join(","))}
-      />
-
-      {statusOptions.length > 1 ? (
         <MultiSelect
-          label="Status"
-          options={statusOptions}
-          selected={offeredPicks(listParam("status"), statusOptions)}
-          onChange={(next) => setParam("status", next.join(","))}
+          label="Tipe"
+          options={TYPE_OPTIONS}
+          selected={typePicks}
+          onChange={(next) => setParam("type", next.join(","))}
         />
-      ) : null}
 
-      {state.tab === "done" ? null : (
-        <FilterSelect
-          label="Overdue"
-          value={param("overdue")}
-          options={OVERDUE_OPTIONS}
-          onChange={(value) => setParam("overdue", value)}
-        />
-      )}
+        {statusOptions.length > 1 ? (
+          <MultiSelect
+            label="Status"
+            options={statusOptions}
+            selected={statusPicks}
+            onChange={(next) => setParam("status", next.join(","))}
+          />
+        ) : null}
 
-      {withPeriod ? (
-        <PeriodFilter
-          period={param("period")}
-          from={day("from")}
-          to={day("to")}
-          ignored={state.tab === PERIOD_FREE_MY_TAB && param("period") !== "all"}
-          onChange={setParam}
-        />
-      ) : null}
+        {state.tab === "done" ? null : (
+          <FilterSelect
+            label="Overdue"
+            value={param("overdue")}
+            options={OVERDUE_OPTIONS}
+            onChange={(value) => setParam("overdue", value)}
+          />
+        )}
 
-      {isFilteredNow ? (
-        <ResetFilters
-          onReset={() =>
-            resetKeeping({
-              ...(state.tab === "all" ? {} : { tab: state.tab }),
-              ...taskViewParams(view),
-            })
-          }
-          disabled={pending}
-        />
-      ) : null}
-    </div>
+        {withPeriod ? (
+          <PeriodFilter
+            period={param("period")}
+            from={day("from")}
+            to={day("to")}
+            ignored={state.tab === PERIOD_FREE_MY_TAB && param("period") !== "all"}
+            onChange={setParam}
+          />
+        ) : null}
+      </div>
+
+      {/* Every pick named after its filter, gathered below the bar as the benchmark lays them. */}
+      <FilterChips
+        chips={[
+          ...pickedChips("Tipe", typePicks, TYPE_OPTIONS, (value) =>
+            setParam(
+              "type",
+              typePicks.filter((pick) => pick !== value).join(","),
+            ),
+          ),
+          ...(statusOptions.length > 1
+            ? pickedChips("Status", statusPicks, statusOptions, (value) =>
+                setParam(
+                  "status",
+                  statusPicks.filter((pick) => pick !== value).join(","),
+                ),
+              )
+            : []),
+        ]}
+        canReset={isFilteredNow}
+        resetDisabled={pending}
+        onReset={resetKeepingTabAndView}
+      />
+    </>
   );
 }
