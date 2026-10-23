@@ -588,6 +588,50 @@ describe('InvoicesService', () => {
       expect(ids(result)).toEqual(['kevin']);
     });
 
+    it('narrows the roster to contracts ending in the named range, in the query itself', async () => {
+      await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        contractEndFrom: '2026-06-01',
+        contractEndTo: '2026-08-31',
+      });
+
+      expect(prisma.creators.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            contracts: {
+              some: {
+                end_date: {
+                  gte: new Date('2026-06-01T00:00:00Z'),
+                  lte: new Date('2026-08-31T00:00:00Z'),
+                },
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    it('narrows by one open end of a range, leaving the other out of the query', async () => {
+      await service.list({ page: 1, pageSize: 10 }, TODAY, {
+        contractEndFrom: '2026-06-01',
+      });
+
+      expect(prisma.creators.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            contracts: { some: { end_date: { gte: new Date('2026-06-01T00:00:00Z') } } },
+          },
+        }),
+      );
+    });
+
+    it('leaves the roster open while no range is named', async () => {
+      await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+      expect(prisma.creators.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { contracts: { some: {} } } }),
+      );
+    });
+
     it('answers the last page when asked for one past it', async () => {
       const result = await service.list({ page: 9, pageSize: 2 }, TODAY);
 
