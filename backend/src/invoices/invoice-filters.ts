@@ -2,6 +2,7 @@
 // contract status and the invoice status.
 
 import { BadRequestException } from '@nestjs/common';
+import { calendarDay } from '../list-query.js';
 import { MAX_SEARCH_LENGTH } from '../creators/filters.js';
 import { INVOICE_STATUSES, type InvoiceStatus } from './invoice-status.js';
 
@@ -21,6 +22,10 @@ export interface InvoiceFilters {
   contract?: InvoiceContractStatus;
   /** Where the creator's invoice stands in its pipeline. */
   status?: InvoiceStatus;
+  /** The first contract-end day kept, ISO calendar day, inclusive. */
+  contractEndFrom?: string;
+  /** The last contract-end day kept, ISO calendar day, inclusive. */
+  contractEndTo?: string;
 }
 
 /**
@@ -32,6 +37,8 @@ export function checkInvoiceFilters(
   q: unknown,
   contract: unknown,
   status?: unknown,
+  contractEndFrom?: unknown,
+  contractEndTo?: unknown,
 ): InvoiceFilters {
   const filters: InvoiceFilters = {};
 
@@ -63,6 +70,15 @@ export function checkInvoiceFilters(
     }
     filters.status = status as InvoiceStatus;
   }
+
+  // The contract-end period: two calendar days, either one left open, never backwards.
+  const from = calendarDay('contractEndFrom', contractEndFrom);
+  const to = calendarDay('contractEndTo', contractEndTo);
+  if (from && to && from > to) {
+    throw new BadRequestException('contractEndFrom must not be after contractEndTo');
+  }
+  if (from) filters.contractEndFrom = from;
+  if (to) filters.contractEndTo = to;
 
   return filters;
 }
