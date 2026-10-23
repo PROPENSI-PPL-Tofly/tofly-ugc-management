@@ -43,6 +43,9 @@ describe("parseInvoiceParams", () => {
       q: "",
       contract: "all",
       status: "all",
+      period: "all",
+      from: "",
+      to: "",
       sort: "action",
       order: "asc",
       page: 1,
@@ -65,6 +68,43 @@ describe("parseInvoiceParams", () => {
       ...DEFAULT_INVOICE_PARAMS,
       contract: "upcoming",
       status: "paid",
+    });
+  });
+
+  it("reads the contract-end period the filter bar offers", () => {
+    expect(parseInvoiceParams({ period: "month" }).period).toBe("month");
+    expect(parseInvoiceParams({ period: "next30" }).period).toBe("next30");
+    expect(parseInvoiceParams({ period: "last90" }).period).toBe("last90");
+    expect(parseInvoiceParams({ period: "custom", from: "2026-06-01", to: "2026-08-31" })).toEqual(
+      {
+        ...DEFAULT_INVOICE_PARAMS,
+        period: "custom",
+        from: "2026-06-01",
+        to: "2026-08-31",
+      },
+    );
+  });
+
+  it.each(["week", "MONTH", "banana", ""])(
+    "falls back to all periods for %s, which is not one of ours",
+    (raw) => {
+      expect(parseInvoiceParams({ period: raw }).period).toBe("all");
+    },
+  );
+
+  it("keeps only real days as the custom range", () => {
+    expect(parseInvoiceParams({ period: "custom", from: "2026-02-31", to: "31-08-2026" })).toEqual({
+      ...DEFAULT_INVOICE_PARAMS,
+      period: "custom",
+      from: "",
+      to: "",
+    });
+  });
+
+  it("carries the custom days through when a period is not named", () => {
+    expect(parseInvoiceParams({ from: "2026-06-01" })).toEqual({
+      ...DEFAULT_INVOICE_PARAMS,
+      from: "2026-06-01",
     });
   });
 
@@ -122,6 +162,24 @@ describe("buildInvoiceQuery", () => {
 
   it("does not carry a contract or status that is not applied", () => {
     expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, page: 2 })).toEqual({ page: "2" });
+  });
+
+  it("carries the contract-end period into the page links", () => {
+    expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, period: "month" })).toEqual({
+      period: "month",
+    });
+  });
+
+  it("carries the custom days of a period, and only the ones set", () => {
+    expect(
+      buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, period: "custom", from: "2026-06-01", to: "" }),
+    ).toEqual({ period: "custom", from: "2026-06-01" });
+  });
+
+  it("carries no period while none is named", () => {
+    expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, from: "2026-06-01" })).toEqual({
+      from: "2026-06-01",
+    });
   });
 });
 
