@@ -129,7 +129,8 @@ export function PeriodTabs({
   }
 
   return (
-    <Panel>
+    // Unclipped: the ⓘ beside Produktivitas opens a bubble that hangs past the panel's edge.
+    <Panel clip={false}>
       <PanelHead title="Periode Kontrak" />
 
       {selected ? (
