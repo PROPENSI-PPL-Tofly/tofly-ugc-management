@@ -140,6 +140,16 @@ describe("PeriodTabs", () => {
     expect(screen.queryByText(/Rp/)).toBeNull();
   });
 
+  // The ⓘ beside Produktivitas opens its bubble below the card. A panel that clips its content
+  // cut the bubble off at the panel's bottom border, halfway through the explanation.
+  it("lets the Produktivitas explanation hang past the panel's edge", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    const panel = screen.getByRole("heading", { level: 2, name: "Periode Kontrak" }).closest("section");
+    expect(panel).not.toHaveClass("overflow-hidden");
+    expect(within(panel as HTMLElement).getByTestId("info-tip")).toBeInTheDocument();
+  });
+
   it("shows a creator's only period as one tab, open", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={[NEWEST]} selected={NEWEST} />);
 
