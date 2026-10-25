@@ -88,6 +88,21 @@ describe("InfoTip", () => {
       expect(hover().style.transform).toBe("translate(232px, 0px)");
     });
 
+    it("opens the bubble above the icon when it would run past the bottom and there is room", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      layout(1024, 700, box(600, 640, 16, 16), box(600, 662, 260, 90));
+
+      // It ends 6 px above the icon, as it starts 6 px below it.
+      expect(hover().style.transform).toBe("translate(0px, -118px)");
+    });
+
+    it("keeps the bubble below when there is no room above either", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      layout(1024, 100, box(600, 40, 16, 16), box(600, 62, 260, 90));
+
+      expect(hover().style.transform).toBe("");
+    });
+
     it("places the bubble when the icon is reached by keyboard too", () => {
       render(<InfoTip label="Info" text="Teks" />);
       layout(375, 800, box(289, 400, 16, 16), box(289, 422, 260, 90));
