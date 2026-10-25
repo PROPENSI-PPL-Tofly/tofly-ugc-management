@@ -2,8 +2,9 @@
 
 import { useId, type SyntheticEvent } from "react";
 
-/** How far the bubble stays from the edge of the window, in pixels. */
+/** How far the bubble stays from the edge of the window, and from its icon, in pixels. */
 const WINDOW_MARGIN = 8;
+const ICON_GAP = 6;
 
 /**
  * The ⓘ beside a label or heading that explains it. The explanation shows on hover and on
@@ -24,14 +25,16 @@ export function InfoTip({
 
   // Where the icon sits decides whether the bubble fits: on a phone a card in the right column
   // carried it past the window's edge. It is measured where it opens, below the icon, each time
-  // it opens, then moved back inside by its overhang, though never past the opposite edge.
+  // it opens, then moved back inside by its overhang, though never past the opposite edge; near
+  // the bottom it opens above the icon instead, when there is room there.
   function place(event: SyntheticEvent<HTMLSpanElement>) {
     const icon = event.currentTarget;
     const bubble = icon.lastElementChild as HTMLElement;
 
     bubble.style.transform = "";
+    const anchor = icon.getBoundingClientRect();
     const box = bubble.getBoundingClientRect();
-    const { clientWidth } = document.documentElement;
+    const { clientWidth, clientHeight } = document.documentElement;
 
     let x = 0;
     if (box.right > clientWidth - WINDOW_MARGIN) {
@@ -40,7 +43,11 @@ export function InfoTip({
       x = Math.min(WINDOW_MARGIN - box.left, clientWidth - WINDOW_MARGIN - box.right);
     }
 
-    if (x !== 0) bubble.style.transform = `translate(${x}px, 0px)`;
+    const above = anchor.top - ICON_GAP - box.height;
+    const y =
+      box.bottom > clientHeight - WINDOW_MARGIN && above >= WINDOW_MARGIN ? above - box.top : 0;
+
+    if (x !== 0 || y !== 0) bubble.style.transform = `translate(${x}px, ${y}px)`;
   }
 
   return (
