@@ -48,10 +48,14 @@ function tabs() {
   );
 }
 
-/** The value written under a term's label. */
-function term(label: string) {
-  return screen.getByText(label).nextElementSibling;
-}
+// A stub for the ⓘ beside Produktivitas: info-tip.test covers the tooltip itself, so here it only
+// marks where it sits, without its words joining the card's label.
+vi.mock("@/components/ui/info-tip", () => ({
+  InfoTip: ({ label }: { label: string }) => <span data-testid="info-tip" data-label={label} />,
+}));
+
+const OBSOLETE_CARDS = ["Kuota Konten", "Sisa Kuota Evergreen", "Jarak Antar-Deadline"];
+const PERFORMANCE_CARDS = ["Progres Konten", "Tepat Waktu", "Rata-rata Revisi", "Produktivitas", "Total Pendapatan"];
 
 describe("PeriodTabs", () => {
   it("is headed Periode Kontrak", () => {
@@ -115,31 +119,24 @@ describe("PeriodTabs", () => {
     expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
   });
 
-  it("shows the open period's terms", () => {
-    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+  // The quota, Evergreen and deadline-gap cards belong to an older layout the B2.6 prototype
+  // dropped; whichever period is open, they must not come back.
+  it.each([
+    ["newest", NEWEST],
+    ["oldest", OLDEST],
+  ])("shows no quota, Evergreen or deadline-gap card for the %s period", (_, open) => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={open} />);
 
-    expect(term("Kuota Konten")).toHaveTextContent("19 konten");
-    expect(term("Sisa Kuota Evergreen")).toHaveTextContent("1 konten");
-    expect(term("Jarak Antar-Deadline")).toHaveTextContent("14 hari");
+    for (const label of OBSOLETE_CARDS) expect(screen.queryByText(label)).toBeNull();
+    expect(screen.queryByText(/\d+ (konten|hari)$/)).toBeNull();
   });
 
-  it("shows the terms of whichever period is open", () => {
-    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={OLDEST} />);
-
-    expect(term("Kuota Konten")).toHaveTextContent("3 konten");
-    expect(term("Sisa Kuota Evergreen")).toHaveTextContent("0 konten");
-    expect(term("Jarak Antar-Deadline")).toHaveTextContent("7 hari");
-  });
-
-  // The creator detail endpoint (4.1) sends no fixed rate, so the terms do not offer one.
-  it("shows three terms and no fixed rate", () => {
+  // The creator detail endpoint (4.1) sends no fixed rate, so the cards do not offer one.
+  it("shows only the five performance cards under the tabs, and no fixed rate", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
-    expect(screen.getAllByRole("term").slice(0, 3).map((label) => label.textContent)).toEqual([
-      "Kuota Konten",
-      "Sisa Kuota Evergreen",
-      "Jarak Antar-Deadline",
-    ]);
+    expect(screen.getAllByRole("term").map((label) => label.textContent)).toEqual(PERFORMANCE_CARDS);
+    expect(screen.getByTestId("info-tip")).toHaveAttribute("data-label", "Tentang Produktivitas");
     expect(screen.queryByText(/Rp/)).toBeNull();
   });
 
