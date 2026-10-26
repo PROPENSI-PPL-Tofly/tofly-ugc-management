@@ -1,4 +1,10 @@
-import { useId } from "react";
+"use client";
+
+import { useId, type SyntheticEvent } from "react";
+
+/** How far the bubble stays from the edge of the window, and from its icon, in pixels. */
+const WINDOW_MARGIN = 8;
+const ICON_GAP = 6;
 
 /**
  * The ⓘ beside a label or heading that explains it. The explanation shows on hover and on
@@ -17,8 +23,39 @@ export function InfoTip({
 }) {
   const tipId = useId();
 
+  // Where the icon sits decides whether the bubble fits: on a phone a card in the right column
+  // carried it past the window's edge. It is measured where it opens, below the icon, each time
+  // it opens, then moved back inside by its overhang, though never past the opposite edge; near
+  // the bottom it opens above the icon instead, when there is room there.
+  function place(event: SyntheticEvent<HTMLSpanElement>) {
+    const icon = event.currentTarget;
+    const bubble = icon.lastElementChild as HTMLElement;
+
+    bubble.style.transform = "";
+    const anchor = icon.getBoundingClientRect();
+    const box = bubble.getBoundingClientRect();
+    const { clientWidth, clientHeight } = document.documentElement;
+
+    let x = 0;
+    if (box.right > clientWidth - WINDOW_MARGIN) {
+      x = -Math.min(box.right - (clientWidth - WINDOW_MARGIN), box.left - WINDOW_MARGIN);
+    } else if (box.left < WINDOW_MARGIN) {
+      x = Math.min(WINDOW_MARGIN - box.left, clientWidth - WINDOW_MARGIN - box.right);
+    }
+
+    const above = anchor.top - ICON_GAP - box.height;
+    const y =
+      box.bottom > clientHeight - WINDOW_MARGIN && above >= WINDOW_MARGIN ? above - box.top : 0;
+
+    if (x !== 0 || y !== 0) bubble.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
   return (
-    <span className="group relative inline-flex align-middle">
+    <span
+      onPointerEnter={place}
+      onFocus={place}
+      className="group relative inline-flex align-middle"
+    >
       <button
         type="button"
         aria-describedby={tipId}
@@ -28,6 +65,7 @@ export function InfoTip({
         {/* Text, not aria-label: a label on this button would also answer for the field it sits by. */}
         <span className="sr-only">{label}</span>
       </button>
+      {/* The last child: place() finds the bubble there. */}
       <span
         id={tipId}
         role="tooltip"

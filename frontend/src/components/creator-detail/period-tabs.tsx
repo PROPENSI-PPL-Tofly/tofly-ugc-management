@@ -27,15 +27,6 @@ const TAB_BASE =
 const TAB = `${TAB_BASE} border-rule bg-surface-2 hover:border-ink-2`;
 const TAB_ON = `${TAB_BASE} border-accent bg-accent-wash`;
 
-function Term({ label, children }: Readonly<{ label: string; children: string }>) {
-  return (
-    <div className="rounded-(--radius-control) border border-rule px-4 py-3">
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-1 text-[15px] font-semibold tabular-nums">{children}</dd>
-    </div>
-  );
-}
-
 const CARD = "rounded-(--radius-control) border border-rule px-4 py-3";
 
 function Card({ label, children }: Readonly<{ label: ReactNode; children: ReactNode }>) {
@@ -107,7 +98,7 @@ function PeriodPerformance({
 }
 
 /**
- * The creator's contract history: one tab per period, and the terms of the one that is open.
+ * The creator's contract history: one tab per period, and the performance of the one that is open.
  * Each tab is a link, so a period has an address of its own and opens in a new tab like any
  * other page. The newest period is the bare address, where the page opens by default.
  */
@@ -138,7 +129,8 @@ export function PeriodTabs({
   }
 
   return (
-    <Panel>
+    // Unclipped: the ⓘ beside Produktivitas opens a bubble that hangs past the panel's edge.
+    <Panel clip={false}>
       <PanelHead title="Periode Kontrak" />
 
       {selected ? (
@@ -170,12 +162,6 @@ export function PeriodTabs({
               );
             })}
           </nav>
-
-          <dl className="mt-4 grid grid-cols-3 gap-3 max-sm:grid-cols-1">
-            <Term label="Kuota Konten">{`${selected.contentQuota} konten`}</Term>
-            <Term label="Sisa Kuota Evergreen">{`${selected.remainingEvergreenQuota} konten`}</Term>
-            <Term label="Jarak Antar-Deadline">{`${selected.daysBetween} hari`}</Term>
-          </dl>
 
           <PeriodPerformance period={selected} earnings={earnings} creatorName={creatorName} />
         </div>
