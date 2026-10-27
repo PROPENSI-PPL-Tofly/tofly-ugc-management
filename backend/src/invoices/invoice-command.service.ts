@@ -64,6 +64,11 @@ export interface InvoiceCommands {
   }>;
 }
 
+/** A finalize with no body: the admin has not accepted freezing a pending performance bonus. */
+const NO_PENDING_BONUS_ACCEPTED: Readonly<FinalizeRequest> = Object.freeze({
+  acceptPendingBonus: false,
+});
+
 function codeError(code: string, message: string): ConflictException {
   return new ConflictException({ code, message });
 }
@@ -116,7 +121,7 @@ export class InvoiceCommandService implements InvoiceCommands {
     /** The admin who freezes the invoice, from the session. */
     finalizedBy: string,
     today = new Date(),
-    request: FinalizeRequest = { acceptPendingBonus: false },
+    request: FinalizeRequest = NO_PENDING_BONUS_ACCEPTED,
   ): Promise<{
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
