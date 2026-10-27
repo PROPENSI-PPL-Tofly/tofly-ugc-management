@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
+import { PRODUCTIVITY_TIP } from "@/lib/creator-detail";
 import { CreatorTable } from "./creator-table";
 import { creator } from "./creator.fixture";
 
@@ -63,7 +64,10 @@ describe("CreatorTable", () => {
   it("labels the columns", () => {
     render(<CreatorTable creators={[creator()]} total={1} />);
 
-    const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
+    // The heading's own words: the ⓘ beside Produktivitas carries its explanation too.
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((cell) => cell.firstChild?.firstChild?.textContent ?? cell.textContent);
 
     expect(headers).toEqual([
       "Creator",
@@ -74,6 +78,44 @@ describe("CreatorTable", () => {
       "Produktivitas",
       "",
     ]);
+  });
+
+  it("explains Produktivitas beside its heading, in Creator Detail's words", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const heading = screen.getByRole("columnheader", { name: /^Produktivitas/ });
+    const info = within(heading).getByRole("button", { name: "Tentang Produktivitas" });
+
+    expect(info).toHaveAccessibleDescription(PRODUCTIVITY_TIP);
+    expect(within(heading).getByRole("tooltip")).toHaveTextContent(PRODUCTIVITY_TIP);
+  });
+
+  it("explains no other column", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const others = screen
+      .getAllByRole("columnheader")
+      .filter((cell) => !cell.textContent?.startsWith("Produktivitas"));
+
+    expect(others).toHaveLength(6);
+    for (const cell of others) expect(within(cell).queryByRole("button")).toBeNull();
+  });
+
+  it("opens the explanation on hover and keyboard focus, toward the table's inside", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const info = screen.getByRole("button", { name: "Tentang Produktivitas" });
+    info.focus();
+    expect(info).toHaveFocus();
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveClass("group-hover:visible", "group-focus-within:visible");
+    // Its right edge meets the icon's, so it hangs back over the table, not past its scroll edge.
+    expect(tooltip).toHaveClass("right-0");
+
+    // The heading is not a row: pressing the ⓘ opens no creator's page.
+    fireEvent.click(info);
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("mentions the period once a contract has been renewed", () => {

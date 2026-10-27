@@ -7,9 +7,10 @@ import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTip } from "@/components/ui/info-tip";
 import { useUrlQuery } from "@/lib/url-query";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
-import { creatorDetailBase } from "@/lib/creator-detail";
+import { creatorDetailBase, PRODUCTIVITY_TIP } from "@/lib/creator-detail";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
@@ -34,13 +35,14 @@ const CONTRACT_TONES: Record<ContractStatus, Tone> = {
   none: "neutral",
 };
 
-const COLUMNS: { label: string; numeric?: boolean }[] = [
+/** `tip` is the ⓘ beside a heading, in the same words Creator Detail explains it with. */
+const COLUMNS: { label: string; numeric?: boolean; tip?: string }[] = [
   { label: "Creator" },
   { label: "Kontrak" },
   { label: "Progres konten" },
   { label: "Tepat waktu", numeric: true },
   { label: "Rata-rata revisi", numeric: true },
-  { label: "Produktivitas" },
+  { label: "Produktivitas", tip: PRODUCTIVITY_TIP },
 ];
 
 const HEAD = "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";
@@ -150,7 +152,15 @@ export function CreatorTable({
                   scope="col"
                   className={column.numeric ? `${HEAD} text-right` : HEAD}
                 >
-                  {column.label}
+                  {column.tip === undefined ? (
+                    column.label
+                  ) : (
+                    // End-aligned: the bubble hangs back over the table, not past its scroll edge.
+                    <span className="inline-flex items-center gap-1">
+                      {column.label}
+                      <InfoTip text={column.tip} label={`Tentang ${column.label}`} align="end" />
+                    </span>
+                  )}
                 </th>
               ))}
 
