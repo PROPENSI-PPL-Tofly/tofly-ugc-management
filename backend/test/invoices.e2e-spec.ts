@@ -1262,4 +1262,226 @@ describe('Invoices API (e2e)', () => {
       await admin.put('/rate-formula').send(FORMULA).expect(200);
     }
   });
+
+  /** An ended contract whose one video was on time, measured, or still waiting for its views. */
+  async function endedContract(
+    name: string,
+    views: number | null = 0,
+  ): Promise<string> {
+    const slug = name.toLowerCase().replaceAll(' ', '-');
+    const user = await prisma.users.create({
+      data: { email: `${MARKER}-${slug}@example.com` },
+    });
+    const creatorRow = await prisma.creators.create({
+      data: {
+        user_id: user.id,
+        first_name: `${MARKER} ${name}`,
+        contracts: {
+          create: {
+            start_date: day(-30),
+            end_date: day(-1),
+            contract_type: 'regular',
+            days_between: 14,
+            content_quota: 1,
+            fixed_rate: 1_000_000,
+            contents: {
+              create: {
+                name: `${MARKER} ${slug} evergreen`,
+                type: 'evergreen',
+                deadline: day(-2),
+                status: 'link_submitted',
+                video_link: `https://example.com/${slug}`,
+                video_submitted_at: day(-2),
+                platform: 'instagram',
+                views,
+              },
+            },
+          },
+        },
+      },
+      select: { contracts: { select: { id: true } } },
+    });
+
+    return creatorRow.contracts[0].id;
+  }
+
+  // OWASP Top 10:2025 A05 — a contract id that is not a UUID, injection-shaped or not, is refused
+  // on both writes before any query runs, and changes nothing.
+  it('rejects a contract id that is not a UUID on both writes without changing any invoice', async () => {
+    const counts = () =>
+      Promise.all([
+        prisma.invoices.count(),
+        prisma.invoice_adjustments.count(),
+      ]);
+    const before = await counts();
+
+    for (const id of [
+      'not-a-uuid',
+      "1' or '1'='1",
+      `${contractId}'; DELETE FROM invoices; --`,
+    ]) {
+      const path = `/invoices/${encodeURIComponent(id)}`;
+      const adjusted = await admin
+        .post(`${path}/adjustments`)
+        .send({ amount: 10, reason: 'Injection test' })
+        .expect(400);
+      const finalized = await admin.post(`${path}/finalize`).expect(400);
+
+      for (const response of [adjusted, finalized]) {
+        expect(response.body).toEqual({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Validation failed (uuid is expected)',
+        });
+      }
+    }
+
+    expect(await counts()).toEqual(before);
+  });
+
+  // OWASP Top 10:2025 A10 — a finalize refused partway leaves nothing behind: the invoice row it
+  // opened in its transaction is rolled back with it.
+  it('rolls back the invoice a refused finalize opened', async () => {
+    const id = await endedContract('Refused Finalize', null);
+
+    const { body } = await admin.post(`/invoices/${id}/finalize`).expect(422);
+
+    expect(body).toMatchObject({ code: 'INVOICE_BONUS_PENDING' });
+    expect(
+      await prisma.invoices.findUnique({ where: { contract_id: id } }),
+    ).toBeNull();
+  });
+
+  // Both commands lock the contract row first (FOR UPDATE), so two on one contract run one after
+  // the other. Each test holds that lock itself, sends the requests one at a time, waits until
+  // PostgreSQL shows each one blocked on the lock, then lets them through in the order they
+  // queued: the race is real, and its order is known rather than left to timing.
+  describe('commands racing on one contract', () => {
+    /** Holds the contract's row lock until `release` is called. */
+    async function holdLock(id: string) {
+      let release!: () => void;
+      let locked!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        locked = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const held = prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM contracts WHERE id = ${id}::uuid FOR UPDATE`;
+          locked();
+          await gate;
+        },
+        { timeout: 15_000 },
+      );
+      await Promise.race([ready, held]);
+      return { release, held };
+    }
+
+    /** Waits until exactly `count` requests are blocked on a contract row lock. */
+    async function blockedOnLock(count: number) {
+      await vi.waitFor(
+        async () => {
+          const [{ waiting }] = await prisma.$queryRaw<{ waiting: number }[]>`
+            SELECT count(*)::int AS waiting FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%FROM contracts%FOR UPDATE%'
+          `;
+          expect(waiting).toBe(count);
+        },
+        { timeout: 5_000, interval: 25 },
+      );
+    }
+
+    /** Sends each request once the ones before it are queued on the held lock; answers in order. */
+    async function queued(
+      id: string,
+      ...calls: (() => request.Test)[]
+    ): Promise<request.Response[]> {
+      const { release, held } = await holdLock(id);
+      const answers: Promise<request.Response>[] = [];
+
+      try {
+        for (const call of calls) {
+          answers.push(call().then((response) => response));
+          await blockedOnLock(answers.length);
+        }
+      } finally {
+        release();
+        await held;
+        await Promise.allSettled(answers);
+      }
+
+      return Promise.all(answers);
+    }
+
+    const finalize = (id: string) => () =>
+      admin.post(`/invoices/${id}/finalize`);
+    const adjust = (id: string) => () =>
+      admin
+        .post(`/invoices/${id}/adjustments`)
+        .send({ amount: 50_000, reason: 'Racing correction' });
+    const saved = (id: string) =>
+      prisma.invoices.findUniqueOrThrow({
+        where: { contract_id: id },
+        select: { status: true, finalized_by: true, snapshot: true },
+      });
+    const adjustmentIds = async (id: string) =>
+      (
+        await prisma.invoice_adjustments.findMany({
+          where: { invoices: { contract_id: id } },
+          select: { id: true },
+        })
+      ).map((row) => row.id);
+
+    // OWASP Top 10:2025 A08 and A10 — two finalizes at once freeze the invoice once; the second is
+    // refused with a reason, not a server error.
+    it('freezes the invoice once when two finalizes queue on it', async () => {
+      const id = await endedContract('Double Finalize');
+
+      const [first, second] = await queued(id, finalize(id), finalize(id));
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(409);
+      expect(second.body).toMatchObject({ code: 'INVOICE_FINALIZED' });
+      expect(await saved(id)).toEqual({
+        status: 'finalized',
+        finalized_by: adminId,
+        snapshot: first.body.snapshot,
+      });
+    });
+
+    // OWASP Top 10:2025 A08 — an adjustment saved before the freeze is in the frozen snapshot.
+    it('freezes an adjustment that queued before the finalize into the snapshot', async () => {
+      const id = await endedContract('Adjust Then Finalize');
+
+      const [adjusted, finalized] = await queued(id, adjust(id), finalize(id));
+
+      expect([adjusted.status, finalized.status]).toEqual([201, 201]);
+      expect(await adjustmentIds(id)).toEqual([adjusted.body.id]);
+      expect(finalized.body.snapshot).toMatchObject({
+        adjustments: [{ id: adjusted.body.id, amount: 50_000 }],
+        total: 1_050_000,
+      });
+      expect((await saved(id)).snapshot).toEqual(finalized.body.snapshot);
+    });
+
+    // OWASP Top 10:2025 A06 and A10 — an adjustment that queued behind the finalize is refused by
+    // the finalized state with a reason, and nothing is saved outside the frozen snapshot.
+    it('refuses an adjustment that queued behind the finalize and saves nothing', async () => {
+      const id = await endedContract('Finalize Then Adjust');
+
+      const [finalized, adjusted] = await queued(id, finalize(id), adjust(id));
+
+      expect(finalized.status).toBe(201);
+      expect(adjusted.status).toBe(409);
+      expect(adjusted.body).toMatchObject({ code: 'INVOICE_FINALIZED' });
+      expect(await adjustmentIds(id)).toEqual([]);
+      expect(finalized.body.snapshot).toMatchObject({
+        adjustments: [],
+        total: 1_000_000,
+      });
+    });
+  });
 });

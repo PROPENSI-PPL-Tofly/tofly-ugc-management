@@ -1,4 +1,5 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
+import { InvoiceCommandService } from './invoice-command.service.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesModule } from './invoices.module.js';
 import { InvoicesService } from './invoices.service.js';
@@ -15,6 +16,20 @@ describe('InvoicesModule', () => {
     ).toContain(InvoicesController);
     expect(
       Reflect.getMetadata(MODULE_METADATA.PROVIDERS, InvoicesModule),
+    ).toContain(InvoicesService);
+  });
+
+  // OWASP Top 10:2025 A01 (Broken Access Control): the admin's commands serve this module's
+  // admin-only controller; the creator's routes, which import this module, cannot inject them.
+  it("keeps the admin's invoice commands to this module and exports only the reads", () => {
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.PROVIDERS, InvoicesModule),
+    ).toContain(InvoiceCommandService);
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.EXPORTS, InvoicesModule),
+    ).not.toContain(InvoiceCommandService);
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.EXPORTS, InvoicesModule),
     ).toContain(InvoicesService);
   });
 

@@ -1454,6 +1454,30 @@ describe('InvoicesService', () => {
     expect(prisma.invoices.findMany).not.toHaveBeenCalled();
   });
 
+  // Command query separation: answering an invoice never writes, locks or opens a transaction.
+  it('reads every invoice without writing, locking or opening a transaction', async () => {
+    prisma.creators.findMany.mockResolvedValue([row()]);
+    prisma.creators.findUnique.mockResolvedValue(row());
+
+    await service.list({ page: 1, pageSize: 10 }, TODAY);
+    await service.detail('creator-1', TODAY);
+    await service.forCreator('creator-1', TODAY);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.invoices.upsert).not.toHaveBeenCalled();
+    expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+    expect(prisma.invoice_adjustments.create).not.toHaveBeenCalled();
+  });
+
+  // The admin's commands live in InvoiceCommandService; this service only answers invoices.
+  it('offers no command that changes an invoice', () => {
+    const methods = Object.getOwnPropertyNames(InvoicesService.prototype);
+
+    expect(methods).not.toContain('addAdjustment');
+    expect(methods).not.toContain('finalize');
+  });
+
   describe('addAdjustment', () => {
     const input = { amount: -1500.5, reason: 'Correction for overpayment' };
 
@@ -1505,6 +1529,19 @@ describe('InvoicesService', () => {
       });
       expect(data.amount.toFixed(2)).toBe('-1500.50');
       expect(data).not.toHaveProperty('created_at');
+    });
+
+    // OWASP Top 10:2025 A05 (Injection): the contract id reaches the lock as a bound parameter.
+    it('locks the contract with its id bound as a parameter, never spliced into the SQL', async () => {
+      const id = "contract-1'; DROP TABLE invoices; --";
+
+      await service.addAdjustment(id, input, 'admin-1');
+
+      const [lock] = prisma.$queryRaw.mock.calls[0];
+      expect(lock.text).toBe(
+        'SELECT id FROM contracts WHERE id = $1::uuid FOR UPDATE',
+      );
+      expect(lock.values).toEqual([id]);
     });
 
     it('answers 404 for an unknown contract without opening an invoice', async () => {
@@ -1616,6 +1653,19 @@ describe('InvoicesService', () => {
           finalized_by: 'admin-9',
         },
       });
+    });
+
+    // OWASP Top 10:2025 A05 (Injection): the contract id reaches the lock as a bound parameter.
+    it('locks the contract with its id bound as a parameter, never spliced into the SQL', async () => {
+      const id = "contract-1'; DROP TABLE invoices; --";
+
+      await service.finalize(id, 'admin-9', TODAY);
+
+      const [lock] = prisma.$queryRaw.mock.calls[0];
+      expect(lock.text).toBe(
+        'SELECT id FROM contracts WHERE id = $1::uuid FOR UPDATE',
+      );
+      expect(lock.values).toEqual([id]);
     });
 
     // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the rules the totals were
