@@ -181,6 +181,31 @@ export function periodNumber(
   );
 }
 
+/** An adjustment's columns as the API answers them, for the reads and for finalizing. */
+export const INVOICE_ADJUSTMENT_SELECT = {
+  id: true,
+  amount: true,
+  reason: true,
+  actor_user_id: true,
+  created_at: true,
+} satisfies Prisma.invoice_adjustmentsSelect;
+
+export function adjustmentDto(row: {
+  id: string;
+  amount: Prisma.Decimal;
+  reason: string;
+  actor_user_id: string;
+  created_at: Date;
+}): InvoiceAdjustmentDto {
+  return {
+    id: row.id,
+    amount: row.amount.toNumber(),
+    reason: row.reason,
+    actorId: row.actor_user_id,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
 /** What the manual adjustments add up to, as a decimal so amounts never drift. */
 export function sumAdjustments(
   adjustments: readonly InvoiceAdjustmentDto[],

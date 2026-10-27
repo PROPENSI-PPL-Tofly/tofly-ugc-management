@@ -1,12 +1,6 @@
-import {
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
-import { jakartaDay } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceConfirmationFields } from './dto/invoice-confirmation.dto.js';
 import type {
@@ -19,8 +13,10 @@ import type {
 } from './dto/invoice-list.dto.js';
 import type { InvoiceFilters } from './invoice-filters.js';
 import {
+  adjustmentDto,
   CONTENT_SELECT,
   creatorName,
+  INVOICE_ADJUSTMENT_SELECT,
   INVOICE_SELECT,
   type InvoiceContentRow,
   type InvoiceContractRow,
@@ -31,11 +27,7 @@ import {
   type SavedInvoice,
   savedSnapshot,
   pickContract,
-  toInvoiceContent,
-  toInvoiceContract,
   toInvoiceItem,
-  adjustedTotals,
-  sumAdjustments,
 } from './invoice-rows.js';
 import {
   DEFAULT_INVOICE_SORT,
@@ -46,31 +38,22 @@ import {
   INVOICE_STATUS_SOURCE,
   type InvoiceStatusSource,
 } from './invoice-status.js';
-import { invoiceState } from './invoice-lifecycle.js';
-import type { ManualAdjustmentInput } from './manual-adjustment.js';
-import { calculateInvoice } from './invoice-calculator.js';
-import { contractLastDay } from './invoice-days.js';
-import { settleForFinalize } from './invoice-settlement.js';
-import type { FinalizeRequest } from './finalize-request.js';
 import {
   PaymentProofService,
   type PaymentProofReader,
 } from './payment-proof.service.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
-/** The database operations this service uses. */
+/**
+ * The database operations this service uses: reads only. Without $transaction, $queryRaw or a
+ * write, the reads cannot lock or change an invoice; that is InvoiceCommandService's job.
+ */
 export type InvoicesClient = Pick<
   PrismaService,
-  | 'creators'
-  | 'contents'
-  | 'contracts'
-  | 'invoices'
-  | 'invoice_adjustments'
-  | '$queryRaw'
-  | '$transaction'
+  'creators' | 'contents' | 'invoices' | 'invoice_adjustments'
 >;
 
-/** What the controller needs from the invoice service. */
+/** What the Rate & Invoicing table needs: one page of invoices with their summary. */
 export interface InvoiceLister {
   list(
     paging: Paging,
@@ -78,22 +61,6 @@ export interface InvoiceLister {
     filters?: InvoiceFilters,
     sort?: InvoiceSort,
   ): Promise<InvoiceListResponse>;
-
-  addAdjustment(
-    contractId: string,
-    input: ManualAdjustmentInput,
-    actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }>;
-
-  finalize(
-    contractId: string,
-    finalizedBy: string,
-    today?: Date,
-  ): Promise<{
-    invoiceStatus: 'finalized';
-    adjustments: InvoiceAdjustmentDto[];
-    snapshot: InvoiceSnapshotDto;
-  }>;
 }
 
 /** What the invoice breakdown popups need: one creator's invoice, or null. */
@@ -199,34 +166,10 @@ function clampPage(asked: number, pageSize: number, total: number) {
   return { page: Math.min(asked, totalPages), totalPages };
 }
 
-const INVOICE_ADJUSTMENT_SELECT = {
-  id: true,
-  amount: true,
-  reason: true,
-  actor_user_id: true,
-  created_at: true,
-} satisfies Prisma.invoice_adjustmentsSelect;
-
-function adjustmentDto(row: {
-  id: string;
-  amount: Prisma.Decimal;
-  reason: string;
-  actor_user_id: string;
-  created_at: Date;
-}): InvoiceAdjustmentDto {
-  return {
-    id: row.id,
-    amount: row.amount.toNumber(),
-    reason: row.reason,
-    actorId: row.actor_user_id,
-    createdAt: row.created_at.toISOString(),
-  };
-}
-
-function codeError(code: string, message: string): ConflictException {
-  return new ConflictException({ code, message });
-}
-
+/**
+ * Answers invoices: the admin's table and detail, and the creator's list. It only reads; the
+ * admin's commands that change an invoice are in InvoiceCommandService.
+ */
 @Injectable()
 export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
   constructor(
@@ -573,180 +516,5 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     }
 
     return byContract;
-  }
-
-  async addAdjustment(
-    contractId: string,
-    input: ManualAdjustmentInput,
-    actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }> {
-    return this.prisma.$transaction(
-      async (tx) => {
-        await this.lockContract(tx, contractId);
-        await this.requireContract(tx, contractId);
-
-        const invoice = await tx.invoices.upsert({
-          where: { contract_id: contractId },
-          create: { contract_id: contractId },
-          update: {},
-          select: { id: true, status: true },
-        });
-
-        invoiceState(invoice.status).assertCanAdjust();
-
-        const saved = await tx.invoice_adjustments.create({
-          data: {
-            invoice_id: invoice.id,
-            amount: new Prisma.Decimal(input.amount.toFixed(2)),
-            reason: input.reason,
-            actor_user_id: actorUserId,
-          },
-          select: INVOICE_ADJUSTMENT_SELECT,
-        });
-
-        // Still running in the database; the API names it as the pipeline does.
-        return { ...adjustmentDto(saved), invoiceStatus: 'accruing' };
-      },
-      { isolationLevel: 'ReadCommitted' },
-    );
-  }
-
-  async finalize(
-    contractId: string,
-    /** The admin who freezes the invoice, from the session. */
-    finalizedBy: string,
-    today = new Date(),
-    request: FinalizeRequest = { acceptPendingBonus: false },
-  ): Promise<{
-    invoiceStatus: 'finalized';
-    adjustments: InvoiceAdjustmentDto[];
-    snapshot: InvoiceSnapshotDto;
-  }> {
-    const formula = await this.formulas.current();
-
-    return this.prisma.$transaction(
-      async (tx) => {
-        await this.lockContract(tx, contractId);
-
-        const contract = await tx.contracts.findUnique({
-          where: { id: contractId },
-          select: {
-            id: true,
-            start_date: true,
-            end_date: true,
-            content_quota: true,
-            fixed_rate: true,
-            creators: { select: { access_revoke_date: true } },
-            contents: {
-              select: CONTENT_SELECT,
-              orderBy: { deadline: 'asc' },
-            },
-          },
-        });
-
-        if (!contract) this.contractNotFound();
-
-        const invoiceContract = toInvoiceContract(
-          {
-            id: contract.id,
-            start_date: contract.start_date,
-            end_date: contract.end_date,
-            content_quota: contract.content_quota,
-            fixed_rate: contract.fixed_rate,
-          },
-          contract.creators.access_revoke_date,
-        );
-
-        // An early end counts: the contract stops on the day access was revoked.
-        if (jakartaDay(today) <= contractLastDay(invoiceContract)) {
-          throw codeError('CONTRACT_NOT_ENDED', 'Kontrak belum berakhir');
-        }
-
-        const invoice = await tx.invoices.upsert({
-          where: { contract_id: contractId },
-          create: { contract_id: contractId },
-          update: {},
-          select: { id: true, status: true },
-        });
-
-        invoiceState(invoice.status).assertCanFinalize();
-
-        const breakdown = calculateInvoice({
-          contract: invoiceContract,
-          contents: contract.contents.map(toInvoiceContent),
-          formula,
-          today,
-        });
-
-        const settled = settleForFinalize(
-          breakdown,
-          request.acceptPendingBonus,
-        );
-
-        const adjustmentRows = await tx.invoice_adjustments.findMany({
-          where: { invoice_id: invoice.id },
-          select: INVOICE_ADJUSTMENT_SELECT,
-          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-        });
-
-        const adjustments = adjustmentRows.map(adjustmentDto);
-
-        // today is the request's instant, not a day: the breakdown is as of it, so it is when
-        // the invoice was finalized.
-        const snapshot: InvoiceSnapshotDto = {
-          ...settled.components,
-          adjustments,
-          ...adjustedTotals(settled.rawTotal, sumAdjustments(adjustments)),
-          finalizedAt: today.toISOString(),
-          formula,
-          performanceBonusPending: settled.performanceBonusPending,
-        };
-
-        const updated = await tx.invoices.updateMany({
-          where: { id: invoice.id, status: 'running' },
-          data: {
-            status: 'finalized',
-            snapshot: snapshot as unknown as Prisma.InputJsonValue,
-            finalized_at: today,
-            finalized_by: finalizedBy,
-          },
-        });
-
-        if (updated.count !== 1) {
-          throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
-        }
-
-        return { invoiceStatus: 'finalized', adjustments, snapshot };
-      },
-      { isolationLevel: 'ReadCommitted' },
-    );
-  }
-
-  private async lockContract(
-    tx: Prisma.TransactionClient,
-    contractId: string,
-  ): Promise<void> {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT id FROM contracts WHERE id = ${contractId}::uuid FOR UPDATE`,
-    );
-  }
-
-  private async requireContract(
-    tx: Prisma.TransactionClient,
-    contractId: string,
-  ): Promise<void> {
-    const contract = await tx.contracts.findUnique({
-      where: { id: contractId },
-      select: { id: true },
-    });
-
-    if (!contract) this.contractNotFound();
-  }
-
-  private contractNotFound(): never {
-    throw new NotFoundException({
-      code: 'CONTRACT_NOT_FOUND',
-      message: 'Kontrak tidak ditemukan',
-    });
   }
 }

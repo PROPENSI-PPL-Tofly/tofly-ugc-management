@@ -20,6 +20,10 @@ import type {
   InvoiceDetail,
   InvoiceListResponse,
 } from './dto/invoice-list.dto.js';
+import {
+  InvoiceCommandService,
+  type InvoiceCommands,
+} from './invoice-command.service.js';
 import { checkInvoiceFilters } from './invoice-filters.js';
 import { checkInvoiceSort } from './invoice-sort.js';
 import {
@@ -35,9 +39,9 @@ import { checkManualAdjustment } from './manual-adjustment.js';
 export class InvoicesController {
   constructor(
     @Inject(InvoicesService)
-    private readonly invoices: InvoiceLister &
-      InvoiceDetailReader &
-      Pick<InvoicesService, 'addAdjustment' | 'finalize'>,
+    private readonly invoices: InvoiceLister & InvoiceDetailReader,
+    @Inject(InvoiceCommandService)
+    private readonly commands: InvoiceCommands,
   ) {}
 
   @Get()
@@ -90,7 +94,7 @@ export class InvoicesController {
   ) {
     if (request.principal?.role !== 'admin') throw unauthenticated();
 
-    return this.invoices.addAdjustment(
+    return this.commands.addAdjustment(
       contractId,
       checkManualAdjustment(body),
       request.principal.userId,
@@ -105,7 +109,7 @@ export class InvoicesController {
   ) {
     if (request.principal?.role !== 'admin') throw unauthenticated();
 
-    return this.invoices.finalize(
+    return this.commands.finalize(
       contractId,
       request.principal.userId,
       new Date(),

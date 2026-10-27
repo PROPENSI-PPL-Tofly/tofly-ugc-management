@@ -18,7 +18,7 @@ import {
 
 // The creator's two moves on their own invoice (PBI-13, 13.1): acknowledging the amount the admin
 // froze, and confirming the payment arrived. The admin's moves live elsewhere: finalizing in
-// InvoicesService (PBI-12), the payment proof in PaymentProofService (13.2).
+// InvoiceCommandService (PBI-12), the payment proof in PaymentProofService (13.2).
 
 /** The database operations this service uses. */
 export type InvoiceConfirmationClient = Pick<
