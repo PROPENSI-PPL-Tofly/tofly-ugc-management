@@ -41,14 +41,15 @@ export default defineConfig({
         },
         // Uploaded files and invoice payments: who may store, open or write what is held to
         // the same standard, so an untested branch cannot hide an open file or a skipped check.
-        // The creator's acknowledge and receipt confirmation (13.1) are held to it too.
+        // The creator's acknowledge and receipt confirmation (13.1) are held to it too, and so are
+        // the admin's adjustments and finalizing in InvoiceCommandService.
         'src/storage/**': {
           lines: 100,
           branches: 100,
           functions: 100,
           statements: 100,
         },
-        'src/invoices/{payment-proof*,proof-upload*,invoice-payments*,invoice-comments*,comment-request,invoice-lifecycle,invoice-confirmation*}.ts':
+        'src/invoices/{payment-proof*,proof-upload*,invoice-payments*,invoice-comments*,comment-request,invoice-lifecycle,invoice-confirmation*,invoice-command*}.ts':
           {
             lines: 100,
             branches: 100,
