@@ -583,13 +583,22 @@ describe('Invoices API (e2e)', () => {
       data: { contract_id: precisionContractId },
       select: { id: true },
     });
-    for (const amount of ['0.01', '-1500.55', '2000000.99']) {
+    // Adjustments are read oldest first, by created_at then id. Prisma stamps created_at itself, to
+    // the millisecond, so rows written back to back can share it and fall to their random ids;
+    // a second apart, they are read back in the order written.
+    const writtenFrom = Date.now() - 60_000;
+    for (const [index, amount] of [
+      '0.01',
+      '-1500.55',
+      '2000000.99',
+    ].entries()) {
       await prisma.invoice_adjustments.create({
         data: {
           invoice_id: precisionInvoiceId,
           amount: new Prisma.Decimal(amount),
           reason: 'Precision adjustment',
           actor_user_id: adminId,
+          created_at: new Date(writtenFrom + index * 1_000),
         },
       });
     }
