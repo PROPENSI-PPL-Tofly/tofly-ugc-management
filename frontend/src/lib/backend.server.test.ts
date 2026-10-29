@@ -9,7 +9,7 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers(incoming.current)),
 }));
 
-import { backendPostForm } from "./backend.server";
+import { backendDelete, backendPostForm } from "./backend.server";
 
 const PATH = "/invoices/11111111-1111-4111-8111-111111111111/payment-proof";
 
@@ -75,6 +75,62 @@ describe("backendPostForm", () => {
     vi.stubEnv("BACKEND_URL", "");
 
     await expect(backendPostForm(PATH, proofForm())).rejects.toThrow("BACKEND_URL is not configured");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("backendDelete", () => {
+  const ACCOUNT = "/me/social-accounts/tiktok";
+
+  beforeEach(() => {
+    vi.stubEnv("BACKEND_URL", "http://localhost:3001");
+    sessionCookies.push({ name: "__session", value: "abc" });
+    incoming.current = { origin: "http://localhost:3000", "sec-fetch-site": "same-origin" };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    sessionCookies.length = 0;
+    incoming.current = {};
+  });
+
+  it("deletes the backend path, never from a cache, with no body", async () => {
+    const response = await backendDelete(ACCOUNT);
+
+    const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(url).toBe(`http://localhost:3001${ACCOUNT}`);
+    expect(init).toMatchObject({ method: "DELETE", cache: "no-store" });
+    expect(init?.body).toBeUndefined();
+    expect(response.status).toBe(204);
+  });
+
+  // A state change: the backend refuses it without the browser's own origin (assertSameOrigin).
+  it("carries the browser's session and its origin headers, as the posts do", async () => {
+    await backendDelete(ACCOUNT);
+
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(init?.headers).toEqual({
+      cookie: "__session=abc",
+      origin: "http://localhost:3000",
+      "sec-fetch-site": "same-origin",
+    });
+  });
+
+  it("sends no cookie header when the browser has no session", async () => {
+    sessionCookies.length = 0;
+
+    await backendDelete(ACCOUNT);
+
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(init?.headers).not.toHaveProperty("cookie");
+  });
+
+  it("refuses to send anything when the backend address is not configured", async () => {
+    vi.stubEnv("BACKEND_URL", "");
+
+    await expect(backendDelete(ACCOUNT)).rejects.toThrow("BACKEND_URL is not configured");
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });
