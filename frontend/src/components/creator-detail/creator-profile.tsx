@@ -1,3 +1,4 @@
+import { ConnectionBadge } from "@/components/ui/connection-badge";
 import { Panel } from "@/components/ui/panel";
 import { StatusDot } from "@/components/ui/pill";
 import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
@@ -9,11 +10,12 @@ import {
   type CreatorProfile,
 } from "@/lib/creator-detail";
 import { jakartaDay } from "@/lib/format";
+import { readConnections, type SocialConnections } from "@/lib/social-connection";
 
 /** How each platform is captioned on its chip, in the order the chips are laid out. */
 const PLATFORMS = [
-  { key: "instagram", caption: "IG" },
-  { key: "tiktok", caption: "TIKTOK" },
+  { key: "instagram", caption: "IG", label: "Instagram" },
+  { key: "tiktok", caption: "TIKTOK", label: "TikTok" },
 ] as const;
 
 const CAPTION = "text-xs text-muted";
@@ -27,12 +29,15 @@ export function CreatorProfilePanel({
   creator,
   current,
   today = jakartaDay(),
+  // Until 19.3 sends connections, every account reads as not connected.
+  connections = readConnections(undefined),
 }: Readonly<{
   creator: CreatorProfile;
   /** The creator's latest contract; null for a creator without one. */
   current: CreatorPeriod | null;
   /** Jakarta calendar day, injected by the server so the access state is deterministic. */
   today?: string;
+  connections?: SocialConnections;
 }>) {
   const accounts = PLATFORMS.filter(({ key }) => creator.socials[key]);
   const access = creatorAccess(creator.accessRevokeDate, current?.endDate ?? null, today);
@@ -46,15 +51,16 @@ export function CreatorProfilePanel({
 
           {accounts.length > 0 ? (
             <ul aria-label="Akun media sosial" className="mt-3 flex flex-wrap gap-2">
-              {accounts.map(({ key, caption }) => (
-                <li
-                  key={key}
-                  className="inline-flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-xs"
-                >
-                  <span className="text-[10.5px] font-semibold tracking-wide text-muted">
-                    {caption}
+              {accounts.map(({ key, caption, label }) => (
+                <li key={key} className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-xs">
+                    <span className="text-[10.5px] font-semibold tracking-wide text-muted">
+                      {caption}
+                    </span>
+                    <span>@{creator.socials[key]}</span>
                   </span>
-                  <span>@{creator.socials[key]}</span>
+                  {/* Beside the chip, as the prototype has it (PBI-19, AC 12). */}
+                  <ConnectionBadge platform={label} connection={connections[key]} />
                 </li>
               ))}
             </ul>
