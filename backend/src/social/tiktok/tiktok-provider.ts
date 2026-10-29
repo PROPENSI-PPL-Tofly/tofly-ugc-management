@@ -1,4 +1,5 @@
 import {
+  logSafeName,
   PlatformRefusal,
   type ConnectError,
   type PlatformAccount,
@@ -33,9 +34,6 @@ const CALLBACK_ERRORS: Readonly<Record<string, ConnectError>> = {
   access_denied: 'cancelled',
 };
 
-/** An error name TikTok sends, safe to log only when it looks like one. */
-const ERROR_NAME = /^[A-Za-z0-9_.]{1,64}$/;
-
 type Json = Record<string, unknown>;
 
 function isRecord(value: unknown): value is Json {
@@ -48,12 +46,6 @@ function isText(value: unknown): value is string {
 
 function isLifetime(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
-}
-
-function errorName(value: unknown): string {
-  return typeof value === 'string' && ERROR_NAME.test(value)
-    ? value
-    : 'unknown';
 }
 
 function platformError(reason: string): PlatformRefusal {
@@ -140,7 +132,7 @@ export class TikTokProvider implements SocialOAuthProvider {
     });
 
     if (body.error !== undefined) {
-      throw platformError(`${label} refused: ${errorName(body.error)}`);
+      throw platformError(`${label} refused: ${logSafeName(body.error)}`);
     }
     if (!ok) {
       throw platformError(`${label} answered ${status}`);
@@ -198,7 +190,7 @@ export class TikTokProvider implements SocialOAuthProvider {
 
     const { error, data } = body;
     if (isRecord(error) && error.code !== 'ok') {
-      throw platformError(`user info refused: ${errorName(error.code)}`);
+      throw platformError(`user info refused: ${logSafeName(error.code)}`);
     }
     if (!ok) {
       throw platformError(`${label} answered ${status}`);
