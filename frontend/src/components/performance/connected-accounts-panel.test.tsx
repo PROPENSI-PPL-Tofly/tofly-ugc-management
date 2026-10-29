@@ -174,6 +174,47 @@ describe("ConnectedAccountsPanel", () => {
     });
   });
 
+  // Found in the 390px screenshot: a row's actions ran off the card. Each card may shrink inside
+  // the grid, its actions drop under the name when there is no room, and no button breaks its
+  // label over two lines.
+  describe("on a narrow screen", () => {
+    it("lets each card shrink inside its column instead of pushing past the screen", () => {
+      renderPanel();
+
+      for (const platform of ["Instagram", "TikTok"] as const) {
+        expect(row(platform)).toHaveClass("min-w-0");
+      }
+    });
+
+    it("drops a row's actions under its name when they do not fit beside it", () => {
+      renderPanel({ accounts: TIKTOK_CONNECTED });
+
+      const actions = within(row("TikTok")).getByRole("button", { name: "Putuskan TikTok" }).parentElement;
+      expect(actions?.parentElement).toHaveClass("flex-wrap");
+    });
+
+    it("drops Coba Lagi under a long message rather than squeezing either", () => {
+      renderPanel({ outcome: { kind: "failed", platform: "instagram", error: "not_professional" } });
+
+      expect(within(row("Instagram")).getByRole("alert")).toHaveClass("flex-wrap");
+    });
+
+    it.each([
+      ["Hubungkan", () => within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" })],
+      ["Coba Lagi", () => within(row("Instagram")).getByRole("link", { name: "Coba Lagi" })],
+    ])("keeps %s on one line", (_label, find) => {
+      renderPanel({ outcome: { kind: "failed", platform: "instagram", error: "not_professional" } });
+
+      expect(find()).toHaveClass("whitespace-nowrap");
+    });
+
+    it("keeps Putuskan on one line", () => {
+      renderPanel({ accounts: TIKTOK_CONNECTED });
+
+      expect(within(row("TikTok")).getByRole("button", { name: "Putuskan TikTok" })).toHaveClass("whitespace-nowrap");
+    });
+  });
+
   describe("Putuskan", () => {
     function openDialog() {
       fireEvent.click(within(row("TikTok")).getByRole("button", { name: "Putuskan TikTok" }));
