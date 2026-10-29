@@ -133,21 +133,19 @@ function ConnectLink({
   platform,
   label,
   ariaLabel,
-  variant,
   connecting,
   onConnect,
 }: Readonly<{
   platform: ConnectPlatform;
   label: string;
   ariaLabel?: string;
-  variant: "accent" | "default";
   connecting: boolean;
   onConnect: () => void;
 }>) {
   if (connecting) {
     // The browser is on its way to the platform; a second press would start a second flow.
     return (
-      <button type="button" disabled aria-busy="true" className={`whitespace-nowrap ${buttonClasses(variant)}`}>
+      <button type="button" disabled aria-busy="true" className={`whitespace-nowrap ${buttonClasses()}`}>
         Menghubungkan…
       </button>
     );
@@ -155,7 +153,7 @@ function ConnectLink({
   return (
     // A plain anchor: the backend answers with a redirect to the platform, which needs a full
     // page load, not client-side navigation.
-    <a href={connectHref(platform)} aria-label={ariaLabel} onClick={onConnect} className={`whitespace-nowrap ${buttonClasses(variant)}`}>
+    <a href={connectHref(platform)} aria-label={ariaLabel} onClick={onConnect} className={`whitespace-nowrap ${buttonClasses()}`}>
       {label}
     </a>
   );
@@ -209,7 +207,6 @@ function AccountRow({
               platform={account.platform}
               label="Hubungkan"
               ariaLabel={`Hubungkan ${name}`}
-              variant="default"
               connecting={connecting}
               onConnect={onConnect}
             />
@@ -227,7 +224,6 @@ function AccountRow({
             <ConnectLink
               platform={account.platform}
               label="Coba Lagi"
-              variant="default"
               connecting={false}
               onConnect={onConnect}
             />
