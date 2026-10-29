@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { Button } from "./button";
+import type { Variant } from "./button-classes";
 import { Modal } from "./modal";
 
 /**
@@ -16,6 +17,7 @@ export function ConfirmDialog({
   cancelLabel,
   onConfirm,
   onCancel,
+  confirmVariant = "danger",
 }: {
   title: string;
   message: string;
@@ -23,6 +25,8 @@ export function ConfirmDialog({
   cancelLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Red for throwing work away (the default); the brand blue for a step forward that is final. */
+  confirmVariant?: Variant;
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
 
@@ -38,7 +42,7 @@ export function ConfirmDialog({
           <Button ref={cancelRef} type="button" onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button type="button" variant="danger" onClick={onConfirm}>
+          <Button type="button" variant={confirmVariant} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </>

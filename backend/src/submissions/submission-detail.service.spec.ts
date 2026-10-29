@@ -70,7 +70,7 @@ describe('SubmissionDetailService.getDetail', () => {
   it('returns the header, brief, draft link, current status, and revision history with notes only', async () => {
     const client = stubClient({
       brief: 'Create a short product review',
-      status: 'draft_revised',
+      status: 'draft_review',
       link: 'https://drive.example.com/draft-2',
       revisions: [
         {
@@ -95,7 +95,7 @@ describe('SubmissionDetailService.getDetail', () => {
       type: 'specific',
       brief: 'Create a short product review',
       link: 'https://drive.example.com/draft-2',
-      status: 'draft_revised',
+      status: 'draft_review',
       revisionHistory: [
         {
           note: 'Tolong ubah opening',
@@ -108,7 +108,7 @@ describe('SubmissionDetailService.getDetail', () => {
   it('reads only revision notes with the note update timestamp', async () => {
     const client = stubClient({
       brief: 'Create a short product review',
-      status: 'draft_revised',
+      status: 'draft_review',
       link: 'https://drive.example.com/draft-2',
       revisions: [
         {

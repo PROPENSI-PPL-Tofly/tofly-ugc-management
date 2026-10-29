@@ -195,7 +195,7 @@ describe('Google sign-in (e2e)', () => {
 
   it.each([
     ['an admin', 'admin@example.com', '/admin/creators', 'user-admin'],
-    ['a creator', 'creator@example.com', '/creator/tasks', 'user-creator'],
+    ['a creator', 'creator@example.com', '/creator/dashboard', 'user-creator'],
   ])(
     'signs %s in end to end and lands them on their page',
     async (_label, email, landing, userId) => {

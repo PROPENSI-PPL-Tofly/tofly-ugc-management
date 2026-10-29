@@ -109,6 +109,8 @@ export function SubmitVideoModal({
     }
   }
 
+  const cannotSend = isSubmitting || hasPlatformError;
+
   return (
     <>
     <Modal
@@ -128,7 +130,7 @@ export function SubmitVideoModal({
             type="button"
             variant="accent"
             onClick={handleSubmit}
-            disabled={isSubmitting || hasPlatformError}
+            disabled={cannotSend}
           >
             {isSubmitting ? "Mengirim..." : "Kirim Link"}
           </Button>
@@ -156,6 +158,12 @@ export function SubmitVideoModal({
               // A stored message is stale once the value changes; the live
               // platform check re-evaluates for the new value.
               setVideoLinkError("");
+            }}
+            // Enter sends the one field as the button would, and nothing the button would not.
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              if (!cannotSend) void handleSubmit();
             }}
             className={FIELD}
           />

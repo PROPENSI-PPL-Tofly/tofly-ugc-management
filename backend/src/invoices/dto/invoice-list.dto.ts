@@ -1,0 +1,123 @@
+import type {
+  ComponentStatus,
+  InvoiceComponentKey,
+  InvoiceLine,
+} from '../invoice-component.js';
+import type { InvoiceStatus } from '../invoice-status.js';
+import type { RateFormula } from '../rate-formula.js';
+import type { InvoiceConfirmationFields } from './invoice-confirmation.dto.js';
+import type { InvoicePaymentFields } from './invoice-payment.dto.js';
+
+/** One part of the invoice as the Rate & Invoicing table reads it. */
+export interface InvoiceComponentDto {
+  /** Rupiah, always zero or more; null while the component is waiting for data. */
+  amount: number | null;
+  status: ComponentStatus;
+  lines: InvoiceLine[];
+}
+
+export interface InvoiceContractDto {
+  id: string;
+  status: 'active' | 'expired' | 'upcoming';
+  /** YYYY-MM-DD */
+  startDate: string;
+  /** YYYY-MM-DD */
+  endDate: string;
+  /**
+   * YYYY-MM-DD, the last day the contract counts: endDate, or the day access was revoked if
+   * that came first. Finalizing waits for the day after it.
+   */
+  lastDay: string;
+  /** Which of the creator's contracts this is, from 1 in the order they started. */
+  period: number;
+}
+
+export interface InvoiceAdjustmentDto {
+  id: string;
+  amount: number;
+  reason: string;
+  actorId: string;
+  createdAt: string;
+}
+
+export interface InvoiceSnapshotDto {
+  fixedRate: InvoiceComponentDto;
+  additionalContent: InvoiceComponentDto;
+  performanceBonus: InvoiceComponentDto;
+  penalty: InvoiceComponentDto;
+  adjustments: InvoiceAdjustmentDto[];
+  rawTotal: number;
+  total: number;
+  floored: boolean;
+  finalizedAt: string;
+  /**
+   * The formula the breakdown was calculated with, null if none was saved then. Absent from a
+   * snapshot saved before the formula was kept with it.
+   */
+  formula?: RateFormula | null;
+  /**
+   * Whether the admin froze the performance bonus while some content still had no performance
+   * data, so it holds only what the measured content earned. Absent from a snapshot saved before
+   * a pending bonus could be frozen.
+   */
+  performanceBonusPending?: boolean;
+}
+
+/** Calculation result before the invoice pipeline assigns its status. */
+export interface CalculatedInvoice {
+  creatorId: string;
+  creatorName: string;
+  contract: InvoiceContractDto;
+  components: Record<InvoiceComponentKey, InvoiceComponentDto>;
+  /** What the components add up to, which may be below zero. */
+  rawTotal: number;
+  /** The amount owed, never below zero. */
+  total: number;
+  /** Whether the penalty outweighed the pay and the total was held at zero. */
+  floored: boolean;
+}
+
+export interface InvoiceListItem extends CalculatedInvoice {
+  /** Where the invoice stands in the invoice pipeline. */
+  invoiceStatus: InvoiceStatus;
+  /** Manual adjustments recorded against this invoice. */
+  adjustments: InvoiceAdjustmentDto[];
+  /** Persisted breakdown and totals after finalization; null while not finalized. */
+  snapshot: InvoiceSnapshotDto | null;
+}
+
+/**
+ * One creator's invoice with the contract period and formula used for its calculation, and when
+ * the creator made their moves on it. Whose proof link it carries is up to whoever answers it.
+ */
+export interface InvoiceView
+  extends InvoiceListItem, InvoiceConfirmationFields {
+  periodNumber: number;
+  /**
+   * The current formula while the invoice is calculated live; once finalized, the one saved with
+   * its snapshot, or null when that snapshot predates keeping it.
+   */
+  formula: RateFormula | null;
+}
+
+/** The admin's view of one invoice: the breakdown popups and the Rincian panel. */
+export interface InvoiceDetail extends InvoiceView, InvoicePaymentFields {}
+
+/** Summary information across all invoices kept by the filters. */
+export interface InvoiceListSummary {
+  /** What every invoice the filters keep adds up to, across all pages. */
+  total: number;
+  /** Running invoices across the whole roster, whatever the filters. */
+  runningInvoices: number;
+  /** Whether an admin has saved a rate formula yet. */
+  formulaSet: boolean;
+}
+
+export interface InvoiceListResponse {
+  items: (InvoiceListItem & InvoicePaymentFields & InvoiceConfirmationFields)[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  summary: InvoiceListSummary;
+}

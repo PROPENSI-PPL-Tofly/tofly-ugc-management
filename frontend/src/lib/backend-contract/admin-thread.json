@@ -1,0 +1,23 @@
+[
+  {
+    "id": "e7a0ab11-6df4-4d17-a8d5-2b253b8133db",
+    "authorName": "Adit Prakoso",
+    "authorRole": "creator",
+    "text": "Sudah saya cek, terima kasih kak.",
+    "createdAt": "2026-10-20T05:23:21.110Z"
+  },
+  {
+    "id": "1bde3b8c-0178-4074-a688-39d09de68b0c",
+    "authorName": "Admin",
+    "authorRole": "admin",
+    "text": "Bukti transfer sudah diunggah ya.",
+    "createdAt": "2026-10-20T05:25:20.987Z"
+  },
+  {
+    "id": "8067c057-57de-472a-a793-1b9e482c2255",
+    "authorName": "Adit Prakoso",
+    "authorRole": "creator",
+    "text": "Sudah masuk, terima kasih!",
+    "createdAt": "2026-10-20T05:25:21.000Z"
+  }
+]

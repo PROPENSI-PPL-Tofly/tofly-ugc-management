@@ -31,6 +31,9 @@ const JAKARTA_TIME_FORMAT = new Intl.DateTimeFormat("id-ID", {
 
 export const EMPTY = "—";
 
+/** A calendar day with no time of day, the way the API sends a Postgres `date`. */
+const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * The API sends plain calendar days. Parsing and formatting them as UTC keeps the day as
  * written; letting the browser read them in local time moves a date across midnight for
@@ -38,7 +41,12 @@ export const EMPTY = "—";
  */
 export function formatDate(date: string | null): string {
   if (!date) return EMPTY;
-  return DATE_FORMAT.format(new Date(`${date}T00:00:00Z`));
+
+  // A value that is not a calendar day gets the dash too: formatting an invalid Date throws.
+  const day = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(day.getTime())) return EMPTY;
+
+  return DATE_FORMAT.format(day);
 }
 
 /**
@@ -47,6 +55,8 @@ export function formatDate(date: string | null): string {
  */
 export function formatTimestamp(timestamp: string | null): string {
   if (!timestamp) return EMPTY;
+  // A plain day has no time to show; read as an instant it would be midnight UTC, 07.00 WIB.
+  if (PLAIN_DAY.test(timestamp)) return formatDate(timestamp);
 
   const moment = new Date(timestamp);
   if (Number.isNaN(moment.getTime())) return EMPTY;
@@ -72,10 +82,72 @@ export function formatDaysRemaining(days: number | null): string {
   return `sisa ${days} hari`;
 }
 
+// "2026-10-09": en-CA writes a date as year-month-day, the way the API writes calendar days.
+const JAKARTA_ISO_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: JAKARTA,
+});
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Today as a calendar day in Jakarta, where Tofly works: "2026-10-10". Deadlines are compared
+ * to this day, so it turns over at midnight WIB whoever is looking. `now` is a parameter so a
+ * test can pin the day.
+ */
+export function jakartaDay(now: Date = new Date()): string {
+  return JAKARTA_ISO_DAY_FORMAT.format(now);
+}
+
+/**
+ * Whole days from today to a deadline: positive before it, 0 on it, negative after; null when
+ * the deadline cannot be read. Today is Jakarta's calendar day, so the count turns over at
+ * midnight WIB for everyone. `now` is a parameter so a test can pin the day.
+ *
+ * Single Responsibility: this counts the days and formatDaysLeft words them. The panel's header
+ * needs the number (to colour the deadline) and the words, so it counts once and words after.
+ * Dependency injection: the clock comes in as `now`, which keeps the function pure and the
+ * tests repeatable on any day.
+ */
+export function daysUntil(deadline: string | null, now: Date = new Date()): number | null {
+  if (!deadline) return null;
+
+  const due = Date.parse(`${deadline}T00:00:00Z`);
+  if (Number.isNaN(due)) return null;
+
+  const today = Date.parse(`${jakartaDay(now)}T00:00:00Z`);
+  return Math.round((due - today) / MS_PER_DAY);
+}
+
+/** A count of days to a deadline as it reads: "H-3", "Hari ini", "Lewat 2 hari"; a dash if unknown. */
+export function formatDaysLeft(days: number | null): string {
+  if (days === null) return EMPTY;
+  if (days > 0) return `H-${days}`;
+  if (days === 0) return "Hari ini";
+  return `Lewat ${-days} hari`;
+}
+
+/** How far a deadline is from today: "H-3" before it, "Hari ini" on it, "Lewat 2 hari" after. */
+export function formatDue(deadline: string | null, now: Date = new Date()): string {
+  return formatDaysLeft(daysUntil(deadline, now));
+}
+
 export function formatPercent(value: number | null): string {
   return value === null ? EMPTY : `${value}%`;
 }
 
 export function formatRevisions(value: number): string {
   return `${NUMBER_FORMAT.format(value)}x`;
+}
+
+/** Rupiah, as the prototype writes it: "Rp500.000", with a plain minus for what is taken off. */
+export function formatRupiah(amount: number): string {
+  return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
+}
+
+/** Money taken away, such as a penalty, written the one way the table and its popups share. */
+export function formatDeduction(amount: number): string {
+  return `− ${formatRupiah(amount)}`;
 }

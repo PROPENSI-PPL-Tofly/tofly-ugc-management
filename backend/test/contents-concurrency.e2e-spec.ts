@@ -6,6 +6,7 @@ import { ContentsController } from '../src/contents/contents.controller.js';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { ContentCreationService } from '../src/contents/contents.service.js';
+import { ContentDetailService } from '../src/contents/content-detail.service.js';
 
 // Use a dedicated disposable database, never the application's DATABASE_URL.
 const databaseUrl = process.env.CONTENTS_TEST_DATABASE_URL;
@@ -26,7 +27,11 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
     });
     const module = await Test.createTestingModule({
       controllers: [ContentsController],
-      providers: [{ provide: ContentCreationService, useValue: service }],
+      providers: [
+        { provide: ContentCreationService, useValue: service },
+        // The controller also serves GET /contents/:id; this suite never calls it.
+        { provide: ContentDetailService, useValue: {} },
+      ],
     })
       // This suite is about transactions on a disposable database; the admin guard is proven
       // by admin-routes.e2e-spec.ts.
@@ -92,9 +97,11 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
     });
     expect(saved).toMatchObject({
       status: 'scheduled',
-      is_proposal: false,
       brief: 'Brief',
     });
+    // Neither the body's status nor its is_proposal reached the row: admin-created content is
+    // committed work, never a pending proposal (OWASP A08, mass assignment).
+    expect(saved).not.toHaveProperty('is_proposal');
   });
 
   it('generates the Evergreen title and rejects the next item once quota is full', async () => {
@@ -157,7 +164,7 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
       .send(body)
       .expect(422);
     expect(response.body.errors).toEqual({
-      deadline: 'Deadline paling cepat 2026-09-29',
+      deadline: 'Deadline paling cepat 29 Sep 2026',
     });
     await request(app.getHttpServer())
       .post('/contents')
@@ -210,9 +217,17 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
         type: 'evergreen' as const,
         deadline: '2026-10-10',
       };
+      // The Scheduled event is recorded as the admin who planned the content.
+      const admin = await prisma.users.create({
+        data: {
+          email: `concurrency-admin-${randomUUID()}@example.com`,
+          is_admin: true,
+        },
+      });
+      users.push(admin.id);
       const pending = Promise.allSettled([
-        service.create(input),
-        service.create(input),
+        service.create(input, admin.id),
+        service.create(input, admin.id),
       ]);
       try {
         // Prove real contention rather than merely starting two promises together.

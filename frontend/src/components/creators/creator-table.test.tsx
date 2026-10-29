@@ -1,16 +1,21 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
+import { PRODUCTIVITY_TIP } from "@/lib/creator-detail";
 import { CreatorTable } from "./creator-table";
 import { creator } from "./creator.fixture";
 
-const { push } = vi.hoisted(() => ({
+const { push, replace } = vi.hoisted(() => ({
   push: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push,
+    replace,
   }),
+  usePathname: () => "/admin/creators",
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 describe("CreatorTable", () => {
@@ -59,7 +64,10 @@ describe("CreatorTable", () => {
   it("labels the columns", () => {
     render(<CreatorTable creators={[creator()]} total={1} />);
 
-    const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
+    // The heading's own words: the ⓘ beside Produktivitas carries its explanation too.
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((cell) => cell.firstChild?.firstChild?.textContent ?? cell.textContent);
 
     expect(headers).toEqual([
       "Creator",
@@ -68,8 +76,46 @@ describe("CreatorTable", () => {
       "Tepat waktu",
       "Rata-rata revisi",
       "Produktivitas",
-      "Aksi",
+      "",
     ]);
+  });
+
+  it("explains Produktivitas beside its heading, in Creator Detail's words", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const heading = screen.getByRole("columnheader", { name: /^Produktivitas/ });
+    const info = within(heading).getByRole("button", { name: "Tentang Produktivitas" });
+
+    expect(info).toHaveAccessibleDescription(PRODUCTIVITY_TIP);
+    expect(within(heading).getByRole("tooltip")).toHaveTextContent(PRODUCTIVITY_TIP);
+  });
+
+  it("explains no other column", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const others = screen
+      .getAllByRole("columnheader")
+      .filter((cell) => !cell.textContent?.startsWith("Produktivitas"));
+
+    expect(others).toHaveLength(6);
+    for (const cell of others) expect(within(cell).queryByRole("button")).toBeNull();
+  });
+
+  it("opens the explanation on hover and keyboard focus, toward the table's inside", () => {
+    render(<CreatorTable creators={[creator()]} total={1} />);
+
+    const info = screen.getByRole("button", { name: "Tentang Produktivitas" });
+    info.focus();
+    expect(info).toHaveFocus();
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveClass("group-hover:visible", "group-focus-within:visible");
+    // Its right edge meets the icon's, so it hangs back over the table, not past its scroll edge.
+    expect(tooltip).toHaveClass("right-0");
+
+    // The heading is not a row: pressing the ⓘ opens no creator's page.
+    fireEvent.click(info);
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("mentions the period once a contract has been renewed", () => {
@@ -237,6 +283,16 @@ describe("CreatorTable", () => {
     expect(screen.queryByText("Belum ada creator yang terdaftar.")).toBeNull();
   });
 
+  it("offers the same way out of an empty search as every other list: the hint and Reset filter", () => {
+    window.history.pushState({}, "", "/admin/creators?q=zzz&contractStatus=active");
+    render(<CreatorTable creators={[]} total={0} filtered />);
+
+    expect(screen.getByText("Longgarkan pencarian atau filternya.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/admin/creators", { scroll: false });
+  });
+
   it("points back to the first page when the page is past the end", () => {
     render(<CreatorTable creators={[]} total={12} />);
 
@@ -249,72 +305,136 @@ describe("CreatorTable", () => {
     ).toHaveAttribute("href", "/admin/creators");
   });
 
-  it("shows Detail and Content Plan actions for each creator", () => {
-    render(<CreatorTable creators={[creator()]} total={1} />);
+  // PBI-4: the Creator Detail page takes the place of the Detail dialog and of the creator's
+  // own Content Plan page, so a row has one way in.
+  describe("opening a creator", () => {
+    it("offers the creator's name and a Detail link, both to the creator's own page", () => {
+      render(<CreatorTable creators={[creator({ id: "creator-123" })]} total={1} />);
 
-    const row = screen.getAllByRole("row")[1];
+      const row = screen.getAllByRole("row")[1];
 
-    expect(
-      within(row).getByRole("button", {
-        name: "Detail",
-      }),
-    ).toBeInTheDocument();
+      expect(within(row).getAllByRole("link")).toHaveLength(2);
+      expect(within(row).getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
+        "href",
+        "/admin/creators/creator-123",
+      );
+      expect(within(row).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+        "href",
+        "/admin/creators/creator-123",
+      );
+    });
 
-    expect(
-      within(row).getByRole("link", {
-        name: "Content Plan",
-      }),
-    ).toBeInTheDocument();
-  });
+    it("offers a Detail button in the last column, as the prototype does", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
 
-  it("links Content Plan to the selected creator", () => {
-    render(
-      <CreatorTable
-        creators={[
-          creator({
-            id: "creator-123",
-          }),
-        ]}
-        total={1}
-      />,
-    );
+      const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
 
-    const row = screen.getAllByRole("row")[1];
+      expect(within(cells.at(-1)!).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveTextContent(
+        "Detail",
+      );
+    });
 
-    expect(
-      within(row).getByRole("link", {
-        name: "Content Plan",
-      }),
-    ).toHaveAttribute("href", "/admin/creators/creator-123/content-plan");
-  });
+    it("opens the creator's page once when its Detail button is pressed, not again through the row", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
 
-  it("opens the creator detail dialog when Detail is clicked", () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+      const link = screen.getByRole("link", { name: "Detail Rangga Pratama" });
+      // The link's own navigation is the browser's; here only the row's share is watched.
+      link.addEventListener("click", (event) => event.preventDefault());
 
-    render(<CreatorTable creators={[creator()]} total={1} />);
+      fireEvent.click(link);
 
-    const row = screen.getAllByRole("row")[1];
+      expect(push).not.toHaveBeenCalled();
+    });
 
-    fireEvent.click(
-      within(row).getByRole("button", {
-        name: "Detail",
-      }),
-    );
+    it("no longer offers the creator's own Content Plan page", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
 
-    expect(
-      screen.getByRole("dialog", {
-        name: "Rangga Pratama",
-      }),
-    ).toBeInTheDocument();
-  });
+      expect(screen.queryByRole("link", { name: /Content Plan/ })).not.toBeInTheDocument();
+    });
 
-  it("closes the creator detail dialog", () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
-    render(<CreatorTable creators={[creator()]} total={1} />);
-    fireEvent.click(within(screen.getAllByRole("row")[1]).getByRole("button", { name: "Detail" }));
+    it("opens the creator's page on a press anywhere on the row", () => {
+      render(<CreatorTable creators={[creator({ id: "creator-123" })]} total={1} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+      fireEvent.click(screen.getByText("rangga@example.com"));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(push).toHaveBeenCalledExactlyOnceWith("/admin/creators/creator-123");
+    });
+
+    it("opens the page of the creator that was pressed, among several", () => {
+      render(
+        <CreatorTable
+          creators={[
+            creator({ id: "creator-1" }),
+            creator({ id: "creator-2", name: "Salsa Amelia", email: "salsa@example.com" }),
+          ]}
+          total={2}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("salsa@example.com"));
+
+      expect(push).toHaveBeenCalledExactlyOnceWith("/admin/creators/creator-2");
+    });
+
+    it("leaves the link to open the page itself, not once for the link and once for the row", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+      const link = screen.getByRole("link", { name: "Rangga Pratama" });
+      // The link's own navigation is the browser's; here only the row's share is watched.
+      link.addEventListener("click", (event) => event.preventDefault());
+
+      fireEvent.click(link);
+
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("leaves the heading row alone", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      fireEvent.click(screen.getByRole("columnheader", { name: "Kontrak" }));
+
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("does not open the page over a name or an email that was just selected", () => {
+      vi.spyOn(window, "getSelection").mockReturnValue({
+        toString: () => "rangga@example.com",
+      } as Selection);
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      fireEvent.click(screen.getByText("rangga@example.com"));
+
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("opens as usual where the browser reports no selection at all", () => {
+      vi.spyOn(window, "getSelection").mockReturnValue(null);
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      fireEvent.click(screen.getByText("rangga@example.com"));
+
+      expect(push).toHaveBeenCalledExactlyOnceWith("/admin/creators/creator-1");
+    });
+
+    it("encodes an id that could otherwise step out of the address", () => {
+      render(<CreatorTable creators={[creator({ id: "a/b?c" })]} total={1} />);
+
+      expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
+        "href",
+        "/admin/creators/a%2Fb%3Fc",
+      );
+
+      fireEvent.click(screen.getByText("rangga@example.com"));
+
+      expect(push).toHaveBeenCalledExactlyOnceWith("/admin/creators/a%2Fb%3Fc");
+    });
+
+    it("opens no dialog: the detail is a page now", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      fireEvent.click(screen.getByText("rangga@example.com"));
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Detail" })).not.toBeInTheDocument();
+    });
   });
 });

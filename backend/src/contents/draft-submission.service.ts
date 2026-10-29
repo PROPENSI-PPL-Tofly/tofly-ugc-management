@@ -6,12 +6,13 @@ import {
 } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import { nextDraftStatus, type DraftSubmission } from './draft-submission.js';
 
 export interface SubmittedDraft {
   contentId: string;
   submissionId: string;
-  status: 'draft_review' | 'draft_revised';
+  status: 'draft_review';
   link: string;
   notes: string | null;
   /** ISO timestamp of the hand-in. */
@@ -24,17 +25,21 @@ export interface DraftSubmissionTransaction {
     findFirst: (args: {
       where: {
         id: string;
-        is_proposal: false;
+        status: { in: content_status[] };
         contracts: { creator_id: string };
       };
       select: { id: true; status: true };
     }) => Promise<{ id: string; status: content_status } | null>;
     updateMany: (args: {
       where: { id: string; status: content_status };
-      data: { status: 'draft_review' | 'draft_revised' };
+      data: { status: 'draft_review' };
     }) => Promise<{ count: number }>;
   };
   submissions: {
+    findMany: (args: {
+      where: { content_id: string };
+      select: { id: true };
+    }) => Promise<{ id: string }[]>;
     create: (args: {
       data: {
         content_id: string;
@@ -44,6 +49,28 @@ export interface DraftSubmissionTransaction {
       };
       select: { id: true; created_at: true };
     }) => Promise<{ id: string; created_at: Date }>;
+  };
+  creators: {
+    findUnique: (args: {
+      where: { id: string };
+      select: { first_name: true; middle_name: true; last_name: true };
+    }) => Promise<{
+      first_name: string;
+      middle_name: string | null;
+      last_name: string | null;
+    } | null>;
+  };
+  content_events: {
+    create: (args: {
+      data: {
+        content_id: string;
+        event_type: 'Draft Submitted';
+        actor_name: string;
+        actor_role: 'creator';
+        occurred_at: Date;
+        event_data: { version: number; link: string; note?: string };
+      };
+    }) => Promise<unknown>;
   };
 }
 
@@ -88,7 +115,7 @@ export class DraftSubmissionService implements DraftSubmitter {
       const content = await transaction.contents.findFirst({
         where: {
           id: contentId,
-          is_proposal: false,
+          status: { in: [...COMMITTED_STATUSES] },
           contracts: { creator_id: creatorId },
         },
         select: { id: true, status: true },
@@ -115,6 +142,24 @@ export class DraftSubmissionService implements DraftSubmitter {
         throw notEligible();
       }
 
+      const [previousSubmissions, creator] = await Promise.all([
+        transaction.submissions.findMany({
+          where: { content_id: contentId },
+          select: { id: true },
+        }),
+        transaction.creators.findUnique({
+          where: { id: creatorId },
+          select: { first_name: true, middle_name: true, last_name: true },
+        }),
+      ]);
+
+      if (!creator) {
+        throw new NotFoundException({
+          code: 'CREATOR_NOT_FOUND',
+          message: 'Kreator tidak ditemukan',
+        });
+      }
+
       const submission = await transaction.submissions.create({
         data: {
           content_id: contentId,
@@ -123,6 +168,28 @@ export class DraftSubmissionService implements DraftSubmitter {
           creator_notes: input.notes,
         },
         select: { id: true, created_at: true },
+      });
+
+      await transaction.content_events.create({
+        data: {
+          content_id: contentId,
+          event_type: 'Draft Submitted',
+          actor_name: [
+            creator.first_name,
+            creator.middle_name,
+            creator.last_name,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          actor_role: 'creator',
+          occurred_at: submission.created_at,
+          event_data: {
+            version: previousSubmissions.length + 1,
+            link: input.link,
+            // The creator's message to the admin travels with the draft it came with.
+            ...(input.notes !== null && { note: input.notes }),
+          },
+        },
       });
 
       return {

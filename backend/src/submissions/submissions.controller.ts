@@ -8,9 +8,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
+import { unauthenticated } from '../auth/creator-request.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from '../creators/paging.js';
 import type { ApprovedSubmission } from './dto/approved-submission.dto.js';
 import type { ReviewQueueResponse } from './dto/review-queue.dto.js';
@@ -26,7 +28,7 @@ import {
 import { SubmissionReviewService } from './submission-review.service.js';
 
 export interface DraftApprover {
-  approve(id: string): Promise<ApprovedSubmission>;
+  approve(id: string, adminUserId: string): Promise<ApprovedSubmission>;
 }
 
 export interface SubmissionDetailReader {
@@ -59,13 +61,13 @@ export class SubmissionsController {
     @Query('status') status?: unknown,
     @Query('q') q?: unknown,
     @Query('type') type?: unknown,
-    @Query('filterStatus') filterStatus?: unknown,
+    @Query('resubmitted') resubmitted?: unknown,
     @Query('overdue') overdue?: unknown,
   ): Promise<ReviewQueueResponse> {
     return this.queue.list(
       checkPaging(page, pageSize),
       new Date(),
-      checkQueueQuery({ status, q, type, filterStatus, overdue }),
+      checkQueueQuery({ status, q, type, resubmitted, overdue }),
     );
   }
 
@@ -90,7 +92,9 @@ export class SubmissionsController {
   @Patch(':id/approve')
   async approve(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() request: AdminRequest,
   ): Promise<ApprovedSubmission> {
-    return this.review.approve(id);
+    if (request.principal?.role !== 'admin') throw unauthenticated();
+    return this.review.approve(id, request.principal.userId);
   }
 }

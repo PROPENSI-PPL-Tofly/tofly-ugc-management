@@ -1,0 +1,221 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentType } from "react";
+import { CreatorContentFilters } from "./creator-content-filters";
+
+const mockReplace = vi.fn();
+let searchParams = new URLSearchParams();
+
+const PAGE = "/admin/creators/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const CONTRACT = "11111111-1111-4111-8111-111111111111";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => searchParams,
+  usePathname: () => PAGE,
+}));
+
+/** Renders the bar on an address, the way the page would after that address was opened. */
+function renderOn(params: Record<string, string> = {}) {
+  searchParams = new URLSearchParams(params);
+  return render(<CreatorContentFilters />);
+}
+
+function lastAddress(): string {
+  return mockReplace.mock.lastCall?.[0] as string;
+}
+
+beforeEach(() => {
+  mockReplace.mockClear();
+  searchParams = new URLSearchParams();
+});
+
+describe("CreatorContentFilters", () => {
+  it("offers the type and the status, and nothing 4.2 does not ask for", () => {
+    renderOn();
+
+    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("Semua");
+    expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Semua");
+    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Periode")).toBeNull();
+  });
+
+  it("offers both content types", () => {
+    renderOn();
+    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
+
+    expect(screen.getByRole("checkbox", { name: "Evergreen" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Specific" })).toBeInTheDocument();
+  });
+
+  it("offers all six lifecycle statuses, worded as every admin view words them", () => {
+    renderOn();
+    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
+
+    for (const status of [
+      "Pending",
+      "Scheduled",
+      "Draft Menunggu Review",
+      "Draft Perlu Revisi",
+      "Draft Approved",
+      "Content Link Submitted",
+    ]) {
+      expect(screen.getByRole("checkbox", { name: status })).toBeInTheDocument();
+    }
+    // The six, under the Semua option that clears the filter.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(7);
+  });
+
+  it("writes a picked type to the address", () => {
+    renderOn();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Evergreen" }));
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?type=evergreen`, { scroll: false });
+  });
+
+  it("writes a picked status beside the type already picked", () => {
+    renderOn({ type: "evergreen" });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Draft Menunggu Review" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?type=evergreen&status=draft_review`, {
+      scroll: false,
+    });
+  });
+
+  it("keeps the first status when a second is ticked before the address has changed", () => {
+    renderOn();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scheduled" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pending" }));
+
+    expect(new URL(lastAddress(), "http://x").searchParams.get("status")).toBe(
+      "scheduled,pending",
+    );
+    expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("2 dipilih");
+  });
+
+  it("shows every pick of a filter the address repeats, as the table is narrowed by all of them", () => {
+    searchParams = new URLSearchParams("status=scheduled&status=pending");
+    render(<CreatorContentFilters />);
+
+    expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("2 dipilih");
+  });
+
+  it("drops the old page number on a pick, as the narrowed table starts over", () => {
+    renderOn({ page: "3" });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Specific" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?type=specific`, { scroll: false });
+  });
+
+  it("stays on the period it was picked on", () => {
+    renderOn({ contract: CONTRACT, page: "2" });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scheduled" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?contract=${CONTRACT}&status=scheduled`, {
+      scroll: false,
+    });
+  });
+
+  it("shows each pick as a chip that can be dropped on its own", () => {
+    renderOn({ type: "evergreen", status: "scheduled,draft_review" });
+
+    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?type=evergreen&status=draft_review`, {
+      scroll: false,
+    });
+  });
+
+  it("takes the filter out of the address when its last pick is dropped", () => {
+    renderOn({ type: "evergreen" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(PAGE, { scroll: false });
+  });
+
+  it("offers Reset only while something narrows the table", () => {
+    renderOn({ contract: CONTRACT, page: "2" });
+
+    expect(screen.queryByRole("button", { name: "Reset" })).toBeNull();
+  });
+
+  it("resets to the bare address on the newest period", () => {
+    renderOn({ type: "specific", status: "pending", page: "2" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(PAGE, { scroll: false });
+  });
+
+  it("resets the filters and keeps the period that is open", () => {
+    renderOn({ contract: CONTRACT, type: "specific", page: "2" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?contract=${CONTRACT}`, {
+      scroll: false,
+    });
+  });
+
+  // A typed or stale address can name what a content cannot hold. The table ignores it, so
+  // the bar must not draw it as a pick either.
+  it("shows no chip for a type or a status that does not exist", () => {
+    renderOn({ type: "evergreen,weekly", status: "<script>, scheduled ,draft_revised" });
+
+    expect(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(2);
+  });
+
+  it("leaves what does not exist behind on the next pick", () => {
+    renderOn({ type: "weekly,evergreen" });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Specific" }));
+
+    expect(new URL(lastAddress(), "http://x").searchParams.get("type")).toBe("evergreen,specific");
+  });
+
+  it("still offers Reset when the address holds only values that do not exist", () => {
+    renderOn({ status: "bogus" });
+
+    expect(screen.queryByRole("button", { name: /^Hapus filter/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument();
+  });
+
+  it("includes the Content Plan search and Overdue controls, and keeps the selected contract", () => {
+    renderOn({ contract: CONTRACT, page: "3" });
+
+    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "yes" } });
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?contract=${CONTRACT}&overdue=yes`, {
+      scroll: false,
+    });
+  });
+
+  it("can show the search as filtered and not offer Overdue on Selesai", () => {
+    const FiltersForTab = CreatorContentFilters as unknown as ComponentType<{ tab: "all" | "done" }>;
+    searchParams = new URLSearchParams("tab=done&q=kopi");
+    render(<FiltersForTab tab="done" />);
+
+    expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toHaveValue("kopi");
+    expect(screen.queryByLabelText("Overdue")).toBeNull();
+  });
+});

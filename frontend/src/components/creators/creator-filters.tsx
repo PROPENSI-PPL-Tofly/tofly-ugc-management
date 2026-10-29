@@ -1,13 +1,11 @@
 "use client";
 
+import { ResetFilters } from "@/components/filters/filter-controls";
 import { CONTRACT_STATUS_FILTERS, PRODUCTIVITY_FILTERS } from "@/lib/creators";
 import { MAX_SEARCH_LENGTH, useUrlFilters } from "@/lib/use-url-filters";
 
 const FIELD =
   "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
-
-const RESET =
-  "cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink";
 
 const CONTRACT_LABELS: Record<(typeof CONTRACT_STATUS_FILTERS)[number], string> = {
   all: "Semua",
@@ -80,11 +78,7 @@ export function CreatorFilters() {
         </select>
       </label>
 
-      {isFiltered ? (
-        <button type="button" onClick={reset} disabled={pending} className={RESET}>
-          Reset
-        </button>
-      ) : null}
+      {isFiltered ? <ResetFilters onReset={reset} disabled={pending} /> : null}
     </div>
   );
 }

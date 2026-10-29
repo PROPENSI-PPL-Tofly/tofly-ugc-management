@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 /**
  * The part of an HTTP request the creator identity touches. A guard resolves who is calling
@@ -18,5 +18,13 @@ export function unauthenticated(): UnauthorizedException {
   return new UnauthorizedException({
     code: 'UNAUTHENTICATED',
     message: 'Silakan masuk terlebih dahulu',
+  });
+}
+
+/** A signed-in admin is known but not allowed on a creator route; AdminGuard answers a creator alike. */
+export function creatorOnly(): ForbiddenException {
+  return new ForbiddenException({
+    code: 'FORBIDDEN',
+    message: 'Halaman ini hanya untuk Creator',
   });
 }

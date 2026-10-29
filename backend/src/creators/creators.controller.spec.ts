@@ -201,8 +201,10 @@ describe('CreatorsController', () => {
       deadlines: ['2026-10-06'],
     };
 
-    it('hands the validated creator to onboarding and answers with its id', async () => {
-      await expect(controller.create(body)).resolves.toEqual({
+    const signedIn = { principal: { userId: 'admin-1', role: 'admin' as const } };
+
+    it('hands the validated creator and the signed-in admin to onboarding and answers with its id', async () => {
+      await expect(controller.create(body, signedIn)).resolves.toEqual({
         id: 'creator-9',
       });
       expect(onboarding.onboard).toHaveBeenCalledWith(
@@ -213,12 +215,13 @@ describe('CreatorsController', () => {
           deadlines: ['2026-10-06'],
         }),
         new Date('2026-09-23T08:00:00Z'),
+        'admin-1',
       );
     });
 
     it('rejects an invalid body with a 422 before anything is saved', async () => {
       await expect(
-        controller.create({ ...body, email: 'salsa' }),
+        controller.create({ ...body, email: 'salsa' }, signedIn),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
       expect(onboarding.onboard).not.toHaveBeenCalled();
     });
@@ -226,7 +229,7 @@ describe('CreatorsController', () => {
     it('judges "today" by the date the request arrives', async () => {
       vi.setSystemTime(new Date('2026-10-02T00:00:00Z'));
 
-      await expect(controller.create(body)).rejects.toMatchObject({
+      await expect(controller.create(body, signedIn)).rejects.toMatchObject({
         response: {
           errors: {
             contractStart: 'Tanggal mulai tidak boleh sebelum hari ini',

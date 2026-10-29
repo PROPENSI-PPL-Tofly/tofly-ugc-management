@@ -3,16 +3,22 @@
 // from one place and the same "today" (WIB, see jakartaDay).
 
 import type { content_status } from '@prisma/client';
+import { canTransition } from '../contents/content-lifecycle.js';
 
 export type TaskAction = 'submit_draft' | 'resubmit_draft' | 'submit_video';
 
-/** H-1: from the day before the deadline, a video link may skip the draft approval. */
+/** H-1: from the day before the deadline, a video link may skip the approval of a draft in review. */
 export const GRACE_DAYS = 1;
 
 function daysBefore(day: string, days: number): string {
   const date = new Date(`${day}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
+}
+
+/** The furthest deadline whose grace window is open today: the same rule, read from today. */
+export function lastGraceDeadline(today: string): string {
+  return daysBefore(today, -GRACE_DAYS);
 }
 
 /** Open from H-1 onward, including after the deadline: a late link is still a link. */
@@ -23,16 +29,18 @@ export function inGraceWindow(deadline: string, today: string): boolean {
 
 /** A first draft while scheduled, a resubmit after the admin asked for a revision. */
 export function canSubmitDraft(status: content_status): boolean {
-  return status === 'scheduled' || status === 'draft_revision';
+  return canTransition(status, 'draft_review');
 }
 
-/** An approved draft, or any unfinished content inside the grace window. */
+/** An approved draft, or a draft still waiting for review once the grace window is open. */
 export function canSubmitVideo(
   status: content_status,
   deadline: string,
   today: string,
 ): boolean {
-  if (status === 'link_submitted') {
+  // The lifecycle has an arrow to link_submitted from an approved draft and from one in review
+  // only: no draft yet, a revision owed, a pending proposal and a sent link all stop here.
+  if (!canTransition(status, 'link_submitted')) {
     return false;
   }
   return status === 'draft_approved' || inGraceWindow(deadline, today);

@@ -1,0 +1,169 @@
+import { render, screen, within } from "@testing-library/react";
+import type { CreatorPeriod } from "@/lib/creator-detail";
+import { PeriodTabs } from "./period-tabs";
+
+const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const FIRST = "11111111-1111-4111-8111-111111111111";
+const SECOND = "22222222-2222-4222-8222-222222222222";
+const THIRD = "33333333-3333-4333-8333-333333333333";
+
+function period(overrides: Partial<CreatorPeriod> = {}): CreatorPeriod {
+  return {
+    contractId: SECOND,
+    periodNumber: 2,
+    type: "regular",
+    startDate: "2026-06-01",
+    endDate: "2026-12-31",
+    status: "active",
+    contentQuota: 19,
+    evergreenCount: 18,
+    remainingEvergreenQuota: 1,
+    daysBetween: 14,
+    progress: { submitted: 0, total: 19, percent: 0 },
+    performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
+    ...overrides,
+  };
+}
+
+const NEWEST = period();
+const OLDEST = period({
+  contractId: FIRST,
+  periodNumber: 1,
+  type: "probation",
+  startDate: "2026-01-01",
+  endDate: "2026-05-31",
+  status: "expired",
+  contentQuota: 3,
+  evergreenCount: 3,
+  remainingEvergreenQuota: 0,
+  daysBetween: 7,
+});
+
+// Newest first, the order the page's view carries them in.
+const PERIODS = [NEWEST, OLDEST];
+
+function tabs() {
+  return within(screen.getByRole("navigation", { name: "Pilih periode kontrak" })).getAllByRole(
+    "link",
+  );
+}
+
+// A stub for the ⓘ beside Produktivitas: info-tip.test covers the tooltip itself, so here it only
+// marks where it sits, without its words joining the card's label.
+vi.mock("@/components/ui/info-tip", () => ({
+  InfoTip: ({ label }: { label: string }) => <span data-testid="info-tip" data-label={label} />,
+}));
+
+const OBSOLETE_CARDS = ["Kuota Konten", "Sisa Kuota Evergreen", "Jarak Antar-Deadline"];
+const PERFORMANCE_CARDS = ["Progres Konten", "Tepat Waktu", "Rata-rata Revisi", "Produktivitas", "Total Pendapatan"];
+
+describe("PeriodTabs", () => {
+  it("is headed Periode Kontrak", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Periode Kontrak" })).toBeInTheDocument();
+  });
+
+  it("lays the periods out oldest to newest, as the prototype does", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    const [first, second] = tabs();
+    expect(tabs()).toHaveLength(2);
+    expect(first).toHaveTextContent("Periode 1 · Probation");
+    expect(second).toHaveTextContent("Periode 2 · Regular");
+  });
+
+  it("words each period's state and dates on its tab", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    const [first, second] = tabs();
+    expect(first).toHaveTextContent("Berakhir");
+    expect(first).toHaveTextContent("1 Jan – 31 Mei 2026");
+    expect(second).toHaveTextContent("Aktif");
+    expect(second).toHaveTextContent("1 Jun – 31 Des 2026");
+  });
+
+  it.each([
+    [0, "Berakhir", "bg-red"],
+    [1, "Aktif", "bg-green"],
+  ])("draws tab %i's state as a dot and its words, as Creator Database draws a contract", (index, label, colour) => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    const state = within(tabs()[index]).getByText(label);
+    expect(state).not.toHaveClass("rounded-full");
+    expect(state.querySelector('[aria-hidden="true"]')).toHaveClass(colour);
+  });
+
+  it("words a period that has not started yet", () => {
+    const upcoming = period({ contractId: THIRD, periodNumber: 3, status: "upcoming" });
+    render(<PeriodTabs creatorId={CREATOR} periods={[upcoming, ...PERIODS]} selected={upcoming} />);
+
+    expect(tabs()).toHaveLength(3);
+    expect(tabs()[2]).toHaveTextContent("Periode 3 · Regular");
+    expect(tabs()[2]).toHaveTextContent("Belum Dimulai");
+  });
+
+  it("marks the open period as the current one, and only it", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={OLDEST} />);
+
+    const [first, second] = tabs();
+    expect(first).toHaveAttribute("aria-current", "true");
+    expect(second).not.toHaveAttribute("aria-current");
+  });
+
+  it("links the newest period to the bare address and an older one by its contract", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    const [first, second] = tabs();
+    expect(first).toHaveAttribute("href", `/admin/creators/${CREATOR}?contract=${FIRST}`);
+    expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
+  });
+
+  // The quota, Evergreen and deadline-gap cards belong to an older layout the B2.6 prototype
+  // dropped; whichever period is open, they must not come back.
+  it.each([
+    ["newest", NEWEST],
+    ["oldest", OLDEST],
+  ])("shows no quota, Evergreen or deadline-gap card for the %s period", (_, open) => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={open} />);
+
+    for (const label of OBSOLETE_CARDS) expect(screen.queryByText(label)).toBeNull();
+    expect(screen.queryByText(/\d+ (konten|hari)$/)).toBeNull();
+  });
+
+  // The creator detail endpoint (4.1) sends no fixed rate, so the cards do not offer one.
+  it("shows only the five performance cards under the tabs, and no fixed rate", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    expect(screen.getAllByRole("term").map((label) => label.textContent)).toEqual(PERFORMANCE_CARDS);
+    expect(screen.getByTestId("info-tip")).toHaveAttribute("data-label", "Tentang Produktivitas");
+    expect(screen.queryByText(/Rp/)).toBeNull();
+  });
+
+  // The ⓘ beside Produktivitas opens its bubble below the card. A panel that clips its content
+  // cut the bubble off at the panel's bottom border, halfway through the explanation.
+  it("lets the Produktivitas explanation hang past the panel's edge", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    const panel = screen.getByRole("heading", { level: 2, name: "Periode Kontrak" }).closest("section");
+    expect(panel).not.toHaveClass("overflow-hidden");
+    expect(within(panel as HTMLElement).getByTestId("info-tip")).toBeInTheDocument();
+  });
+
+  it("shows a creator's only period as one tab, open", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={[NEWEST]} selected={NEWEST} />);
+
+    expect(tabs()).toHaveLength(1);
+    expect(tabs()[0]).toHaveAttribute("aria-current", "true");
+    expect(tabs()[0]).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
+  });
+
+  it("says a creator has no contract rather than showing an empty panel", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={[]} selected={null} />);
+
+    expect(screen.getByRole("heading", { name: "Periode Kontrak" })).toBeInTheDocument();
+    expect(screen.getByText("Belum ada kontrak")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByRole("term")).toBeNull();
+  });
+});

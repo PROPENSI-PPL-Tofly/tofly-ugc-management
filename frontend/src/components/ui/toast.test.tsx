@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { Toast, TOAST_DURATION_MS } from "./toast";
+import { Toast, TOAST_DURATION_MS, useToast } from "./toast";
 
 describe("Toast", () => {
   beforeEach(() => {
@@ -60,5 +60,56 @@ describe("Toast", () => {
 
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useToast", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function Confirming() {
+    const { show, toast } = useToast();
+    return (
+      <>
+        <button type="button" onClick={() => show("Tersimpan")}>
+          Simpan
+        </button>
+        {toast}
+      </>
+    );
+  }
+
+  it("shows nothing until something is confirmed", () => {
+    render(<Confirming />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("restarts the countdown when the same message is confirmed again", () => {
+    render(<Confirming />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    act(() => vi.advanceTimersByTime(TOAST_DURATION_MS - 1));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    act(() => vi.advanceTimersByTime(TOAST_DURATION_MS - 1));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Tersimpan");
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("goes away when dismissed by hand", () => {
+    render(<Confirming />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tutup notifikasi" }));
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

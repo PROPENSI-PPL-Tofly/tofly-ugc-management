@@ -34,8 +34,17 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     );
   }
 
+  // Next hands the segments over decoded, so "..%2Fauth" arrives as "../auth". Joined as is,
+  // URL resolution would walk out of the requested route into another backend endpoint;
+  // re-encoding keeps each segment one segment, and a bare dot segment has no meaning here.
   const { path } = await context.params;
-  const target = new URL(path.join("/"), `${backendUrl.replace(/\/+$/, "")}/`);
+  if (path.some((segment) => segment === "." || segment === "..")) {
+    return Response.json({ error: "Bad request" }, { status: 400 });
+  }
+  const target = new URL(
+    path.map(encodeURIComponent).join("/"),
+    `${backendUrl.replace(/\/+$/, "")}/`,
+  );
   target.search = new URL(request.url).search;
 
   const headers = new Headers();

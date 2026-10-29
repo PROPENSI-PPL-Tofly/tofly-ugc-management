@@ -54,9 +54,9 @@ describe("Admin area", () => {
 
     expect(screen.getByRole("heading", { name: "Akses ditolak" })).toBeInTheDocument();
     expect(screen.getByText("Halaman ini hanya untuk Admin.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Kembali ke Task Saya" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kembali ke Dashboard" })).toHaveAttribute(
       "href",
-      "/creator/tasks",
+      "/creator/dashboard",
     );
     expect(screen.queryByText("Data admin")).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();

@@ -1,4 +1,8 @@
-import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
+import {
+  ForbiddenException,
+  UnauthorizedException,
+  type ExecutionContext,
+} from '@nestjs/common';
 import type { Principal } from './google/ports.js';
 import type { CreatorRequest } from './creator-request.js';
 import type { AppSessionService } from './session/session.service.js';
@@ -295,25 +299,28 @@ describe('DevCreatorGuard', () => {
     expect(client.creators.findUnique).not.toHaveBeenCalled();
   });
 
-  it('rejects an admin principal on a creator-only route', async () => {
+  // OWASP Top 10:2025 A01: a signed-in admin is known but not allowed here, which is a 403 as
+  // AdminGuard answers a creator, not a "please sign in" that would send them to the login page.
+  it('forbids a signed-in admin on a creator-only route', async () => {
     vi.stubEnv('NODE_ENV', 'test');
 
     const { guard: subject } = sessionGuard({
       userId: 'admin-1',
       role: 'admin',
     });
+    const request: CreatorRequest = {
+      headers: {},
+      cookies: { '__session': 'opaque-id' },
+      method: 'GET',
+    };
 
-    await expect(
-      subject.canActivate(
-        context({
-          headers: {},
-          cookies: { '__session': 'opaque-id' },
-          method: 'GET',
-        }),
-      ),
-    ).rejects.toMatchObject({
-      response: { code: 'UNAUTHENTICATED' },
+    const refusal = subject.canActivate(context(request));
+
+    await expect(refusal).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(refusal).rejects.toMatchObject({
+      response: { code: 'FORBIDDEN', message: 'Halaman ini hanya untuk Creator' },
     });
+    expect(request.creatorId).toBeUndefined();
   });
 
   it('does not authenticate when session storage fails', async () => {
@@ -401,6 +408,33 @@ describe('DevCreatorGuard', () => {
       expect.anything(),
     );
   });
+
+  // OWASP Top 10:2025 A01: only a state change needs the browser's own origin; a read from a
+  // link or a preflight must not be refused for coming from another page.
+  it.each(['GET', 'HEAD', 'OPTIONS'])(
+    'lets a %s with a session through whatever origin it comes from',
+    async (method) => {
+      vi.stubEnv('NODE_ENV', 'test');
+      vi.stubEnv('FRONTEND_URL', 'https://tofly.example');
+      const principal = {
+        userId: 'user-1',
+        role: 'creator' as const,
+        creatorId: HEADER_ID,
+      };
+      const { guard: subject } = sessionGuard(principal);
+      const request: CreatorRequest = {
+        headers: {
+          origin: 'https://attacker.example',
+          'sec-fetch-site': 'cross-site',
+        },
+        cookies: { '__session': 'opaque-id' },
+        method,
+      };
+
+      await expect(subject.canActivate(context(request))).resolves.toBe(true);
+      expect(request.creatorId).toBe(HEADER_ID);
+    },
+  );
 
   it('checks the request origin before allowing a session-authenticated mutation', async () => {
     vi.stubEnv('NODE_ENV', 'test');

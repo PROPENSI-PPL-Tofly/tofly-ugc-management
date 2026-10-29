@@ -7,9 +7,14 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { isUuid } from '../uuid.js';
 import { assertSameOrigin } from './same-origin.js';
 import { ACCESS_CHECK, type AccessCheck } from './session/access-check.js';
-import { unauthenticated, type CreatorRequest } from './creator-request.js';
+import {
+  creatorOnly,
+  unauthenticated,
+  type CreatorRequest,
+} from './creator-request.js';
 import { AppSessionService } from './session/session.service.js';
 
 // Creator identity uses the application session; a strictly local header remains available
@@ -17,8 +22,6 @@ import { AppSessionService } from './session/session.service.js';
 
 /** Node lower-cases incoming header names. */
 export const DEV_CREATOR_HEADER = 'x-dev-creator-id';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Env = Record<string, string | undefined>;
 
@@ -36,7 +39,7 @@ export function devCreatorId(
     return undefined;
   }
   const claimed = header ?? env.DEV_CREATOR_ID;
-  if (typeof claimed !== 'string' || !UUID.test(claimed)) {
+  if (!isUuid(claimed)) {
     return undefined;
   }
   return claimed.toLowerCase();
@@ -70,6 +73,7 @@ export class DevCreatorGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<CreatorRequest>();
     const cookieId = request.cookies?.[this.sessions?.cookieName() ?? ''];
     if (cookieId !== undefined || process.env.NODE_ENV === 'production') {
+      // Stryker disable next-line StringLiteral: equivalent mutant. Any default other than a read method (the mutant's "Stryker was here!") is checked for origin exactly as '' is.
       if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method ?? '')) {
         assertSameOrigin(request);
       }
@@ -77,8 +81,11 @@ export class DevCreatorGuard implements CanActivate {
         cookieId,
         context.switchToHttp().getResponse<Response>(),
       );
-      if (!principal || principal.role !== 'creator') {
+      if (!principal) {
         throw unauthenticated();
+      }
+      if (principal.role !== 'creator') {
+        throw creatorOnly();
       }
       // PRD 3.1: a session lasts until sign-out or until access is revoked, so the whitelist
       // is asked again rather than trusting the role recorded at sign-in.

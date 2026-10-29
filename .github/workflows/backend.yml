@@ -348,6 +348,9 @@ jobs:
       # The Google client id and redirect URI are not secret, so they travel as plain env from
       # environment variables; the client secret comes from Secret Manager like the DB URL. The
       # backend refuses to boot in production without all three (Google is the only way in).
+      # STORAGE_BUCKET names the private bucket for uploaded files (payment proofs); the service
+      # account reads and writes it with its own credentials, so no key is passed, and the backend
+      # refuses to boot in production without it.
       # The DB URL comes from Secret Manager, never --set-env-vars: env vars are readable in the
       # Cloud Run console and in deploy logs. It reaches Cloud SQL over the unix socket that
       # --add-cloudsql-instances mounts; DATABASE_URL and DIRECT_URL are the same URL, since
@@ -370,7 +373,7 @@ jobs:
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
             --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
-            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }}" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3

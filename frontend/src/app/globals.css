@@ -41,6 +41,8 @@
   --default-transition-timing-function: var(--ease-out);
 
   --shadow-whisper: 0 1px 2px oklch(20% 0.03 262 / 0.05);
+  /* A side sheet stands off the page it slid over: one soft shadow cast to its left. */
+  --shadow-sheet: -12px 0 40px oklch(20% 0.03 262 / 0.14);
 
   /* Toast entrance: opacity and transform only; the reduced-motion rule below cuts it short. */
   --animate-toast-in: toast-in 200ms var(--ease-out);
@@ -49,6 +51,16 @@
     from {
       opacity: 0;
       transform: translateY(8px);
+    }
+  }
+
+  /* Side sheet entrance (the Content Detail panel): a short slide in from the right edge. */
+  --animate-sheet-in: sheet-in 200ms var(--ease-out);
+
+  @keyframes sheet-in {
+    from {
+      opacity: 0.6;
+      transform: translateX(24px);
     }
   }
 }
@@ -108,10 +120,13 @@ h3 {
   border-radius: 9999px;
 }
 
-/* Keyboard focus is instant and brand-blue on every control; never removed without this. */
+/* Keyboard focus is instant and brand-blue on every control; never removed without this.
+   The transition list leaves the outline out, so a control with transition-colors keeps
+   fading its colours but shows the ring at once. Unlayered, so it outranks the utility. */
 :focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
 }
 
 @media (prefers-reduced-motion: reduce) {

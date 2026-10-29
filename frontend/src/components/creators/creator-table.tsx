@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { CreatorDetailModal } from "./creator-detail-modal";
+import { useRouter } from "next/navigation";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTip } from "@/components/ui/info-tip";
+import { useUrlQuery } from "@/lib/url-query";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
+import { creatorDetailBase, PRODUCTIVITY_TIP } from "@/lib/creator-detail";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
@@ -32,13 +35,14 @@ const CONTRACT_TONES: Record<ContractStatus, Tone> = {
   none: "neutral",
 };
 
-const COLUMNS: { label: string; numeric?: boolean }[] = [
+/** `tip` is the ⓘ beside a heading, in the same words Creator Detail explains it with. */
+const COLUMNS: { label: string; numeric?: boolean; tip?: string }[] = [
   { label: "Creator" },
   { label: "Kontrak" },
   { label: "Progres konten" },
   { label: "Tepat waktu", numeric: true },
   { label: "Rata-rata revisi", numeric: true },
-  { label: "Produktivitas" },
+  { label: "Produktivitas", tip: PRODUCTIVITY_TIP },
 ];
 
 const HEAD = "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";
@@ -70,7 +74,15 @@ const LINK_BUTTON = buttonClasses();
  * Why the table is empty. Three different situations, three different next steps: nobody has
  * been added yet, the search or filters matched nobody, or the page number is past the end.
  */
-function EmptyRoster({ total, filtered }: { total: number; filtered: boolean }) {
+function EmptyRoster({
+  total,
+  filtered,
+  onReset,
+}: {
+  total: number;
+  filtered: boolean;
+  onReset: () => void;
+}) {
   if (total > 0) {
     return (
       <EmptyState
@@ -87,9 +99,9 @@ function EmptyRoster({ total, filtered }: { total: number; filtered: boolean }) 
 
   if (filtered) {
     return (
-      <EmptyState
+      <FilteredEmpty
         title="Tidak ada creator yang cocok dengan pencarian atau filter."
-        hint="Periksa ejaan nama atau email, atau longgarkan filternya."
+        onReset={onReset}
       />
     );
   }
@@ -116,10 +128,12 @@ export function CreatorTable({
   /** Whether a search or filter narrowed the list, which changes what an empty list means. */
   filtered?: boolean;
 }) {
-  const [selectedCreator, setSelectedCreator] = useState<CreatorSummary | null>(null);
+  const router = useRouter();
+  const { replaceQuery } = useUrlQuery();
 
   if (creators.length === 0) {
-    return <EmptyRoster total={total} filtered={filtered} />;
+    // The way back from an empty search clears it and every filter, as the bar's Reset does.
+    return <EmptyRoster total={total} filtered={filtered} onReset={() => replaceQuery("")} />;
   }
 
   return (
@@ -138,21 +152,46 @@ export function CreatorTable({
                   scope="col"
                   className={column.numeric ? `${HEAD} text-right` : HEAD}
                 >
-                  {column.label}
+                  {column.tip === undefined ? (
+                    column.label
+                  ) : (
+                    // End-aligned: the bubble hangs back over the table, not past its scroll edge.
+                    <span className="inline-flex items-center gap-1">
+                      {column.label}
+                      <InfoTip text={column.tip} label={`Tentang ${column.label}`} align="end" />
+                    </span>
+                  )}
                 </th>
               ))}
 
-              <th scope="col" className={HEAD}>
-                <span className="sr-only">Aksi</span>
-              </th>
+              <th scope="col" className={HEAD} />
             </tr>
           </thead>
 
           <tbody>
             {creators.map((creator) => (
-              <tr key={creator.id} className="transition-colors hover:bg-surface-2">
+              // A press anywhere on the row opens the creator's page (PBI-4). The name is the
+              // same door as a link, for the keyboard and for screen readers.
+              <tr
+                key={creator.id}
+                onClick={() => {
+                  // Dragging across a name to copy it ends in a click here: copying, not opening.
+                  if (window.getSelection()?.toString()) return;
+                  router.push(creatorDetailBase(creator.id));
+                }}
+                className="cursor-pointer transition-colors hover:bg-surface-2"
+              >
                 <td className={`${CELL} min-w-52`}>
-                  <p className="text-sm font-semibold text-ink">{creator.name}</p>
+                  <p className="text-sm font-semibold text-ink">
+                    <Link
+                      href={creatorDetailBase(creator.id)}
+                      // The row would hear this press too and open the page a second time.
+                      onClick={(event) => event.stopPropagation()}
+                      className="hover:underline"
+                    >
+                      {creator.name}
+                    </Link>
+                  </p>
 
                   <p className="mt-0.5 text-xs text-muted">{creator.email}</p>
 
@@ -213,39 +252,22 @@ export function CreatorTable({
                 </td>
 
                 <td className={`${CELL} whitespace-nowrap`}>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCreator(creator)}
-                      className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
-                    >
-                      Detail
-                    </button>
-
-                    <Link
-                      href={`/admin/creators/${encodeURIComponent(creator.id)}/content-plan`}
-                      className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
-                    >
-                      Content Plan
-                    </Link>
-                  </div>
+                  <Link
+                    href={creatorDetailBase(creator.id)}
+                    // Every row has one; the creator's name tells them apart when heard.
+                    aria-label={`Detail ${creator.name}`}
+                    // The row would hear this press too and open the page a second time.
+                    onClick={(event) => event.stopPropagation()}
+                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2"
+                  >
+                    Detail
+                  </Link>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      {selectedCreator ? (
-        // Keyed by creator so switching rows remounts the modal rather than
-        // leaving the previous creator's detail on screen while the next loads.
-        <CreatorDetailModal
-          key={selectedCreator.id}
-          creatorId={selectedCreator.id}
-          name={selectedCreator.name}
-          onClose={() => setSelectedCreator(null)}
-        />
-      ) : null}
     </>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Toast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import type { CreatorFormErrors } from "@/lib/creator-form";
 import { createCreator, type NewCreatorRequest } from "@/lib/creators";
 import { AddCreatorModal } from "./add-creator-modal";
@@ -32,8 +32,7 @@ export function AddCreatorTrigger({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<SaveFailure>(NO_FAILURE);
-  // The id is the Toast key: a second save remounts it, restarting its countdown.
-  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const { show: confirm, toast } = useToast();
 
   // Stable, so the modal's discard guard is not rebuilt on every render.
   const close = useCallback(() => {
@@ -48,10 +47,7 @@ export function AddCreatorTrigger({
 
     if (result.ok) {
       close();
-      setToast((last) => ({
-        id: (last?.id ?? 0) + 1,
-        message: `Creator ${request.name.trim()} berhasil ditambahkan.`,
-      }));
+      confirm(`Creator ${request.name.trim()} berhasil ditambahkan.`);
       router.refresh();
       return;
     }
@@ -81,9 +77,7 @@ export function AddCreatorTrigger({
         />
       ) : null}
 
-      {toast ? (
-        <Toast key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />
-      ) : null}
+      {toast}
     </>
   );
 }

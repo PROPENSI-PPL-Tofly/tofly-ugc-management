@@ -12,17 +12,19 @@ import type { ContractType, CreatorFormErrors, CreatorFormInput } from "./creato
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
-/** Where a content is in the review workflow, as the API reports it. */
+/** Where a content is in its lifecycle, as the API reports it. */
 export type ContentStatus =
+  | "pending"
   | "scheduled"
   | "draft_review"
   | "draft_revision"
-  | "draft_revised"
   | "draft_approved"
   | "link_submitted";
 
 export type Productivity = "good" | "watch" | "risk" | "no_data";
-export type ContentOutcome = "on_time" | "submitted_late" | "late" | "open";
+
+/** Facts the backend flags on a content beside its status, always in this order. */
+export type ContentTag = "overdue" | "approval_bypassed";
 
 // "all" plus every value the API accepts, spelled the way the API spells them: these go
 // straight into the query string, so a name that drifts from the backend is a filter that
@@ -79,39 +81,30 @@ export interface CreatorListResponse {
   totalPages: number;
 }
 
-export interface CreatorDetail extends CreatorSummary {
-  phoneNumber: string | null;
-
-  contractHistory: {
-    id: string;
-    periodNumber: number;
-    startDate: string;
-    endDate: string;
-    daysBetween: number;
-    contentQuota: number;
-    type: ContractType;
-    completed: number;
-    total: number;
-    isCurrent: boolean;
-  }[];
-
-  contents: {
-    id: string;
-    name: string;
-    type: string;
-    deadline: string;
-    status: ContentStatus;
-    outcome: ContentOutcome;
-    videoLink: string | null;
-  }[];
-
-  drafts: {
-    contentId: string;
-    contentName: string;
-    revisionCount: number;
-    latestLink: string;
-    lastSubmittedAt: string;
-  }[];
+/**
+ * One contract period with its terms and its own numbers. Its contents are not listed here:
+ * the table reads them from GET /contents?contract=<id>, which pages, filters and counts them.
+ */
+export interface ContractPeriod {
+  id: string;
+  periodNumber: number;
+  startDate: string;
+  endDate: string;
+  daysBetween: number;
+  contentQuota: number;
+  /** In rupiah. */
+  fixedRate: number;
+  /** Evergreen contents the period can still take before its quota is full; never below 0. */
+  remainingEvergreenQuota: number;
+  type: ContractType;
+  status: Exclude<ContractStatus, "none">;
+  /** Committed contents handed in; the same number as progress.submitted. */
+  completed: number;
+  /** Committed contents, pending proposals left out; not a page size or a list length. */
+  total: number;
+  isCurrent: boolean;
+  progress: CreatorSummary["progress"];
+  performance: CreatorSummary["performance"];
 }
 
 export interface PageRequest {
@@ -183,13 +176,15 @@ export function hasActiveFilters(filters: CreatorFilterState): boolean {
 }
 
 /** Builds a query string for the backend, omitting defaults. */
-export function buildCreatorsQuery(filters: CreatorFilterState & { page: number }): string {
+export function buildCreatorsQuery(
+  filters: CreatorFilterState & { page: number; pageSize?: number },
+): string {
   const query = new URLSearchParams();
   if (filters.q) query.set("q", filters.q);
   if (filters.contractStatus !== "all") query.set("contractStatus", filters.contractStatus);
   if (filters.productivity !== "all") query.set("productivity", filters.productivity);
   query.set("page", String(filters.page));
-  query.set("pageSize", String(PAGE_SIZE));
+  query.set("pageSize", String(filters.pageSize ?? PAGE_SIZE));
   return query.toString();
 }
 
@@ -199,24 +194,10 @@ export const NO_FILTERS: CreatorFilterState = {
   productivity: "all",
 };
 
-/**
- * Browser-side: the same-origin Next.js API proxy forwards this request to the backend.
- * Keeping the backend address out of the browser avoids exposing BACKEND_URL.
- */
-export async function fetchCreatorDetail(id: string): Promise<CreatorDetail> {
-  const response = await apiFetch(`/api/creators/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Loading creator detail failed with HTTP ${response.status}`);
-  }
-
-  return (await response.json()) as CreatorDetail;
-}
-
 /** What Add Creator sends: the form as the admin filled it, plus the deadlines it scheduled. */
-export interface NewCreatorRequest extends CreatorFormInput {
+export interface NewCreatorRequest extends Omit<CreatorFormInput, "fixedRate"> {
+  /** In rupiah, from 0; the form only sends it once it is filled in. */
+  fixedRate: number;
   deadlines: string[];
 }
 

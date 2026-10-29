@@ -1,18 +1,27 @@
-import Link from "next/link";
 import { AppShell } from "@/components/shell/app-shell";
 import { MyTaskBoard } from "@/components/tasks/my-task-board";
 import { MyTaskFilters } from "@/components/tasks/my-task-filters";
+import { MyTaskTabBar } from "@/components/tasks/my-task-tab-bar";
+import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { parsePage } from "@/lib/creators";
+import { jakartaDay } from "@/lib/format";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
+import { fetchAllMyTasks } from "@/lib/task-calendar.server";
+import { calendarParams, parseTaskView, taskViewParams, type TaskView } from "@/lib/task-view";
 import {
+  MY_TASKS_BASE,
   MyTasksError,
-  parseTaskStatus,
-  taskStatusLabel,
+  buildMyTasksQuery,
+  isMyTasksFiltered,
+  parseMyTasksParams,
+  unknownStatuses,
+  type MyTask,
+  type MyTasksCounts,
+  type MyTasksParams,
   type MyTasksResponse,
-  type TaskStatusFilter,
 } from "@/lib/my-tasks";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +30,12 @@ export const metadata = {
   title: "Task Saya — Tofly",
 };
 
-const BASE_PATH = "/creator/tasks";
-
 const NOTICE =
     "mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink";
 
 type Loaded =
     | { kind: "ok"; result: MyTasksResponse; pastEnd: number | null }
+    | { kind: "calendar"; tasks: MyTask[]; counts: MyTasksCounts }
     | { kind: "signed_out" }
     | { kind: "failed" };
 
@@ -35,14 +43,21 @@ type Loaded =
  * A page past the end (an old link, or a list that shrank) shows the first page instead of an
  * empty table that would claim the creator has nothing to do.
  */
-async function load(page: number, status: TaskStatusFilter | null): Promise<Loaded> {
+async function load(state: MyTasksParams, view: TaskView): Promise<Loaded> {
+  // Named periods ("30 hari ke depan") are counted from today where the creators work.
+  const today = jakartaDay();
   try {
-    const result = await fetchMyTasks(page, status);
+    // A month is not paged: the calendar reads every task, the table only its page.
+    if (view === "calendar") {
+      return { kind: "calendar", ...(await fetchAllMyTasks(state, today)) };
+    }
+
+    const result = await fetchMyTasks(state, today);
 
     if (result.total > 0 && result.page > result.totalPages) {
       return {
         kind: "ok",
-        result: await fetchMyTasks(1, status),
+        result: await fetchMyTasks({ ...state, page: 1 }, today),
         pastEnd: result.page,
       };
     }
@@ -55,7 +70,7 @@ async function load(page: number, status: TaskStatusFilter | null): Promise<Load
   }
 }
 
-function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
+function LoadFailed({ signedOut, retryHref }: Readonly<{ signedOut: boolean; retryHref: string }>) {
   return (
       <div role="alert" className="px-5 py-14 text-center">
         <p className="text-[15px] font-semibold">
@@ -71,7 +86,7 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
               Masuk
             </a>
         ) : (
-            <a href={BASE_PATH} className={`mt-4 inline-block ${buttonClasses()}`}>
+            <a href={retryHref} className={`mt-4 inline-block ${buttonClasses()}`}>
               Muat ulang
             </a>
         )}
@@ -80,9 +95,12 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
 }
 
 /**
- * Task Saya (PRD 3.16): every task assigned to the creator, nearest deadline first, five a
- * page, filterable by status, each with the action its status allows. MyTaskBoard opens the
- * Submit/Resubmit Draft or Submit Link Video modal (SCRUM-109, SCRUM-132) for the pressed button.
+ * Task Saya: every task assigned to the creator, grouped into tabs by whose turn it is,
+ * filterable by search, type, status, overdue and period, nearest deadline first unless the
+ * creator turns it over, ten a page, each with the action its status allows, or the same tab
+ * and filters as a month calendar. The URL is the whole state, so a view can be linked and
+ * reloaded. MyTaskBoard opens the Submit/Resubmit Draft or Submit Link Video modal for the
+ * pressed button.
  */
 export default async function TaskSayaPage({
                                              searchParams,
@@ -90,15 +108,24 @@ export default async function TaskSayaPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }>) {
   const params = await searchParams;
-  const { page, invalid } = parsePage(params);
-  const { status, invalid: invalidStatus } = parseTaskStatus(params);
-  const loaded = await load(page, status);
+  const { invalid } = parsePage(params);
+  const view = parseTaskView(params);
+  // The calendar has no period: its month is the scope, so an old link's period is let go.
+  const parsed = parseMyTasksParams(params);
+  const state = view === "calendar" ? calendarParams(parsed) : parsed;
+  const invalidStatuses = unknownStatuses(params);
+  const loaded = await load(state, view);
+  const firstPage = buildMyTasksQuery({ ...state, page: 1 });
+  const retrySearch = new URLSearchParams({
+    ...buildMyTasksQuery(state),
+    ...taskViewParams(view),
+  }).toString();
 
   return (
       <AppShell
           role="creator"
           title="Task Saya"
-          subtitle="Semua konten yang ditugaskan ke kamu, dari deadline terdekat"
+          subtitle="Semua konten yang ditugaskan ke kamu"
       >
         {invalid === null ? null : (
             <p role="status" className={NOTICE}>
@@ -106,9 +133,11 @@ export default async function TaskSayaPage({
             </p>
         )}
 
-        {invalidStatus === null ? null : (
+        {/* Ignored, not "showing everything": a status the page does know still narrows. */}
+        {invalidStatuses.length === 0 ? null : (
             <p role="status" className={NOTICE}>
-              Status &#8220;{invalidStatus}&#8221; tidak dikenal, menampilkan semua tugas.
+              Status {invalidStatuses.map((status) => `\u201c${status}\u201d`).join(", ")} tidak
+              dikenal dan diabaikan.
             </p>
         )}
 
@@ -118,31 +147,46 @@ export default async function TaskSayaPage({
             </p>
         ) : null}
 
-        <Panel>
-          <PanelHead title="Daftar Tugas Saya" />
+        {/* Unclipped: the filter popups hang below the bar and past the panel's foot. */}
+        <Panel clip={false}>
+          <PanelHead
+              title="Daftar Tugas Saya"
+              action={<TaskViewToggle view={view} state={state} />}
+          />
+
+          {loaded.kind === "calendar" ? (
+              <>
+                <MyTaskTabBar active={state.tab} counts={loaded.counts} />
+
+                <MyTaskFilters state={state} view={view} />
+
+                <MyTaskBoard
+                    tasks={loaded.tasks}
+                    tab={state.tab}
+                    sort={state.sort}
+                    filtered={isMyTasksFiltered(state)}
+                    calendarToday={jakartaDay()}
+                />
+              </>
+          ) : null}
 
           {loaded.kind === "ok" ? (
               <>
-                <MyTaskFilters status={status} />
+                <MyTaskTabBar active={state.tab} counts={loaded.result.counts} />
+
+                <MyTaskFilters state={state} />
 
                 <MyTaskBoard
                     tasks={loaded.result.items}
-                    emptyMessage={
-                      status ? `Tidak ada tugas berstatus ${taskStatusLabel(status)}.` : undefined
-                    }
-                    emptyAction={
-                      status ? (
-                          <Link href={BASE_PATH} className={buttonClasses()}>
-                            Tampilkan semua tugas
-                          </Link>
-                      ) : undefined
-                    }
+                    tab={state.tab}
+                    sort={state.sort}
+                    filtered={isMyTasksFiltered(state)}
                 />
 
                 {loaded.result.total > 0 ? (
                     <Pagination
-                        basePath={BASE_PATH}
-                        query={status ? { status } : {}}
+                        basePath={MY_TASKS_BASE}
+                        query={firstPage}
                         noun="tugas"
                         page={loaded.result.page}
                         pageSize={loaded.result.pageSize}
@@ -151,9 +195,14 @@ export default async function TaskSayaPage({
                     />
                 ) : null}
               </>
-          ) : (
-              <LoadFailed signedOut={loaded.kind === "signed_out"} />
-          )}
+          ) : null}
+
+          {loaded.kind === "signed_out" || loaded.kind === "failed" ? (
+              <LoadFailed
+                  signedOut={loaded.kind === "signed_out"}
+                  retryHref={retrySearch ? `${MY_TASKS_BASE}?${retrySearch}` : MY_TASKS_BASE}
+              />
+          ) : null}
         </Panel>
       </AppShell>
   );

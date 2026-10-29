@@ -23,8 +23,11 @@ export const MAX_USERNAME_LENGTH = 100;
 export const MAX_INTEGER = 2 ** 31 - 1;
 /** More contents than this in one contract is a typo, not a deal; the form holds the same cap. */
 export const MAX_CONTENT_QUOTA = 100;
-/** contracts.fixed_rate is numeric(14, 2): twelve digits before the point, two after. */
-export const MAX_FIXED_RATE = 999_999_999_999.99;
+/**
+ * The Add Creator form of the Tofly Module 1 prototype takes the fixed rate in whole rupiah, at
+ * most Rp10.000.000 (FV.fAccFixedRate); contracts.fixed_rate holds the same cap.
+ */
+export const MAX_FIXED_RATE = 10_000_000;
 
 /**
  * Minimum days between max(today, contract start) and any new deadline (PRD 3.6). The PRD
@@ -181,7 +184,6 @@ const NUMBER_RULES: Record<
   {
     label: string;
     tooSmall: string;
-    whole: boolean;
     max: number;
     tooLarge?: string;
   }
@@ -189,31 +191,23 @@ const NUMBER_RULES: Record<
   interval: {
     label: 'Jarak antar-deadline',
     tooSmall: 'Jarak antar-deadline minimal 1 hari',
-    whole: true,
     max: MAX_INTEGER,
   },
   quota: {
     label: 'Jumlah konten',
     tooSmall: 'Jumlah konten harus lebih dari 0',
-    whole: true,
     max: MAX_CONTENT_QUOTA,
     tooLarge: `Jumlah konten maksimal ${MAX_CONTENT_QUOTA}`,
   },
   fixedRate: {
     label: 'Fixed rate',
     tooSmall: 'Fixed rate harus lebih dari 0',
-    whole: false,
     max: MAX_FIXED_RATE,
   },
 };
 
-/** True when the value has no more than two decimal places (what numeric(14, 2) stores). */
-function hasCents(value: number): boolean {
-  return Number(value.toFixed(2)) === value;
-}
-
 /**
- * Reads one positive number. Only a JSON number counts: "7" or true would be coerced by
+ * Reads one positive whole number. Only a JSON number counts: "7" or true would be coerced by
  * JavaScript but mean the client is sending something other than what the form holds.
  */
 function readNumber(
@@ -221,17 +215,15 @@ function readNumber(
   value: unknown,
   errors: NewCreatorErrors,
 ): number {
-  const { label, tooSmall, whole, max, tooLarge } = NUMBER_RULES[field];
+  const { label, tooSmall, max, tooLarge } = NUMBER_RULES[field];
 
   // Number.isFinite is false for anything that is not a number, so this also rejects "7".
   if (!Number.isFinite(value)) {
     errors[field] = `${label} wajib diisi`;
   } else if ((value as number) <= 0) {
     errors[field] = tooSmall;
-  } else if (whole && !Number.isInteger(value)) {
+  } else if (!Number.isInteger(value)) {
     errors[field] = `${label} harus bilangan bulat`;
-  } else if (!whole && !hasCents(value as number)) {
-    errors[field] = `${label} maksimal 2 angka desimal`;
   } else if ((value as number) > max) {
     errors[field] = tooLarge ?? `${label} terlalu besar`;
   }

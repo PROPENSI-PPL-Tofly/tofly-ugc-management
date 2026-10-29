@@ -190,6 +190,64 @@ describe("SubmitDraftModal", () => {
       ).toBeEnabled();
     });
   });
+  it("sends the draft when Enter is pressed in the link field, as the button would", async () => {
+    mockSubmitDraft.mockResolvedValue({
+      ok: true,
+      submission: {
+        contentId: defaultContent.id,
+        submissionId: "submission-1",
+        status: "draft_review",
+        link: "https://drive.google.com/file/d/example",
+        notes: null,
+        submittedAt: "2026-09-26T10:00:00.000Z",
+      },
+    });
+
+    renderModal();
+
+    const field = screen.getByLabelText(/link file draft/i);
+    fireEvent.change(field, { target: { value: "https://drive.google.com/file/d/example" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockSubmitDraft).toHaveBeenCalledExactlyOnceWith(defaultContent.id, {
+        link: "https://drive.google.com/file/d/example",
+        notes: null,
+      });
+    });
+  });
+
+  it("does not send on Enter a link the button would not send", () => {
+    renderModal();
+
+    const field = screen.getByLabelText(/link file draft/i);
+    fireEvent.change(field, { target: { value: "https://example.com/draft" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    expect(mockSubmitDraft).not.toHaveBeenCalled();
+  });
+
+  it("keeps Enter in the notes a new line, not a send", () => {
+    renderModal();
+
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: { value: "https://drive.google.com/file/d/example" },
+    });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: /catatan/i }), { key: "Enter" });
+
+    expect(mockSubmitDraft).not.toHaveBeenCalled();
+  });
+
+  it("leaves every other key in the link field alone", () => {
+    renderModal();
+
+    const field = screen.getByLabelText(/link file draft/i);
+    fireEvent.change(field, { target: { value: "https://drive.google.com/file/d/example" } });
+    fireEvent.keyDown(field, { key: "a" });
+
+    expect(mockSubmitDraft).not.toHaveBeenCalled();
+  });
+
   it("notifies the parent and closes after a successful submission", async () => {
     const onSubmitted = vi.fn();
     const onClose = vi.fn();
@@ -546,5 +604,26 @@ describe("SubmitDraftModal", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Maksimal 1000 karakter");
     });
+  });
+
+  it("ignores Escape and the close button while the draft is being sent", async () => {
+    const onClose = vi.fn();
+    mockSubmitDraft.mockReturnValue(new Promise(() => {}));
+    renderModal({ onClose });
+
+    fireEvent.change(screen.getByLabelText(/link file draft/i), {
+      target: { value: "https://drive.google.com/file/d/example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Draft" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Mengirim..." })).toBeDisabled();
+    });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Submit Draft" })).toBeInTheDocument();
   });
 });

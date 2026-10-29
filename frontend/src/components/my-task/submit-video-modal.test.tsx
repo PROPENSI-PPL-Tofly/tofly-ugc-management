@@ -214,6 +214,74 @@ describe("SubmitVideoModal", () => {
     });
   });
 
+  it("sends the link when Enter is pressed in its field, as the button would", async () => {
+    mockSubmitVideo.mockResolvedValue({
+      ok: true,
+      submission: {
+        contentId: defaultContent.id,
+        status: "link_submitted",
+        videoLink: VIDEO_LINK,
+        platform: "tiktok",
+        submittedAt: "2026-09-26T10:00:00.000Z",
+      },
+    });
+
+    renderModal();
+
+    const field = screen.getByLabelText("Link Video");
+    fireEvent.change(field, { target: { value: VIDEO_LINK } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockSubmitVideo).toHaveBeenCalledExactlyOnceWith(defaultContent.id, {
+        link: VIDEO_LINK,
+      });
+    });
+  });
+
+  it("asks for the link when Enter is pressed on an empty field", () => {
+    renderModal();
+
+    fireEvent.keyDown(screen.getByLabelText("Link Video"), { key: "Enter" });
+
+    expect(screen.getByText("Link video wajib diisi")).toBeInTheDocument();
+    expect(mockSubmitVideo).not.toHaveBeenCalled();
+  });
+
+  it("does not send on Enter what the button would not send", () => {
+    renderModal();
+
+    const field = screen.getByLabelText("Link Video");
+    fireEvent.change(field, { target: { value: UNSUPPORTED_LINK } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    expect(mockSubmitVideo).not.toHaveBeenCalled();
+  });
+
+  it("does not send a second time on Enter while the first is on its way", async () => {
+    mockSubmitVideo.mockReturnValue(new Promise(() => undefined));
+
+    renderModal();
+
+    const field = screen.getByLabelText("Link Video");
+    fireEvent.change(field, { target: { value: VIDEO_LINK } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await screen.findByRole("button", { name: "Mengirim..." });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    expect(mockSubmitVideo).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves every other key in the field alone", () => {
+    renderModal();
+
+    const field = screen.getByLabelText("Link Video");
+    fireEvent.change(field, { target: { value: VIDEO_LINK } });
+    fireEvent.keyDown(field, { key: "a" });
+
+    expect(mockSubmitVideo).not.toHaveBeenCalled();
+  });
+
   it("notifies the parent and closes after a successful submission", async () => {
     const onSubmitted = vi.fn();
     const onClose = vi.fn();
@@ -467,5 +535,24 @@ describe("SubmitVideoModal", () => {
 
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(input).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("ignores Escape and the close button while the link is being sent", async () => {
+    const onClose = vi.fn();
+    mockSubmitVideo.mockReturnValue(new Promise(() => {}));
+    renderModal({ onClose });
+
+    fireEvent.change(screen.getByLabelText("Link Video"), { target: { value: VIDEO_LINK } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Link" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Mengirim..." })).toBeDisabled();
+    });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Submit Link Video" })).toBeInTheDocument();
   });
 });
