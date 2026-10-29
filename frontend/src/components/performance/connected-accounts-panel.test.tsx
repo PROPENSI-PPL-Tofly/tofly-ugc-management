@@ -80,6 +80,24 @@ describe("ConnectedAccountsPanel", () => {
       expect(instagram.queryByRole("button", { name: /Putuskan/ })).not.toBeInTheDocument();
     });
 
+    // The prototype's connect button is the plain .btn (white with a grey border), not the
+    // brand-blue primary: Hubungkan sits beside every row, so it must not shout.
+    it("draws Hubungkan as the prototype's plain button, not the brand-blue one", () => {
+      renderPanel();
+
+      const connect = within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" });
+      expect(connect).toHaveClass("bg-surface", "border-rule");
+      expect(connect).not.toHaveClass("bg-accent");
+    });
+
+    it("keeps the same plain look while it is on its way", () => {
+      renderPanel();
+
+      fireEvent.click(within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" }));
+
+      expect(within(row("TikTok")).getByRole("button", { name: "Menghubungkan…" })).not.toHaveClass("bg-accent");
+    });
+
     // PRD 19.4: a loading state while the browser is on its way to the platform.
     it("shows it is on its way once pressed, and cannot be pressed twice", () => {
       renderPanel();
