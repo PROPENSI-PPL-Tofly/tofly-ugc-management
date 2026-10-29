@@ -41,7 +41,7 @@ describe('InstagramConnectController', () => {
     },
   };
 
-  async function start(config: InstagramConfig | undefined = CONFIG) {
+  async function start(config: InstagramConfig | undefined) {
     const module = await Test.createTestingModule({
       controllers: [InstagramConnectController],
       providers: [
@@ -73,7 +73,8 @@ describe('InstagramConnectController', () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    // The guard test never starts the app.
+    await app?.close();
   });
 
   it('lets only a signed-in creator reach either route', () => {
@@ -83,7 +84,7 @@ describe('InstagramConnectController', () => {
   });
 
   describe('GET /social/instagram/connect', () => {
-    beforeEach(() => start());
+    beforeEach(() => start(CONFIG));
 
     it("sends the creator to Instagram's consent screen with a state signed for them", async () => {
       const response = await request(app.getHttpServer()).get(
@@ -142,7 +143,7 @@ describe('InstagramConnectController', () => {
   });
 
   describe('GET /social/instagram/callback', () => {
-    beforeEach(() => start());
+    beforeEach(() => start(CONFIG));
 
     it('completes the connect for the creator whose state it is and follows its answer', async () => {
       const response = await callback({ code: CODE, state: stateFor() });
