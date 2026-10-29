@@ -162,6 +162,17 @@ export function disconnectedToast(platform: ConnectPlatform): string {
   return `Akun ${PLATFORM_NAMES[platform]} diputuskan`;
 }
 
+/**
+ * Each refusal of a disconnect, worded for the creator. Kept here rather than in the server
+ * action's module: a "use server" file may export only async functions, and the panel needs
+ * the generic words too, for an action that cannot be reached.
+ */
+export const DISCONNECT_REFUSALS = {
+  GENERIC: "Koneksi tidak bisa diputuskan. Coba lagi.",
+  UNAUTHENTICATED: "Sesi kamu sudah berakhir. Masuk lagi untuk melanjutkan.",
+  FORBIDDEN: "Halaman ini hanya untuk Creator",
+} as const;
+
 /** PRD 19: what the creator is told before disconnecting. */
 export const DISCONNECT_WARNING = "Data performa yang sudah ada tetap disimpan, tapi tidak akan diperbarui lagi.";
 

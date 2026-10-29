@@ -9,15 +9,8 @@
 // own words (OWASP A10:2025).
 
 import { backendDelete } from "./backend.server";
-import { MY_SOCIAL_ACCOUNTS_PATH, isConnectPlatform } from "./connected-accounts";
+import { DISCONNECT_REFUSALS, MY_SOCIAL_ACCOUNTS_PATH, isConnectPlatform } from "./connected-accounts";
 import { currentRole } from "./session.server";
-
-/** Each refusal, worded for the creator. */
-export const DISCONNECT_REFUSALS = {
-  GENERIC: "Koneksi tidak bisa diputuskan. Coba lagi.",
-  UNAUTHENTICATED: "Sesi kamu sudah berakhir. Masuk lagi untuk melanjutkan.",
-  FORBIDDEN: "Halaman ini hanya untuk Creator",
-} as const;
 
 export type DisconnectOutcome = { ok: true } | { ok: false; code: string; message: string };
 
