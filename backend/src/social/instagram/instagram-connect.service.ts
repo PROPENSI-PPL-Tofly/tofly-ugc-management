@@ -13,6 +13,13 @@ import {
 // Instagram API with Instagram Login only serves Professional accounts (PRD 3.1, AC 4).
 const PROFESSIONAL = new Set(['BUSINESS', 'MEDIA_CREATOR']);
 
+// Instagram's own failures keep their code; anything else is a platform error.
+function failureOf(error: unknown): [ConnectError, string] {
+  return error instanceof InstagramApiError
+    ? [error.failure, error.message]
+    : ['platform_error', 'unexpected error while reading the account'];
+}
+
 // The callback's use case, after the state has been checked: ask Instagram who the account is,
 // keep it only if it is Professional, and hand it to storage. Every outcome is a path back to
 // Performa; every failure is logged by step, never with the code or a token.
@@ -30,12 +37,7 @@ export class InstagramConnectService {
     try {
       account = await this.client.connect(code);
     } catch (error) {
-      return this.failed(
-        error instanceof InstagramApiError ? error.failure : 'platform_error',
-        error instanceof InstagramApiError
-          ? error.message
-          : 'unexpected error while reading the account',
-      );
+      return this.failed(...failureOf(error));
     }
 
     if (!PROFESSIONAL.has(account.accountType)) {
