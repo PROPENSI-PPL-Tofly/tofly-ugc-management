@@ -69,6 +69,19 @@ describe("ConnectionBadge", () => {
     expect(tiktok).toHaveAccessibleDescription(/^Creator belum menghubungkan/);
   });
 
+  it("wraps its tooltip's text even inside a line that never wraps, so none of it is cut off", () => {
+    render(
+      <p className="whitespace-nowrap">
+        <ConnectionBadge platform="Instagram" connection={NOT_CONNECTED} />
+      </p>,
+    );
+
+    const tooltip = screen
+      .getByText(/^Creator belum menghubungkan/)
+      .closest("span");
+    expect(tooltip).toHaveClass("whitespace-normal", "max-w-[260px]");
+  });
+
   it("leaves the tooltip role to InfoTip, so a table with both still has one tooltip", () => {
     render(<ConnectionBadge platform="Instagram" connection={CONNECTED} />);
 
