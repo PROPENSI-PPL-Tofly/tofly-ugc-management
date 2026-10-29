@@ -23,6 +23,17 @@ export const PERFORMANCE_PATH = "/creator/performance";
  */
 export const MY_SOCIAL_ACCOUNTS_PATH = "/me/social-accounts";
 
+/** A load of the creator's accounts that failed, with the backend's status (502 for an unusable 200). */
+export class ConnectedAccountsError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Loading your connected accounts failed with HTTP ${status}`);
+    this.name = "ConnectedAccountsError";
+    this.status = status;
+  }
+}
+
 /** One row of the panel. */
 export interface ConnectedAccount {
   platform: ConnectPlatform;
@@ -39,7 +50,8 @@ function isRecord(value: unknown): value is Json {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isPlatform(value: unknown): value is ConnectPlatform {
+/** Whether a value is one of the platforms the panel connects, and nothing else. */
+export function isConnectPlatform(value: unknown): value is ConnectPlatform {
   return typeof value === "string" && (CONNECT_PLATFORMS as readonly string[]).includes(value);
 }
 
@@ -66,7 +78,7 @@ export function toConnectedAccounts(raw: unknown): ConnectedAccount[] {
   const entries = isRecord(raw) && Array.isArray(raw.accounts) ? raw.accounts : [];
   const found = new Map<ConnectPlatform, ConnectedAccount>();
   for (const entry of entries) {
-    if (isRecord(entry) && isPlatform(entry.platform) && !found.has(entry.platform)) {
+    if (isRecord(entry) && isConnectPlatform(entry.platform) && !found.has(entry.platform)) {
       found.set(entry.platform, accountOf(entry.platform, entry));
     }
   }
@@ -128,11 +140,11 @@ export function readConnectOutcome(params: Params): ConnectOutcome | null {
   const connected = single(params, "connected");
   const platform = single(params, "platform");
 
-  if (isPlatform(connected)) return { kind: "connected", platform: connected };
-  if (connected === "1" && isPlatform(platform)) return { kind: "connected", platform };
+  if (isConnectPlatform(connected)) return { kind: "connected", platform: connected };
+  if (connected === "1" && isConnectPlatform(platform)) return { kind: "connected", platform };
 
   const error = single(params, "error");
-  if (error !== undefined && isPlatform(platform)) {
+  if (error !== undefined && isConnectPlatform(platform)) {
     return { kind: "failed", platform, error: isConnectError(error) ? error : "platform_error" };
   }
   return null;
