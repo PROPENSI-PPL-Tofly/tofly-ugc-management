@@ -33,6 +33,8 @@
 
   --radius-control: 6px;
   --radius-panel: 10px;
+  /* Small colour squares: the wordmark's mark and the calendar key. */
+  --radius-swatch: 3px;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);

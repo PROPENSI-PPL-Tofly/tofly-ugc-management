@@ -2,9 +2,34 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+// A class that paints its own colour, radius or shadow instead of a globals.css token. Only
+// colours are caught for colour utilities: an arbitrary size (text-[13px]) has no token to use.
+// A class starts the string, follows a space, or follows its variant (hover:bg-[#fff]).
+const OFF_TOKEN_CLASS = String.raw`(^|\s|:)((bg|text|border(-[a-z])?|ring|outline|fill|stroke|decoration|divide|accent|caret|placeholder|from|via|to)-\[(#|rgb|hsl|oklch|oklab|color-mix)|rounded(-[a-z]{1,2})?-\[|shadow-\[)`;
+const OFF_TOKEN_MESSAGE =
+  "Use a token from src/app/globals.css (bg-accent, rounded-(--radius-control), shadow-whisper) instead of a raw colour, radius or shadow.";
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    // Tests hold off-token classes as sample input.
+    ignores: ["src/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        { selector: `Literal[value=/${OFF_TOKEN_CLASS}/]`, message: OFF_TOKEN_MESSAGE },
+        { selector: `TemplateElement[value.raw=/${OFF_TOKEN_CLASS}/]`, message: OFF_TOKEN_MESSAGE },
+        {
+          // Lower-case names are DOM elements; a component's own `style` prop is its business.
+          selector: 'JSXOpeningElement[name.name=/^[a-z]/] > JSXAttribute[name.name="style"]',
+          message:
+            "No inline styles: the Content Security Policy rejects them. Use classes built on src/app/globals.css tokens.",
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

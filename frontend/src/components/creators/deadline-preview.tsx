@@ -46,7 +46,7 @@ function CalendarKey() {
     <ul aria-label="Keterangan kalender" className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-2">
       {KEY.map(({ label, style }) => (
         <li key={label} className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className={`inline-block size-3.5 rounded-[3px] p-0 ${style}`} />
+          <span aria-hidden="true" className={`inline-block size-3.5 rounded-(--radius-swatch) p-0 ${style}`} />
           {label}
         </li>
       ))}
