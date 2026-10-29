@@ -1,5 +1,6 @@
 import { backendDelete } from "./backend.server";
-import { DISCONNECT_REFUSALS, disconnectAccount } from "./connected-account-actions.server";
+import { disconnectAccount } from "./connected-account-actions.server";
+import { DISCONNECT_REFUSALS } from "./connected-accounts";
 import { currentRole } from "./session.server";
 
 vi.mock("./backend.server", () => ({ backendDelete: vi.fn() }));
@@ -119,6 +120,14 @@ describe("disconnectAccount", () => {
       await expect(disconnectAccount("tiktok")).resolves.toMatchObject({ ok: false, code: "UNAVAILABLE" });
       expect(mockedDelete).not.toHaveBeenCalled();
     });
+  });
+
+  // A "use server" file may export only async functions (Next.js), so the words live beside the
+  // shared accounts module, where the panel can import them too.
+  it("exports nothing but async functions, as a server action module must", async () => {
+    const exported = Object.values(await import("./connected-account-actions.server"));
+
+    expect(exported.every((value) => typeof value === "function")).toBe(true);
   });
 
   it("words each refusal for the creator", () => {
