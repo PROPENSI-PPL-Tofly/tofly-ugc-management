@@ -32,6 +32,23 @@ describe("disconnectAccount", () => {
     await expect(disconnectAccount("instagram")).resolves.toEqual({ ok: true });
   });
 
+  // Boundary values of the 2xx range: the last success and the first answer past it.
+  it("reads 299 as done", async () => {
+    mockedDelete.mockResolvedValue(answer(299));
+
+    await expect(disconnectAccount("tiktok")).resolves.toEqual({ ok: true });
+  });
+
+  it("reads 300 as a refusal, not done", async () => {
+    mockedDelete.mockResolvedValue(answer(300));
+
+    await expect(disconnectAccount("tiktok")).resolves.toEqual({
+      ok: false,
+      code: "HTTP_300",
+      message: DISCONNECT_REFUSALS.GENERIC,
+    });
+  });
+
   // Disconnecting an account that is already gone ends where the creator wanted.
   it("reads 404 (nothing connected) as done", async () => {
     mockedDelete.mockResolvedValue(answer(404, { code: "NOT_CONNECTED" }));

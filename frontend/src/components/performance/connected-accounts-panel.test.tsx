@@ -105,6 +105,18 @@ describe("ConnectedAccountsPanel", () => {
       expect(tiktok.getByRole("button", { name: "Putuskan TikTok" })).toHaveTextContent("Putuskan");
     });
 
+    // TikTok allows 24 characters and Instagram 30; the line is cut with an ellipsis, never
+    // pushed past the card, and the whole handle stays in the page for a screen reader.
+    it("cuts a long handle with an ellipsis instead of widening the card", () => {
+      const handle = "a.very.long.instagram.handle.30";
+      renderPanel({
+        accounts: [{ platform: "instagram", connected: true, username: handle, connectedAt: null }, NOT_CONNECTED[1]],
+      });
+
+      const detail = within(row("Instagram")).getByText(`@${handle} · Terhubung`);
+      expect(detail).toHaveClass("truncate");
+    });
+
     it("leaves the handle out when the platform sent none", () => {
       renderPanel({
         accounts: [NOT_CONNECTED[0], { platform: "tiktok", connected: true, username: null, connectedAt: null }],
@@ -127,6 +139,19 @@ describe("ConnectedAccountsPanel", () => {
       renderPanel({ outcome: { kind: "connected", platform: "tiktok" } });
 
       expect(replace).toHaveBeenCalledWith("/creator/performance", { scroll: false });
+    });
+
+    // React may render the same result again (a parent re-render, or Strict Mode running effects
+    // twice); the toast and the address change still happen once.
+    it("acts on a result once, however often it is rendered", () => {
+      const outcome: ConnectOutcome = { kind: "connected", platform: "tiktok" };
+      const { rerender } = renderPanel({ accounts: TIKTOK_CONNECTED, outcome });
+
+      rerender(<ConnectedAccountsPanel accounts={TIKTOK_CONNECTED} outcome={outcome} />);
+      rerender(<ConnectedAccountsPanel accounts={TIKTOK_CONNECTED} outcome={{ ...outcome }} />);
+
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(screen.getAllByRole("status")).toHaveLength(1);
     });
 
     it("leaves the address alone on a plain visit", () => {

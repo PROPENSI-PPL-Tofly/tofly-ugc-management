@@ -166,6 +166,29 @@ describe("readConnectOutcome", () => {
     expect(readConnectOutcome(params)).toBeNull();
   });
 
+  // Equivalence classes of the success flag: only "1" means connected.
+  it.each(["0", "true", "yes", ""])("ignores the flag %j beside a known platform", (connected) => {
+    expect(readConnectOutcome({ platform: "tiktok", connected })).toBeNull();
+  });
+
+  // Platform names are matched exactly, as the connect flows send them.
+  it.each([
+    ["a capitalised platform as the value", { connected: "TikTok" }],
+    ["a capitalised platform beside an error", { platform: "TikTok", error: "cancelled" }],
+    ["a padded platform", { connected: " tiktok" }],
+  ])("ignores %s", (_label, params) => {
+    expect(readConnectOutcome(params)).toBeNull();
+  });
+
+  // An error the platform named with nothing is still an error: the creator is told to try again.
+  it("reads an empty error as a platform error", () => {
+    expect(readConnectOutcome({ platform: "tiktok", error: "" })).toEqual({
+      kind: "failed",
+      platform: "tiktok",
+      error: "platform_error",
+    });
+  });
+
   it("reads success before an error when both are present", () => {
     expect(readConnectOutcome({ connected: "tiktok", platform: "tiktok", error: "cancelled" })).toEqual({
       kind: "connected",
@@ -207,6 +230,15 @@ describe("the words on the page", () => {
 describe("connectedSince", () => {
   it("names the Jakarta day the account was connected", () => {
     expect(connectedSince("2026-10-29T17:06:15.305Z")).toBe("Terhubung sejak 30 Okt 2026");
+  });
+
+  // Boundary value analysis on Jakarta's midnight (17:00 UTC): the last instant of one day and
+  // the first of the next.
+  it.each([
+    ["2026-10-29T16:59:59.999Z", "Terhubung sejak 29 Okt 2026"],
+    ["2026-10-29T17:00:00.000Z", "Terhubung sejak 30 Okt 2026"],
+  ])("names %s as Jakarta's day: %s", (connectedAt, words) => {
+    expect(connectedSince(connectedAt)).toBe(words);
   });
 
   it("leaves the day out when there is none", () => {
