@@ -19,3 +19,5 @@ export interface ConnectedAccount {
 export interface SocialAccountStore {
   save(account: ConnectedAccount): Promise<void>;
 }
+
+export const SOCIAL_ACCOUNT_STORE = 'SOCIAL_ACCOUNT_STORE';
