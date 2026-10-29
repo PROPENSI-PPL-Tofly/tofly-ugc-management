@@ -61,7 +61,7 @@ function routeOf(url: string): keyof Routes {
 
 // Stands in for Instagram: answers each of the three calls from `routes`, the happy path by default.
 function fakeFetch(routes: Routes = {}) {
-  return vi.fn(async (input: string | URL | Request) => {
+  return vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
     const reply = { ...OK, ...routes }[routeOf(String(input))];
     if (reply === 'network') {
       throw new TypeError('fetch failed');
