@@ -37,8 +37,8 @@ export function ConnectionBadge({
       </button>
       {/* A sibling, not a child: inside the button it would also be read as its name. */}
       <span
+        // No role="tooltip": aria-describedby already reads it, and the role stays InfoTip's.
         id={tipId}
-        role="tooltip"
         className="pointer-events-none invisible absolute top-full left-0 z-10 mt-1.5 w-max max-w-[260px] rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
       >
         {connectionTooltip(connection)}

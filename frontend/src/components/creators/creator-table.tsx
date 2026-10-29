@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { ConnectionBadge } from "@/components/ui/connection-badge";
+import { readConnections, SOCIAL_PLATFORMS, type SocialPlatform } from "@/lib/social-connection";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -51,11 +53,16 @@ const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
 const NUMERIC = `${CELL} text-right tabular-nums`;
 
-function socials(creator: CreatorSummary): string[] {
-  return [
-    creator.socials.instagram && `Instagram @${creator.socials.instagram}`,
-    creator.socials.tiktok && `TikTok @${creator.socials.tiktok}`,
-  ].filter((entry): entry is string => Boolean(entry));
+const PLATFORM_LABELS: Record<SocialPlatform, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+};
+
+function socials(creator: CreatorSummary): { platform: SocialPlatform; text: string }[] {
+  return SOCIAL_PLATFORMS.filter((platform) => creator.socials[platform]).map((platform) => ({
+    platform,
+    text: `${PLATFORM_LABELS[platform]} @${creator.socials[platform]}`,
+  }));
 }
 
 function contractNote(creator: CreatorSummary): string {
@@ -195,9 +202,16 @@ export function CreatorTable({
 
                   <p className="mt-0.5 text-xs text-muted">{creator.email}</p>
 
-                  {socials(creator).map((entry) => (
-                    <p key={entry} className="text-xs text-muted">
-                      {entry}
+                  {socials(creator).map(({ platform, text }) => (
+                    <p key={platform} className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                      <span>{text}</span>
+                      {/* The row would hear a press on the badge too and open the page. */}
+                      <span onClick={(event) => event.stopPropagation()}>
+                        <ConnectionBadge
+                          platform={PLATFORM_LABELS[platform]}
+                          connection={readConnections(creator.socialConnections)[platform]}
+                        />
+                      </span>
                     </p>
                   ))}
 

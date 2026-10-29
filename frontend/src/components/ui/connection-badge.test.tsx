@@ -20,11 +20,9 @@ describe("ConnectionBadge", () => {
     render(<ConnectionBadge platform="Instagram" connection={CONNECTED} />);
 
     const badge = screen.getByRole("button", { name: "Instagram Terhubung" });
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip).toHaveTextContent(
+    expect(badge).toHaveAccessibleDescription(
       "Terhubung sejak 29 Okt 2026 · sinkron terakhir —.",
     );
-    expect(badge).toHaveAttribute("aria-describedby", tooltip.id);
   });
 
   it("shows an account that is not connected as a grey Belum terhubung, saying why", () => {
@@ -34,7 +32,7 @@ describe("ConnectionBadge", () => {
       name: "TikTok Belum terhubung",
     });
     expect(badge).toHaveClass("bg-surface-2", "text-muted");
-    expect(screen.getByRole("tooltip")).toHaveTextContent(
+    expect(badge).toHaveAccessibleDescription(
       "Creator belum menghubungkan akun ini, jadi angka performanya belum bisa ditarik otomatis.",
     );
   });
@@ -63,10 +61,17 @@ describe("ConnectionBadge", () => {
       </>,
     );
 
-    const [first, second] = screen.getAllByRole("tooltip");
-    expect(first.id).not.toBe(second.id);
-    expect(
-      screen.getByRole("button", { name: "TikTok Belum terhubung" }),
-    ).toHaveAttribute("aria-describedby", second.id);
+    const instagram = screen.getByRole("button", { name: "Instagram Terhubung" });
+    const tiktok = screen.getByRole("button", { name: "TikTok Belum terhubung" });
+    expect(instagram.getAttribute("aria-describedby")).not.toBe(
+      tiktok.getAttribute("aria-describedby"),
+    );
+    expect(tiktok).toHaveAccessibleDescription(/^Creator belum menghubungkan/);
+  });
+
+  it("leaves the tooltip role to InfoTip, so a table with both still has one tooltip", () => {
+    render(<ConnectionBadge platform="Instagram" connection={CONNECTED} />);
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 });
