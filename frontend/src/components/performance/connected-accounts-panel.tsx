@@ -209,7 +209,7 @@ function AccountRow({
               platform={account.platform}
               label="Hubungkan"
               ariaLabel={`Hubungkan ${name}`}
-              variant="accent"
+              variant="default"
               connecting={connecting}
               onConnect={onConnect}
             />
