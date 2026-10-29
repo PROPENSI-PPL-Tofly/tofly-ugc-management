@@ -142,6 +142,12 @@ describe("CreatorProfilePanel", () => {
       expect(screen.getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
     });
 
+    it("lets a badge's tooltip open past the card's edge instead of being cut off", () => {
+      const { container } = render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+      expect(container.querySelector("section")).not.toHaveClass("overflow-hidden");
+    });
+
     it("gives no badge to a platform the creator has no username for", () => {
       render(
         <CreatorProfilePanel

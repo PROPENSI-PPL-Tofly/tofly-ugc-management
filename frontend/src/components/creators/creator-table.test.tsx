@@ -474,6 +474,19 @@ describe("CreatorTable", () => {
       expect(screen.queryByRole("button", { name: /^TikTok / })).toBeNull();
     });
 
+    it("keeps each badge on its username's line, however long the username", () => {
+      render(
+        <CreatorTable
+          creators={[creator({ socials: { instagram: "a.very.long.instagram.handle" } })]}
+          total={1}
+        />,
+      );
+
+      const line = screen.getByText("Instagram @a.very.long.instagram.handle").parentElement!;
+      expect(line).toHaveClass("whitespace-nowrap");
+      expect(line).not.toHaveClass("flex-wrap");
+    });
+
     it("does not open the creator's page when a badge is pressed", () => {
       render(<CreatorTable creators={[creator({ socialConnections: connected })]} total={1} />);
 
