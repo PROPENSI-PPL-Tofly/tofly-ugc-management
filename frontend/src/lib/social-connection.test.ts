@@ -1,6 +1,7 @@
 import {
   connectionLabel,
   connectionTooltip,
+  isUsernameLocked,
   NOT_CONNECTED,
   readConnections,
   type SocialConnection,
@@ -119,5 +120,24 @@ describe("connectionTooltip", () => {
     expect(connectionTooltip(NOT_CONNECTED)).toBe(
       "Creator belum menghubungkan akun ini, jadi angka performanya belum bisa ditarik otomatis.",
     );
+  });
+});
+
+// PBI-19, AC 10: once connected, the username is the platform's and read-only for Admin. The
+// form that edits a username is PBI-16's; this is the rule it reads.
+describe("isUsernameLocked", () => {
+  it("locks the username of a connected account", () => {
+    expect(isUsernameLocked(CONNECTED)).toBe(true);
+  });
+
+  it("leaves the username of an account that is not connected for Admin to correct", () => {
+    expect(isUsernameLocked(NOT_CONNECTED)).toBe(false);
+  });
+
+  it("leaves every username open while the backend sends no connections (19.3 not merged)", () => {
+    const connections = readConnections(undefined);
+
+    expect(isUsernameLocked(connections.instagram)).toBe(false);
+    expect(isUsernameLocked(connections.tiktok)).toBe(false);
   });
 });
