@@ -47,7 +47,8 @@ export function CreatorProfilePanel({
   const access = creatorAccess(creator.accessRevokeDate, current?.endDate ?? null, today);
 
   return (
-    <Panel>
+    // Unclipped, so a badge's tooltip opens past the card's edge instead of being cut off.
+    <Panel clip={false}>
       <div className="flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0">
           <h2 className="text-lg wrap-anywhere">{creator.name}</h2>

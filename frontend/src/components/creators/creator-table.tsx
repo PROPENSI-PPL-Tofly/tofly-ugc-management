@@ -203,7 +203,8 @@ export function CreatorTable({
                   <p className="mt-0.5 text-xs text-muted">{creator.email}</p>
 
                   {socials(creator).map(({ platform, text }) => (
-                    <p key={platform} className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                    // One line however long the handle: the badge never drops under it.
+                    <p key={platform} className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
                       <span>{text}</span>
                       {/* The row would hear a press on the badge too and open the page. */}
                       <span onClick={(event) => event.stopPropagation()}>
