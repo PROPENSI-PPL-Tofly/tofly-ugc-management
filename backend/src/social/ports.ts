@@ -43,6 +43,26 @@ export interface SocialOAuthProvider {
   connect(code: string): Promise<PlatformAccount>;
 }
 
+/** What storing a connected account came to (19.3 implements the store). */
+export type LinkResult = 'linked' | 'taken';
+
+/**
+ * Keeps a creator's connected account: encrypts its tokens, replaces an earlier connection of
+ * the same platform, and refuses an account another creator already holds.
+ */
+export interface SocialAccountLinker {
+  link(creatorId: string, account: PlatformAccount): Promise<LinkResult>;
+}
+
+/** A name a platform sent (an error code), safe to log only when it looks like one. */
+const LOG_SAFE_NAME = /^[A-Za-z0-9_.]{1,64}$/;
+
+export function logSafeName(value: unknown): string {
+  return typeof value === 'string' && LOG_SAFE_NAME.test(value)
+    ? value
+    : 'unknown';
+}
+
 /**
  * A platform call that did not end in an account. The outcome is what the creator is told;
  * the message is for the server log, so it never carries a code, a secret or a token.
