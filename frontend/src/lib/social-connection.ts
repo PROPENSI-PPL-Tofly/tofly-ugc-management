@@ -9,6 +9,12 @@ export const SOCIAL_PLATFORMS = ["instagram", "tiktok"] as const;
 
 export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 
+// How each platform is named on the page and to a screen reader.
+export const SOCIAL_PLATFORM_LABELS: Record<SocialPlatform, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+};
+
 export interface SocialConnection {
   connected: boolean;
   // ISO instants; null when the backend has none or sent something that is not a date.

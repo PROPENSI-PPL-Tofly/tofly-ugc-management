@@ -10,12 +10,16 @@ import {
   type CreatorProfile,
 } from "@/lib/creator-detail";
 import { jakartaDay } from "@/lib/format";
-import { readConnections, type SocialConnections } from "@/lib/social-connection";
+import {
+  readConnections,
+  SOCIAL_PLATFORM_LABELS,
+  type SocialConnections,
+} from "@/lib/social-connection";
 
 /** How each platform is captioned on its chip, in the order the chips are laid out. */
 const PLATFORMS = [
-  { key: "instagram", caption: "IG", label: "Instagram" },
-  { key: "tiktok", caption: "TIKTOK", label: "TikTok" },
+  { key: "instagram", caption: "IG" },
+  { key: "tiktok", caption: "TIKTOK" },
 ] as const;
 
 const CAPTION = "text-xs text-muted";
@@ -51,7 +55,7 @@ export function CreatorProfilePanel({
 
           {accounts.length > 0 ? (
             <ul aria-label="Akun media sosial" className="mt-3 flex flex-wrap gap-2">
-              {accounts.map(({ key, caption, label }) => (
+              {accounts.map(({ key, caption }) => (
                 <li key={key} className="inline-flex items-center gap-1.5">
                   <span className="inline-flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-xs">
                     <span className="text-[10.5px] font-semibold tracking-wide text-muted">
@@ -60,7 +64,10 @@ export function CreatorProfilePanel({
                     <span>@{creator.socials[key]}</span>
                   </span>
                   {/* Beside the chip, as the prototype has it (PBI-19, AC 12). */}
-                  <ConnectionBadge platform={label} connection={connections[key]} />
+                  <ConnectionBadge
+                    platform={SOCIAL_PLATFORM_LABELS[key]}
+                    connection={connections[key]}
+                  />
                 </li>
               ))}
             </ul>

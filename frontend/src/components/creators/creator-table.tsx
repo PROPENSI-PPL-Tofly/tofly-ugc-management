@@ -6,7 +6,12 @@ import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { ConnectionBadge } from "@/components/ui/connection-badge";
-import { readConnections, SOCIAL_PLATFORMS, type SocialPlatform } from "@/lib/social-connection";
+import {
+  readConnections,
+  SOCIAL_PLATFORM_LABELS,
+  SOCIAL_PLATFORMS,
+  type SocialPlatform,
+} from "@/lib/social-connection";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -53,15 +58,10 @@ const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
 const NUMERIC = `${CELL} text-right tabular-nums`;
 
-const PLATFORM_LABELS: Record<SocialPlatform, string> = {
-  instagram: "Instagram",
-  tiktok: "TikTok",
-};
-
 function socials(creator: CreatorSummary): { platform: SocialPlatform; text: string }[] {
   return SOCIAL_PLATFORMS.filter((platform) => creator.socials[platform]).map((platform) => ({
     platform,
-    text: `${PLATFORM_LABELS[platform]} @${creator.socials[platform]}`,
+    text: `${SOCIAL_PLATFORM_LABELS[platform]} @${creator.socials[platform]}`,
   }));
 }
 
@@ -208,7 +208,7 @@ export function CreatorTable({
                       {/* The row would hear a press on the badge too and open the page. */}
                       <span onClick={(event) => event.stopPropagation()}>
                         <ConnectionBadge
-                          platform={PLATFORM_LABELS[platform]}
+                          platform={SOCIAL_PLATFORM_LABELS[platform]}
                           connection={readConnections(creator.socialConnections)[platform]}
                         />
                       </span>
