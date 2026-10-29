@@ -39,7 +39,9 @@ export function AppShell({
           href={homeFor(role)}
           className="inline-flex items-center gap-2 rounded-(--radius-control) text-base font-bold tracking-tight text-ink"
         >
-          <span aria-hidden="true" className="size-2 rounded-(--radius-swatch) bg-[#ff0000]" />
+          {/* DO NOT MERGE: a deliberate raw hex colour instead of the bg-accent token, here only to
+              show the UI token lint rule failing CI. The fix is to put bg-accent back. */}
+          <span aria-hidden="true" className="size-2 rounded-(--radius-swatch) bg-[#7b2ff7]" />
           tofly
         </Link>
         {/* A row of its own on a phone, so the menu scrolls instead of squeezing Keluar. */}
