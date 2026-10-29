@@ -39,7 +39,7 @@ export function AppShell({
           href={homeFor(role)}
           className="inline-flex items-center gap-2 rounded-(--radius-control) text-base font-bold tracking-tight text-ink"
         >
-          <span aria-hidden="true" className="size-2 rounded-(--radius-swatch) bg-accent" />
+          <span aria-hidden="true" className="size-2 rounded-(--radius-swatch) bg-[#ff0000]" />
           tofly
         </Link>
         {/* A row of its own on a phone, so the menu scrolls instead of squeezing Keluar. */}
