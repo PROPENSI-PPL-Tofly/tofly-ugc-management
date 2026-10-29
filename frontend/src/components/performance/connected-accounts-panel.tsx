@@ -96,7 +96,7 @@ export function ConnectedAccountsPanel({
           title="Akun Terhubung"
           hint="Hubungkan akun media sosial untuk menarik data performa konten secara otomatis."
         />
-        <div className="grid gap-3 px-5 pb-5 sm:grid-cols-2">
+        <div className="grid items-start gap-3 px-5 pb-5 sm:grid-cols-2">
           {accounts.map((account) => (
             <AccountRow
               key={account.platform}
@@ -147,7 +147,7 @@ function ConnectLink({
   if (connecting) {
     // The browser is on its way to the platform; a second press would start a second flow.
     return (
-      <button type="button" disabled aria-busy="true" className={buttonClasses(variant)}>
+      <button type="button" disabled aria-busy="true" className={`whitespace-nowrap ${buttonClasses(variant)}`}>
         Menghubungkan…
       </button>
     );
@@ -155,7 +155,7 @@ function ConnectLink({
   return (
     // A plain anchor: the backend answers with a redirect to the platform, which needs a full
     // page load, not client-side navigation.
-    <a href={connectHref(platform)} aria-label={ariaLabel} onClick={onConnect} className={buttonClasses(variant)}>
+    <a href={connectHref(platform)} aria-label={ariaLabel} onClick={onConnect} className={`whitespace-nowrap ${buttonClasses(variant)}`}>
       {label}
     </a>
   );
@@ -183,8 +183,8 @@ function AccountRow({
     : "Belum terhubung";
 
   return (
-    <div role="group" aria-label={name} className="flex flex-col gap-3 rounded-(--radius-control) border border-rule p-4">
-      <div className="flex items-center justify-between gap-3">
+    <div role="group" aria-label={name} className="flex min-w-0 flex-col gap-3 rounded-(--radius-control) border border-rule p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[13px] font-semibold">{name}</p>
           <p className="mt-0.5 truncate text-xs text-muted">{detail}</p>
@@ -195,11 +195,11 @@ function AccountRow({
             <>
               <Pill tone="green">Terhubung</Pill>
               {disconnecting ? (
-                <button type="button" disabled aria-busy="true" className={buttonClasses()}>
+                <button type="button" disabled aria-busy="true" className={`whitespace-nowrap ${buttonClasses()}`}>
                   Memutuskan…
                 </button>
               ) : (
-                <button type="button" aria-label={`Putuskan ${name}`} onClick={onDisconnect} className={buttonClasses()}>
+                <button type="button" aria-label={`Putuskan ${name}`} onClick={onDisconnect} className={`whitespace-nowrap ${buttonClasses()}`}>
                   Putuskan
                 </button>
               )}
@@ -220,7 +220,7 @@ function AccountRow({
       {message ? (
         <div
           role="alert"
-          className="flex items-center justify-between gap-3 rounded-(--radius-control) bg-red-wash px-3 py-2 text-xs text-red-ink"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-(--radius-control) bg-red-wash px-3 py-2 text-xs text-red-ink"
         >
           <span>{message}</span>
           {connecting || account.connected ? null : (
