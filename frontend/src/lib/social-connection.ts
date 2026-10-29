@@ -61,6 +61,12 @@ export function readConnections(raw: unknown): SocialConnections {
   ) as SocialConnections;
 }
 
+// PRD 3.1, AC 10: once connected, the username comes from the platform and Admin may not
+// change it (the PBI-16 rule).
+export function isUsernameLocked(connection: SocialConnection): boolean {
+  return connection.connected;
+}
+
 export function connectionLabel(connection: SocialConnection): string {
   return connection.connected ? "Terhubung" : "Belum terhubung";
 }
