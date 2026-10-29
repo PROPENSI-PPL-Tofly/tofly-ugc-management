@@ -22,7 +22,7 @@ const eslintConfig = defineConfig([
         { selector: `Literal[value=/${OFF_TOKEN_CLASS}/]`, message: OFF_TOKEN_MESSAGE },
         { selector: `TemplateElement[value.raw=/${OFF_TOKEN_CLASS}/]`, message: OFF_TOKEN_MESSAGE },
         {
-          // Lower-case names are DOM elements; a component's own `style` prop is its business.
+          // Catches `style` on HTML tags like <div style={…}>, not on components like <Chart style="…">.
           selector: 'JSXOpeningElement[name.name=/^[a-z]/] > JSXAttribute[name.name="style"]',
           message:
             "No inline styles: the Content Security Policy rejects them. Use classes built on src/app/globals.css tokens.",
