@@ -7,7 +7,10 @@ import {
   DevCreatorGuard,
 } from '../auth/dev-creator.guard.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { SocialConnectController } from './social-connect.controller.js';
+import {
+  SESSION_EXPIRED_LOGIN,
+  SocialConnectController,
+} from './social-connect.controller.js';
 import { SocialConnectService } from './social-connect.service.js';
 
 const CREATOR = '5b0c8a4e-2f1d-4c3b-9a8e-7d6f5e4c3b2a';
@@ -47,6 +50,9 @@ describe('SocialConnectController', () => {
     vi.resetAllMocks();
     vi.stubEnv('DEV_AUTH_ENABLED', 'true');
     vi.stubEnv('NODE_ENV', 'test');
+    // A DEV_CREATOR_ID in a local .env would sign every request in; these tests name the
+    // creator with the header alone.
+    vi.stubEnv('DEV_CREATOR_ID', '');
     prisma.creators.findUnique.mockResolvedValue({ id: CREATOR });
   });
 
@@ -83,9 +89,13 @@ describe('SocialConnectController', () => {
       expect(connects.start).toHaveBeenCalledWith(CREATOR, 'tiktok');
     });
 
-    it('answers 401 without a creator', async () => {
-      await server().get('/social/tiktok/connect').expect(401);
+    // Review #127: these are page loads, so a JSON 401 would leave the creator on a bare
+    // {"code":"UNAUTHENTICATED"}. The sign-in page says the session ended.
+    it('sends a creator without a session to sign in again, uncached', async () => {
+      const response = await server().get('/social/tiktok/connect').expect(302);
 
+      expect(response.headers.location).toBe(SESSION_EXPIRED_LOGIN);
+      expect(response.headers['cache-control']).toBe('no-store');
       expect(connects.start).not.toHaveBeenCalled();
     });
 
@@ -121,11 +131,15 @@ describe('SocialConnectController', () => {
       });
     });
 
-    it('answers 401 without a creator, so no code is spent', async () => {
-      await server()
+    // Review #127: a creator who stays on TikTok's consent screen until the session ends lands
+    // on the sign-in page, then presses Hubungkan again. The code is never spent.
+    it('sends a creator whose session ended on the platform to sign in again, spending no code', async () => {
+      const response = await server()
         .get('/social/tiktok/callback?code=abc&state=s')
-        .expect(401);
+        .expect(302);
 
+      expect(response.headers.location).toBe(SESSION_EXPIRED_LOGIN);
+      expect(response.headers['cache-control']).toBe('no-store');
       expect(connects.complete).not.toHaveBeenCalled();
     });
 
