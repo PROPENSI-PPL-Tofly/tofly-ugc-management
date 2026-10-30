@@ -65,6 +65,49 @@ describe("ConnectedAccountsPanel", () => {
     expect(screen.getByText(/Hubungkan akun supaya angka performa kontenmu ditarik otomatis\./)).toBeInTheDocument();
   });
 
+  // Sprint 3 prototype: the hint ends with a Kebijakan Privasi link that opens the policy in a
+  // pop-up (PRD 19 AC 15), so the creator reads it before pressing Hubungkan.
+  describe("Kebijakan Privasi", () => {
+    function policyLink(): HTMLElement {
+      return screen.getByRole("button", { name: "Kebijakan Privasi" });
+    }
+
+    it("is a link at the end of the panel's hint, with the policy closed until pressed", () => {
+      renderPanel();
+
+      expect(policyLink().closest("p")).toHaveTextContent(
+        "Hubungkan akun supaya angka performa kontenmu ditarik otomatis. Kebijakan Privasi",
+      );
+      expect(screen.queryByRole("dialog", { name: "Kebijakan Privasi" })).not.toBeInTheDocument();
+    });
+
+    it("is drawn as the prototype's underlined text link, not a button", () => {
+      renderPanel();
+
+      expect(policyLink()).toHaveClass("underline");
+      expect(policyLink()).not.toHaveClass("border");
+    });
+
+    it("opens the policy when pressed", () => {
+      renderPanel();
+
+      fireEvent.click(policyLink());
+
+      expect(screen.getByRole("dialog", { name: "Kebijakan Privasi" })).toHaveTextContent("Data yang diambil.");
+    });
+
+    it("closes the policy with Mengerti and hands focus back to the link", () => {
+      renderPanel();
+      policyLink().focus();
+      fireEvent.click(policyLink());
+
+      fireEvent.click(screen.getByRole("button", { name: "Mengerti" }));
+
+      expect(screen.queryByRole("dialog", { name: "Kebijakan Privasi" })).not.toBeInTheDocument();
+      expect(policyLink()).toHaveFocus();
+    });
+  });
+
   // Sprint 3 prototype: the platforms are stacked one under the other, not side by side.
   it("stacks the platform rows one under the other", () => {
     renderPanel();
