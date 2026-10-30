@@ -49,6 +49,14 @@ export default defineConfig({
           functions: 100,
           statements: 100,
         },
+        // A content's video links: which link is stored, who may change it and when the invoice
+        // freezes it decide what a creator is paid for, so no rule there may go untested.
+        'src/contents/{content-links*,link-*,video-submission.service}.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
         'src/invoices/{payment-proof*,proof-upload*,invoice-payments*,invoice-comments*,comment-request,invoice-lifecycle,invoice-confirmation*,invoice-command*}.ts':
           {
             lines: 100,
