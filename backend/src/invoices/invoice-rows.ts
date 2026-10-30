@@ -50,7 +50,13 @@ export const CONTENT_SELECT = {
   status: true,
   deadline: true,
   video_submitted_at: true,
-  platform: true,
+  // The first link's platform is the one its performance bonus is judged on, as the single
+  // link's was before PBI-38.
+  content_links: {
+    orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+    take: 1,
+    select: { platform: true },
+  },
   views: true,
   likes: true,
 } satisfies Prisma.contentsSelect;
@@ -86,7 +92,7 @@ export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
     status: row.status,
     deadline: row.deadline,
     videoSubmittedAt: row.video_submitted_at,
-    platform: row.platform,
+    platform: row.content_links[0]?.platform ?? null,
     views: row.views,
     likes: row.likes,
   };

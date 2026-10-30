@@ -105,7 +105,12 @@ const DETAIL_SELECT = {
           type: true,
           deadline: true,
           status: true,
-          video_link: true,
+          // Only the first link: its url is the video the detail shows (PBI-38 AC 7).
+          content_links: {
+            orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+            take: 1,
+            select: { url: true },
+          },
           video_submitted_at: true,
           approval_bypassed: true,
           _count: { select: { submissions: true } },
