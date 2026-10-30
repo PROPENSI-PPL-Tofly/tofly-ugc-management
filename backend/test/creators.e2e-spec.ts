@@ -72,7 +72,6 @@ describe('GET /creators (e2e)', () => {
                   type: 'evergreen',
                   deadline: day(-10),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/on-time',
                   video_submitted_at: day(-11),
                 },
                 { name: 'Open', type: 'specific', deadline: day(10) },

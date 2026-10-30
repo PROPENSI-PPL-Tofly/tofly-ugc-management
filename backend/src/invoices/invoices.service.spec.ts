@@ -358,7 +358,7 @@ describe('InvoicesService', () => {
         status: 'link_submitted',
         deadline: day(-10),
         video_submitted_at: day(-8),
-        platform: null,
+        content_links: [],
         views: null,
         likes: null,
       });

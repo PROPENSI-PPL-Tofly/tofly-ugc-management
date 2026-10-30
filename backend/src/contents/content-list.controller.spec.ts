@@ -70,6 +70,7 @@ describe('ContentListController', () => {
           status: 'draft_review',
           tags: ['overdue'],
           revisionCount: 1,
+          platforms: [],
         },
       ],
       total: 1,

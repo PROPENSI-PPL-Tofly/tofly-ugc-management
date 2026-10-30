@@ -7,6 +7,7 @@ import {
   listedContracts,
   pickContract,
   savedSnapshot,
+  toInvoiceContent,
   toInvoiceContract,
   toInvoiceItem,
   type InvoiceContentRow,
@@ -25,7 +26,7 @@ function contentRow(
     status: 'scheduled',
     deadline: day(10),
     video_submitted_at: null,
-    platform: null,
+    content_links: [],
     views: null,
     likes: null,
     ...overrides,
@@ -68,6 +69,27 @@ describe('creatorName', () => {
         last_name: null,
       }),
     ).toBe('Muhammad Farhan');
+  });
+});
+
+describe('toInvoiceContent', () => {
+  it('takes the platform of the content\'s first link (PBI-38)', () => {
+    expect(
+      toInvoiceContent(
+        contentRow({
+          status: 'link_submitted',
+          video_submitted_at: day(-1),
+          content_links: [{ platform: 'tiktok' }],
+        }),
+      ),
+    ).toMatchObject({ platform: 'tiktok', videoSubmittedAt: day(-1) });
+  });
+
+  it('has no platform before a link, or for a link kept from before platforms were recorded', () => {
+    expect(toInvoiceContent(contentRow()).platform).toBeNull();
+    expect(
+      toInvoiceContent(contentRow({ content_links: [{ platform: null }] })).platform,
+    ).toBeNull();
   });
 });
 
@@ -480,7 +502,13 @@ describe('the columns an invoice is read from', () => {
       status: true,
       deadline: true,
       video_submitted_at: true,
-      platform: true,
+      // The first link's platform is the one its performance bonus is judged on, as the single
+      // link's was before PBI-38.
+      content_links: {
+        orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+        take: 1,
+        select: { platform: true },
+      },
       views: true,
       likes: true,
     });

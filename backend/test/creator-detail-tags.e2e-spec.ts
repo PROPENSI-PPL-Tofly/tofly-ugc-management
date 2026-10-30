@@ -49,7 +49,6 @@ describe('GET /creators/:id content tags (e2e)', () => {
                   type: 'evergreen',
                   deadline: day(-10),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/late',
                   video_submitted_at: day(-8),
                   approval_bypassed: true,
                 },

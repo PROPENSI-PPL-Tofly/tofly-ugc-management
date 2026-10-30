@@ -1,6 +1,7 @@
-import type { content_status } from '@prisma/client';
+import type { content_status, social_platform } from '@prisma/client';
 import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
+import { firstLink } from './content-links.js';
 import { contentTags, type ContentTag } from './content-tags.js';
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
@@ -35,6 +36,14 @@ export interface DetailSubmissionRow {
   creator_notes: string | null;
 }
 
+/** One stored link (PBI-38), in the order the read sorts them: first handed in first. */
+export interface DetailLinkRow {
+  /** Null only on a link kept from before platforms were recorded. */
+  platform: social_platform | null;
+  url: string;
+  submitted_at: Date;
+}
+
 export interface ContentDetailRow {
   id: string;
   name: string;
@@ -42,7 +51,7 @@ export interface ContentDetailRow {
   brief: string;
   deadline: Date;
   status: content_status;
-  video_link: string | null;
+  content_links: DetailLinkRow[];
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
   created_at: Date;
@@ -72,6 +81,14 @@ export interface ContentEvent {
   payload?: { version?: number; link?: string; note?: string };
 }
 
+/** One of the content's video links, as the panel lists them (PBI-38 AC 11). */
+export interface ContentLink {
+  platform: social_platform | null;
+  url: string;
+  /** ISO calendar day. */
+  submittedAt: string;
+}
+
 export interface ContentDetail {
   id: string;
   name: string;
@@ -86,6 +103,8 @@ export interface ContentDetail {
   waitingOn: DetailWaitingOn;
   latestSubmissionId: string | null;
   creatorActions: TaskAction[];
+  /** Every link handed in, first first; empty before the first. */
+  links: ContentLink[];
   events: ContentEvent[];
 }
 
@@ -122,7 +141,7 @@ export function buildEvents(
     | 'status'
     | 'created_at'
     | 'updated_at'
-    | 'video_link'
+    | 'content_links'
     | 'video_submitted_at'
     | 'contracts'
     | 'submissions'
@@ -196,7 +215,8 @@ export function buildEvents(
       // A Postgres `date`: its day is all that was stored, so its day is all that is sent.
       at: row.video_submitted_at.toISOString().slice(0, 10),
       actor: { name: creatorName, role: 'creator' },
-      payload: { link: row.video_link ?? '' },
+      // The first link is the one that set the submitted day.
+      payload: { link: firstLink(row.content_links)?.url ?? '' },
     });
   }
 
@@ -236,6 +256,11 @@ export function toContentDetail(
     waitingOn: waitingOnFor(row.status),
     latestSubmissionId: latest?.id ?? null,
     creatorActions: taskActions(row.status, deadlineDay, today),
+    links: row.content_links.map((link) => ({
+      platform: link.platform,
+      url: link.url,
+      submittedAt: link.submitted_at.toISOString().slice(0, 10),
+    })),
     // The stored history is the record; a content with none falls back to what its rows prove.
     events:
       row.content_events.length > 0

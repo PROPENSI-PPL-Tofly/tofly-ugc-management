@@ -66,7 +66,6 @@ describe('Creator detail hierarchy (e2e)', () => {
                   type: 'evergreen',
                   deadline: day(-60),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/old',
                   video_submitted_at: day(-61),
                 },
               },

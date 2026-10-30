@@ -29,6 +29,8 @@ function row(
     latestDraftAt?: string;
     videoSubmittedAt?: string;
     approvalBypassed?: boolean;
+    /** The platform of each stored link, null for one kept from before platforms were recorded. */
+    links?: ('instagram' | 'tiktok' | null)[];
   } = {},
 ): ContentListRow {
   seq += 1;
@@ -43,6 +45,7 @@ function row(
       ? new Date(`${overrides.videoSubmittedAt}T00:00:00.000Z`)
       : null,
     approval_bypassed: overrides.approvalBypassed ?? false,
+    content_links: (overrides.links ?? []).map((platform) => ({ platform })),
     contracts: {
       creators: overrides.creator ?? {
         id: DINA,
@@ -87,6 +90,22 @@ describe('ContentListService.list', () => {
     seq = 0;
   });
 
+  it('names the platforms a content has a link for, Instagram first, for the row\'s icons (PBI-38 AC 13)', async () => {
+    const { service } = stub([
+      row({ status: 'link_submitted', links: ['tiktok', 'instagram'] }),
+      row({ status: 'link_submitted', links: [null] }),
+      row({}),
+    ]);
+
+    const answer = await service.list(PAGE, NOW, EVERYTHING);
+
+    expect(answer.items.map((item) => item.platforms)).toEqual([
+      ['instagram', 'tiktok'],
+      [],
+      [],
+    ]);
+  });
+
   it('reads only what the table shows and what its tags are judged on', async () => {
     const { client, service } = stub([]);
 
@@ -102,6 +121,8 @@ describe('ContentListService.list', () => {
         status: true,
         video_submitted_at: true,
         approval_bypassed: true,
+        // Only which platforms have a link, for the row's icons (PBI-38 AC 13), never the links.
+        content_links: { select: { platform: true } },
         contracts: {
           select: {
             creators: {
@@ -159,6 +180,7 @@ describe('ContentListService.list', () => {
           status: 'draft_review',
           tags: [],
           revisionCount: 0,
+          platforms: [],
         },
       ]);
     });
