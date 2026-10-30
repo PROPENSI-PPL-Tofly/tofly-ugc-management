@@ -13,6 +13,15 @@ function on(day: string): Date {
   return new Date(`${day}T05:00:00.000Z`);
 }
 
+/** One stored link, as content-detail.service selects it. */
+function linkRow(
+  platform: 'instagram' | 'tiktok' | null,
+  url: string,
+  day: string,
+): ContentDetailRow['content_links'][number] {
+  return { platform, url, submitted_at: new Date(`${day}T00:00:00.000Z`) };
+}
+
 function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
   return {
     id: '11111111-1111-1111-1111-111111111111',
@@ -21,7 +30,7 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
     brief: '',
     deadline: DEADLINE,
     status: 'scheduled',
-    video_link: null,
+    content_links: [],
     video_submitted_at: null,
     approval_bypassed: false,
     created_at: new Date('2026-09-01T03:00:00.000Z'),
@@ -233,7 +242,9 @@ describe('buildEvents', () => {
     const events = buildEvents(
       row({
         status: 'link_submitted',
-        video_link: 'https://instagram.com/reel/abc',
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+        ],
         video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
         submissions: [submission()],
       }),
@@ -245,6 +256,21 @@ describe('buildEvents', () => {
       actor: { name: 'Rangga Pratama', role: 'creator' },
       payload: { link: 'https://instagram.com/reel/abc' },
     });
+  });
+
+  it('carries the first link of a cross-posted content, the one that set its submitted day', () => {
+    const [link] = buildEvents(
+      row({
+        status: 'link_submitted',
+        content_links: [
+          linkRow('tiktok', 'https://www.tiktok.com/@rangga/video/2', '2026-09-17'),
+          linkRow('instagram', 'https://instagram.com/reel/first', '2026-09-15'),
+        ],
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+    );
+
+    expect(link.payload).toEqual({ link: 'https://instagram.com/reel/first' });
   });
 
   it('dates the link by its day alone, because the hour it came in was never stored', () => {
@@ -265,7 +291,9 @@ describe('buildEvents', () => {
     const events = buildEvents(
       row({
         status: 'link_submitted',
-        video_link: 'https://instagram.com/reel/abc',
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+        ],
         video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
         submissions: [
           submission({
@@ -490,6 +518,54 @@ describe('toContentDetail', () => {
   });
 });
 
+describe('toContentDetail links (PBI-38)', () => {
+  it('lists each link with its platform, url and submitted day, first link first', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+          linkRow('tiktok', 'https://www.tiktok.com/@rangga/video/1', '2026-09-17'),
+        ],
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links).toEqual([
+      {
+        platform: 'instagram',
+        url: 'https://instagram.com/reel/abc',
+        submittedAt: '2026-09-15',
+      },
+      {
+        platform: 'tiktok',
+        url: 'https://www.tiktok.com/@rangga/video/1',
+        submittedAt: '2026-09-17',
+      },
+    ]);
+  });
+
+  it('keeps a link from before platforms were recorded, with no platform', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        content_links: [linkRow(null, 'https://example.com/video/old', '2026-09-15')],
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links).toEqual([
+      { platform: null, url: 'https://example.com/video/old', submittedAt: '2026-09-15' },
+    ]);
+  });
+
+  it('has no links before the first is submitted', () => {
+    expect(toContentDetail(row(), on('2026-09-18')).links).toEqual([]);
+  });
+});
+
 describe('toContentDetail with a stored history', () => {
   const ADMIN = { actor_name: 'Admin', actor_role: 'admin' };
 
@@ -520,7 +596,9 @@ describe('toContentDetail with a stored history', () => {
     const detail = toContentDetail(
       row({
         status: 'link_submitted',
-        video_link: 'https://www.tiktok.com/@rangga/video/1',
+        content_links: [
+          linkRow('tiktok', 'https://www.tiktok.com/@rangga/video/1', '2026-09-20'),
+        ],
         video_submitted_at: new Date('2026-09-20T00:00:00.000Z'),
         content_events: history,
       }),
