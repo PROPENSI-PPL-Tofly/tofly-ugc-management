@@ -6,6 +6,7 @@ import {
   ContentDetailPanel,
   DECISION_CONFIRMATIONS,
 } from "@/components/content-detail/content-detail-panel";
+import { useVideoLinksModal } from "@/components/my-task/use-video-links-modal";
 import { useToast } from "@/components/ui/toast";
 import { DEFAULT_SORT, type ContentPlanRow, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
 import { latestQuery, useUrlQuery } from "@/lib/url-query";
@@ -33,6 +34,7 @@ export function ContentPlanBoard({
   sort: DeadlineSort;
 }>) {
   const router = useRouter();
+  const { openLinks, linksModal } = useVideoLinksModal("admin");
   const searchParams = useSearchParams();
   const { replaceQuery, replaceQuietly } = useUrlQuery();
   const [openContentId, setOpenContentId] = useState<string | null>(null);
@@ -128,8 +130,15 @@ export function ContentPlanBoard({
             confirm(DECISION_CONFIRMATIONS[decision]);
             router.refresh();
           }}
+          ports={{
+            onManageLinks: (detail) => {
+              closePanel();
+              openLinks(detail);
+            },
+          }}
         />
       ) : null}
+      {linksModal}
       {toast}
     </>
   );
