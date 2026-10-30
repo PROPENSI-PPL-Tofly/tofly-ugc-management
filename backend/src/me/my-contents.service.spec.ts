@@ -123,21 +123,29 @@ describe('MyContentsService.list', () => {
   it('names the platforms a content has a link for, Instagram first, for the row\'s icons (PBI-38 AC 13)', async () => {
     const { service } = stub([
       row({
+        id: 'cross-posted',
         status: 'link_submitted',
         linkDay: '2026-10-01',
         content_links: [{ platform: 'tiktok' }, { platform: 'instagram' }],
       }),
-      row({ status: 'link_submitted', linkDay: '2026-10-01', content_links: [{ platform: null }] }),
-      row({}),
+      row({
+        id: 'kept-from-before',
+        status: 'link_submitted',
+        linkDay: '2026-10-01',
+        content_links: [{ platform: null }],
+      }),
+      row({ id: 'no-link-yet' }),
     ]);
 
     const response = await service.list(CREATOR_ID, query(), NOW);
 
-    expect(response.items.map((item) => item.platforms)).toEqual([
-      ['instagram', 'tiktok'],
-      [],
-      [],
-    ]);
+    expect(
+      Object.fromEntries(response.items.map((item) => [item.id, item.platforms])),
+    ).toEqual({
+      'cross-posted': ['instagram', 'tiktok'],
+      'kept-from-before': [],
+      'no-link-yet': [],
+    });
   });
 
   it('lets the database narrow by type', async () => {
@@ -589,6 +597,7 @@ describe('MyContentsService.list', () => {
         tags: [],
         actions: ['submit_video'],
         revisionNotes: null,
+        platforms: [],
       },
     ]);
   });

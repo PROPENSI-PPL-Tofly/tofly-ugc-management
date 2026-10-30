@@ -1,6 +1,7 @@
 // What GET /contents answers with, in API vocabulary rather than Prisma's. The Admin Content
 // Plan table, its four tabs and their counters read these fields.
 
+import type { social_platform } from '@prisma/client';
 import type { ContentStatus } from '../content-lifecycle.js';
 import type { ContentListTab, ContentListType } from '../content-list.js';
 import type { ContentTag } from '../content-tags.js';
@@ -21,6 +22,8 @@ export interface ContentListItem {
   tags: ContentTag[];
   /** How many times an admin asked for a revision, counted from the moment it is asked. */
   revisionCount: number;
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: social_platform[];
 }
 
 export interface ContentListResponse {

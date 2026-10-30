@@ -180,6 +180,7 @@ describe('ContentListService.list', () => {
           status: 'draft_review',
           tags: [],
           revisionCount: 0,
+          platforms: [],
         },
       ]);
     });

@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { content_status, content_type } from '@prisma/client';
+import type {
+  content_status,
+  content_type,
+  social_platform,
+} from '@prisma/client';
+import { linkPlatforms } from '../contents/content-links.js';
 import type { ContentListType } from '../contents/content-list.js';
 import { contentTags, type ContentTag } from '../contents/content-tags.js';
 import {
@@ -39,6 +44,8 @@ const MY_CONTENT_SELECT = {
   // What the row's tags are judged on (content-tags.ts), never shown themselves.
   video_submitted_at: true,
   approval_bypassed: true,
+  // Only which platforms have a link, for the row's icons (PBI-38 AC 13), never the links.
+  content_links: { select: { platform: true } },
   // Only the latest hand-in: its revision_notes are what the admin asked to change, and its time
   // decides a late draft.
   submissions: {
@@ -57,6 +64,7 @@ export interface MyContentRow {
   status: content_status;
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
+  content_links: { platform: social_platform | null }[];
   submissions: { revision_notes: string | null; created_at: Date }[];
 }
 
@@ -276,6 +284,7 @@ export class MyContentsService implements MyContentsLister {
         row.status === 'draft_revision'
           ? (row.submissions[0]?.revision_notes ?? null)
           : null,
+      platforms: linkPlatforms(row.content_links),
     };
   }
 }
