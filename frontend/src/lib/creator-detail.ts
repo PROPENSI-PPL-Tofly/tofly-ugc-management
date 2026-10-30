@@ -18,6 +18,7 @@ import type { ContractType } from "./creator-form";
 import type { ContentStatus, ContentTag, ContractPeriod } from "./creators";
 import { formatDate } from "./format";
 import type { InvoiceStatus } from "./invoice";
+import type { SocialConnections } from "./social-connection";
 import { calendarDay, listOf, oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
@@ -208,6 +209,8 @@ export interface CreatorDetailView {
   calendar: CreatorContentRow[];
   /** Null when the invoice endpoint is unavailable. */
   earnings: PeriodEarnings | null;
+  // Whether each account is connected (PBI-19), for the profile's badges.
+  connections?: SocialConnections;
 }
 
 /**
