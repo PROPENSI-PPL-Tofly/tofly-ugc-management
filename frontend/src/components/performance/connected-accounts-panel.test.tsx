@@ -42,12 +42,15 @@ describe("ConnectedAccountsPanel", () => {
   beforeEach(() => {
     replace.mockReset();
     refresh.mockReset();
+    // The address is cleared with the History API, so it is spied on rather than performed.
+    vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
     vi.mocked(disconnectAccount).mockReset();
     document.addEventListener("click", stopNavigation);
   });
 
   afterEach(() => {
     document.removeEventListener("click", stopNavigation);
+    vi.restoreAllMocks();
   });
 
   it("is the Akun Terhubung panel, as the prototype titles it", () => {
@@ -156,7 +159,17 @@ describe("ConnectedAccountsPanel", () => {
     it("clears the result from the address once it has been read", () => {
       renderPanel({ outcome: { kind: "connected", platform: "tiktok" } });
 
-      expect(replace).toHaveBeenCalledWith("/creator/performance", { scroll: false });
+      expect(window.history.replaceState).toHaveBeenCalledWith(null, "", "/creator/performance");
+    });
+
+    // Rani's review on #129: the page is dynamic, so router.replace would render it on the server
+    // again and fetch GET /me/social-accounts a second time just to change the address. The
+    // History API changes only the address (Next.js docs, "Native History API").
+    it("clears the address without a second server render", () => {
+      renderPanel({ outcome: { kind: "failed", platform: "tiktok", error: "cancelled" } });
+
+      expect(replace).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
     });
 
     // React may render the same result again (a parent re-render, or Strict Mode running effects
@@ -168,14 +181,14 @@ describe("ConnectedAccountsPanel", () => {
       rerender(<ConnectedAccountsPanel accounts={TIKTOK_CONNECTED} outcome={outcome} />);
       rerender(<ConnectedAccountsPanel accounts={TIKTOK_CONNECTED} outcome={{ ...outcome }} />);
 
-      expect(replace).toHaveBeenCalledTimes(1);
+      expect(window.history.replaceState).toHaveBeenCalledTimes(1);
       expect(screen.getAllByRole("status")).toHaveLength(1);
     });
 
     it("leaves the address alone on a plain visit", () => {
       renderPanel();
 
-      expect(replace).not.toHaveBeenCalled();
+      expect(window.history.replaceState).not.toHaveBeenCalled();
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
@@ -191,7 +204,7 @@ describe("ConnectedAccountsPanel", () => {
         "/api/social/instagram/connect",
       );
       expect(within(row("TikTok")).queryByRole("alert")).not.toBeInTheDocument();
-      expect(replace).toHaveBeenCalledWith("/creator/performance", { scroll: false });
+      expect(window.history.replaceState).toHaveBeenCalledWith(null, "", "/creator/performance");
     });
 
     it("names the platform in trouble", () => {

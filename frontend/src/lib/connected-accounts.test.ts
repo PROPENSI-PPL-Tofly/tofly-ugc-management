@@ -209,7 +209,9 @@ describe("the words on the page", () => {
     ["not_tester", "Akun ini belum didaftarkan sebagai tester. Hubungi Admin Tofly."],
     ["account_taken", "Akun ini sudah terhubung ke creator lain."],
     ["platform_error", "Instagram sedang bermasalah. Coba lagi nanti."],
-    ["connect_failed", "Koneksi tidak bisa diselesaikan. Coba lagi."],
+    // Reviews on #129: PRD 19 and the prototype give no words of their own for this code, so it
+    // reads as the platform error until the PO (Kania) words it; the code itself stays.
+    ["connect_failed", "Instagram sedang bermasalah. Coba lagi nanti."],
   ])("words %s as the PRD does", (error, message) => {
     expect(connectErrorMessage("instagram", error)).toBe(message);
   });
