@@ -4,11 +4,14 @@
 -- are no longer written from here on and stay only until a later migration drops them;
 -- contents.video_submitted_at stays the content's submitted day, the day of its first link.
 
--- The key two copies of one video's link share: host in lowercase without www., then the path
--- without trailing slashes; scheme, query and fragment dropped, the path's case kept. A value
--- that is not a URL is keyed by its lowercase text. normalizeVideoLink in
--- src/contents/content-links.ts is the same rule, and test/content-links.e2e-spec.ts holds the
--- two to the same answers.
+-- The key every link to one video shares (AC 5). An Instagram post or TikTok video is keyed by
+-- the id its platform gives it ('instagram:<short code>' from /p/, /reel/, /reels/ or /tv/, with
+-- or without a handle in front; 'tiktok:<video id>' under any handle or as /v/<id>.html), read
+-- only on that platform's host. Any other link, a short vm.tiktok.com link included, is keyed by
+-- its host in lowercase without www. and its path without trailing slashes. Scheme, query and
+-- fragment never count. A value that is not a URL is keyed by its lowercase text.
+-- normalizeVideoLink in src/contents/content-links.ts is the same rule, and
+-- test/content-links.e2e-spec.ts holds the two to the same answers.
 create function content_link_key(url text) returns text
 language sql
 immutable
@@ -16,8 +19,12 @@ strict
 parallel safe
 as $$
   select case
-    when parts is null then lower(btrim(url, E' \t\n\r\f'))
-    else regexp_replace(lower(parts[1]), '^www\.', '') || regexp_replace(parts[2], '/+$', '')
+    when split.parts is null then lower(btrim(url, E' \t\n\r\f'))
+    when (named.site = 'instagram.com' or named.site like '%.instagram.com') and ids.post is not null
+      then 'instagram:' || ids.post[1]
+    when (named.site = 'tiktok.com' or named.site like '%.tiktok.com') and ids.video is not null
+      then 'tiktok:' || ids.video[1]
+    else named.site || rtrim(split.parts[2], '/')
   end
   from (
     select regexp_match(
@@ -25,6 +32,13 @@ as $$
       '^[A-Za-z][A-Za-z0-9+.-]*://([^/?#]*)([^?#]*)'
     ) as parts
   ) as split
+  cross join lateral (
+    select regexp_replace(lower(split.parts[1]), '^www\.', '') as site
+  ) as named
+  cross join lateral (
+    select regexp_match(split.parts[2], '^/(?:[^/]+/)?(?:p|reels?|tv)/([A-Za-z0-9_-]+)') as post,
+           regexp_match(split.parts[2], '^/(?:@[^/]+/)?(?:video|v)/([0-9]+)') as video
+  ) as ids
 $$;
 
 create table content_links (

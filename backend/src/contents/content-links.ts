@@ -9,10 +9,24 @@ import { SOCIAL_PLATFORMS } from '../creators/new-creator.js';
 const LINK_PARTS = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)([^?#]*)/i;
 
 /**
- * The key two copies of one video's link share: host in lowercase without `www.`, then the path
- * without trailing slashes. The scheme, query (`?igsh=`, `utm_*`) and fragment are dropped; the
- * path keeps its case, since Instagram and TikTok short codes are case-sensitive. A value that
- * is not a URL, kept from before links were checked, is keyed by its lowercase text.
+ * An Instagram post's short code, whether it is linked as a post, a reel, a reels page or a TV
+ * page, and with or without its owner's handle in front.
+ */
+const INSTAGRAM_POST = /^\/(?:[^/]+\/)?(?:p|reels?|tv)\/([A-Za-z0-9_-]+)/;
+
+/** A TikTok video's id, under any handle or in the old `/v/<id>.html` form. */
+const TIKTOK_VIDEO = /^\/(?:@[^/]+\/)?(?:video|v)\/(\d+)/;
+
+/**
+ * The key every link to one video shares (PBI-38 AC 5):
+ * - an Instagram post or TikTok video is keyed by the id its platform gives it
+ *   (`instagram:<short code>`, `tiktok:<video id>`), so `/p/` and `/reel/`, a handle typed in
+ *   another case or renamed, and `m.` hosts all meet;
+ * - any other link, a short `vm.tiktok.com` link included until it is resolved, is keyed by its
+ *   host in lowercase without `www.` and its path without trailing slashes.
+ * The scheme, query (`?igsh=`, `utm_*`) and fragment never count; a short code keeps its case,
+ * since Instagram's are case-sensitive. A value that is not a URL, kept from before links were
+ * checked, is keyed by its lowercase text.
  *
  * The migration's `content_link_key` SQL function is the same rule, and a check constraint
  * holds every stored key to it, so the unique key cannot be dodged by a differently copied link
@@ -25,7 +39,23 @@ export function normalizeVideoLink(link: string): string {
     return trimmed.toLowerCase();
   }
   const [, host, path] = parts;
-  return host.toLowerCase().replace(/^www\./, '') + withoutTrailingSlashes(path);
+  const site = host.toLowerCase().replace(/^www\./, '');
+  return videoKey(site, path) ?? site + withoutTrailingSlashes(path);
+}
+
+/** Whether `site` is `domain` or one of its subdomains, never a look-alike such as `xdomain`. */
+function onDomain(site: string, domain: string): boolean {
+  return site === domain || site.endsWith(`.${domain}`);
+}
+
+/** The platform's own id for the post or video a link names, read only on that platform. */
+function videoKey(site: string, path: string): string | null {
+  const post = onDomain(site, 'instagram.com') && INSTAGRAM_POST.exec(path);
+  if (post) {
+    return `instagram:${post[1]}`;
+  }
+  const video = onDomain(site, 'tiktok.com') && TIKTOK_VIDEO.exec(path);
+  return video ? `tiktok:${video[1]}` : null;
 }
 
 /** A scan from the end rather than `/\/+$/`, which backtracks over every slash run it meets. */
