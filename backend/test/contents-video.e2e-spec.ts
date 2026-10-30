@@ -10,7 +10,8 @@ import { day } from './days.js';
 const MARKER = 'e2e-video';
 
 // One video per test: a video already linked from one content is refused on another (AC 5).
-const reel = (name: string) => `https://www.instagram.com/reel/e2e-video-${name}/`;
+const reel = (name: string) =>
+  `https://www.instagram.com/reel/e2e-video-${name}/`;
 const DRAFT = 'https://drive.google.com/file/d/e2e-video-draft';
 
 describe('POST /contents/:id/video (e2e)', () => {
@@ -44,14 +45,15 @@ describe('POST /contents/:id/video (e2e)', () => {
 
   /** The content's status and bypass flag, and its one link if any, read from content_links. */
   async function stateOf(contentId: string) {
-    const { content_links, ...content } = await prisma.contents.findUniqueOrThrow({
-      where: { id: contentId },
-      select: {
-        status: true,
-        approval_bypassed: true,
-        content_links: { select: { url: true, platform: true } },
-      },
-    });
+    const { content_links, ...content } =
+      await prisma.contents.findUniqueOrThrow({
+        where: { id: contentId },
+        select: {
+          status: true,
+          approval_bypassed: true,
+          content_links: { select: { url: true, platform: true } },
+        },
+      });
     return { ...content, video_link: content_links[0]?.url ?? null };
   }
 
@@ -71,6 +73,10 @@ describe('POST /contents/:id/video (e2e)', () => {
           create: {
             first_name: MARKER,
             last_name: 'owner',
+            // A link is taken only for a platform the creator has an account on (PBI-38 AC 3).
+            social_accounts: {
+              create: { platform: 'instagram', username: `${MARKER}-owner` },
+            },
             contracts: {
               create: {
                 start_date: day(-30),
@@ -119,7 +125,11 @@ describe('POST /contents/:id/video (e2e)', () => {
   });
 
   it.each([
-    ['no draft has been handed in', 'scheduled', 'Kirim draft dulu sebelum mengirim link video'],
+    [
+      'no draft has been handed in',
+      'scheduled',
+      'Kirim draft dulu sebelum mengirim link video',
+    ],
     [
       'a revision is still owed',
       'draft_revision',
@@ -130,17 +140,24 @@ describe('POST /contents/:id/video (e2e)', () => {
     async (_why, status, message) => {
       const waiting = await content(`refused ${status}`, status);
 
-      const response = await handIn(waiting.id, { link: reel(`refused-${status}`) });
+      const response = await handIn(waiting.id, {
+        link: reel(`refused-${status}`),
+      });
 
       expect(response.status).toBe(409);
-      expect(response.body).toMatchObject({ code: 'VIDEO_NOT_ELIGIBLE', message });
+      expect(response.body).toMatchObject({
+        code: 'VIDEO_NOT_ELIGIBLE',
+        message,
+      });
       expect(await stateOf(waiting.id)).toEqual({
         status,
         video_link: null,
         approval_bypassed: false,
       });
       expect(
-        await prisma.content_events.count({ where: { content_id: waiting.id } }),
+        await prisma.content_events.count({
+          where: { content_id: waiting.id },
+        }),
       ).toBe(0);
     },
   );
@@ -183,7 +200,12 @@ describe('POST /contents/:id/video (e2e)', () => {
     expect(
       await prisma.content_links.findMany({
         where: { content_id: approved.id },
-        select: { platform: true, url: true, normalized_url: true, submitted_at: true },
+        select: {
+          platform: true,
+          url: true,
+          normalized_url: true,
+          submitted_at: true,
+        },
       }),
     ).toEqual([
       {
