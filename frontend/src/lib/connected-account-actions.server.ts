@@ -9,7 +9,7 @@
 // own words (OWASP A10:2025).
 
 import { backendDelete } from "./backend.server";
-import { DISCONNECT_REFUSALS, MY_SOCIAL_ACCOUNTS_PATH, isConnectPlatform } from "./connected-accounts";
+import { DISCONNECT_REFUSALS, MY_SOCIAL_ACCOUNTS_PATH, isSocialPlatform } from "./connected-accounts";
 import { currentRole } from "./session.server";
 
 export type DisconnectOutcome = { ok: true } | { ok: false; code: string; message: string };
@@ -34,7 +34,7 @@ function outcomeOf(status: number): DisconnectOutcome {
  * are the creator's own (OWASP A01:2025).
  */
 export async function disconnectAccount(platform: unknown): Promise<DisconnectOutcome> {
-  if (!isConnectPlatform(platform)) return refuse("UNKNOWN_PLATFORM", DISCONNECT_REFUSALS.GENERIC);
+  if (!isSocialPlatform(platform)) return refuse("UNKNOWN_PLATFORM", DISCONNECT_REFUSALS.GENERIC);
 
   let response: Response;
   try {

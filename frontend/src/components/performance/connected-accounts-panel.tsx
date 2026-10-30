@@ -18,14 +18,9 @@ import {
   connectedToast,
   disconnectedToast,
   type ConnectOutcome,
-  type ConnectPlatform,
   type ConnectedAccount,
 } from "@/lib/connected-accounts";
-
-const PLATFORM_NAMES: Record<ConnectPlatform, string> = {
-  instagram: "Instagram",
-  tiktok: "TikTok",
-};
+import { SOCIAL_PLATFORM_LABELS, type SocialPlatform } from "@/lib/social-connection";
 
 /**
  * The Akun Terhubung panel on the creator's Performa page (PBI-19, subtask 19.4): one row for
@@ -44,16 +39,16 @@ export function ConnectedAccountsPanel({
 }: Readonly<{
   accounts: ConnectedAccount[];
   outcome: ConnectOutcome | null;
-  disconnect?: (platform: ConnectPlatform) => Promise<DisconnectOutcome>;
+  disconnect?: (platform: SocialPlatform) => Promise<DisconnectOutcome>;
 }>) {
   const router = useRouter();
   const { show, toast } = useToast();
   // Kept in state: the address is cleared right away, and the failure must stay on screen.
   const [failure] = useState(() => (outcome?.kind === "failed" ? outcome : null));
-  const [connecting, setConnecting] = useState<ConnectPlatform | null>(null);
-  const [confirming, setConfirming] = useState<ConnectPlatform | null>(null);
-  const [disconnecting, setDisconnecting] = useState<ConnectPlatform | null>(null);
-  const [refusals, setRefusals] = useState<Partial<Record<ConnectPlatform, string>>>({});
+  const [connecting, setConnecting] = useState<SocialPlatform | null>(null);
+  const [confirming, setConfirming] = useState<SocialPlatform | null>(null);
+  const [disconnecting, setDisconnecting] = useState<SocialPlatform | null>(null);
+  const [refusals, setRefusals] = useState<Partial<Record<SocialPlatform, string>>>({});
   const handled = useRef(false);
 
   useEffect(() => {
@@ -66,7 +61,7 @@ export function ConnectedAccountsPanel({
     window.history.replaceState(null, "", PERFORMANCE_PATH);
   }, [outcome, show]);
 
-  async function confirmDisconnect(platform: ConnectPlatform) {
+  async function confirmDisconnect(platform: SocialPlatform) {
     setConfirming(null);
     setDisconnecting(platform);
     setRefusals((current) => ({ ...current, [platform]: undefined }));
@@ -86,7 +81,7 @@ export function ConnectedAccountsPanel({
     }
   }
 
-  function message(platform: ConnectPlatform): string | null {
+  function message(platform: SocialPlatform): string | null {
     const refusal = refusals[platform];
     if (refusal) return refusal;
     return failure?.platform === platform ? connectErrorMessage(platform, failure.error) : null;
@@ -105,7 +100,7 @@ export function ConnectedAccountsPanel({
             <AccountRow
               key={account.platform}
               account={account}
-              name={PLATFORM_NAMES[account.platform]}
+              name={SOCIAL_PLATFORM_LABELS[account.platform]}
               message={message(account.platform)}
               connecting={connecting === account.platform}
               disconnecting={disconnecting === account.platform}
@@ -118,7 +113,7 @@ export function ConnectedAccountsPanel({
 
       {confirming ? (
         <ConfirmDialog
-          title={`Putuskan Akun ${PLATFORM_NAMES[confirming]}?`}
+          title={`Putuskan Akun ${SOCIAL_PLATFORM_LABELS[confirming]}?`}
           message={DISCONNECT_WARNING}
           confirmLabel="Putuskan"
           cancelLabel="Batal"
@@ -142,7 +137,7 @@ function ConnectLink({
   connecting,
   onConnect,
 }: Readonly<{
-  platform: ConnectPlatform;
+  platform: SocialPlatform;
   label: string;
   ariaLabel?: string;
   variant: Variant;

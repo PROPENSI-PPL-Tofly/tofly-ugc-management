@@ -4,15 +4,9 @@
 // not connected, or as no result at all, rather than breaking the page (OWASP A10:2025).
 
 import { formatDate, formatTimestamp, jakartaDay } from "./format";
-
-export const CONNECT_PLATFORMS = ["instagram", "tiktok"] as const;
-
-export type ConnectPlatform = (typeof CONNECT_PLATFORMS)[number];
-
-const PLATFORM_NAMES: Record<ConnectPlatform, string> = {
-  instagram: "Instagram",
-  tiktok: "TikTok",
-};
+// The platforms and their names are shared with Admin's connection badges (19.5), so a new
+// platform is added in one place for both sides.
+import { SOCIAL_PLATFORMS, SOCIAL_PLATFORM_LABELS, type SocialPlatform } from "./social-connection";
 
 /** The Performa page, where every connect lands back. */
 export const PERFORMANCE_PATH = "/creator/performance";
@@ -38,7 +32,7 @@ export class ConnectedAccountsError extends Error {
 
 /** One row of the panel. */
 export interface ConnectedAccount {
-  platform: ConnectPlatform;
+  platform: SocialPlatform;
   /** False when the creator has no account on the platform at all (the answer leaves it out). */
   hasAccount: boolean;
   connected: boolean;
@@ -57,11 +51,11 @@ function isRecord(value: unknown): value is Json {
 }
 
 /** Whether a value is one of the platforms the panel connects, and nothing else. */
-export function isConnectPlatform(value: unknown): value is ConnectPlatform {
-  return typeof value === "string" && (CONNECT_PLATFORMS as readonly string[]).includes(value);
+export function isSocialPlatform(value: unknown): value is SocialPlatform {
+  return typeof value === "string" && (SOCIAL_PLATFORMS as readonly string[]).includes(value);
 }
 
-function noAccount(platform: ConnectPlatform): ConnectedAccount {
+function noAccount(platform: SocialPlatform): ConnectedAccount {
   return { platform, hasAccount: false, connected: false, username: null, connectedAt: null, lastSyncAt: null };
 }
 
@@ -70,7 +64,7 @@ function instant(value: unknown): string | null {
   return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
 }
 
-function accountOf(platform: ConnectPlatform, entry: Json): ConnectedAccount {
+function accountOf(platform: SocialPlatform, entry: Json): ConnectedAccount {
   const { connected, username, connectedAt, lastSyncAt } = entry;
   return {
     platform,
@@ -89,17 +83,17 @@ function accountOf(platform: ConnectPlatform, entry: Json): ConnectedAccount {
  */
 export function toConnectedAccounts(raw: unknown): ConnectedAccount[] {
   const entries = isRecord(raw) && Array.isArray(raw.accounts) ? raw.accounts : [];
-  const found = new Map<ConnectPlatform, ConnectedAccount>();
+  const found = new Map<SocialPlatform, ConnectedAccount>();
   for (const entry of entries) {
-    if (isRecord(entry) && isConnectPlatform(entry.platform) && !found.has(entry.platform)) {
+    if (isRecord(entry) && isSocialPlatform(entry.platform) && !found.has(entry.platform)) {
       found.set(entry.platform, accountOf(entry.platform, entry));
     }
   }
-  return CONNECT_PLATFORMS.map((platform) => found.get(platform) ?? noAccount(platform));
+  return SOCIAL_PLATFORMS.map((platform) => found.get(platform) ?? noAccount(platform));
 }
 
 /** Where "Hubungkan" sends the browser: the backend starts the platform's OAuth flow. */
-export function connectHref(platform: ConnectPlatform): string {
+export function connectHref(platform: SocialPlatform): string {
   return `/api/social/${platform}/connect`;
 }
 
@@ -132,8 +126,8 @@ function isConnectError(value: string): value is ConnectError {
 }
 
 export type ConnectOutcome =
-  | { kind: "connected"; platform: ConnectPlatform }
-  | { kind: "failed"; platform: ConnectPlatform; error: ConnectError };
+  | { kind: "connected"; platform: SocialPlatform }
+  | { kind: "failed"; platform: SocialPlatform; error: ConnectError };
 
 type Params = Record<string, string | string[] | undefined>;
 
@@ -153,26 +147,26 @@ export function readConnectOutcome(params: Params): ConnectOutcome | null {
   const connected = single(params, "connected");
   const platform = single(params, "platform");
 
-  if (isConnectPlatform(connected)) return { kind: "connected", platform: connected };
-  if (connected === "1" && isConnectPlatform(platform)) return { kind: "connected", platform };
+  if (isSocialPlatform(connected)) return { kind: "connected", platform: connected };
+  if (connected === "1" && isSocialPlatform(platform)) return { kind: "connected", platform };
 
   const error = single(params, "error");
-  if (error !== undefined && isConnectPlatform(platform)) {
+  if (error !== undefined && isSocialPlatform(platform)) {
     return { kind: "failed", platform, error: isConnectError(error) ? error : "platform_error" };
   }
   return null;
 }
 
-export function connectedToast(platform: ConnectPlatform): string {
-  return `Akun ${PLATFORM_NAMES[platform]} berhasil terhubung`;
+export function connectedToast(platform: SocialPlatform): string {
+  return `Akun ${SOCIAL_PLATFORM_LABELS[platform]} berhasil terhubung`;
 }
 
-export function connectErrorMessage(platform: ConnectPlatform, error: ConnectError): string {
-  return ERROR_MESSAGES[error](PLATFORM_NAMES[platform]);
+export function connectErrorMessage(platform: SocialPlatform, error: ConnectError): string {
+  return ERROR_MESSAGES[error](SOCIAL_PLATFORM_LABELS[platform]);
 }
 
-export function disconnectedToast(platform: ConnectPlatform): string {
-  return `Akun ${PLATFORM_NAMES[platform]} diputuskan.`;
+export function disconnectedToast(platform: SocialPlatform): string {
+  return `Akun ${SOCIAL_PLATFORM_LABELS[platform]} diputuskan.`;
 }
 
 /**
@@ -196,7 +190,7 @@ export const DISCONNECT_WARNING = "Data performa yang sudah ada tetap disimpan, 
  */
 export function accountDetail(account: ConnectedAccount): string {
   if (!account.hasAccount) {
-    return `Belum ada akun ${PLATFORM_NAMES[account.platform]} di data kamu. Minta Admin menambahkannya dulu.`;
+    return `Belum ada akun ${SOCIAL_PLATFORM_LABELS[account.platform]} di data kamu. Minta Admin menambahkannya dulu.`;
   }
   const handle = account.username ? `@${account.username}` : null;
   if (!account.connected) return handle ?? "";

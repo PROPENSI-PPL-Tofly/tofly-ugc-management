@@ -1,5 +1,4 @@
 import {
-  CONNECT_PLATFORMS,
   DISCONNECT_WARNING,
   MY_SOCIAL_ACCOUNTS_PATH,
   PERFORMANCE_PATH,
@@ -12,6 +11,7 @@ import {
   toConnectedAccounts,
   type ConnectError,
 } from "./connected-accounts";
+import { SOCIAL_PLATFORMS } from "./social-connection";
 
 describe("toConnectedAccounts", () => {
   it("reads both platforms from GET /me/social-accounts, Instagram first", () => {
@@ -66,7 +66,7 @@ describe("toConnectedAccounts", () => {
   });
 
   it("always answers both rows in the order the panel shows them", () => {
-    expect(toConnectedAccounts({ accounts: [] }).map((row) => row.platform)).toEqual(CONNECT_PLATFORMS);
+    expect(toConnectedAccounts({ accounts: [] }).map((row) => row.platform)).toEqual(SOCIAL_PLATFORMS);
   });
 
   // The answer is untrusted: anything malformed reads as not connected rather than breaking the
