@@ -156,20 +156,15 @@ describe('InstagramClient.connect', () => {
     expect(account.accessToken).toBe(LONG_TOKEN);
   });
 
-  it('keeps a numeric account id as text, so no digit is lost', async () => {
-    const account = await clientWith(
-      fakeFetch({
-        profile: {
-          body: {
-            user_id: 17841400000000,
-            username: 'rangga.creates',
-            account_type: 'BUSINESS',
-          },
-        },
-      }),
-    ).connect(CODE);
+  it('refuses an account id sent as a number, which has already lost digits when read', async () => {
+    // 17 digits is past Number.MAX_SAFE_INTEGER: JSON.parse reads it as ...056, not ...057.
+    const error = await failureOf({
+      profile: {
+        raw: '{"user_id":17841400008460057,"username":"rangga.creates","account_type":"BUSINESS"}',
+      },
+    });
 
-    expect(account.platformUserId).toBe('17841400000000');
+    expect(error.failure).toBe('platform_error');
   });
 
   it('never follows a redirect and never waits without a limit', async () => {
