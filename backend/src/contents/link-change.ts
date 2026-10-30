@@ -220,7 +220,7 @@ function asHandedIn(
     }));
 }
 
-abstract class LinkChange {
+export abstract class LinkChange {
   /**
    * The plan for this change, or the refusal. The invoice lock comes first: once the invoice is
    * finalized nothing about the links may move, whatever else is wrong (AC 8, 9; OWASP A08).

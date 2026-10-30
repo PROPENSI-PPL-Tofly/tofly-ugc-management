@@ -17,6 +17,7 @@ import {
   ReplaceLink,
   SubmitLinks,
   type ContentLinksResult,
+  type LinkChange,
   type LinkActor,
   type LinkedContent,
   type LinkEvent,
@@ -168,7 +169,7 @@ export class LinkChangeService implements LinkChanger {
   private run(
     contentId: string,
     actor: LinkActor,
-    change: SubmitLinks | ReplaceLink,
+    change: LinkChange,
   ): Promise<ContentLinksResult> {
     const now = new Date();
     const clock = { now, today: jakartaDay(now) };
