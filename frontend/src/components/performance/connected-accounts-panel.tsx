@@ -21,6 +21,7 @@ import {
   type ConnectedAccount,
 } from "@/lib/connected-accounts";
 import { SOCIAL_PLATFORM_LABELS, type SocialPlatform } from "@/lib/social-connection";
+import { PrivacyPolicyDialog } from "./privacy-policy-dialog";
 
 /**
  * The Akun Terhubung panel on the creator's Performa page (PBI-19, subtask 19.4): one row for
@@ -49,6 +50,7 @@ export function ConnectedAccountsPanel({
   const [confirming, setConfirming] = useState<SocialPlatform | null>(null);
   const [disconnecting, setDisconnecting] = useState<SocialPlatform | null>(null);
   const [refusals, setRefusals] = useState<Partial<Record<SocialPlatform, string>>>({});
+  const [readingPolicy, setReadingPolicy] = useState(false);
   const handled = useRef(false);
 
   useEffect(() => {
@@ -92,7 +94,19 @@ export function ConnectedAccountsPanel({
       <Panel>
         <PanelHead
           title="Akun Terhubung"
-          hint="Hubungkan akun supaya angka performa kontenmu ditarik otomatis."
+          hint={
+            <>
+              Hubungkan akun supaya angka performa kontenmu ditarik otomatis.{" "}
+              {/* A button, not a link: it opens the policy here rather than going anywhere. */}
+              <button
+                type="button"
+                onClick={() => setReadingPolicy(true)}
+                className="cursor-pointer underline decoration-rule underline-offset-[3px] hover:decoration-ink"
+              >
+                Kebijakan Privasi
+              </button>
+            </>
+          }
         />
         {/* Sprint 3 prototype (.s3-soc): the platforms stacked one under the other. */}
         <div className="flex flex-col gap-2.5 px-5 pb-5">
@@ -121,6 +135,8 @@ export function ConnectedAccountsPanel({
           onCancel={() => setConfirming(null)}
         />
       ) : null}
+
+      {readingPolicy ? <PrivacyPolicyDialog onClose={() => setReadingPolicy(false)} /> : null}
 
       {toast}
     </>
