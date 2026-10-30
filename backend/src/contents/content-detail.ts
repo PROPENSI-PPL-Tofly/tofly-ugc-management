@@ -78,7 +78,17 @@ export interface ContentEvent {
   at: string;
   /** A system step has no name: the app did it by itself. */
   actor: { name: string | null; role: 'admin' | 'creator' | 'system' };
-  payload?: { version?: number; link?: string; note?: string };
+  /**
+   * `platform` names a link step's platform (PBI-38 AC 12); `replaced` marks a link that took
+   * another's place, so the step still reads as a link to a panel that knows no other kind.
+   */
+  payload?: {
+    version?: number;
+    link?: string;
+    note?: string;
+    platform?: social_platform;
+    replaced?: true;
+  };
 }
 
 /** One of the content's video links, as the panel lists them (PBI-38 AC 11). */
