@@ -29,6 +29,15 @@ export function normalizeVideoLink(link: string): string {
 }
 
 /**
+ * The order every read of content_links lists a content's links in: as they were handed in, so
+ * the first is the one that set the content's submitted day.
+ */
+export const LINKS_AS_HANDED_IN: Prisma.content_linksOrderByWithRelationInput[] = [
+  { submitted_at: 'asc' },
+  { created_at: 'asc' },
+];
+
+/**
  * The earliest submitted link: its day is the content's submitted day, which lateness, the Late
  * Submission tag and penalties read (AC 7). Two links of one day keep the order they were read
  * in, which the queries set to the order they were written.

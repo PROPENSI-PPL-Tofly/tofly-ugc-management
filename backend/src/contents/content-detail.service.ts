@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { LINKS_AS_HANDED_IN } from './content-links.js';
 import {
   toContentDetail,
   type ContentDetail,
@@ -19,7 +20,7 @@ const CONTENT_DETAIL_SELECT = {
   status: true,
   // The links in the order they were handed in: the first is the content's submitted one.
   content_links: {
-    orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+    orderBy: LINKS_AS_HANDED_IN,
     select: { platform: true, url: true, submitted_at: true },
   },
   video_submitted_at: true,

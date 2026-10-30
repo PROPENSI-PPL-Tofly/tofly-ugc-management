@@ -3,6 +3,7 @@
 // database, and the service is left with loading rows and paging.
 
 import { Prisma } from '@prisma/client';
+import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { jakartaDay } from '../creators/evergreen.js';
 import {
   contractStatus,
@@ -53,7 +54,7 @@ export const CONTENT_SELECT = {
   // The first link's platform is the one its performance bonus is judged on, as the single
   // link's was before PBI-38.
   content_links: {
-    orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+    orderBy: LINKS_AS_HANDED_IN,
     take: 1,
     select: { platform: true },
   },

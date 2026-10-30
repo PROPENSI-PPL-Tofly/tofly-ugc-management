@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { content_status, Prisma } from '@prisma/client';
+import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   computePerformance,
@@ -107,7 +108,7 @@ const DETAIL_SELECT = {
           status: true,
           // Only the first link: its url is the video the detail shows (PBI-38 AC 7).
           content_links: {
-            orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+            orderBy: LINKS_AS_HANDED_IN,
             take: 1,
             select: { url: true },
           },
