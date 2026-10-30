@@ -52,6 +52,54 @@ describe("AddContentModal", () => {
         defaultProps.onSaved.mockReset();
     });
 
+    it("holds the date picker at the contract end minus the H-5 buffer (AC 14)", () => {
+      openModal();
+
+      const deadline = screen.getByLabelText("Deadline");
+      // 2026-12-07 minus the five-day buffer.
+      expect(deadline).toHaveAttribute("max", "2026-12-02");
+      expect(deadline).toHaveAttribute(
+        "title",
+        "Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)",
+      );
+    });
+
+    it("says why a date past the H-5 line cannot be picked, in the API's words (AC 14)", async () => {
+      openModal();
+
+      fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+        target: { value: "specific" },
+      });
+      fireEvent.change(screen.getByLabelText("Nama Konten"), {
+        target: { value: "Unboxing" },
+      });
+      fireEvent.change(screen.getByLabelText("Deadline"), {
+        target: { value: "2026-12-03" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+      expect(
+        await screen.findByText("Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)"),
+      ).toBeInTheDocument();
+    });
+
+    it("takes a date on the H-5 line itself", async () => {
+      openModal();
+
+      fireEvent.change(screen.getByLabelText("Jenis Konten"), {
+        target: { value: "specific" },
+      });
+      fireEvent.change(screen.getByLabelText("Nama Konten"), {
+        target: { value: "Unboxing" },
+      });
+      fireEvent.change(screen.getByLabelText("Deadline"), {
+        target: { value: "2026-12-02" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+      expect(screen.queryByText(/Deadline paling lambat/)).not.toBeInTheDocument();
+    });
+
     it("renders Evergreen by default with only the deadline field", () => {
         openModal();
 
@@ -336,7 +384,7 @@ describe("AddContentModal", () => {
         expect(mockedCreateContent).not.toHaveBeenCalled();
     });
 
-    it("rejects a deadline after the contract end", () => {
+    it("rejects a deadline after the H-5 line, naming the last day it could fall on", () => {
         openModal();
 
         fireEvent.change(screen.getByLabelText("Deadline"), {
@@ -349,7 +397,7 @@ describe("AddContentModal", () => {
 
         expect(
             screen.getByText(
-                "Deadline tidak boleh setelah akhir kontrak",
+                "Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)",
             ),
         ).toBeInTheDocument();
 

@@ -5,6 +5,7 @@
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { PeriodFilter } from "./deadline-period";
+import type { ContentLink } from "./platform-links";
 import {
   calendarDay,
   list,
@@ -239,6 +240,8 @@ export interface ContentPlanRow {
   status: ContentStatus;
   tags: ContentTag[];
   revisionCount: number;
+  /** The submitted links, one per platform (38.1's table); absent in an answer that predates it. */
+  links?: ContentLink[];
 }
 
 export interface ContentPlanCounts {

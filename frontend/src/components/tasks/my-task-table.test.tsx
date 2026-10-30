@@ -13,6 +13,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
+    links: [],
     ...overrides,
   };
 }
@@ -26,6 +27,32 @@ function rows() {
 }
 
 describe("MyTaskTable", () => {
+  it("shows the marks of the platforms the content was posted to (AC 13)", () => {
+    render(
+      <MyTaskTable
+        tasks={[
+          task({
+            links: [
+              { platform: "instagram", url: "https://instagram.com/p/x", submittedAt: "2026-10-18T03:00:00.000Z" },
+              { platform: "tiktok", url: "https://tiktok.com/@a/video/1", submittedAt: "2026-10-19T03:00:00.000Z" },
+            ],
+          }),
+        ]}
+        onAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
+  it("shows no marks for a task with no link sent yet", () => {
+    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
+  });
+
   it("shows a row's tags beside its status, a finished late one included, as the admin's tables do", () => {
     render(
       <MyTaskTable

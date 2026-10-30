@@ -3,6 +3,7 @@ import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
 import { ContentPlanTable } from "./content-plan-table";
 
 const ROW: ContentPlanRow = {
+  links: [],
   contentId: "c-1",
   name: "Video Review Kopi",
   creatorId: "id-1",
@@ -158,7 +159,29 @@ describe("ContentPlanTable", () => {
 
   // A creator's name leads to that creator's detail page (PBI-4), which holds their content plan.
   describe("the creator's name", () => {
-    it("links to that creator's detail page", () => {
+    it("shows the marks of the platforms the content was posted to (AC 13)", () => {
+    renderTable([
+      {
+        ...ROW,
+        links: [
+          { platform: "instagram", url: "https://instagram.com/p/x", submittedAt: "2026-10-18T03:00:00.000Z" },
+          { platform: "tiktok", url: "https://tiktok.com/@a/video/1", submittedAt: "2026-10-19T03:00:00.000Z" },
+        ],
+      },
+    ]);
+
+    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
+  it("shows no marks for a content with no link sent yet", () => {
+    renderTable([ROW]);
+
+    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
+  });
+
+  it("links to that creator's detail page", () => {
       renderTable();
 
       expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(

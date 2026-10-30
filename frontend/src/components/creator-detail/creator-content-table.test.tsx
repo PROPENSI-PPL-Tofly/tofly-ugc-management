@@ -4,6 +4,7 @@ import type { CreatorContentRow } from "@/lib/creator-detail";
 import { CreatorContentTable } from "./creator-content-table";
 
 const ROW: CreatorContentRow = {
+  links: [],
   contentId: "c-1",
   name: "Evg_7_RanggaPratama_26092026",
   type: "evergreen",
@@ -105,6 +106,37 @@ describe("CreatorContentTable", () => {
     const typeLabel = screen.getByText(label);
     expect(typeLabel).not.toHaveClass("rounded-full");
     expect(typeLabel).toHaveClass("text-muted");
+  });
+
+  it("shows the marks of the platforms the content was posted to (AC 13)", () => {
+    render(
+      <CreatorContentTable
+        rows={[
+          {
+            ...ROW,
+            links: [
+              { platform: "instagram", url: "https://instagram.com/p/x", submittedAt: "2026-10-18T03:00:00.000Z" },
+              { platform: "tiktok", url: "https://tiktok.com/@a/video/1", submittedAt: "2026-10-19T03:00:00.000Z" },
+            ],
+          },
+        ]}
+        filtered={false}
+        onOpen={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
+  it("shows no marks for a content with no link sent yet", () => {
+    render(
+      <CreatorContentTable rows={[ROW]} filtered={false} onOpen={vi.fn()} onReset={vi.fn()} />,
+    );
+
+    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
   });
 
   it("shows Overdue and Approval di-bypass beside the status", () => {

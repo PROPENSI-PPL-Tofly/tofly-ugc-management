@@ -164,6 +164,7 @@ function toRow(item: RawContentListItem): CreatorContentRow {
     status: item.status,
     tags: item.tags,
     revisionCount: item.revisionCount,
+    links: item.links,
   };
 }
 

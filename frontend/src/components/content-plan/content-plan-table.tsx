@@ -5,6 +5,7 @@ import { ContentNameButton, ReviewButton } from "@/components/contents/content-r
 import { ContentTags } from "@/components/contents/content-tags";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PlatformIcons } from "@/components/ui/platform-icon";
 import { StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
@@ -87,6 +88,11 @@ export function ContentPlanTable({
             >
               <td className="px-5 py-3">
                 <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
+                {row.links?.length ? (
+                  <div className="mt-1">
+                    <PlatformIcons links={row.links} />
+                  </div>
+                ) : null}
               </td>
               <td className="px-5 py-3">
                 {/* The way to this creator's detail page, which holds their content plan. It is

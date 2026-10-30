@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { Variant } from "@/components/ui/button-classes";
 import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PlatformIcons } from "@/components/ui/platform-icon";
 import { StatusDot } from "@/components/ui/pill";
 import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import type { DeadlineSort } from "@/lib/content-plan";
@@ -213,6 +214,11 @@ export function MyTaskTable({
                 )}
                 {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
                 <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
+                {task.links?.length ? (
+                  <div className="mt-1">
+                    <PlatformIcons links={task.links} />
+                  </div>
+                ) : null}
               </td>
               <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 {formatDate(task.deadline)}

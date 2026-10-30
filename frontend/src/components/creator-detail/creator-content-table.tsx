@@ -5,6 +5,7 @@ import { ContentNameButton, ReviewButton } from "@/components/contents/content-r
 import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PlatformIcons } from "@/components/ui/platform-icon";
 import { StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
@@ -73,6 +74,11 @@ export function CreatorContentTable({
                 <p className="font-semibold text-ink wrap-anywhere">
                   <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
                 </p>
+                {row.links?.length ? (
+                  <div className="mt-1">
+                    <PlatformIcons links={row.links} />
+                  </div>
+                ) : null}
                 <span className="mt-0.5 block text-xs text-muted">{CONTENT_TYPE_LABELS[row.type]}</span>
               </td>
               <td className={`${CELL} whitespace-nowrap`}>
