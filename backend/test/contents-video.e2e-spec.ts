@@ -189,7 +189,7 @@ describe('POST /contents/:id/video (e2e)', () => {
       {
         platform: 'instagram',
         url: reel('stored'),
-        normalized_url: 'instagram.com/reel/e2e-video-stored',
+        normalized_url: 'instagram:e2e-video-stored',
         submitted_at: day(0),
       },
     ]);

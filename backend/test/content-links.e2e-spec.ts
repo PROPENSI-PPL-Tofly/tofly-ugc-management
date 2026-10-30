@@ -150,6 +150,22 @@ describe('content_links (e2e)', () => {
       });
     });
 
+    it('refuses the same post or video reached by another kind of link', async () => {
+      const reel = await content('reel owner');
+      const post = await content('post copy');
+      const tiktok = await content('tiktok owner');
+      const handle = await content('tiktok renamed');
+      await link(reel.id, 'https://www.instagram.com/reel/e2eSamePost/', 'instagram');
+      await link(tiktok.id, 'https://www.tiktok.com/@e2e/video/6006', 'tiktok');
+
+      await expect(
+        link(post.id, 'https://www.instagram.com/rangga/p/e2eSamePost', 'instagram'),
+      ).rejects.toMatchObject({ code: 'P2002', meta: { target: ['normalized_url'] } });
+      await expect(
+        link(handle.id, 'https://m.tiktok.com/@E2E.Renamed/video/6006', 'tiktok'),
+      ).rejects.toMatchObject({ code: 'P2002', meta: { target: ['normalized_url'] } });
+    });
+
     it('refuses a stored key that is not the key of its link', async () => {
       const forged = await content('forged key');
 
@@ -184,6 +200,15 @@ describe('content_links (e2e)', () => {
       'https://www.tiktok.com/@creator/video/7312345678901234567',
       'https://vm.tiktok.com/ZMabc123//',
       'https://wwwinstagram.com/reel/x',
+      'https://www.instagram.com/p/DAbC123xyz/',
+      'https://www.instagram.com/reels/DAbC123xyz',
+      'https://www.instagram.com/rangga.creates/reel/DAbC123xyz/?igsh=MTc4',
+      'https://m.instagram.com/tv/DAbC123xyz',
+      'https://www.tiktok.com/@Rangga.Creates/video/7432100000000000000',
+      'https://m.tiktok.com/v/7432100000000000000.html',
+      'https://www.instagram.com/rangga.creates/',
+      'https://example.com/p/DAbC123xyz',
+      'https://instagram.com.evil.example/p/DAbC',
       'https://example.com',
       'https://example.com/video/seeded-link/',
       ' Not-A-Link ',
@@ -272,7 +297,7 @@ describe('content_links (e2e)', () => {
       expect(rows).toEqual([
         {
           url: 'https://www.instagram.com/reel/e2eOld/',
-          normalized_url: 'instagram.com/reel/e2eOld',
+          normalized_url: 'instagram:e2eOld',
           platform: 'instagram',
           submitted_at: day(-12),
           submitted_by: userId,
@@ -280,7 +305,7 @@ describe('content_links (e2e)', () => {
         },
         {
           url: 'https://www.tiktok.com/@e2e/video/4004',
-          normalized_url: 'tiktok.com/@e2e/video/4004',
+          normalized_url: 'tiktok:4004',
           platform: 'tiktok',
           submitted_at: day(-11),
           submitted_by: userId,
@@ -351,7 +376,7 @@ describe('content_links (e2e)', () => {
           },
           moved,
         ),
-      ).rejects.toThrow(/instagram\.com\/reel\/e2eTwice/);
+      ).rejects.toThrow(/instagram:e2eTwice/);
     });
   });
 });

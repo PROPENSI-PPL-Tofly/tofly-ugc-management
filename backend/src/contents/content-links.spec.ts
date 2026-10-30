@@ -8,20 +8,18 @@ import {
 
 describe('normalizeVideoLink', () => {
   it.each([
-    [
-      'https://www.instagram.com/reel/C9xYz/',
-      'instagram.com/reel/C9xYz',
-    ],
-    ['https://instagram.com/reel/C9xYz', 'instagram.com/reel/C9xYz'],
-    ['http://instagram.com/reel/C9xYz', 'instagram.com/reel/C9xYz'],
+    ['https://www.instagram.com/reel/C9xYz/', 'instagram:C9xYz'],
+    ['https://instagram.com/reel/C9xYz', 'instagram:C9xYz'],
+    ['http://instagram.com/reel/C9xYz', 'instagram:C9xYz'],
     [
       'https://INSTAGRAM.com/reel/C9xYz?igsh=abc&utm_source=copy',
-      'instagram.com/reel/C9xYz',
+      'instagram:C9xYz',
     ],
     [
       'https://www.tiktok.com/@creator/video/7312345678901234567#comments',
-      'tiktok.com/@creator/video/7312345678901234567',
+      'tiktok:7312345678901234567',
     ],
+    // A short link names no video id; it keeps the host-and-path key until it is resolved.
     ['https://vm.tiktok.com/ZMabc123//', 'vm.tiktok.com/ZMabc123'],
     ['  https://vt.tiktok.com/ZSxyz/  ', 'vt.tiktok.com/ZSxyz'],
   ])('keys %s as %s', (link, key) => {
@@ -36,7 +34,53 @@ describe('normalizeVideoLink', () => {
     ];
 
     expect(new Set(copies.map(normalizeVideoLink))).toEqual(
-      new Set(['instagram.com/reel/C9xYz']),
+      new Set(['instagram:C9xYz']),
+    );
+  });
+
+  // PBI-38 AC 5: one Instagram post is reachable as a post, a reel, a reels page, a TV page,
+  // or under its owner's handle, so the key is its short code alone.
+  it.each([
+    'https://www.instagram.com/p/DAbC123xyz/',
+    'https://www.instagram.com/reel/DAbC123xyz',
+    'https://www.instagram.com/reels/DAbC123xyz/',
+    'https://www.instagram.com/tv/DAbC123xyz',
+    'https://www.instagram.com/rangga.creates/reel/DAbC123xyz/?igsh=MTc4',
+    'https://m.instagram.com/p/DAbC123xyz',
+  ])('keys the Instagram post %s by its short code', (link) => {
+    expect(normalizeVideoLink(link)).toBe('instagram:DAbC123xyz');
+  });
+
+  // The handle in a TikTok link may be typed in any case, or be another one entirely after a
+  // rename; the video id is what names the video.
+  it.each([
+    'https://www.tiktok.com/@Rangga.Creates/video/7432100000000000000',
+    'https://www.tiktok.com/@rangga.creates/video/7432100000000000000?is_from_webapp=1',
+    'https://m.tiktok.com/@rangga/video/7432100000000000000',
+    'https://tiktok.com/@old.handle/video/7432100000000000000/',
+    'https://m.tiktok.com/v/7432100000000000000.html',
+  ])('keys the TikTok video %s by its video id', (link) => {
+    expect(normalizeVideoLink(link)).toBe('tiktok:7432100000000000000');
+  });
+
+  it('reads a video id only on its own platform\'s host', () => {
+    expect(normalizeVideoLink('https://example.com/p/DAbC123xyz')).toBe(
+      'example.com/p/DAbC123xyz',
+    );
+    expect(normalizeVideoLink('https://example.com/@a/video/123')).toBe(
+      'example.com/@a/video/123',
+    );
+    expect(normalizeVideoLink('https://instagram.com.evil.example/p/DAbC')).toBe(
+      'instagram.com.evil.example/p/DAbC',
+    );
+  });
+
+  it('keeps a platform link that names no post or video by its host and path', () => {
+    expect(normalizeVideoLink('https://www.instagram.com/rangga.creates/')).toBe(
+      'instagram.com/rangga.creates',
+    );
+    expect(normalizeVideoLink('https://www.tiktok.com/@rangga')).toBe(
+      'tiktok.com/@rangga',
     );
   });
 
@@ -61,16 +105,26 @@ describe('normalizeVideoLink', () => {
   it('strips a long run of slashes in time that grows with the link, not with its square', () => {
     // A trailing-slash regex backtracks on every slash before a non-slash: 100k slashes took
     // seconds. Links are capped at 2048 characters upstream, but the key must not depend on it.
-    const slashes = `https://www.instagram.com/reel/x${'/'.repeat(100_000)}y`;
+    const slashes = `https://example.com/x${'/'.repeat(100_000)}y`;
     const started = performance.now();
 
     const key = normalizeVideoLink(slashes);
 
     expect(performance.now() - started).toBeLessThan(250);
-    expect(key).toBe(`instagram.com/reel/x${'/'.repeat(100_000)}y`);
+    expect(key).toBe(`example.com/x${'/'.repeat(100_000)}y`);
     expect(normalizeVideoLink(`https://vm.tiktok.com/ZM${'/'.repeat(100_000)}`)).toBe(
       'vm.tiktok.com/ZM',
     );
+  });
+
+  it('reads a video id in time that grows with the link, however long the path around it', () => {
+    const long = 'a'.repeat(100_000);
+    const started = performance.now();
+
+    normalizeVideoLink(`https://www.instagram.com/${long}/${long}`);
+    normalizeVideoLink(`https://www.tiktok.com/@${long}/${long}`);
+
+    expect(performance.now() - started).toBeLessThan(250);
   });
 
   it('keys a host with no path as the host alone', () => {

@@ -170,7 +170,7 @@ describe('VideoSubmissionService.submit', () => {
         content_id: CONTENT_ID,
         platform: 'instagram',
         url: REEL,
-        normalized_url: 'instagram.com/reel/C8abc',
+        normalized_url: 'instagram:C8abc',
         submitted_at: SUBMITTED_AT,
         submitted_by: CREATOR_USER_ID,
       },
@@ -280,7 +280,7 @@ describe('VideoSubmissionService.submit', () => {
       data: expect.objectContaining({
         platform: 'tiktok',
         url: TIKTOK,
-        normalized_url: 'tiktok.com/@creator/video/123',
+        normalized_url: 'tiktok:123',
       }),
     });
   });
