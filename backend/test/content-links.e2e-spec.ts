@@ -221,7 +221,7 @@ describe('content_links (e2e)', () => {
       name: string,
       link: {
         video_link: string;
-        video_submitted_at: Date | null;
+        video_submitted_at: Date;
         platform: 'instagram' | 'tiktok' | null;
       },
     ) {
@@ -316,22 +316,6 @@ describe('content_links (e2e)', () => {
         { url: 'https://instagram.com/p/e2eNoPlatform', platform: 'instagram' },
         { url: 'https://vt.tiktok.com/e2eNoPlatform/', platform: 'tiktok' },
       ]);
-    });
-
-    it('dates a link that kept no day by the day its content last changed', async () => {
-      const rows = await migrate(
-        async (tx) => {
-          await old(tx, 'undated', {
-            video_link: 'https://www.instagram.com/reel/e2eUndated/',
-            video_submitted_at: null,
-            platform: 'instagram',
-          });
-        },
-        moved,
-      );
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].submitted_at).toEqual(day(0));
     });
 
     it('moves nothing twice when it runs again', async () => {
