@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import type { content_status, social_platform } from '@prisma/client';
+import { Prisma, type content_status } from '@prisma/client';
 import {
   VideoSubmissionService,
   type VideoSubmissionClient,
@@ -11,6 +11,7 @@ import {
 
 const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
 const CREATOR_ID = '0b5e2c9a-6f3d-4e1b-8a7c-9d2f4e6a8b1c';
+const CREATOR_USER_ID = '5a1f7c3e-2d4b-4a6c-8e9f-1b3d5f7a9c2e';
 const APPROVED_DEADLINE = new Date('2026-10-30T00:00:00.000Z');
 // Spelled out, not imported: the where clause must name exactly these, whatever the code says.
 const COMMITTED = [
@@ -38,7 +39,10 @@ function stub(options: {
     first_name: string;
     middle_name: string | null;
     last_name: string | null;
+    user_id: string;
   } | null;
+  /** What storing the link throws, when it is refused. */
+  linkError?: unknown;
 }) {
   const transaction = {
     contents: {
@@ -60,9 +64,15 @@ function stub(options: {
               first_name: 'Dina',
               middle_name: 'Ayu',
               last_name: 'Putri',
+              user_id: CREATOR_USER_ID,
             }
           : options.creator,
       ),
+    },
+    content_links: {
+      create: options.linkError
+        ? vi.fn().mockRejectedValue(options.linkError)
+        : vi.fn().mockResolvedValue({ id: 'link-id' }),
     },
     content_events: {
       create: vi.fn().mockResolvedValue({ id: 'event-id' }),
@@ -121,13 +131,14 @@ describe('VideoSubmissionService.submit', () => {
     });
   });
 
-  it('submits an approved content, stores the final link, platform, date, and status together', async () => {
+  it('submits an approved content, moving its status and submitted day together', async () => {
     const { transaction, service } = stub({});
 
     const result = await service.submit(CONTENT_ID, CREATOR_ID, {
       videoLink: REEL,
     });
 
+    // video_link and platform are no longer written: the link lives in content_links (38.1).
     expect(transaction.contents.updateMany).toHaveBeenCalledWith({
       where: {
         id: CONTENT_ID,
@@ -135,9 +146,7 @@ describe('VideoSubmissionService.submit', () => {
       },
       data: {
         status: 'link_submitted',
-        video_link: REEL,
         video_submitted_at: SUBMITTED_AT,
-        platform: 'instagram',
         approval_bypassed: false,
       },
     });
@@ -149,6 +158,53 @@ describe('VideoSubmissionService.submit', () => {
       platform: 'instagram',
       submittedAt: SUBMITTED_AT.toISOString(),
     });
+  });
+
+  it('stores the link as the content\'s link for its platform, keyed, dated and signed by the creator\'s user', async () => {
+    const { transaction, service } = stub({});
+
+    await service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL });
+
+    expect(transaction.content_links.create).toHaveBeenCalledWith({
+      data: {
+        content_id: CONTENT_ID,
+        platform: 'instagram',
+        url: REEL,
+        normalized_url: 'instagram.com/reel/C8abc',
+        submitted_at: SUBMITTED_AT,
+        submitted_by: CREATOR_USER_ID,
+      },
+    });
+  });
+
+  it('refuses a video already linked from another content, with AC 5\'s words, recording nothing', async () => {
+    const taken = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: { target: ['normalized_url'] },
+    });
+    const { transaction, service } = stub({ linkError: taken });
+
+    const error = await failure(
+      service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL }),
+    );
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toEqual({
+      code: 'VIDEO_LINK_TAKEN',
+      message: 'Link ini sudah dipakai di konten lain',
+    });
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  it('lets any other failure to store the link through, so the transaction undoes the status too', async () => {
+    const broken = new Error('connection lost');
+    const { transaction, service } = stub({ linkError: broken });
+
+    await expect(
+      service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL }),
+    ).rejects.toBe(broken);
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
   it('records a Link Submitted event in the same transaction with the creator identity and submitted link', async () => {
@@ -193,6 +249,7 @@ describe('VideoSubmissionService.submit', () => {
         first_name: 'Dina',
         middle_name: null,
         last_name: null,
+        user_id: CREATOR_USER_ID,
       },
     });
 
@@ -219,13 +276,13 @@ describe('VideoSubmissionService.submit', () => {
       videoLink: TIKTOK,
     });
 
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          platform: 'tiktok' as social_platform,
-        }),
+    expect(transaction.content_links.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        platform: 'tiktok',
+        url: TIKTOK,
+        normalized_url: 'tiktok.com/@creator/video/123',
       }),
-    );
+    });
   });
 
   it('allows a draft waiting for review during the H-1 grace window', async () => {
@@ -268,9 +325,7 @@ describe('VideoSubmissionService.submit', () => {
       },
       data: {
         status: 'link_submitted',
-        video_link: REEL,
         video_submitted_at: SUBMITTED_AT,
-        platform: 'instagram',
         approval_bypassed: true,
       },
     });
@@ -304,6 +359,7 @@ describe('VideoSubmissionService.submit', () => {
         message,
       });
       expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+      expect(transaction.content_links.create).not.toHaveBeenCalled();
       expect(transaction.content_events.create).not.toHaveBeenCalled();
     },
   );
@@ -441,9 +497,15 @@ describe('VideoSubmissionService.submit', () => {
 
     expect(transaction.creators.findUnique).toHaveBeenCalledWith({
       where: { id: CREATOR_ID },
-      select: { first_name: true, middle_name: true, last_name: true },
+      select: {
+        first_name: true,
+        middle_name: true,
+        last_name: true,
+        user_id: true,
+      },
     });
     expect(transaction.contents.updateMany).toHaveBeenCalledOnce();
+    expect(transaction.content_links.create).not.toHaveBeenCalled();
     expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
@@ -464,6 +526,7 @@ describe('VideoSubmissionService.submit', () => {
       code: 'VIDEO_NOT_ELIGIBLE',
       message: 'Status konten ini baru saja berubah. Muat ulang lalu coba lagi',
     });
+    expect(transaction.content_links.create).not.toHaveBeenCalled();
     expect(transaction.content_events.create).not.toHaveBeenCalled();
   });
 
@@ -477,11 +540,9 @@ describe('VideoSubmissionService.submit', () => {
     });
 
     expect(submitted.videoLink).toBe(REEL);
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ video_link: REEL }),
-      }),
-    );
+    expect(transaction.content_links.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ url: REEL }),
+    });
     expect(transaction.content_events.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ event_data: { link: REEL } }),
     });
