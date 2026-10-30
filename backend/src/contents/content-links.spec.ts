@@ -58,6 +58,21 @@ describe('normalizeVideoLink', () => {
     );
   });
 
+  it('strips a long run of slashes in time that grows with the link, not with its square', () => {
+    // A trailing-slash regex backtracks on every slash before a non-slash: 100k slashes took
+    // seconds. Links are capped at 2048 characters upstream, but the key must not depend on it.
+    const slashes = `https://www.instagram.com/reel/x${'/'.repeat(100_000)}y`;
+    const started = performance.now();
+
+    const key = normalizeVideoLink(slashes);
+
+    expect(performance.now() - started).toBeLessThan(250);
+    expect(key).toBe(`instagram.com/reel/x${'/'.repeat(100_000)}y`);
+    expect(normalizeVideoLink(`https://vm.tiktok.com/ZM${'/'.repeat(100_000)}`)).toBe(
+      'vm.tiktok.com/ZM',
+    );
+  });
+
   it('keys a host with no path as the host alone', () => {
     expect(normalizeVideoLink('https://example.com/')).toBe('example.com');
     expect(normalizeVideoLink('https://example.com')).toBe('example.com');
