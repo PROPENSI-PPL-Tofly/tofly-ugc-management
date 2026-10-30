@@ -49,6 +49,8 @@ export interface CreatorSummary {
   name: string;
   email: string;
   socials: Partial<Record<"instagram" | "tiktok", string>>;
+  // Whether each account is connected (PBI-19, 19.3); read only through readConnections.
+  socialConnections?: unknown;
   accessRevokeDate: string | null;
   contract: {
     status: ContractStatus;
