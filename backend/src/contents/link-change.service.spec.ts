@@ -8,6 +8,7 @@ import {
 import {
   LINKED_CONTENT_SELECT,
   LinkChangeService,
+  type LinkChangeClient,
   type LinkChangeTransaction,
 } from './link-change.service.js';
 
@@ -90,10 +91,9 @@ describe('LinkChangeService', () => {
     content_links: { createMany: vi.fn(), updateMany: vi.fn() },
     content_events: { createMany: vi.fn() },
   } satisfies Record<keyof LinkChangeTransaction, unknown>;
-  const prisma = {
-    $transaction: vi.fn(
-      <T>(work: (tx: LinkChangeTransaction) => Promise<T>): Promise<T> =>
-        work(transaction as unknown as LinkChangeTransaction),
+  const prisma: LinkChangeClient = {
+    $transaction: vi.fn((work) =>
+      work(transaction as unknown as LinkChangeTransaction),
     ),
   };
 
@@ -132,7 +132,6 @@ describe('LinkChangeService', () => {
               'scheduled',
               'draft_review',
               'draft_revision',
-              'draft_revised',
               'draft_approved',
               'link_submitted',
             ],
