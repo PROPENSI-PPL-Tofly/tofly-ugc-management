@@ -47,13 +47,6 @@ function nonEmpty(value: unknown): value is string {
   return typeof value === 'string' && value !== '';
 }
 
-function idOf(value: unknown): string | undefined {
-  if (typeof value === 'number') {
-    return String(value);
-  }
-  return nonEmpty(value) ? value : undefined;
-}
-
 // The server-side half of Instagram API with Instagram Login: the app secret and every token
 // only travel here, server to Instagram, never through the browser. `fetch` is injected so
 // tests stand in for Instagram.
@@ -171,10 +164,16 @@ export class InstagramClient {
       'profile',
       `${INSTAGRAM_GRAPH_URL}/${API_VERSION}/me?${params.toString()}`,
     );
-    const platformUserId = idOf(body?.user_id);
+    // Instagram ids are 17 digits, past what a JSON number holds exactly, so only text is
+    // trusted: a number has already lost digits by the time it is read.
+    const platformUserId = body?.user_id;
     const username = body?.username;
     const accountType = body?.account_type;
-    if (!platformUserId || !nonEmpty(username) || !nonEmpty(accountType)) {
+    if (
+      !nonEmpty(platformUserId) ||
+      !nonEmpty(username) ||
+      !nonEmpty(accountType)
+    ) {
       fail('profile: Instagram sent no id, username or account type');
     }
     return { platformUserId, username, accountType };
