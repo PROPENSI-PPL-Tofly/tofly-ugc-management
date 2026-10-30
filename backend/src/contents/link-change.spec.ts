@@ -12,6 +12,7 @@ import {
   ReplaceLink,
   SubmitLinks,
   type LinkClock,
+  type LinkActor,
   type LinkedContent,
 } from './link-change.js';
 
@@ -91,8 +92,8 @@ function linked(overrides: Parameters<typeof content>[0] = {}): LinkedContent {
   });
 }
 
-const creator = new CreatorLinkActor(CREATOR_ID);
-const admin = new AdminLinkActor(ADMIN_USER);
+const creator: LinkActor = new CreatorLinkActor(CREATOR_ID);
+const admin: LinkActor = new AdminLinkActor(ADMIN_USER);
 
 function refusal(run: () => unknown): { status: number; body: unknown } {
   try {
@@ -129,7 +130,7 @@ describe('link actors', () => {
   });
 
   it('records the creator as the hand-in of an admin with no account, the local sign-in stand-in', () => {
-    const local = new AdminLinkActor(null);
+    const local: LinkActor = new AdminLinkActor(null);
 
     expect(local.submittedBy(content())).toBe(CREATOR_USER);
     expect(local.eventActor(content()).actor_user_id).toBeNull();
@@ -365,6 +366,21 @@ describe('SubmitLinks', () => {
     },
   );
 
+  it('reads a proposal still pending as changed under the caller, since nothing opens its link', () => {
+    expect(
+      refusal(() =>
+        new SubmitLinks([{ platform: 'tiktok', url: VIDEO }]).plan(
+          content({ status: 'pending' }),
+          creator,
+          CLOCK,
+        ),
+      ).body,
+    ).toEqual({
+      code: 'VIDEO_NOT_ELIGIBLE',
+      message: 'Status konten ini baru saja berubah. Muat ulang lalu coba lagi',
+    });
+  });
+
   it('reads a content in Link Dikirim with no link left as changed under the caller', () => {
     expect(
       refusal(() =>
@@ -464,6 +480,15 @@ describe('ReplaceLink', () => {
       'tiktok',
       'instagram',
     ]);
+  });
+
+  it("reads the submitted day off the replaced link's first hand-in when the content kept none", () => {
+    const plan = new ReplaceLink(
+      { platform: 'instagram', url: OTHER_REEL },
+      NO_PERFORMANCE_COLUMNS,
+    ).plan(linked({ submittedAt: null }), creator, CLOCK);
+
+    expect(plan.result.submittedAt).toBe('2026-10-05');
   });
 
   it('answers 404 when that platform has no link yet', () => {
