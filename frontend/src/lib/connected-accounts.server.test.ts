@@ -32,8 +32,23 @@ describe("fetchMyConnectedAccounts", () => {
     );
 
     await expect(fetchMyConnectedAccounts()).resolves.toEqual([
-      { platform: "instagram", connected: false, username: null, connectedAt: null },
-      { platform: "tiktok", connected: true, username: "satrialeka", connectedAt: "2026-10-29T17:06:15.305Z" },
+      // Left out of the answer: the creator has no Instagram account (Sprint 3 "Tidak ada akun").
+      {
+        platform: "instagram",
+        hasAccount: false,
+        connected: false,
+        username: null,
+        connectedAt: null,
+        lastSyncAt: null,
+      },
+      {
+        platform: "tiktok",
+        hasAccount: true,
+        connected: true,
+        username: "satrialeka",
+        connectedAt: "2026-10-29T17:06:15.305Z",
+        lastSyncAt: null,
+      },
     ]);
   });
 

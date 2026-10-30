@@ -5,7 +5,7 @@ import {
   PERFORMANCE_PATH,
   connectErrorMessage,
   connectHref,
-  connectedSince,
+  accountDetail,
   connectedToast,
   disconnectedToast,
   readConnectOutcome,
@@ -18,22 +18,51 @@ describe("toConnectedAccounts", () => {
     expect(
       toConnectedAccounts({
         accounts: [
-          { platform: "tiktok", connected: true, username: "satrialeka", connectedAt: "2026-10-29T17:06:15.305Z" },
+          {
+            platform: "tiktok",
+            connected: true,
+            username: "satrialeka",
+            connectedAt: "2026-10-29T17:06:15.305Z",
+            lastSyncAt: "2026-10-30T19:00:00.000Z",
+          },
           { platform: "instagram", connected: false, username: "rangga.creates", connectedAt: null },
         ],
       }),
     ).toEqual([
-      { platform: "instagram", connected: false, username: "rangga.creates", connectedAt: null },
-      { platform: "tiktok", connected: true, username: "satrialeka", connectedAt: "2026-10-29T17:06:15.305Z" },
+      {
+        platform: "instagram",
+        hasAccount: true,
+        connected: false,
+        username: "rangga.creates",
+        connectedAt: null,
+        lastSyncAt: null,
+      },
+      {
+        platform: "tiktok",
+        hasAccount: true,
+        connected: true,
+        username: "satrialeka",
+        connectedAt: "2026-10-29T17:06:15.305Z",
+        lastSyncAt: "2026-10-30T19:00:00.000Z",
+      },
     ]);
   });
 
-  it("gives a platform the answer leaves out a row that is not connected", () => {
+  // Sprint 3 prototype: a platform the creator has no account for (none typed at Tambah Creator)
+  // is a state of its own, "Tidak ada akun", which nothing can connect.
+  it("marks a platform the answer leaves out as having no account", () => {
     expect(
       toConnectedAccounts({
         accounts: [{ platform: "tiktok", connected: true, username: "satrialeka", connectedAt: null }],
       })[0],
-    ).toEqual({ platform: "instagram", connected: false, username: null, connectedAt: null });
+    ).toEqual({
+      platform: "instagram",
+      hasAccount: false,
+      connected: false,
+      username: null,
+      connectedAt: null,
+      lastSyncAt: null,
+    });
   });
 
   it("always answers both rows in the order the panel shows them", () => {
@@ -64,11 +93,8 @@ describe("toConnectedAccounts", () => {
       expect(
         toConnectedAccounts({
           accounts: [null, "x", { platform: "facebook", connected: true, username: "f", connectedAt: null }],
-        }),
-      ).toEqual([
-        { platform: "instagram", connected: false, username: null, connectedAt: null },
-        { platform: "tiktok", connected: false, username: null, connectedAt: null },
-      ]);
+        }).map((row) => row.hasAccount),
+      ).toEqual([false, false]);
     });
 
     it("keeps the first entry when a platform comes twice", () => {
@@ -99,6 +125,17 @@ describe("toConnectedAccounts", () => {
       });
 
       expect(tiktok.connectedAt).toBeNull();
+    });
+
+    it.each([
+      ["not a date", "semalam"],
+      ["not text", 1730000000],
+    ])("drops a last sync that is %s", (_label, lastSyncAt) => {
+      const [, tiktok] = toConnectedAccounts({
+        accounts: [{ platform: "tiktok", connected: true, username: "s", connectedAt: null, lastSyncAt }],
+      });
+
+      expect(tiktok.lastSyncAt).toBeNull();
     });
   });
 });
@@ -220,8 +257,9 @@ describe("the words on the page", () => {
     expect(connectErrorMessage("tiktok", "platform_error")).toBe("TikTok sedang bermasalah. Coba lagi nanti.");
   });
 
-  it("confirms a disconnect by platform", () => {
-    expect(disconnectedToast("tiktok")).toBe("Akun TikTok diputuskan");
+  // Sprint 3 prototype (review #129): "Akun TikTok diputuskan.", with its full stop.
+  it("confirms a disconnect by platform, worded as the prototype", () => {
+    expect(disconnectedToast("tiktok")).toBe("Akun TikTok diputuskan.");
   });
 
   it("warns, before disconnecting, that the numbers stay but stop updating", () => {
@@ -229,21 +267,54 @@ describe("the words on the page", () => {
   });
 });
 
-describe("connectedSince", () => {
-  it("names the Jakarta day the account was connected", () => {
-    expect(connectedSince("2026-10-29T17:06:15.305Z")).toBe("Terhubung sejak 30 Okt 2026");
+// The line under each platform's name, worded as the Sprint 3 prototype.
+describe("accountDetail", () => {
+  const CONNECTED = {
+    platform: "tiktok" as const,
+    hasAccount: true,
+    connected: true,
+    username: "satrialeka",
+    connectedAt: "2026-10-29T17:06:15.305Z",
+    lastSyncAt: null,
+  };
+
+  it("names the handle, the Jakarta day it connected and the last sync", () => {
+    expect(accountDetail({ ...CONNECTED, lastSyncAt: "2026-10-30T19:00:00.000Z" })).toBe(
+      "@satrialeka · terhubung sejak 30 Okt 2026 · sinkron terakhir 31 Okt 2026, 02.00 WIB",
+    );
+  });
+
+  // PBI-27 has not synced anything yet, so the last sync reads as a dash, as on the admin badges.
+  it("shows a dash for a last sync that has not happened", () => {
+    expect(accountDetail(CONNECTED)).toBe("@satrialeka · terhubung sejak 30 Okt 2026 · sinkron terakhir —");
   });
 
   // Boundary value analysis on Jakarta's midnight (17:00 UTC): the last instant of one day and
   // the first of the next.
   it.each([
-    ["2026-10-29T16:59:59.999Z", "Terhubung sejak 29 Okt 2026"],
-    ["2026-10-29T17:00:00.000Z", "Terhubung sejak 30 Okt 2026"],
+    ["2026-10-29T16:59:59.999Z", "terhubung sejak 29 Okt 2026"],
+    ["2026-10-29T17:00:00.000Z", "terhubung sejak 30 Okt 2026"],
   ])("names %s as Jakarta's day: %s", (connectedAt, words) => {
-    expect(connectedSince(connectedAt)).toBe(words);
+    expect(accountDetail({ ...CONNECTED, connectedAt })).toContain(words);
   });
 
-  it("leaves the day out when there is none", () => {
-    expect(connectedSince(null)).toBe("Terhubung");
+  it("leaves out what the backend did not send", () => {
+    expect(accountDetail({ ...CONNECTED, username: null, connectedAt: null })).toBe(
+      "terhubung · sinkron terakhir —",
+    );
+  });
+
+  it("names only the handle while the account is not connected", () => {
+    expect(accountDetail({ ...CONNECTED, connected: false, username: "rangga.creates" })).toBe("@rangga.creates");
+  });
+
+  it("says nothing under an account not connected whose handle is unknown", () => {
+    expect(accountDetail({ ...CONNECTED, connected: false, username: null })).toBe("");
+  });
+
+  it("asks for the Admin when the creator has no account on the platform", () => {
+    expect(accountDetail({ ...CONNECTED, hasAccount: false, connected: false, username: null })).toBe(
+      "Belum ada akun TikTok di data kamu. Minta Admin menambahkannya dulu.",
+    );
   });
 });

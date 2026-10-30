@@ -8,14 +8,19 @@ const { replace, refresh } = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.f
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, refresh }) }));
 vi.mock("@/lib/connected-account-actions.server", () => ({ disconnectAccount: vi.fn() }));
 
+/** A row of the panel; every field the tests do not name is an account not connected. */
+function account(fields: Partial<ConnectedAccount> & Pick<ConnectedAccount, "platform">): ConnectedAccount {
+  return { hasAccount: true, connected: false, username: null, connectedAt: null, lastSyncAt: null, ...fields };
+}
+
 const NOT_CONNECTED: ConnectedAccount[] = [
-  { platform: "instagram", connected: false, username: "rangga.creates", connectedAt: null },
-  { platform: "tiktok", connected: false, username: null, connectedAt: null },
+  account({ platform: "instagram", username: "rangga.creates" }),
+  account({ platform: "tiktok" }),
 ];
 
 const TIKTOK_CONNECTED: ConnectedAccount[] = [
   NOT_CONNECTED[0],
-  { platform: "tiktok", connected: true, username: "satrialeka", connectedAt: "2026-10-29T17:06:15.305Z" },
+  account({ platform: "tiktok", connected: true, username: "satrialeka", connectedAt: "2026-10-29T17:06:15.305Z" }),
 ];
 
 function row(platform: "Instagram" | "TikTok"): HTMLElement {
@@ -53,13 +58,18 @@ describe("ConnectedAccountsPanel", () => {
     vi.restoreAllMocks();
   });
 
-  it("is the Akun Terhubung panel, as the prototype titles it", () => {
+  it("is the Akun Terhubung panel, worded as the Sprint 3 prototype", () => {
     renderPanel();
 
     expect(screen.getByRole("heading", { name: "Akun Terhubung" })).toBeInTheDocument();
-    expect(
-      screen.getByText("Hubungkan akun media sosial untuk menarik data performa konten secara otomatis."),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Hubungkan akun supaya angka performa kontenmu ditarik otomatis\./)).toBeInTheDocument();
+  });
+
+  // Sprint 3 prototype: the platforms are stacked one under the other, not side by side.
+  it("stacks the platform rows one under the other", () => {
+    renderPanel();
+
+    expect(row("Instagram").parentElement).toHaveClass("flex-col");
   });
 
   it("has one Instagram row and one TikTok row, in that order", () => {
@@ -77,28 +87,27 @@ describe("ConnectedAccountsPanel", () => {
 
       const instagram = within(row("Instagram"));
       expect(instagram.getByText("Belum terhubung")).toBeInTheDocument();
+      expect(instagram.getByText("@rangga.creates")).toBeInTheDocument();
       const connect = instagram.getByRole("link", { name: "Hubungkan Instagram" });
       expect(connect).toHaveTextContent("Hubungkan");
       expect(connect).toHaveAttribute("href", "/api/social/instagram/connect");
       expect(instagram.queryByRole("button", { name: /Putuskan/ })).not.toBeInTheDocument();
     });
 
-    // The prototype's connect button is the plain .btn (white with a grey border), not the
-    // brand-blue primary: Hubungkan sits beside every row, so it must not shout.
-    it("draws Hubungkan as the prototype's plain button, not the brand-blue one", () => {
+    // Sprint 3 prototype: Hubungkan is the main button (btn-accent), the step the row is for.
+    // (The plain look came from the Sprint 2 prototype, which the Sprint 3 one replaces.)
+    it("draws Hubungkan as the main button, as the Sprint 3 prototype does", () => {
       renderPanel();
 
-      const connect = within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" });
-      expect(connect).toHaveClass("bg-surface", "border-rule");
-      expect(connect).not.toHaveClass("bg-accent");
+      expect(within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" })).toHaveClass("bg-accent");
     });
 
-    it("keeps the same plain look while it is on its way", () => {
+    it("keeps the same look while it is on its way", () => {
       renderPanel();
 
       fireEvent.click(within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" }));
 
-      expect(within(row("TikTok")).getByRole("button", { name: "Menghubungkan…" })).not.toHaveClass("bg-accent");
+      expect(within(row("TikTok")).getByRole("button", { name: "Menghubungkan…" })).toHaveClass("bg-accent");
     });
 
     // PRD 19.4: a loading state while the browser is on its way to the platform.
@@ -115,15 +124,39 @@ describe("ConnectedAccountsPanel", () => {
     });
   });
 
+  // Sprint 3 prototype: a platform with no account for the creator says so, and offers nothing
+  // to press: only the Admin can add the account.
+  describe("a platform the creator has no account on", () => {
+    it("says Tidak ada akun, asks for the Admin and offers no Hubungkan", () => {
+      renderPanel({ accounts: [account({ platform: "instagram", hasAccount: false }), NOT_CONNECTED[1]] });
+
+      const instagram = within(row("Instagram"));
+      expect(instagram.getByText("Tidak ada akun")).toBeInTheDocument();
+      expect(
+        instagram.getByText("Belum ada akun Instagram di data kamu. Minta Admin menambahkannya dulu."),
+      ).toBeInTheDocument();
+      expect(instagram.queryByRole("link")).not.toBeInTheDocument();
+      expect(instagram.queryByRole("button")).not.toBeInTheDocument();
+    });
+  });
+
   describe("a connected row", () => {
-    it("shows Terhubung with the platform's username and the day it connected", () => {
+    it("shows Terhubung with the platform's username, the day it connected and the last sync", () => {
       renderPanel({ accounts: TIKTOK_CONNECTED });
 
       const tiktok = within(row("TikTok"));
       expect(tiktok.getByText("Terhubung")).toBeInTheDocument();
-      expect(tiktok.getByText("@satrialeka · Terhubung sejak 30 Okt 2026")).toBeInTheDocument();
+      expect(tiktok.getByText("@satrialeka · terhubung sejak 30 Okt 2026 · sinkron terakhir —")).toBeInTheDocument();
       expect(tiktok.queryByRole("link", { name: /Hubungkan/ })).not.toBeInTheDocument();
       expect(tiktok.getByRole("button", { name: "Putuskan TikTok" })).toHaveTextContent("Putuskan");
+    });
+
+    // Sprint 3 prototype: Putuskan is btn-danger-outline, red text and border on white.
+    it("draws Putuskan in red outline, as the Sprint 3 prototype does", () => {
+      renderPanel({ accounts: TIKTOK_CONNECTED });
+
+      const disconnect = within(row("TikTok")).getByRole("button", { name: "Putuskan TikTok" });
+      expect(disconnect).toHaveClass("border-red", "text-red-ink", "bg-surface");
     });
 
     // TikTok allows 24 characters and Instagram 30; the line is cut with an ellipsis, never
@@ -131,19 +164,19 @@ describe("ConnectedAccountsPanel", () => {
     it("cuts a long handle with an ellipsis instead of widening the card", () => {
       const handle = "a.very.long.instagram.handle.30";
       renderPanel({
-        accounts: [{ platform: "instagram", connected: true, username: handle, connectedAt: null }, NOT_CONNECTED[1]],
+        accounts: [account({ platform: "instagram", connected: true, username: handle }), NOT_CONNECTED[1]],
       });
 
-      const detail = within(row("Instagram")).getByText(`@${handle} · Terhubung`);
+      const detail = within(row("Instagram")).getByText(`@${handle} · terhubung · sinkron terakhir —`);
       expect(detail).toHaveClass("truncate");
     });
 
     it("leaves the handle out when the platform sent none", () => {
       renderPanel({
-        accounts: [NOT_CONNECTED[0], { platform: "tiktok", connected: true, username: null, connectedAt: null }],
+        accounts: [NOT_CONNECTED[0], account({ platform: "tiktok", connected: true })],
       });
 
-      expect(within(row("TikTok")).getByText("Terhubung", { selector: "p" })).toBeInTheDocument();
+      expect(within(row("TikTok")).getByText("terhubung · sinkron terakhir —")).toBeInTheDocument();
       expect(within(row("TikTok")).queryByText(/@/)).not.toBeInTheDocument();
     });
   });
@@ -245,8 +278,8 @@ describe("ConnectedAccountsPanel", () => {
     it("drops a row's actions under its name when they do not fit beside it", () => {
       renderPanel({ accounts: TIKTOK_CONNECTED });
 
-      const actions = within(row("TikTok")).getByRole("button", { name: "Putuskan TikTok" }).parentElement;
-      expect(actions?.parentElement).toHaveClass("flex-wrap");
+      const top = within(row("TikTok")).getByRole("button", { name: "Putuskan TikTok" }).parentElement;
+      expect(top).toHaveClass("flex-wrap");
     });
 
     it("drops Coba Lagi under a long message rather than squeezing either", () => {
@@ -274,7 +307,8 @@ describe("ConnectedAccountsPanel", () => {
   describe("Putuskan", () => {
     function openDialog() {
       fireEvent.click(within(row("TikTok")).getByRole("button", { name: "Putuskan TikTok" }));
-      return screen.getByRole("alertdialog", { name: "Putuskan TikTok?" });
+      // Sprint 3 prototype (review #129): "Putuskan Akun TikTok?".
+      return screen.getByRole("alertdialog", { name: "Putuskan Akun TikTok?" });
     }
 
     it("asks first, saying the numbers stay but stop updating", () => {
@@ -307,7 +341,7 @@ describe("ConnectedAccountsPanel", () => {
       });
 
       expect(disconnect).toHaveBeenCalledWith("tiktok");
-      expect(screen.getByRole("status")).toHaveTextContent("Akun TikTok diputuskan");
+      expect(within(screen.getByRole("status")).getByText("Akun TikTok diputuskan.")).toBeInTheDocument();
       expect(refresh).toHaveBeenCalledTimes(1);
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     });

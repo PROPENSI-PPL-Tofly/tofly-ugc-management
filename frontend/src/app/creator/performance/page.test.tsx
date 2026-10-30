@@ -19,8 +19,15 @@ vi.mock("next/link", async (importOriginal) => {
 const mockedFetch = vi.mocked(fetchMyConnectedAccounts);
 
 const ACCOUNTS: ConnectedAccount[] = [
-  { platform: "instagram", connected: false, username: null, connectedAt: null },
-  { platform: "tiktok", connected: true, username: "satrialeka", connectedAt: "2026-10-29T17:06:15.305Z" },
+  { platform: "instagram", hasAccount: true, connected: false, username: null, connectedAt: null, lastSyncAt: null },
+  {
+    platform: "tiktok",
+    hasAccount: true,
+    connected: true,
+    username: "satrialeka",
+    connectedAt: "2026-10-29T17:06:15.305Z",
+    lastSyncAt: null,
+  },
 ];
 
 async function renderPage(params: Record<string, string | string[] | undefined> = {}) {
