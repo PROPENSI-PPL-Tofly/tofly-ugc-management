@@ -1,506 +1,97 @@
 import {
   BadRequestException,
   ConflictException,
-  NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
-import type { content_status, social_platform } from '@prisma/client';
-import {
-  VideoSubmissionService,
-  type VideoSubmissionClient,
-} from './video-submission.service.js';
+import { CreatorLinkActor } from './link-change.js';
+import type { LinkChanger } from './link-change.service.js';
+import { VideoSubmissionService } from './video-submission.service.js';
 
 const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
 const CREATOR_ID = '0b5e2c9a-6f3d-4e1b-8a7c-9d2f4e6a8b1c';
-const APPROVED_DEADLINE = new Date('2026-10-30T00:00:00.000Z');
-// Spelled out, not imported: the where clause must name exactly these, whatever the code says.
-const COMMITTED = [
-  'scheduled',
-  'draft_review',
-  'draft_revision',
-  'draft_approved',
-  'link_submitted',
-];
-const GRACE_DEADLINE = new Date('2026-10-20T00:00:00.000Z');
-const REEL = 'https://www.instagram.com/reel/C8abc/';
-const TIKTOK = 'https://www.tiktok.com/@creator/video/123';
-const SUBMITTED_AT = new Date('2026-10-19T00:00:00.000Z');
-/** The moment the link arrives (the fake clock below), 11.00 WIB: what the timeline shows. */
-const HANDED_IN_AT = new Date('2026-10-19T04:00:00.000Z');
+const REEL = 'https://www.instagram.com/reel/C9xYz/';
+const VIDEO = 'https://www.tiktok.com/@tofly/video/7312345678901234567';
 
-function stub(options: {
-  content?: {
-    id: string;
-    status: content_status;
-    deadline: Date;
-  } | null;
-  updated?: number;
-  creator?: {
-    first_name: string;
-    middle_name: string | null;
-    last_name: string | null;
-  } | null;
-}) {
-  const transaction = {
-    contents: {
-      findFirst: vi.fn().mockResolvedValue(
-        options.content === undefined
-          ? {
-              id: CONTENT_ID,
-              status: 'draft_approved' as const,
-              deadline: APPROVED_DEADLINE,
-            }
-          : options.content,
-      ),
-      updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
-    },
-    creators: {
-      findUnique: vi.fn().mockResolvedValue(
-        options.creator === undefined
-          ? {
-              first_name: 'Dina',
-              middle_name: 'Ayu',
-              last_name: 'Putri',
-            }
-          : options.creator,
-      ),
-    },
-    content_events: {
-      create: vi.fn().mockResolvedValue({ id: 'event-id' }),
-    },
-  };
+// POST /contents/:id/video is the one-link form Task Saya still sends until the multi-platform
+// modal (38.3) replaces it. It is now a thin adapter over the link service, so both routes share
+// every rule: the window, the invoice lock, the accounts on file and the one-video-one-content key.
+describe('VideoSubmissionService', () => {
+  const links = {
+    submit: vi.fn<LinkChanger['submit']>(),
+    replace: vi.fn<LinkChanger['replace']>(),
+  } satisfies LinkChanger;
+  const service = new VideoSubmissionService(links);
 
-  const client = {
-    $transaction: vi.fn(async (work) => work(transaction)),
-  } satisfies VideoSubmissionClient;
-
-  return {
-    client,
-    transaction,
-    service: new VideoSubmissionService(client),
-  };
-}
-
-async function failure(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-  } catch (error) {
-    return error;
-  }
-
-  throw new Error('expected the video submission to be refused');
-}
-
-describe('VideoSubmissionService.submit', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-10-19T04:00:00.000Z'));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('looks the content up only among the calling creator’s committed contents', async () => {
-    const { transaction, service } = stub({});
-
-    await service.submit(CONTENT_ID, CREATOR_ID, {
-      videoLink: REEL,
-    });
-
-    expect(transaction.contents.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: CONTENT_ID,
-        status: { in: COMMITTED },
-        contracts: { creator_id: CREATOR_ID },
-      },
-      select: {
-        id: true,
-        status: true,
-        deadline: true,
-      },
-    });
-  });
-
-  it('submits an approved content, stores the final link, platform, date, and status together', async () => {
-    const { transaction, service } = stub({});
-
-    const result = await service.submit(CONTENT_ID, CREATOR_ID, {
-      videoLink: REEL,
-    });
-
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: CONTENT_ID,
-        status: 'draft_approved',
-      },
-      data: {
-        status: 'link_submitted',
-        video_link: REEL,
-        video_submitted_at: SUBMITTED_AT,
-        platform: 'instagram',
-        approval_bypassed: false,
-      },
-    });
-
-    expect(result).toEqual({
+    links.submit.mockReset().mockResolvedValue({
       contentId: CONTENT_ID,
       status: 'link_submitted',
-      videoLink: REEL,
-      platform: 'instagram',
-      submittedAt: SUBMITTED_AT.toISOString(),
+      submittedAt: '2026-10-10',
+      links: [{ platform: 'instagram', url: REEL, submittedAt: '2026-10-10' }],
     });
   });
 
-  it('records a Link Submitted event in the same transaction with the creator identity and submitted link', async () => {
-    const { transaction, service } = stub({});
-
-    await service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL });
-
-    expect(transaction.content_events.create).toHaveBeenCalledWith({
-      data: {
-        content_id: CONTENT_ID,
-        event_type: 'Link Submitted',
-        actor_name: 'Dina Ayu Putri',
-        actor_role: 'creator',
-        occurred_at: HANDED_IN_AT,
-        event_data: { link: REEL },
-      },
-    });
-    expect(
-      transaction.contents.updateMany.mock.invocationCallOrder[0],
-    ).toBeLessThan(
-      transaction.content_events.create.mock.invocationCallOrder[0],
-    );
-  });
-
-  it('keeps the day on the content while the event keeps the moment, so a same-day draft sorts below it', async () => {
-    const { transaction, service } = stub({});
-
-    await service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL });
-
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ video_submitted_at: SUBMITTED_AT }),
-      }),
-    );
-    const event = transaction.content_events.create.mock.calls[0][0].data;
-    expect(event.occurred_at).toEqual(HANDED_IN_AT);
-  });
-
-  it('uses only available creator name parts when optional names are absent', async () => {
-    const { transaction, service } = stub({
-      creator: {
-        first_name: 'Dina',
-        middle_name: null,
-        last_name: null,
-      },
-    });
-
-    await service.submit(CONTENT_ID, CREATOR_ID, {
-      videoLink: REEL,
-    });
-
-    expect(transaction.content_events.create).toHaveBeenCalledWith({
-      data: {
-        content_id: CONTENT_ID,
-        event_type: 'Link Submitted',
-        actor_name: 'Dina',
-        actor_role: 'creator',
-        occurred_at: HANDED_IN_AT,
-        event_data: { link: REEL },
-      },
-    });
-  });
-
-  it('stores TikTok as the detected platform', async () => {
-    const { transaction, service } = stub({});
-
-    await service.submit(CONTENT_ID, CREATOR_ID, {
-      videoLink: TIKTOK,
-    });
-
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          platform: 'tiktok' as social_platform,
-        }),
-      }),
-    );
-  });
-
-  it('allows a draft waiting for review during the H-1 grace window', async () => {
-    const { transaction, service } = stub({
-      content: {
-        id: CONTENT_ID,
-        status: 'draft_review',
-        deadline: GRACE_DEADLINE,
-      },
-    });
-
-    await expect(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      }),
-    ).resolves.toMatchObject({
-      status: 'link_submitted',
-    });
-
-    expect(transaction.contents.updateMany).toHaveBeenCalledOnce();
-  });
-
-  it('marks a link handed in from a draft waiting for review inside H-1 as approval bypassed, guarded on that same status', async () => {
-    const { transaction, service } = stub({
-      content: {
-        id: CONTENT_ID,
-        status: 'draft_review',
-        deadline: GRACE_DEADLINE,
-      },
-    });
-
-    await service.submit(CONTENT_ID, CREATOR_ID, {
-      videoLink: REEL,
-    });
-
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: CONTENT_ID,
-        status: 'draft_review',
-      },
-      data: {
-        status: 'link_submitted',
-        video_link: REEL,
-        video_submitted_at: SUBMITTED_AT,
-        platform: 'instagram',
-        approval_bypassed: true,
-      },
-    });
-  });
-
-  // PBI-7 7.2: H-1 skips the approval of a draft, not the draft. Nothing is stored and nothing
-  // is recorded for a link that arrives before one, or while a revision is still owed.
   it.each([
-    ['scheduled', 'Kirim draft dulu sebelum mengirim link video'],
-    ['draft_revision', 'Kirim ulang draft dulu sebelum mengirim link video'],
+    ['instagram', REEL],
+    ['tiktok', VIDEO],
   ] as const)(
-    'refuses %s inside the H-1 grace window, naming the draft as the next step, and leaves the content as it was',
-    async (status, message) => {
-      const { transaction, service } = stub({
-        content: {
-          id: CONTENT_ID,
-          status,
-          deadline: GRACE_DEADLINE,
-        },
+    "hands a %s link to the link service as the creator's only link and answers in the old shape",
+    async (platform, link) => {
+      const submitted = await service.submit(CONTENT_ID, CREATOR_ID, {
+        videoLink: ` ${link} `,
       });
 
-      const error = await failure(
-        service.submit(CONTENT_ID, CREATOR_ID, {
-          videoLink: REEL,
-        }),
+      expect(links.submit).toHaveBeenCalledWith(
+        CONTENT_ID,
+        new CreatorLinkActor(CREATOR_ID),
+        [{ platform, url: link }],
       );
-
-      expect(error).toBeInstanceOf(ConflictException);
-      expect((error as ConflictException).getResponse()).toEqual({
-        code: 'VIDEO_NOT_ELIGIBLE',
-        message,
+      expect(submitted).toEqual({
+        contentId: CONTENT_ID,
+        status: 'link_submitted',
+        videoLink: link,
+        platform,
+        submittedAt: '2026-10-10T00:00:00.000Z',
       });
-      expect(transaction.contents.updateMany).not.toHaveBeenCalled();
-      expect(transaction.content_events.create).not.toHaveBeenCalled();
     },
   );
 
-  it('does not mark a draft-approved content handed in inside H-1 as approval bypassed', async () => {
-    const { transaction, service } = stub({
-      content: {
-        id: CONTENT_ID,
-        status: 'draft_approved',
-        deadline: GRACE_DEADLINE,
-      },
-    });
-
-    await service.submit(CONTENT_ID, CREATOR_ID, {
-      videoLink: REEL,
-    });
-
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ approval_bypassed: false }),
-      }),
-    );
-  });
-
-  // Each refusal tells the creator what opens the link, which depends on where the draft is.
-  it.each([
-    ['scheduled', 'Kirim draft dulu sebelum mengirim link video'],
-    ['draft_revision', 'Kirim ulang draft dulu sebelum mengirim link video'],
-    [
-      'draft_review',
-      'Link video bisa dikirim setelah draft disetujui, atau mulai H-1 deadline',
-    ],
-  ] as const)(
-    'rejects %s before the H-1 grace window with its own next step',
-    async (status, message) => {
-      const { transaction, service } = stub({
-        content: {
-          id: CONTENT_ID,
-          status,
-          deadline: APPROVED_DEADLINE,
-        },
-      });
-
-      const error = await failure(
-        service.submit(CONTENT_ID, CREATOR_ID, {
-          videoLink: REEL,
-        }),
-      );
-
-      expect(error).toBeInstanceOf(ConflictException);
-      expect((error as ConflictException).getResponse()).toEqual({
-        code: 'VIDEO_NOT_ELIGIBLE',
-        message,
-      });
-      expect(transaction.contents.updateMany).not.toHaveBeenCalled();
-    },
-  );
-
-  it('allows draft-approved content before the grace window', async () => {
-    const { service } = stub({
-      content: {
-        id: CONTENT_ID,
-        status: 'draft_approved',
-        deadline: APPROVED_DEADLINE,
-      },
-    });
-
+  it('refuses a link of neither platform before the link service is asked', async () => {
     await expect(
       service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
+        videoLink: 'https://youtu.be/abc',
       }),
-    ).resolves.toMatchObject({
-      status: 'link_submitted',
-    });
+    ).rejects.toThrow(BadRequestException);
+    expect(links.submit).not.toHaveBeenCalled();
   });
 
-  it('never allows link_submitted content to submit another video', async () => {
-    const { transaction, service } = stub({
-      content: {
-        id: CONTENT_ID,
-        status: 'link_submitted',
-        deadline: GRACE_DEADLINE,
+  it("holds a link on a platform's host to that platform's rule, on the field the old form shows", async () => {
+    const refusal = await service
+      .submit(CONTENT_ID, CREATOR_ID, {
+        videoLink: 'https://www.instagram.com/tofly.id/',
+      })
+      .catch((error: unknown) => error);
+
+    expect(refusal).toBeInstanceOf(UnprocessableEntityException);
+    expect((refusal as UnprocessableEntityException).getResponse()).toEqual({
+      message: 'Data link video tidak valid',
+      errors: {
+        videoLink:
+          'Link harus dari Instagram (instagram.com/reel/... atau /p/...)',
       },
     });
-
-    const error = await failure(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      }),
-    );
-
-    expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toEqual({
-      code: 'VIDEO_NOT_ELIGIBLE',
-      message: 'Link video untuk konten ini sudah dikirim',
-    });
-    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+    expect(links.submit).not.toHaveBeenCalled();
   });
 
-  it('answers 404 for missing, another creator’s, or proposal content without leaking its existence', async () => {
-    const { transaction, service } = stub({
-      content: null,
+  it("lets the link service's refusals through as they are", async () => {
+    const taken = new ConflictException({
+      code: 'VIDEO_LINK_TAKEN',
+      message: 'Link ini sudah dipakai di konten lain',
     });
+    links.submit.mockRejectedValue(taken);
 
-    const error = await failure(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      }),
-    );
-
-    expect(error).toBeInstanceOf(NotFoundException);
-    expect((error as NotFoundException).getResponse()).toEqual({
-      code: 'CONTENT_NOT_FOUND',
-      message: 'Konten tidak ditemukan',
-    });
-    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
-  });
-
-  it('answers 404 when the creator profile is missing and does not record an event', async () => {
-    const { transaction, service } = stub({
-      creator: null,
-    });
-
-    const error = await failure(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      }),
-    );
-
-    expect(error).toBeInstanceOf(NotFoundException);
-    expect((error as NotFoundException).getResponse()).toEqual({
-      code: 'CREATOR_NOT_FOUND',
-      message: 'Kreator tidak ditemukan',
-    });
-
-    expect(transaction.creators.findUnique).toHaveBeenCalledWith({
-      where: { id: CREATOR_ID },
-      select: { first_name: true, middle_name: true, last_name: true },
-    });
-    expect(transaction.contents.updateMany).toHaveBeenCalledOnce();
-    expect(transaction.content_events.create).not.toHaveBeenCalled();
-  });
-
-  // The status read a moment ago allowed the link, so no next step can be named from it.
-  it('answers 409 when another request changed the status first, asking for a reload and recording nothing', async () => {
-    const { transaction, service } = stub({
-      updated: 0,
-    });
-
-    const error = await failure(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: REEL,
-      }),
-    );
-
-    expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toEqual({
-      code: 'VIDEO_NOT_ELIGIBLE',
-      message: 'Status konten ini baru saja berubah. Muat ulang lalu coba lagi',
-    });
-    expect(transaction.content_events.create).not.toHaveBeenCalled();
-  });
-
-  // A link pasted with a space or a newline around it is the same link: what is stored, what
-  // the timeline shows and what the creator gets back all leave the padding out.
-  it('stores, records and answers with the link without the spaces pasted around it', async () => {
-    const { transaction, service } = stub({});
-
-    const submitted = await service.submit(CONTENT_ID, CREATOR_ID, {
-      videoLink: `  ${REEL}\n`,
-    });
-
-    expect(submitted.videoLink).toBe(REEL);
-    expect(transaction.contents.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ video_link: REEL }),
-      }),
-    );
-    expect(transaction.content_events.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ event_data: { link: REEL } }),
-    });
-  });
-
-  it('rejects a non-Instagram/TikTok link before touching the database', async () => {
-    const { client, service } = stub({});
-
-    const error = await failure(
-      service.submit(CONTENT_ID, CREATOR_ID, {
-        videoLink: 'https://www.youtube.com/shorts/abc',
-      }),
-    );
-
-    expect(error).toBeInstanceOf(BadRequestException);
-    expect((error as BadRequestException).getResponse()).toEqual({
-      code: 'INVALID_VIDEO_LINK',
-      message: 'Link harus berupa URL Instagram atau TikTok',
-    });
-    expect(client.$transaction).not.toHaveBeenCalled();
+    await expect(
+      service.submit(CONTENT_ID, CREATOR_ID, { videoLink: REEL }),
+    ).rejects.toBe(taken);
   });
 });

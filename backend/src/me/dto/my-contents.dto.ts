@@ -1,7 +1,7 @@
 // What GET /me/contents answers with, in API vocabulary rather than Prisma's. The Task Saya
 // table and its Submit Draft / Submit Link Video modals read these fields.
 
-import type { content_type } from '@prisma/client';
+import type { content_type, social_platform } from '@prisma/client';
 import type { ContentTag } from '../../contents/content-tags.js';
 import type { MyTaskStatus, MyTaskTab } from '../my-task-query.js';
 import type { TaskAction } from '../task-actions.js';
@@ -22,6 +22,8 @@ export interface MyContentItem {
   actions: TaskAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */
   revisionNotes: string | null;
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: social_platform[];
 }
 
 export interface MyContentsResponse {

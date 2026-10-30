@@ -308,6 +308,53 @@ describe('ContentEventHistoryService.record', () => {
     });
   });
 
+  it('records a replaced link with its platform and the link it replaced (PBI-38 AC 9)', async () => {
+    const { create, service } = stubClient([]);
+    const replaced = {
+      content_id: CONTENT_ID,
+      event_type: 'Link Replaced',
+      actor_name: 'Admin',
+      actor_role: 'admin',
+      occurred_at: new Date('2026-10-07T10:00:00Z'),
+      event_data: {
+        link: 'https://instagram.com/p/new',
+        platform: 'instagram',
+        previous_link: 'https://instagram.com/p/old',
+      },
+    } as const;
+
+    await service.record(replaced);
+
+    expect(create).toHaveBeenCalledWith({ data: replaced });
+  });
+
+  it.each([
+    [
+      'no link',
+      { platform: 'instagram', previous_link: 'https://instagram.com/p/old' },
+    ],
+    [
+      'no platform',
+      {
+        link: 'https://instagram.com/p/new',
+        previous_link: 'https://instagram.com/p/old',
+      },
+    ],
+    [
+      'no previous link',
+      { link: 'https://instagram.com/p/new', platform: 'instagram' },
+    ],
+  ])('rejects Link Replaced with %s', async (_what, event_data) => {
+    await expectInvalidInput({
+      content_id: CONTENT_ID,
+      event_type: 'Link Replaced',
+      actor_name: 'Admin',
+      actor_role: 'admin',
+      occurred_at: new Date('2026-10-07T10:00:00Z'),
+      event_data,
+    });
+  });
+
   it('rejects Creator Comment without a nonblank comment', async () => {
     await expectInvalidInput({
       ...VALID_WRITES[5],
