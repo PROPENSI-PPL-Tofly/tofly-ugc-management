@@ -1,11 +1,16 @@
 import {
+  Catch,
   Controller,
   Get,
   Inject,
   Param,
   Query,
   Res,
+  UnauthorizedException,
+  UseFilters,
   UseGuards,
+  type ArgumentsHost,
+  type ExceptionFilter,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { CurrentCreator } from '../auth/current-creator.decorator.js';
@@ -17,6 +22,23 @@ import {
 } from './social-connect.service.js';
 import { SocialPlatformPipe } from './social-platform.pipe.js';
 
+/** The sign-in page, telling the creator their session ended (the frontend's own wording). */
+export const SESSION_EXPIRED_LOGIN = '/login?error=session_expired';
+
+/**
+ * Both routes are page loads, not API calls, so a creator the guard turns away (most often one
+ * whose session ended while they were on the platform's consent screen) is sent to sign in
+ * again rather than shown a bare JSON 401 (review #127). A fixed path, so no open redirect.
+ */
+@Catch(UnauthorizedException)
+export class SessionExpiredRedirect implements ExceptionFilter {
+  catch(_exception: UnauthorizedException, host: ArgumentsHost): void {
+    const response = host.switchToHttp().getResponse<Response>();
+    response.set('Cache-Control', 'no-store');
+    response.redirect(302, SESSION_EXPIRED_LOGIN);
+  }
+}
+
 /**
  * Connecting a creator's Instagram or TikTok account (PBI-19). The browser reaches these as
  * /api/social/… through the frontend's same-origin proxy. Whose account is connected is the
@@ -25,6 +47,7 @@ import { SocialPlatformPipe } from './social-platform.pipe.js';
  */
 @Controller('social')
 @UseGuards(DevCreatorGuard)
+@UseFilters(SessionExpiredRedirect)
 export class SocialConnectController {
   constructor(
     @Inject(SocialConnectService)
