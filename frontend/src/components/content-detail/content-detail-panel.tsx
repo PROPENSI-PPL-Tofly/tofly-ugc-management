@@ -6,6 +6,8 @@ import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
+import { PlatformIcon } from "@/components/ui/platform-icon";
+import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
@@ -219,6 +221,26 @@ function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Dat
         </span>
       </span>
     </>
+  );
+}
+
+/** The content's submitted links, one row per platform (AC 11): the mark, the link, the date. */
+function Links({ links }: Readonly<{ links: readonly ContentLink[] }>) {
+  return (
+    <section aria-label="Tautan video">
+      <h3 className={SECTION_LABEL}>Tautan video</h3>
+      <ul className="flex flex-col gap-2">
+        {links.map((link) => (
+          <li key={link.platform} className="flex items-center gap-2 text-[13px]">
+            <PlatformIcon platform={link.platform} />
+            <CreatorLink link={link.url} label={PLATFORM_LABELS[link.platform]} look="chip" />
+            <time dateTime={link.submittedAt} className="text-xs text-muted">
+              {formatTimestamp(link.submittedAt)}
+            </time>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -587,6 +609,9 @@ export function ContentDetailPanel({
         <div className="flex flex-col gap-5">
           {/* Evergreen content has no brief. */}
           {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
+
+          {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
+          {loaded.links.length > 0 ? <Links links={loaded.links} /> : null}
 
           <section>
             <h3 className={SECTION_LABEL}>Timeline</h3>
