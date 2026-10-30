@@ -611,7 +611,7 @@ export function ContentDetailPanel({
           {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
 
           {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
-          {loaded.links.length > 0 ? <Links links={loaded.links} /> : null}
+          {loaded.links?.length ? <Links links={loaded.links} /> : null}
 
           <section>
             <h3 className={SECTION_LABEL}>Timeline</h3>

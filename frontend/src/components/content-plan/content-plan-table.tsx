@@ -88,7 +88,7 @@ export function ContentPlanTable({
             >
               <td className="px-5 py-3">
                 <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
-                {row.links.length > 0 ? (
+                {row.links?.length ? (
                   <div className="mt-1">
                     <PlatformIcons links={row.links} />
                   </div>

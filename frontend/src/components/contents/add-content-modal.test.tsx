@@ -384,7 +384,7 @@ describe("AddContentModal", () => {
         expect(mockedCreateContent).not.toHaveBeenCalled();
     });
 
-    it("rejects a deadline after the contract end", () => {
+    it("rejects a deadline after the H-5 line, naming the last day it could fall on", () => {
         openModal();
 
         fireEvent.change(screen.getByLabelText("Deadline"), {
@@ -397,7 +397,7 @@ describe("AddContentModal", () => {
 
         expect(
             screen.getByText(
-                "Deadline tidak boleh setelah akhir kontrak",
+                "Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)",
             ),
         ).toBeInTheDocument();
 

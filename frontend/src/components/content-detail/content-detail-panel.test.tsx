@@ -730,7 +730,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
   type Loader = NonNullable<Parameters<typeof ContentDetailPanel>[0]["load"]>;
 
   describe("the submitted links (AC 11)", () => {
-    it("lists one row per link: the mark, the link in a new tab, and its date", () => {
+    it("lists one row per link: the mark, the link in a new tab, and its date", async () => {
       open(
         detail({
           links: [
@@ -748,7 +748,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         }),
       );
 
-      const section = screen.getByRole("region", { name: "Tautan video" });
+      const section = await screen.findByRole("region", { name: "Tautan video" });
       expect(within(section).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
       expect(within(section).getByRole("img", { name: "TikTok" })).toBeInTheDocument();
       const ig = within(section).getByRole("link", { name: /Instagram/ });
@@ -756,13 +756,16 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(within(section).getByText(/18 Okt 2026/)).toBeInTheDocument();
     });
 
-    it("shows no link section while nothing has been sent", () => {
+    it("shows no link section while nothing has been sent", async () => {
       open(detail({ links: [] }));
+
+      // The journey is the sign the content has loaded; only then is its absence meaningful.
+      await screen.findByRole("list", { name: "Riwayat konten" });
 
       expect(screen.queryByRole("region", { name: "Tautan video" })).not.toBeInTheDocument();
     });
 
-    it("names the timeline event after the platform the link was sent to (AC 12)", () => {
+    it("names the timeline event after the platform the link was sent to (AC 12)", async () => {
       open(
         detail({
           status: "link_submitted",
@@ -785,7 +788,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         }),
       );
 
-      expect(screen.getByText("Link Instagram dikirim")).toBeInTheDocument();
+      expect(await screen.findByText("Link Instagram dikirim")).toBeInTheDocument();
     });
   });
 

@@ -241,8 +241,8 @@ export interface MyTask {
   actions: MyTaskAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */
   revisionNotes: string | null;
-  /** The submitted links, one per platform (38.1's table); the table shows their marks. */
-  links: ContentLink[];
+  /** The submitted links, one per platform (38.1's table); absent in an answer that predates it. */
+  links?: ContentLink[];
 }
 
 export type MyTasksCounts = Record<MyTaskTab, number>;

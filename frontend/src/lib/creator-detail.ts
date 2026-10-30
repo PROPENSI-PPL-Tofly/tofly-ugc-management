@@ -191,8 +191,8 @@ export interface CreatorContentRow {
   tags: ContentTag[];
   /** How many times an admin asked for a revision. */
   revisionCount: number;
-  /** The submitted links, one per platform (38.1's table); the table shows their marks. */
-  links: ContentLink[];
+  /** The submitted links, one per platform (38.1's table); absent in an answer that predates it. */
+  links?: ContentLink[];
 }
 
 export interface CreatorDetailView {

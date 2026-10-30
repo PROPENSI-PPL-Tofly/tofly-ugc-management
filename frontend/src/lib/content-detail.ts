@@ -48,8 +48,8 @@ export interface RawContentDetail {
   latestSubmissionId: string | null;
   creatorActions: MyTaskAction[];
   events: RawContentEvent[];
-  /** The submitted links, one per platform (AC 11); empty before the first one is sent. */
-  links: ContentLink[];
+  /** The submitted links, one per platform (AC 11); absent in an answer that predates 38.1. */
+  links?: ContentLink[];
 }
 
 export type ContentDetail = RawContentDetail;

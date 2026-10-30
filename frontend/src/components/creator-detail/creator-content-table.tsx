@@ -74,7 +74,7 @@ export function CreatorContentTable({
                 <p className="font-semibold text-ink wrap-anywhere">
                   <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
                 </p>
-                {row.links.length > 0 ? (
+                {row.links?.length ? (
                   <div className="mt-1">
                     <PlatformIcons links={row.links} />
                   </div>

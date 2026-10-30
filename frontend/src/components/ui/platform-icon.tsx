@@ -35,7 +35,9 @@ export function PlatformIcon({ platform }: Readonly<{ platform: Platform }>) {
  * a table row shows beside its content. Nothing renders while no link has been sent, so a row
  * never grows an empty slot.
  */
-export function PlatformIcons({ links }: Readonly<{ links: readonly ContentLink[] }>) {
+export function PlatformIcons({
+  links,
+}: Readonly<{ links: readonly ContentLink[] | undefined }>) {
   const platforms = platformsOf(links);
   if (platforms.length === 0) return null;
 
