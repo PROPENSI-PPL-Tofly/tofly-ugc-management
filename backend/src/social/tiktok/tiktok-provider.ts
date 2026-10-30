@@ -11,7 +11,10 @@ export const TIKTOK_AUTHORIZE_URL = 'https://www.tiktok.com/v2/auth/authorize/';
 export const TIKTOK_TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/';
 export const TIKTOK_USER_INFO_URL = 'https://open.tiktokapis.com/v2/user/info/';
 
-/** The creator waits on these calls; a stalled TikTok should fail the connect, not hold it. */
+/**
+ * The creator waits on the whole connect, so this bounds both calls together: a stalled TikTok
+ * fails the connect after this long, however the time splits between the two.
+ */
 export const TIKTOK_TIMEOUT_MS = 5000;
 
 /** PBI-19 scopes: who the creator is, their handle, and the videos 27.3 reads metrics of. */
@@ -99,8 +102,10 @@ export class TikTokProvider implements SocialOAuthProvider {
   }
 
   async connect(code: string): Promise<PlatformAccount> {
-    const grant = await this.exchange(code);
-    const username = await this.username(grant);
+    // One deadline for both calls (review #127): a timeout per call let them add up to twice this.
+    const deadline = AbortSignal.timeout(TIKTOK_TIMEOUT_MS);
+    const grant = await this.exchange(code, deadline);
+    const username = await this.username(grant, deadline);
     const now = this.now().getTime();
     return {
       platform: 'tiktok',
@@ -114,22 +119,30 @@ export class TikTokProvider implements SocialOAuthProvider {
   }
 
   /** POST /v2/oauth/token/ with grant_type=authorization_code. */
-  private async exchange(code: string): Promise<TokenGrant> {
+  private async exchange(
+    code: string,
+    deadline: AbortSignal,
+  ): Promise<TokenGrant> {
     const label = 'token endpoint';
-    const { ok, status, body } = await this.call(label, TIKTOK_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        accept: 'application/json',
+    const { ok, status, body } = await this.call(
+      label,
+      TIKTOK_TOKEN_URL,
+      deadline,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+        },
+        body: new URLSearchParams({
+          client_key: this.config.clientKey,
+          client_secret: this.config.clientSecret,
+          code,
+          grant_type: 'authorization_code',
+          redirect_uri: this.config.redirectUri,
+        }).toString(),
       },
-      body: new URLSearchParams({
-        client_key: this.config.clientKey,
-        client_secret: this.config.clientSecret,
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: this.config.redirectUri,
-      }).toString(),
-    });
+    );
 
     if (body.error !== undefined) {
       throw platformError(`${label} refused: ${logSafeName(body.error)}`);
@@ -176,17 +189,25 @@ export class TikTokProvider implements SocialOAuthProvider {
   }
 
   /** GET /v2/user/info/: the handle needs the user.info.profile scope. */
-  private async username(grant: TokenGrant): Promise<string> {
+  private async username(
+    grant: TokenGrant,
+    deadline: AbortSignal,
+  ): Promise<string> {
     const label = 'user info endpoint';
     const url = new URL(TIKTOK_USER_INFO_URL);
     url.searchParams.set('fields', 'open_id,username');
-    const { ok, status, body } = await this.call(label, url.toString(), {
-      method: 'GET',
-      headers: {
-        authorization: `Bearer ${grant.accessToken}`,
-        accept: 'application/json',
+    const { ok, status, body } = await this.call(
+      label,
+      url.toString(),
+      deadline,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${grant.accessToken}`,
+          accept: 'application/json',
+        },
       },
-    });
+    );
 
     const { error, data } = body;
     if (isRecord(error) && error.code !== 'ok') {
@@ -214,12 +235,13 @@ export class TikTokProvider implements SocialOAuthProvider {
 
   /**
    * One call to TikTok: no redirects (one would carry the secret or the token to whatever host
-   * it names) and a hard timeout. Every failure becomes a refusal whose message names only the
+   * it names) and cut off at the connect's deadline. Every failure becomes a refusal whose message names only the
    * endpoint and what went wrong.
    */
   private async call(
     label: string,
     url: string,
+    deadline: AbortSignal,
     init: RequestInit,
   ): Promise<Answer> {
     let response: Response;
@@ -227,7 +249,7 @@ export class TikTokProvider implements SocialOAuthProvider {
       response = await this.fetchImpl(url, {
         ...init,
         redirect: 'error',
-        signal: AbortSignal.timeout(TIKTOK_TIMEOUT_MS),
+        signal: deadline,
       });
     } catch {
       throw platformError(`${label} unreachable`);
