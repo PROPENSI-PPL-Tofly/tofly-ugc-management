@@ -62,8 +62,12 @@ export class InstagramClient {
 
   async connect(code: string): Promise<InstagramAccount> {
     const shortToken = await this.exchangeCode(code);
-    const { accessToken, expiresAt } = await this.longLived(shortToken);
-    const profile = await this.profile(accessToken);
+    // Both need only the short-lived token, so they run side by side: about 260 ms less per
+    // connect than one after the other, as measured in the review of #126.
+    const [{ accessToken, expiresAt }, profile] = await Promise.all([
+      this.longLived(shortToken),
+      this.profile(shortToken),
+    ]);
     return { ...profile, accessToken, expiresAt };
   }
 
