@@ -22,7 +22,8 @@ export function PanelHead({
   action,
 }: {
   title: string;
-  hint?: string;
+  /** Usually text; may end with a control, such as the Performa panel's Kebijakan Privasi link. */
+  hint?: ReactNode;
   action?: ReactNode;
 }) {
   return (

@@ -92,3 +92,25 @@ export async function backendPostForm(path: string, form: FormData): Promise<Res
     body: form,
   });
 }
+
+/**
+ * The same request as a DELETE with no body, for disconnecting a social account. A state change,
+ * so it carries the browser's origin headers like the posts: the backend refuses it without them.
+ */
+export async function backendDelete(path: string): Promise<Response> {
+  const backendUrl = process.env.BACKEND_URL;
+
+  if (!backendUrl) {
+    throw new Error("BACKEND_URL is not configured");
+  }
+
+  const cookie = await appSessionCookieHeader();
+  return fetch(`${withoutTrailingSlash(backendUrl)}${path}`, {
+    method: "DELETE",
+    cache: "no-store",
+    headers: {
+      ...(await browserOriginHeaders()),
+      ...(cookie && { cookie }),
+    },
+  });
+}
