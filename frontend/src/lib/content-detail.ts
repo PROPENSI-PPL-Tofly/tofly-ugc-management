@@ -10,6 +10,7 @@ import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
 import type { MyTaskAction } from "./my-tasks";
+import type { SentLink } from "./video-links";
 
 export type DetailEventType =
   | "scheduled"
@@ -47,6 +48,8 @@ export interface RawContentDetail {
   latestSubmissionId: string | null;
   creatorActions: MyTaskAction[];
   events: RawContentEvent[];
+  /** The links sent so far, one per platform; absent in an answer that predates them. */
+  links?: SentLink[];
 }
 
 export type ContentDetail = RawContentDetail;

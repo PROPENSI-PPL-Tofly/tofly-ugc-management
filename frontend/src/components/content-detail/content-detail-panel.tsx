@@ -131,6 +131,7 @@ const FORMS: Record<FormKind, FormSpec> = {
 const OPENS_FORM: ReadonlySet<PanelActionKind> = new Set<PanelActionKind>([
   "revise",
   "reject_proposal",
+  "manage_links",
 ]);
 
 /** Where the admin reads the step differently from the creator: their own decision is due. */
@@ -487,6 +488,7 @@ export function ContentDetailPanel({
       ports.openRejectForm?.();
     },
     onCreatorAction: ports.onCreatorAction,
+    onManageLinks: ports.onManageLinks,
   };
 
   const snapshot = () => ({ busy, note });

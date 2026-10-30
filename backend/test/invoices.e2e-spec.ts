@@ -11,6 +11,7 @@ import {
   RateFormulaService,
   type RateFormulaView,
 } from '../src/rate-formula/rate-formula.service.js';
+import { storedLink } from './links.js';
 import { as, signIn, signInAsAdmin } from './sessions.js';
 
 const MARKER = 'e2e-invoices';
@@ -104,7 +105,6 @@ describe('Invoices API (e2e)', () => {
                   type: 'evergreen',
                   deadline: day(-10),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/late',
                   video_submitted_at: day(-8),
                 },
                 {
@@ -117,7 +117,6 @@ describe('Invoices API (e2e)', () => {
                   type: 'specific',
                   deadline: day(-5),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/specific',
                   video_submitted_at: day(-5),
                 },
                 {
@@ -125,7 +124,6 @@ describe('Invoices API (e2e)', () => {
                   type: 'specific',
                   deadline: day(-5),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/specific-late',
                   video_submitted_at: day(-3),
                 },
               ],
@@ -748,9 +746,10 @@ describe('Invoices API (e2e)', () => {
                 type: 'evergreen',
                 deadline: day(-2),
                 status: 'link_submitted',
-                video_link: 'https://example.com/access-evergreen',
                 video_submitted_at: day(-2),
-                platform: 'instagram',
+                content_links: {
+                  create: storedLink('https://example.com/access-evergreen', day(-2), user.id, 'instagram'),
+                },
                 views: 0,
               },
             },
@@ -908,9 +907,10 @@ describe('Invoices API (e2e)', () => {
                   type: 'evergreen',
                   deadline: day(-2),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/finalization-evergreen',
                   video_submitted_at: day(-2),
-                  platform: 'instagram',
+                  content_links: {
+                    create: storedLink('https://example.com/finalization-evergreen', day(-2), user.id, 'instagram'),
+                  },
                   views: 0,
                 },
                 {
@@ -918,7 +918,6 @@ describe('Invoices API (e2e)', () => {
                   type: 'specific',
                   deadline: day(-3),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/finalization-specific',
                   video_submitted_at: day(-3),
                 },
               ],
@@ -999,9 +998,10 @@ describe('Invoices API (e2e)', () => {
                 type: 'evergreen',
                 deadline: day(-5),
                 status: 'link_submitted',
-                video_link: 'https://example.com/early-end-evergreen',
                 video_submitted_at: day(-5),
-                platform: 'instagram',
+                content_links: {
+                  create: storedLink('https://example.com/early-end-evergreen', day(-5), user.id, 'instagram'),
+                },
                 views: 0,
               },
             },
@@ -1061,9 +1061,10 @@ describe('Invoices API (e2e)', () => {
                   type: 'evergreen',
                   deadline: day(-50),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/renewed-evergreen',
                   video_submitted_at: day(-50),
-                  platform: 'instagram',
+                  content_links: {
+                    create: storedLink('https://example.com/renewed-evergreen', day(-50), user.id, 'instagram'),
+                  },
                   views: 0,
                 },
               },
@@ -1154,9 +1155,10 @@ describe('Invoices API (e2e)', () => {
                 type: 'evergreen',
                 deadline: day(-2),
                 status: 'link_submitted',
-                video_link: 'https://example.com/unmeasured-evergreen',
                 video_submitted_at: day(-2),
-                platform: 'instagram',
+                content_links: {
+                  create: storedLink('https://example.com/unmeasured-evergreen', day(-2), user.id, 'instagram'),
+                },
               },
             },
           },
@@ -1220,9 +1222,10 @@ describe('Invoices API (e2e)', () => {
                   type: 'evergreen',
                   deadline: day(-2),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/history-evergreen',
                   video_submitted_at: day(-2),
-                  platform: 'instagram',
+                  content_links: {
+                    create: storedLink('https://example.com/history-evergreen', day(-2), user.id, 'instagram'),
+                  },
                   views: 0,
                 },
                 {
@@ -1230,7 +1233,6 @@ describe('Invoices API (e2e)', () => {
                   type: 'specific',
                   deadline: day(-3),
                   status: 'link_submitted',
-                  video_link: 'https://example.com/history-specific',
                   video_submitted_at: day(-3),
                 },
               ],
@@ -1299,9 +1301,10 @@ describe('Invoices API (e2e)', () => {
                 type: 'evergreen',
                 deadline: day(-2),
                 status: 'link_submitted',
-                video_link: `https://example.com/${slug}`,
                 video_submitted_at: day(-2),
-                platform: 'instagram',
+                content_links: {
+                  create: storedLink(`https://example.com/${slug}`, day(-2), user.id, 'instagram'),
+                },
                 views,
               },
             },

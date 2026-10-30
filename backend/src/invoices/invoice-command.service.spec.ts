@@ -177,7 +177,7 @@ describe('InvoiceCommandService', () => {
       status: 'link_submitted',
       deadline: day(-2),
       video_submitted_at: day(-2),
-      platform: 'instagram',
+      content_links: [{ platform: 'instagram' }],
       views: 0,
       likes: null,
     };
