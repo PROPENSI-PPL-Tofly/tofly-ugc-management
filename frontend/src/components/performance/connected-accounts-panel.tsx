@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { buttonClasses } from "@/components/ui/button-classes";
+import { buttonClasses, type Variant } from "@/components/ui/button-classes";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { Pill } from "@/components/ui/pill";
@@ -13,8 +13,8 @@ import {
   DISCONNECT_WARNING,
   PERFORMANCE_PATH,
   connectErrorMessage,
+  accountDetail,
   connectHref,
-  connectedSince,
   connectedToast,
   disconnectedToast,
   type ConnectOutcome,
@@ -97,9 +97,10 @@ export function ConnectedAccountsPanel({
       <Panel>
         <PanelHead
           title="Akun Terhubung"
-          hint="Hubungkan akun media sosial untuk menarik data performa konten secara otomatis."
+          hint="Hubungkan akun supaya angka performa kontenmu ditarik otomatis."
         />
-        <div className="grid items-start gap-3 px-5 pb-5 sm:grid-cols-2">
+        {/* Sprint 3 prototype (.s3-soc): the platforms stacked one under the other. */}
+        <div className="flex flex-col gap-2.5 px-5 pb-5">
           {accounts.map((account) => (
             <AccountRow
               key={account.platform}
@@ -117,7 +118,7 @@ export function ConnectedAccountsPanel({
 
       {confirming ? (
         <ConfirmDialog
-          title={`Putuskan ${PLATFORM_NAMES[confirming]}?`}
+          title={`Putuskan Akun ${PLATFORM_NAMES[confirming]}?`}
           message={DISCONNECT_WARNING}
           confirmLabel="Putuskan"
           cancelLabel="Batal"
@@ -136,19 +137,24 @@ function ConnectLink({
   platform,
   label,
   ariaLabel,
+  variant,
+  className = "",
   connecting,
   onConnect,
 }: Readonly<{
   platform: ConnectPlatform;
   label: string;
   ariaLabel?: string;
+  variant: Variant;
+  className?: string;
   connecting: boolean;
   onConnect: () => void;
 }>) {
+  const look = `whitespace-nowrap ${className} ${buttonClasses(variant)}`;
   if (connecting) {
     // The browser is on its way to the platform; a second press would start a second flow.
     return (
-      <button type="button" disabled aria-busy="true" className={`whitespace-nowrap ${buttonClasses()}`}>
+      <button type="button" disabled aria-busy="true" className={look}>
         Menghubungkan…
       </button>
     );
@@ -156,12 +162,19 @@ function ConnectLink({
   return (
     // A plain anchor: the backend answers with a redirect to the platform, which needs a full
     // page load, not client-side navigation.
-    <a href={connectHref(platform)} aria-label={ariaLabel} onClick={onConnect} className={`whitespace-nowrap ${buttonClasses()}`}>
+    <a href={connectHref(platform)} aria-label={ariaLabel} onClick={onConnect} className={look}>
       {label}
     </a>
   );
 }
 
+/** The status pill beside a platform's name, as the Sprint 3 prototype words each state. */
+function StatusPill({ account }: Readonly<{ account: ConnectedAccount }>) {
+  if (account.connected) return <Pill tone="green">Terhubung</Pill>;
+  return <Pill>{account.hasAccount ? "Belum terhubung" : "Tidak ada akun"}</Pill>;
+}
+
+/** One platform, laid out as the Sprint 3 prototype's .s3-socrow. */
 function AccountRow({
   account,
   name,
@@ -179,58 +192,64 @@ function AccountRow({
   onConnect: () => void;
   onDisconnect: () => void;
 }>) {
-  const detail = account.connected
-    ? `${account.username ? `@${account.username} · ` : ""}${connectedSince(account.connectedAt)}`
-    : "Belum terhubung";
+  const detail = accountDetail(account);
+  // A platform with no account offers nothing to press: only the Admin can add the account.
+  const connectable = account.hasAccount && !account.connected;
 
   return (
-    <div role="group" aria-label={name} className="flex min-w-0 flex-col gap-3 rounded-(--radius-control) border border-rule p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold">{name}</p>
-          <p className="mt-0.5 truncate text-xs text-muted">{detail}</p>
-        </div>
+    <div role="group" aria-label={name} className="flex min-w-0 flex-col gap-2 rounded-[10px] border border-rule px-3.5 py-3">
+      {/* The action sits at the end of the line, and drops under the name when there is no room. */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <strong className="text-[13.5px]">{name}</strong>
+        <StatusPill account={account} />
 
-        <div className="flex shrink-0 items-center gap-2">
-          {account.connected ? (
-            <>
-              <Pill tone="green">Terhubung</Pill>
-              {disconnecting ? (
-                <button type="button" disabled aria-busy="true" className={`whitespace-nowrap ${buttonClasses()}`}>
-                  Memutuskan…
-                </button>
-              ) : (
-                <button type="button" aria-label={`Putuskan ${name}`} onClick={onDisconnect} className={`whitespace-nowrap ${buttonClasses()}`}>
-                  Putuskan
-                </button>
-              )}
-            </>
-          ) : (
-            <ConnectLink
-              platform={account.platform}
-              label="Hubungkan"
-              ariaLabel={`Hubungkan ${name}`}
-              connecting={connecting}
-              onConnect={onConnect}
-            />
-          )}
-        </div>
+        {account.connected && disconnecting ? (
+          <button type="button" disabled aria-busy="true" className={`ml-auto whitespace-nowrap ${buttonClasses("danger-outline")}`}>
+            Memutuskan…
+          </button>
+        ) : null}
+
+        {account.connected && !disconnecting ? (
+          <button
+            type="button"
+            aria-label={`Putuskan ${name}`}
+            onClick={onDisconnect}
+            className={`ml-auto whitespace-nowrap ${buttonClasses("danger-outline")}`}
+          >
+            Putuskan
+          </button>
+        ) : null}
+
+        {connectable ? (
+          <ConnectLink
+            platform={account.platform}
+            label="Hubungkan"
+            ariaLabel={`Hubungkan ${name}`}
+            variant="accent"
+            className="ml-auto"
+            connecting={connecting}
+            onConnect={onConnect}
+          />
+        ) : null}
       </div>
+
+      {detail ? <p className="truncate text-xs text-muted">{detail}</p> : null}
 
       {message ? (
         <div
           role="alert"
-          className="flex flex-wrap items-center justify-between gap-2 rounded-(--radius-control) bg-red-wash px-3 py-2 text-xs text-red-ink"
+          className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-red/30 bg-red-wash px-3 py-2 text-[12.5px] text-red-ink"
         >
           <span>{message}</span>
-          {connecting || account.connected ? null : (
+          {connectable && !connecting ? (
             <ConnectLink
               platform={account.platform}
               label="Coba Lagi"
+              variant="default"
               connecting={false}
               onConnect={onConnect}
             />
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>

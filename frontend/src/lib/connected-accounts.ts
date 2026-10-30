@@ -3,7 +3,7 @@
 // with. Everything the backend or the URL hands in is untrusted; anything malformed reads as
 // not connected, or as no result at all, rather than breaking the page (OWASP A10:2025).
 
-import { formatDate, jakartaDay } from "./format";
+import { formatDate, formatTimestamp, jakartaDay } from "./format";
 
 export const CONNECT_PLATFORMS = ["instagram", "tiktok"] as const;
 
@@ -19,7 +19,9 @@ export const PERFORMANCE_PATH = "/creator/performance";
 
 /**
  * The creator's own accounts (19.3). The contract this page assumes until 19.3 lands:
- * `{ accounts: [{ platform, connected, username, connectedAt }] }`, tokens never included.
+ * `{ accounts: [{ platform, connected, username, connectedAt, lastSyncAt? }] }`, one entry per
+ * platform the creator has an account on, tokens never included. `lastSyncAt` stays null until
+ * PBI-27 syncs.
  */
 export const MY_SOCIAL_ACCOUNTS_PATH = "/me/social-accounts";
 
@@ -37,11 +39,15 @@ export class ConnectedAccountsError extends Error {
 /** One row of the panel. */
 export interface ConnectedAccount {
   platform: ConnectPlatform;
+  /** False when the creator has no account on the platform at all (the answer leaves it out). */
+  hasAccount: boolean;
   connected: boolean;
   /** The handle the platform reported, or the one typed at Tambah Creator; null when none. */
   username: string | null;
   /** An ISO instant; null when the backend has none or sent something that is not a date. */
   connectedAt: string | null;
+  /** The last sync (PBI-27) as an ISO instant; null until one has happened. */
+  lastSyncAt: string | null;
 }
 
 type Json = Record<string, unknown>;
@@ -55,18 +61,25 @@ export function isConnectPlatform(value: unknown): value is ConnectPlatform {
   return typeof value === "string" && (CONNECT_PLATFORMS as readonly string[]).includes(value);
 }
 
-function notConnected(platform: ConnectPlatform): ConnectedAccount {
-  return { platform, connected: false, username: null, connectedAt: null };
+function noAccount(platform: ConnectPlatform): ConnectedAccount {
+  return { platform, hasAccount: false, connected: false, username: null, connectedAt: null, lastSyncAt: null };
+}
+
+/** An ISO instant, or null for anything that is not one. */
+function instant(value: unknown): string | null {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
 }
 
 function accountOf(platform: ConnectPlatform, entry: Json): ConnectedAccount {
-  const { connected, username, connectedAt } = entry;
+  const { connected, username, connectedAt, lastSyncAt } = entry;
   return {
     platform,
+    hasAccount: true,
     // Only an explicit true counts: "true" or a missing flag must not show Terhubung.
     connected: connected === true,
     username: typeof username === "string" && username !== "" ? username : null,
-    connectedAt: typeof connectedAt === "string" && !Number.isNaN(Date.parse(connectedAt)) ? connectedAt : null,
+    connectedAt: instant(connectedAt),
+    lastSyncAt: instant(lastSyncAt),
   };
 }
 
@@ -82,7 +95,7 @@ export function toConnectedAccounts(raw: unknown): ConnectedAccount[] {
       found.set(entry.platform, accountOf(entry.platform, entry));
     }
   }
-  return CONNECT_PLATFORMS.map((platform) => found.get(platform) ?? notConnected(platform));
+  return CONNECT_PLATFORMS.map((platform) => found.get(platform) ?? noAccount(platform));
 }
 
 /** Where "Hubungkan" sends the browser: the backend starts the platform's OAuth flow. */
@@ -159,7 +172,7 @@ export function connectErrorMessage(platform: ConnectPlatform, error: ConnectErr
 }
 
 export function disconnectedToast(platform: ConnectPlatform): string {
-  return `Akun ${PLATFORM_NAMES[platform]} diputuskan`;
+  return `Akun ${PLATFORM_NAMES[platform]} diputuskan.`;
 }
 
 /**
@@ -176,7 +189,22 @@ export const DISCONNECT_REFUSALS = {
 /** PRD 19: what the creator is told before disconnecting. */
 export const DISCONNECT_WARNING = "Data performa yang sudah ada tetap disimpan, tapi tidak akan diperbarui lagi.";
 
-/** "Terhubung sejak 30 Okt 2026", the connection's Jakarta day, as every day in the app is. */
-export function connectedSince(connectedAt: string | null): string {
-  return connectedAt ? `Terhubung sejak ${formatDate(jakartaDay(new Date(connectedAt)))}` : "Terhubung";
+/**
+ * The line under a platform's name, worded as the Sprint 3 prototype: the handle, and once
+ * connected the Jakarta day it connected and the last sync ("—" until PBI-27 has synced). A
+ * platform with no account asks for the Admin, who alone can add one.
+ */
+export function accountDetail(account: ConnectedAccount): string {
+  if (!account.hasAccount) {
+    return `Belum ada akun ${PLATFORM_NAMES[account.platform]} di data kamu. Minta Admin menambahkannya dulu.`;
+  }
+  const handle = account.username ? `@${account.username}` : null;
+  if (!account.connected) return handle ?? "";
+
+  const since = account.connectedAt
+    ? `terhubung sejak ${formatDate(jakartaDay(new Date(account.connectedAt)))}`
+    : "terhubung";
+  return [handle, since, `sinkron terakhir ${formatTimestamp(account.lastSyncAt)}`]
+    .filter((part) => part !== null)
+    .join(" · ");
 }
