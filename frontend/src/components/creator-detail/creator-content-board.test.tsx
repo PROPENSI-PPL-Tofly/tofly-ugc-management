@@ -6,6 +6,7 @@ import {
   type CreatorDetailView,
   type CreatorPeriod,
 } from "@/lib/creator-detail";
+import type { PanelActionPorts } from "@/lib/panel-actions";
 import { CreatorContentBoard } from "./creator-content-board";
 
 const { refresh, replace } = vi.hoisted(() => ({ refresh: vi.fn(), replace: vi.fn() }));
@@ -29,11 +30,13 @@ vi.mock("@/components/content-detail/content-detail-panel", async (importOrigina
     role,
     onClose,
     onDecided,
+    ports,
   }: {
     contentId: string;
     role: string;
     onClose: () => void;
     onDecided: (decision: "approve" | "revise") => void;
+    ports?: PanelActionPorts;
   }) => (
     <div role="dialog" aria-label="Detail konten">
       <p>
@@ -47,6 +50,25 @@ vi.mock("@/components/content-detail/content-detail-panel", async (importOrigina
       </button>
       <button type="button" onClick={() => onDecided("revise")}>
         Minta Revisi
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          ports?.onManageLinks?.({
+            id: contentId,
+            name: "Konten terkirim",
+            brief: "",
+            events: [],
+            deadline: "2026-10-05",
+            waitingOn: null,
+            latestSubmissionId: null,
+            creatorActions: [],
+            status: "link_submitted",
+            links: [{ platform: "tiktok", url: "https://vt.tiktok.com/ZSabc123/" }],
+          })
+        }
+      >
+        Ganti Link
       </button>
     </div>
   ),
@@ -141,6 +163,17 @@ beforeEach(() => {
 });
 
 describe("CreatorContentBoard", () => {
+  it("swaps the panel for the link modal when the admin replaces a sent link", async () => {
+    renderBoard();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Konten 1" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Ganti Link" }));
+
+    expect(await screen.findByRole("dialog", { name: "Kirim Link Video" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Link TikTok")).toHaveValue("https://vt.tiktok.com/ZSabc123/");
+    expect(screen.queryByRole("dialog", { name: "Detail konten" })).toBeNull();
+  });
+
   it("is headed Content Plan and says which period it shows", () => {
     renderBoard();
 

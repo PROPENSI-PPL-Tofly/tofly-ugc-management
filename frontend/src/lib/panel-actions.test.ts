@@ -44,6 +44,80 @@ function adminPorts(overrides: Partial<PanelActionPorts> = {}): PanelActionPorts
   };
 }
 
+describe("actionsFor (managing a sent content's links)", () => {
+  const sent = facts({
+    status: "link_submitted",
+    waitingOn: null,
+    latestSubmissionId: null,
+    links: [{ platform: "instagram", url: "https://www.instagram.com/reel/C8abc12345/" }],
+  });
+
+  it("offers the creator to add or replace a link, and hands over the content", () => {
+    const onManageLinks = vi.fn();
+
+    const [command, ...rest] = actionsFor({
+      role: "creator",
+      detail: sent,
+      state: idle,
+      ports: ports({ onManageLinks }),
+    });
+
+    expect(rest).toEqual([]);
+    expect(command).toMatchObject({ kind: "manage_links", label: "Tambah / Ganti Link" });
+    expect(command.canRun()).toBe(true);
+    command.run();
+    expect(onManageLinks).toHaveBeenCalledWith(sent);
+  });
+
+  it("offers the admin to replace only, since adding a link is the creator's", () => {
+    const [command] = actionsFor({
+      role: "admin",
+      detail: sent,
+      state: idle,
+      ports: ports({ onManageLinks: vi.fn() }),
+    });
+
+    expect(command).toMatchObject({ kind: "manage_links", label: "Ganti Link" });
+  });
+
+  it("offers the admin nothing when no link names a platform to replace", () => {
+    expect(
+      actionsFor({
+        role: "admin",
+        detail: { ...sent, links: [{ platform: null, url: "https://example.com/old" }] },
+        state: idle,
+        ports: ports({ onManageLinks: vi.fn() }),
+      }),
+    ).toEqual([]);
+  });
+
+  it("still offers the creator a link when the answer lists none", () => {
+    expect(
+      actionsFor({
+        role: "creator",
+        detail: { ...sent, links: undefined },
+        state: idle,
+        ports: ports({ onManageLinks: vi.fn() }),
+      }),
+    ).toHaveLength(1);
+  });
+
+  it("offers nothing where the touchpoint hosts no link modal", () => {
+    expect(actionsFor({ role: "creator", detail: sent, state: idle, ports: ports() })).toEqual([]);
+  });
+
+  it("offers nothing before the first link is sent", () => {
+    const commands = actionsFor({
+      role: "creator",
+      detail: { ...sent, status: "draft_approved", waitingOn: "creator" },
+      state: idle,
+      ports: ports({ onManageLinks: vi.fn() }),
+    });
+
+    expect(commands).toEqual([]);
+  });
+});
+
 describe("actionsFor (admin)", () => {
   it("offers Minta Revisi and Approve while a draft waits on the admin", () => {
     const commands = actionsFor({

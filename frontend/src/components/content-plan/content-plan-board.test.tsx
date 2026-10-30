@@ -92,6 +92,27 @@ describe("ContentPlanBoard", () => {
     window.history.replaceState({}, "", "/admin/content-plan");
   });
 
+  it("lets the admin replace a sent link from the panel, in the same link modal", async () => {
+    fetchContentDetail.mockResolvedValue({
+      ...detailOf(),
+      status: "link_submitted",
+      waitingOn: null,
+      latestSubmissionId: null,
+      links: [{ platform: "instagram", url: "https://www.instagram.com/reel/C8abc12345/" }],
+    });
+    renderBoard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ganti Link" }));
+
+    expect(await screen.findByRole("dialog", { name: "Kirim Link Video" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Link Instagram")).toHaveValue(
+      "https://www.instagram.com/reel/C8abc12345/",
+    );
+    expect(screen.queryByLabelText("Link TikTok")).toBeNull();
+    expect(window.location.search).toBe("");
+  });
+
   it("opens the panel from a row and puts the content in the address", async () => {
     fetchContentDetail.mockResolvedValue(detailOf());
     renderBoard();
