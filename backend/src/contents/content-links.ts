@@ -25,7 +25,16 @@ export function normalizeVideoLink(link: string): string {
     return trimmed.toLowerCase();
   }
   const [, host, path] = parts;
-  return host.toLowerCase().replace(/^www\./, '') + path.replace(/\/+$/, '');
+  return host.toLowerCase().replace(/^www\./, '') + withoutTrailingSlashes(path);
+}
+
+/** A scan from the end rather than `/\/+$/`, which backtracks over every slash run it meets. */
+function withoutTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path[end - 1] === '/') {
+    end -= 1;
+  }
+  return path.slice(0, end);
 }
 
 /**
