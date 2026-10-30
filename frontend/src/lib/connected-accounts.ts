@@ -109,9 +109,9 @@ const ERROR_MESSAGES: Record<ConnectError, (platform: string) => string> = {
   not_tester: () => "Akun ini belum didaftarkan sebagai tester. Hubungi Admin Tofly.",
   account_taken: () => "Akun ini sudah terhubung ke creator lain.",
   platform_error: (platform) => `${platform} sedang bermasalah. Coba lagi nanti.`,
-  // A callback that was not this creator's own attempt, or one that expired; PRD 19 names no
-  // words for it.
-  connect_failed: () => "Koneksi tidak bisa diselesaikan. Coba lagi.",
+  // A callback that was not this creator's own attempt, or one that expired. PRD 19 and the
+  // prototype give it no words, so it reads as the platform error until the PO words it.
+  connect_failed: (platform) => `${platform} sedang bermasalah. Coba lagi nanti.`,
 };
 
 function isConnectError(value: string): value is ConnectError {

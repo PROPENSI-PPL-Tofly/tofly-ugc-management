@@ -60,8 +60,11 @@ export function ConnectedAccountsPanel({
     if (handled.current || outcome === null) return;
     handled.current = true;
     if (outcome.kind === "connected") show(connectedToast(outcome.platform));
-    router.replace(PERFORMANCE_PATH, { scroll: false });
-  }, [outcome, router, show]);
+    // Only the address changes: the page is dynamic, so router.replace would render it on the
+    // server again and read the accounts a second time. Next.js syncs its router with the
+    // History API ("Native History API" in its docs).
+    window.history.replaceState(null, "", PERFORMANCE_PATH);
+  }, [outcome, show]);
 
   async function confirmDisconnect(platform: ConnectPlatform) {
     setConfirming(null);
