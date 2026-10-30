@@ -264,15 +264,15 @@ model performance_bonus_tiers {
 }
 
 model app_sessions {
-  idHash            String    @id @map("id_hash") @db.Char(64)
-  userId            String    @map("user_id") @db.Uuid
-  role              String
-  creatorId         String?   @map("creator_id") @db.Uuid
-  idleExpiresAt     DateTime  @map("idle_expires_at") @db.Timestamptz(6)
-  absoluteExpiresAt DateTime  @map("absolute_expires_at") @db.Timestamptz(6)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  users             users     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  creators          creators? @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  idHash              String   @id @map("id_hash") @db.Char(64)
+  userId              String   @map("user_id") @db.Uuid
+  role                String
+  creatorId           String?  @map("creator_id") @db.Uuid
+  idleExpiresAt       DateTime @map("idle_expires_at") @db.Timestamptz(6)
+  absoluteExpiresAt   DateTime @map("absolute_expires_at") @db.Timestamptz(6)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  users               users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creators            creators? @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([idleExpiresAt], map: "app_sessions_idle_expires_at_idx")
   @@index([absoluteExpiresAt], map: "app_sessions_absolute_expires_at_idx")
