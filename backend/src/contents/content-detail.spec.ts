@@ -263,8 +263,16 @@ describe('buildEvents', () => {
       row({
         status: 'link_submitted',
         content_links: [
-          linkRow('tiktok', 'https://www.tiktok.com/@rangga/video/2', '2026-09-17'),
-          linkRow('instagram', 'https://instagram.com/reel/first', '2026-09-15'),
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/2',
+            '2026-09-17',
+          ),
+          linkRow(
+            'instagram',
+            'https://instagram.com/reel/first',
+            '2026-09-15',
+          ),
         ],
         video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
       }),
@@ -525,7 +533,11 @@ describe('toContentDetail links (PBI-38)', () => {
         status: 'link_submitted',
         content_links: [
           linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
-          linkRow('tiktok', 'https://www.tiktok.com/@rangga/video/1', '2026-09-17'),
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-17',
+          ),
         ],
         video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
       }),
@@ -550,14 +562,20 @@ describe('toContentDetail links (PBI-38)', () => {
     const detail = toContentDetail(
       row({
         status: 'link_submitted',
-        content_links: [linkRow(null, 'https://example.com/video/old', '2026-09-15')],
+        content_links: [
+          linkRow(null, 'https://example.com/video/old', '2026-09-15'),
+        ],
         video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
       }),
       on('2026-09-18'),
     );
 
     expect(detail.links).toEqual([
-      { platform: null, url: 'https://example.com/video/old', submittedAt: '2026-09-15' },
+      {
+        platform: null,
+        url: 'https://example.com/video/old',
+        submittedAt: '2026-09-15',
+      },
     ]);
   });
 
@@ -597,7 +615,11 @@ describe('toContentDetail with a stored history', () => {
       row({
         status: 'link_submitted',
         content_links: [
-          linkRow('tiktok', 'https://www.tiktok.com/@rangga/video/1', '2026-09-20'),
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-20',
+          ),
         ],
         video_submitted_at: new Date('2026-09-20T00:00:00.000Z'),
         content_events: history,
@@ -769,6 +791,71 @@ describe('toContentDetail with a stored history', () => {
         payload: {},
       },
     ]);
+  });
+
+  // PBI-38 AC 12: one step per link, naming its platform. A replaced link stays a link step, so
+  // a panel that knows no other kind keeps showing it, and says it replaced another.
+  it('names the platform of each link step and marks a replaced link as such', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Link Replaced', '2026-09-03T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              link: 'https://www.instagram.com/p/New1/',
+              platform: 'instagram',
+              previous_link: 'https://www.instagram.com/reel/Old1/',
+            },
+          }),
+          stored('e1', 'Link Submitted', '2026-09-01T03:00:00.000Z', {
+            event_data: {
+              link: 'https://www.instagram.com/reel/Old1/',
+              platform: 'instagram',
+            },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events).toEqual([
+      {
+        id: 'e2',
+        type: 'link_submitted',
+        at: '2026-09-03T03:00:00.000Z',
+        actor: { name: null, role: 'admin' },
+        payload: {
+          link: 'https://www.instagram.com/p/New1/',
+          platform: 'instagram',
+          replaced: true,
+        },
+      },
+      {
+        id: 'e1',
+        type: 'link_submitted',
+        at: '2026-09-01T03:00:00.000Z',
+        actor: { name: 'Rangga Pratama', role: 'creator' },
+        payload: {
+          link: 'https://www.instagram.com/reel/Old1/',
+          platform: 'instagram',
+        },
+      },
+    ]);
+  });
+
+  it('leaves out a stored platform the app does not know', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Link Submitted', '2026-09-01T03:00:00.000Z', {
+            event_data: { link: 'https://youtu.be/x', platform: 'youtube' },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0].payload).toEqual({ link: 'https://youtu.be/x' });
   });
 
   it('falls back to the journey its rows prove when nothing was stored for it', () => {
