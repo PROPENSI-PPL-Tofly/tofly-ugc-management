@@ -10,6 +10,7 @@ import {
   readConnections,
   SOCIAL_PLATFORM_LABELS,
   SOCIAL_PLATFORMS,
+  type SocialConnection,
   type SocialPlatform,
 } from "@/lib/social-connection";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
@@ -58,10 +59,15 @@ const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
 const NUMERIC = `${CELL} text-right tabular-nums`;
 
-function socials(creator: CreatorSummary): { platform: SocialPlatform; text: string }[] {
+function socials(
+  creator: CreatorSummary,
+): { platform: SocialPlatform; text: string; connection: SocialConnection }[] {
+  // Read once per row, not once per platform.
+  const connections = readConnections(creator.socialConnections);
   return SOCIAL_PLATFORMS.filter((platform) => creator.socials[platform]).map((platform) => ({
     platform,
     text: `${SOCIAL_PLATFORM_LABELS[platform]} @${creator.socials[platform]}`,
+    connection: connections[platform],
   }));
 }
 
@@ -202,13 +208,13 @@ export function CreatorTable({
 
                   <p className="mt-0.5 text-xs text-muted">{creator.email}</p>
 
-                  {socials(creator).map(({ platform, text }) => (
+                  {socials(creator).map(({ platform, text, connection }) => (
                     // One line however long the handle: the badge never drops under it.
                     <p key={platform} className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
                       <span>{text}</span>
                       <ConnectionBadge
                         platform={SOCIAL_PLATFORM_LABELS[platform]}
-                        connection={readConnections(creator.socialConnections)[platform]}
+                        connection={connection}
                       />
                     </p>
                   ))}
