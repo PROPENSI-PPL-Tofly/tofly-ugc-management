@@ -171,6 +171,9 @@ export class TikTokProvider implements SocialOAuthProvider {
     }
 
     // A creator who unticks a scope connects an account whose performance cannot be read.
+    // It lands as `cancelled` ("Koneksi dibatalkan") on purpose (review #127): the creator did
+    // not finish granting what Tofly asked for, and Hubungkan again is the way out, as after a
+    // refused consent. The PRD has no message of its own for a partial consent.
     const granted = scope.split(',');
     const missing = REQUESTED_SCOPES.find(
       (wanted) => !granted.includes(wanted),
