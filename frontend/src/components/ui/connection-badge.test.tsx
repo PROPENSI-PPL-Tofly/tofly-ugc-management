@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NOT_CONNECTED, type SocialConnection } from "@/lib/social-connection";
 import { ConnectionBadge } from "./connection-badge";
 
@@ -80,6 +80,19 @@ describe("ConnectionBadge", () => {
       .getByText(/^Creator belum menghubungkan/)
       .closest("span");
     expect(tooltip).toHaveClass("whitespace-normal", "max-w-[260px]");
+  });
+
+  it("keeps a press on the badge to itself, so a clickable row around it does not open", () => {
+    const rowClick = vi.fn();
+    render(
+      <div onClick={rowClick}>
+        <ConnectionBadge platform="Instagram" connection={CONNECTED} />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Instagram Terhubung" }));
+
+    expect(rowClick).not.toHaveBeenCalled();
   });
 
   it("leaves the tooltip role to InfoTip, so a table with both still has one tooltip", () => {
