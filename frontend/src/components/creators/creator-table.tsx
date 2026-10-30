@@ -206,13 +206,10 @@ export function CreatorTable({
                     // One line however long the handle: the badge never drops under it.
                     <p key={platform} className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
                       <span>{text}</span>
-                      {/* The row would hear a press on the badge too and open the page. */}
-                      <span onClick={(event) => event.stopPropagation()}>
-                        <ConnectionBadge
-                          platform={SOCIAL_PLATFORM_LABELS[platform]}
-                          connection={readConnections(creator.socialConnections)[platform]}
-                        />
-                      </span>
+                      <ConnectionBadge
+                        platform={SOCIAL_PLATFORM_LABELS[platform]}
+                        connection={readConnections(creator.socialConnections)[platform]}
+                      />
                     </p>
                   ))}
 

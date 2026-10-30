@@ -1,3 +1,5 @@
+"use client";
+
 import { useId } from "react";
 import {
   connectionLabel,
@@ -31,6 +33,9 @@ export function ConnectionBadge({
         type="button"
         aria-label={`${platform} ${label}`}
         aria-describedby={tipId}
+        // A press stays with the badge: a clickable row around it (Creator Database) must not
+        // open too.
+        onClick={(event) => event.stopPropagation()}
         className={connection.connected ? ON : OFF}
       >
         {label}
