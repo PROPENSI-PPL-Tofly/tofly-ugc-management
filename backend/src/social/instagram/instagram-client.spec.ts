@@ -133,17 +133,41 @@ describe('InstagramClient.connect', () => {
     });
   });
 
-  it('reads the id, username and account type with the long-lived token', async () => {
+  it('reads the id, username and account type with the short-lived token', async () => {
     const fetchImpl = fakeFetch();
 
     await clientWith(fetchImpl).connect(CODE);
 
-    const url = new URL(String(fetchImpl.mock.calls[2][0]));
-    expect(url.pathname).toMatch(/^\/v\d+\.\d+\/me$/);
+    const url = fetchImpl.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .find((called) => /^\/v\d+\.\d+\/me$/.test(called.pathname))!;
     expect(url.searchParams.get('fields')).toBe(
       'user_id,username,account_type',
     );
-    expect(url.searchParams.get('access_token')).toBe(LONG_TOKEN);
+    expect(url.searchParams.get('access_token')).toBe(SHORT_TOKEN);
+  });
+
+  it('asks for the long-lived token and the profile at the same time', async () => {
+    // Each answer takes a moment, so calls made one after another never overlap.
+    const answer = fakeFetch();
+    let open = 0;
+    let mostOpen = 0;
+    const fetchImpl = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        open += 1;
+        mostOpen = Math.max(mostOpen, open);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        open -= 1;
+        return answer(input, init);
+      },
+    );
+
+    await clientWith(
+      fetchImpl as unknown as ReturnType<typeof fakeFetch>,
+    ).connect(CODE);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(mostOpen).toBe(2);
   });
 
   it('accepts the short-lived token answered without the data wrapper', async () => {
