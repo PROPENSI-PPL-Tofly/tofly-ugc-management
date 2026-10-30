@@ -9,6 +9,7 @@ import type { content_status, social_platform } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
 import { canSubmitVideo } from '../me/task-actions.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { isLinkTaken, normalizeVideoLink } from './content-links.js';
 import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import {
   detectVideoPlatform,
@@ -49,9 +50,7 @@ export interface VideoSubmissionTransaction {
       };
       data: {
         status: 'link_submitted';
-        video_link: string;
         video_submitted_at: Date;
-        platform: social_platform;
         approval_bypassed: boolean;
       };
     }) => Promise<{ count: number }>;
@@ -59,12 +58,30 @@ export interface VideoSubmissionTransaction {
   creators: {
     findUnique: (args: {
       where: { id: string };
-      select: { first_name: true; middle_name: true; last_name: true };
+      select: {
+        first_name: true;
+        middle_name: true;
+        last_name: true;
+        user_id: true;
+      };
     }) => Promise<{
       first_name: string;
       middle_name: string | null;
       last_name: string | null;
+      user_id: string;
     } | null>;
+  };
+  content_links: {
+    create: (args: {
+      data: {
+        content_id: string;
+        platform: social_platform;
+        url: string;
+        normalized_url: string;
+        submitted_at: Date;
+        submitted_by: string;
+      };
+    }) => Promise<unknown>;
   };
   content_events: {
     create: (args: {
@@ -117,6 +134,14 @@ function notEligible(message: string): ConflictException {
   return new ConflictException({ code: 'VIDEO_NOT_ELIGIBLE', message });
 }
 
+/** PBI-38 AC 5: one video belongs to one content only. */
+function linkTaken(): ConflictException {
+  return new ConflictException({
+    code: 'VIDEO_LINK_TAKEN',
+    message: 'Link ini sudah dipakai di konten lain',
+  });
+}
+
 @Injectable()
 export class VideoSubmissionService implements VideoSubmitter {
   constructor(
@@ -126,7 +151,8 @@ export class VideoSubmissionService implements VideoSubmitter {
 
   /**
    * Submits the creator's final Instagram/TikTok link and immediately moves the content to
-   * Content Link Submitted. Eligibility and the status transition happen inside one transaction.
+   * Content Link Submitted. Eligibility, the status transition and the stored link happen inside
+   * one transaction, so a refused link leaves the content as it was.
    */
   async submit(
     contentId: string,
@@ -179,6 +205,7 @@ export class VideoSubmissionService implements VideoSubmitter {
       // Conditional on the status that was read above: if another request changes the row
       // first, this update affects zero rows and only one submission can succeed. The bypass
       // flag comes from that same status, so it describes exactly the row the update matched.
+      // The submitted day stays on the content: it is the first link's day (PBI-38 AC 7).
       const { count } = await transaction.contents.updateMany({
         where: {
           id: contentId,
@@ -186,9 +213,7 @@ export class VideoSubmissionService implements VideoSubmitter {
         },
         data: {
           status: 'link_submitted',
-          video_link: videoLink,
           video_submitted_at: submittedAt,
-          platform,
           approval_bypassed: content.status !== 'draft_approved',
         },
       });
@@ -199,13 +224,35 @@ export class VideoSubmissionService implements VideoSubmitter {
 
       const creator = await transaction.creators.findUnique({
         where: { id: creatorId },
-        select: { first_name: true, middle_name: true, last_name: true },
+        select: {
+          first_name: true,
+          middle_name: true,
+          last_name: true,
+          user_id: true,
+        },
       });
       if (!creator) {
         throw new NotFoundException({
           code: 'CREATOR_NOT_FOUND',
           message: 'Kreator tidak ditemukan',
         });
+      }
+
+      // The link itself lives in content_links (PBI-38, 38.1). Its unique key refuses a video
+      // already linked from another content, however the link was copied (OWASP A08:2025).
+      try {
+        await transaction.content_links.create({
+          data: {
+            content_id: contentId,
+            platform,
+            url: videoLink,
+            normalized_url: normalizeVideoLink(videoLink),
+            submitted_at: submittedAt,
+            submitted_by: creator.user_id,
+          },
+        });
+      } catch (error) {
+        throw isLinkTaken(error) ? linkTaken() : error;
       }
 
       await transaction.content_events.create({
