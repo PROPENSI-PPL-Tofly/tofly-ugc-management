@@ -13,6 +13,7 @@ import {
 } from "@/lib/contents";
 import { localCalendarDay } from "@/lib/creator-form";
 import { getBufferWindow } from "@/lib/deadline-schedule";
+import { latestDeadline } from "@/lib/platform-links";
 import { formatDate } from "@/lib/format";
 
 const BUFFER_DAYS = 5;
@@ -83,6 +84,8 @@ export function AddContentModal({
 }) {
     const evergreenFull = evergreenCount >= quota && quota > 0;
     const firstAllowed = firstAllowedDeadline(contractStart);
+    // The H-5 line: no deadline may fall later than the contract end minus the buffer (AC 14).
+    const lastAllowed = latestDeadline(contractEnd);
 
     const [type, setType] = useState<ContentType>(
         evergreenFull ? "specific" : "evergreen",
@@ -147,11 +150,11 @@ export function AddContentModal({
             clientErrors.type = "Kuota Evergreen sudah terpenuhi.";
         }
 
-        if (deadline && (deadline < firstAllowed || deadline > contractEnd)) {
+        if (deadline && (deadline < firstAllowed || deadline > lastAllowed)) {
             clientErrors.deadline =
                 deadline < firstAllowed
                     ? `Deadline paling cepat ${formatDate(firstAllowed)}`
-                    : "Deadline tidak boleh setelah akhir kontrak";
+                    : `Deadline paling lambat ${formatDate(lastAllowed)} (H-5 akhir kontrak)`;
         }
 
         if (Object.keys(clientErrors).length > 0) {
@@ -292,7 +295,8 @@ export function AddContentModal({
                     required
                     className={FIELD}
                     min={firstAllowed}
-                    max={contractEnd}
+                    max={lastAllowed}
+                    title={`Deadline paling lambat ${formatDate(lastAllowed)} (H-5 akhir kontrak)`}
                     value={deadline}
                     onChange={(event) => {
                         setDeadline(event.target.value);
