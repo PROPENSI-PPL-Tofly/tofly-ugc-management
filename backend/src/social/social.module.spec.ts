@@ -1,7 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
+import { randomBytes } from 'node:crypto';
+import request from 'supertest';
 import { AppModule } from '../app.module.js';
+import { DEV_CREATOR_HEADER } from '../auth/dev-creator.guard.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import {
   INSTAGRAM_CONFIG,
   INSTAGRAM_CONNECT,
@@ -90,5 +94,55 @@ describe('SocialModule', () => {
     expect(Reflect.getMetadata(MODULE_METADATA.IMPORTS, AppModule)).toContain(
       SocialModule,
     );
+  });
+
+  // #126 and #127 both answer under /social: Instagram's own controller and TikTok's generic
+  // /social/:platform/…. Whichever is registered first takes /social/instagram/…, so this pins
+  // each platform to the controller that can connect it.
+  describe('which controller answers each platform', () => {
+    const CREATOR = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+
+    async function connect(platform: string) {
+      stubSettings({
+        ...SETTINGS,
+        SOCIAL_TOKEN_KEY: randomBytes(32).toString('base64'),
+        TIKTOK_CLIENT_KEY: 'sbawexamplekey',
+        TIKTOK_CLIENT_SECRET: 'tiktok-secret',
+        TIKTOK_REDIRECT_URI:
+          'https://staging.tofly.id/api/social/tiktok/callback',
+        DEV_AUTH_ENABLED: 'true',
+        DEV_CREATOR_ID: '',
+        NODE_ENV: 'test',
+      });
+      const module = await Test.createTestingModule({ imports: [SocialModule] })
+        .overrideProvider(PrismaService)
+        .useValue({
+          creators: { findUnique: () => Promise.resolve({ id: CREATOR }) },
+        })
+        .compile();
+      const app = module.createNestApplication();
+      await app.init();
+      try {
+        const response = await request(app.getHttpServer())
+          .get(`/social/${platform}/connect`)
+          .set(DEV_CREATOR_HEADER, CREATOR)
+          .expect(302);
+        return response.headers.location;
+      } finally {
+        await app.close();
+      }
+    }
+
+    it("sends Instagram's Hubungkan to Instagram, through its own controller", async () => {
+      await expect(connect('instagram')).resolves.toMatch(
+        /^https:\/\/www\.instagram\.com\/oauth\/authorize\?/,
+      );
+    });
+
+    it("sends TikTok's Hubungkan to TikTok, through the generic controller", async () => {
+      await expect(connect('tiktok')).resolves.toMatch(
+        /^https:\/\/www\.tiktok\.com\/v2\/auth\/authorize\/\?/,
+      );
+    });
   });
 });
