@@ -202,6 +202,46 @@ describe('TikTokProvider', () => {
       timeout.mockRestore();
     });
 
+    // Review #127: the creator waits on both calls in a row, so one deadline bounds the whole
+    // connect. A timeout per call let a TikTok that answered the token late and the profile
+    // never hold the creator twice as long (10 s, not 5 s).
+    it('bounds the whole connect with one deadline, shared by both calls', async () => {
+      const timeout = vi.spyOn(AbortSignal, 'timeout');
+      const fetchImpl = tiktok(() => json(tokenBody()));
+
+      await provider(fetchImpl).connect(CODE);
+
+      expect(timeout).toHaveBeenCalledTimes(1);
+      const [[, tokenInit], [, userInit]] = fetchImpl.mock.calls;
+      expect(userInit?.signal).toBe(tokenInit?.signal);
+      timeout.mockRestore();
+    });
+
+    it('gives up on the profile once the deadline the token call started has passed', async () => {
+      // Only the first deadline asked for is ours; a second one would be a fresh 5 s.
+      const deadline = new AbortController();
+      const timeout = vi
+        .spyOn(AbortSignal, 'timeout')
+        .mockReturnValueOnce(deadline.signal);
+      // The token answers right as the deadline passes. A fetch whose signal has already
+      // fired rejects at once, as the real one does; one with time left would get a profile.
+      const fetchImpl = vi.fn<typeof fetch>((input, init) => {
+        if (String(input).startsWith(TIKTOK_TOKEN_URL)) {
+          deadline.abort(new DOMException('timed out', 'TimeoutError'));
+          return Promise.resolve(json(tokenBody()));
+        }
+        return init?.signal?.aborted
+          ? Promise.reject(init.signal.reason as Error)
+          : Promise.resolve(json(userBody()));
+      });
+
+      const refusal = await refusalOf(provider(fetchImpl).connect(CODE));
+
+      expect(refusal.outcome).toBe('platform_error');
+      expect(refusal.message).toBe('user info endpoint unreachable');
+      timeout.mockRestore();
+    });
+
     it('keeps the access token valid for exactly as long as TikTok says', async () => {
       const fetchImpl = tiktok(() =>
         json(tokenBody({ expires_in: 1, refresh_expires_in: 1 })),
