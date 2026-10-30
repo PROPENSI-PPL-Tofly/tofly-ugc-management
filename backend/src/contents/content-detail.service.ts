@@ -17,7 +17,11 @@ const CONTENT_DETAIL_SELECT = {
   brief: true,
   deadline: true,
   status: true,
-  video_link: true,
+  // The links in the order they were handed in: the first is the content's submitted one.
+  content_links: {
+    orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+    select: { platform: true, url: true, submitted_at: true },
+  },
   video_submitted_at: true,
   approval_bypassed: true,
   created_at: true,
