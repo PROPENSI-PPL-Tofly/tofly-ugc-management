@@ -62,33 +62,11 @@ describe("MultiSelect", () => {
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
-  it("shows the picked names as chips that drop one at a time", () => {
-    const onChange = renderSelect(["id-1", "id-2"]);
+  it("keeps no chips of its own; the bar gathers them below", () => {
+    renderSelect(["id-1", "id-2"]);
 
-    expect(
-      screen.getByRole("button", { name: "Hapus filter Creator: Salsa" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Hapus filter Creator: Rangga" }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Creator: Salsa" }));
-    expect(onChange).toHaveBeenLastCalledWith(["id-2"]);
-  });
-
-  it("keeps no chip of a pick that is no longer selected", () => {
-    renderSelect(["id-1"]);
-    expect(
-      screen.getByRole("button", { name: "Hapus filter Creator: Salsa" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Rangga/ })).not.toBeInTheDocument();
-  });
-
-  it("reads a chip by its raw value when its option is gone", () => {
-    renderSelect(["id-x"]);
-    expect(
-      screen.getByRole("button", { name: "Hapus filter Creator: id-x" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Hapus filter/ })).not.toBeInTheDocument();
+    expect(trigger()).toHaveTextContent("Creator: 2 dipilih");
   });
 
   it("ignores a key that is not Escape and a press that lands inside it", () => {
@@ -182,12 +160,11 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
       expect(screen.getByRole("checkbox", { name: "Semua" })).toBeChecked();
     });
 
-    it("drops every chip once pressed", () => {
+    it("reads Semua again once pressed", () => {
       render(<Stateful initial={["id-1", "id-3"]} />);
 
       fireEvent.click(within(open()).getByRole("checkbox", { name: "Semua" }));
 
-      expect(screen.queryByRole("button", { name: /^Hapus filter/ })).not.toBeInTheDocument();
       expect(trigger()).toHaveTextContent("Creator: Semua");
     });
   });
@@ -202,25 +179,23 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
 
       expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
       expect(trigger()).toHaveTextContent("Creator: 2 dipilih");
-      expect(screen.getByRole("button", { name: "Hapus filter Creator: Salsa" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Hapus filter Creator: Lestari" })).toBeInTheDocument();
     });
 
-    it("drops one chip and leaves the other picks alone", () => {
+    it("drops one pick and leaves the others alone, without closing", () => {
       render(<Stateful initial={["id-1", "id-2", "id-3"]} />);
+      const popup = open();
 
-      fireEvent.click(screen.getByRole("button", { name: "Hapus filter Creator: Rangga" }));
+      fireEvent.click(within(popup).getByRole("checkbox", { name: "Salsa" }));
 
-      expect(screen.queryByRole("button", { name: "Hapus filter Creator: Rangga" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Hapus filter Creator: Salsa" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Hapus filter Creator: Lestari" })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
       expect(trigger()).toHaveTextContent("Creator: 2 dipilih");
     });
 
-    it("goes back to the pick's name when chips are dropped down to one", () => {
+    it("goes back to the pick's name when one pick is left", () => {
       render(<Stateful initial={["id-1", "id-2"]} />);
+      const popup = open();
 
-      fireEvent.click(screen.getByRole("button", { name: "Hapus filter Creator: Salsa" }));
+      fireEvent.click(within(popup).getByRole("checkbox", { name: "Salsa" }));
 
       expect(trigger()).toHaveTextContent("Creator: Rangga");
     });
@@ -292,29 +267,15 @@ describe("MultiSelect, as the prototype's chip dropdown", () => {
     });
 
     // The chips sit beside the trigger and wrap onto more rows as picks are added. Anchored to
-    // the box that holds them too, the popup opened under the last row of chips, away from
+    // the box that holds them too, the popup opened under the last row, away from
     // the trigger that opened it.
-    it("anchors the popup to the trigger alone, not to the chips beside it", () => {
+    it("anchors the popup to the trigger alone", () => {
       renderSelect(["id-1", "id-2", "id-3"]);
 
       const anchor = open().parentElement as HTMLElement;
 
       expect(anchor).toHaveClass("relative");
       expect(anchor).toContainElement(trigger());
-      expect(anchor).not.toContainElement(
-        screen.getByRole("button", { name: "Hapus filter Creator: Salsa" }),
-      );
-    });
-
-    it("still counts a press on a chip as inside, so dropping one keeps the popup open", () => {
-      render(<Stateful initial={["id-1", "id-2"]} />);
-      open();
-
-      const chip = screen.getByRole("button", { name: "Hapus filter Creator: Salsa" });
-      fireEvent.mouseDown(chip);
-      fireEvent.click(chip);
-
-      expect(screen.getByRole("group", { name: "Creator" })).toBeInTheDocument();
     });
 
     // On a phone the second filter sits mid-row, and a popup opened from its left edge ran

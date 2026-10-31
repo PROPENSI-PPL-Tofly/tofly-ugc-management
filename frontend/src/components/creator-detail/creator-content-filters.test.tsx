@@ -171,6 +171,15 @@ describe("CreatorContentFilters", () => {
     });
   });
 
+  it("keeps the tab it is standing on when the filters are reset", () => {
+    searchParams = new URLSearchParams({ tab: "action", type: "specific", page: "2" });
+    render(<CreatorContentFilters tab="action" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?tab=action`, { scroll: false });
+  });
+
   // A typed or stale address can name what a content cannot hold. The table ignores it, so
   // the bar must not draw it as a pick either.
   it("shows no chip for a type or a status that does not exist", () => {
