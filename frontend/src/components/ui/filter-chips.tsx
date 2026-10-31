@@ -1,10 +1,12 @@
 "use client";
 
+import { ResetFilters } from "@/components/filters/filter-controls";
+
 /**
  * The bar's active picks, gathered in one row below the filters (the benchmark's layout): each
  * chip says which filter it came from — "Creator: Adit Prakoso" — so a pick can never be
  * mistaken for another filter's, and one chip can be dropped without reopening anything.
- * Atur ulang sits beside them and clears the whole bar in one press.
+ * Reset sits beside them, in the app's own wording, and clears the whole bar in one press.
  *
  * Presentational only: the bar reads and writes the URL itself and hands each chip in, so every
  * filter bar (Content Plan, Task Saya, Creator Detail) lays its picks out the same way.
@@ -76,16 +78,7 @@ export function FilterChips({
         ))}
       </div>
 
-      {canReset ? (
-        <button
-          type="button"
-          onClick={onReset}
-          disabled={resetDisabled}
-          className="cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:opacity-60"
-        >
-          Atur ulang
-        </button>
-      ) : null}
+      {canReset ? <ResetFilters onReset={onReset} disabled={resetDisabled} /> : null}
     </div>
   );
 }

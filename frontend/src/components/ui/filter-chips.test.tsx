@@ -63,25 +63,25 @@ describe("FilterChips", () => {
     expect(second).not.toHaveBeenCalled();
   });
 
-  it("offers Atur ulang beside the chips while anything is filtered", () => {
+  it("offers Reset beside the chips while anything is filtered", () => {
     const onReset = vi.fn();
     render(<FilterChips chips={[chip()]} canReset onReset={onReset} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Atur ulang" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
     expect(onReset).toHaveBeenCalledOnce();
   });
 
-  it("holds Atur ulang while a change is still on its way", () => {
+  it("holds Reset while a change is still on its way", () => {
     render(<FilterChips chips={[chip()]} canReset resetDisabled onReset={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Atur ulang" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
   });
 
   it("shows the reset alone when only single-value filters are set", () => {
     render(<FilterChips chips={[]} canReset onReset={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Atur ulang" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument();
   });
 
   it("says nothing at all while nothing is filtered", () => {
