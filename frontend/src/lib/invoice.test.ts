@@ -150,6 +150,7 @@ describe("buildInvoiceQuery", () => {
   it("carries every part of a narrowed state into the page links", () => {
     expect(
       buildInvoiceQuery({
+        ...DEFAULT_INVOICE_PARAMS,
         q: "salsa",
         contract: "active",
         status: "paid",

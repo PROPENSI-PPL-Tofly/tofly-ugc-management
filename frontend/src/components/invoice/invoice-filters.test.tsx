@@ -104,15 +104,13 @@ describe("InvoiceFilters", () => {
   });
 
   it("asks for the two days of a custom range and sends them", () => {
+    // The days render only once the address holds a custom period, as the bar reads it.
+    hook.current.param.mockImplementation((key: string) => (key === "period" ? "custom" : "all"));
     render(<InvoiceFilters />);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Periode Berakhir Kontrak" }), {
-      target: { value: "custom" },
-    });
     fireEvent.change(screen.getByLabelText("Dari"), { target: { value: "2026-06-01" } });
     fireEvent.change(screen.getByLabelText("Sampai"), { target: { value: "2026-08-31" } });
 
-    expect(hook.current.setParam).toHaveBeenCalledWith("period", "custom");
     expect(hook.current.setParam).toHaveBeenCalledWith("from", "2026-06-01");
     expect(hook.current.setParam).toHaveBeenCalledWith("to", "2026-08-31");
   });

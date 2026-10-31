@@ -6,7 +6,6 @@ import {
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AdminGuard } from '../auth/admin.guard.js';
-import { InvoiceCommandService } from './invoice-command.service.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesService } from './invoices.service.js';
 
@@ -19,12 +18,9 @@ describe('InvoicesController', () => {
 
   let controller: InvoicesController;
 
-  // The reads and the admin's commands are two collaborators: each stub has only its own side.
   const service = {
     list: vi.fn(),
     detail: vi.fn(),
-  };
-  const commands = {
     addAdjustment: vi.fn(),
     finalize: vi.fn(),
   };
@@ -48,10 +44,7 @@ describe('InvoicesController', () => {
 
     const module = await Test.createTestingModule({
       controllers: [InvoicesController],
-      providers: [
-        { provide: InvoicesService, useValue: service },
-        { provide: InvoiceCommandService, useValue: commands },
-      ],
+      providers: [{ provide: InvoicesService, useValue: service }],
     }).compile();
 
     controller = module.get(InvoicesController);
@@ -175,6 +168,8 @@ describe('InvoicesController', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
+      undefined,
       'total',
       'desc',
     );
@@ -189,7 +184,7 @@ describe('InvoicesController', () => {
 
   it('rejects an unsupported sort key or direction', async () => {
     await expect(
-      controller.list(1, 10, undefined, undefined, undefined, 'bonus'),
+      controller.list(1, 10, undefined, undefined, undefined, undefined, undefined, 'bonus'),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     await expect(
@@ -200,6 +195,8 @@ describe('InvoicesController', () => {
         undefined,
         undefined,
         'name',
+        undefined,
+        undefined,
         'sideways',
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -216,7 +213,7 @@ describe('InvoicesController', () => {
     // OWASP Top 10:2025 A01 — actor identity must come from the authenticated principal.
     it('records the adjustment as the signed-in admin with the checked body', async () => {
       const saved = { id: 'adj-1', invoiceStatus: 'accruing' };
-      commands.addAdjustment.mockResolvedValue(saved);
+      service.addAdjustment.mockResolvedValue(saved);
 
       await expect(
         controller.addAdjustment(
@@ -226,7 +223,7 @@ describe('InvoicesController', () => {
         ),
       ).resolves.toBe(saved);
 
-      expect(commands.addAdjustment).toHaveBeenCalledWith(
+      expect(service.addAdjustment).toHaveBeenCalledWith(
         contractId,
         { amount: 25_000, reason: 'Approved campaign adjustment' },
         'admin-1',
@@ -239,19 +236,19 @@ describe('InvoicesController', () => {
         controller.addAdjustment(contractId, { amount: 0, reason: '' }, admin),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-      expect(commands.addAdjustment).not.toHaveBeenCalled();
+      expect(service.addAdjustment).not.toHaveBeenCalled();
     });
 
     // OWASP Top 10:2025 A01 — who finalized comes from the authenticated principal.
     it('finalizes as the signed-in admin, as of the time of the request', async () => {
       const finalized = { invoiceStatus: 'finalized' };
-      commands.finalize.mockResolvedValue(finalized);
+      service.finalize.mockResolvedValue(finalized);
 
       await expect(controller.finalize(contractId, {}, admin)).resolves.toBe(
         finalized,
       );
 
-      expect(commands.finalize).toHaveBeenCalledWith(
+      expect(service.finalize).toHaveBeenCalledWith(
         contractId,
         'admin-1',
         expect.any(Date),
@@ -260,7 +257,7 @@ describe('InvoicesController', () => {
     });
 
     it('passes on that the admin accepted freezing a pending bonus', async () => {
-      commands.finalize.mockResolvedValue({ invoiceStatus: 'finalized' });
+      service.finalize.mockResolvedValue({ invoiceStatus: 'finalized' });
 
       await controller.finalize(
         contractId,
@@ -268,7 +265,7 @@ describe('InvoicesController', () => {
         admin,
       );
 
-      expect(commands.finalize).toHaveBeenCalledWith(
+      expect(service.finalize).toHaveBeenCalledWith(
         contractId,
         'admin-1',
         expect.any(Date),
@@ -282,7 +279,7 @@ describe('InvoicesController', () => {
         controller.finalize(contractId, { status: 'finalized' }, admin),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-      expect(commands.finalize).not.toHaveBeenCalled();
+      expect(service.finalize).not.toHaveBeenCalled();
     });
 
     // OWASP Top 10:2025 A01 — reject missing and non-admin principals.
@@ -311,29 +308,8 @@ describe('InvoicesController', () => {
         controller.finalize(contractId, {}, request),
       ).rejects.toBeInstanceOf(UnauthorizedException);
 
-      expect(commands.addAdjustment).not.toHaveBeenCalled();
-      expect(commands.finalize).not.toHaveBeenCalled();
-    });
-
-    // Command query separation: writes reach the admin's commands, reads the invoice reads.
-    it('sends each write to the commands and each read to the invoice reads', async () => {
-      service.detail.mockResolvedValue({ creatorId: 'creator-1' });
-      commands.addAdjustment.mockResolvedValue({ id: 'adj-1' });
-      commands.finalize.mockResolvedValue({ invoiceStatus: 'finalized' });
-
-      await controller.list(1, 10);
-      await controller.detail(contractId);
-      await controller.addAdjustment(
-        contractId,
-        { amount: 10, reason: 'Koreksi' },
-        admin,
-      );
-      await controller.finalize(contractId, {}, admin);
-
-      expect(service.list).toHaveBeenCalledTimes(1);
-      expect(service.detail).toHaveBeenCalledTimes(1);
-      expect(commands.addAdjustment).toHaveBeenCalledTimes(1);
-      expect(commands.finalize).toHaveBeenCalledTimes(1);
+      expect(service.addAdjustment).not.toHaveBeenCalled();
+      expect(service.finalize).not.toHaveBeenCalled();
     });
   });
 });
