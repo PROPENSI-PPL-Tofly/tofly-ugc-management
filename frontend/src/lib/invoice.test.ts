@@ -177,6 +177,12 @@ describe("buildInvoiceQuery", () => {
     ).toEqual({ period: "custom", from: "2026-06-01" });
   });
 
+  it("carries only the far end of a custom range whose start is left open", () => {
+    expect(
+      buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, period: "custom", from: "", to: "2026-06-30" }),
+    ).toEqual({ period: "custom", to: "2026-06-30" });
+  });
+
   it("carries no period while none is named", () => {
     expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, from: "2026-06-01" })).toEqual({
       from: "2026-06-01",

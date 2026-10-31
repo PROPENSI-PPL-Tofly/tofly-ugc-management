@@ -78,6 +78,17 @@ describe("FilterChips", () => {
     expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
   });
 
+  // The chips and the reset answer different questions — what is picked, and whether anything
+  // is left to clear — so the row shows its picks even when the bar has no reset to offer.
+  it("shows the chips without Reset while the bar says there is nothing else to clear", () => {
+    render(<FilterChips chips={[chip()]} canReset={false} onReset={vi.fn()} />);
+
+    expect(
+      screen.getByRole("button", { name: "Hapus filter Creator: Adit Prakoso" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
+  });
+
   it("shows the reset alone when only single-value filters are set", () => {
     render(<FilterChips chips={[]} canReset onReset={vi.fn()} />);
 
