@@ -123,18 +123,21 @@ export function PeriodFilter({
   from,
   to,
   ignored,
+  label = "Periode",
   onChange,
 }: Readonly<{
   period: string;
   from: string;
   to: string;
   ignored: boolean;
+  /** Names the period where it means something other than the deadline: the contract end. */
+  label?: string;
   onChange: (key: "period" | "from" | "to", value: string) => void;
 }>) {
   return (
     <>
       <FilterSelect
-        label="Periode"
+        label={label}
         value={period}
         options={PERIOD_OPTIONS}
         onChange={(value) => onChange("period", value)}
