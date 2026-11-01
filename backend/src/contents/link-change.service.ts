@@ -47,7 +47,10 @@ export interface LinkChanger {
  */
 export const LINK_PERFORMANCE_COLUMNS = Symbol('LINK_PERFORMANCE_COLUMNS');
 
-/** Everything a link change decides on, read in one query (LinkedContent). */
+/**
+ * Everything a link change decides on, read in one query (LinkedContent), except the creator's
+ * accounts on file: only a submit checks those, so a replace does not fetch them.
+ */
 export const LINKED_CONTENT_SELECT = {
   id: true,
   status: true,
@@ -65,6 +68,21 @@ export const LINKED_CONTENT_SELECT = {
           first_name: true,
           middle_name: true,
           last_name: true,
+        },
+      },
+    },
+  },
+} as const;
+
+/** The same read with the creator's accounts on file, for a change that checks them. */
+export const LINKED_CONTENT_WITH_ACCOUNTS_SELECT = {
+  ...LINKED_CONTENT_SELECT,
+  contracts: {
+    select: {
+      ...LINKED_CONTENT_SELECT.contracts.select,
+      creators: {
+        select: {
+          ...LINKED_CONTENT_SELECT.contracts.select.creators.select,
           social_accounts: { select: { platform: true } },
         },
       },
@@ -81,7 +99,9 @@ export interface LinkChangeTransaction {
         status: { in: content_status[] };
         contracts?: { creator_id: string };
       };
-      select: typeof LINKED_CONTENT_SELECT;
+      select:
+        | typeof LINKED_CONTENT_SELECT
+        | typeof LINKED_CONTENT_WITH_ACCOUNTS_SELECT;
     }): Promise<LinkedContent | null>;
     updateMany(args: {
       where: { id: string; status: content_status };
@@ -182,7 +202,9 @@ export class LinkChangeService implements LinkChanger {
           status: { in: [...COMMITTED_STATUSES] },
           ...actor.scope,
         },
-        select: LINKED_CONTENT_SELECT,
+        select: change.readsAccounts
+          ? LINKED_CONTENT_WITH_ACCOUNTS_SELECT
+          : LINKED_CONTENT_SELECT,
       });
       if (!content) {
         throw new NotFoundException({

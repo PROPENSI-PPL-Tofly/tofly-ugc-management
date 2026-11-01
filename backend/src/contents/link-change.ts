@@ -48,7 +48,8 @@ export interface LinkedContent {
       first_name: string;
       middle_name: string | null;
       last_name: string | null;
-      social_accounts: { platform: social_platform }[];
+      /** Read only for a change that checks them (LinkChange.readsAccounts). */
+      social_accounts?: { platform: social_platform }[];
     };
   };
 }
@@ -221,6 +222,9 @@ function asHandedIn(
 }
 
 export abstract class LinkChange {
+  /** Whether the plan checks the creator's accounts on file, so the read fetches them. */
+  readonly readsAccounts: boolean = false;
+
   /**
    * The plan for this change, or the refusal. The invoice lock comes first: once the invoice is
    * finalized nothing about the links may move, whatever else is wrong (AC 8, 9; OWASP A08).
@@ -244,6 +248,8 @@ export abstract class LinkChange {
  * submitted day (AC 7); a link for another platform later only adds itself (AC 8).
  */
 export class SubmitLinks extends LinkChange {
+  override readonly readsAccounts = true;
+
   constructor(private readonly links: readonly PlatformLink[]) {
     super();
   }
@@ -253,8 +259,9 @@ export class SubmitLinks extends LinkChange {
     actor: LinkActor,
     clock: LinkClock,
   ): LinkPlan {
+    // Accounts that were not read count as none, so a wrong read refuses rather than admits.
     const accounts = new Set(
-      content.contracts.creators.social_accounts.map(
+      (content.contracts.creators.social_accounts ?? []).map(
         (account) => account.platform,
       ),
     );
