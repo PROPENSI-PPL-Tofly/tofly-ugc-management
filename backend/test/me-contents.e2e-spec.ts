@@ -78,9 +78,9 @@ describe('GET /me/contents (e2e)', () => {
         type: 'evergreen',
         deadline: day(offset),
         status,
-        // A submitted link always carries its link and day, as POST /contents/:id/video sets them.
+        // A submitted link always carries its day, as POST /contents/:id/video sets it; the link
+        // itself lives in content_links, which this list reads only for its platforms.
         ...(status === 'link_submitted' && {
-          video_link: 'https://www.instagram.com/reel/e2e/',
           video_submitted_at: day(offset - 1),
         }),
       },
@@ -291,7 +291,6 @@ describe('GET /me/contents (e2e)', () => {
           type: 'evergreen',
           deadline: day(deadline),
           status: 'link_submitted',
-          video_link: 'https://www.instagram.com/reel/e2e/',
           video_submitted_at: day(sent),
         },
       });
@@ -327,6 +326,7 @@ describe('GET /me/contents (e2e)', () => {
       'deadline',
       'id',
       'name',
+      'platforms',
       'revisionNotes',
       'status',
       'tags',

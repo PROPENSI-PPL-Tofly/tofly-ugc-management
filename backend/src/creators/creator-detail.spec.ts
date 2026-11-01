@@ -34,7 +34,7 @@ function content(overrides: Partial<DetailContentRow> = {}): DetailContentRow {
     type: 'evergreen',
     deadline: day(-10),
     status: 'scheduled',
-    video_link: null,
+    content_links: [],
     video_submitted_at: null,
     approval_bypassed: false,
     ...handedIn(0),
@@ -259,7 +259,7 @@ describe('toContentEntries', () => {
         content({
           status: 'link_submitted',
           deadline: day(-2),
-          video_link: 'https://www.tiktok.com/@ayu/video/1',
+          content_links: [{ url: 'https://www.tiktok.com/@ayu/video/1' }],
           video_submitted_at: day(-1),
         }),
       ),

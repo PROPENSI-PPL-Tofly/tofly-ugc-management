@@ -94,7 +94,6 @@ describe('GET /contents (e2e)', () => {
         ...(extra.videoOffset === undefined
           ? {}
           : {
-              video_link: `https://video.example.com/${MARKER}/${name}`,
               video_submitted_at: day(extra.videoOffset),
             }),
       },
@@ -208,6 +207,7 @@ describe('GET /contents (e2e)', () => {
       status: 'draft_review',
       tags: [],
       revisionCount: 1,
+      platforms: [],
     });
   });
 

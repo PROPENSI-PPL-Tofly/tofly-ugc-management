@@ -1,4 +1,6 @@
+import type { social_platform } from '@prisma/client';
 import type { ContentEvent, DetailEventType } from './content-detail.js';
+import { isSocialPlatform } from './link-rules.js';
 
 // The stored history (content_events) read back into the steps the Content Detail panel shows.
 // The table speaks the writers' vocabulary ("Draft Submitted", revision_note); the panel's
@@ -16,27 +18,54 @@ export interface StoredEventRow {
 
 // Each stored kind and the panel step it becomes, with the details that step carries. A kind
 // missing here is skipped rather than guessed at.
-const STEP_FOR: Record<string, { type: DetailEventType; payload: (data: Data) => ContentEvent['payload'] }> = {
+const STEP_FOR: Record<
+  string,
+  { type: DetailEventType; payload: (data: Data) => ContentEvent['payload'] }
+> = {
   Scheduled: { type: 'scheduled', payload: () => undefined },
   'Proposal Approved': { type: 'proposal_approved', payload: () => undefined },
   'Auto Scheduled': { type: 'auto_scheduled', payload: () => undefined },
   'Draft Approved': { type: 'draft_approved', payload: () => undefined },
   'Draft Submitted': {
     type: 'draft_submitted',
-    payload: (data) => details({ version: data.number('version'), link: data.text('link'), note: data.text('note') }),
+    payload: (data) =>
+      details({
+        version: data.number('version'),
+        link: data.text('link'),
+        note: data.text('note'),
+      }),
   },
   'Revision Requested': {
     type: 'revision_requested',
     payload: (data) => details({ note: data.text('revision_note') }),
   },
-  'Link Submitted': { type: 'link_submitted', payload: (data) => details({ link: data.text('link') }) },
-  'Creator Comment': { type: 'creator_comment', payload: (data) => details({ note: data.text('comment') }) },
+  'Link Submitted': {
+    type: 'link_submitted',
+    payload: (data) =>
+      details({ link: data.text('link'), platform: data.platform('platform') }),
+  },
+  // A replaced link is still a link step (PBI-38 AC 9); `replaced` says it took another's place.
+  'Link Replaced': {
+    type: 'link_submitted',
+    payload: (data) =>
+      details({
+        link: data.text('link'),
+        platform: data.platform('platform'),
+        replaced: true,
+      }),
+  },
+  'Creator Comment': {
+    type: 'creator_comment',
+    payload: (data) => details({ note: data.text('comment') }),
+  },
 };
 
 /** Typed reads of a stored jsonb object; a field of the wrong type reads as absent. */
 interface Data {
   number(key: string): number | undefined;
   text(key: string): string | undefined;
+  /** A platform the app knows; any other stored value reads as absent. */
+  platform(key: string): social_platform | undefined;
 }
 
 function dataOf(value: unknown): Data {
@@ -45,17 +74,24 @@ function dataOf(value: unknown): Data {
       ? (value as Record<string, unknown>)
       : {};
   return {
-    number: (key) => (typeof fields[key] === 'number' ? fields[key] : undefined),
+    number: (key) =>
+      typeof fields[key] === 'number' ? fields[key] : undefined,
     // Blank text says nothing, as blank notes are left out everywhere else.
+    platform: (key) =>
+      isSocialPlatform(fields[key]) ? fields[key] : undefined,
     text: (key) => {
       const field = fields[key];
-      return typeof field === 'string' && field.trim() !== '' ? field : undefined;
+      return typeof field === 'string' && field.trim() !== ''
+        ? field
+        : undefined;
     },
   };
 }
 
 /** Drops the absent fields, so the payload holds only what was stored. */
-function details(fields: NonNullable<ContentEvent['payload']>): NonNullable<ContentEvent['payload']> {
+function details(
+  fields: NonNullable<ContentEvent['payload']>,
+): NonNullable<ContentEvent['payload']> {
   return Object.fromEntries(
     Object.entries(fields).filter(([, value]) => value !== undefined),
   ) as NonNullable<ContentEvent['payload']>;
@@ -72,7 +108,9 @@ export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
       return [];
     }
     const role =
-      row.actor_role === 'admin' || row.actor_role === 'system' ? row.actor_role : 'creator';
+      row.actor_role === 'admin' || row.actor_role === 'system'
+        ? row.actor_role
+        : 'creator';
     const payload = step.payload(dataOf(row.event_data));
     return [
       {

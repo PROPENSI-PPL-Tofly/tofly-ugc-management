@@ -187,15 +187,13 @@ alter table seed_contents add column base integer;
 update seed_contents
 set base = least(deadline, coalesce(submitted, deadline), 0) - 2 - 2 * draft_count;
 
-insert into contents (contract_id, name, type, deadline, status, video_link, video_submitted_at,
+insert into contents (contract_id, name, type, deadline, status, video_submitted_at,
                       created_at, updated_at)
 select k.id,
        s.name,
        s.type::content_type,
        current_date + s.deadline,
        s.status::content_status,
-       case when s.submitted is null then null
-            else 'https://example.com/video/' || lower(regexp_replace(s.name, '[^A-Za-z0-9]+', '-', 'g')) end,
        case when s.submitted is null then null else current_date + s.submitted end,
        ((current_date + s.base) + time '02:00') at time zone 'UTC',
        -- An approval is read from the moment the status last changed: the last review.
@@ -206,6 +204,26 @@ from seed_contents s
 join users u on u.email = s.email
 join creators c on c.user_id = u.id
 join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contract_end;
+
+-- Each submitted video's link, as POST /contents/:id/video stores it (PBI-38): one row in
+-- content_links on the day the content was submitted, handed in by its creator. The seeded links
+-- are example.com placeholders, so they name no platform, as the migration keeps such a link.
+insert into content_links (content_id, platform, url, normalized_url, submitted_at, submitted_by)
+select n.id,
+       null,
+       l.url,
+       content_link_key(l.url),
+       n.video_submitted_at,
+       u.id
+from seed_contents s
+join users u on u.email = s.email
+join creators c on c.user_id = u.id
+join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contract_end
+join contents n on n.contract_id = k.id and n.name = s.name
+cross join lateral (
+  select 'https://example.com/video/' || lower(regexp_replace(s.name, '[^A-Za-z0-9]+', '-', 'g')) as url
+) as l
+where s.submitted is not null;
 
 -- One submission row per draft handed in; the first is the original, the rest are revisions.
 -- The admin's revision note sits on the draft it was written about, as the review endpoint

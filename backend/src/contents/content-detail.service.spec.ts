@@ -15,7 +15,7 @@ function row() {
     brief: '',
     deadline: new Date('2026-09-30T00:00:00.000Z'),
     status: 'scheduled' as const,
-    video_link: null,
+    content_links: [],
     video_submitted_at: null,
     approval_bypassed: false,
     created_at: new Date('2026-09-01T03:00:00.000Z'),
@@ -49,6 +49,11 @@ describe('ContentDetailService', () => {
         status: true,
         video_submitted_at: true,
         approval_bypassed: true,
+        // The links in the order they were handed in: the first is the content's submitted one.
+        content_links: {
+          orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+          select: { platform: true, url: true, submitted_at: true },
+        },
         contracts: expect.anything(),
         submissions: expect.objectContaining({
           select: expect.objectContaining({ creator_notes: true }),

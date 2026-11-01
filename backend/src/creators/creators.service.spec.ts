@@ -66,7 +66,7 @@ type DetailContentRow = {
   type: string;
   deadline: Date;
   status: string;
-  video_link: string | null;
+  content_links: { url: string }[];
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
   _count: { submissions: number };
@@ -139,7 +139,7 @@ function detailRow(): DetailCreatorRow {
             type: 'evergreen',
             deadline: day(-30),
             status: 'link_submitted',
-            video_link: 'https://example.com/video-1',
+            content_links: [{ url: 'https://example.com/video-1' }],
             video_submitted_at: day(-31),
             approval_bypassed: false,
             _count: { submissions: 2 },
@@ -156,7 +156,7 @@ function detailRow(): DetailCreatorRow {
             type: 'specific',
             deadline: day(2),
             status: 'draft_review',
-            video_link: null,
+            content_links: [],
             video_submitted_at: null,
             approval_bypassed: false,
             _count: { submissions: 0 },
@@ -301,7 +301,7 @@ describe('CreatorsService', () => {
       type: 'specific',
       deadline: day(10),
       status: 'pending',
-      video_link: null,
+      content_links: [],
       video_submitted_at: null,
       approval_bypassed: false,
       _count: { submissions: 0 },
@@ -323,7 +323,7 @@ describe('CreatorsService', () => {
         type: 'evergreen',
         deadline: day(-10),
         status: 'link_submitted',
-        video_link: 'https://example.com/video-late',
+        content_links: [{ url: 'https://example.com/video-late' }],
         video_submitted_at: day(-8),
         approval_bypassed: true,
         _count: { submissions: 0 },
@@ -335,7 +335,7 @@ describe('CreatorsService', () => {
         type: 'evergreen',
         deadline: day(-5),
         status: 'draft_revision',
-        video_link: null,
+        content_links: [],
         video_submitted_at: null,
         approval_bypassed: false,
         _count: { submissions: 2 },
@@ -370,6 +370,12 @@ describe('CreatorsService', () => {
     expect(contracts.select.contents.select).toMatchObject({
       approval_bypassed: true,
       video_submitted_at: true,
+      // Only the first link: its url is the video the detail shows (PBI-38 AC 7).
+      content_links: {
+        orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+        take: 1,
+        select: { url: true },
+      },
       submissions: {
         orderBy: { created_at: 'desc' },
         take: 1,
@@ -773,7 +779,7 @@ describe('CreatorsService', () => {
           type: 'evergreen',
           deadline: day(-150),
           status: 'link_submitted',
-          video_link: 'https://example.com/video-old',
+          content_links: [{ url: 'https://example.com/video-old' }],
           video_submitted_at: day(-151),
           approval_bypassed: false,
           _count: { submissions: 1 },
