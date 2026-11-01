@@ -35,7 +35,7 @@ describe("readConnections", () => {
     });
   });
 
-  it("reads every platform as not connected while the backend sends nothing (19.3 not merged)", () => {
+  it("reads every platform as not connected while the backend sends nothing", () => {
     expect(readConnections(undefined)).toEqual({
       instagram: NOT_CONNECTED,
       tiktok: NOT_CONNECTED,
@@ -134,7 +134,7 @@ describe("isUsernameLocked", () => {
     expect(isUsernameLocked(NOT_CONNECTED)).toBe(false);
   });
 
-  it("leaves every username open while the backend sends no connections (19.3 not merged)", () => {
+  it("leaves every username open while the backend sends no connections", () => {
     const connections = readConnections(undefined);
 
     expect(isUsernameLocked(connections.instagram)).toBe(false);
