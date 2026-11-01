@@ -120,6 +120,74 @@ describe('social_accounts storage (e2e)', () => {
     ).resolves.toBe('linked');
   });
 
+  // PRD 19 AC 6: reconnecting replaces the tokens; one account per platform.
+  it('replaces the tokens on a reconnect and keeps one row for the platform', async () => {
+    await linker.link(first, tiktokAccount());
+    const before = await prisma.social_accounts.findFirstOrThrow({
+      where: { creator_id: first },
+      select: { access_token: true },
+    });
+
+    await linker.link(first, {
+      ...tiktokAccount(),
+      accessToken: 'act.e2e-newer-token',
+    });
+
+    const rows = await prisma.social_accounts.findMany({
+      where: { creator_id: first },
+      select: { access_token: true },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].access_token).not.toBe(before.access_token);
+    expect(cipher.decrypt(rows[0].access_token ?? '', `${first}:tiktok`)).toBe(
+      'act.e2e-newer-token',
+    );
+  });
+
+  // PRD 19 AC 9: the handle typed at Tambah Creator gives way to the platform's, on the record.
+  describe('a username the platform changes', () => {
+    async function typedAtTambahCreator(username: string): Promise<void> {
+      await prisma.social_accounts.create({
+        data: { creator_id: first, platform: 'tiktok', username },
+      });
+    }
+
+    function changes() {
+      return prisma.social_username_changes.findMany({
+        where: { social_accounts: { creator_id: first } },
+        orderBy: { changed_at: 'asc' },
+      });
+    }
+
+    it('keeps the old and new username with the time', async () => {
+      await typedAtTambahCreator('rangga.typed');
+
+      await linker.link(first, tiktokAccount());
+
+      const [change, ...rest] = await changes();
+      expect(rest).toEqual([]);
+      expect(change).toMatchObject({
+        old_username: 'rangga.typed',
+        new_username: 'rangga.creates',
+      });
+      expect(change.changed_at).toBeInstanceOf(Date);
+      await expect(
+        prisma.social_accounts.findFirstOrThrow({
+          where: { creator_id: first },
+          select: { username: true },
+        }),
+      ).resolves.toEqual({ username: 'rangga.creates' });
+    });
+
+    it('keeps nothing when the username is the same', async () => {
+      await typedAtTambahCreator('rangga.creates');
+
+      await linker.link(first, tiktokAccount());
+
+      await expect(changes()).resolves.toEqual([]);
+    });
+  });
+
   // PRD 3.6, OWASP A04:2025: a leaked table holds no usable token.
   it('stores both tokens encrypted, opening only for the creator and platform they belong to', async () => {
     await linker.link(first, tiktokAccount());
