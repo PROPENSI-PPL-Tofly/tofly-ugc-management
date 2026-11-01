@@ -13,7 +13,8 @@ import {
   InstagramConnectController,
 } from './instagram/instagram-connect.controller.js';
 import { InstagramConnectService } from './instagram/instagram-connect.service.js';
-import { SOCIAL_ACCOUNT_STORE, type SocialAccountStore } from './ports.js';
+import { PrismaSocialAccountLinker } from './prisma-social-account-linker.js';
+import { SOCIAL_WIRING, type SocialWiring } from './social-config.js';
 import { SocialModule } from './social.module.js';
 
 const SETTINGS = {
@@ -73,21 +74,14 @@ describe('SocialModule', () => {
     expect(module.get(INSTAGRAM_CONFIG)).toBeUndefined();
   });
 
-  it('refuses to save an account until account storage (19.3) is built', async () => {
-    const module = await compile();
-    const store = module.get<SocialAccountStore>(SOCIAL_ACCOUNT_STORE);
+  it("keeps Instagram's accounts in the same encrypted store as TikTok's", async () => {
+    stubSettings({ SOCIAL_TOKEN_KEY: randomBytes(32).toString('base64') });
 
-    await expect(
-      store.save({
-        creatorId: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b',
-        platform: 'instagram',
-        platformUserId: '1784',
-        username: 'rangga.creates',
-        accessToken: 'IGAA-token',
-        refreshToken: null,
-        tokenExpiresAt: null,
-      }),
-    ).rejects.toThrow(/not ready/);
+    const module = await compile();
+
+    expect(module.get<SocialWiring>(SOCIAL_WIRING).linker).toBeInstanceOf(
+      PrismaSocialAccountLinker,
+    );
   });
 
   it('is switched on in the app', () => {
