@@ -24,6 +24,14 @@ vi.mock("@/lib/deadline-schedule", () => ({
 
 const mockedCreateContent = vi.mocked(createContent);
 
+/** The H-5 words sit in the always-open tip and, after a refused date, in the error. The error
+ *  is the copy outside role="tooltip". */
+function deadlineError(): HTMLElement | undefined {
+  return screen
+    .queryAllByText(/Deadline paling lambat/)
+    .find((element) => element.getAttribute("role") !== "tooltip");
+}
+
 const defaultProps = {
     contractId: "22222222-2222-4222-8222-222222222222",
     evergreenCount: 1,
@@ -85,9 +93,9 @@ describe("AddContentModal", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
 
-      expect(
-        await screen.findByText("Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)"),
-      ).toBeInTheDocument();
+      expect(deadlineError()).toHaveTextContent(
+        "Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)",
+      );
     });
 
     it("takes a date on the H-5 line itself", async () => {
@@ -104,7 +112,7 @@ describe("AddContentModal", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
 
-      expect(screen.queryByText(/Deadline paling lambat/)).not.toBeInTheDocument();
+      expect(deadlineError()).toBeUndefined();
     });
 
     it("renders Evergreen by default with only the deadline field", () => {
@@ -402,11 +410,9 @@ describe("AddContentModal", () => {
             screen.getByRole("button", { name: "Simpan" }),
         );
 
-        expect(
-            screen.getByText(
-                "Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)",
-            ),
-        ).toBeInTheDocument();
+        expect(deadlineError()).toHaveTextContent(
+            "Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)",
+        );
 
         expect(mockedCreateContent).not.toHaveBeenCalled();
     });

@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Modal } from "@/components/ui/modal";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import {
@@ -32,16 +33,26 @@ function Field({
                    label,
                    error,
                    note,
+                   hint,
                    children,
                }: {
     label: string;
     error?: string;
     /** Rendered outside the label so it stays out of the control's accessible name. */
     note?: React.ReactNode;
+    /** What the field means, behind an ⓘ beside the label; outside the label so the
+     *  explanation stays out of the control's accessible name. */
+    hint?: { label: string; text: string };
     children: React.ReactNode;
 }) {
     return (
-        <div className="flex flex-col gap-1 text-[13px]">
+        // The message sits outside the label so it never becomes part of the input's name.
+        <div className="relative flex flex-col gap-1 text-[13px]">
+            {hint ? (
+                <span className="absolute right-0 top-0">
+                    <InfoTip label={hint.label} text={hint.text} align="end" />
+                </span>
+            ) : null}
             <label className="flex flex-col gap-1">
                 <span className={`font-semibold ${REQUIRED_MARK}`}>
                     {label}
@@ -289,14 +300,20 @@ export function AddContentModal({
                 </>
             ) : null}
 
-            <Field label="Deadline" error={errors.deadline}>
+            <Field
+                label="Deadline"
+                error={errors.deadline}
+                hint={{
+                    label: "Tentang batas H-5",
+                    text: `Deadline paling lambat ${formatDate(lastAllowed)} (H-5 akhir kontrak)`,
+                }}
+            >
                 <input
                     type="date"
                     required
                     className={FIELD}
                     min={firstAllowed}
                     max={lastAllowed}
-                    title={`Deadline paling lambat ${formatDate(lastAllowed)} (H-5 akhir kontrak)`}
                     value={deadline}
                     onChange={(event) => {
                         setDeadline(event.target.value);
