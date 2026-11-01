@@ -19,13 +19,13 @@ describe("linkEventTitle", () => {
     expect(linkEventTitle("tiktok")).toBe("Link TikTok dikirim");
   });
 
-  it("says a replaced link was updated, not sent again", () => {
-    expect(linkEventTitle("instagram", true)).toBe("Link Instagram diperbarui");
+  it("says a replaced link took the place of another, not that it was sent again (AC 9)", () => {
+    expect(linkEventTitle("instagram", true)).toBe("Link Instagram diganti");
   });
 
   it("falls back to the video itself for an event older than the new structure", () => {
     expect(linkEventTitle(undefined)).toBe("Link video dikirim");
-    expect(linkEventTitle(undefined, true)).toBe("Link video diperbarui");
+    expect(linkEventTitle(undefined, true)).toBe("Link video diganti");
   });
 });
 

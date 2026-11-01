@@ -806,6 +806,28 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
 
       expect(await screen.findByText("Link Instagram dikirim")).toBeInTheDocument();
     });
+
+    it("says a replaced link took the place of another (AC 9)", async () => {
+      open(
+        detail({
+          status: "link_submitted",
+          links: [
+            { platform: "instagram", url: "https://instagram.com/p/new", submittedAt: "2026-10-19" },
+          ],
+          events: [
+            {
+              id: "ev-1",
+              type: "link_submitted",
+              at: "2026-10-19T03:00:00.000Z",
+              actor: { name: "Rangga Pratama", role: "creator" },
+              payload: { link: "https://instagram.com/p/new", platform: "instagram", replaced: true },
+            },
+          ],
+        }),
+      );
+
+      expect(await screen.findByText("Link Instagram diganti")).toBeInTheDocument();
+    });
   });
 
   function show(overrides: Partial<ContentDetail> = {}, load?: Loader) {
