@@ -212,13 +212,13 @@ export function MyTaskTable({
                 ) : (
                   task.name
                 )}
-                {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
-                <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
                 {task.platforms.length ? (
                   <div className="mt-1">
                     <PlatformIcons platforms={task.platforms} />
                   </div>
                 ) : null}
+                {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
+                <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
               </td>
               <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 {formatDate(task.deadline)}
