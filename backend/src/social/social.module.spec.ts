@@ -13,6 +13,7 @@ import {
   InstagramConnectController,
 } from './instagram/instagram-connect.controller.js';
 import { InstagramConnectService } from './instagram/instagram-connect.service.js';
+import { MySocialAccountsController } from './my-social-accounts.controller.js';
 import { PrismaSocialAccountLinker } from './prisma-social-account-linker.js';
 import { SOCIAL_WIRING, type SocialWiring } from './social-config.js';
 import { SocialModule } from './social.module.js';
@@ -81,6 +82,14 @@ describe('SocialModule', () => {
 
     expect(module.get<SocialWiring>(SOCIAL_WIRING).linker).toBeInstanceOf(
       PrismaSocialAccountLinker,
+    );
+  });
+
+  it('serves the Akun Terhubung API', async () => {
+    const module = await compile();
+
+    expect(module.get(MySocialAccountsController)).toBeInstanceOf(
+      MySocialAccountsController,
     );
   });
 

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { MySocialAccountsService } from '../src/social/my-social-accounts.service.js';
 import type { PlatformAccount } from '../src/social/ports.js';
 import { PrismaSocialAccountLinker } from '../src/social/prisma-social-account-linker.js';
 import { TokenCipher } from '../src/social/token-cipher.js';
@@ -186,6 +187,95 @@ describe('social_accounts storage (e2e)', () => {
 
       await expect(changes()).resolves.toEqual([]);
     });
+  });
+
+  // PRD 19 AC 7, 8: disconnecting deletes the tokens; the row and its username stay.
+  describe('a disconnect', () => {
+    const accounts = new MySocialAccountsService(prisma);
+
+    it('leaves no token behind, and the creator can read that they are not connected', async () => {
+      await linker.link(first, tiktokAccount());
+
+      await expect(accounts.disconnect(first, 'tiktok')).resolves.toBe(true);
+
+      await expect(
+        prisma.social_accounts.findFirstOrThrow({
+          where: { creator_id: first, platform: 'tiktok' },
+          select: {
+            username: true,
+            access_token: true,
+            refresh_token: true,
+            token_expires_at: true,
+            refresh_token_expires_at: true,
+            platform_user_id: true,
+            is_connected: true,
+            connected_at: true,
+          },
+        }),
+      ).resolves.toEqual({
+        username: 'rangga.creates',
+        access_token: null,
+        refresh_token: null,
+        token_expires_at: null,
+        refresh_token_expires_at: null,
+        platform_user_id: null,
+        is_connected: false,
+        connected_at: null,
+      });
+      await expect(accounts.list(first)).resolves.toEqual({
+        accounts: [
+          {
+            platform: 'tiktok',
+            connected: false,
+            username: 'rangga.creates',
+            connectedAt: null,
+            lastSyncAt: null,
+          },
+        ],
+      });
+    });
+
+    it('frees the account for another creator to connect', async () => {
+      await linker.link(first, tiktokAccount());
+      await accounts.disconnect(first, 'tiktok');
+
+      await expect(linker.link(second, tiktokAccount())).resolves.toBe(
+        'linked',
+      );
+    });
+
+    it("cannot reach another creator's account", async () => {
+      await linker.link(first, tiktokAccount());
+
+      await expect(accounts.disconnect(second, 'tiktok')).resolves.toBe(false);
+      await expect(
+        prisma.social_accounts.count({
+          where: { creator_id: first, is_connected: true },
+        }),
+      ).resolves.toBe(1);
+    });
+  });
+
+  // PRD 19 AC 13: no answer about an account ever carries a token, sealed or open.
+  it('answers the account with no token in it', async () => {
+    await linker.link(first, tiktokAccount());
+    const sealed = await prisma.social_accounts.findFirstOrThrow({
+      where: { creator_id: first },
+      select: { access_token: true, refresh_token: true },
+    });
+
+    const answer = JSON.stringify(
+      await new MySocialAccountsService(prisma).list(first),
+    );
+
+    for (const token of [
+      ACCESS,
+      REFRESH,
+      sealed.access_token,
+      sealed.refresh_token,
+    ]) {
+      expect(answer).not.toContain(token);
+    }
   });
 
   // PRD 3.6, OWASP A04:2025: a leaked table holds no usable token.
