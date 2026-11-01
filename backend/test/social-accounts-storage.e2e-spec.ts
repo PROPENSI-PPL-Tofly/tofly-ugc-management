@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import { CreatorsService } from '../src/creators/creators.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { MySocialAccountsService } from '../src/social/my-social-accounts.service.js';
 import type { PlatformAccount } from '../src/social/ports.js';
@@ -275,6 +276,31 @@ describe('social_accounts storage (e2e)', () => {
       sealed.refresh_token,
     ]) {
       expect(answer).not.toContain(token);
+    }
+  });
+
+  // PRD 19 AC 11-13: Admin sees the connection, and nothing of the token.
+  it("shows Admin the connection and no token, in the creator's detail and the list", async () => {
+    await linker.link(first, tiktokAccount());
+    const creators = new CreatorsService(prisma);
+    const sealed = await prisma.social_accounts.findFirstOrThrow({
+      where: { creator_id: first },
+      select: { access_token: true, refresh_token: true },
+    });
+
+    const detail = await creators.findOne(first);
+    const list = await creators.list({ page: 1, pageSize: 100 });
+
+    expect(detail.socialConnections?.tiktok?.connected).toBe(true);
+    for (const answer of [JSON.stringify(detail), JSON.stringify(list)]) {
+      for (const token of [
+        ACCESS,
+        REFRESH,
+        sealed.access_token,
+        sealed.refresh_token,
+      ]) {
+        expect(answer).not.toContain(token);
+      }
     }
   });
 
