@@ -3,7 +3,7 @@ import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
 import { ContentPlanTable } from "./content-plan-table";
 
 const ROW: ContentPlanRow = {
-  links: [],
+  platforms: [],
   contentId: "c-1",
   name: "Video Review Kopi",
   creatorId: "id-1",
@@ -163,10 +163,7 @@ describe("ContentPlanTable", () => {
     renderTable([
       {
         ...ROW,
-        links: [
-          { platform: "instagram", url: "https://instagram.com/p/x", submittedAt: "2026-10-18T03:00:00.000Z" },
-          { platform: "tiktok", url: "https://tiktok.com/@a/video/1", submittedAt: "2026-10-19T03:00:00.000Z" },
-        ],
+        platforms: ["instagram", "tiktok"],
       },
     ]);
 

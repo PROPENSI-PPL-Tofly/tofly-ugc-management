@@ -4,7 +4,7 @@ import type { CreatorContentRow } from "@/lib/creator-detail";
 import { CreatorContentTable } from "./creator-content-table";
 
 const ROW: CreatorContentRow = {
-  links: [],
+  platforms: [],
   contentId: "c-1",
   name: "Evg_7_RanggaPratama_26092026",
   type: "evergreen",
@@ -114,10 +114,7 @@ describe("CreatorContentTable", () => {
         rows={[
           {
             ...ROW,
-            links: [
-              { platform: "instagram", url: "https://instagram.com/p/x", submittedAt: "2026-10-18T03:00:00.000Z" },
-              { platform: "tiktok", url: "https://tiktok.com/@a/video/1", submittedAt: "2026-10-19T03:00:00.000Z" },
-            ],
+            platforms: ["instagram", "tiktok"],
           },
         ]}
         filtered={false}

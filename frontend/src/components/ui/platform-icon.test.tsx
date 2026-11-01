@@ -1,12 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { ALL_PLATFORMS, PlatformIcon, PlatformIcons } from "./platform-icon";
-import type { ContentLink } from "@/lib/platform-links";
-
-const link = (platform: "instagram" | "tiktok", url: string): ContentLink => ({
-  platform,
-  url,
-  submittedAt: "2026-10-18T03:00:00.000Z",
-});
 
 describe("PlatformIcon", () => {
   it("names the mark it draws, so the icon is never the only signal", () => {
@@ -26,27 +19,20 @@ describe("PlatformIcon", () => {
 
 describe("PlatformIcons", () => {
   it("shows one mark per submitted platform, each named once", () => {
-    render(
-      <PlatformIcons
-        links={[
-          link("tiktok", "https://tiktok.com/@a/video/1"),
-          link("instagram", "https://instagram.com/p/x"),
-        ]}
-      />,
-    );
+    render(<PlatformIcons platforms={["instagram", "tiktok"]} />);
 
     expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
   });
 
-  it("shows a platform once whatever the number of its links", () => {
-    render(<PlatformIcons links={[link("instagram", "https://instagram.com/p/x")]} />);
+  it("shows a platform once however often the list names it", () => {
+    render(<PlatformIcons platforms={["instagram", "instagram"]} />);
 
     expect(screen.getAllByRole("img", { name: "Instagram" })).toHaveLength(1);
   });
 
   it("shows nothing at all while no link has been sent", () => {
-    const { container } = render(<PlatformIcons links={[]} />);
+    const { container } = render(<PlatformIcons platforms={[]} />);
 
     expect(container).toBeEmptyDOMElement();
   });

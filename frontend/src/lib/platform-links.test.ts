@@ -4,8 +4,6 @@ import {
   linkEventTitle,
   PLATFORM_LABELS,
   PLATFORMS,
-  platformsOf,
-  type ContentLink,
 } from "./platform-links";
 
 describe("the platform vocabulary", () => {
@@ -49,28 +47,5 @@ describe("latestDeadline", () => {
 
   it("gives the day before the contract end when it ends five days into a month", () => {
     expect(latestDeadline("2026-09-05")).toBe("2026-08-31");
-  });
-});
-
-describe("platformsOf", () => {
-  const link = (platform: "instagram" | "tiktok", url: string): ContentLink => ({
-    platform,
-    url,
-    submittedAt: "2026-10-18T03:00:00.000Z",
-  });
-
-  it("names every platform with a submitted link, Instagram first", () => {
-    expect(
-      platformsOf([link("tiktok", "https://tiktok.com/@a/video/1"), link("instagram", "https://instagram.com/p/x")]),
-    ).toEqual(["instagram", "tiktok"]);
-  });
-
-  it("names a platform once whatever the number of links", () => {
-    expect(platformsOf([link("instagram", "https://instagram.com/p/x")])).toEqual(["instagram"]);
-  });
-
-  it("names nothing for a content with no links yet", () => {
-    expect(platformsOf([])).toEqual([]);
-    expect(platformsOf(undefined)).toEqual([]);
   });
 });

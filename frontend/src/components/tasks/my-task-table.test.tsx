@@ -13,7 +13,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
-    links: [],
+    platforms: [],
     ...overrides,
   };
 }
@@ -31,12 +31,7 @@ describe("MyTaskTable", () => {
     render(
       <MyTaskTable
         tasks={[
-          task({
-            links: [
-              { platform: "instagram", url: "https://instagram.com/p/x", submittedAt: "2026-10-18T03:00:00.000Z" },
-              { platform: "tiktok", url: "https://tiktok.com/@a/video/1", submittedAt: "2026-10-19T03:00:00.000Z" },
-            ],
-          }),
+          task({ platforms: ["instagram", "tiktok"] }),
         ]}
         onAction={vi.fn()}
       />,
