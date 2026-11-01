@@ -44,8 +44,9 @@ export function latestDeadline(contractEnd: string): string {
     .slice(0, 10);
 }
 
-/** The timeline's words for a link event, one per platform and per move (AC 12). */
+/** The timeline's words for a link event, one per platform and per move (AC 12): a replaced
+ * link is worded as a move, "diganti", not as sent again (AC 9). */
 export function linkEventTitle(platform: Platform | undefined, replaced = false): string {
   const name = platform ? PLATFORM_LABELS[platform] : "video";
-  return replaced ? `Link ${name} diperbarui` : `Link ${name} dikirim`;
+  return replaced ? `Link ${name} diganti` : `Link ${name} dikirim`;
 }

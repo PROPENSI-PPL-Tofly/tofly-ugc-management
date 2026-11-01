@@ -30,7 +30,14 @@ export interface RawContentEvent {
   at: string;
   /** "system" for a step the app took by itself (the H-1 scheduling); it has no name. */
   actor: { name: string | null; role: "admin" | "creator" | "system" };
-  payload?: { version?: number; link?: string; note?: string; platform?: Platform };
+  payload?: {
+    version?: number;
+    link?: string;
+    note?: string;
+    platform?: Platform;
+    /** A link that took the place of another (38.2); the step stays a link step. */
+    replaced?: boolean;
+  };
 }
 
 export interface RawContentDetail {
@@ -111,7 +118,7 @@ const STEP_WORDING: Record<
   // A comment moves the content nowhere; its note is the whole point and reads signed.
   creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
   link_submitted: (_ordinal, _by, event) => ({
-    title: linkEventTitle(event.payload?.platform),
+    title: linkEventTitle(event.payload?.platform, event.payload?.replaced === true),
     linkLabel: "Buka video",
   }),
 };
