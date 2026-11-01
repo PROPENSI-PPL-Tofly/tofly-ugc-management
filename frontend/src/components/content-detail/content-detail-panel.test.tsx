@@ -737,12 +737,12 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
             {
               platform: "instagram",
               url: "https://instagram.com/p/x",
-              submittedAt: "2026-10-18T03:00:00.000Z",
+              submittedAt: "2026-10-18",
             },
             {
               platform: "tiktok",
               url: "https://tiktok.com/@a/video/1",
-              submittedAt: "2026-10-19T03:00:00.000Z",
+              submittedAt: "2026-10-19",
             },
           ],
         }),
@@ -753,7 +753,23 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(within(section).getByRole("img", { name: "TikTok" })).toBeInTheDocument();
       const ig = within(section).getByRole("link", { name: /Instagram/ });
       expect(ig).toHaveAttribute("target", "_blank");
-      expect(within(section).getByText(/18 Okt 2026/)).toBeInTheDocument();
+      expect(within(section).getByText("18 Okt 2026")).toBeInTheDocument();
+    });
+
+    it("keeps a link from before platforms were recorded: listed unnamed, without a mark", async () => {
+      open(
+        detail({
+          links: [{ platform: null, url: "https://example.com/video/old", submittedAt: "2026-09-15" }],
+        }),
+      );
+
+      const section = await screen.findByRole("region", { name: "Tautan video" });
+      expect(within(section).queryByRole("img")).not.toBeInTheDocument();
+      expect(within(section).getByRole("link", { name: "Link" })).toHaveAttribute(
+        "target",
+        "_blank",
+      );
+      expect(within(section).getByText("15 Sep 2026")).toBeInTheDocument();
     });
 
     it("shows no link section while nothing has been sent", async () => {
@@ -773,7 +789,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
             {
               platform: "instagram",
               url: "https://instagram.com/p/x",
-              submittedAt: "2026-10-18T03:00:00.000Z",
+              submittedAt: "2026-10-18",
             },
           ],
           events: [
