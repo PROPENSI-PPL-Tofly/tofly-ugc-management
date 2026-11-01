@@ -41,6 +41,22 @@ describe("MyTaskTable", () => {
     expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
   });
 
+  it("puts the marks under the content name, above the type label, as the admin's tables do", () => {
+    render(<MyTaskTable tasks={[task({ platforms: ["instagram"] })]} onAction={vi.fn()} />);
+
+    const row = rows()[0];
+    const name = within(row).getByText("Evg_1_RanggaPratama_12102026");
+    const mark = within(row).getByRole("img", { name: "Instagram" });
+    const type = within(row).getByText("Evergreen");
+
+    expect(
+      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      mark.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("shows no marks for a task with no link sent yet", () => {
     render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
 

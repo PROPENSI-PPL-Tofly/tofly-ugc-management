@@ -171,6 +171,18 @@ describe("ContentPlanTable", () => {
     expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
   });
 
+  it("puts the marks right under the content name", () => {
+    renderTable([{ ...ROW, platforms: ["instagram"] }]);
+
+    const row = screen.getByText("Video Review Kopi").closest("tr") as HTMLElement;
+    const name = within(row).getByRole("button", { name: "Video Review Kopi" });
+    const mark = within(row).getByRole("img", { name: "Instagram" });
+
+    expect(
+      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("shows no marks for a content with no link sent yet", () => {
     renderTable([ROW]);
 

@@ -127,6 +127,22 @@ describe("CreatorContentTable", () => {
     expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
   });
 
+  it("puts the marks under the content name, above the type label", () => {
+    renderTable([{ ...ROW, platforms: ["instagram"] }]);
+
+    const row = rowOf("Evg_7_RanggaPratama_26092026");
+    const name = within(row).getByRole("button", { name: "Evg_7_RanggaPratama_26092026" });
+    const mark = within(row).getByRole("img", { name: "Instagram" });
+    const type = within(row).getByText("Evergreen");
+
+    expect(
+      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      mark.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("shows no marks for a content with no link sent yet", () => {
     render(
       <CreatorContentTable rows={[ROW]} filtered={false} onOpen={vi.fn()} onReset={vi.fn()} />,
