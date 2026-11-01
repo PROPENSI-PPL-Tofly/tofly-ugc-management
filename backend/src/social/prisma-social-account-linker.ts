@@ -34,6 +34,16 @@ export class PrismaSocialAccountLinker implements SocialAccountLinker {
       return 'taken';
     }
 
+    const onFile = await this.rows.social_accounts.findUnique({
+      where: {
+        creator_id_platform: {
+          creator_id: creatorId,
+          platform: account.platform,
+        },
+      },
+      select: { username: true },
+    });
+
     // The tokens open only for this creator and platform (associated data).
     const context = `${creatorId}:${account.platform}`;
     const values = {
@@ -64,7 +74,20 @@ export class PrismaSocialAccountLinker implements SocialAccountLinker {
           platform: account.platform,
           ...values,
         },
-        update: values,
+        // In the upsert's own transaction, so a username never changes off the record.
+        update: {
+          ...values,
+          ...(onFile !== null &&
+            onFile.username !== account.username && {
+              social_username_changes: {
+                create: {
+                  old_username: onFile.username,
+                  new_username: account.username,
+                  changed_at: this.now(),
+                },
+              },
+            }),
+        },
       });
     } catch (error) {
       // Two creators finishing the same account at once both saw it free; the unique key let

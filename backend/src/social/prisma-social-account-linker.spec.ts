@@ -204,6 +204,7 @@ describe('PrismaSocialAccountLinker', () => {
     it('is refused when another creator connected it a moment earlier', async () => {
       rows.social_accounts.findUnique
         .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ creator_id: OTHER_CREATOR });
       rows.social_accounts.upsert.mockRejectedValue(uniqueViolation());
 
@@ -214,6 +215,7 @@ describe('PrismaSocialAccountLinker', () => {
   it('passes on a unique violation the account holder does not explain', async () => {
     const violation = uniqueViolation();
     rows.social_accounts.findUnique
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ creator_id: CREATOR });
     rows.social_accounts.upsert.mockRejectedValue(violation);
