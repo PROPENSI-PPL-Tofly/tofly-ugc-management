@@ -4,7 +4,7 @@ import {
   connectErrorPath,
   type ConnectError,
 } from '../connect-redirects.js';
-import type { SocialAccountStore } from '../ports.js';
+import type { LinkResult, SocialAccountLinker } from '../ports.js';
 import {
   InstagramApiError,
   type InstagramAccount,
@@ -28,7 +28,7 @@ export class InstagramConnectService {
     private readonly client: {
       connect(code: string): Promise<InstagramAccount>;
     },
-    private readonly store: SocialAccountStore,
+    private readonly linker: SocialAccountLinker,
     private readonly log: WarningLog,
   ) {}
 
@@ -47,21 +47,25 @@ export class InstagramConnectService {
       );
     }
 
+    let result: LinkResult;
     try {
-      await this.store.save({
-        creatorId,
+      result = await this.linker.link(creatorId, {
         platform: 'instagram',
         platformUserId: account.platformUserId,
         username: account.username,
         accessToken: account.accessToken,
+        accessTokenExpiresAt: account.expiresAt,
+        // Instagram has none; its long-lived token is refreshed with itself.
         refreshToken: null,
-        tokenExpiresAt: account.expiresAt,
+        refreshTokenExpiresAt: null,
       });
     } catch {
       // Storage's own message is not logged: it may quote the row it failed to write.
       return this.failed('platform_error', 'the account could not be saved');
     }
-    return connectedPath('instagram');
+    return result === 'taken'
+      ? this.failed('account_taken', 'another creator holds the account')
+      : connectedPath('instagram');
   }
 
   private failed(error: ConnectError, reason: string): string {

@@ -19,6 +19,9 @@ export class SocialStoreNotConfigured extends Error {
   }
 }
 
+/** The one SocialWiring of a running app, so every platform stores through the same linker. */
+export const SOCIAL_WIRING = 'SOCIAL_WIRING';
+
 /** What the connect flow is built from in this environment. */
 export interface SocialWiring {
   providers: SocialOAuthProvider[];
