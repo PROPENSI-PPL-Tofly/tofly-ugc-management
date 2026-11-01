@@ -7,6 +7,7 @@ import {
 } from './link-change.js';
 import {
   LINKED_CONTENT_SELECT,
+  LINKED_CONTENT_WITH_ACCOUNTS_SELECT,
   LinkChangeService,
   type LinkChangeClient,
   type LinkChangeTransaction,
@@ -138,7 +139,8 @@ describe('LinkChangeService', () => {
           },
           contracts: { creator_id: CREATOR_ID },
         },
-        select: LINKED_CONTENT_SELECT,
+        // A submit checks the platforms against the creator's accounts on file (AC 3).
+        select: LINKED_CONTENT_WITH_ACCOUNTS_SELECT,
       });
       expect(transaction.contents.updateMany).toHaveBeenCalledWith({
         where: { id: CONTENT_ID, status: 'draft_approved' },
@@ -310,6 +312,21 @@ describe('LinkChangeService', () => {
         }),
       ]);
       expect(result.submittedAt).toBe('2026-10-05');
+    });
+
+    it("reads the content without the creator's accounts, which only a submit checks", async () => {
+      transaction.contents.findFirst.mockResolvedValue(LINKED);
+
+      await new LinkChangeService(prisma).replace(CONTENT_ID, admin, {
+        platform: 'instagram',
+        url: OTHER_REEL,
+      });
+
+      const { select } = transaction.contents.findFirst.mock.calls[0][0];
+      expect(select).toBe(LINKED_CONTENT_SELECT);
+      expect(select.contracts.select.creators.select).not.toHaveProperty(
+        'social_accounts',
+      );
     });
 
     it('clears nothing beyond the link itself until performance numbers exist', async () => {
