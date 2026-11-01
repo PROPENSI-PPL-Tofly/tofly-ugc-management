@@ -214,9 +214,9 @@ export function MyTaskTable({
                 )}
                 {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
                 <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
-                {task.links?.length ? (
+                {task.platforms.length ? (
                   <div className="mt-1">
-                    <PlatformIcons links={task.links} />
+                    <PlatformIcons platforms={task.platforms} />
                   </div>
                 ) : null}
               </td>

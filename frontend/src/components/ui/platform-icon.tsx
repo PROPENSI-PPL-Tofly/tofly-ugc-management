@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Platform } from "@/lib/platform-links";
-import { PLATFORM_LABELS, PLATFORMS, platformsOf, type ContentLink } from "@/lib/platform-links";
+import { PLATFORM_LABELS, PLATFORMS } from "@/lib/platform-links";
 
 // The two platform marks, drawn as simple inline SVGs so no icon font or image ships with the
 // app. Each carries its platform's name for screen readers; the drawing itself says nothing.
@@ -31,19 +31,20 @@ export function PlatformIcon({ platform }: Readonly<{ platform: Platform }>) {
 }
 
 /**
- * The platforms a content's links were submitted to, each named once (AC 13): the small marks
- * a table row shows beside its content. Nothing renders while no link has been sent, so a row
- * never grows an empty slot.
+ * The platforms a content has a link for, each named once (AC 13): the small marks a table row
+ * shows beside its content. The API sends the list already deduplicated and Instagram first; a
+ * platform named twice here is still drawn once. Nothing renders while no link has been sent,
+ * so a row never grows an empty slot.
  */
 export function PlatformIcons({
-  links,
-}: Readonly<{ links: readonly ContentLink[] | undefined }>) {
-  const platforms = platformsOf(links);
-  if (platforms.length === 0) return null;
+  platforms,
+}: Readonly<{ platforms: readonly Platform[] }>) {
+  const named = [...new Set(platforms)];
+  if (named.length === 0) return null;
 
   return (
     <span className="inline-flex items-center gap-1.5">
-      {platforms.map((platform) => (
+      {named.map((platform) => (
         <PlatformIcon key={platform} platform={platform} />
       ))}
     </span>

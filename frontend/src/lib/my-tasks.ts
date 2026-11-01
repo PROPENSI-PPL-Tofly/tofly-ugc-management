@@ -9,7 +9,7 @@
 // refuse.
 
 import type { StatusTabDef } from "@/components/ui/status-tabs";
-import type { ContentLink } from "./platform-links";
+import type { Platform } from "./platform-links";
 import { CONTENT_STATUS_LABELS } from "./content-labels";
 import type { DeadlineSort, OverdueFilter } from "./content-plan";
 import type { ContentType } from "./contents";
@@ -241,8 +241,8 @@ export interface MyTask {
   actions: MyTaskAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */
   revisionNotes: string | null;
-  /** The submitted links, one per platform (38.1's table); absent in an answer that predates it. */
-  links?: ContentLink[];
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: Platform[];
 }
 
 export type MyTasksCounts = Record<MyTaskTab, number>;

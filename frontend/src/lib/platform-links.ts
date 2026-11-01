@@ -47,10 +47,3 @@ export function linkEventTitle(platform: Platform | undefined, replaced = false)
   const name = platform ? PLATFORM_LABELS[platform] : "video";
   return replaced ? `Link ${name} diperbarui` : `Link ${name} dikirim`;
 }
-
-/** The platforms of a content's submitted links, Instagram first, each named once. */
-export function platformsOf(links: readonly ContentLink[] | undefined): Platform[] {
-  return PLATFORMS.filter((platform) =>
-    (links ?? []).some((link) => link.platform === platform),
-  );
-}
