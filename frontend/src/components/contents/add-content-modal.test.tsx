@@ -58,8 +58,15 @@ describe("AddContentModal", () => {
       const deadline = screen.getByLabelText("Deadline");
       // 2026-12-07 minus the five-day buffer.
       expect(deadline).toHaveAttribute("max", "2026-12-02");
-      expect(deadline).toHaveAttribute(
-        "title",
+    });
+
+    it("explains the H-5 line in a keyboard-reachable tip, never the input's title (AC 14)", () => {
+      openModal();
+
+      expect(screen.getByLabelText("Deadline")).not.toHaveAttribute("title");
+
+      const tip = screen.getByRole("button", { name: "Tentang batas H-5" });
+      expect(tip).toHaveAccessibleDescription(
         "Deadline paling lambat 2 Des 2026 (H-5 akhir kontrak)",
       );
     });
