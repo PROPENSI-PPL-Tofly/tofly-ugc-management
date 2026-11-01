@@ -19,6 +19,8 @@ import {
   InstagramConnectController,
 } from './instagram/instagram-connect.controller.js';
 import { InstagramConnectService } from './instagram/instagram-connect.service.js';
+import { MySocialAccountsController } from './my-social-accounts.controller.js';
+import { MySocialAccountsService } from './my-social-accounts.service.js';
 import {
   SOCIAL_WIRING,
   socialWiring,
@@ -44,9 +46,14 @@ const unconfiguredClient = {
   imports: [PrismaModule],
   // Order matters: Express matches routes in the order they are registered, so Instagram's own
   // /social/instagram/… must come before the generic /social/:platform/… would catch it.
-  controllers: [InstagramConnectController, SocialConnectController],
+  controllers: [
+    InstagramConnectController,
+    SocialConnectController,
+    MySocialAccountsController,
+  ],
   providers: [
     DevCreatorGuard,
+    MySocialAccountsService,
     {
       provide: INSTAGRAM_CONFIG,
       useFactory: () => instagramConfig(process.env),
