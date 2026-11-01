@@ -231,11 +231,15 @@ function Links({ links }: Readonly<{ links: readonly ContentLink[] }>) {
       <h3 className={SECTION_LABEL}>Tautan video</h3>
       <ul className="flex flex-col gap-2">
         {links.map((link) => (
-          <li key={link.platform} className="flex items-center gap-2 text-[13px]">
-            <PlatformIcon platform={link.platform} />
-            <CreatorLink link={link.url} label={PLATFORM_LABELS[link.platform]} look="chip" />
+          <li key={link.url} className="flex items-center gap-2 text-[13px]">
+            {link.platform ? <PlatformIcon platform={link.platform} /> : null}
+            <CreatorLink
+              link={link.url}
+              label={link.platform ? PLATFORM_LABELS[link.platform] : "Link"}
+              look="chip"
+            />
             <time dateTime={link.submittedAt} className="text-xs text-muted">
-              {formatTimestamp(link.submittedAt)}
+              {formatDate(link.submittedAt)}
             </time>
           </li>
         ))}

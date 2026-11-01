@@ -15,10 +15,12 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
 export const PLATFORMS = Object.keys(PLATFORM_LABELS) as Platform[];
 
 /** One submitted link, as GET /contents/:id and the lists answer it (38.1's contract). */
+/** One of a content's submitted video links (AC 11), as Content Detail lists them. */
 export interface ContentLink {
-  platform: Platform;
+  /** Null only on a link kept from before platforms were recorded (38.1). */
+  platform: Platform | null;
   url: string;
-  /** ISO instant the first link of this platform was submitted; a later link keeps its own. */
+  /** The day the link was handed in, "YYYY-MM-DD": the hour was never stored. */
   submittedAt: string;
 }
 
