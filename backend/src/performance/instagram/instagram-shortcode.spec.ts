@@ -25,12 +25,21 @@ describe('instagramShortcode', () => {
   });
 
   it.each([
-    ['a TikTok link', 'https://www.tiktok.com/@rangga/video/7432100000000000000'],
+    [
+      'a TikTok link',
+      'https://www.tiktok.com/@rangga/video/7432100000000000000',
+    ],
     ['a profile', 'https://www.instagram.com/rangga.creates/'],
     ['a story', 'https://www.instagram.com/stories/rangga.creates/3456/'],
     ['a post kind with no code', 'https://www.instagram.com/reel/'],
-    ['a host that only ends like Instagram', 'https://notinstagram.com/reel/AbCd/'],
-    ['a host that only starts like Instagram', 'https://instagram.com.evil.example/reel/AbCd/'],
+    [
+      'a host that only ends like Instagram',
+      'https://notinstagram.com/reel/AbCd/',
+    ],
+    [
+      'a host that only starts like Instagram',
+      'https://instagram.com.evil.example/reel/AbCd/',
+    ],
     ['text that is not a link', 'reel DAbC123xyz'],
     ['an empty value', ''],
   ])('finds none in %s', (_what, url) => {
