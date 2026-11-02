@@ -190,6 +190,29 @@ describe('ManualPerformanceService.enter', () => {
     expect(tx.content_events.create).not.toHaveBeenCalled();
   });
 
+  it('answers 404 CONTENT_NOT_FOUND when the content went while the entry waited for the lock, writing nothing', async () => {
+    const tx = transaction(row());
+    tx.contents.findFirst
+      .mockResolvedValueOnce({ id: CONTENT, contract_id: 'contract-1' })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      serviceWith(tx).service.enter(CONTENT, 'tiktok', ENTERED, ADMIN, NOW),
+    ).rejects.toMatchObject({ response: { code: 'CONTENT_NOT_FOUND' } });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.content_links.updateMany).not.toHaveBeenCalled();
+    expect(tx.content_events.create).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 LINK_NOT_FOUND when the content has no link on that platform, writing nothing', async () => {
+    const tx = transaction(row({ content_links: [] }));
+
+    await expect(
+      serviceWith(tx).service.enter(CONTENT, 'instagram', ENTERED, ADMIN, NOW),
+    ).rejects.toMatchObject({ response: { code: 'LINK_NOT_FOUND' } });
+    expect(tx.content_links.updateMany).not.toHaveBeenCalled();
+  });
+
   it('lets a failed event write fail the whole entry, so the transaction rolls the numbers back', async () => {
     const tx = transaction(row());
     tx.content_events.create.mockRejectedValue(new Error('insert failed'));
