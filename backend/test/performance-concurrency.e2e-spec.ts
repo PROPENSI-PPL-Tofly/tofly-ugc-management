@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { day } from './days.js';
 import { storedLink } from './links.js';
+import { useFormula } from './rate-formula-fixture.js';
 import { as, signInAsAdmin } from './sessions.js';
 
 // A manual performance entry racing Finalize on the same contract, in real PostgreSQL (PBI-27
@@ -23,6 +24,7 @@ describe('manual performance entry racing Finalize (e2e)', () => {
   let prisma: PrismaService;
   let admin: string;
   let adminUserId: string;
+  let restoreFormula: () => Promise<void>;
   let seq = 0;
 
   /** An ended contract with one delivered TikTok link that failed to sync at 9,000 views. */
@@ -134,9 +136,26 @@ describe('manual performance entry racing Finalize (e2e)', () => {
         where: { email: `${MARKER}-signed-in-admin@example.com` },
       })
     ).id;
+    // TikTok is judged on views: 9,000 reaches no tier, 12,400 reaches the first.
+    restoreFormula = await useFormula(app, prisma, {
+      latePenaltyPerDay: 50_000,
+      maxPenaltyDays: 3,
+      specificBonus: 100_000,
+      performanceBonus: {
+        instagram: {
+          metric: 'views',
+          tiers: [{ threshold: 10_000, bonus: 150_000 }],
+        },
+        tiktok: {
+          metric: 'views',
+          tiers: [{ threshold: 10_000, bonus: 150_000 }],
+        },
+      },
+    });
   });
 
   afterAll(async () => {
+    await restoreFormula();
     await prisma.creators.deleteMany({ where: { first_name: MARKER } });
     await prisma.users.deleteMany({ where: { email: { startsWith: MARKER } } });
     await app.close();
@@ -184,5 +203,52 @@ describe('manual performance entry racing Finalize (e2e)', () => {
         where: { content_id: contentId, event_type: 'Performance Entered' },
       }),
     ).toBe(0);
+  });
+
+  it('B: the manual entry locks first; Finalize queues behind it and freezes the manual 12,400 views', async () => {
+    const { contractId, contentId } = await contractWithLink();
+    const { release, held } = await holdLock(contractId, async () => {});
+
+    // Queued in this order on the held lock: the manual entry, then the real Finalize.
+    const manual = settled(enter(contentId, 12_400));
+    await blockedOnLock(1);
+    const finalize = settled(
+      as(app, admin).post(`/invoices/${contractId}/finalize`),
+    );
+    await blockedOnLock(2);
+    release();
+    await held;
+    const [{ response: entered }, { response: finalized }] = await Promise.all([
+      manual,
+      finalize,
+    ]);
+
+    expect(entered.status).toBe(200);
+    expect(finalized.status).toBe(201);
+    expect(finalized.body.snapshot.performanceBonus).toMatchObject({
+      amount: 150_000,
+      status: 'calculated',
+      lines: [
+        {
+          contentId,
+          basis: {
+            platform: 'tiktok',
+            metric: 'views',
+            value: 12_400,
+            tier: 1,
+          },
+        },
+      ],
+    });
+    expect(
+      await prisma.content_links.findFirstOrThrow({
+        where: { content_id: contentId },
+      }),
+    ).toMatchObject({ views: 12_400, data_state: 'manual' });
+    expect(
+      await prisma.content_events.count({
+        where: { content_id: contentId, event_type: 'Performance Entered' },
+      }),
+    ).toBe(1);
   });
 });
