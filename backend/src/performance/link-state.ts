@@ -10,6 +10,8 @@ export interface LinkState {
   readonly stored: link_data_state;
   /** The state a card or list shows, given whether the creator connected that platform. */
   effective(connected: boolean): link_data_state;
+  /** Refuses with 409 MANUAL_NOT_ALLOWED unless an admin may type this link's numbers in (AC 14). */
+  assertAcceptsManual(connected: boolean): void;
 }
 
 /**
@@ -23,6 +25,8 @@ class WaitingLinkState implements LinkState {
   effective(connected: boolean): link_data_state {
     return connected ? 'waiting' : 'not_connected';
   }
+
+  assertAcceptsManual(): void {}
 }
 
 /** A state shown as it is stored, whatever the account: the last outcome already says it. */
@@ -32,6 +36,8 @@ class SettledLinkState implements LinkState {
   effective(): link_data_state {
     return this.stored;
   }
+
+  assertAcceptsManual(): void {}
 }
 
 const STATES: Readonly<Record<link_data_state, LinkState>> = Object.freeze({

@@ -1,4 +1,5 @@
 import type { link_data_state } from '@prisma/client';
+import { ConflictException } from '@nestjs/common';
 import { linkState } from './link-state.js';
 
 const ALL_STATES: link_data_state[] = [
@@ -27,6 +28,46 @@ describe('linkState', () => {
         expect(linkState(state).effective(false)).toBe(state);
       },
     );
+  });
+
+  describe('manual entry (AC 14)', () => {
+    /** The 409 a state refuses manual numbers with, or null when it takes them. */
+    function refusal(state: link_data_state, connected: boolean): unknown {
+      try {
+        linkState(state).assertAcceptsManual(connected);
+        return null;
+      } catch (error) {
+        if (!(error instanceof ConflictException)) throw error;
+        return error.getResponse();
+      }
+    }
+
+    const REFUSED = {
+      code: 'MANUAL_NOT_ALLOWED',
+      message:
+        'Angka manual hanya bisa diisi untuk link yang akunnya belum terhubung, tidak ditemukan, gagal sinkron, atau sudah diisi manual',
+    };
+
+    it.each(['not_connected', 'not_found', 'sync_failed', 'manual'] as const)(
+      'lets an admin fill a %s link, connected or not',
+      (state) => {
+        expect(refusal(state, true)).toBeNull();
+        expect(refusal(state, false)).toBeNull();
+      },
+    );
+
+    it('lets an admin fill a waiting link whose account is not connected, before any sync runs', () => {
+      expect(refusal('waiting', false)).toBeNull();
+    });
+
+    it('refuses a waiting link whose account is connected: the sync will bring its numbers', () => {
+      expect(refusal('waiting', true)).toEqual(REFUSED);
+    });
+
+    it('refuses a synced link, connected or not: the platform already gave its numbers', () => {
+      expect(refusal('synced', true)).toEqual(REFUSED);
+      expect(refusal('synced', false)).toEqual(REFUSED);
+    });
   });
 
   it('names the state it was read from', () => {
