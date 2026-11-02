@@ -105,6 +105,8 @@ interface FormSpec {
   label: string;
   placeholder: string;
   required: boolean;
+  /** What a required field says once it is left empty; why Kirim stays unavailable. */
+  missingMessage?: string;
   max: number;
   decision: Decision;
   opener: PanelActionKind;
@@ -115,6 +117,7 @@ const FORMS: Record<FormKind, FormSpec> = {
     label: "Catatan revisi untuk creator",
     placeholder: "mis. Warna kurang kontras, mohon perbaiki bagian intro...",
     required: true,
+    missingMessage: "Catatan revisi wajib diisi sebelum dikirim.",
     max: MAX_REVISION_NOTE_LENGTH,
     decision: "revise",
     opener: "revise",
@@ -438,7 +441,11 @@ export function ContentDetailPanel({
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
   const [cancelled, setCancelled] = useState<FormKind | null>(null);
+  // Whether the admin has left the note field, so a required note is not flagged while it is
+  // still being started.
+  const [noteLeft, setNoteLeft] = useState(false);
   const countId = useId();
+  const missingId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
 
@@ -562,12 +569,15 @@ export function ContentDetailPanel({
     send = submitRejection({ contentId: loaded.id, state: snapshot, ports: actionPorts });
   }
   const formSpec = form ? FORMS[form] : null;
+  // Blank counts as missing: the backend trims the note before it refuses an empty one.
+  const missingNote = formSpec?.required === true && noteLeft && note.trim() === "";
 
   function cancelForm() {
     setCancelled(form);
     setForm(null);
     setError(null);
     setNote("");
+    setNoteLeft(false);
   }
 
   return (
@@ -654,15 +664,22 @@ export function ContentDetailPanel({
                     ref={focusOnMount}
                     required={formSpec.required}
                     maxLength={formSpec.max}
-                    aria-describedby={countId}
+                    aria-describedby={missingNote ? `${missingId} ${countId}` : countId}
+                    aria-invalid={formSpec.required ? missingNote : undefined}
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
+                    onBlur={() => setNoteLeft(true)}
                     placeholder={formSpec.placeholder}
                     rows={3}
                     disabled={busy}
                     className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
                   />
                 </label>
+                {missingNote ? (
+                  <p id={missingId} className="text-xs text-red-ink">
+                    {formSpec.missingMessage}
+                  </p>
+                ) : null}
                 <CharLimit id={countId} length={note.length} max={formSpec.max} />
 
                 <div className="flex justify-end gap-2">

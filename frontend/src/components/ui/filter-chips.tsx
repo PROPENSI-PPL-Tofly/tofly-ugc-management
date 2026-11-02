@@ -1,6 +1,7 @@
 "use client";
 
 import { ResetFilters } from "@/components/filters/filter-controls";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
 /**
  * The bar's active picks, gathered in one row below the filters (the benchmark's layout): each
@@ -40,8 +41,7 @@ export function pickedChips(
   }));
 }
 
-const CHIP =
-  "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
+const CHIP = `inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2 ${PHONE_TARGET}`;
 
 export function FilterChips({
   chips,

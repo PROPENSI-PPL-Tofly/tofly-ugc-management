@@ -6,7 +6,9 @@ import { PeriodTabs } from "@/components/creator-detail/period-tabs";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Panel } from "@/components/ui/panel";
+import { MIN_TARGET, PHONE_TARGET } from "@/components/ui/touch-target";
 import {
+  creatorDatabaseHref,
   creatorDetailHref,
   parseCreatorDetailParams,
   type CreatorDetailView,
@@ -58,8 +60,8 @@ export default async function CreatorDetailPage({
       subtitle="Data, jadwal, dan content plan satu creator"
     >
       <Link
-        href="/admin/creators"
-        className="mb-4 inline-block text-[13px] font-semibold text-muted hover:text-ink"
+        href={creatorDatabaseHref(state.back)}
+        className={`mb-4 inline-flex items-center text-[13px] font-semibold text-muted hover:text-ink ${MIN_TARGET} ${PHONE_TARGET}`}
       >
         ← Kembali ke Creator Database
       </Link>
@@ -74,6 +76,7 @@ export default async function CreatorDetailPage({
             periods={view.periods}
             selected={view.selected}
             earnings={view.earnings}
+            back={state.back}
           />
           <CreatorContentBoard creatorId={id} view={view} state={state} today={today} />
         </div>

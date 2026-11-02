@@ -107,7 +107,9 @@ describe("InvoiceTable", () => {
     const { container } = render(<InvoiceTable rows={[FULL]} />);
 
     // An absolutely placed child (a screen-reader label) would otherwise widen the whole page.
-    expect(container.firstElementChild).toHaveClass("relative", "overflow-x-auto");
+    const region = container.querySelector("[data-scroll-frame]");
+    expect(region).toHaveClass("relative", "overflow-x-auto");
+    expect(region).toContainElement(screen.getByRole("table"));
   });
 
   it("names the creator, and says where their contract stands under it", () => {
@@ -183,6 +185,23 @@ describe("InvoiceTable", () => {
     expect(screen.getByText("Tidak ada creator sesuai filter.")).toBeInTheDocument();
   });
 
+  // Approved design: on a desktop the row under the pointer is tinted, as on the other tables.
+  it("tints the row under the pointer on a desktop", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    expect(screen.getAllByRole("row")[1]).toHaveClass("lg:hover:bg-surface-2", "transition-colors");
+  });
+
+  // Approved design: on a phone each card closes on its Total as the line the amounts add up
+  // to, set on a tinted strip across the card, the sum larger than the parts.
+  it("closes each phone card on its Total, set apart as the sum", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    const total = document.querySelector('[data-label="Total"]') as HTMLElement;
+    expect(total).toHaveClass("max-lg:border-t-[1.5px]", "max-lg:bg-surface-2", "max-lg:-mx-4");
+    expect(total.querySelector("strong")).toHaveClass("max-lg:text-xl", "max-lg:font-extrabold");
+  });
+
   describe("with the breakdown triggers of 8.5", () => {
     const trigger = (kind: string, row: InvoiceRow) => (
       <button type="button">{`${kind} of ${row.creatorName}`}</button>
@@ -192,12 +211,26 @@ describe("InvoiceTable", () => {
       render(<InvoiceTable rows={[FULL]} amount={trigger} />);
 
       const body = screen.getAllByRole("rowgroup")[1];
-      expect(within(body).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      // The card's Total ⓘ is a button too, but no breakdown trigger.
+      const triggers = within(body)
+        .getAllByRole("button")
+        .filter((button) => !button.getAttribute("aria-describedby"));
+      expect(triggers.map((button) => button.textContent)).toEqual([
         "fixed of Rangga Pratama",
         "extra of Rangga Pratama",
         "bonus of Rangga Pratama",
         "penalty of Rangga Pratama",
       ]);
+    });
+
+    it("holds each card's breakdown press inside its own money line", () => {
+      render(<InvoiceTable rows={[FULL]} amount={trigger} />);
+
+      for (const name of ["fixed", "extra", "bonus", "penalty"]) {
+        expect(screen.getByRole("button", { name: `${name} of Rangga Pratama` }).closest("td")).toHaveClass(
+          "max-lg:relative",
+        );
+      }
     });
 
     it("leaves the final rate and the invoice as they are, as neither opens a breakdown", () => {
@@ -219,6 +252,93 @@ describe("InvoiceTable", () => {
     } finally {
       errors.mockRestore();
     }
+  });
+
+  // Measured on the live page in Edge at true 320/375/390/430 px: the table is 965 px wide in a
+  // 286–396 px area, so only Creator and Fixed Rate show; the other amounts, the invoice status
+  // and Rincian sit off-screen. Below lg each contract becomes a card that reads like a
+  // statement. jsdom lays nothing out, so these pin what the layout is built from.
+  describe("on a phone, below lg", () => {
+    function rowOf(name: string) {
+      return screen.getByText(name).closest("tr") as HTMLElement;
+    }
+
+    // A table whose display changes can lose its semantics in some browsers, so the table, its
+    // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
+    it("reads each card as a row of cells, one per column, under explicit table roles", () => {
+      render(<InvoiceTable rows={[FULL, WAITING]} action={() => <button type="button">Rincian</button>} />);
+
+      const table = screen.getByRole("table");
+      expect(table).toHaveAttribute("role", "table");
+      for (const group of within(table).getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
+      }
+      const columns = within(table).getAllByRole("columnheader");
+      const [, ...records] = within(table).getAllByRole("row");
+      expect(records).toHaveLength(2);
+      for (const record of records) {
+        expect(record).toHaveAttribute("role", "row");
+        expect(within(record).getAllByRole("cell")).toHaveLength(columns.length);
+      }
+    });
+
+    it("keeps table semantics while each contract becomes a separate card", () => {
+      render(<InvoiceTable rows={[FULL, WAITING]} />);
+
+      const [head, body] = screen.getAllByRole("rowgroup");
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(head).toHaveClass("max-lg:sr-only");
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      expect(rowOf("Rangga Pratama")).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border");
+    });
+
+    it("names every amount and the invoice status by their columns", () => {
+      render(<InvoiceTable rows={[FULL]} action={() => <button type="button">Rincian</button>} />);
+
+      const cells = within(rowOf("Rangga Pratama")).getAllByRole("cell");
+      expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Fixed Rate",
+        "Fee Konten Tambahan",
+        "Bonus Performa",
+        "Penalti",
+        "Total",
+        "Status Invoice",
+        null,
+      ]);
+    });
+
+    it("sets each label against its amount, and the total apart as the sum", () => {
+      render(<InvoiceTable rows={[FULL]} />);
+
+      const cells = within(rowOf("Rangga Pratama")).getAllByRole("cell");
+      for (const amount of cells.slice(1, 6)) {
+        expect(amount).toHaveClass("max-lg:flex", "max-lg:justify-between");
+      }
+      // A rule over the sum, at the approved 1.5px (plain border-t outranks it and drew 1px).
+      expect(cells[5]).toHaveClass("max-lg:border-t-[1.5px]");
+    });
+
+    it("lets a long creator name wrap in a card instead of cutting it off", () => {
+      render(<InvoiceTable rows={[FULL]} />);
+
+      expect(screen.getByText("Rangga Pratama")).toHaveClass("truncate", "max-lg:whitespace-normal");
+    });
+
+    it("gives the row's action a full-width touch target at least 44px tall", () => {
+      render(<InvoiceTable rows={[FULL]} action={() => <button type="button">Rincian</button>} />);
+
+      const actionCell = within(rowOf("Rangga Pratama")).getAllByRole("cell").at(-1);
+      expect(actionCell).toHaveClass("max-lg:[&_button]:w-full", "max-lg:[&_button]:min-h-11");
+    });
+
+    it("keeps the footer's sum as one line of its own under the cards", () => {
+      render(<InvoiceTable rows={[FULL]} summary={{ total: 12345000, count: 24 }} />);
+
+      const footer = screen.getAllByRole("rowgroup").at(-1)!;
+      expect(footer).toHaveClass("max-lg:block");
+      expect(within(footer).getByRole("row")).toHaveClass("max-lg:flex", "max-lg:justify-between");
+    });
   });
 
   describe("sorting (when the board hands it an order)", () => {
@@ -252,11 +372,65 @@ describe("InvoiceTable", () => {
       expect(screen.getByRole("columnheader", { name: /^Creator/ })).toHaveAttribute("aria-sort", "none");
     });
 
+    // Below lg the header row is hidden, so the four sorts need a visible control there; the
+    // headers' own buttons leave that width so none stays focusable unseen.
+    describe("on a phone, below lg", () => {
+      function phoneSort() {
+        return screen.getByRole("group", { name: "Urutkan" });
+      }
+
+      it("offers the four sortable columns as buttons, gone from lg up", () => {
+        render(<InvoiceTable rows={[FULL]} sort={sortProps("action")} />);
+
+        expect(phoneSort()).toHaveClass("lg:hidden");
+        expect(within(phoneSort()).getAllByRole("button").map((b) => b.textContent)).toEqual([
+          "Creator",
+          "Fixed Rate",
+          "Penalti",
+          "Total",
+        ]);
+      });
+
+      it("reports the column pressed, as the header would", () => {
+        const sort = sortProps("action");
+        render(<InvoiceTable rows={[FULL]} sort={sort} />);
+
+        fireEvent.click(within(phoneSort()).getByRole("button", { name: /^Penalti/ }));
+
+        expect(sort.onSort).toHaveBeenCalledWith("penalty");
+      });
+
+      it("marks the column sorted by and says its direction in words", () => {
+        render(<InvoiceTable rows={[FULL]} sort={sortProps("total", "desc")} />);
+
+        const total = within(phoneSort()).getByRole("button", { name: /^Total/ });
+        expect(total).toHaveAttribute("aria-pressed", "true");
+        expect(within(phoneSort()).getByRole("button", { name: /^Creator/ })).toHaveAttribute(
+          "aria-pressed",
+          "false",
+        );
+        expect(phoneSort()).toHaveTextContent("Total terbesar dulu");
+      });
+
+      it("removes the headers' sort buttons below lg, keeping the column names", () => {
+        render(<InvoiceTable rows={[FULL]} sort={sortProps("action")} />);
+
+        const header = screen.getByRole("columnheader", { name: /^Penalti/ });
+        expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      });
+
+      it("offers no phone sort when the board hands in no order", () => {
+        render(<InvoiceTable rows={[FULL]} />);
+
+        expect(screen.queryByRole("group", { name: "Urutkan" })).toBeNull();
+      });
+    });
+
     it("reports which column was pressed", () => {
       const sort = sortProps("action");
       render(<InvoiceTable rows={[FULL]} sort={sort} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Penalti/ }));
+      fireEvent.click(within(screen.getByRole("columnheader", { name: /^Penalti/ })).getByRole("button", { name: /^Penalti/ }));
 
       expect(sort.onSort).toHaveBeenCalledWith("penalty");
     });
@@ -269,6 +443,25 @@ describe("InvoiceTable", () => {
     expect(TOTAL_FORMULA).toBe(
       "Total = Fixed Rate + Fee Konten Tambahan + Bonus Performa − Penalti. Bonus yang masih menunggu data belum dihitung.",
     );
+  });
+
+  // Below lg the header row is only read aloud (sr-only), so an ⓘ left in it was a tab stop no
+  // one could see and a tip no finger could reach. On a phone the explanation sits by the Total
+  // each card shows; on a desktop it stays in the header. One of the two at each width.
+  it("keeps the header's formula ⓘ out of the phone layout, where the header is only read aloud", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    const header = screen.getByRole("button", { name: "Info rumus Total" });
+    expect(header.closest(".max-lg\\:hidden")).not.toBeNull();
+  });
+
+  it("explains the total beside each card's Total label on a phone, and only there", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    const total = screen.getAllByRole("cell").find((cell) => cell.textContent?.startsWith("Total"))!;
+    const tip = within(total).getByRole("button", { name: "Info rumus Total Rangga Pratama" });
+    expect(tip).toHaveAccessibleDescription(TOTAL_FORMULA);
+    expect(tip.closest(".lg\\:hidden")).not.toBeNull();
   });
 
   it("adds up every creator the filters keep under the table, across pages", () => {
@@ -291,5 +484,13 @@ describe("InvoiceTable", () => {
 
     expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rincian Rangga Pratama" })).toBeInTheDocument();
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (727 of 965px at 1024px).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<InvoiceTable rows={[FULL]} />);
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });

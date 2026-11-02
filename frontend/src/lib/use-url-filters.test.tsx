@@ -90,6 +90,42 @@ describe("useUrlFilters", () => {
     expect(replace).toHaveBeenCalledWith("/admin/creators?q=ra", { scroll: false });
   });
 
+  it("sets and removes several filters in one navigation, keeping the rest and dropping the page", () => {
+    searchParams = new URLSearchParams({ tab: "waiting", period: "custom", from: "2026-10-01", page: "2" });
+    const { result } = renderHook(() => useUrlFilters());
+
+    act(() => result.current.setParams({ period: "all", from: "", to: "", type: "specific" }));
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith("/admin/creators?tab=waiting&type=specific", {
+      scroll: false,
+    });
+  });
+
+  // E1, now that a period is taken off where it is chosen (the phone chips are gone): a period
+  // other than Pilih tanggal… has no days, so picking one takes the days off with it, in one
+  // navigation, keeping every other filter.
+  it("picks a named period and takes the custom days off in the same navigation", () => {
+    searchParams = new URLSearchParams({ tab: "waiting", period: "custom", from: "2026-10-01", to: "2026-10-31", type: "specific" });
+    const { result } = renderHook(() => useUrlFilters());
+
+    act(() => result.current.setPeriod("all"));
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith("/admin/creators?tab=waiting&type=specific", {
+      scroll: false,
+    });
+  });
+
+  it("keeps the days already picked when Pilih tanggal… is chosen again", () => {
+    searchParams = new URLSearchParams({ period: "month", from: "2026-10-01" });
+    const { result } = renderHook(() => useUrlFilters());
+
+    act(() => result.current.setPeriod("custom"));
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith("/admin/creators?period=custom&from=2026-10-01", {
+      scroll: false,
+    });
+  });
+
   // The UAT bug: the URL still held the old search while the reset was on its way, so the
   // debounce sent "q cleared" on top of the old filters and put them back.
   it("resets the search and every filter, and nothing puts them back afterwards", () => {

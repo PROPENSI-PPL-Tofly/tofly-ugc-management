@@ -43,7 +43,7 @@ export default async function CreatorPaymentsPage() {
         <div role="alert" className="px-5 py-14 text-center">
           <p className="text-[15px] font-semibold">Sesi kamu sudah berakhir.</p>
           <p className="mt-1 text-[13px] text-muted">Masuk lagi untuk melihat invoice kamu.</p>
-          <a href="/login" className={`mt-4 inline-block ${buttonClasses("accent")}`}>
+          <a href="/login" className={`mt-4 inline-flex items-center ${buttonClasses("accent")}`}>
             Masuk
           </a>
         </div>
