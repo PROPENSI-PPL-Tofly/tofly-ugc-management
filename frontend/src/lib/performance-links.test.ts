@@ -8,6 +8,7 @@ import {
   parsePerformanceLinksParams,
   performanceLinksHref,
   toPerformanceLinksPage,
+  toPerformanceLinksQuery,
 } from "./performance-links";
 
 const CREATOR_A = "11111111-1111-4111-8111-111111111111";
@@ -110,6 +111,42 @@ describe("buildPerformanceLinksQuery", () => {
     performanceLinksHref(given);
 
     expect(given).toEqual(before);
+  });
+});
+
+describe("toPerformanceLinksQuery", () => {
+  it("sends each pick as its own parameter, the way the API reads a list", () => {
+    const query = toPerformanceLinksQuery(
+      parsePerformanceLinksParams({
+        creator: `${CREATOR_A},${CREATOR_B}`,
+        platform: "instagram,tiktok",
+        page: "2",
+      }),
+    );
+
+    expect(query.getAll("creator")).toEqual([CREATOR_A, CREATOR_B]);
+    expect(query.getAll("platform")).toEqual(["instagram", "tiktok"]);
+    expect(query.get("page")).toBe("2");
+  });
+
+  it("sends a pick named twice only once, and always names the page", () => {
+    const query = toPerformanceLinksQuery(
+      parsePerformanceLinksParams({ creator: `${CREATOR_A},${CREATOR_A}` }),
+    );
+
+    expect(query.getAll("creator")).toEqual([CREATOR_A]);
+    expect(query.get("page")).toBe("1");
+  });
+
+  it("sends at most the number of values the API takes for one filter", () => {
+    const many = Array.from(
+      { length: 51 },
+      (_unused, index) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    );
+
+    const query = toPerformanceLinksQuery(parsePerformanceLinksParams({ creator: many.join(",") }));
+
+    expect(query.getAll("creator")).toHaveLength(50);
   });
 });
 
