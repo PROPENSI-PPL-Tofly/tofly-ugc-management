@@ -76,6 +76,16 @@ describe('checkPerformanceLinksQuery', () => {
       { platform: { a: 1 } },
       'platform must be instagram or tiktok',
     ],
+    [
+      'more creators than any filter needs',
+      { creator: Array.from({ length: 51 }, () => CREATOR_A) },
+      'creator takes at most 50 values',
+    ],
+    [
+      'more platforms than any filter needs',
+      { platform: Array.from({ length: 51 }, () => 'tiktok') },
+      'platform takes at most 50 values',
+    ],
   ])('answers 400 for %s', (_label, query, message) => {
     expect(() => checkPerformanceLinksQuery(query)).toThrow(
       new BadRequestException(message),

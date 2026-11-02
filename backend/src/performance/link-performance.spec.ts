@@ -20,11 +20,12 @@ function refusal(run: () => unknown): unknown {
 function errorsOf(run: () => unknown): Record<string, string> {
   const error = refusal(run);
   expect(error).toBeInstanceOf(UnprocessableEntityException);
-  return (
-    (error as UnprocessableEntityException).getResponse() as {
-      errors: Record<string, string>;
-    }
-  ).errors;
+  const body = (error as UnprocessableEntityException).getResponse() as {
+    message: string;
+    errors: Record<string, string>;
+  };
+  expect(body.message).toBe('Angka performa tidak valid');
+  return body.errors;
 }
 
 describe('checkManualPerformance', () => {
@@ -79,6 +80,9 @@ describe('checkManualPerformance', () => {
     ['a number with a sign', '+5'],
     ['a boolean', true],
     ['an infinite number', Number.POSITIVE_INFINITY],
+    // Number() reads these as 1000 and 31; only plain digits are a typed number.
+    ['a number in exponent form', '1e3'],
+    ['a hexadecimal number', '0x1F'],
   ])('refuses %s with a message on that field', (_label, value) => {
     expect(errorsOf(() => checkManualPerformance({ views: value }))).toEqual({
       views: 'Isi bilangan bulat 0 sampai 999.999.999',

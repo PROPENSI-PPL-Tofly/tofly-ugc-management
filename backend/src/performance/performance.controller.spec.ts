@@ -131,6 +131,10 @@ describe('Performance routes', () => {
       );
 
       expect(response.status).toBe(404);
+      expect(response.body).toEqual({
+        code: 'PLATFORM_NOT_FOUND',
+        message: 'Platform tidak dikenal',
+      });
       expect(manual.save).not.toHaveBeenCalled();
     });
 
