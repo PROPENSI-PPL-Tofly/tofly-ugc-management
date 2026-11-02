@@ -6,6 +6,12 @@ import {
   type SocialOAuthProvider,
 } from '../ports.js';
 import type { TikTokConfig } from './tiktok-config.js';
+import {
+  callTikTok,
+  isRecord,
+  type Json,
+  type TikTokAnswer,
+} from './tiktok-http.js';
 
 export const TIKTOK_AUTHORIZE_URL = 'https://www.tiktok.com/v2/auth/authorize/';
 export const TIKTOK_TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/';
@@ -37,12 +43,6 @@ const CALLBACK_ERRORS: Readonly<Record<string, ConnectError>> = {
   access_denied: 'cancelled',
 };
 
-type Json = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Json {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function isText(value: unknown): value is string {
   return typeof value === 'string' && value !== '';
 }
@@ -63,9 +63,8 @@ interface TokenGrant {
   refreshSeconds: number;
 }
 
-interface Answer {
-  ok: boolean;
-  status: number;
+/** A TikTok answer that was JSON. */
+interface Answer extends TikTokAnswer {
   body: Json;
 }
 
@@ -247,31 +246,18 @@ export class TikTokProvider implements SocialOAuthProvider {
     deadline: AbortSignal,
     init: RequestInit,
   ): Promise<Answer> {
-    let response: Response;
+    let answer: TikTokAnswer;
     try {
-      response = await this.fetchImpl(url, {
-        ...init,
-        redirect: 'error',
-        signal: deadline,
-      });
+      answer = await callTikTok(this.fetchImpl, url, init, deadline);
     } catch {
       throw platformError(`${label} unreachable`);
     }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
+    const { ok, status, body } = answer;
+    if (body === undefined) {
       throw platformError(
-        response.ok
-          ? `${label} sent no JSON`
-          : `${label} answered ${response.status}`,
+        ok ? `${label} sent no JSON` : `${label} answered ${status}`,
       );
     }
-    return {
-      ok: response.ok,
-      status: response.status,
-      body: isRecord(body) ? body : {},
-    };
+    return { ok, status, body };
   }
 }

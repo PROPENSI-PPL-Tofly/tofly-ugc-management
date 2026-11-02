@@ -1,3 +1,10 @@
+import {
+  callTikTok,
+  isRecord,
+  type Json,
+  type TikTokAnswer,
+} from '../../social/tiktok/tiktok-http.js';
+
 // The counts of a creator's TikTok videos (PBI-27, 27.3), read with Display API's video/query.
 // Only videos of the account the token belongs to come back, and only public ones (sandbox
 // test, #127), so a video that is missing is not the creator's or not readable.
@@ -38,12 +45,6 @@ export class TikTokTokenRejected extends Error {
 
 /** One batch could not be read; the others still are. */
 class BatchFailed extends Error {}
-
-type Json = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Json {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** A count TikTok sent, or null when it sent none or something that is not a count. */
 function count(value: unknown): number | null {
@@ -103,30 +104,32 @@ async function queryBatch(
   const url = new URL(TIKTOK_VIDEO_QUERY_URL);
   url.searchParams.set('fields', FIELDS.join(','));
 
-  let response: Response;
+  let answer: TikTokAnswer;
   try {
-    response = await fetchImpl(url.toString(), {
-      method: 'POST',
-      // A redirect would carry the token to whatever host it names.
-      redirect: 'error',
-      signal: deadline,
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json',
+    answer = await callTikTok(
+      fetchImpl,
+      url.toString(),
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ filters: { video_ids: batch } }),
       },
-      body: JSON.stringify({ filters: { video_ids: batch } }),
-    });
+      deadline,
+    );
   } catch {
     throw new BatchFailed();
   }
 
-  const body: unknown = await response.json().catch(() => undefined);
-  const error = isRecord(body) && isRecord(body.error) ? body.error : undefined;
-  if (response.status === 401 || error?.code === 'access_token_invalid') {
+  const { ok, status, body } = answer;
+  const error = isRecord(body?.error) ? body.error : undefined;
+  if (status === 401 || error?.code === 'access_token_invalid') {
     throw new TikTokTokenRejected('video/query refused the access token');
   }
-  const data = isRecord(body) && isRecord(body.data) ? body.data : undefined;
-  if (!response.ok || error?.code !== 'ok' || !Array.isArray(data?.videos)) {
+  const data = isRecord(body?.data) ? body.data : undefined;
+  if (!ok || error?.code !== 'ok' || !Array.isArray(data?.videos)) {
     throw new BatchFailed();
   }
 
