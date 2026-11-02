@@ -139,11 +139,53 @@ describe('PrismaSocialAccountLinker', () => {
     });
   });
 
+  /** The creator's own row, as the read by (creator, platform) finds it. */
+  function ownRow(username: string): void {
+    rows.social_accounts.findUnique.mockImplementation(
+      ({ where }: { where: Record<string, unknown> }) =>
+        Promise.resolve(
+          where.creator_id_platform ? { username } : { creator_id: CREATOR },
+        ),
+    );
+  }
+
   it('reconnects the account the creator already holds', async () => {
-    rows.social_accounts.findUnique.mockResolvedValue({ creator_id: CREATOR });
+    ownRow(ACCOUNT.username);
 
     await expect(linker.link(CREATOR, ACCOUNT)).resolves.toBe('linked');
     expect(rows.social_accounts.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  // PRD 19 AC 9: the platform's handle replaces the typed one, and the change is kept.
+  describe('the username on file', () => {
+    it('is recorded with the new one when the platform reports another', async () => {
+      ownRow('rangga.typed');
+
+      await linker.link(CREATOR, ACCOUNT);
+
+      expect(written().update.social_username_changes).toEqual({
+        create: {
+          old_username: 'rangga.typed',
+          new_username: 'rangga.creates',
+          changed_at: NOW,
+        },
+      });
+    });
+
+    it('records nothing when the platform reports the same one', async () => {
+      ownRow(ACCOUNT.username);
+
+      await linker.link(CREATOR, ACCOUNT);
+
+      expect(written().update).not.toHaveProperty('social_username_changes');
+    });
+
+    it('records nothing on a first row, which has no earlier username', async () => {
+      await linker.link(CREATOR, ACCOUNT);
+
+      expect(written().create).not.toHaveProperty('social_username_changes');
+      expect(written().update).not.toHaveProperty('social_username_changes');
+    });
   });
 
   // PRD 19: "Akun ini sudah terhubung ke creator lain."
@@ -162,6 +204,7 @@ describe('PrismaSocialAccountLinker', () => {
     it('is refused when another creator connected it a moment earlier', async () => {
       rows.social_accounts.findUnique
         .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ creator_id: OTHER_CREATOR });
       rows.social_accounts.upsert.mockRejectedValue(uniqueViolation());
 
@@ -172,6 +215,7 @@ describe('PrismaSocialAccountLinker', () => {
   it('passes on a unique violation the account holder does not explain', async () => {
     const violation = uniqueViolation();
     rows.social_accounts.findUnique
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ creator_id: CREATOR });
     rows.social_accounts.upsert.mockRejectedValue(violation);

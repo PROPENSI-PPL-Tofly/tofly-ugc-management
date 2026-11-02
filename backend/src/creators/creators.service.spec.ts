@@ -6,6 +6,23 @@ import { CreatorsService, type CreatorRow } from './creators.service.js';
 
 const TODAY = new Date('2026-09-18T00:00:00Z');
 
+const NOT_CONNECTED_ROW = {
+  is_connected: false,
+  platform_user_id: null,
+  connected_at: null,
+};
+
+// OWASP A01:2025: everything the creator endpoints read of an account. No token column.
+const ACCOUNT_COLUMNS = {
+  platform: true,
+  username: true,
+  is_connected: true,
+  platform_user_id: true,
+  connected_at: true,
+};
+
+const NOT_CONNECTED = { connected: false, connectedAt: null, lastSyncAt: null };
+
 function day(offset: number): Date {
   return new Date(Date.UTC(2026, 8, 18 + offset));
 }
@@ -19,8 +36,12 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
     access_revoke_date: null,
     users: { email: 'rangga@example.com' },
     social_accounts: [
-      { platform: 'instagram', username: 'rangga.creates' },
-      { platform: 'tiktok', username: 'ranggacreates' },
+      {
+        platform: 'instagram',
+        username: 'rangga.creates',
+        ...NOT_CONNECTED_ROW,
+      },
+      { platform: 'tiktok', username: 'ranggacreates', ...NOT_CONNECTED_ROW },
     ],
     contracts: [
       {
@@ -117,10 +138,12 @@ function detailRow(): DetailCreatorRow {
       {
         platform: 'instagram',
         username: 'rangga.creates',
+        ...NOT_CONNECTED_ROW,
       },
       {
         platform: 'tiktok',
         username: 'ranggacreates',
+        ...NOT_CONNECTED_ROW,
       },
     ],
     contracts: [
@@ -222,6 +245,10 @@ describe('CreatorsService', () => {
           socials: {
             instagram: 'rangga.creates',
             tiktok: 'ranggacreates',
+          },
+          socialConnections: {
+            instagram: NOT_CONNECTED,
+            tiktok: NOT_CONNECTED,
           },
           accessRevokeDate: null,
           contract: {
@@ -831,11 +858,74 @@ describe('CreatorsService', () => {
     await service.findOne('creator-1', TODAY);
 
     const select = prisma.creators.findUnique.mock.calls[0][0].select;
-    expect(select.social_accounts.select).toEqual({
-      platform: true,
-      username: true,
-    });
+    expect(select.social_accounts.select).toEqual(ACCOUNT_COLUMNS);
     expect(select.users.select).toEqual({ email: true });
+  });
+
+  it('lists the social accounts without their access or refresh tokens', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(0);
+
+    await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    const { select } = prisma.creators.findMany.mock.calls[0][0];
+    expect(select.social_accounts.select).toEqual(ACCOUNT_COLUMNS);
+  });
+
+  // PRD 19 AC 11, 12: Admin's badges. A row typed at Tambah Creator holds no connection, even
+  // when an old flag says otherwise.
+  it('says per platform whether the account is connected, and since when', async () => {
+    const connected = row({
+      social_accounts: [
+        {
+          platform: 'instagram',
+          username: 'rangga.creates',
+          is_connected: true,
+          platform_user_id: '1784',
+          connected_at: new Date('2026-10-29T03:00:00.000Z'),
+        },
+        {
+          platform: 'tiktok',
+          username: 'ranggacreates',
+          is_connected: true,
+          platform_user_id: null,
+          connected_at: null,
+        },
+      ],
+    });
+    prisma.creators.findMany.mockResolvedValue([connected]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].socialConnections).toEqual({
+      instagram: {
+        connected: true,
+        connectedAt: '2026-10-29T03:00:00.000Z',
+        lastSyncAt: null,
+      },
+      tiktok: NOT_CONNECTED,
+    });
+  });
+
+  it('leaves out a platform the creator has no account on', async () => {
+    prisma.creators.findMany.mockResolvedValue([row({ social_accounts: [] })]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].socialConnections).toEqual({});
+  });
+
+  it('gives Creator Detail the same connections', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    const detail = await service.findOne('creator-1', TODAY);
+
+    expect(detail.socialConnections).toEqual({
+      instagram: NOT_CONNECTED,
+      tiktok: NOT_CONNECTED,
+    });
   });
 
   it('returns empty current-period details when no contract covers the date', async () => {

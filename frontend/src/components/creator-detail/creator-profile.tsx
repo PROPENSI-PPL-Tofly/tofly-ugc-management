@@ -33,7 +33,7 @@ export function CreatorProfilePanel({
   creator,
   current,
   today = jakartaDay(),
-  // Until 19.3 sends connections, every account reads as not connected.
+  // An answer with no connections reads every account as not connected.
   connections = readConnections(undefined),
 }: Readonly<{
   creator: CreatorProfile;

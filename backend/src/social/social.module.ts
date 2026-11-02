@@ -19,11 +19,15 @@ import {
   InstagramConnectController,
 } from './instagram/instagram-connect.controller.js';
 import { InstagramConnectService } from './instagram/instagram-connect.service.js';
-import { SOCIAL_ACCOUNT_STORE, type SocialAccountStore } from './ports.js';
-import { socialWiring } from './social-config.js';
+import { MySocialAccountsController } from './my-social-accounts.controller.js';
+import { MySocialAccountsService } from './my-social-accounts.service.js';
+import {
+  SOCIAL_WIRING,
+  socialWiring,
+  type SocialWiring,
+} from './social-config.js';
 import { SocialConnectController } from './social-connect.controller.js';
 import { SocialConnectService } from './social-connect.service.js';
-import { storageNotReady } from './unready-store.js';
 
 // The controller refuses before reaching the client while the app is unconfigured; this only
 // keeps the use case whole.
@@ -36,47 +40,54 @@ const unconfiguredClient = {
 
 // Connecting creators' social accounts (PBI-19). Instagram (19.1) still has its own controller;
 // TikTok (19.2) goes through the platform-generic one, until Instagram becomes its second
-// SocialOAuthProvider and SOCIAL_ACCOUNT_STORE gives way to the encrypted SocialAccountLinker.
+// SocialOAuthProvider. Both keep their accounts through the one encrypted SocialAccountLinker.
 @Module({
   // The creator guard reads the creator from the database.
   imports: [PrismaModule],
   // Order matters: Express matches routes in the order they are registered, so Instagram's own
   // /social/instagram/… must come before the generic /social/:platform/… would catch it.
-  controllers: [InstagramConnectController, SocialConnectController],
+  controllers: [
+    InstagramConnectController,
+    SocialConnectController,
+    MySocialAccountsController,
+  ],
   providers: [
     DevCreatorGuard,
+    MySocialAccountsService,
     {
       provide: INSTAGRAM_CONFIG,
       useFactory: () => instagramConfig(process.env),
     },
     { provide: INSTAGRAM_LOG, useValue: new Logger('InstagramConnect') },
-    { provide: SOCIAL_ACCOUNT_STORE, useValue: storageNotReady },
+    {
+      provide: SOCIAL_WIRING,
+      useFactory: (prisma: PrismaService) => socialWiring(process.env, prisma),
+      inject: [PrismaService],
+    },
     {
       provide: INSTAGRAM_CONNECT,
       useFactory: (
         config: InstagramConfig | undefined,
-        store: SocialAccountStore,
+        { linker }: SocialWiring,
         log: WarningLog,
       ) =>
         new InstagramConnectService(
           config ? new InstagramClient(config) : unconfiguredClient,
-          store,
+          linker,
           log,
         ),
-      inject: [INSTAGRAM_CONFIG, SOCIAL_ACCOUNT_STORE, INSTAGRAM_LOG],
+      inject: [INSTAGRAM_CONFIG, SOCIAL_WIRING, INSTAGRAM_LOG],
     },
     {
       provide: SocialConnectService,
-      useFactory: (prisma: PrismaService) => {
-        const { providers, signer, linker } = socialWiring(process.env, prisma);
-        return new SocialConnectService(
+      useFactory: ({ providers, signer, linker }: SocialWiring) =>
+        new SocialConnectService(
           providers,
           signer,
           linker,
           new Logger('SocialConnect'),
-        );
-      },
-      inject: [PrismaService],
+        ),
+      inject: [SOCIAL_WIRING],
     },
   ],
 })

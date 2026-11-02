@@ -22,6 +22,10 @@ import type {
   CreatorListResponse,
   CreatorSummary,
 } from './dto/creator-summary.dto.js';
+import {
+  CONNECTION_COLUMNS,
+  connectionOf,
+} from '../social/social-connection.js';
 import type { Filters } from './filters.js';
 import type { Paging } from './paging.js';
 
@@ -34,7 +38,9 @@ const CREATOR_SELECT = {
   last_name: true,
   access_revoke_date: true,
   users: { select: { email: true } },
-  social_accounts: { select: { platform: true, username: true } },
+  social_accounts: {
+    select: { platform: true, username: true, ...CONNECTION_COLUMNS },
+  },
   contracts: {
     select: {
       id: true,
@@ -75,6 +81,7 @@ const DETAIL_SELECT = {
     select: {
       platform: true,
       username: true,
+      ...CONNECTION_COLUMNS,
     },
   },
   contracts: {
@@ -342,9 +349,11 @@ export class CreatorsService implements CreatorLister {
     const current = currentContract(contracts, today);
 
     const socials: CreatorSummary['socials'] = {};
+    const socialConnections: CreatorSummary['socialConnections'] = {};
 
     for (const account of row.social_accounts) {
       socials[account.platform] = account.username;
+      socialConnections[account.platform] = connectionOf(account);
     }
 
     return {
@@ -357,6 +366,8 @@ export class CreatorsService implements CreatorLister {
       email: row.users.email,
 
       socials,
+
+      socialConnections,
 
       accessRevokeDate: row.access_revoke_date
         ? calendarDay(row.access_revoke_date)

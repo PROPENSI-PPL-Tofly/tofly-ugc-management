@@ -59,6 +59,7 @@ describe('Tofly tables from the API roles (e2e)', () => {
         'performance_bonus_tiers',
         'rate_formula',
         'social_accounts',
+        'social_username_changes',
         'submissions',
         'users',
       ]),
