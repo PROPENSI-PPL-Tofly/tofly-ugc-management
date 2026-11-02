@@ -6,6 +6,11 @@ import Loading from "./loading";
 
 vi.mock("@/lib/performance-links.server", () => ({ fetchPerformanceLinks: vi.fn() }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/performance",
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+}));
+
 const mockedLinks = vi.mocked(fetchPerformanceLinks);
 
 const EMPTY: PerformanceLinksPage = {
