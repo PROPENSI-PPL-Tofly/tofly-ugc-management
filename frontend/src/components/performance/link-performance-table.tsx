@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { InfoTip } from "@/components/ui/info-tip";
 import { PlatformIcon } from "@/components/ui/platform-icon";
@@ -24,12 +26,15 @@ export function LinkPerformanceTable({
   rows,
   showCreator = false,
   onRowClick,
+  actions,
 }: Readonly<{
   rows: readonly PerformanceLinkRow[];
   /** The admin's list names whose link each row is; a creator reads their own. */
   showCreator?: boolean;
   /** The admin's rows open their content's detail (AC 25); a creator's list offers no press. */
   onRowClick?: (row: PerformanceLinkRow) => void;
+  /** What each row can be done with (the admin's "Sinkronkan"); a creator's list offers none. */
+  actions?: (row: PerformanceLinkRow) => ReactNode;
 }>) {
   return (
     <div className="overflow-x-auto">
@@ -58,6 +63,11 @@ export function LinkPerformanceTable({
             <th scope="col" className={HEAD}>
               Sinkron Terakhir
             </th>
+            {actions ? (
+              <th scope="col" className={`${HEAD} text-right`}>
+                <span className="sr-only">Aksi</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -110,6 +120,7 @@ export function LinkPerformanceTable({
                 </span>
               </td>
               <td className={`${CELL} whitespace-nowrap`}>{formatTimestamp(row.lastSyncedAt)}</td>
+              {actions ? <td className={`${CELL} text-right`}>{actions(row)}</td> : null}
             </tr>
           ))}
         </tbody>
