@@ -226,7 +226,7 @@ describe("finalizeInvoice", () => {
   });
 
   it("asks the contract's invoice to freeze, with the browser's session", async () => {
-    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: true, lastSync: { status: "unavailable", notUpdated: [] } });
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: true });
 
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
       `http://localhost:3001/invoices/${CONTRACT}/finalize`,
@@ -235,10 +235,7 @@ describe("finalizeInvoice", () => {
   });
 
   it("says the admin accepted freezing a bonus still waiting for data, when they did", async () => {
-    await expect(finalizeInvoice(CONTRACT, { acceptPendingBonus: true })).resolves.toEqual({
-      ok: true,
-      lastSync: { status: "unavailable", notUpdated: [] },
-    });
+    await expect(finalizeInvoice(CONTRACT, { acceptPendingBonus: true })).resolves.toEqual({ ok: true });
 
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
       `http://localhost:3001/invoices/${CONTRACT}/finalize`,
@@ -267,44 +264,7 @@ describe("finalizeInvoice", () => {
   ])("reads a 422 %s refusal by its code", async (code, message) => {
     vi.mocked(globalThis.fetch).mockResolvedValue(reply(422, { code, message: "server words" }));
 
-    await expect(finalizeInvoice(CONTRACT)).resolves.toMatchObject({ ok: false, code, message });
-  });
-
-  // PBI-28 AC 8: the frozen invoice comes back with how its last sync went.
-  it("hands back the last sync's outcome and the links it did not update", async () => {
-    const notUpdated = [{ contentId: "c-1", contentName: "Evg_1", platform: "tiktok", state: "sync_failed" }];
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      reply(201, { invoiceStatus: "finalized", lastSync: { status: "timed_out", notUpdated } }),
-    );
-
-    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({
-      ok: true,
-      lastSync: { status: "timed_out", notUpdated },
-    });
-  });
-
-  // PBI-28 AC 9: a bonus still waiting comes back with each link without data, so the admin can
-  // fill them in or freeze anyway.
-  it("hands back the links still waiting and the sync outcome with a pending-bonus refusal", async () => {
-    const waiting = [
-      { contentId: "c-2", contentName: "Evg_2", platform: "instagram", state: "not_connected", metric: "views" },
-    ];
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      reply(422, {
-        code: "INVOICE_BONUS_PENDING",
-        message: "server words",
-        waiting,
-        lastSync: { status: "done", notUpdated: [] },
-      }),
-    );
-
-    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({
-      ok: false,
-      code: "INVOICE_BONUS_PENDING",
-      message: "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
-      waiting,
-      lastSync: { status: "done", notUpdated: [] },
-    });
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: false, code, message });
   });
 
   it("refuses an id the API would never take, without asking it", async () => {

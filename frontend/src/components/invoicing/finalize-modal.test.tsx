@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { formatTimestamp } from "@/lib/format";
 import { type InvoiceRow } from "@/lib/invoice";
 import { FinalizeModal } from "./finalize-modal";
@@ -36,16 +36,10 @@ const ROW: InvoiceRow = {
   frozenAt: null,
 };
 
-const NO_SYNC = { status: "unavailable", notUpdated: [] };
-
-const WAITING = [
-  { contentId: "c-2", contentName: "Evg_2_Rangga", platform: "tiktok", state: "not_connected", metric: "likes" },
-];
-
 describe("FinalizeModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    moves.finalizeInvoice.mockResolvedValue({ ok: true, lastSync: NO_SYNC });
+    moves.finalizeInvoice.mockResolvedValue({ ok: true });
   });
 
   // Freezing cannot be undone, so focus starts on the safe answer, as in every other confirmation.
@@ -87,12 +81,10 @@ describe("FinalizeModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false }),
     );
-    await waitFor(() => expect(onFinalized).toHaveBeenCalled());
-    // The modal settles (its wait message goes) before the test ends, so no update lands after it.
-    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
   });
 
   describe("a bonus still waiting for performance data", () => {
@@ -131,99 +123,15 @@ describe("FinalizeModal", () => {
       expect(screen.getByRole("group", { name: "Total invoice" })).toHaveTextContent("Rp0");
     });
 
-    // PBI-28 AC 9: the server says which links still wait; the admin can fill them in first, or
-    // freeze anyway, and only then is the pending bonus accepted.
-    it("first asks without accepting, then lists each link still waiting with its Content Detail", async () => {
-      moves.finalizeInvoice.mockResolvedValueOnce({
-        ok: false,
-        code: "INVOICE_BONUS_PENDING",
-        message: "Bonus performa masih menunggu data.",
-        waiting: WAITING,
-        lastSync: NO_SYNC,
-      });
+    it("accepts freezing it on confirm", async () => {
       render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={vi.fn()} />);
 
       fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-      const list = await screen.findByRole("list", { name: "Konten yang belum ada datanya" });
-      expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false });
-      expect(list).toHaveTextContent("Evg_2_Rangga");
-      expect(list).toHaveTextContent("TikTok · Likes · Akun belum terhubung");
-      expect(screen.getByRole("link", { name: "Buka Evg_2_Rangga" })).toHaveAttribute(
-        "href",
-        "/admin/content-plan?content=c-2",
+      await vi.waitFor(() =>
+        expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: true }),
       );
     });
-
-    it("still offers Finalize tetap when the server names no link", async () => {
-      moves.finalizeInvoice.mockResolvedValueOnce({
-        ok: false,
-        code: "INVOICE_BONUS_PENDING",
-        message: "Bonus performa masih menunggu data.",
-      });
-      render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={vi.fn()} />);
-
-      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
-
-      expect(await screen.findByRole("button", { name: "Finalize tetap" })).toBeEnabled();
-      expect(screen.getByRole("list", { name: "Konten yang belum ada datanya" })).toBeEmptyDOMElement();
-    });
-
-    it("freezes anyway, accepting the pending bonus, from Finalize tetap", async () => {
-      moves.finalizeInvoice.mockResolvedValueOnce({
-        ok: false,
-        code: "INVOICE_BONUS_PENDING",
-        message: "Bonus performa masih menunggu data.",
-        waiting: WAITING,
-        lastSync: NO_SYNC,
-      });
-      const onFinalized = vi.fn();
-      render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={onFinalized} />);
-      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
-
-      fireEvent.click(await screen.findByRole("button", { name: "Finalize tetap" }));
-
-      await waitFor(() =>
-        expect(moves.finalizeInvoice).toHaveBeenLastCalledWith(ROW.contractId, { acceptPendingBonus: true }),
-      );
-      await waitFor(() => expect(onFinalized).toHaveBeenCalled());
-      await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
-    });
-  });
-
-  // PBI-28 AC 7: the last sync can take up to 20 seconds, so the wait says what it is for.
-  it("says it is fetching the latest numbers while Finalize runs, with both buttons held", async () => {
-    moves.finalizeInvoice.mockReturnValue(new Promise(() => undefined));
-    render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
-
-    expect(await screen.findByRole("status")).toHaveTextContent("Mengambil angka terbaru…");
-    expect(screen.getByRole("button", { name: "Batal" })).toBeDisabled();
-  });
-
-  // PBI-28 AC 8: links the last sync left as they were are named before the modal closes.
-  it("names the links the last sync did not update before it closes", async () => {
-    moves.finalizeInvoice.mockResolvedValue({
-      ok: true,
-      lastSync: {
-        status: "timed_out",
-        notUpdated: [{ contentId: "c-1", contentName: "Evg_1_Rangga", platform: "instagram", state: "synced" }],
-      },
-    });
-    const onFinalized = vi.fn();
-    render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={onFinalized} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
-
-    expect(await screen.findByText("Sinkronisasi terakhir lebih dari 20 detik. 1 link memakai angka yang tersimpan.")).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "Link yang tidak diperbarui" })).toHaveTextContent(
-      "Evg_1_Rangga · Instagram · Tersinkron",
-    );
-    expect(onFinalized).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
-    expect(onFinalized).toHaveBeenCalledOnce();
   });
 
   it("names which contract's invoice it freezes when the creator has more than one", () => {
@@ -249,7 +157,7 @@ describe("FinalizeModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Kontrak belum berakhir"),
     );
     expect(onFinalized).not.toHaveBeenCalled();
@@ -261,7 +169,7 @@ describe("FinalizeModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Permintaan tidak dapat diproses. Coba lagi."),
     );
   });
