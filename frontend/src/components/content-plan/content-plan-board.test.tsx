@@ -30,6 +30,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const ROW: ContentPlanRow = {
+  platforms: [],
   contentId: "content-1",
   name: "Evg_1_Salsa_15Sep2026",
   creatorId: "id-1",

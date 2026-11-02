@@ -7,6 +7,7 @@ import {
 } from './link-change.js';
 import {
   LINKED_CONTENT_SELECT,
+  LINKED_CONTENT_WITH_ACCOUNTS_SELECT,
   LinkChangeService,
   type LinkChangeClient,
   type LinkChangeTransaction,
@@ -138,7 +139,8 @@ describe('LinkChangeService', () => {
           },
           contracts: { creator_id: CREATOR_ID },
         },
-        select: LINKED_CONTENT_SELECT,
+        // A submit checks the platforms against the creator's accounts on file (AC 3).
+        select: LINKED_CONTENT_WITH_ACCOUNTS_SELECT,
       });
       expect(transaction.contents.updateMany).toHaveBeenCalledWith({
         where: { id: CONTENT_ID, status: 'draft_approved' },
@@ -266,6 +268,43 @@ describe('LinkChangeService', () => {
       });
     });
 
+    it('answers a unique violation it cannot name as already sent, never as a server error', async () => {
+      transaction.contents.findFirst.mockResolvedValue(stored());
+      transaction.content_links.createMany.mockRejectedValue(
+        uniqueViolation(['some_future_index']),
+      );
+
+      expect(
+        await refusal(
+          new LinkChangeService(prisma).submit(CONTENT_ID, creator, [
+            { platform: 'tiktok', url: VIDEO },
+          ]),
+        ),
+      ).toMatchObject({ status: 409, body: { code: 'LINK_EXISTS' } });
+    });
+
+    it('dates a link sent just after midnight in Jakarta on the Jakarta day, not the UTC one', async () => {
+      // 10 Oct 2026, 00.30 WIB, still 9 Oct in UTC. Lateness and penalties read this day (AC 7).
+      vi.setSystemTime(new Date('2026-10-09T17:30:00.000Z'));
+      transaction.contents.findFirst.mockResolvedValue(stored());
+
+      const result = await new LinkChangeService(prisma).submit(
+        CONTENT_ID,
+        creator,
+        [{ platform: 'tiktok', url: VIDEO }],
+      );
+
+      expect(transaction.contents.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ video_submitted_at: TODAY }),
+        }),
+      );
+      expect(
+        transaction.content_links.createMany.mock.calls[0][0].data[0],
+      ).toMatchObject({ submitted_at: TODAY });
+      expect(result.submittedAt).toBe('2026-10-10');
+    });
+
     it('lets any other database failure through untouched', async () => {
       const failure = new Error('connection lost');
       transaction.contents.findFirst.mockResolvedValue(stored());
@@ -310,6 +349,21 @@ describe('LinkChangeService', () => {
         }),
       ]);
       expect(result.submittedAt).toBe('2026-10-05');
+    });
+
+    it("reads the content without the creator's accounts, which only a submit checks", async () => {
+      transaction.contents.findFirst.mockResolvedValue(LINKED);
+
+      await new LinkChangeService(prisma).replace(CONTENT_ID, admin, {
+        platform: 'instagram',
+        url: OTHER_REEL,
+      });
+
+      const { select } = transaction.contents.findFirst.mock.calls[0][0];
+      expect(select).toBe(LINKED_CONTENT_SELECT);
+      expect(select.contracts.select.creators.select).not.toHaveProperty(
+        'social_accounts',
+      );
     });
 
     it('clears nothing beyond the link itself until performance numbers exist', async () => {

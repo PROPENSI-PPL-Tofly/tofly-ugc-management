@@ -29,6 +29,7 @@ vi.mock("next/navigation", () => ({
 const COUNTS: ContentPlanCounts = { all: 42, action: 3, waiting: 12, done: 27 };
 
 const ROW: ContentPlanRow = {
+  platforms: [],
   contentId: "content-1",
   name: "Video Review Kopi",
   creatorId: "id-1",

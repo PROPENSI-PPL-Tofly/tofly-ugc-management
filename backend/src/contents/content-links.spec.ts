@@ -63,25 +63,38 @@ describe('normalizeVideoLink', () => {
     expect(normalizeVideoLink(link)).toBe('tiktok:7432100000000000000');
   });
 
-  it('reads a video id only on its own platform\'s host', () => {
+  it("reads a video id only on its own platform's host", () => {
     expect(normalizeVideoLink('https://example.com/p/DAbC123xyz')).toBe(
       'example.com/p/DAbC123xyz',
     );
     expect(normalizeVideoLink('https://example.com/@a/video/123')).toBe(
       'example.com/@a/video/123',
     );
-    expect(normalizeVideoLink('https://instagram.com.evil.example/p/DAbC')).toBe(
-      'instagram.com.evil.example/p/DAbC',
-    );
+    expect(
+      normalizeVideoLink('https://instagram.com.evil.example/p/DAbC'),
+    ).toBe('instagram.com.evil.example/p/DAbC');
   });
 
   it('keeps a platform link that names no post or video by its host and path', () => {
-    expect(normalizeVideoLink('https://www.instagram.com/rangga.creates/')).toBe(
-      'instagram.com/rangga.creates',
-    );
+    expect(
+      normalizeVideoLink('https://www.instagram.com/rangga.creates/'),
+    ).toBe('instagram.com/rangga.creates');
     expect(normalizeVideoLink('https://www.tiktok.com/@rangga')).toBe(
       'tiktok.com/@rangga',
     );
+  });
+
+  // Known gap until 27.3 resolves short links: a short link and the full link of one video key
+  // differently, so the unique key cannot tell them apart and both can be stored (AC 5).
+  it('keys a short TikTok link apart from the full link of the same video until it is resolved', () => {
+    expect(normalizeVideoLink('https://vt.tiktok.com/ZSxyz/')).toBe(
+      'vt.tiktok.com/ZSxyz',
+    );
+    expect(
+      normalizeVideoLink(
+        'https://www.tiktok.com/@tofly/video/7312345678901234567',
+      ),
+    ).toBe('tiktok:7312345678901234567');
   });
 
   it('keeps the path as typed, since Instagram and TikTok short codes are case-sensitive', () => {
@@ -112,9 +125,9 @@ describe('normalizeVideoLink', () => {
 
     expect(performance.now() - started).toBeLessThan(250);
     expect(key).toBe(`example.com/x${'/'.repeat(100_000)}y`);
-    expect(normalizeVideoLink(`https://vm.tiktok.com/ZM${'/'.repeat(100_000)}`)).toBe(
-      'vm.tiktok.com/ZM',
-    );
+    expect(
+      normalizeVideoLink(`https://vm.tiktok.com/ZM${'/'.repeat(100_000)}`),
+    ).toBe('vm.tiktok.com/ZM');
   });
 
   it('reads a video id in time that grows with the link, however long the path around it', () => {
@@ -162,7 +175,10 @@ describe('firstLink', () => {
   });
 
   it('does not reorder the list it reads', () => {
-    const links = [link('tiktok', '2026-10-30'), link('instagram', '2026-10-28')];
+    const links = [
+      link('tiktok', '2026-10-30'),
+      link('instagram', '2026-10-28'),
+    ];
 
     firstLink(links);
 
@@ -182,9 +198,9 @@ describe('linkPlatforms', () => {
   });
 
   it('leaves out a link kept from before platforms were recorded', () => {
-    expect(linkPlatforms([{ platform: null }, { platform: 'tiktok' }])).toEqual([
-      'tiktok',
-    ]);
+    expect(linkPlatforms([{ platform: null }, { platform: 'tiktok' }])).toEqual(
+      ['tiktok'],
+    );
   });
 
   it('is empty before any link is submitted', () => {
@@ -194,11 +210,14 @@ describe('linkPlatforms', () => {
 
 describe('isLinkTaken', () => {
   function uniqueViolation(target: unknown) {
-    return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-      code: 'P2002',
-      clientVersion: 'test',
-      meta: { target },
-    });
+    return new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target },
+      },
+    );
   }
 
   it('is a unique violation on the link key, as Prisma names it by field', () => {
@@ -206,13 +225,15 @@ describe('isLinkTaken', () => {
   });
 
   it('is a unique violation on the link key, as Prisma names it by index', () => {
-    expect(isLinkTaken(uniqueViolation('content_links_normalized_url_key'))).toBe(
-      true,
-    );
+    expect(
+      isLinkTaken(uniqueViolation('content_links_normalized_url_key')),
+    ).toBe(true);
   });
 
   it('is not the one-link-per-platform rule, which is a different refusal', () => {
-    expect(isLinkTaken(uniqueViolation(['content_id', 'platform']))).toBe(false);
+    expect(isLinkTaken(uniqueViolation(['content_id', 'platform']))).toBe(
+      false,
+    );
   });
 
   it('is not any other database error', () => {

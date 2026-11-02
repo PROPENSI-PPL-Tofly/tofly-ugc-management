@@ -28,6 +28,7 @@ function detail(overrides: Partial<ContentDetail> = {}): ContentDetail {
     waitingOn: "admin",
     latestSubmissionId: SUBMISSION,
     creatorActions: [],
+    links: [],
     events: [
       {
         id: "sub-2",
@@ -727,6 +728,107 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
   const NOW = new Date("2026-10-02T05:00:00Z");
 
   type Loader = NonNullable<Parameters<typeof ContentDetailPanel>[0]["load"]>;
+
+  describe("the submitted links (AC 11)", () => {
+    it("lists one row per link: the mark, the link in a new tab, and its date", async () => {
+      open(
+        detail({
+          links: [
+            {
+              platform: "instagram",
+              url: "https://instagram.com/p/x",
+              submittedAt: "2026-10-18",
+            },
+            {
+              platform: "tiktok",
+              url: "https://tiktok.com/@a/video/1",
+              submittedAt: "2026-10-19",
+            },
+          ],
+        }),
+      );
+
+      const section = await screen.findByRole("region", { name: "Tautan video" });
+      expect(within(section).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+      expect(within(section).getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+      const ig = within(section).getByRole("link", { name: /Instagram/ });
+      expect(ig).toHaveAttribute("target", "_blank");
+      expect(within(section).getByText("18 Okt 2026")).toBeInTheDocument();
+    });
+
+    it("keeps a link from before platforms were recorded: listed unnamed, without a mark", async () => {
+      open(
+        detail({
+          links: [{ platform: null, url: "https://example.com/video/old", submittedAt: "2026-09-15" }],
+        }),
+      );
+
+      const section = await screen.findByRole("region", { name: "Tautan video" });
+      expect(within(section).queryByRole("img")).not.toBeInTheDocument();
+      expect(within(section).getByRole("link", { name: "Link" })).toHaveAttribute(
+        "target",
+        "_blank",
+      );
+      expect(within(section).getByText("15 Sep 2026")).toBeInTheDocument();
+    });
+
+    it("shows no link section while nothing has been sent", async () => {
+      open(detail({ links: [] }));
+
+      // The journey is the sign the content has loaded; only then is its absence meaningful.
+      await screen.findByRole("list", { name: "Riwayat konten" });
+
+      expect(screen.queryByRole("region", { name: "Tautan video" })).not.toBeInTheDocument();
+    });
+
+    it("names the timeline event after the platform the link was sent to (AC 12)", async () => {
+      open(
+        detail({
+          status: "link_submitted",
+          links: [
+            {
+              platform: "instagram",
+              url: "https://instagram.com/p/x",
+              submittedAt: "2026-10-18",
+            },
+          ],
+          events: [
+            {
+              id: "ev-1",
+              type: "link_submitted",
+              at: "2026-10-18T03:00:00.000Z",
+              actor: { name: "Rangga Pratama", role: "creator" },
+              payload: { link: "https://instagram.com/p/x", platform: "instagram" },
+            },
+          ],
+        }),
+      );
+
+      expect(await screen.findByText("Link Instagram dikirim")).toBeInTheDocument();
+    });
+
+    it("says a replaced link took the place of another (AC 9)", async () => {
+      open(
+        detail({
+          status: "link_submitted",
+          links: [
+            { platform: "instagram", url: "https://instagram.com/p/new", submittedAt: "2026-10-19" },
+          ],
+          events: [
+            {
+              id: "ev-1",
+              type: "link_submitted",
+              at: "2026-10-19T03:00:00.000Z",
+              actor: { name: "Rangga Pratama", role: "creator" },
+              payload: { link: "https://instagram.com/p/new", platform: "instagram", replaced: true },
+            },
+          ],
+        }),
+      );
+
+      expect(await screen.findByText("Link Instagram diganti")).toBeInTheDocument();
+    });
+  });
 
   function show(overrides: Partial<ContentDetail> = {}, load?: Loader) {
     const loader = load ?? vi.fn<Loader>().mockResolvedValue(detail(overrides));

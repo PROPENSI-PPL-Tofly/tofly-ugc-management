@@ -5,6 +5,7 @@
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { PeriodFilter } from "./deadline-period";
+import type { Platform } from "./platform-links";
 import {
   calendarDay,
   list,
@@ -239,6 +240,8 @@ export interface ContentPlanRow {
   status: ContentStatus;
   tags: ContentTag[];
   revisionCount: number;
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: Platform[];
 }
 
 export interface ContentPlanCounts {

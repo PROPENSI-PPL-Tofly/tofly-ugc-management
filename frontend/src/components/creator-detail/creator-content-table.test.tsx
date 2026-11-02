@@ -4,6 +4,7 @@ import type { CreatorContentRow } from "@/lib/creator-detail";
 import { CreatorContentTable } from "./creator-content-table";
 
 const ROW: CreatorContentRow = {
+  platforms: [],
   contentId: "c-1",
   name: "Evg_7_RanggaPratama_26092026",
   type: "evergreen",
@@ -105,6 +106,50 @@ describe("CreatorContentTable", () => {
     const typeLabel = screen.getByText(label);
     expect(typeLabel).not.toHaveClass("rounded-full");
     expect(typeLabel).toHaveClass("text-muted");
+  });
+
+  it("shows the marks of the platforms the content was posted to (AC 13)", () => {
+    render(
+      <CreatorContentTable
+        rows={[
+          {
+            ...ROW,
+            platforms: ["instagram", "tiktok"],
+          },
+        ]}
+        filtered={false}
+        onOpen={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
+  it("puts the marks under the content name, above the type label", () => {
+    renderTable([{ ...ROW, platforms: ["instagram"] }]);
+
+    const row = rowOf("Evg_7_RanggaPratama_26092026");
+    const name = within(row).getByRole("button", { name: "Evg_7_RanggaPratama_26092026" });
+    const mark = within(row).getByRole("img", { name: "Instagram" });
+    const type = within(row).getByText("Evergreen");
+
+    expect(
+      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      mark.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no marks for a content with no link sent yet", () => {
+    render(
+      <CreatorContentTable rows={[ROW]} filtered={false} onOpen={vi.fn()} onReset={vi.fn()} />,
+    );
+
+    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
   });
 
   it("shows Overdue and Approval di-bypass beside the status", () => {

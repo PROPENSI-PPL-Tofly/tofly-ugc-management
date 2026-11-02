@@ -10,7 +10,7 @@ import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
 import type { MyTaskAction } from "./my-tasks";
-import type { SentLink } from "./video-links";
+import { linkEventTitle, type ContentLink, type Platform } from "./platform-links";
 
 export type DetailEventType =
   | "scheduled"
@@ -30,7 +30,14 @@ export interface RawContentEvent {
   at: string;
   /** "system" for a step the app took by itself (the H-1 scheduling); it has no name. */
   actor: { name: string | null; role: "admin" | "creator" | "system" };
-  payload?: { version?: number; link?: string; note?: string };
+  payload?: {
+    version?: number;
+    link?: string;
+    note?: string;
+    platform?: Platform;
+    /** A link that took the place of another (38.2); the step stays a link step. */
+    replaced?: boolean;
+  };
 }
 
 export interface RawContentDetail {
@@ -48,8 +55,8 @@ export interface RawContentDetail {
   latestSubmissionId: string | null;
   creatorActions: MyTaskAction[];
   events: RawContentEvent[];
-  /** The links sent so far, one per platform; absent in an answer that predates them. */
-  links?: SentLink[];
+  /** The submitted links, one per platform (AC 11); absent in an answer that predates 38.1. */
+  links?: ContentLink[];
 }
 
 export type ContentDetail = RawContentDetail;
@@ -90,7 +97,10 @@ export interface JourneyStep {
 // and the function that walks the events stays as it is.
 const STEP_WORDING: Record<
   DetailEventType,
-  (ordinal: number, by: RawContentEvent["actor"]["role"]) => { title: string; linkLabel: string | null }
+  (ordinal: number, by: RawContentEvent["actor"]["role"], event: RawContentEvent) => {
+    title: string;
+    linkLabel: string | null;
+  }
 > = {
   // A content starts with whoever made it: an admin adds it, a creator proposes it.
   scheduled: (_ordinal, by) => ({
@@ -107,7 +117,10 @@ const STEP_WORDING: Record<
   auto_scheduled: () => ({ title: "Dijadwalkan otomatis (H-1)", linkLabel: null }),
   // A comment moves the content nowhere; its note is the whole point and reads signed.
   creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
-  link_submitted: () => ({ title: "Link video dikirim", linkLabel: "Buka video" }),
+  link_submitted: (_ordinal, _by, event) => ({
+    title: linkEventTitle(event.payload?.platform, event.payload?.replaced === true),
+    linkLabel: "Buka video",
+  }),
 };
 
 function noteSignature(event: RawContentEvent): string | null {
@@ -143,7 +156,7 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
       ordinal = rounds;
     }
 
-    const { title, linkLabel } = STEP_WORDING[event.type](ordinal, event.actor.role);
+    const { title, linkLabel } = STEP_WORDING[event.type](ordinal, event.actor.role, event);
 
     steps.unshift({
       event,

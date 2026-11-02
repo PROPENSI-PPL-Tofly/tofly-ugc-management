@@ -3,6 +3,7 @@ import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
 import { ContentPlanTable } from "./content-plan-table";
 
 const ROW: ContentPlanRow = {
+  platforms: [],
   contentId: "c-1",
   name: "Video Review Kopi",
   creatorId: "id-1",
@@ -158,7 +159,38 @@ describe("ContentPlanTable", () => {
 
   // A creator's name leads to that creator's detail page (PBI-4), which holds their content plan.
   describe("the creator's name", () => {
-    it("links to that creator's detail page", () => {
+    it("shows the marks of the platforms the content was posted to (AC 13)", () => {
+    renderTable([
+      {
+        ...ROW,
+        platforms: ["instagram", "tiktok"],
+      },
+    ]);
+
+    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
+  it("puts the marks right under the content name", () => {
+    renderTable([{ ...ROW, platforms: ["instagram"] }]);
+
+    const row = screen.getByText("Video Review Kopi").closest("tr") as HTMLElement;
+    const name = within(row).getByRole("button", { name: "Video Review Kopi" });
+    const mark = within(row).getByRole("img", { name: "Instagram" });
+
+    expect(
+      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no marks for a content with no link sent yet", () => {
+    renderTable([ROW]);
+
+    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
+  });
+
+  it("links to that creator's detail page", () => {
       renderTable();
 
       expect(screen.getByRole("link", { name: "Salsa" })).toHaveAttribute(

@@ -351,6 +351,35 @@ describe('SubmitLinks', () => {
     });
   });
 
+  it('reads the accounts on file, which a replace never needs', () => {
+    expect(new SubmitLinks([]).readsAccounts).toBe(true);
+    expect(
+      new ReplaceLink({ platform: 'instagram', url: OTHER_REEL }, {})
+        .readsAccounts,
+    ).toBe(false);
+  });
+
+  it('refuses every platform when the accounts were not read, rather than letting one through', () => {
+    const unread = content();
+    delete unread.contracts.creators.social_accounts;
+
+    expect(
+      refusal(() =>
+        new SubmitLinks([{ platform: 'instagram', url: REEL }]).plan(
+          unread,
+          creator,
+          CLOCK,
+        ),
+      ),
+    ).toEqual({
+      status: 422,
+      body: {
+        message: 'Data link video tidak valid',
+        errors: { instagram: 'Creator belum punya akun Instagram' },
+      },
+    });
+  });
+
   it.each(['finalized', 'paid'] as const)(
     'refuses every link once the invoice is %s, before any other check',
     (invoice) => {

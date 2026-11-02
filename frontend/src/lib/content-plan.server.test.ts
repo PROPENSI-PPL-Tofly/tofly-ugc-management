@@ -134,6 +134,7 @@ describe("fetchContentPlan", () => {
       ...RESPONSE,
       items: [
         {
+          platforms: [],
           id: "content-1",
           name: "Promo Lebaran",
           creatorId: CREATOR_A,
@@ -166,6 +167,7 @@ describe("fetchContentPlan", () => {
           status: "draft_review",
           tags: [],
           revisionCount: 1,
+          platforms: [],
         },
       ],
       total: 3,
