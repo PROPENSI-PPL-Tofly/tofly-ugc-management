@@ -81,6 +81,25 @@ describe("saveManualPerformance (PBI-27 AC 14-18)", () => {
     });
   });
 
+  it("words a 403 without a code (a proxy or guard talking) as a plain retry", async () => {
+    respond(answer(403, { message: "Forbidden resource" }));
+
+    await expect(saveManualPerformance(CONTENT_ID, "instagram", VALUES)).resolves.toEqual({
+      ok: false,
+      message: "Angka performa gagal disimpan. Coba lagi.",
+    });
+  });
+
+  it("keeps the code but falls back to a plain message when the refusal has none", async () => {
+    respond(answer(409, { code: "LINK_CHANGED" }));
+
+    await expect(saveManualPerformance(CONTENT_ID, "instagram", VALUES)).resolves.toEqual({
+      ok: false,
+      code: "LINK_CHANGED",
+      message: "Angka performa gagal disimpan. Coba lagi.",
+    });
+  });
+
   it("words a dropped connection as a plain retry", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
@@ -128,6 +147,15 @@ describe("syncContentPerformance (PBI-27 AC 12-13)", () => {
     await expect(syncContentPerformance(CONTENT_ID)).resolves.toEqual({
       ok: false,
       message: "Sinkronisasi otomatis belum tersedia.",
+    });
+  });
+
+  it("words a server error as a plain retry", async () => {
+    respond(answer(500, { message: "Internal server error" }));
+
+    await expect(syncContentPerformance(CONTENT_ID)).resolves.toEqual({
+      ok: false,
+      message: "Sinkronisasi gagal. Coba lagi.",
     });
   });
 

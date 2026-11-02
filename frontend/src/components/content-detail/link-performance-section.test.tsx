@@ -233,6 +233,19 @@ describe("LinkPerformanceSection: manual input (AC 14-18)", () => {
     );
   });
 
+  it("goes back to the form, as typed, when the confirmation is cancelled", () => {
+    const props = show([NOT_CONNECTED]);
+    fireEvent.click(screen.getByRole("button", { name: "Isi Manual" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Views" }), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Batal" }));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Views" })).toHaveValue("5");
+    expect(props.save).not.toHaveBeenCalled();
+  });
+
   it("closes the form on Batal without saving", () => {
     const props = show([NOT_CONNECTED]);
     fireEvent.click(screen.getByRole("button", { name: "Isi Manual" }));
