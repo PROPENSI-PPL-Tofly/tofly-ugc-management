@@ -10,6 +10,7 @@ import { CreatorsModule } from './creators/creators.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
 import { MeModule } from './me/me.module.js';
+import { PerformanceModule } from './performance/performance.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProposalsModule } from './contents/proposals.module.js';
 import { RateFormulaModule } from './rate-formula/rate-formula.module.js';
@@ -39,6 +40,7 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
     CreatorsModule,
     InvoicesModule,
     ContentsModule,
+    PerformanceModule,
     ProposalsModule,
     SubmissionsModule,
     RateFormulaModule,
