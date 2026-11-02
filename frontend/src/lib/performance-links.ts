@@ -5,6 +5,7 @@
 // toPerformanceLinkItem, so a change on either side is a change here first.
 
 import { DATA_STATE_LABELS, type DataState, type LinkPerformance } from "./link-performance";
+import { MAX_FILTER_VALUES } from "./content-list-api";
 import { PLATFORMS, type Platform } from "./platform-links";
 import { list, listOf, pageNumber, type SearchParams } from "./search-params";
 
@@ -82,6 +83,27 @@ export function buildPerformanceLinksQuery(state: PerformanceLinksState): Record
 export function performanceLinksHref(state: PerformanceLinksState): string {
   const search = new URLSearchParams(buildPerformanceLinksQuery(state)).toString();
   return search ? `${PERFORMANCE_LINKS_BASE}?${search}` : PERFORMANCE_LINKS_BASE;
+}
+
+/** Each pick once, and no more of them than the API takes for one filter. */
+function picks(values: readonly string[]): string[] {
+  return [...new Set(values)].slice(0, MAX_FILTER_VALUES);
+}
+
+/**
+ * The state as the query GET /performance/links reads: a multi-select goes out as one parameter
+ * per pick, which is how the API reads a list, and the page is always named, whichever one is
+ * asked for. The URL's comma-joined state is never sent as-is (OWASP A03: only values the page
+ * itself parsed reach the API).
+ */
+export function toPerformanceLinksQuery(state: PerformanceLinksState): URLSearchParams {
+  const query = new URLSearchParams();
+
+  for (const creator of picks(state.creator)) query.append("creator", creator);
+  for (const platform of picks(state.platform)) query.append("platform", platform);
+  query.set("page", String(state.page));
+
+  return query;
 }
 
 /** A 200 whose body the pages cannot use reads as a failure, never as an empty list: a paged
