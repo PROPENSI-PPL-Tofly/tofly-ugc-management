@@ -94,6 +94,16 @@ describe("CreatorNav", () => {
     expect(link).toHaveAttribute("aria-current", "page");
   });
 
+  // Seen at 375px once Performa joined: the bar was laid out for three tiles, so Pembayaran
+  // dropped to a second row on its own. Every place sits in the one row of equal tiles.
+  it("lays its four places out as four equal tiles in one row on a phone", () => {
+    vi.mocked(usePathname).mockReturnValue("/creator/tasks");
+
+    render(<CreatorNav />);
+
+    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-4");
+  });
+
   // "/creator/tasks-archive" shares the prefix but is not below the page.
   it.each(["/creator", "/creator/tasks-archive"])("leaves Task Saya plain on %s", (path) => {
     vi.mocked(usePathname).mockReturnValue(path);
