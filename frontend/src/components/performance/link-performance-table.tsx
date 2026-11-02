@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { InfoTip } from "@/components/ui/info-tip";
 import { PlatformIcon } from "@/components/ui/platform-icon";
-import { EMPTY, formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format";
 import {
   DATA_STATE_LABELS,
   METRICS,
