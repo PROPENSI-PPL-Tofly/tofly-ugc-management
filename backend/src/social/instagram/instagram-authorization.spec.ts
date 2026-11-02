@@ -8,7 +8,6 @@ const CONFIG: InstagramConfig = {
   appId: '1234567890',
   appSecret: 'app-secret-never-in-a-url',
   redirectUri: 'http://localhost:3000/api/social/instagram/callback',
-  stateSecret: 's'.repeat(32),
 };
 const STATE = 'signed-state.signature';
 
