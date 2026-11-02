@@ -12,20 +12,57 @@ const STATE: InvoiceParams = {
   q: "salsa",
   contract: "active",
   status: "paid",
+  period: "all",
+  from: "",
+  to: "",
   sort: "total",
   order: "desc",
   page: 3,
 };
 
+/** The day the named periods are counted from, pinned so a range never moves under the test. */
+const TODAY = "2026-10-18";
+
 describe("toInvoiceListQuery", () => {
   it("sends every filter and the page, in the words the API reads", () => {
-    expect(toInvoiceListQuery(STATE).toString()).toBe(
+    expect(toInvoiceListQuery(STATE, TODAY).toString()).toBe(
       "q=salsa&contract=active&status=paid&sort=total&order=desc&page=3&pageSize=10",
     );
   });
 
   it("leaves out a filter that is not applied, and still names the page and its size", () => {
-    expect(toInvoiceListQuery(DEFAULT_INVOICE_PARAMS).toString()).toBe("page=1&pageSize=10");
+    expect(toInvoiceListQuery(DEFAULT_INVOICE_PARAMS, TODAY).toString()).toBe("page=1&pageSize=10");
+  });
+
+  it("sends a named contract-end period as the two days it stands for", () => {
+    expect(toInvoiceListQuery({ ...STATE, period: "month" }, TODAY).toString()).toContain(
+      "contractEndFrom=2026-10-01&contractEndTo=2026-10-31",
+    );
+    expect(toInvoiceListQuery({ ...STATE, period: "next30" }, TODAY).toString()).toContain(
+      "contractEndFrom=2026-10-18&contractEndTo=2026-11-17",
+    );
+    expect(toInvoiceListQuery({ ...STATE, period: "last90" }, TODAY).toString()).toContain(
+      "contractEndFrom=2026-07-20&contractEndTo=2026-10-18",
+    );
+  });
+
+  it("sends a custom range as its two days, in order even when it was picked backwards", () => {
+    expect(
+      toInvoiceListQuery(
+        { ...STATE, period: "custom", from: "2026-08-31", to: "2026-06-01" },
+        TODAY,
+      ).toString(),
+    ).toContain("contractEndFrom=2026-06-01&contractEndTo=2026-08-31");
+  });
+
+  it("sends an open custom end as it stands, and no period at all while none is named", () => {
+    expect(
+      toInvoiceListQuery(
+        { ...STATE, period: "custom", from: "2026-06-01", to: "" },
+        TODAY,
+      ).toString(),
+    ).toContain("contractEndFrom=2026-06-01");
+    expect(toInvoiceListQuery(STATE, TODAY).toString()).not.toContain("contractEnd");
   });
 });
 

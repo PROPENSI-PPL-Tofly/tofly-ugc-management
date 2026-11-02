@@ -77,6 +77,17 @@ const HAS_CONTRACT = {
   contracts: { some: {} },
 } satisfies Prisma.creatorsWhereInput;
 
+/** A named contract-end range narrows the roster in the query; without one it stays open. */
+function rosterWhere(filters: InvoiceFilters): Prisma.creatorsWhereInput {
+  const end: Prisma.DateTimeFilter = {};
+  if (filters.contractEndFrom) end.gte = new Date(`${filters.contractEndFrom}T00:00:00Z`);
+  if (filters.contractEndTo) end.lte = new Date(`${filters.contractEndTo}T00:00:00Z`);
+
+  return Object.keys(end).length > 0
+    ? { contracts: { some: { end_date: end } } }
+    : HAS_CONTRACT;
+}
+
 const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
   { first_name: 'asc' },
   { last_name: 'asc' },
@@ -314,7 +325,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
   ): Promise<Calculated> {
     const [rows, formula] = await Promise.all([
       this.prisma.creators.findMany({
-        where: HAS_CONTRACT,
+        where: rosterWhere(filters),
         select: INVOICE_SELECT,
         orderBy: ORDER_BY,
       }),
