@@ -67,6 +67,17 @@ describe("LinkPerformanceSection: the cards (PBI-27 AC 3, 19)", () => {
     expect(within(card("TikTok")).getByText("Akun belum terhubung")).toBeInTheDocument();
   });
 
+  it("shows each link once, as a chip that opens it in a new tab, without printing the address again", () => {
+    show([SYNCED]);
+
+    const instagram = card("Instagram");
+    expect(within(instagram).getByRole("link", { name: /instagram\.com\/reel\/C9xYz/ })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
+    expect(within(instagram).queryByText(REEL)).toBeNull();
+  });
+
   it("shows a real 0 as 0 and no data as a dash, never as 0 (AC 2)", () => {
     show([SYNCED]);
 
