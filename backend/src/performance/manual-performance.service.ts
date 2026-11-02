@@ -113,7 +113,6 @@ export class ManualPerformanceService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: ManualPerformanceClient,
-    private readonly now: () => Date = () => new Date(),
   ) {}
 
   save(
@@ -121,8 +120,8 @@ export class ManualPerformanceService {
     platform: social_platform,
     metrics: LinkMetrics,
     adminUserId: string | null,
+    now: Date,
   ): Promise<LinkPerformance> {
-    const now = this.now();
     return this.prisma.$transaction(async (transaction) => {
       const row = await transaction.content_links.findFirst({
         where: { content_id: contentId, platform },

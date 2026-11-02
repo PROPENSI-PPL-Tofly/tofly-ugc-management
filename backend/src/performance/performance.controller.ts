@@ -57,6 +57,7 @@ export class ManualPerformanceController {
       platform,
       checkManualPerformance(body),
       request.principal?.userId ?? null,
+      new Date(),
     );
   }
 }

@@ -79,7 +79,7 @@ describe('ManualPerformanceService', () => {
       work(transaction),
     ),
   } as unknown as ManualPerformanceClient;
-  const service = new ManualPerformanceService(prisma, () => NOW);
+  const service = new ManualPerformanceService(prisma);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -88,7 +88,7 @@ describe('ManualPerformanceService', () => {
   });
 
   it("reads the content's link on that platform, with only the columns the rule needs", async () => {
-    await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER);
+    await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW);
 
     expect(transaction.content_links.findFirst).toHaveBeenCalledWith({
       where: { content_id: CONTENT_ID, platform: 'instagram' },
@@ -126,7 +126,7 @@ describe('ManualPerformanceService', () => {
     );
 
     await expect(
-      service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER),
+      service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
     ).resolves.toMatchObject({ state: 'manual' });
   });
 
@@ -136,6 +136,7 @@ describe('ManualPerformanceService', () => {
       'instagram',
       TYPED,
       ADMIN_USER,
+      NOW,
     );
 
     expect(transaction.content_links.updateMany).toHaveBeenCalledWith({
@@ -162,7 +163,7 @@ describe('ManualPerformanceService', () => {
       row({ data_state: 'sync_failed', views: 9000, likes: 500 }),
     );
 
-    await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER);
+    await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW);
 
     expect(transaction.content_events.create).toHaveBeenCalledWith({
       data: {
@@ -199,14 +200,14 @@ describe('ManualPerformanceService', () => {
       );
 
       await expect(
-        service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER),
+        service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
       ).resolves.toMatchObject({ state: 'manual' });
     },
   );
 
   it('accepts a waiting link whose creator never connected the account (AC 14)', async () => {
     await expect(
-      service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER),
+      service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
     ).resolves.toMatchObject({ state: 'manual' });
   });
 
@@ -221,7 +222,9 @@ describe('ManualPerformanceService', () => {
       );
 
       expect(
-        await refusal(service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER)),
+        await refusal(
+          service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
+        ),
       ).toEqual({
         status: 409,
         body: {
@@ -256,7 +259,7 @@ describe('ManualPerformanceService', () => {
     );
 
     await expect(
-      service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER),
+      service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
     ).resolves.toMatchObject({ state: 'manual' });
   });
 
@@ -276,7 +279,9 @@ describe('ManualPerformanceService', () => {
       );
 
       expect(
-        await refusal(service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER)),
+        await refusal(
+          service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
+        ),
       ).toEqual({
         status: 409,
         body: {
@@ -292,7 +297,7 @@ describe('ManualPerformanceService', () => {
     transaction.content_links.findFirst.mockResolvedValue(null);
 
     expect(
-      await refusal(service.save(CONTENT_ID, 'tiktok', TYPED, ADMIN_USER)),
+      await refusal(service.save(CONTENT_ID, 'tiktok', TYPED, ADMIN_USER, NOW)),
     ).toEqual({
       status: 404,
       body: { code: 'LINK_NOT_FOUND', message: 'Link tidak ditemukan' },
@@ -303,7 +308,9 @@ describe('ManualPerformanceService', () => {
     transaction.content_links.updateMany.mockResolvedValue({ count: 0 });
 
     expect(
-      await refusal(service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER)),
+      await refusal(
+        service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
+      ),
     ).toEqual({
       status: 409,
       body: {

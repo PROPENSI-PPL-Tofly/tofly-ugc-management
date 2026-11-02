@@ -90,6 +90,7 @@ describe('Performance routes', () => {
         'instagram',
         { views: 12400, likes: null, comments: null, shares: null },
         ADMIN_USER,
+        expect.any(Date),
       );
     });
 
