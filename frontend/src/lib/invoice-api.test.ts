@@ -339,6 +339,71 @@ describe("toInvoiceBreakdown", () => {
     expect(shown.bonus.total).toBe(999999);
   });
 
+  // PBI-28 AC 6: each link's line says where its number came from and when it was synced; a link
+  // frozen without data is a Rp0 line saying so (28.2).
+  it("reads each bonus line's source and sync time, and a frozen link without data", () => {
+    const perLink = {
+      ...RAW_RANGGA_DETAIL,
+      components: {
+        ...RAW_RANGGA_DETAIL.components,
+        performanceBonus: {
+          amount: 150000,
+          status: "calculated" as const,
+          lines: [
+            {
+              contentId: "c-1",
+              contentName: "Evg_1",
+              amount: 150000,
+              basis: {
+                platform: "instagram",
+                metric: "views",
+                value: 41200,
+                tier: 2,
+                source: "synced",
+                lastSyncedAt: "2026-11-01T19:00:00.000Z",
+              },
+            },
+            {
+              contentId: "c-1",
+              contentName: "Evg_1",
+              amount: 0,
+              basis: { platform: "tiktok", metric: "likes", status: "no_data" },
+            },
+          ],
+        },
+      },
+    };
+
+    expect(toInvoiceBreakdown(perLink).bonus.lines).toEqual([
+      {
+        kind: "performance",
+        contentId: "c-1",
+        name: "Evg_1",
+        platform: "instagram",
+        metric: "views",
+        value: 41200,
+        tier: 2,
+        amount: 150000,
+        source: "synced",
+        lastSyncedAt: "2026-11-01T19:00:00.000Z",
+        noData: false,
+      },
+      {
+        kind: "performance",
+        contentId: "c-1",
+        name: "Evg_1",
+        platform: "tiktok",
+        metric: "likes",
+        value: 0,
+        tier: 0,
+        amount: 0,
+        source: null,
+        lastSyncedAt: null,
+        noData: true,
+      },
+    ]);
+  });
+
   it("bills the fixed rate for the contract period, with the quota delivered so far", () => {
     expect(breakdown.fixed).toEqual({
       period: { number: 2, start: "2026-09-01", end: "2026-11-30", quotaDone: 4, quotaTotal: 9 },
