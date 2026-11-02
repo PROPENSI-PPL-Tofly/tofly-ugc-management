@@ -202,6 +202,14 @@ describe("ContentPlanTable", () => {
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-2");
     });
 
+    it("opens the row's content on a press outside its name and buttons", () => {
+      const { onOpen } = renderTable();
+
+      fireEvent.click(screen.getByText("Salsa").closest("td")!.nextElementSibling!);
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
+    });
+
     it("shows a row as something to press", () => {
       renderTable();
 
@@ -225,6 +233,17 @@ describe("ContentPlanTable", () => {
         const { onOpen } = renderTable();
 
         fireEvent.click(screen.getByText("Video Review Kopi"));
+
+        expect(onOpen).not.toHaveBeenCalled();
+      });
+
+      it("does not open the panel when the selection ends on the row itself", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "Evergreen",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("Video Review Kopi").closest("tr")!);
 
         expect(onOpen).not.toHaveBeenCalled();
       });

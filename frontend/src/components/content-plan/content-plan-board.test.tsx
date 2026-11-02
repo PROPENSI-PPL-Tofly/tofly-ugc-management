@@ -87,6 +87,15 @@ describe("ContentPlanBoard", () => {
     expect(replace).toHaveBeenCalledWith("/admin/content-plan?tab=waiting", { scroll: false });
   });
 
+  it("clears every filter from an empty filtered list on Semua, leaving a bare address", () => {
+    window.history.pushState({}, "", "/admin/content-plan?q=kopi&type=specific");
+    render(<ContentPlanBoard items={[]} filtered tab="all" sort="desc" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/admin/content-plan", { scroll: false });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();

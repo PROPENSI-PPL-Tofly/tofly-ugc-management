@@ -168,6 +168,19 @@ describe("MyTaskTable", () => {
 
       expect(screen.getByText("Tidak ada tugas berstatus Draft Approved.")).toBeInTheDocument();
     });
+
+    it("offers the empty list's action instead of the hint, which the action already explains", () => {
+      render(
+        <MyTaskTable
+          tasks={[]}
+          emptyMessage="Tidak ada tugas yang cocok."
+          emptyAction={<button type="button">Reset filter</button>}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Reset filter" })).toBeInTheDocument();
+      expect(screen.queryByText("Tugas baru muncul di sini begitu admin menjadwalkannya.")).toBeNull();
+    });
   });
 
   // Below the lg breakpoint each row stacks into a card: the header row is visually hidden, so
