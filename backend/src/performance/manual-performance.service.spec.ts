@@ -45,6 +45,7 @@ function transaction(found: ManualContentRow | null, updated = 1) {
       updateMany: vi.fn().mockResolvedValue({ count: updated }),
     },
     content_events: { create: vi.fn().mockResolvedValue({}) },
+    $queryRaw: vi.fn().mockResolvedValue([]),
   } satisfies ManualPerformanceTransaction;
 }
 
@@ -98,6 +99,28 @@ describe('ManualPerformanceService.enter', () => {
       lastSyncedAt: null,
       manualAt: NOW.toISOString(),
     });
+  });
+
+  it("locks the content's contract row before reading its invoice, as Finalize does (OWASP A08:2025)", async () => {
+    const tx = transaction(row());
+
+    await serviceWith(tx).service.enter(CONTENT, 'tiktok', ENTERED, ADMIN, NOW);
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    const [sql] = tx.$queryRaw.mock.calls[0] as [
+      { sql: string; values: unknown[] },
+    ];
+    expect(sql.sql).toMatch(/FROM contracts WHERE id = .*FOR UPDATE/);
+    expect(sql.values).toEqual(['contract-1']);
+    const invoiceRead = tx.contents.findFirst.mock.calls.findIndex(
+      ([args]) =>
+        (args as { select: { contracts?: unknown } }).select.contracts !==
+        undefined,
+    );
+    expect(invoiceRead).toBeGreaterThanOrEqual(0);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.contents.findFirst.mock.invocationCallOrder[invoiceRead],
+    );
   });
 
   it('reads the platform account and the invoice the plan judges by', async () => {

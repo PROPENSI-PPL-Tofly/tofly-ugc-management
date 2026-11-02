@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { link_data_state, social_platform } from '@prisma/client';
+import type { Prisma, link_data_state, social_platform } from '@prisma/client';
 import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -44,6 +44,8 @@ export interface ManualPerformanceTransaction {
   contents: { findFirst(args: unknown): Promise<ManualContentRow | null> };
   content_links: { updateMany(args: unknown): Promise<{ count: number }> };
   content_events: { create(args: unknown): Promise<unknown> };
+  /** The contract row lock (contract-lock.ts), the same one Finalize takes first. */
+  $queryRaw(query: Prisma.Sql): Promise<unknown>;
 }
 
 export interface ManualPerformanceClient {
