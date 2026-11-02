@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { isSocialPlatform } from '../contents/link-rules.js';
-import type { LinkPerformance } from './enter-manual-performance.js';
+import type { LinkPerformance } from './link-performance.mapper.js';
 import { checkManualPerformance } from './manual-performance-input.js';
 import { ManualPerformanceService } from './manual-performance.service.js';
 

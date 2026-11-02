@@ -12,10 +12,8 @@ import {
   CONNECTION_SELECT,
   type ConnectionRow,
 } from './account-connections.js';
-import {
-  EnterManualPerformance,
-  type LinkPerformance,
-} from './enter-manual-performance.js';
+import { EnterManualPerformance } from './enter-manual-performance.js';
+import type { LinkPerformance } from './link-performance.mapper.js';
 import {
   METRIC_NAMES,
   type PerformanceMetrics,

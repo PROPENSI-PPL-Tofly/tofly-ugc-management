@@ -1,12 +1,18 @@
 import type { link_data_state, social_platform } from '@prisma/client';
 import { isConnected, type ConnectionRow } from './account-connections.js';
-import type { LinkPerformance } from './enter-manual-performance.js';
 import { linkState } from './link-state.js';
 import type { PerformanceMetrics } from './manual-performance-input.js';
 
 // From a content_links row to the performance object every reader sends (Data Mapper): the
 // Content Detail cards, the admin's Performa Konten and the creator's Performa list. One mapping,
 // so the wire shape, null versus 0 and the effective state cannot drift between them.
+
+/** A link's numbers and state as a card reads them (PBI-27 AC 19); the admin is never sent. */
+export interface LinkPerformance extends PerformanceMetrics {
+  state: link_data_state;
+  lastSyncedAt: string | null;
+  manualAt: string | null;
+}
 
 /** The content_links columns a link's performance is read from. */
 export interface StoredLinkPerformance extends PerformanceMetrics {
@@ -38,6 +44,14 @@ export function toLinkPerformance(
   connection: ConnectionRow | undefined,
 ): LinkPerformance | null {
   if (row.platform === null) return null;
+  return measuredPerformance(row, connection);
+}
+
+/** The performance of a link that has a platform, as toLinkPerformance sends it. */
+export function measuredPerformance(
+  row: Omit<StoredLinkPerformance, 'platform'>,
+  connection: ConnectionRow | undefined,
+): LinkPerformance {
   return {
     views: row.views,
     likes: row.likes,

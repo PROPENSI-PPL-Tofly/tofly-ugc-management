@@ -7,6 +7,10 @@ import {
 } from '../invoices/invoice-lifecycle.js';
 import { adminActor } from '../contents/content-event-actors.js';
 import { isConnected, type ConnectionRow } from './account-connections.js';
+import {
+  measuredPerformance,
+  type LinkPerformance,
+} from './link-performance.mapper.js';
 import { linkState } from './link-state.js';
 import type { PerformanceMetrics } from './manual-performance-input.js';
 
@@ -26,13 +30,6 @@ export interface PerformanceTarget {
         last_synced_at: Date | null;
       })
     | null;
-}
-
-/** A link's numbers and state as a card reads them (PBI-27 AC 19); the admin is never sent. */
-export interface LinkPerformance extends PerformanceMetrics {
-  state: link_data_state;
-  lastSyncedAt: string | null;
-  manualAt: string | null;
 }
 
 /** The writes one manual entry needs, which the service runs in one transaction. */
@@ -129,12 +126,16 @@ export class EnterManualPerformance {
           entered,
         },
       },
-      result: {
-        ...entered,
-        state: 'manual',
-        lastSyncedAt: link.last_synced_at?.toISOString() ?? null,
-        manualAt: now.toISOString(),
-      },
+      // Read back as every reader maps a link, from the row as it will stand.
+      result: measuredPerformance(
+        {
+          ...entered,
+          data_state: 'manual',
+          last_synced_at: link.last_synced_at,
+          manual_at: now,
+        },
+        target.connection,
+      ),
     };
   }
 }
