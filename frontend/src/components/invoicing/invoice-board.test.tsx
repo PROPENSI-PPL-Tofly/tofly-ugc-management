@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { InvoiceRow } from "@/lib/invoice";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { InvoiceBoard } from "./invoice-board";
@@ -122,7 +122,7 @@ describe("InvoiceBoard", () => {
       searchParams = new URLSearchParams("q=rangga&page=3");
       render(<InvoiceBoard rows={[ROW]} sort={{ key: "action", order: "asc" }} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Total/ }));
+      fireEvent.click(within(screen.getByRole("columnheader", { name: /^Total/ })).getByRole("button", { name: /^Total/ }));
 
       expect(replace).toHaveBeenCalledWith("/admin/invoicing?q=rangga&sort=total&order=desc", { scroll: false });
     });
@@ -131,7 +131,7 @@ describe("InvoiceBoard", () => {
       searchParams = new URLSearchParams("sort=total&order=desc");
       render(<InvoiceBoard rows={[ROW]} sort={{ key: "total", order: "desc" }} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Total/ }));
+      fireEvent.click(within(screen.getByRole("columnheader", { name: /^Total/ })).getByRole("button", { name: /^Total/ }));
 
       expect(replace).toHaveBeenCalledWith("/admin/invoicing?sort=total&order=asc", { scroll: false });
     });
@@ -140,7 +140,7 @@ describe("InvoiceBoard", () => {
       searchParams = new URLSearchParams("sort=name&order=desc");
       render(<InvoiceBoard rows={[ROW]} sort={{ key: "name", order: "desc" }} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "Fixed Rate" }));
+      fireEvent.click(within(screen.getByRole("columnheader", { name: /^Fixed Rate/ })).getByRole("button", { name: "Fixed Rate" }));
 
       expect(replace).toHaveBeenCalledWith("/admin/invoicing?sort=fixed&order=desc", { scroll: false });
     });

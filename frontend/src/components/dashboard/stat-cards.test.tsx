@@ -77,4 +77,16 @@ describe("StatCards", () => {
     expect(within(card).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(3);
   });
+
+  // The approved design: the one date sits apart from the three counts, on the navy tile, and
+  // the counts get a firmer edge than a plain card.
+  it("sets the nearest deadline apart from the counts", () => {
+    renderCards();
+
+    const [disubmit, , , terdekat] = screen.getAllByRole("listitem");
+    expect(terdekat.firstElementChild).toHaveAttribute("data-emphasis", "true");
+    expect(disubmit.firstElementChild).not.toHaveAttribute("data-emphasis");
+    expect(terdekat.firstElementChild).toHaveClass("bg-ink", "text-accent-ink");
+    expect(disubmit.firstElementChild).toHaveClass("border-[1.5px]");
+  });
 });

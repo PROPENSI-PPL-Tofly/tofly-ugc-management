@@ -1,8 +1,10 @@
 import { AppShell } from "@/components/shell/app-shell";
+import { DeadlineAgenda } from "@/components/dashboard/deadline-agenda";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { nearestDeadlineLabel } from "@/lib/creator-dashboard";
 import { fetchCreatorDashboard, type CreatorDashboard } from "@/lib/creator-dashboard.server";
+import { jakartaDay } from "@/lib/format";
 import { MyTasksError } from "@/lib/my-tasks";
 
 export const dynamic = "force-dynamic";
@@ -42,11 +44,11 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
       </p>
 
       {signedOut ? (
-        <a href="/login" className={`mt-4 inline-block ${buttonClasses("accent")}`}>
+        <a href="/login" className={`mt-4 inline-flex items-center ${buttonClasses("accent")}`}>
           Masuk
         </a>
       ) : (
-        <a href={BASE_PATH} className={`mt-4 inline-block ${buttonClasses()}`}>
+        <a href={BASE_PATH} className={`mt-4 inline-flex items-center ${buttonClasses()}`}>
           Muat ulang
         </a>
       )}
@@ -56,19 +58,29 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
 
 /**
  * The creator dashboard (PBI-7, subtask 7.3): how many tasks wait on the creator, per status,
- * and how close the nearest deadline is. A failed load shows a message, never cards of zeros
- * that would claim there is nothing to do.
+ * and how close the nearest deadline is; under the cards, what is overdue and what falls due in
+ * the next 14 days. A failed load shows a message, never cards of zeros that would claim there
+ * is nothing to do.
  */
 export default async function CreatorDashboardPage() {
   const loaded = await load();
+  const now = new Date();
 
   return (
     <AppShell role="creator" title="Dashboard" subtitle="Berikut ringkasan task yang perlu kamu kerjakan.">
       {loaded.kind === "ok" ? (
-        <StatCards
-          counts={loaded.dashboard.counts}
-          nearestDeadline={nearestDeadlineLabel(loaded.dashboard.nearestDeadline, new Date())}
-        />
+        <>
+          <StatCards
+            counts={loaded.dashboard.counts}
+            nearestDeadline={nearestDeadlineLabel(loaded.dashboard.nearestDeadline, now)}
+          />
+          <DeadlineAgenda
+            overdue={loaded.dashboard.overdue}
+            upcoming={loaded.dashboard.upcoming}
+            today={jakartaDay(now)}
+            now={now}
+          />
+        </>
       ) : (
         <LoadFailed signedOut={loaded.kind === "signed_out"} />
       )}

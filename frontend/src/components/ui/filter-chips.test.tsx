@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { expectPhoneTarget } from "@/test/touch-target";
 import { FilterChips, pickedChips, type FilterChip } from "./filter-chips";
 
 const remove = vi.fn();
@@ -16,6 +17,13 @@ function chip(over: Partial<FilterChip> = {}): FilterChip {
 describe("FilterChips", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  // Measured at 375px: each chip was 20px tall, the press that widens the list again.
+  it("gives each chip a 44px press on a phone", () => {
+    render(<FilterChips chips={[chip()]} canReset onReset={vi.fn()} />);
+
+    expectPhoneTarget(screen.getByRole("button", { name: "Hapus filter Creator: Adit Prakoso" }));
   });
 
   it("reads every chip as the filter it came from, in the benchmark's format", () => {

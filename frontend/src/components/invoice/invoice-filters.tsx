@@ -34,7 +34,7 @@ const RESETTABLE = ["q", "contract", "status", "period", "from", "to", "sort", "
  * address through the shared hook, so a pick is one replace away and drops the old page number.
  */
 export function InvoiceFilters() {
-  const { search, setSearch, param, setParam, reset, pending } = useUrlFilters();
+  const { search, setSearch, param, setParam, setParams, setPeriod, reset, pending } = useUrlFilters();
 
   // Read from what the address holds, typed or not, so Reset is offered to clear it all. The
   // sort headers write the same address and Reset clears them too, so a changed sort counts.
@@ -67,7 +67,10 @@ export function InvoiceFilters() {
         to={param("to") === "all" ? "" : param("to")}
         ignored={false}
         label="Periode Berakhir Kontrak"
+        subject="Akhir kontrak"
+        onPeriod={setPeriod}
         onChange={setParam}
+        onClear={() => setParams({ from: "", to: "" })}
       />
 
       {/* Left out until there is something to clear, as on Creator Database. */}
