@@ -9,6 +9,7 @@ import {
   type ConnectedAccount,
 } from "@/lib/connected-accounts";
 import { fetchMyConnectedAccounts } from "@/lib/connected-accounts.server";
+import { PERFORMANCE_LOCK_REMINDER } from "@/lib/link-performance";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,13 @@ export default async function CreatorPerformancePage({
   return (
     <AppShell role="creator" title="Performa" subtitle="Data performa konten kamu">
       {loaded.kind === "ok" ? (
-        <ConnectedAccountsPanel accounts={loaded.accounts} outcome={readConnectOutcome(params)} />
+        <>
+          <ConnectedAccountsPanel accounts={loaded.accounts} outcome={readConnectOutcome(params)} />
+          {/* PBI-28 AC 13: the numbers count for the bonus only until the invoice is finalized. */}
+          <p role="note" className="mt-4 rounded-(--radius-control) bg-surface-2 px-4 py-3 text-[13px] text-ink-2">
+            {PERFORMANCE_LOCK_REMINDER}
+          </p>
+        </>
       ) : null}
 
       {loaded.kind === "failed" ? (

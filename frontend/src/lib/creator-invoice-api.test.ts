@@ -54,7 +54,7 @@ describe("toCreatorInvoices", () => {
     expect(only(withBonus(RAW_MY_PAID)).breakdown.bonus.lines[0]).toMatchObject({
       lockedOn: "2026-09-02T02:00:00Z",
     });
-    expect(only(withBonus(RAW_MY_RUNNING)).breakdown.bonus.lines[0]).toMatchObject({ lockedOn: null });
+    expect(only(withBonus(RAW_MY_RUNNING)).breakdown.bonus.lines[0]).not.toHaveProperty("lockedOn");
   });
 
   it("counts a fee or penalty still waiting for a formula as nothing charged yet", () => {

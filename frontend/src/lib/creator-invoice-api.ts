@@ -10,6 +10,7 @@
 
 import type { CreatorInvoice, InvoiceComment, PaymentProof } from "./creator-invoice";
 import { INVOICE_STATUSES } from "./invoice";
+import type { InvoiceBreakdown } from "./invoice-breakdown";
 import { toInvoiceBreakdown, type RawInvoiceComponent, type RawInvoiceDetail } from "./invoice-api";
 import { isSameSitePath } from "./safe-href";
 
@@ -123,6 +124,21 @@ function toComment(raw: RawInvoiceComment): InvoiceComment {
   };
 }
 
+/** The admin's breakdown, each bonus line marked with when a finalized invoice locked it (28.4). */
+function lockedBreakdown(raw: RawCreatorInvoice): InvoiceBreakdown {
+  const breakdown = toInvoiceBreakdown(raw);
+  const lockedOn = raw.snapshot?.finalizedAt;
+  // A running invoice reads exactly as the admin's does.
+  if (!lockedOn) return breakdown;
+  return {
+    ...breakdown,
+    bonus: {
+      ...breakdown.bonus,
+      lines: breakdown.bonus.lines.map((line) => (line.kind === "performance" ? { ...line, lockedOn } : line)),
+    },
+  };
+}
+
 function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
   const { fixedRate, additionalContent, performanceBonus, penalty } = raw.components;
 
@@ -148,7 +164,7 @@ function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
     })),
     totalAmount: raw.total,
     floored: raw.floored,
-    breakdown: toInvoiceBreakdown(raw),
+    breakdown: lockedBreakdown(raw),
     // An answer that predates the payment fields simply has reached none of those steps.
     reachedAt: {
       finalized: raw.snapshot?.finalizedAt ?? null,
