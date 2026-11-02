@@ -13,7 +13,11 @@ import { ContentsController } from './contents.controller.js';
 import { ContentCreationService } from './contents.service.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { DraftSubmissionService } from './draft-submission.service.js';
-import { LinkChangeService } from './link-change.service.js';
+import { CLEARED_PERFORMANCE } from '../performance/link-state.js';
+import {
+  LINK_PERFORMANCE_COLUMNS,
+  LinkChangeService,
+} from './link-change.service.js';
 import { VideoSubmissionController } from './video-submission.controller.js';
 import { VideoSubmissionService } from './video-submission.service.js';
 
@@ -34,6 +38,8 @@ import { VideoSubmissionService } from './video-submission.service.js';
     CreatorCommentService,
     DraftSubmissionService,
     LinkChangeService,
+    // A replaced link starts again with no numbers (PBI-38 AC 9, PBI-27).
+    { provide: LINK_PERFORMANCE_COLUMNS, useValue: CLEARED_PERFORMANCE },
     VideoSubmissionService,
     AdminGuard,
     CreatorOrAdminGuard,

@@ -84,5 +84,18 @@ export function linkState(stored: link_data_state): LinkState {
   return STATES[stored];
 }
 
-/** What a replaced link's performance columns are set back to (PBI-38 AC 9). */
-export const CLEARED_PERFORMANCE = Object.freeze({});
+/**
+ * What a replaced link's performance columns are set back to, in the same update as its new url
+ * (PBI-38 AC 9): the old video's numbers, sync time and manual stamp go, and the link waits for
+ * its first numbers again. manual_by and manual_at clear together, as their check requires.
+ */
+export const CLEARED_PERFORMANCE = Object.freeze({
+  views: null,
+  likes: null,
+  comments: null,
+  shares: null,
+  data_state: 'waiting',
+  last_synced_at: null,
+  manual_by: null,
+  manual_at: null,
+} as const);
