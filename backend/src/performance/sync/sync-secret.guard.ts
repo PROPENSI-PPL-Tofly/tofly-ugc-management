@@ -40,9 +40,11 @@ export class SyncSecretGuard implements CanActivate {
   private readonly expected: Buffer | null;
 
   constructor(@Optional() @Inject(SYNC_SECRET) secret?: string) {
-    const configured = secret?.trim() ?? '';
+    const configured = secret?.trim();
     this.expected =
-      configured.length >= MIN_SYNC_SECRET_LENGTH ? digest(configured) : null;
+      configured !== undefined && configured.length >= MIN_SYNC_SECRET_LENGTH
+        ? digest(configured)
+        : null;
   }
 
   canActivate(context: ExecutionContext): boolean {

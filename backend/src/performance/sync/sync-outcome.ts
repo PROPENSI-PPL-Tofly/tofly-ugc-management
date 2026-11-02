@@ -82,32 +82,39 @@ function groupWrite(
   }
 }
 
+function outcomeOf(
+  link: SyncGroup['links'][number],
+  write: LinkWrite | null,
+): LinkOutcome {
+  const synced = write?.data_state === 'synced';
+  return {
+    linkId: link.id,
+    contentId: link.contentId,
+    platform: link.platform,
+    storedState: link.storedState,
+    synced,
+    // Numbers an admin typed in stay "Diisi manual" until the platform gives real ones (AC 14,
+    // 17): a not found, failed or disconnected answer never takes them away.
+    write: link.storedState === 'manual' && !synced ? null : write,
+  };
+}
+
 /** Each link of a group with what its source call came to. */
 export function outcomesFor(
   group: SyncGroup,
   result: GroupResult,
   now: Date,
 ): LinkOutcome[] {
-  const readings =
-    result.outcome === 'read'
-      ? new Map(result.readings.map((reading) => [reading.linkId, reading]))
-      : null;
-  const shared = result.outcome === 'read' ? null : groupWrite(result);
-
-  return group.links.map((link) => {
-    const write = readings ? writeFor(readings.get(link.id), now) : shared;
-    const synced = write?.data_state === 'synced';
-    return {
-      linkId: link.id,
-      contentId: link.contentId,
-      platform: link.platform,
-      storedState: link.storedState,
-      synced,
-      // Numbers an admin typed in stay "Diisi manual" until the platform gives real ones (AC 14,
-      // 17): a not found, failed or disconnected answer never takes them away.
-      write: link.storedState === 'manual' && !synced ? null : write,
-    };
-  });
+  if (result.outcome !== 'read') {
+    const shared = groupWrite(result);
+    return group.links.map((link) => outcomeOf(link, shared));
+  }
+  const readings = new Map(
+    result.readings.map((reading) => [reading.linkId, reading]),
+  );
+  return group.links.map((link) =>
+    outcomeOf(link, writeFor(readings.get(link.id), now)),
+  );
 }
 
 /** The run's counts, and every link it did not bring up to date. */
