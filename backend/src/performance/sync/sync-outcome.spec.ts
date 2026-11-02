@@ -1,5 +1,10 @@
 import type { SyncGroup } from './sync-selection.js';
-import { outcomesFor, summarize, type LinkOutcome } from './sync-outcome.js';
+import {
+  outcomesFor,
+  summarize,
+  type GroupResult,
+  type LinkOutcome,
+} from './sync-outcome.js';
 
 const NOW = new Date('2026-11-03T19:00:00.000Z');
 const CREATOR = '0f9c2f5e-6b1a-4f3e-9a51-3c1d2e4b5a60';
@@ -154,7 +159,7 @@ describe('outcomesFor', () => {
     ],
     ['disconnected', { outcome: 'disconnected' }],
     ['an error', { outcome: 'error' }],
-  ] as const)(
+  ] satisfies [string, GroupResult][])(
     'keeps a link an admin filled in "Diisi manual" when the platform answers %s: only real numbers replace it (AC 14, 17)',
     (_, result) => {
       const [outcome] = outcomesFor(
