@@ -80,6 +80,23 @@ describe("FilterChips", () => {
     expect(onReset).toHaveBeenCalledOnce();
   });
 
+  // Seen at 375px with two 44px chips: Reset dropped onto a line of its own under them, with
+  // the row's padding below it. On a phone the chips wrap inside their own group instead, so
+  // Reset stays on the first line beside them; from sm up the row is as it was.
+  it("keeps Reset on the chips' first line on a phone, the chips wrapping beside it", () => {
+    render(
+      <FilterChips
+        chips={[chip(), chip({ id: "s:1", filterLabel: "Status", valueLabel: "Scheduled" })]}
+        canReset
+        onReset={vi.fn()}
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "Filter aktif" });
+    expect(group.parentElement).toHaveClass("max-sm:flex-nowrap", "max-sm:items-start");
+    expect(group).toHaveClass("max-sm:min-w-0", "max-sm:flex-1", "flex-wrap");
+  });
+
   it("holds Reset while a change is still on its way", () => {
     render(<FilterChips chips={[chip()]} canReset resetDisabled onReset={vi.fn()} />);
 
