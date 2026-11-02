@@ -371,6 +371,24 @@ describe("breakdownPopup", () => {
       expect(view.note).toBe("Bonus performa: Menunggu data");
     });
 
+    // Seen on Rincian with two links already measured and one not: +Rp50.000 and +Rp75.000 above
+    // a "Total Rp0", while the table cell that opened it said Menunggu data.
+    it("totals a waiting bonus as Menunggu data, as the table cell does, not as the sum so far", () => {
+      const view = breakdownPopup(
+        "bonus",
+        breakdown({
+          bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
+            lines: [{ kind: "specific", contentId: "c-9", name: "Promo 10.10", amount: 100000 }],
+            total: 0,
+            performance: "waiting",
+          },
+        }),
+      );
+
+      expect(view.total).toBe("Menunggu data");
+    });
+
     it("has no note once the performance data is in", () => {
       expect(breakdownPopup("bonus", breakdown()).note).toBeNull();
     });
