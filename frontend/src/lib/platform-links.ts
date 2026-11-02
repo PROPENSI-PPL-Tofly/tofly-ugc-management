@@ -5,6 +5,8 @@
  * a DOM.
  */
 
+import type { LinkPerformance } from "./link-performance";
+
 export type Platform = "instagram" | "tiktok";
 
 export const PLATFORM_LABELS: Record<Platform, string> = {
@@ -22,6 +24,11 @@ export interface ContentLink {
   url: string;
   /** The day the link was handed in, "YYYY-MM-DD": the hour was never stored. */
   submittedAt: string;
+  /**
+   * Its numbers and data state (PBI-27, 27.1); null for a link with no platform to be measured
+   * on, absent in an answer from before 27.1.
+   */
+  performance?: LinkPerformance | null;
 }
 
 /**
