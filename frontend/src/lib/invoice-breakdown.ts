@@ -152,6 +152,8 @@ interface ColumnView {
   info: string[] | null;
   lines: Described[];
   total: number;
+  /** The total still waits for data, so it is not stated as a sum. */
+  waiting: boolean;
   empty: string;
   note: string | null;
 }
@@ -291,6 +293,7 @@ const COLUMNS: Record<BreakdownKind, (breakdown: InvoiceBreakdown) => ColumnView
         : [],
     total: fixed.total,
     empty: fixed.notStarted ? "Kontrak belum dimulai." : "Fixed rate kontrak belum diisi.",
+    waiting: false,
     note: null,
   }),
   extra: ({ extra }) => ({
@@ -298,6 +301,7 @@ const COLUMNS: Record<BreakdownKind, (breakdown: InvoiceBreakdown) => ColumnView
     lines: extra.lines.map(rated),
     total: extra.total,
     empty: "Belum ada konten tambahan yang selesai.",
+    waiting: false,
     note: null,
   }),
   bonus: ({ bonus: column }) => ({
@@ -305,6 +309,7 @@ const COLUMNS: Record<BreakdownKind, (breakdown: InvoiceBreakdown) => ColumnView
     lines: column.lines.map(bonus),
     total: column.total,
     empty: "Belum ada konten yang mendapat bonus.",
+    waiting: column.performance === "waiting",
     note: column.performance === "waiting" ? `Bonus performa: ${WAITING_FOR_DATA}` : null,
   }),
   penalty: ({ penalty: column }) => ({
@@ -312,6 +317,7 @@ const COLUMNS: Record<BreakdownKind, (breakdown: InvoiceBreakdown) => ColumnView
     lines: column.lines.map(penalty),
     total: column.total,
     empty: "Tidak ada keterlambatan.",
+    waiting: false,
     note: null,
   }),
 };
@@ -338,8 +344,10 @@ function keyed(lines: Described[]): BreakdownPopupLine[] {
  */
 export function breakdownPopup(kind: BreakdownKind, breakdown: InvoiceBreakdown): BreakdownPopupView {
   const column = COLUMNS[kind](breakdown);
-  // A penalty is money taken away, and its total reads that way too.
-  const total = kind === "penalty" ? formatDeduction(column.total) : formatRupiah(column.total);
+  // A penalty is money taken away, and its total reads that way too. A bonus still waiting for
+  // data has no sum yet: the lines known so far are not the whole of it.
+  let total = kind === "penalty" ? formatDeduction(column.total) : formatRupiah(column.total);
+  if (column.waiting) total = WAITING_FOR_DATA;
 
   return {
     title: `${BREAKDOWN_TITLES[kind]} · ${breakdown.creatorName}`,
