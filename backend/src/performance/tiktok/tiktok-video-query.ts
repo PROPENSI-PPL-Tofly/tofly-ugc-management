@@ -5,6 +5,8 @@ import {
   type TikTokAnswer,
 } from '../../social/tiktok/tiktok-http.js';
 
+import type { PerformanceMetrics } from '../performance-source.js';
+
 // The counts of a creator's TikTok videos (PBI-27, 27.3), read with Display API's video/query.
 // Only videos of the account the token belongs to come back, and only public ones (sandbox
 // test, #127), so a video that is missing is not the creator's or not readable.
@@ -23,13 +25,8 @@ const FIELDS = [
   'share_count',
 ];
 
-/** One video's four counts. Null means TikTok sent no usable number: no data, never 0. */
-export interface VideoMetrics {
-  views: number | null;
-  likes: number | null;
-  comments: number | null;
-  shares: number | null;
-}
+/** One video's four counts, as the port carries them: null is no data, never 0. */
+export type VideoMetrics = PerformanceMetrics;
 
 export interface VideoQueryResult {
   /** Each video TikTok returned, by id. A video asked for but absent was not found. */

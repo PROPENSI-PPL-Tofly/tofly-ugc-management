@@ -1,6 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { SocialPlatform } from './oauth-state.js';
-import type { TokenCipher } from './token-cipher.js';
+import { tokenContext, type TokenCipher } from './token-cipher.js';
 
 /** The slice of Prisma the store touches, so tests stub exactly that. */
 export type SocialTokenRows = Pick<PrismaService, 'social_accounts'>;
@@ -58,7 +58,7 @@ export class PrismaSocialTokenStore {
       return null;
     }
 
-    const context = `${creatorId}:${platform}`;
+    const context = tokenContext(creatorId, platform);
     try {
       return {
         handle: row.access_token,
@@ -84,7 +84,7 @@ export class PrismaSocialTokenStore {
     handle: string,
     tokens: RefreshedTokens,
   ): Promise<boolean> {
-    const context = `${creatorId}:${platform}`;
+    const context = tokenContext(creatorId, platform);
     const { count } = await this.rows.social_accounts.updateMany({
       where: { creator_id: creatorId, platform, access_token: handle },
       data: {
