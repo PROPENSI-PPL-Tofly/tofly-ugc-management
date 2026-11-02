@@ -36,6 +36,21 @@ const MANUAL_STATES: ReadonlySet<LinkDataState> = new Set([
   'manual',
 ]);
 
+/**
+ * What a link's performance columns go back to when another video takes its place (PBI-38
+ * AC 9): the old video's numbers never count for the new one.
+ */
+export const CLEARED_PERFORMANCE = Object.freeze({
+  views: null,
+  likes: null,
+  comments: null,
+  shares: null,
+  data_state: 'waiting',
+  last_synced_at: null,
+  manual_by: null,
+  manual_at: null,
+} as const);
+
 const FIELD_MESSAGE = 'Isi bilangan bulat 0 sampai 999.999.999';
 
 function isEmptyField(value: unknown): boolean {
