@@ -20,6 +20,10 @@ export const MAX_MEDIA_PAGES = 20;
 
 const METRICS = ['views', 'likes', 'comments', 'shares'] as const;
 
+// A long-lived token lasts 60 days. Refreshing only in its last week keeps clear of Instagram's
+// refusal to refresh a token younger than 24 hours, and leaves six more daily runs to retry in.
+export const REFRESH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 // A connected Instagram account, its token already decrypted.
 export interface InstagramAccount {
   platformUserId: string;
@@ -45,7 +49,28 @@ function isRecord(value: unknown): value is Json {
 }
 
 // Why a call to Instagram failed, in words safe for the log: the step, never a token or the body.
-class InstagramReadError extends Error {}
+// The status is kept when Instagram answered, so a refused token can be told from an outage.
+class InstagramReadError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
+
+// Instagram refused the token itself: expired, revoked, or the app's access removed.
+class TokenRefused extends Error {}
+
+function isRefusal(error: InstagramReadError): boolean {
+  return (
+    error.status !== undefined && error.status >= 400 && error.status < 500
+  );
+}
+
+function isLifetime(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
 
 // A metric's value only when Instagram gave a whole number of at least 0; anything else, an
 // empty list included, is no data rather than 0 (AC 2).
@@ -76,7 +101,7 @@ export class InstagramPerformanceSource implements PerformanceSource {
     creatorId: string,
     links: readonly SourceLink[],
   ): Promise<SourceResult> {
-    const account = await this.accounts.find(creatorId);
+    let account = await this.accounts.find(creatorId);
     if (!account) {
       return { outcome: 'disconnected' };
     }
@@ -91,8 +116,15 @@ export class InstagramPerformanceSource implements PerformanceSource {
     let media = new Map<string, string>();
     if (wanted.size > 0) {
       try {
+        account = await this.fresh(creatorId, account);
         media = await this.mediaIds(account, wanted);
       } catch (error) {
+        // The account becomes "Belum terhubung" and its links "Akun belum terhubung" (AC 7).
+        if (error instanceof TokenRefused) {
+          await this.accounts.disconnect(creatorId);
+          return { outcome: 'disconnected' };
+        }
+        // Retried in the next run (AC 6). A link that is not an Instagram post never could match.
         const reason = (error as InstagramReadError).message;
         return {
           outcome: 'read',
@@ -116,6 +148,60 @@ export class InstagramPerformanceSource implements PerformanceSource {
       );
     }
     return { outcome: 'read', readings };
+  }
+
+  // The account with a token that still has more than a week to live, refreshed and kept when it
+  // had less (AC 7). Instagram refusing the token is TokenRefused; anything else is a failure to
+  // retry, so an outage never disconnects a creator.
+  private async fresh(
+    creatorId: string,
+    account: InstagramAccount,
+  ): Promise<InstagramAccount> {
+    const now = this.now().getTime();
+    if (
+      account.expiresAt !== null &&
+      account.expiresAt.getTime() - now > REFRESH_WINDOW_MS
+    ) {
+      return account;
+    }
+
+    const params = new URLSearchParams({
+      grant_type: 'ig_refresh_token',
+      access_token: account.accessToken,
+    });
+    let body: Json;
+    try {
+      body = await this.call(
+        'token refresh',
+        `${INSTAGRAM_GRAPH_URL}/refresh_access_token?${params.toString()}`,
+      );
+    } catch (error) {
+      if (isRefusal(error as InstagramReadError)) {
+        throw new TokenRefused();
+      }
+      throw error;
+    }
+
+    const { access_token, expires_in } = body;
+    if (
+      typeof access_token !== 'string' ||
+      access_token === '' ||
+      !isLifetime(expires_in)
+    ) {
+      throw new InstagramReadError(
+        'token refresh: Instagram sent no usable answer',
+      );
+    }
+    const expiresAt = new Date(now + expires_in * 1000);
+    try {
+      await this.accounts.saveToken(creatorId, access_token, expiresAt);
+    } catch {
+      // Storage's own message is not passed on: it may quote the row, token included.
+      throw new InstagramReadError(
+        'token refresh: the new token could not be saved',
+      );
+    }
+    return { ...account, accessToken: access_token, expiresAt };
   }
 
   // The account's media, shortcode to media id, page by page until every wanted one is found.
@@ -217,6 +303,7 @@ export class InstagramPerformanceSource implements PerformanceSource {
     if (!response.ok) {
       throw new InstagramReadError(
         `${step}: Instagram answered ${response.status}`,
+        response.status,
       );
     }
     const body: unknown = await response.json().catch(() => undefined);
