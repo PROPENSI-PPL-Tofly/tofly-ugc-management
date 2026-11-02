@@ -108,9 +108,9 @@ describe('ManualPerformanceService.enter', () => {
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     const [sql] = tx.$queryRaw.mock.calls[0] as [
-      { sql: string; values: unknown[] },
+      { text: string; values: unknown[] },
     ];
-    expect(sql.sql).toMatch(/FROM contracts WHERE id = .*FOR UPDATE/);
+    expect(sql.text).toMatch(/FROM contracts WHERE id = .*FOR UPDATE/);
     expect(sql.values).toEqual(['contract-1']);
     const invoiceRead = tx.contents.findFirst.mock.calls.findIndex(
       ([args]) =>
