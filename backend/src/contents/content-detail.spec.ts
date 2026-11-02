@@ -858,6 +858,34 @@ describe('toContentDetail with a stored history', () => {
     ]);
   });
 
+  // PBI-27 AC 16: numbers an admin typed in are a step of the timeline, naming the platform.
+  it('words manual performance numbers as a step by an admin, naming the platform', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Performance Entered', '2026-09-04T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              platform: 'tiktok',
+              before: { views: null, state: 'not_connected' },
+              after: { views: 500, state: 'manual' },
+            },
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z'),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toEqual({
+      id: 'e2',
+      type: 'performance_entered',
+      at: '2026-09-04T03:00:00.000Z',
+      actor: { name: null, role: 'admin' },
+      payload: { platform: 'tiktok' },
+    });
+  });
+
   it('reads a proposal the system scheduled at H-1 as a step by the system, not by anyone', () => {
     const detail = toContentDetail(
       row({
