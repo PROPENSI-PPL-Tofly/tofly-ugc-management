@@ -25,10 +25,14 @@ function isWithin(pathname: string, href: string): boolean {
 // the current place are the theme's.
 const TILE = `flex flex-col items-center justify-center gap-1 rounded-xl bg-surface-2 px-1 py-2 text-center text-[11.5px] font-bold leading-tight text-ink-2 transition-[background-color,color,scale] hover:bg-rule-2 hover:text-ink active:scale-[.96] motion-reduce:active:scale-100 md:min-h-10 md:flex-row md:justify-start md:gap-2.5 md:rounded-(--radius-control) md:px-3 md:py-0 md:text-left md:text-[13px] md:font-semibold ${PHONE_TARGET}`;
 
+// One column per place, so every role's places share one row of equal tiles on a phone. Whole
+// class names, so Tailwind finds them.
+const COLUMNS: Record<number, string> = { 3: "grid-cols-3", 4: "grid-cols-4" };
+
 /**
  * The menu shared by every role: each role passes its places and its frame's colours, so a new
- * page is a new entry in a list rather than another copy of this markup. Three places fit as
- * three equal tiles on the narrowest phone, so nothing is cut off or scrolls. Client-side only
+ * page is a new entry in a list rather than another copy of this markup. Three or four places
+ * fit as equal tiles on the narrowest phone, so nothing is cut off, scrolls or wraps. Client-side only
  * to know which place is on screen.
  */
 export function ShellNav({
@@ -40,7 +44,7 @@ export function ShellNav({
 
   return (
     <nav aria-label={label} className="min-w-0 md:flex-1">
-      <ul className="grid grid-cols-3 gap-1.5 md:flex md:flex-col md:gap-1">
+      <ul className={`grid ${COLUMNS[places.length] ?? "grid-cols-3"} gap-1.5 md:flex md:flex-col md:gap-1`}>
         {places.map((place) => {
           const current = [place.href, ...(place.covers ?? [])].some((href) =>
             isWithin(pathname, href),
