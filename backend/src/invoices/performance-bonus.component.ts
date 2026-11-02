@@ -27,7 +27,7 @@ function reachedTier(
 }
 
 /** Delivered content that can earn a bonus: a late Specific item pays nothing, bonus included. */
-export function canEarnBonus(content: InvoiceContent): boolean {
+function eligible(content: InvoiceContent): boolean {
   if (content.status !== 'link_submitted') return false;
   return (
     content.type === 'evergreen' ||
@@ -65,7 +65,7 @@ export class PerformanceBonusComponent implements InvoiceComponent {
     let anyDelivered = false;
     let unmeasured = 0;
 
-    for (const content of contents.filter(canEarnBonus)) {
+    for (const content of contents.filter(eligible)) {
       for (const link of content.links) {
         anyDelivered = true;
         const rule = formula.performanceBonus[link.platform];

@@ -37,25 +37,3 @@ export interface PerformanceSource {
   // list or batches its ids once per account rather than once per link.
   read(creatorId: string, links: readonly SourceLink[]): Promise<SourceResult>;
 }
-
-// One link of a contract the sync could not bring up to date, named by its content and platform
-// (a content holds one link per platform).
-export interface UnsyncedLink {
-  contentId: string;
-  platform: SocialPlatform;
-}
-
-// What Finalize asks of the sync (PBI-28 AC 7): bring every link of one contract up to date once
-// more. 27.4 implements it; null means no sync is wired in yet, so the stored numbers stand.
-export interface ContractSync {
-  syncContract(
-    contractId: string,
-  ): Promise<{ notUpdated: UnsyncedLink[] } | null>;
-}
-
-export const CONTRACT_SYNC = Symbol('CONTRACT_SYNC');
-
-/** The sync before 27.4 binds its own: nothing to fetch, so Finalize goes on at once. */
-export const NO_CONTRACT_SYNC: ContractSync = Object.freeze({
-  syncContract: () => Promise.resolve(null),
-});

@@ -7,16 +7,6 @@ import {
 } from './invoice-component.js';
 import { settleForFinalize } from './invoice-settlement.js';
 
-const WAITING = {
-  contentId: 'c-1',
-  contentName: 'Konten 1',
-  platform: 'instagram' as const,
-  metric: 'views' as const,
-  state: 'not_connected' as const,
-};
-
-const UNAVAILABLE = { status: 'unavailable' as const, notUpdated: [] };
-
 function line(contentId: string, amount: number): InvoiceLine {
   return { contentId, contentName: contentId, amount, basis: {} };
 }
@@ -82,9 +72,6 @@ describe('settleForFinalize', () => {
       response: {
         code: 'INVOICE_BONUS_PENDING',
         message: 'Bonus performa masih menunggu data',
-        // Told nothing about the links, it says so rather than leaving the lists out.
-        waiting: [],
-        lastSync: { status: 'unavailable', notUpdated: [] },
       },
     });
   });
@@ -108,58 +95,6 @@ describe('settleForFinalize', () => {
     });
     expect(settled.rawTotal).toBe(1_075_000);
     expect(settled.performanceBonusPending).toBe(true);
-  });
-
-  it('lists, in the refusal, each link still without data and how the last sync went (PBI-28 AC 8, 9)', () => {
-    const lastSync = {
-      status: 'timed_out' as const,
-      notUpdated: [
-        {
-          contentId: 'c-2',
-          contentName: 'Konten 2',
-          platform: 'tiktok' as const,
-          state: 'synced' as const,
-        },
-      ],
-    };
-
-    const error = refusal(() =>
-      settleForFinalize(breakdown(waitingForData('performanceBonus')), false, {
-        waiting: [WAITING],
-        lastSync,
-      }),
-    );
-
-    expect(error).toMatchObject({
-      response: {
-        code: 'INVOICE_BONUS_PENDING',
-        waiting: [WAITING],
-        lastSync,
-      },
-    });
-  });
-
-  it('keeps each link without data in a frozen bonus as a Rp0 line marked no data (PBI-28 28.2)', () => {
-    const settled = settleForFinalize(
-      breakdown(
-        waitingForData('performanceBonus', [line('measured', 100_000)]),
-      ),
-      true,
-      { waiting: [WAITING], lastSync: UNAVAILABLE },
-    );
-
-    expect(settled.components.performanceBonus).toMatchObject({
-      amount: 100_000,
-      lines: [
-        line('measured', 100_000),
-        {
-          contentId: 'c-1',
-          contentName: 'Konten 1',
-          amount: 0,
-          basis: { platform: 'instagram', metric: 'views', status: 'no_data' },
-        },
-      ],
-    });
   });
 
   it('freezes an accepted pending bonus with nothing measured at zero', () => {
