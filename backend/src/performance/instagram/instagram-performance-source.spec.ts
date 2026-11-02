@@ -23,7 +23,12 @@ interface Instagram {
   pages?: Reply[];
   // The insights answer per media id.
   insights?: Record<string, Reply>;
+  // The token refresh's answer.
+  refresh?: Reply;
 }
+
+const NEW_TOKEN = 'IGAA-refreshed-token';
+const SIXTY_DAYS_S = 5_184_000;
 
 function metric(name: string, value: number) {
   return { name, period: 'lifetime', values: [{ value }] };
@@ -54,11 +59,23 @@ const ONE_PAGE: Reply[] = [
 
 // Stands in for Instagram: the media list page by page (the `after` cursor names the page),
 // and each media's insights.
-function instagram({ pages = ONE_PAGE, insights = {} }: Instagram = {}) {
+function instagram({
+  pages = ONE_PAGE,
+  insights = {},
+  refresh = {
+    body: {
+      access_token: NEW_TOKEN,
+      token_type: 'bearer',
+      expires_in: SIXTY_DAYS_S,
+    },
+  },
+}: Instagram = {}) {
   return vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
     const url = new URL(String(input));
     let reply: Reply | undefined;
-    if (url.pathname.endsWith(`/${IG_ID}/media`)) {
+    if (url.pathname === '/refresh_access_token') {
+      reply = refresh;
+    } else if (url.pathname.endsWith(`/${IG_ID}/media`)) {
       const after = url.searchParams.get('after');
       reply = pages[after === null ? 0 : Number(after.replace('page-', ''))];
     } else {
@@ -417,5 +434,160 @@ describe('InstagramPerformanceSource', () => {
     });
 
     expect(JSON.stringify(result)).not.toContain(TOKEN);
+  });
+
+  // AC 7: the long-lived token lasts 60 days and is refreshed before it runs out.
+  describe('token refresh', () => {
+    const LINKS = [{ id: 'link-1', url: reel('AAA111') }];
+
+    function expiringIn(days: number | null) {
+      return accountsWith({
+        ...CONNECTED,
+        expiresAt:
+          days === null ? null : new Date(NOW.getTime() + days * DAY_MS),
+      });
+    }
+
+    async function readWith(
+      accounts: ReturnType<typeof accountsWith>,
+      fake: Instagram = {},
+    ) {
+      const fetchImpl = instagram(fake);
+      const result = await sourceWith(fetchImpl, accounts).read(CREATOR, LINKS);
+      const urls = fetchImpl.mock.calls.map(
+        ([input]) => new URL(String(input)),
+      );
+      return { result, urls };
+    }
+
+    const refreshed = (urls: URL[]) =>
+      urls.filter((url) => url.pathname === '/refresh_access_token');
+
+    // Instagram refuses to refresh a token younger than 24 hours, so a fresh one is left alone.
+    it('leaves a token with more than 7 days left as it is', async () => {
+      const accounts = expiringIn(8);
+
+      const { urls } = await readWith(accounts);
+
+      expect(refreshed(urls)).toEqual([]);
+      expect(accounts.saveToken).not.toHaveBeenCalled();
+    });
+
+    it.each<[string, number | null]>([
+      ['a token with 7 days left', 7],
+      ['a token with 1 hour left', 1 / 24],
+      ['an expired token', -1],
+      ['a token with no expiry on record', null],
+    ])(
+      'refreshes %s, keeps the new one and reads with it',
+      async (_what, days) => {
+        const accounts = expiringIn(days);
+
+        const { result, urls } = await readWith(accounts);
+
+        const [refresh] = refreshed(urls);
+        expect(`${refresh.origin}${refresh.pathname}`).toBe(
+          `${INSTAGRAM_GRAPH_URL}/refresh_access_token`,
+        );
+        expect(refresh.searchParams.get('grant_type')).toBe('ig_refresh_token');
+        expect(refresh.searchParams.get('access_token')).toBe(TOKEN);
+        expect(accounts.saveToken).toHaveBeenCalledWith(
+          CREATOR,
+          NEW_TOKEN,
+          new Date(NOW.getTime() + SIXTY_DAYS_S * 1000),
+        );
+        for (const url of urls.slice(1)) {
+          expect(url.searchParams.get('access_token')).toBe(NEW_TOKEN);
+        }
+        expect(result).toMatchObject({
+          readings: [{ linkId: 'link-1', outcome: 'synced' }],
+        });
+      },
+    );
+
+    // The account becomes "Belum terhubung" and its links "Akun belum terhubung" (AC 7).
+    it.each<[string, Reply]>([
+      [
+        'a refused token',
+        {
+          status: 400,
+          body: { error: { type: 'OAuthException', code: 190 } },
+        },
+      ],
+      ['an unauthorized answer', { status: 401, body: {} }],
+    ])('disconnects the account on %s', async (_what, refresh) => {
+      const accounts = expiringIn(2);
+
+      const { result, urls } = await readWith(accounts, { refresh });
+
+      expect(accounts.disconnect).toHaveBeenCalledWith(CREATOR);
+      expect(result).toEqual({ outcome: 'disconnected' });
+      expect(urls).toHaveLength(1);
+      expect(accounts.saveToken).not.toHaveBeenCalled();
+    });
+
+    // Instagram being down is not the creator's doing: the account stays, the run is retried.
+    it.each<[string, Reply, string]>([
+      ['no answer', 'network', 'token refresh: Instagram unreachable'],
+      [
+        'an error on its side',
+        { status: 503, body: {} },
+        'token refresh: Instagram answered 503',
+      ],
+      [
+        'an answer with no token',
+        { body: { token_type: 'bearer', expires_in: SIXTY_DAYS_S } },
+        'token refresh: Instagram sent no usable answer',
+      ],
+      [
+        'an answer with no lifetime',
+        { body: { access_token: NEW_TOKEN } },
+        'token refresh: Instagram sent no usable answer',
+      ],
+    ])(
+      'keeps the account and fails every link on %s',
+      async (_what, refresh, reason) => {
+        const accounts = expiringIn(2);
+
+        const { result, urls } = await readWith(accounts, { refresh });
+
+        expect(accounts.disconnect).not.toHaveBeenCalled();
+        expect(accounts.saveToken).not.toHaveBeenCalled();
+        expect(result).toEqual({
+          outcome: 'read',
+          readings: [{ linkId: 'link-1', outcome: 'failed', reason }],
+        });
+        expect(urls).toHaveLength(1);
+      },
+    );
+
+    it('fails every link when the new token cannot be saved', async () => {
+      const accounts = expiringIn(2);
+      accounts.saveToken.mockRejectedValue(new Error(`row ${NEW_TOKEN}`));
+
+      const { result } = await readWith(accounts);
+
+      expect(result).toEqual({
+        outcome: 'read',
+        readings: [
+          {
+            linkId: 'link-1',
+            outcome: 'failed',
+            reason: 'token refresh: the new token could not be saved',
+          },
+        ],
+      });
+      expect(accounts.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('never puts either token in a failure reason', async () => {
+      const accounts = expiringIn(2);
+      accounts.saveToken.mockRejectedValue(new Error(`row ${NEW_TOKEN}`));
+
+      const { result } = await readWith(accounts);
+
+      expect(JSON.stringify(result)).not.toContain(TOKEN);
+      expect(JSON.stringify(result)).not.toContain(NEW_TOKEN);
+    });
   });
 });
