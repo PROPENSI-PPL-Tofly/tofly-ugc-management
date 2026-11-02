@@ -6,6 +6,7 @@ import { ContentDetailPanel } from "@/components/content-detail/content-detail-p
 import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
 import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
 import type { TaskContent } from "@/components/my-task/task-summary";
+import { useVideoLinksModal } from "@/components/my-task/use-video-links-modal";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -90,6 +91,7 @@ export function MyTaskBoard({
   // deep-link into it the way a notification would.
   const [detailContentId, setDetailContentId] = useState<string | null>(null);
   const { show: confirm, toast } = useToast();
+  const { openLinks, linksModal } = useVideoLinksModal("creator");
   const listRef = useRef<HTMLElement>(null);
   const focusListOnClose = useRef(false);
 
@@ -259,9 +261,14 @@ export function MyTaskBoard({
           onClose={closeDetail}
           ports={{
             onCreatorAction: openSubmitFromPanel,
+            onManageLinks: (detail) => {
+              closeDetail();
+              openLinks(detail);
+            },
           }}
         />
       ) : null}
+      {linksModal}
       {toast}
     </>
   );
