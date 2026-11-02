@@ -9,6 +9,7 @@ import {
   TikTokProvider,
 } from './tiktok-provider.js';
 import type { TikTokConfig } from './tiktok-config.js';
+import { RefreshRefused, RefreshUnavailable } from '../token-refresh.js';
 
 const CONFIG: TikTokConfig = {
   clientKey: 'sbawexamplekey',
@@ -598,5 +599,151 @@ describe('TikTokProvider', () => {
     expect(account.accessTokenExpiresAt.getTime()).toBeGreaterThanOrEqual(
       before + 60_000,
     );
+  });
+
+  // PBI-27, 27.3: an access token lasts 24 h (sandbox test, #127), so a daily sync refreshes it
+  // with the refresh token, which lasts a year.
+  describe('refresh', () => {
+    const OLD_REFRESH = 'rft.old-refresh-token';
+
+    function refreshWith(answer: () => Response | Promise<Response>) {
+      const fetchImpl = vi.fn<typeof fetch>(async () => answer());
+      return {
+        fetchImpl,
+        run: () =>
+          provider(fetchImpl).refresh(OLD_REFRESH, AbortSignal.timeout(5000)),
+      };
+    }
+
+    async function failureOf(promise: Promise<unknown>): Promise<Error> {
+      return promise.then(
+        () => {
+          throw new Error('expected the refresh to fail');
+        },
+        (thrown: unknown) => thrown as Error,
+      );
+    }
+
+    it('trades the refresh token for new tokens, timed from now', async () => {
+      const { run } = refreshWith(() =>
+        json(
+          tokenBody({
+            access_token: 'act.new-access',
+            refresh_token: 'rft.new-refresh',
+          }),
+        ),
+      );
+
+      await expect(run()).resolves.toEqual({
+        accessToken: 'act.new-access',
+        accessTokenExpiresAt: new Date(NOW.getTime() + 86_400_000),
+        refreshToken: 'rft.new-refresh',
+        refreshTokenExpiresAt: new Date(NOW.getTime() + 31_536_000_000),
+      });
+    });
+
+    // OWASP A01:2025: the secret and the refresh token go server to TikTok, in the body only,
+    // with redirects refused and under the caller's deadline.
+    it('posts grant_type=refresh_token with the app and the refresh token, as a form', async () => {
+      const { fetchImpl } = refreshWith(() => json(tokenBody()));
+      const deadline = AbortSignal.timeout(5000);
+
+      await provider(fetchImpl).refresh(OLD_REFRESH, deadline);
+
+      const [url, init] = fetchImpl.mock.calls[0];
+      expect(url).toBe(TIKTOK_TOKEN_URL);
+      expect(init).toMatchObject({
+        method: 'POST',
+        redirect: 'error',
+        signal: deadline,
+      });
+      expect(
+        Object.fromEntries(new URLSearchParams(String(init?.body))),
+      ).toEqual({
+        client_key: CONFIG.clientKey,
+        client_secret: CONFIG.clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: OLD_REFRESH,
+      });
+    });
+
+    // A refresh token TikTok no longer accepts will never work again: the account is disconnected.
+    it.each([
+      ['invalid_grant', 400],
+      ['invalid_request', 400],
+      ['access_denied', 401],
+    ])('reads a %s (%i) refusal as refused', async (error, status) => {
+      const { run } = refreshWith(() =>
+        json(
+          { error, error_description: 'Refresh token is invalid', log_id: 'x' },
+          status,
+        ),
+      );
+
+      const failure = await failureOf(run());
+
+      expect(failure).toBeInstanceOf(RefreshRefused);
+      expect(failure.message).toBe(
+        `token endpoint refused the refresh: ${error}`,
+      );
+    });
+
+    it('reads a refusal that names no usable error as refused', async () => {
+      const { run } = refreshWith(() => json({ error: { nested: true } }, 400));
+
+      const failure = await failureOf(run());
+
+      expect(failure).toBeInstanceOf(RefreshRefused);
+      expect(failure.message).toBe(
+        'token endpoint refused the refresh: unknown',
+      );
+    });
+
+    // Not knowing is not a refusal: the account stays connected and the links are tried again.
+    it.each([
+      [
+        'an unreachable TikTok',
+        () => Promise.reject(new TypeError('fetch failed')),
+      ],
+      ['a 500', () => json({ error: 'internal_error' }, 500)],
+      ['a 503 without JSON', () => new Response('<html>', { status: 503 })],
+      ['a rate limit (429)', () => json({ error: 'rate_limit_exceeded' }, 429)],
+      ['a 200 that is not JSON', () => new Response('<html>', { status: 200 })],
+      [
+        'a 2xx without an access token',
+        () => json(tokenBody({ access_token: '' })),
+      ],
+      ['a 2xx with a lifetime of 0', () => json(tokenBody({ expires_in: 0 }))],
+      [
+        'a 2xx without a refresh token',
+        () => json(tokenBody({ refresh_token: undefined })),
+      ],
+      [
+        'a 2xx without a refresh lifetime',
+        () => json(tokenBody({ refresh_expires_in: 'x' })),
+      ],
+    ])('reads %s as unavailable for now', async (_, answer) => {
+      const { run } = refreshWith(answer as () => Response);
+
+      await expect(run()).rejects.toBeInstanceOf(RefreshUnavailable);
+    });
+
+    // OWASP A09:2025: what a refresh failure says goes to the log, so it never holds a secret.
+    it('never puts a secret in what a failure says', async () => {
+      for (const answer of [
+        () => json({ error: 'invalid_grant' }, 400),
+        () => json({ error: 'internal_error' }, 500),
+        () => json(tokenBody({ access_token: '' })),
+      ]) {
+        const { message } = await failureOf(refreshWith(answer).run());
+        for (const secret of [
+          OLD_REFRESH,
+          CONFIG.clientSecret,
+          CONFIG.clientKey,
+        ]) {
+          expect(message).not.toContain(secret);
+        }
+      }
+    });
   });
 });
