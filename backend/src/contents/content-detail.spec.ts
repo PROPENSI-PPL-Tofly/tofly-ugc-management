@@ -858,6 +858,36 @@ describe('toContentDetail with a stored history', () => {
     expect(detail.events[0].payload).toEqual({ link: 'https://youtu.be/x' });
   });
 
+  // PBI-27 AC 16: an admin's manual numbers are a step of their own. The timeline is the
+  // creator's too, so it names the platform only: the numbers and the admin stay on the server.
+  it('reads Performance Entered as a performance_entered step naming only its platform', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Performance Entered', '2026-09-04T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              platform: 'tiktok',
+              previous: { views: 9000, likes: null, comments: 0, shares: 3 },
+              entered: { views: 12400, likes: 500, comments: 0, shares: null },
+            },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events).toEqual([
+      {
+        id: 'e1',
+        type: 'performance_entered',
+        at: '2026-09-04T03:00:00.000Z',
+        actor: { name: null, role: 'admin' },
+        payload: { platform: 'tiktok' },
+      },
+    ]);
+  });
+
   it('falls back to the journey its rows prove when nothing was stored for it', () => {
     const detail = toContentDetail(
       row({ content_events: [] }),
