@@ -219,7 +219,11 @@ describe('content performance (e2e)', () => {
       });
 
       const detail = await as(app, admin).get(`/contents/${content.id}`);
-      expect(detail.body.links[0].performance).toMatchObject({
+      // Both links were handed in by one statement, so pick by platform, not by place.
+      const instagram = detail.body.links.find(
+        (link: { platform: string }) => link.platform === 'instagram',
+      );
+      expect(instagram.performance).toMatchObject({
         views: 12400,
         state: 'manual',
       });
@@ -316,9 +320,17 @@ describe('content performance (e2e)', () => {
 
       const mine = await as(app, creator).get(`/me/contents/${own.id}`);
       expect(mine.status).toBe(200);
-      expect(mine.body.links[0].performance).toMatchObject({
-        state: 'waiting',
-      });
+      // Instagram is connected for this creator and TikTok is not.
+      expect(
+        Object.fromEntries(
+          mine.body.links.map(
+            (link: { platform: string; performance: { state: string } }) => [
+              link.platform,
+              link.performance.state,
+            ],
+          ),
+        ),
+      ).toEqual({ instagram: 'waiting', tiktok: 'not_connected' });
 
       expect(
         (await as(app, creator).get(`/me/contents/${theirs.id}`)).status,

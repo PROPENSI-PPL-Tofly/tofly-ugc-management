@@ -32,3 +32,21 @@ alter table content_links
   add constraint content_links_manual_check check ((manual_by is null) = (manual_at is null));
 
 create index content_links_manual_by_idx on content_links (manual_by);
+
+-- Numbers an admin types in are recorded in the content timeline with the old and new values
+-- (AC 16).
+alter table content_events drop constraint content_events_event_type_check;
+alter table content_events add constraint content_events_event_type_check check (
+  event_type in (
+    'Scheduled',
+    'Draft Submitted',
+    'Revision Requested',
+    'Draft Approved',
+    'Link Submitted',
+    'Link Replaced',
+    'Creator Comment',
+    'Proposal Approved',
+    'Auto Scheduled',
+    'Performance Entered'
+  )
+);
