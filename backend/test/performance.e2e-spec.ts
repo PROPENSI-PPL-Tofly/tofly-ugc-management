@@ -360,4 +360,41 @@ describe('content performance (e2e)', () => {
       }
     });
   });
+
+  describe('PUT /contents/:id/links/:platform, replacing a link (PBI-38 AC 9)', () => {
+    it("drops the old video's numbers, state, sync time and manual stamp in the same update, and still records Link Replaced", async () => {
+      const contentId = await linked(owner, 'sync_failed', {
+        views: 9000,
+        likes: 12,
+      });
+      expect((await enter(contentId, { views: 12_400 })).status).toBe(200);
+      await prisma.content_links.updateMany({
+        where: { content_id: contentId },
+        data: { last_synced_at: new Date('2026-11-01T19:00:00Z') },
+      });
+      const newVideo = tiktok();
+
+      const response = await as(app, admin)
+        .put(`/contents/${contentId}/links/tiktok`)
+        .send({ url: newVideo });
+
+      expect(response.status).toBe(200);
+      expect(await linkOf(contentId)).toMatchObject({
+        url: newVideo,
+        views: null,
+        likes: null,
+        comments: null,
+        shares: null,
+        data_state: 'waiting',
+        last_synced_at: null,
+        manual_by: null,
+        manual_at: null,
+      });
+      expect(
+        await prisma.content_events.count({
+          where: { content_id: contentId, event_type: 'Link Replaced' },
+        }),
+      ).toBe(1);
+    });
+  });
 });
