@@ -6,6 +6,36 @@ export type MetricName = 'views' | 'likes' | 'comments' | 'shares';
 /** A link's four counts; null is "no data yet", never 0 (AC 2). */
 export type PerformanceMetrics = Record<MetricName, number | null>;
 
-export function checkManualPerformance(_body: unknown): PerformanceMetrics {
-  throw new Error('not implemented');
+/** The four counts in the order the card and the form show them. */
+export const METRIC_NAMES: readonly MetricName[] = Object.freeze([
+  'views',
+  'likes',
+  'comments',
+  'shares',
+]);
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/** A field the admin left empty: the form sends all four, filled or not. */
+function isEmptyField(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'string' && value.trim() === '')
+  );
+}
+
+/** `{ views?, likes?, comments?, shares? }` as the link's four counts. */
+export function checkManualPerformance(body: unknown): PerformanceMetrics {
+  const fields = asObject(body);
+  const metrics = {} as PerformanceMetrics;
+  for (const name of METRIC_NAMES) {
+    const value = fields[name];
+    metrics[name] = isEmptyField(value) ? null : (value as number);
+  }
+  return metrics;
 }
