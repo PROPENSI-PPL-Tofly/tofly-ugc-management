@@ -603,6 +603,31 @@ describe('savedSnapshot', () => {
     expect(savedSnapshot(complete)).toBe(complete);
   });
 
+  // PBI-28 AC 10: a snapshot from before links were kept with it reads as it always did, and one
+  // that keeps them reads back with them.
+  it("reads back a snapshot with every link's numbers, as well as one from before they were kept", () => {
+    const withLinks = {
+      ...complete,
+      performanceLinks: [
+        {
+          contentId: 'content-1',
+          contentName: 'Evg_1',
+          platform: 'instagram',
+          views: 41_200,
+          likes: null,
+          comments: null,
+          shares: null,
+          source: 'synced',
+          state: 'synced',
+          lastSyncedAt: '2026-09-11T19:00:00.000Z',
+        },
+      ],
+    };
+
+    expect(savedSnapshot(withLinks)).toBe(withLinks);
+    expect(savedSnapshot(complete)?.performanceLinks).toBeUndefined();
+  });
+
   it('reads back the formula kept with a snapshot, or a null one', () => {
     // As the jsonb column hands it back: plain JSON, not a RateFormula.
     const formula = {
