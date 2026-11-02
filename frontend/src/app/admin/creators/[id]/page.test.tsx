@@ -72,6 +72,7 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
     selected: NEWEST,
     rows: [
       {
+        platforms: [],
         contentId: "content-1",
         name: "Evg_7_RanggaPratama_26092026",
         type: "evergreen",

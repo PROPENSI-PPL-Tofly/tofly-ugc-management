@@ -74,6 +74,7 @@ vi.mock("@/components/my-task/submit-video-modal", () => ({
 
 function task(overrides: Partial<MyTask> = {}): MyTask {
   return {
+    platforms: [],
     id: "content-1",
     name: "Evg_1_RanggaPratama_12102026",
     type: "evergreen",

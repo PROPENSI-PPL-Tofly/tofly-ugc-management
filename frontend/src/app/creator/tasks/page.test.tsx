@@ -39,6 +39,7 @@ function answer(overrides: Partial<MyTasksResponse> = {}): MyTasksResponse {
   return {
     items: [
       {
+        platforms: [],
         id: "content-1",
         name: "Evg_1_RanggaPratama_12102026",
         type: "evergreen",

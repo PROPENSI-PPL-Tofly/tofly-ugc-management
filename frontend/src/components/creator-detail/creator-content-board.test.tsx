@@ -101,6 +101,7 @@ const PERIOD: CreatorPeriod = {
 
 function row(index: number): CreatorContentRow {
   return {
+    platforms: [],
     contentId: `content-${index}`,
     name: `Konten ${index}`,
     type: "evergreen",
