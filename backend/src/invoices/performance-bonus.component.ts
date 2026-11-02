@@ -62,12 +62,12 @@ export class PerformanceBonusComponent implements InvoiceComponent {
     if (formula === null) return waitingForData(this.key);
 
     const lines: InvoiceLine[] = [];
-    let delivered = 0;
+    let anyDelivered = false;
     let unmeasured = 0;
 
     for (const content of contents.filter(eligible)) {
       for (const link of content.links) {
-        delivered += 1;
+        anyDelivered = true;
         const rule = formula.performanceBonus[link.platform];
         if (!rule || rule.tiers.length === 0) continue;
 
@@ -94,8 +94,7 @@ export class PerformanceBonusComponent implements InvoiceComponent {
       }
     }
 
-    if (delivered === 0 || unmeasured > 0)
-      return waitingForData(this.key, lines);
+    if (!anyDelivered || unmeasured > 0) return waitingForData(this.key, lines);
     return calculated(this.key, lines);
   }
 }
