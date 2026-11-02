@@ -87,10 +87,10 @@ describe("FinalizeModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false }),
     );
-    await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
+    await waitFor(() => expect(onFinalized).toHaveBeenCalled());
     // The modal settles (its wait message goes) before the test ends, so no update lands after it.
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
@@ -183,10 +183,10 @@ describe("FinalizeModal", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Finalize tetap" }));
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(moves.finalizeInvoice).toHaveBeenLastCalledWith(ROW.contractId, { acceptPendingBonus: true }),
       );
-      await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
+      await waitFor(() => expect(onFinalized).toHaveBeenCalled());
       await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     });
   });
@@ -249,7 +249,7 @@ describe("FinalizeModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Kontrak belum berakhir"),
     );
     expect(onFinalized).not.toHaveBeenCalled();
@@ -261,7 +261,7 @@ describe("FinalizeModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Permintaan tidak dapat diproses. Coba lagi."),
     );
   });
