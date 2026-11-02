@@ -44,6 +44,12 @@ const STATE_TONES: Record<DataState, Tone> = {
   sync_failed: "red",
 };
 
+/** Why a save did not go through: the API's message, and its per-field messages when it had any. */
+interface SaveProblem {
+  message: string;
+  errors?: ManualErrors;
+}
+
 const HELP = 'Angka bulat 0–999.999.999. Isi minimal satu. Kolom kosong tetap "belum ada data", bukan 0.';
 
 /** The link as the card shows it: without the scheme and www, the whole address in the href. */
@@ -88,7 +94,7 @@ function ManualForm({
   platform: Platform;
   performance: LinkPerformance;
   onCancel: () => void;
-  onSave: (values: ManualValues) => Promise<{ message?: string; errors?: ManualErrors } | null>;
+  onSave: (values: ManualValues) => Promise<SaveProblem | null>;
 }>) {
   const id = useId();
   const [fields, setFields] = useState<ManualFields>(() => fieldsOf(performance));
@@ -112,7 +118,7 @@ function ManualForm({
     setSaving(false);
     if (problem) {
       setErrors(problem.errors ?? {});
-      setRefusal(problem.errors ? null : (problem.message ?? null));
+      setRefusal(problem.errors ? null : problem.message);
     }
   }
 
@@ -195,7 +201,7 @@ function LinkCard({
   editing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (values: ManualValues) => Promise<{ message?: string; errors?: ManualErrors } | null>;
+  onSave: (values: ManualValues) => Promise<SaveProblem | null>;
 }>) {
   const label = DATA_STATE_LABELS[performance.state];
   const manual = role === "admin" && canEnterManually(performance.state);
@@ -270,7 +276,7 @@ export function LinkPerformanceSection({
 
   async function saveManual(platform: Platform, values: ManualValues) {
     const result = await save(contentId, platform, values);
-    if (!result.ok) return { message: result.message, errors: result.errors };
+    if (!result.ok) return result.errors ? { message: result.message, errors: result.errors } : { message: result.message };
     setEditing(null);
     show("Angka performa disimpan.");
     onChanged?.();
