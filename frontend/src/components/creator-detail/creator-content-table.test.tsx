@@ -313,6 +313,17 @@ describe("CreatorContentTable", () => {
         vi.restoreAllMocks();
       });
 
+      it("does not open the panel when the selection ends on the row itself", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "26 Sep",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("26 Sep 2026"));
+
+        expect(onOpen).not.toHaveBeenCalled();
+      });
+
       it("does not open the panel over the text just selected", () => {
         vi.spyOn(window, "getSelection").mockReturnValue({
           toString: () => "RanggaPratama",
