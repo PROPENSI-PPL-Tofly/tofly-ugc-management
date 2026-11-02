@@ -5,8 +5,6 @@ import type {
   InvoiceContent,
   InvoiceContext,
   InvoiceContract,
-  InvoiceLink,
-  SocialPlatform,
 } from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
 
@@ -58,24 +56,9 @@ export function content(
     status: 'scheduled',
     deadline: day(10),
     videoSubmittedAt: null,
-    links: [],
-    ...overrides,
-  };
-}
-
-/** One link on the platform, unmeasured unless the test says otherwise. */
-export function link(
-  platform: SocialPlatform,
-  overrides: Partial<InvoiceLink> = {},
-): InvoiceLink {
-  return {
-    platform,
+    platform: null,
     views: null,
     likes: null,
-    comments: null,
-    shares: null,
-    state: 'waiting',
-    lastSyncedAt: null,
     ...overrides,
   };
 }

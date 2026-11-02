@@ -51,19 +51,15 @@ export const CONTENT_SELECT = {
   status: true,
   deadline: true,
   video_submitted_at: true,
-  // Every link is measured on its own platform's metric (PBI-28 AC 1); no token is read.
+  // The first link's platform is the one its performance bonus is judged on, as the single
+  // link's was before PBI-38.
   content_links: {
     orderBy: LINKS_AS_HANDED_IN,
-    select: {
-      platform: true,
-      views: true,
-      likes: true,
-      comments: true,
-      shares: true,
-      data_state: true,
-      last_synced_at: true,
-    },
+    take: 1,
+    select: { platform: true },
   },
+  views: true,
+  likes: true,
 } satisfies Prisma.contentsSelect;
 
 export type InvoiceCreatorRow = Prisma.creatorsGetPayload<{
@@ -97,22 +93,9 @@ export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
     status: row.status,
     deadline: row.deadline,
     videoSubmittedAt: row.video_submitted_at,
-    // A link kept from before platforms were recorded has nothing to be measured on.
-    links: row.content_links.flatMap(({ platform, ...link }) =>
-      platform === null
-        ? []
-        : [
-            {
-              platform,
-              views: link.views,
-              likes: link.likes,
-              comments: link.comments,
-              shares: link.shares,
-              state: link.data_state,
-              lastSyncedAt: link.last_synced_at,
-            },
-          ],
-    ),
+    platform: row.content_links[0]?.platform ?? null,
+    views: row.views,
+    likes: row.likes,
   };
 }
 
@@ -151,10 +134,7 @@ export function invoiceContractStatus(
   endedEarlyOn: Date | null = null,
 ): InvoiceContractStatus {
   // A contract exists, so contractStatus never answers 'none' here.
-  const status = contractStatus(
-    period(contract),
-    today,
-  ) as InvoiceContractStatus;
+  const status = contractStatus(period(contract), today) as InvoiceContractStatus;
   if (status !== 'active') return status;
 
   const lastDay = contractLastDay(toInvoiceContract(contract, endedEarlyOn));
@@ -202,8 +182,9 @@ export function periodNumber(
 ): number {
   return (
     1 +
-    row.contracts.filter((other) => other.start_date < contractRow.start_date)
-      .length
+    row.contracts.filter(
+      (other) => other.start_date < contractRow.start_date,
+    ).length
   );
 }
 
@@ -337,11 +318,11 @@ export function toInvoiceItem(
   const breakdown = snapshot
     ? null
     : calculateInvoice({
-        contract,
-        contents: contents.map(toInvoiceContent),
-        formula,
-        today,
-      });
+      contract,
+      contents: contents.map(toInvoiceContent),
+      formula,
+      today,
+    });
 
   const totals =
     snapshot ??
@@ -365,11 +346,11 @@ export function toInvoiceItem(
     },
     components: snapshot
       ? {
-          fixedRate: snapshot.fixedRate,
-          additionalContent: snapshot.additionalContent,
-          performanceBonus: snapshot.performanceBonus,
-          penalty: snapshot.penalty,
-        }
+        fixedRate: snapshot.fixedRate,
+        additionalContent: snapshot.additionalContent,
+        performanceBonus: snapshot.performanceBonus,
+        penalty: snapshot.penalty,
+      }
       : breakdown!.components,
     rawTotal: totals.rawTotal,
     total: totals.total,

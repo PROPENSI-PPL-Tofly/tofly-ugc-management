@@ -169,19 +169,6 @@ describe('InvoiceCommandService', () => {
   });
 
   describe('finalize', () => {
-    /** The content's Instagram link, measured at `views` (PBI-28: the bonus reads each link). */
-    function instagramLink(views: number | null) {
-      return {
-        platform: 'instagram',
-        views,
-        likes: null,
-        comments: null,
-        shares: null,
-        data_state: views === null ? 'waiting' : 'synced',
-        last_synced_at: null,
-      };
-    }
-
     const measured = {
       id: 'measured',
       contract_id: 'contract-1',
@@ -190,7 +177,9 @@ describe('InvoiceCommandService', () => {
       status: 'link_submitted',
       deadline: day(-2),
       video_submitted_at: day(-2),
-      content_links: [instagramLink(0)],
+      content_links: [{ platform: 'instagram' }],
+      views: 0,
+      likes: null,
     };
 
     /** An ended contract whose one video was on time and measured, so nothing waits for data. */
@@ -422,11 +411,7 @@ describe('InvoiceCommandService', () => {
     });
 
     describe('a performance bonus still waiting for data', () => {
-      const unmeasured = {
-        ...measured,
-        id: 'unmeasured',
-        content_links: [instagramLink(null)],
-      };
+      const unmeasured = { ...measured, id: 'unmeasured', views: null };
 
       beforeEach(() => {
         prisma.contracts.findUnique.mockResolvedValue(
