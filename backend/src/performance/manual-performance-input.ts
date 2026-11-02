@@ -78,5 +78,9 @@ export function checkManualPerformance(body: unknown): PerformanceMetrics {
   if (Object.keys(errors).length > 0) {
     throw invalid(errors);
   }
+  // An entry of four empty fields would stamp a link "Diisi manual" with nothing in it.
+  if (METRIC_NAMES.every((name) => metrics[name] === null)) {
+    throw invalid({ metrics: 'Isi minimal satu angka' });
+  }
   return metrics;
 }
