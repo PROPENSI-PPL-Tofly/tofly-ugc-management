@@ -18,6 +18,8 @@ describe('Performance routes', () => {
   const manual = { save: vi.fn() };
   const links = { list: vi.fn() };
   let app: INestApplication;
+  // The local development stand-in for sign-in lets a request through with no principal.
+  let principal: { userId: string; role: 'admin' } | undefined;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -33,10 +35,7 @@ describe('Performance routes', () => {
         canActivate: (context: {
           switchToHttp(): { getRequest(): Record<string, unknown> };
         }) => {
-          context.switchToHttp().getRequest().principal = {
-            userId: ADMIN_USER,
-            role: 'admin',
-          };
+          context.switchToHttp().getRequest().principal = principal;
           return true;
         },
       })
@@ -51,6 +50,7 @@ describe('Performance routes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    principal = { userId: ADMIN_USER, role: 'admin' };
     manual.save.mockResolvedValue({ state: 'manual' });
     links.list.mockResolvedValue({
       items: [],
@@ -90,6 +90,22 @@ describe('Performance routes', () => {
         'instagram',
         { views: 12400, likes: null, comments: null, shares: null },
         ADMIN_USER,
+        expect.any(Date),
+      );
+    });
+
+    it('names no admin when the local stand-in let the request through', async () => {
+      principal = undefined;
+
+      await put(`/contents/${CONTENT_ID}/links/instagram/performance`, {
+        views: 1,
+      });
+
+      expect(manual.save).toHaveBeenCalledWith(
+        CONTENT_ID,
+        'instagram',
+        { views: 1, likes: null, comments: null, shares: null },
+        null,
         expect.any(Date),
       );
     });
