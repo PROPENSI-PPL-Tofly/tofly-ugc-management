@@ -124,24 +124,68 @@ describe('PerformanceBonusComponent', () => {
     expect(result.status).toBe('waiting_for_data');
   });
 
-  it('waits for data on a metric the contents table has no column for yet', () => {
-    const result = component.calculate(
-      context({
-        formula: {
-          ...FORMULA,
-          performanceBonus: {
-            instagram: {
-              metric: 'comments',
-              tiers: [{ threshold: 10, bonus: 50_000 }],
-            },
-          },
+  // PBI-27 27.1: a platform's metric can be any of the four the link stores.
+  describe.each(['comments', 'shares'] as const)(
+    'a platform judged on %s',
+    (metric) => {
+      const onMetric = {
+        ...FORMULA,
+        performanceBonus: {
+          instagram: { metric, tiers: [{ threshold: 10, bonus: 50_000 }] },
         },
-        contents: [delivered({ views: 50_000, likes: 5_000 })],
-      }),
-    );
+      };
 
-    expect(result).toMatchObject({ amount: null, status: 'waiting_for_data' });
-  });
+      it('pays from that number, as calculated, once the link has it', () => {
+        const result = component.calculate(
+          context({
+            formula: onMetric,
+            contents: [delivered({ views: 50_000, [metric]: 12 })],
+          }),
+        );
+
+        expect(result).toMatchObject({
+          amount: 50_000,
+          status: 'calculated',
+        });
+        expect(result.lines[0].basis).toEqual({
+          platform: 'instagram',
+          metric,
+          value: 12,
+          tier: 1,
+        });
+      });
+
+      it('counts a real 0 as measured: calculated, with no line', () => {
+        const result = component.calculate(
+          context({
+            formula: onMetric,
+            contents: [delivered({ [metric]: 0 })],
+          }),
+        );
+
+        expect(result).toEqual({
+          key: 'performanceBonus',
+          amount: 0,
+          status: 'calculated',
+          lines: [],
+        });
+      });
+
+      it('waits for data while that number is still empty, whatever the other numbers say', () => {
+        const result = component.calculate(
+          context({
+            formula: onMetric,
+            contents: [delivered({ views: 50_000, likes: 5_000 })],
+          }),
+        );
+
+        expect(result).toMatchObject({
+          amount: null,
+          status: 'waiting_for_data',
+        });
+      });
+    },
+  );
 
   it('waits for data while one delivered item is still unmeasured, keeping the known lines', () => {
     const result = component.calculate(
