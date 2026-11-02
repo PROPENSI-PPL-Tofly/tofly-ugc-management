@@ -35,6 +35,28 @@ describe("toCreatorInvoices", () => {
     expect(only(RAW_MY_RUNNING).breakdown).toEqual(toInvoiceBreakdown(RAW_MY_RUNNING));
   });
 
+  // PBI-28 28.4: a frozen invoice's bonus lines say when they were locked; a running one's do not.
+  it("marks each bonus line of a finalized invoice with the moment it was locked", () => {
+    const line = {
+      contentId: "c-1",
+      contentName: "Evg_1",
+      amount: 150000,
+      basis: { platform: "instagram", metric: "views", value: 41200, tier: 2, source: "synced" },
+    };
+    const withBonus = (raw: RawCreatorInvoice): RawCreatorInvoice => ({
+      ...raw,
+      components: {
+        ...raw.components,
+        performanceBonus: { amount: 150000, status: "calculated", lines: [line] },
+      },
+    });
+
+    expect(only(withBonus(RAW_MY_PAID)).breakdown.bonus.lines[0]).toMatchObject({
+      lockedOn: "2026-09-02T02:00:00Z",
+    });
+    expect(only(withBonus(RAW_MY_RUNNING)).breakdown.bonus.lines[0]).toMatchObject({ lockedOn: null });
+  });
+
   it("counts a fee or penalty still waiting for a formula as nothing charged yet", () => {
     const invoice = only({ ...RAW_UPCOMING_NO_FORMULA, acknowledgedAt: null, paidAt: null, paymentProof: null, comments: [] });
 

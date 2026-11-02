@@ -49,6 +49,15 @@ describe("Creator Performa page", () => {
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
+  // PBI-28 AC 13.
+  it("reminds the creator that performance numbers are locked when the invoice is finalized", async () => {
+    mockedFetch.mockResolvedValue(ACCOUNTS);
+
+    await renderPage();
+
+    expect(screen.getByRole("note")).toHaveTextContent("Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.");
+  });
+
   it("shows the creator's accounts in the Akun Terhubung panel", async () => {
     mockedFetch.mockResolvedValue(ACCOUNTS);
 
