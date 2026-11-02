@@ -3,9 +3,15 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
+import {
+  CONTRACT_SYNC,
+  NO_CONTRACT_SYNC,
+  type ContractSync,
+} from '../performance/ports.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   InvoiceAdjustmentDto,
@@ -20,6 +26,13 @@ import {
   toInvoiceContent,
   toInvoiceContract,
 } from './invoice-rows.js';
+import {
+  lastSyncBeforeFinalize,
+  notUpdatedLinks,
+  snapshotLinks,
+  waitingLinks,
+  type NamedLink,
+} from './finalize-performance.js';
 import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
@@ -57,11 +70,18 @@ export interface InvoiceCommands {
     finalizedBy: string,
     today?: Date,
     request?: FinalizeRequest,
-  ): Promise<{
-    invoiceStatus: 'finalized';
-    adjustments: InvoiceAdjustmentDto[];
-    snapshot: InvoiceSnapshotDto;
-  }>;
+  ): Promise<FinalizeResult>;
+}
+
+/** What Finalize answers: the frozen invoice, and how its last sync went (PBI-28 AC 8). */
+export interface FinalizeResult {
+  invoiceStatus: 'finalized';
+  adjustments: InvoiceAdjustmentDto[];
+  snapshot: InvoiceSnapshotDto;
+  lastSync: {
+    status: 'done' | 'unavailable' | 'failed' | 'timed_out';
+    notUpdated: NamedLink[];
+  };
 }
 
 /** A finalize with no body: the admin has not accepted freezing a pending performance bonus. */
@@ -78,6 +98,10 @@ export class InvoiceCommandService implements InvoiceCommands {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoiceCommandClient,
     @Inject(RATE_FORMULA_SOURCE) private readonly formulas: RateFormulaSource,
+    // Unbound until 27.4 brings the sync; Finalize then goes on with the stored numbers.
+    @Optional()
+    @Inject(CONTRACT_SYNC)
+    private readonly sync: ContractSync = NO_CONTRACT_SYNC,
   ) {}
 
   async addAdjustment(
@@ -122,12 +146,10 @@ export class InvoiceCommandService implements InvoiceCommands {
     finalizedBy: string,
     today = new Date(),
     request: FinalizeRequest = NO_PENDING_BONUS_ACCEPTED,
-  ): Promise<{
-    invoiceStatus: 'finalized';
-    adjustments: InvoiceAdjustmentDto[];
-    snapshot: InvoiceSnapshotDto;
-  }> {
+  ): Promise<FinalizeResult> {
     const formula = await this.formulas.current();
+    // Before the lock, so a platform taking its time holds no contract row (PBI-28 AC 7-8).
+    const sync = await lastSyncBeforeFinalize(this.sync, contractId);
 
     return this.prisma.$transaction(
       async (tx) => {
@@ -176,16 +198,22 @@ export class InvoiceCommandService implements InvoiceCommands {
 
         invoiceState(invoice.status).assertCanFinalize();
 
+        const contents = contract.contents.map(toInvoiceContent);
         const breakdown = calculateInvoice({
           contract: invoiceContract,
-          contents: contract.contents.map(toInvoiceContent),
+          contents,
           formula,
           today,
         });
+        const lastSync = {
+          status: sync.status,
+          notUpdated: notUpdatedLinks(contents, sync),
+        };
 
         const settled = settleForFinalize(
           breakdown,
           request.acceptPendingBonus,
+          { waiting: waitingLinks(contents, formula), lastSync },
         );
 
         const adjustmentRows = await tx.invoice_adjustments.findMany({
@@ -205,6 +233,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           finalizedAt: today.toISOString(),
           formula,
           performanceBonusPending: settled.performanceBonusPending,
+          performanceLinks: snapshotLinks(contents),
         };
 
         const updated = await tx.invoices.updateMany({
@@ -221,7 +250,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
         }
 
-        return { invoiceStatus: 'finalized', adjustments, snapshot };
+        return { invoiceStatus: 'finalized', adjustments, snapshot, lastSync };
       },
       { isolationLevel: 'ReadCommitted' },
     );

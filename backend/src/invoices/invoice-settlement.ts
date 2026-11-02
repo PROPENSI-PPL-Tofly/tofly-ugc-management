@@ -17,7 +17,8 @@ import type {
 /** What the admin is told about performance data when Finalize stops or freezes (PBI-28). */
 export interface PendingPerformance {
   waiting: readonly WaitingLink[];
-  lastSync: LastSync;
+  /** The last sync's outcome, its links named for the admin. */
+  lastSync: Omit<LastSync, 'notUpdated'> & { notUpdated: readonly unknown[] };
 }
 
 const NOTHING_PENDING: PendingPerformance = {

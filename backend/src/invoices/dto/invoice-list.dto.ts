@@ -3,6 +3,7 @@ import type {
   InvoiceComponentKey,
   InvoiceLine,
 } from '../invoice-component.js';
+import type { SnapshotLink } from '../finalize-performance.js';
 import type { InvoiceStatus } from '../invoice-status.js';
 import type { RateFormula } from '../rate-formula.js';
 import type { InvoiceConfirmationFields } from './invoice-confirmation.dto.js';
@@ -61,6 +62,11 @@ export interface InvoiceSnapshotDto {
    * a pending bonus could be frozen.
    */
   performanceBonusPending?: boolean;
+  /**
+   * Every delivered link's numbers, source and sync time at finalize (PBI-28 AC 10). Absent from
+   * a snapshot saved before links were kept with it.
+   */
+  performanceLinks?: SnapshotLink[];
 }
 
 /** Calculation result before the invoice pipeline assigns its status. */
