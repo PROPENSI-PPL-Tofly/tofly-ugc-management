@@ -46,8 +46,14 @@ from (values
 ) as v (email, first_name, middle_name, last_name, phone_number, revoke_offset)
 join users u on u.email = v.email;
 
-insert into social_accounts (creator_id, platform, username, is_connected)
-select c.id, v.platform::social_platform, v.username, v.is_connected
+-- A connected account carries the platform's own id for it and when it was connected, as the
+-- OAuth callback stores them (PBI-19); the app reads an account as connected only with both.
+-- No token is seeded, so nothing here can reach a platform.
+insert into social_accounts (creator_id, platform, username, is_connected, platform_user_id,
+                             connected_at)
+select c.id, v.platform::social_platform, v.username, v.is_connected,
+       case when v.is_connected then 'seed-' || v.platform || '-' || v.username end,
+       case when v.is_connected then now() - interval '20 days' end
 from (values
   ('rangga@example.com', 'instagram', 'rangga.creates', true),
   ('rangga@example.com', 'tiktok',    'ranggacreates',  true),
@@ -205,12 +211,14 @@ join users u on u.email = s.email
 join creators c on c.user_id = u.id
 join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contract_end;
 
--- Each submitted video's link, as POST /contents/:id/video stores it (PBI-38): one row in
--- content_links on the day the content was submitted, handed in by its creator. The seeded links
--- are example.com placeholders, so they name no platform, as the migration keeps such a link.
+-- Each submitted video's link, as POST /contents/:id/video stores it (PBI-38): one row per
+-- platform in content_links on the day the content was submitted, handed in by its creator. A
+-- video is posted on the creator's Instagram, or on their TikTok when they have no Instagram;
+-- Rangga cross-posts every video on both, so a content with two links shows too. The post id is
+-- made from the content's name, so every link is its own video and the seed stays repeatable.
 insert into content_links (content_id, platform, url, normalized_url, submitted_at, submitted_by)
 select n.id,
-       null,
+       a.platform,
        l.url,
        content_link_key(l.url),
        n.video_submitted_at,
@@ -220,10 +228,45 @@ join users u on u.email = s.email
 join creators c on c.user_id = u.id
 join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contract_end
 join contents n on n.contract_id = k.id and n.name = s.name
+join social_accounts a on a.creator_id = c.id
 cross join lateral (
-  select 'https://example.com/video/' || lower(regexp_replace(s.name, '[^A-Za-z0-9]+', '-', 'g')) as url
+  select case a.platform
+           when 'instagram'
+             then 'https://www.instagram.com/reel/' || regexp_replace(s.name, '[^A-Za-z0-9]+', '', 'g') || '/'
+           else 'https://www.tiktok.com/@' || a.username || '/video/'
+                || lpad(abs(hashtextextended(s.name, 0))::text, 19, '7')
+         end as url
 ) as l
-where s.submitted is not null;
+where s.submitted is not null
+  and (a.platform = 'instagram'
+       or u.email = 'rangga@example.com'
+       or not exists (select 1 from social_accounts i
+                      where i.creator_id = c.id and i.platform = 'instagram'));
+
+-- The numbers as yesterday's 02.00 WIB sync left them on a connected account (PBI-27 27.4). A
+-- link on an account that is not connected keeps waiting, which Content Detail reads as "Akun
+-- belum terhubung". One TikTok link failed its last sync and one Instagram video was taken down,
+-- keeping its last numbers, so every state the app words shows somewhere.
+update content_links l
+set views = 800 + abs(hashtext(l.url)) % 48000,
+    likes = 40 + abs(hashtext(l.url || ':likes')) % 3000,
+    comments = abs(hashtext(l.url || ':comments')) % 300,
+    shares = abs(hashtext(l.url || ':shares')) % 150,
+    data_state = 'synced',
+    last_synced_at = ((current_date - 1) + time '02:00') at time zone 'Asia/Jakarta'
+from contents n
+join contracts k on k.id = n.contract_id
+join social_accounts a on a.creator_id = k.creator_id
+where n.id = l.content_id
+  and a.platform = l.platform
+  and a.is_connected;
+
+update content_links l
+set data_state = case l.platform when 'tiktok' then 'sync_failed' else 'not_found' end::link_data_state
+from contents n
+where n.id = l.content_id
+  and ((n.name = 'Promo akhir bulan' and l.platform = 'tiktok')
+       or (n.name = 'Ucapan terima kasih' and l.platform = 'instagram'));
 
 -- One submission row per draft handed in; the first is the original, the rest are revisions.
 -- The admin's revision note sits on the draft it was written about, as the review endpoint
@@ -256,5 +299,80 @@ where n.contract_id = k.id
   and n.status = 'link_submitted'
   and (u.email, n.name) in (('nabila@example.com', 'Tofly COD'),
                             ('salsa@example.com', 'Paket ke pelosok'));
+
+-- Each content's history (content_events), as the app records it and as the 10 Oct backfill
+-- wrote it for contents older than the table: created, every draft, every revision note, the
+-- approval and each link. Without it the timeline is read from the rows' times until the first
+-- recorded step, which then stands alone (e.g. an admin filling in numbers by hand).
+create temporary table seed_history on commit drop as
+select n.id,
+       n.status,
+       n.created_at,
+       n.updated_at,
+       n.approval_bypassed,
+       concat_ws(' ', c.first_name, c.middle_name, c.last_name) as creator_name,
+       (select max(d.created_at) from submissions d where d.content_id = n.id) as last_draft_at
+from contents n
+join contracts k on k.id = n.contract_id
+join creators c on c.id = k.creator_id;
+
+insert into content_events (content_id, event_type, actor_name, actor_role, occurred_at, event_data)
+select h.id,
+       'Scheduled',
+       case when h.status = 'pending' then h.creator_name else 'Admin' end,
+       case when h.status = 'pending' then 'creator' else 'admin' end,
+       h.created_at,
+       '{}'::jsonb
+from seed_history h;
+
+insert into content_events (content_id, event_type, actor_name, actor_role, occurred_at, event_data)
+select h.id,
+       'Draft Submitted',
+       h.creator_name,
+       'creator',
+       d.created_at,
+       jsonb_build_object(
+         'version', row_number() over (partition by d.content_id order by d.created_at, d.id),
+         'link', d.link)
+from seed_history h
+join submissions d on d.content_id = h.id;
+
+insert into content_events (content_id, event_type, actor_name, actor_role, occurred_at, event_data)
+select h.id,
+       'Revision Requested',
+       'Admin',
+       'admin',
+       d.updated_at,
+       jsonb_build_object('revision_note', d.revision_notes)
+from seed_history h
+join submissions d on d.content_id = h.id
+where d.revision_notes is not null;
+
+insert into content_events (content_id, event_type, actor_name, actor_role, occurred_at, event_data)
+select h.id,
+       'Draft Approved',
+       'Admin',
+       'admin',
+       case when h.status = 'draft_approved' then h.updated_at
+            else h.last_draft_at + interval '1 hour' end,
+       '{}'::jsonb
+from seed_history h
+where h.status = 'draft_approved'
+   or (h.status = 'link_submitted' and not h.approval_bypassed and h.last_draft_at is not null);
+
+-- A link carries its platform, as POST /contents/:id/video records it; its day reads as midday
+-- in Jakarta, never before the steps it closed.
+insert into content_events (content_id, event_type, actor_name, actor_role, occurred_at, event_data)
+select h.id,
+       'Link Submitted',
+       h.creator_name,
+       'creator',
+       greatest(
+         (l.submitted_at + time '12:00') at time zone 'Asia/Jakarta',
+         coalesce(h.last_draft_at + interval '2 hours', h.created_at + interval '1 minute')
+       ),
+       jsonb_build_object('link', l.url, 'platform', l.platform)
+from seed_history h
+join content_links l on l.content_id = h.id;
 
 commit;
