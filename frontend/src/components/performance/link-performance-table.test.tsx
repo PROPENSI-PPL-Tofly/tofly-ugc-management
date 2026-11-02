@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { EMPTY } from "@/lib/format";
 import { DATA_STATE_LABELS, type DataState } from "@/lib/link-performance";
 import type { PerformanceLinkRow } from "@/lib/performance-links";
@@ -71,5 +71,33 @@ describe("LinkPerformanceTable", () => {
 
     expect(screen.getByText("Link")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("opens a row's content when pressed, keeping the name a keyboard-reachable button (AC 25)", () => {
+    const onRowClick = vi.fn();
+    render(<LinkPerformanceTable rows={[row()]} onRowClick={onRowClick} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
+
+    expect(onRowClick).toHaveBeenCalledWith(
+      expect.objectContaining({ contentId: "44444444-4444-4444-8444-444444444444" }),
+    );
+  });
+
+  it("lets a name be copied from a row without opening anything", () => {
+    const onRowClick = vi.fn();
+    render(<LinkPerformanceTable rows={[row()]} onRowClick={onRowClick} />);
+    vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "Evg_1" } as Selection);
+
+    fireEvent.click(screen.getByText("900").closest("tr") as HTMLElement);
+
+    expect(onRowClick).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("opens nothing on a list that offers no press, as a creator's does (AC 20)", () => {
+    render(<LinkPerformanceTable rows={[row()]} />);
+
+    expect(screen.queryByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).not.toBeInTheDocument();
   });
 });
