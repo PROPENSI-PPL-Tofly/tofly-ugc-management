@@ -1,5 +1,6 @@
 import type { link_data_state, social_platform } from '@prisma/client';
 import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
+import { adminActor } from '../contents/content-event-actors.js';
 import type { ConnectionRow } from './account-connections.js';
 import type { PerformanceMetrics } from './manual-performance-input.js';
 
@@ -53,6 +54,21 @@ export interface ManualPlan {
   result: LinkPerformance;
 }
 
+/** The four counts alone, in the card's order, for the timeline's old and new values. */
+function countsOf(metrics: PerformanceMetrics): PerformanceMetrics {
+  return {
+    views: metrics.views,
+    likes: metrics.likes,
+    comments: metrics.comments,
+    shares: metrics.shares,
+  };
+}
+
+/**
+ * An admin typing one link's numbers in (PBI-27 AC 14-16, 18) as a command: it turns the link as
+ * read under the contract lock into the writes to make, with no database in sight, so its rules
+ * are tested on plain values. ManualPerformanceService runs the plan in one transaction.
+ */
 export class EnterManualPerformance {
   constructor(
     private readonly platform: social_platform,
@@ -60,10 +76,39 @@ export class EnterManualPerformance {
   ) {}
 
   plan(
-    _target: PerformanceTarget,
-    _adminUserId: string | null,
-    _now: Date,
+    target: PerformanceTarget,
+    adminUserId: string | null,
+    now: Date,
   ): ManualPlan {
-    throw new Error('not implemented');
+    const link = target.link!;
+    const entered = countsOf(this.metrics);
+
+    return {
+      guard: { id: link.id, data_state: link.data_state, url: link.url },
+      data: {
+        ...entered,
+        data_state: 'manual',
+        manual_by: adminUserId!,
+        manual_at: now,
+      },
+      event: {
+        content_id: target.contentId,
+        event_type: 'Performance Entered',
+        ...adminActor(adminUserId),
+        actor_user_id: adminUserId!,
+        occurred_at: now,
+        event_data: {
+          platform: this.platform,
+          previous: countsOf(link),
+          entered,
+        },
+      },
+      result: {
+        ...entered,
+        state: 'manual',
+        lastSyncedAt: link.last_synced_at?.toISOString() ?? null,
+        manualAt: now.toISOString(),
+      },
+    };
   }
 }
