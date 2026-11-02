@@ -106,10 +106,10 @@ export class AdminLinkActor implements LinkActor {
 }
 
 /**
- * Columns a replaced link's performance numbers live in, each set back to null in the same
- * update as the url (AC 9). Empty until PBI-27 adds the numbers to content_links.
+ * Columns a replaced link's performance numbers live in, each set back to its start in the same
+ * update as the url (AC 9): null for the numbers, waiting for the state (PBI-27).
  */
-export type PerformanceColumns = Readonly<Record<string, null>>;
+export type PerformanceColumns = Readonly<Record<string, null | 'waiting'>>;
 
 export const NO_PERFORMANCE_COLUMNS: PerformanceColumns = Object.freeze({});
 
