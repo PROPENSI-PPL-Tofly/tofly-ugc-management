@@ -18,6 +18,11 @@ on:
 jobs:
   zap:
     name: ZAP baseline scan
+    # "For now, just for me": only my own pushes are scanned. A friend's push to a branch
+    # that carries this workflow is skipped outright (a skipped job marks the run neutral),
+    # so nothing here can slow down, fail or otherwise touch anyone else's work. Widen or
+    # drop this line when the team wants the scan on their pushes too.
+    if: github.actor == 'wilsonsangpedagang'
     runs-on: ubuntu-latest
     # Only one scan per branch at a time; a newer push cancels the superseded run.
     concurrency:
@@ -55,6 +60,13 @@ jobs:
             frontend/package-lock.json
             backend/package-lock.json
 
+      # Installed before the database step on purpose: that step's npx prisma must resolve
+      # this project's pinned Prisma 7 CLI. Without node_modules, npx downloads the newest
+      # Prisma, which refuses `migrate deploy` and fails the job.
+      - name: Install the backend toolchain
+        working-directory: backend
+        run: npm ci
+
       # The same SQL, tool and order as Backend CI's "Prepare the CI database", then the seed
       # so the spider meets real rows (creator pages, contents with links) instead of empty
       # lists and 404s that hide whole sections of the app from the scan.
@@ -73,7 +85,6 @@ jobs:
       - name: Build the backend
         working-directory: backend
         run: |
-          npm ci
           npx prisma generate
           npm run build
 
@@ -99,7 +110,8 @@ jobs:
           npm run build
           # The same two copies frontend/Dockerfile makes: Next traces neither .next/static
           # nor public into standalone, and the app boots completely unstyled without them.
-          cp -r .next/static .next/standalone/.next/static
+          mkdir -p .next/standalone/.next/static
+          cp -r .next/static/. .next/standalone/.next/static/
           mkdir -p .next/standalone/public
 
       - name: Start the frontend
