@@ -20,6 +20,7 @@ import {
   type SentLink,
   type VideoPlatform,
 } from "@/lib/video-links";
+import { PERFORMANCE_LOCK_REMINDER } from "@/lib/link-performance";
 import { saveVideoLinks, type VideoLinksSaver } from "@/lib/video-links-api";
 import { TaskSummary, type TaskContent } from "./task-summary";
 
@@ -196,6 +197,7 @@ export function SubmitVideoModal({
           <TaskSummary content={content} />
 
           {firstLink ? <p className="text-[12.5px] text-muted">Isi minimal satu link.</p> : null}
+          <p className="text-[12.5px] text-muted">{PERFORMANCE_LOCK_REMINDER}</p>
 
           {shown.map((platform) => (
             <LinkField

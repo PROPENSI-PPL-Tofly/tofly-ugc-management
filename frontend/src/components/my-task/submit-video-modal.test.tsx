@@ -101,6 +101,13 @@ describe("SubmitVideoModal", () => {
     expect(field("Instagram")).not.toBeRequired();
   });
 
+  // PBI-28 AC 13: the creator is told before sending that the numbers stop counting at Finalize.
+  it("reminds the creator that performance numbers are locked when the invoice is finalized", () => {
+    renderModal();
+
+    expect(screen.getByText("Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.")).toBeInTheDocument();
+  });
+
   it("keeps Kirim Link disabled until one valid link is filled", () => {
     renderModal();
     expect(sendButton()).toBeDisabled();

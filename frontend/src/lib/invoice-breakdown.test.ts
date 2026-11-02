@@ -220,6 +220,11 @@ describe("breakdownPopup", () => {
       [{ source: "synced", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Tersinkron"],
       [{ source: "manual", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Diisi manual"],
       [{ noData: true, value: 0, tier: 0, amount: 0 }, "TikTok · Views · Tidak ada data"],
+      // PBI-28 28.4: a finalized invoice's line says the day its number was locked, in Jakarta.
+      [
+        { source: "synced", lastSyncedAt: null, lockedOn: "2026-11-02T17:30:00.000Z" },
+        "TikTok · 12.500 Views · Tier 2 · Tersinkron · Dikunci pada 3 Nov 2026",
+      ],
     ] as const)("words a line with %o", (extra, detail) => {
       const view = breakdownPopup(
         "bonus",

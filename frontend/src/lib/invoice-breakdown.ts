@@ -5,7 +5,7 @@
 //
 // Pure module: no React and no next/headers, so the table, the popup and tests all share it.
 
-import { formatDate, formatDeduction, formatRupiah, formatTimestamp } from "./format";
+import { formatDate, formatDeduction, formatRupiah, formatTimestamp, jakartaDay } from "./format";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -66,6 +66,8 @@ export interface PerformanceBonusLine {
   lastSyncedAt?: string | null;
   /** A link frozen without data at Finalize: Rp0, no value or tier (28.2). */
   noData?: boolean;
+  /** When the invoice was finalized, ISO; null or absent while it still runs (28.4). */
+  lockedOn?: string | null;
 }
 
 export type BonusLine = SpecificBonusLine | PerformanceBonusLine;
@@ -207,7 +209,12 @@ function rated(line: RatedLine): Described {
 
 function bonusDetail(line: BonusLine): string {
   if (line.kind === "specific") return "Bonus konten Specific tepat waktu";
+  const detail = performanceDetail(line);
+  // The day is Jakarta's, as every other moment on the page is.
+  return line.lockedOn ? `${detail} · Dikunci pada ${formatDate(jakartaDay(new Date(line.lockedOn)))}` : detail;
+}
 
+function performanceDetail(line: PerformanceBonusLine): string {
   if (line.noData) return `${PLATFORM_LABELS[line.platform]} · ${METRIC_LABELS[line.metric]} · Tidak ada data`;
 
   const reached = `${COUNT_FORMAT.format(line.value)} ${METRIC_LABELS[line.metric]}`;
