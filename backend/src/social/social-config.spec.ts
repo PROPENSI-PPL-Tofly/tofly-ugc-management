@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { InstagramProvider } from './instagram/instagram-provider.js';
 import { MIN_SECRET_BYTES, OAuthStateSigner } from './oauth-state.js';
 import { PrismaSocialAccountLinker } from './prisma-social-account-linker.js';
 import type { SocialAccountRows } from './prisma-social-account-linker.js';
@@ -15,6 +16,13 @@ const COMPLETE = {
   TIKTOK_REDIRECT_URI: 'https://staging.tofly.id/api/social/tiktok/callback',
 };
 
+const INSTAGRAM = {
+  INSTAGRAM_APP_ID: '1234567890',
+  INSTAGRAM_APP_SECRET: 'app-secret-xyz',
+  INSTAGRAM_REDIRECT_URI:
+    'https://staging.tofly.id/api/social/instagram/callback',
+};
+
 describe('socialWiring', () => {
   it('connects TikTok, signs states and stores accounts when everything is set', () => {
     const wiring = socialWiring(COMPLETE, rows);
@@ -23,6 +31,26 @@ describe('socialWiring', () => {
     expect(wiring.providers[0]).toBeInstanceOf(TikTokProvider);
     expect(wiring.signer).toBeInstanceOf(OAuthStateSigner);
     expect(wiring.linker).toBeInstanceOf(PrismaSocialAccountLinker);
+  });
+
+  it('connects Instagram beside TikTok once its app is configured', () => {
+    const { providers } = socialWiring({ ...COMPLETE, ...INSTAGRAM }, rows);
+
+    expect(providers.map((provider) => provider.platform)).toEqual([
+      'tiktok',
+      'instagram',
+    ]);
+    expect(providers[1]).toBeInstanceOf(InstagramProvider);
+  });
+
+  // The same rule as TikTok's: no consent on Instagram that could end with nothing stored.
+  it('offers no Instagram without the token key', () => {
+    expect(
+      socialWiring(
+        { ...COMPLETE, ...INSTAGRAM, SOCIAL_TOKEN_KEY: undefined },
+        rows,
+      ).providers,
+    ).toEqual([]);
   });
 
   it('offers no TikTok while its app is not configured', () => {

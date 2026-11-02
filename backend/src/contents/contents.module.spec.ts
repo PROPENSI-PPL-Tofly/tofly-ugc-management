@@ -9,7 +9,11 @@ import { ContentsModule } from './contents.module.js';
 import { ContentCreationService } from './contents.service.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { DraftSubmissionService } from './draft-submission.service.js';
-import { LinkChangeService } from './link-change.service.js';
+import { CLEARED_PERFORMANCE } from '../performance/link-performance.js';
+import {
+  LINK_PERFORMANCE_COLUMNS,
+  LinkChangeService,
+} from './link-change.service.js';
 
 describe('ContentsModule', () => {
   it('registers the contents controller and creation service', () => {
@@ -76,5 +80,17 @@ describe('ContentsModule', () => {
         AdminGuard,
       ]),
     );
+  });
+
+  it("clears a replaced link's numbers and state with the columns PBI-27 added (PBI-38 AC 9)", () => {
+    const providers = Reflect.getMetadata(
+      MODULE_METADATA.PROVIDERS,
+      ContentsModule,
+    ) as unknown[];
+
+    expect(providers).toContainEqual({
+      provide: LINK_PERFORMANCE_COLUMNS,
+      useValue: CLEARED_PERFORMANCE,
+    });
   });
 });

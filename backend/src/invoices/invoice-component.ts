@@ -7,10 +7,24 @@ import {
   COMMITTED_STATUSES,
   type ContentStatus,
 } from '../contents/content-lifecycle.js';
+import type { LinkDataState } from '../performance/link-performance.js';
 import type { RateFormula } from './rate-formula.js';
 
 export type SocialPlatform = 'instagram' | 'tiktok';
 export type ContentType = 'evergreen' | 'specific';
+
+/** One of a content's video links, with the numbers its bonus is measured on (PBI-28). */
+export interface InvoiceLink {
+  platform: SocialPlatform;
+  /** Null is no data yet, never 0 (PBI-27 AC 2). */
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  /** Where the numbers came from: a sync, an admin's input, or nothing yet (PBI-27 AC 3). */
+  state: LinkDataState;
+  lastSyncedAt: Date | null;
+}
 
 export interface InvoiceContent {
   id: string;
@@ -21,9 +35,8 @@ export interface InvoiceContent {
   deadline: Date;
   /** Postgres `date`, midnight UTC; when the final video link was handed in. */
   videoSubmittedAt: Date | null;
-  platform: SocialPlatform | null;
-  views: number | null;
-  likes: number | null;
+  /** Every link with a platform, as handed in; empty before the first. */
+  links: InvoiceLink[];
 }
 
 export interface InvoiceContract {

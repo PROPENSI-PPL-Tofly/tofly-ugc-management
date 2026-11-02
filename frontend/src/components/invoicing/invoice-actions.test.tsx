@@ -41,7 +41,7 @@ describe("InvoiceActions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     moves.addInvoiceAdjustment.mockResolvedValue({ ok: true });
-    moves.finalizeInvoice.mockResolvedValue({ ok: true });
+    moves.finalizeInvoice.mockResolvedValue({ ok: true, lastSync: { status: "unavailable", notUpdated: [] } });
   });
 
   it("offers both moves once the contract has ended and everything is measured", () => {

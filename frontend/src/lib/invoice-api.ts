@@ -9,6 +9,7 @@ import type {
   BonusPlatform,
   BonusTierRule,
   InvoiceBreakdown,
+  PerformanceBonusLine,
 } from "./invoice-breakdown";
 import {
   INVOICE_PAGE_SIZE,
@@ -221,6 +222,17 @@ function tierRules(formula: RawRateFormula | null): BonusTierRule[] {
  * One creator's invoice as the breakdown popups read it. The amounts are the backend's: this
  * only renames, so a popup's total always matches the table cell that opened it.
  */
+/** Where a bonus line's number came from (PBI-28 AC 6), and whether it was frozen without one. */
+function lineSource(line: RawInvoiceLine): Pick<PerformanceBonusLine, "source" | "lastSyncedAt" | "noData"> {
+  const source = line.basis.source;
+  const syncedAt = line.basis.lastSyncedAt;
+  return {
+    source: source === "synced" || source === "manual" ? source : null,
+    lastSyncedAt: typeof syncedAt === "string" ? syncedAt : null,
+    noData: line.basis.status === "no_data",
+  };
+}
+
 export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
   const { fixedRate, additionalContent, performanceBonus, penalty } = raw.components;
   // The fixed rate pays the contract period, so its one line names the contract, not a content.
@@ -261,6 +273,7 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
         value: basisNumber(line, "value"),
         tier: basisNumber(line, "tier"),
         amount: line.amount,
+        ...lineSource(line),
       })),
       total: performanceBonus.amount ?? 0,
       performance: performanceBonus.status === "waiting_for_data" ? "waiting" : "ready",

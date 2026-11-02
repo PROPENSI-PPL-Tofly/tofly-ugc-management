@@ -10,7 +10,7 @@ import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
 import type { MyTaskAction } from "./my-tasks";
-import { linkEventTitle, type ContentLink, type Platform } from "./platform-links";
+import { PLATFORM_LABELS, linkEventTitle, type ContentLink, type Platform } from "./platform-links";
 
 export type DetailEventType =
   | "scheduled"
@@ -20,7 +20,8 @@ export type DetailEventType =
   | "draft_submitted"
   | "revision_requested"
   | "draft_approved"
-  | "link_submitted";
+  | "link_submitted"
+  | "performance_entered";
 
 /** One step of the journey as the API sends it. */
 export interface RawContentEvent {
@@ -117,6 +118,10 @@ const STEP_WORDING: Record<
   auto_scheduled: () => ({ title: "Dijadwalkan otomatis (H-1)", linkLabel: null }),
   // A comment moves the content nowhere; its note is the whole point and reads signed.
   creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
+  performance_entered: (_ordinal, _by, event) => ({
+    title: `Angka ${event.payload?.platform ? PLATFORM_LABELS[event.payload.platform] : "performa"} diisi manual`,
+    linkLabel: null,
+  }),
   link_submitted: (_ordinal, _by, event) => ({
     title: linkEventTitle(event.payload?.platform, event.payload?.replaced === true),
     linkLabel: "Buka video",

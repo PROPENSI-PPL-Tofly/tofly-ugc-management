@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { randomBytes } from 'node:crypto';
@@ -6,13 +5,6 @@ import request from 'supertest';
 import { AppModule } from '../app.module.js';
 import { DEV_CREATOR_HEADER } from '../auth/dev-creator.guard.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import {
-  INSTAGRAM_CONFIG,
-  INSTAGRAM_CONNECT,
-  INSTAGRAM_LOG,
-  InstagramConnectController,
-} from './instagram/instagram-connect.controller.js';
-import { InstagramConnectService } from './instagram/instagram-connect.service.js';
 import { MySocialAccountsController } from './my-social-accounts.controller.js';
 import { PrismaSocialAccountLinker } from './prisma-social-account-linker.js';
 import { SOCIAL_WIRING, type SocialWiring } from './social-config.js';
@@ -40,41 +32,6 @@ describe('SocialModule', () => {
     vi.unstubAllEnvs();
   });
 
-  it('wires the Instagram controller, its connect use case and a logger', async () => {
-    const module = await compile();
-
-    expect(module.get(InstagramConnectController)).toBeInstanceOf(
-      InstagramConnectController,
-    );
-    expect(module.get(INSTAGRAM_CONNECT)).toBeInstanceOf(
-      InstagramConnectService,
-    );
-    expect(module.get(INSTAGRAM_LOG)).toBeInstanceOf(Logger);
-  });
-
-  it('reads the Instagram app from the environment once every setting is there', async () => {
-    stubSettings(SETTINGS);
-
-    const module = await compile();
-
-    expect(module.get(INSTAGRAM_CONFIG)).toEqual({
-      appId: SETTINGS.INSTAGRAM_APP_ID,
-      appSecret: SETTINGS.INSTAGRAM_APP_SECRET,
-      redirectUri: SETTINGS.INSTAGRAM_REDIRECT_URI,
-      stateSecret: SETTINGS.SOCIAL_STATE_SECRET,
-    });
-  });
-
-  it('stays unconfigured while the settings are missing', async () => {
-    stubSettings(
-      Object.fromEntries(Object.keys(SETTINGS).map((name) => [name, ''])),
-    );
-
-    const module = await compile();
-
-    expect(module.get(INSTAGRAM_CONFIG)).toBeUndefined();
-  });
-
   it("keeps Instagram's accounts in the same encrypted store as TikTok's", async () => {
     stubSettings({ SOCIAL_TOKEN_KEY: randomBytes(32).toString('base64') });
 
@@ -99,10 +56,9 @@ describe('SocialModule', () => {
     );
   });
 
-  // #126 and #127 both answer under /social: Instagram's own controller and TikTok's generic
-  // /social/:platform/…. Whichever is registered first takes /social/instagram/…, so this pins
-  // each platform to the controller that can connect it.
-  describe('which controller answers each platform', () => {
+  // Both platforms are SocialOAuthProviders behind the generic /social/:platform/… (review #126),
+  // so this pins each one's Hubungkan to its own consent screen.
+  describe('which platform each Hubungkan reaches', () => {
     const CREATOR = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
 
     async function connect(platform: string) {
@@ -136,7 +92,7 @@ describe('SocialModule', () => {
       }
     }
 
-    it("sends Instagram's Hubungkan to Instagram, through its own controller", async () => {
+    it("sends Instagram's Hubungkan to Instagram, through the generic controller", async () => {
       await expect(connect('instagram')).resolves.toMatch(
         /^https:\/\/www\.instagram\.com\/oauth\/authorize\?/,
       );

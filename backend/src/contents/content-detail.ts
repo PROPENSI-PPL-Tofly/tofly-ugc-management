@@ -3,6 +3,12 @@ import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
 import { firstLink } from './content-links.js';
 import { contentTags, type ContentTag } from './content-tags.js';
+import type { LinkPerformance } from '../performance/link-performance.js';
+import {
+  performanceOf,
+  type AccountConnection,
+  type StoredLinkPerformance,
+} from '../performance/performance-links.js';
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
@@ -24,7 +30,8 @@ export type DetailEventType =
   | 'draft_submitted'
   | 'revision_requested'
   | 'draft_approved'
-  | 'link_submitted';
+  | 'link_submitted'
+  | 'performance_entered';
 
 export interface DetailSubmissionRow {
   id: string;
@@ -37,10 +44,7 @@ export interface DetailSubmissionRow {
 }
 
 /** One stored link (PBI-38), in the order the read sorts them: first handed in first. */
-export interface DetailLinkRow {
-  /** Null only on a link kept from before platforms were recorded. */
-  platform: social_platform | null;
-  url: string;
+export interface DetailLinkRow extends StoredLinkPerformance {
   submitted_at: Date;
 }
 
@@ -61,6 +65,7 @@ export interface ContentDetailRow {
       first_name: string;
       middle_name: string | null;
       last_name: string | null;
+      social_accounts: AccountConnection[];
     };
   };
   submissions: DetailSubmissionRow[];
@@ -97,6 +102,8 @@ export interface ContentLink {
   url: string;
   /** ISO calendar day. */
   submittedAt: string;
+  /** Its numbers and state (PBI-27); null for a link with no platform to be measured on. */
+  performance: Omit<LinkPerformance, 'platform' | 'url'> | null;
 }
 
 export interface ContentDetail {
@@ -233,6 +240,20 @@ export function buildEvents(
   return events;
 }
 
+/** A link's numbers and state without the platform and url the link already carries. */
+function measuredOf(
+  link: DetailLinkRow,
+  accounts: readonly AccountConnection[],
+): ContentLink['performance'] {
+  if (link.platform === null) return null;
+  const {
+    platform: _platform,
+    url: _url,
+    ...measured
+  } = performanceOf(link, accounts);
+  return measured;
+}
+
 export function toContentDetail(
   row: ContentDetailRow,
   now: Date,
@@ -270,6 +291,7 @@ export function toContentDetail(
       platform: link.platform,
       url: link.url,
       submittedAt: link.submitted_at.toISOString().slice(0, 10),
+      performance: measuredOf(link, row.contracts.creators.social_accounts),
     })),
     // The stored history is the record; a content with none falls back to what its rows prove.
     events:

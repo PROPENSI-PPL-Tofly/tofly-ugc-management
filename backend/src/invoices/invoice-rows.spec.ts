@@ -27,8 +27,22 @@ function contentRow(
     deadline: day(10),
     video_submitted_at: null,
     content_links: [],
+    ...overrides,
+  };
+}
+
+/** One stored link with its numbers, as CONTENT_SELECT reads it. */
+function linkRow(
+  overrides: Partial<InvoiceContentRow['content_links'][number]> = {},
+): InvoiceContentRow['content_links'][number] {
+  return {
+    platform: 'instagram',
     views: null,
     likes: null,
+    comments: null,
+    shares: null,
+    data_state: 'waiting',
+    last_synced_at: null,
     ...overrides,
   };
 }
@@ -73,23 +87,56 @@ describe('creatorName', () => {
 });
 
 describe('toInvoiceContent', () => {
-  it('takes the platform of the content\'s first link (PBI-38)', () => {
+  it('hands every link with a platform on, with its numbers, state and sync time (PBI-28 AC 1, 6)', () => {
+    const syncedAt = new Date('2026-09-17T19:00:00.000Z');
     expect(
       toInvoiceContent(
         contentRow({
           status: 'link_submitted',
           video_submitted_at: day(-1),
-          content_links: [{ platform: 'tiktok' }],
+          content_links: [
+            linkRow({
+              views: 41_200,
+              likes: 0,
+              data_state: 'synced',
+              last_synced_at: syncedAt,
+            }),
+            linkRow({ platform: 'tiktok', shares: 9, data_state: 'manual' }),
+          ],
         }),
       ),
-    ).toMatchObject({ platform: 'tiktok', videoSubmittedAt: day(-1) });
+    ).toMatchObject({
+      videoSubmittedAt: day(-1),
+      links: [
+        {
+          platform: 'instagram',
+          views: 41_200,
+          likes: 0,
+          comments: null,
+          shares: null,
+          state: 'synced',
+          lastSyncedAt: syncedAt,
+        },
+        {
+          platform: 'tiktok',
+          views: null,
+          likes: null,
+          comments: null,
+          shares: 9,
+          state: 'manual',
+          lastSyncedAt: null,
+        },
+      ],
+    });
   });
 
-  it('has no platform before a link, or for a link kept from before platforms were recorded', () => {
-    expect(toInvoiceContent(contentRow()).platform).toBeNull();
+  it('has no links before the first, and leaves out a link kept from before platforms were recorded', () => {
+    expect(toInvoiceContent(contentRow()).links).toEqual([]);
     expect(
-      toInvoiceContent(contentRow({ content_links: [{ platform: null }] })).platform,
-    ).toBeNull();
+      toInvoiceContent(
+        contentRow({ content_links: [linkRow({ platform: null, views: 9 })] }),
+      ).links,
+    ).toEqual([]);
   });
 });
 
@@ -109,18 +156,27 @@ describe('toInvoiceContract', () => {
 // A creator whose contract was renewed still has the earlier one's invoice to finalize and pay:
 // each ended contract gets its own row next to the one the table describes.
 describe('listedContracts', () => {
-  const ids = (contracts: InvoiceContractRow[]) => contracts.map(({ id }) => id);
+  const ids = (contracts: InvoiceContractRow[]) =>
+    contracts.map(({ id }) => id);
 
   it('lists the current contract and, after it, every earlier one that has ended', () => {
     const row = creatorRow({
       contracts: [
         contractRow({ id: 'old', start_date: day(-200), end_date: day(-61) }),
         contractRow({ id: 'running' }),
-        contractRow({ id: 'older', start_date: day(-400), end_date: day(-201) }),
+        contractRow({
+          id: 'older',
+          start_date: day(-400),
+          end_date: day(-201),
+        }),
       ],
     });
 
-    expect(ids(listedContracts(row, TODAY))).toEqual(['running', 'old', 'older']);
+    expect(ids(listedContracts(row, TODAY))).toEqual([
+      'running',
+      'old',
+      'older',
+    ]);
   });
 
   it('lists both of two ended contracts, the one the table describes first', () => {
@@ -276,12 +332,20 @@ describe('toInvoiceItem', () => {
   });
 
   it('numbers each contract by the period it pays, counted in the order they started', () => {
-    const first = contractRow({ id: 'first', start_date: day(-200), end_date: day(-61) });
+    const first = contractRow({
+      id: 'first',
+      start_date: day(-200),
+      end_date: day(-61),
+    });
     const renewal = contractRow({ id: 'renewal' });
     const row = creatorRow({ contracts: [renewal, first] });
 
-    expect(toInvoiceItem(row, first, [], FORMULA, TODAY).contract.period).toBe(1);
-    expect(toInvoiceItem(row, renewal, [], FORMULA, TODAY).contract.period).toBe(2);
+    expect(toInvoiceItem(row, first, [], FORMULA, TODAY).contract.period).toBe(
+      1,
+    );
+    expect(
+      toInvoiceItem(row, renewal, [], FORMULA, TODAY).contract.period,
+    ).toBe(2);
   });
 
   it('keeps the end date as the last day when access is revoked after it', () => {
@@ -502,15 +566,19 @@ describe('the columns an invoice is read from', () => {
       status: true,
       deadline: true,
       video_submitted_at: true,
-      // The first link's platform is the one its performance bonus is judged on, as the single
-      // link's was before PBI-38.
+      // Every link is measured on its own platform's metric (PBI-28 AC 1); no token is read.
       content_links: {
         orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
-        take: 1,
-        select: { platform: true },
+        select: {
+          platform: true,
+          views: true,
+          likes: true,
+          comments: true,
+          shares: true,
+          data_state: true,
+          last_synced_at: true,
+        },
       },
-      views: true,
-      likes: true,
     });
   });
 });
@@ -533,6 +601,31 @@ describe('savedSnapshot', () => {
 
   it('reads back a snapshot holding every component and total', () => {
     expect(savedSnapshot(complete)).toBe(complete);
+  });
+
+  // PBI-28 AC 10: a snapshot from before links were kept with it reads as it always did, and one
+  // that keeps them reads back with them.
+  it("reads back a snapshot with every link's numbers, as well as one from before they were kept", () => {
+    const withLinks = {
+      ...complete,
+      performanceLinks: [
+        {
+          contentId: 'content-1',
+          contentName: 'Evg_1',
+          platform: 'instagram',
+          views: 41_200,
+          likes: null,
+          comments: null,
+          shares: null,
+          source: 'synced',
+          state: 'synced',
+          lastSyncedAt: '2026-09-11T19:00:00.000Z',
+        },
+      ],
+    };
+
+    expect(savedSnapshot(withLinks)).toBe(withLinks);
+    expect(savedSnapshot(complete)?.performanceLinks).toBeUndefined();
   });
 
   it('reads back the formula kept with a snapshot, or a null one', () => {

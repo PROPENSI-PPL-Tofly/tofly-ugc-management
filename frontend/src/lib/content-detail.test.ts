@@ -191,6 +191,19 @@ describe("describeJourney", () => {
     ]);
   });
 
+  // PBI-27 AC 16: numbers an admin typed in are a step, named by their platform.
+  it("titles manual performance numbers by the platform they were typed for", () => {
+    const steps = describeJourney([
+      event({ id: "tiktok", type: "performance_entered", payload: { platform: "tiktok" } }),
+      event({ id: "unknown", type: "performance_entered" }),
+    ]);
+
+    expect(steps.map((step) => [step.title, step.linkLabel, step.noteBy])).toEqual([
+      ["Angka TikTok diisi manual", null, null],
+      ["Angka performa diisi manual", null, null],
+    ]);
+  });
+
   it("keeps every event, in the order it was given, with the event itself", () => {
     const steps = describeJourney(journey);
 

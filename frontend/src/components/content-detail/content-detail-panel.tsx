@@ -8,6 +8,7 @@ import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
+import { LinkPerformanceSection } from "./link-performance-section";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
@@ -165,6 +166,8 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   proposal_approved: "bg-muted ring-muted",
   auto_scheduled: "bg-muted ring-muted",
   creator_comment: "bg-muted ring-muted",
+  // Numbers typed in move no status either.
+  performance_entered: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
 };
 
@@ -617,7 +620,18 @@ export function ContentDetailPanel({
           {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
 
           {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
-          {loaded.links?.length ? <Links links={loaded.links} /> : null}
+          {/* Each link's numbers and state once the API sends them (PBI-27); the plain rows before. */}
+          {loaded.links?.some((link) => link.performance !== undefined) ? (
+            <LinkPerformanceSection
+              contentId={contentId}
+              links={loaded.links}
+              role={role}
+              creatorFirstName={loaded.creatorName.split(" ")[0]}
+              onChanged={() => void readAgain()}
+            />
+          ) : loaded.links?.length ? (
+            <Links links={loaded.links} />
+          ) : null}
 
           <section>
             <h3 className={SECTION_LABEL}>Timeline</h3>

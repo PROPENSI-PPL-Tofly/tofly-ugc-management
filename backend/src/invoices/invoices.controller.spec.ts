@@ -191,7 +191,16 @@ describe('InvoicesController', () => {
 
   it('rejects an unsupported sort key or direction', async () => {
     await expect(
-      controller.list(1, 10, undefined, undefined, undefined, undefined, undefined, 'bonus'),
+      controller.list(
+        1,
+        10,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'bonus',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     await expect(
