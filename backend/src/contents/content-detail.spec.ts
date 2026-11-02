@@ -19,7 +19,18 @@ function linkRow(
   url: string,
   day: string,
 ): ContentDetailRow['content_links'][number] {
-  return { platform, url, submitted_at: new Date(`${day}T00:00:00.000Z`) };
+  return {
+    platform,
+    url,
+    submitted_at: new Date(`${day}T00:00:00.000Z`),
+    views: null,
+    likes: null,
+    comments: null,
+    shares: null,
+    data_state: 'waiting',
+    last_synced_at: null,
+    manual_at: null,
+  };
 }
 
 function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
@@ -40,6 +51,7 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
         first_name: 'Rangga',
         middle_name: null,
         last_name: 'Pratama',
+        social_accounts: [],
       },
     },
     submissions: [],
@@ -526,6 +538,17 @@ describe('toContentDetail', () => {
   });
 });
 
+/** A link no sync has measured, of an account the creator has not connected (PBI-27). */
+const NOT_CONNECTED = {
+  views: null,
+  likes: null,
+  comments: null,
+  shares: null,
+  state: 'not_connected',
+  lastSyncedAt: null,
+  manualAt: null,
+};
+
 describe('toContentDetail links (PBI-38)', () => {
   it('lists each link with its platform, url and submitted day, first link first', () => {
     const detail = toContentDetail(
@@ -549,11 +572,13 @@ describe('toContentDetail links (PBI-38)', () => {
         platform: 'instagram',
         url: 'https://instagram.com/reel/abc',
         submittedAt: '2026-09-15',
+        performance: NOT_CONNECTED,
       },
       {
         platform: 'tiktok',
         url: 'https://www.tiktok.com/@rangga/video/1',
         submittedAt: '2026-09-17',
+        performance: NOT_CONNECTED,
       },
     ]);
   });
@@ -575,12 +600,104 @@ describe('toContentDetail links (PBI-38)', () => {
         platform: null,
         url: 'https://example.com/video/old',
         submittedAt: '2026-09-15',
+        performance: null,
       },
     ]);
   });
 
   it('has no links before the first is submitted', () => {
     expect(toContentDetail(row(), on('2026-09-18')).links).toEqual([]);
+  });
+});
+
+// PBI-27 AC 19, 20: every link carries its own numbers and state, for the admin's and the
+// creator's Content Detail alike, read against the creator's account on that link's platform.
+describe('toContentDetail link performance (PBI-27)', () => {
+  const SYNCED_AT = new Date('2026-09-18T19:00:00.000Z');
+
+  function withAccounts(
+    accounts: ContentDetailRow['contracts']['creators']['social_accounts'],
+  ): ContentDetailRow['contracts'] {
+    return {
+      creators: {
+        first_name: 'Rangga',
+        middle_name: null,
+        last_name: 'Pratama',
+        social_accounts: accounts,
+      },
+    };
+  }
+
+  it("gives each link its numbers and state, judged by the creator's account on that link's platform", () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        content_links: [
+          {
+            ...linkRow(
+              'instagram',
+              'https://instagram.com/reel/abc',
+              '2026-09-15',
+            ),
+            views: 12400,
+            likes: 0,
+            data_state: 'synced',
+            last_synced_at: SYNCED_AT,
+          },
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-17',
+          ),
+        ],
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+        contracts: withAccounts([
+          {
+            platform: 'instagram',
+            is_connected: true,
+            platform_user_id: '17841',
+          },
+          { platform: 'tiktok', is_connected: true, platform_user_id: null },
+        ]),
+      }),
+      on('2026-09-19'),
+    );
+
+    expect(detail.links.map((link) => link.performance)).toEqual([
+      {
+        views: 12400,
+        likes: 0,
+        comments: null,
+        shares: null,
+        state: 'synced',
+        lastSyncedAt: SYNCED_AT.toISOString(),
+        manualAt: null,
+      },
+      // A TikTok flag with no platform account behind it is not a connection (PBI-19).
+      NOT_CONNECTED,
+    ]);
+  });
+
+  it('keeps a waiting link waiting once the creator has connected that platform', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        content_links: [
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-17',
+          ),
+        ],
+        video_submitted_at: new Date('2026-09-17T00:00:00.000Z'),
+        contracts: withAccounts([
+          { platform: 'tiktok', is_connected: true, platform_user_id: '7012' },
+        ]),
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links[0].performance?.state).toBe('waiting');
   });
 });
 

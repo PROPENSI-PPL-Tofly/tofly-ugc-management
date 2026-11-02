@@ -21,7 +21,12 @@ function row() {
     created_at: new Date('2026-09-01T03:00:00.000Z'),
     updated_at: new Date('2026-09-01T03:00:00.000Z'),
     contracts: {
-      creators: { first_name: 'Rangga', middle_name: null, last_name: 'Pratama' },
+      creators: {
+        first_name: 'Rangga',
+        middle_name: null,
+        last_name: 'Pratama',
+        social_accounts: [],
+      },
     },
     submissions: [],
     content_events: [],
@@ -50,11 +55,41 @@ describe('ContentDetailService', () => {
         video_submitted_at: true,
         approval_bypassed: true,
         // The links in the order they were handed in: the first is the content's submitted one.
+        // With each link's numbers and state (PBI-27), never who typed them in.
         content_links: {
           orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
-          select: { platform: true, url: true, submitted_at: true },
+          select: {
+            platform: true,
+            url: true,
+            submitted_at: true,
+            views: true,
+            likes: true,
+            comments: true,
+            shares: true,
+            data_state: true,
+            last_synced_at: true,
+            manual_at: true,
+          },
         },
-        contracts: expect.anything(),
+        // Whether each account is connected (PBI-19), never a token.
+        contracts: {
+          select: {
+            creators: {
+              select: {
+                first_name: true,
+                middle_name: true,
+                last_name: true,
+                social_accounts: {
+                  select: {
+                    platform: true,
+                    is_connected: true,
+                    platform_user_id: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         submissions: expect.objectContaining({
           select: expect.objectContaining({ creator_notes: true }),
         }),

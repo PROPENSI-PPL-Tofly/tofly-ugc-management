@@ -3,6 +3,11 @@ import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
 import { firstLink } from './content-links.js';
 import { contentTags, type ContentTag } from './content-tags.js';
+import type { ConnectionRow } from '../performance/account-connections.js';
+import type {
+  LinkPerformance,
+  StoredLinkPerformance,
+} from '../performance/link-performance.mapper.js';
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
@@ -37,8 +42,11 @@ export interface DetailSubmissionRow {
   creator_notes: string | null;
 }
 
-/** One stored link (PBI-38), in the order the read sorts them: first handed in first. */
-export interface DetailLinkRow {
+/**
+ * One stored link (PBI-38), in the order the read sorts them: first handed in first, with its
+ * performance columns (PBI-27).
+ */
+export interface DetailLinkRow extends StoredLinkPerformance {
   /** Null only on a link kept from before platforms were recorded. */
   platform: social_platform | null;
   url: string;
@@ -62,6 +70,8 @@ export interface ContentDetailRow {
       first_name: string;
       middle_name: string | null;
       last_name: string | null;
+      /** Whether each account is connected (PBI-19), for the links' effective states. */
+      social_accounts: (ConnectionRow & { platform: social_platform })[];
     };
   };
   submissions: DetailSubmissionRow[];
@@ -98,6 +108,8 @@ export interface ContentLink {
   url: string;
   /** ISO calendar day. */
   submittedAt: string;
+  /** Its numbers and state (PBI-27 AC 19); null for a link no platform measures. */
+  performance: LinkPerformance | null;
 }
 
 export interface ContentDetail {
@@ -271,6 +283,7 @@ export function toContentDetail(
       platform: link.platform,
       url: link.url,
       submittedAt: link.submitted_at.toISOString().slice(0, 10),
+      performance: null,
     })),
     // The stored history is the record; a content with none falls back to what its rows prove.
     events:
