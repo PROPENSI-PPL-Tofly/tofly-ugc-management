@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { PerformanceSource, SourceResult } from '../ports.js';
 import {
@@ -323,7 +323,8 @@ describe('PerformanceSyncService', () => {
         skipped: 0,
         durationMs: expect.any(Number),
       });
-      expect(report.durationMs).toBeGreaterThan(0);
+      // The clock moves 1.5 s a reading: the start, one per group saved, and the end.
+      expect(report.durationMs).toBe(4500);
       expect(out.log).toHaveBeenCalledWith(
         `performance sync all: processed=2 succeeded=1 failed=1 skipped=0 durationMs=${report.durationMs}`,
       );
@@ -452,6 +453,40 @@ describe('PerformanceSyncService', () => {
         );
       });
 
+      it.each([
+        [
+          'synced or not found',
+          async (_: string, links: readonly { id: string }[]) => ({
+            outcome: 'read' as const,
+            readings: [
+              {
+                linkId: links[0].id,
+                outcome: 'synced' as const,
+                metrics: METRICS,
+              },
+              { linkId: links[1].id, outcome: 'not_found' as const },
+            ],
+          }),
+        ],
+        ['disconnected', async () => ({ outcome: 'disconnected' as const })],
+      ])(
+        'warns about nothing when the links are %s: only a failure is worth a warning',
+        async (_, answer) => {
+          const s = stub([row('a-tt-1', 'c1'), row('a-tt-2', 'c2')]);
+          const out = log();
+          const service = new PerformanceSyncService(
+            s.client,
+            [source('tiktok', answer)],
+            out,
+            clock(),
+          );
+
+          await service.syncAll();
+
+          expect(out.warn).not.toHaveBeenCalled();
+        },
+      );
+
       it('counts a group whose numbers could not be saved as failed, and still saves the other groups', async () => {
         const s = stub([
           row('a-tt-1', 'c1'),
@@ -474,10 +509,10 @@ describe('PerformanceSyncService', () => {
           clock(),
         );
 
-        const report = await service.syncAll();
+        const { notUpdated } = await service.syncContract('contract-1');
 
         expect(s.transaction).toHaveBeenCalledTimes(2);
-        expect(report).toMatchObject({ succeeded: 1, failed: 1 });
+        expect(notUpdated).toEqual([{ contentId: 'c1', platform: 'tiktok' }]);
         expect(out.warn).toHaveBeenCalledWith(
           `performance sync: saving tiktok links of creator ${CREATOR_A} failed (PrismaClientUnknownRequestError)`,
         );
@@ -494,9 +529,8 @@ describe('PerformanceSyncService', () => {
           clock(),
         );
 
-        expect(await service.syncAll()).toMatchObject({
-          succeeded: 1,
-          failed: 1,
+        expect(await service.syncContract('contract-1')).toEqual({
+          notUpdated: [{ contentId: 'c1', platform: 'tiktok' }],
         });
       });
 
@@ -575,6 +609,11 @@ describe('PerformanceSyncService', () => {
       const service = new PerformanceSyncService(s.client, []);
 
       await expect(service.syncAll()).resolves.toMatchObject({ processed: 0 });
+      const logger = Reflect.get(service, 'log') as Logger & {
+        context?: string;
+      };
+      expect(logger).toBeInstanceOf(Logger);
+      expect(logger.context).toBe('PerformanceSync');
     });
   });
 

@@ -35,14 +35,16 @@ describe('syncableLinks', () => {
   };
 
   it('picks every link of delivered content whose invoice is still running (AC 4, 5)', () => {
-    expect(syncableLinks({ kind: 'all' })).toEqual({
+    expect(syncableLinks({ kind: 'all' })).toStrictEqual({
       platform: { not: null },
       contents: ELIGIBLE,
     });
   });
 
   it('narrows to one content for "Sinkronkan Sekarang" (AC 12)', () => {
-    expect(syncableLinks({ kind: 'content', contentId: 'content-9' })).toEqual({
+    expect(
+      syncableLinks({ kind: 'content', contentId: 'content-9' }),
+    ).toStrictEqual({
       platform: { not: null },
       contents: { ...ELIGIBLE, id: 'content-9' },
     });
@@ -51,7 +53,7 @@ describe('syncableLinks', () => {
   it('narrows to one contract for the last sync before Finalize', () => {
     expect(
       syncableLinks({ kind: 'contract', contractId: 'contract-9' }),
-    ).toEqual({
+    ).toStrictEqual({
       platform: { not: null },
       contents: {
         ...ELIGIBLE,
