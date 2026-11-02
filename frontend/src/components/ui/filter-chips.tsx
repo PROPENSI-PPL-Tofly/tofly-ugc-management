@@ -60,8 +60,14 @@ export function FilterChips({
   if (chips.length === 0 && !canReset) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-rule px-5 py-3">
-      <div role="group" aria-label="Filter aktif" className="flex flex-wrap items-center gap-2">
+    // On a phone the chips wrap inside their own group, so Reset keeps its place beside them on
+    // the first line rather than dropping onto a line of its own.
+    <div className="flex flex-wrap items-center gap-2 border-t border-rule px-5 py-3 max-sm:flex-nowrap max-sm:items-start">
+      <div
+        role="group"
+        aria-label="Filter aktif"
+        className="flex flex-wrap items-center gap-2 max-sm:min-w-0 max-sm:flex-1"
+      >
         {chips.map((chip) => (
           <button
             key={chip.id}
