@@ -58,6 +58,32 @@ describe.each([
   });
 });
 
+// PBI-27 AC 18: an admin types a link's numbers in only while its contract's invoice is running.
+describe('manual performance numbers on a running invoice', () => {
+  it('can still be typed in', () => {
+    expect(() =>
+      new RunningInvoiceState().assertCanEnterPerformance(),
+    ).not.toThrow();
+  });
+});
+
+// The frozen snapshot holds the bonus as it stood; a later correction goes through an adjustment.
+describe.each([
+  'finalized',
+  'creator_acked',
+  'payment_uploaded',
+  'paid',
+] as const)('manual performance numbers on a %s invoice', (status) => {
+  it('are refused, pointing the admin to an adjustment', () => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanEnterPerformance()),
+    ).toEqual({
+      code: 'INVOICE_FINALIZED',
+      message: 'Invoice sudah difinalisasi. Koreksi lewat penyesuaian.',
+    });
+  });
+});
+
 // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): once finalized, an invoice stays
 // frozen through every later step.
 describe.each([

@@ -22,6 +22,8 @@ export interface InvoiceState {
   assertCanConfirmReceipt(): void;
   /** A video link is submitted, added for another platform or replaced (PBI-38 AC 8, 9). */
   assertCanChangeLinks(): void;
+  /** An admin types a video link's performance numbers in by hand (PBI-27 AC 18). */
+  assertCanEnterPerformance(): void;
 }
 
 /** Why a proof is refused: the invoice is not waiting for one. */
@@ -80,6 +82,8 @@ export class RunningInvoiceState implements InvoiceState {
   }
 
   assertCanChangeLinks(): void {}
+
+  assertCanEnterPerformance(): void {}
 }
 
 /**
@@ -117,6 +121,8 @@ abstract class FrozenInvoiceState implements InvoiceState {
       'Invoice sudah difinalisasi. Link video tidak bisa diubah lagi',
     );
   }
+
+  assertCanEnterPerformance(): void {}
 
   private finalized(): ConflictException {
     return new ConflictException({
