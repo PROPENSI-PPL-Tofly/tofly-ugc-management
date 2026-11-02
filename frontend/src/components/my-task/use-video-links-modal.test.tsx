@@ -30,7 +30,7 @@ const DETAIL: PanelActionFacts = {
   latestSubmissionId: null,
   creatorActions: [],
   status: "link_submitted",
-  links: [{ platform: "instagram", url: INSTAGRAM_REEL }],
+  links: [{ platform: "instagram", url: INSTAGRAM_REEL, submittedAt: "2026-10-01" }],
 };
 
 function Harness({ role, detail = DETAIL }: Readonly<{ role: Role; detail?: PanelActionFacts }>) {

@@ -49,7 +49,13 @@ describe("actionsFor (managing a sent content's links)", () => {
     status: "link_submitted",
     waitingOn: null,
     latestSubmissionId: null,
-    links: [{ platform: "instagram", url: "https://www.instagram.com/reel/C8abc12345/" }],
+    links: [
+      {
+        platform: "instagram",
+        url: "https://www.instagram.com/reel/C8abc12345/",
+        submittedAt: "2026-10-01",
+      },
+    ],
   });
 
   it("offers the creator to add or replace a link, and hands over the content", () => {
@@ -84,7 +90,10 @@ describe("actionsFor (managing a sent content's links)", () => {
     expect(
       actionsFor({
         role: "admin",
-        detail: { ...sent, links: [{ platform: null, url: "https://example.com/old" }] },
+        detail: {
+          ...sent,
+          links: [{ platform: null, url: "https://example.com/old", submittedAt: "2026-10-01" }],
+        },
         state: idle,
         ports: ports({ onManageLinks: vi.fn() }),
       }),

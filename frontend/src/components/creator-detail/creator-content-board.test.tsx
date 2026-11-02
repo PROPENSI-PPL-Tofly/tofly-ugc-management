@@ -64,7 +64,13 @@ vi.mock("@/components/content-detail/content-detail-panel", async (importOrigina
             latestSubmissionId: null,
             creatorActions: [],
             status: "link_submitted",
-            links: [{ platform: "tiktok", url: "https://vt.tiktok.com/ZSabc123/" }],
+            links: [
+              {
+                platform: "tiktok",
+                url: "https://vt.tiktok.com/ZSabc123/",
+                submittedAt: "2026-10-01",
+              },
+            ],
           })
         }
       >
