@@ -75,6 +75,15 @@ describe('waitingLinks (PBI-28 AC 9)', () => {
     ).toEqual([]);
   });
 
+  it('leaves out a link whose platform rule has no tiers, as the default formula row does (AC 4)', () => {
+    expect(
+      waitingLinks([delivered('a', [link('tiktok')])], {
+        ...FORMULA,
+        performanceBonus: { tiktok: { metric: 'likes', tiers: [] } },
+      }),
+    ).toEqual([]);
+  });
+
   it('lists nothing while no formula is saved', () => {
     expect(waitingLinks([delivered('a', [link('instagram')])], null)).toEqual(
       [],
@@ -167,6 +176,23 @@ describe('notUpdatedLinks (PBI-28 AC 8)', () => {
     ).toEqual([]);
   });
 
+  it('names each of several links the sync could not update, and none of the others', () => {
+    const three = [
+      delivered('a', [link('instagram'), link('tiktok')]),
+      delivered('b', [link('instagram')]),
+    ];
+
+    expect(
+      notUpdatedLinks(three, {
+        status: 'done',
+        notUpdated: [
+          { contentId: 'a', platform: 'tiktok' },
+          { contentId: 'b', platform: 'instagram' },
+        ],
+      }).map((item) => `${item.contentId}:${item.platform}`),
+    ).toEqual(['a:tiktok', 'b:instagram']);
+  });
+
   it('skips a link the sync named that the contract does not hold', () => {
     expect(
       notUpdatedLinks(contents, {
@@ -194,6 +220,17 @@ describe('lastSyncBeforeFinalize (PBI-28 AC 7, 8)', () => {
       notUpdated: [{ contentId: 'a', platform: 'tiktok' }],
     });
     expect(sync.syncContract).toHaveBeenCalledWith('contract-1');
+  });
+
+  it('leaves no timer behind once the sync has answered', async () => {
+    vi.useFakeTimers();
+
+    await lastSyncBeforeFinalize(
+      { syncContract: () => Promise.resolve({ notUpdated: [] }) },
+      'contract-1',
+    );
+
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('says unavailable while no sync is wired in yet', async () => {

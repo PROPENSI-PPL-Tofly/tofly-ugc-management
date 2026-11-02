@@ -82,6 +82,9 @@ describe('settleForFinalize', () => {
       response: {
         code: 'INVOICE_BONUS_PENDING',
         message: 'Bonus performa masih menunggu data',
+        // Told nothing about the links, it says so rather than leaving the lists out.
+        waiting: [],
+        lastSync: { status: 'unavailable', notUpdated: [] },
       },
     });
   });
