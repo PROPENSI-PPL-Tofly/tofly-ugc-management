@@ -28,10 +28,10 @@ import {
 } from './invoice-rows.js';
 import {
   lastSyncBeforeFinalize,
-  notUpdatedLinks,
   snapshotLinks,
+  syncReport,
   waitingLinks,
-  type NamedLink,
+  type LastSyncReport,
 } from './finalize-performance.js';
 import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
@@ -78,10 +78,7 @@ export interface FinalizeResult {
   invoiceStatus: 'finalized';
   adjustments: InvoiceAdjustmentDto[];
   snapshot: InvoiceSnapshotDto;
-  lastSync: {
-    status: 'done' | 'unavailable' | 'failed' | 'timed_out';
-    notUpdated: NamedLink[];
-  };
+  lastSync: LastSyncReport;
 }
 
 /** A finalize with no body: the admin has not accepted freezing a pending performance bonus. */
@@ -205,10 +202,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           formula,
           today,
         });
-        const lastSync = {
-          status: sync.status,
-          notUpdated: notUpdatedLinks(contents, sync),
-        };
+        const lastSync = syncReport(contents, sync);
 
         const settled = settleForFinalize(
           breakdown,

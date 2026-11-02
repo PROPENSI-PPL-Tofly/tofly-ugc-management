@@ -25,6 +25,12 @@ export interface NamedLink {
   state: LinkDataState;
 }
 
+/** The last sync as the admin is told it: its outcome and the links it left as they were. */
+export interface LastSyncReport {
+  status: LastSync['status'];
+  notUpdated: NamedLink[];
+}
+
 /** A link that could earn a bonus but has no number on its platform's metric (AC 9). */
 export interface WaitingLink extends NamedLink {
   metric: PerformanceMetric;
@@ -76,6 +82,16 @@ function delivered(contents: readonly InvoiceContent[]) {
  * The links the admin is told were not brought up to date (AC 8): the ones the sync named, or
  * every delivered link when the whole sync failed or ran out of time. None while no sync exists.
  */
+export function syncReport(
+  contents: readonly InvoiceContent[],
+  lastSync: LastSync,
+): LastSyncReport {
+  return {
+    status: lastSync.status,
+    notUpdated: notUpdatedLinks(contents, lastSync),
+  };
+}
+
 export function notUpdatedLinks(
   contents: readonly InvoiceContent[],
   lastSync: LastSync,

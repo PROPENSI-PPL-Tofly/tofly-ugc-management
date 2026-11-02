@@ -7,7 +7,7 @@
 
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { InvoiceBreakdown } from './invoice-calculator.js';
-import type { LastSync, WaitingLink } from './finalize-performance.js';
+import type { LastSyncReport, WaitingLink } from './finalize-performance.js';
 import type {
   ComponentResult,
   InvoiceComponentKey,
@@ -17,8 +17,7 @@ import type {
 /** What the admin is told about performance data when Finalize stops or freezes (PBI-28). */
 export interface PendingPerformance {
   waiting: readonly WaitingLink[];
-  /** The last sync's outcome, its links named for the admin. */
-  lastSync: Omit<LastSync, 'notUpdated'> & { notUpdated: readonly unknown[] };
+  lastSync: LastSyncReport;
 }
 
 const NOTHING_PENDING: PendingPerformance = {
