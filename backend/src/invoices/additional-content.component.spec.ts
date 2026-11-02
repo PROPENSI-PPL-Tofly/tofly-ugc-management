@@ -63,8 +63,16 @@ describe('AdditionalContentComponent', () => {
     const result = component.calculate(
       context({
         contents: [
-          specific({ id: 'late', status: 'link_submitted', videoSubmittedAt: day(-4) }),
-          specific({ id: 'on-time', status: 'link_submitted', videoSubmittedAt: day(-6) }),
+          specific({
+            id: 'late',
+            status: 'link_submitted',
+            videoSubmittedAt: day(-4),
+          }),
+          specific({
+            id: 'on-time',
+            status: 'link_submitted',
+            videoSubmittedAt: day(-6),
+          }),
         ],
       }),
     );

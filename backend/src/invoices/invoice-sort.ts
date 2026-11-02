@@ -22,7 +22,10 @@ export interface InvoiceSort {
   order: InvoiceSortOrder;
 }
 
-export const DEFAULT_INVOICE_SORT: InvoiceSort = { key: 'action', order: 'asc' };
+export const DEFAULT_INVOICE_SORT: InvoiceSort = {
+  key: 'action',
+  order: 'asc',
+};
 
 /** Ended first: ready to finalize. Then running, then not started. */
 const ACTION_RANK: Record<InvoiceListItem['contract']['status'], number> = {
@@ -34,7 +37,8 @@ const ACTION_RANK: Record<InvoiceListItem['contract']['status'], number> = {
 type Compare = (a: InvoiceListItem, b: InvoiceListItem) => number;
 
 const KEYS: Record<Exclude<InvoiceSortKey, 'name'>, Compare> = {
-  action: (a, b) => ACTION_RANK[a.contract.status] - ACTION_RANK[b.contract.status],
+  action: (a, b) =>
+    ACTION_RANK[a.contract.status] - ACTION_RANK[b.contract.status],
   // A component still waiting for a formula has charged nothing yet, so it sorts as zero.
   fixed: (a, b) =>
     (a.components.fixedRate.amount ?? 0) - (b.components.fixedRate.amount ?? 0),
@@ -43,7 +47,8 @@ const KEYS: Record<Exclude<InvoiceSortKey, 'name'>, Compare> = {
   total: (a, b) => a.total - b.total,
 };
 
-const byName: Compare = (a, b) => a.creatorName.localeCompare(b.creatorName, 'id');
+const byName: Compare = (a, b) =>
+  a.creatorName.localeCompare(b.creatorName, 'id');
 
 /**
  * Two rows of one renewed creator: the earlier contract first, then by id, so the order of equal

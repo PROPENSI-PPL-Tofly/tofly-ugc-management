@@ -19,8 +19,30 @@ function linkRow(
   url: string,
   day: string,
 ): ContentDetailRow['content_links'][number] {
-  return { platform, url, submitted_at: new Date(`${day}T00:00:00.000Z`) };
+  return {
+    platform,
+    url,
+    submitted_at: new Date(`${day}T00:00:00.000Z`),
+    views: null,
+    likes: null,
+    comments: null,
+    shares: null,
+    data_state: 'waiting',
+    last_synced_at: null,
+    manual_at: null,
+  };
 }
+
+/** A link no sync or admin has measured yet, its creator's account not connected. */
+const UNMEASURED = {
+  views: null,
+  likes: null,
+  comments: null,
+  shares: null,
+  state: 'not_connected',
+  lastSyncedAt: null,
+  manualAt: null,
+};
 
 function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
   return {
@@ -40,6 +62,7 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
         first_name: 'Rangga',
         middle_name: null,
         last_name: 'Pratama',
+        social_accounts: [],
       },
     },
     submissions: [],
@@ -549,11 +572,13 @@ describe('toContentDetail links (PBI-38)', () => {
         platform: 'instagram',
         url: 'https://instagram.com/reel/abc',
         submittedAt: '2026-09-15',
+        performance: UNMEASURED,
       },
       {
         platform: 'tiktok',
         url: 'https://www.tiktok.com/@rangga/video/1',
         submittedAt: '2026-09-17',
+        performance: UNMEASURED,
       },
     ]);
   });
@@ -575,12 +600,115 @@ describe('toContentDetail links (PBI-38)', () => {
         platform: null,
         url: 'https://example.com/video/old',
         submittedAt: '2026-09-15',
+        // No platform to be measured on, so no numbers and no state either.
+        performance: null,
       },
     ]);
   });
 
   it('has no links before the first is submitted', () => {
     expect(toContentDetail(row(), on('2026-09-18')).links).toEqual([]);
+  });
+});
+
+describe('toContentDetail link performance (PBI-27)', () => {
+  const SUBMITTED = {
+    status: 'link_submitted' as const,
+    video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+  };
+
+  it('gives each link its four numbers and state, an empty one as no data and a 0 as 0 (AC 1-3, 19)', () => {
+    const detail = toContentDetail(
+      row({
+        ...SUBMITTED,
+        content_links: [
+          {
+            ...linkRow(
+              'instagram',
+              'https://instagram.com/reel/abc',
+              '2026-09-15',
+            ),
+            views: 12400,
+            likes: 0,
+            data_state: 'synced',
+            last_synced_at: new Date('2026-09-17T19:00:00.000Z'),
+          },
+        ],
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links[0].performance).toEqual({
+      views: 12400,
+      likes: 0,
+      comments: null,
+      shares: null,
+      state: 'synced',
+      lastSyncedAt: '2026-09-17T19:00:00.000Z',
+      manualAt: null,
+    });
+  });
+
+  it("reads a waiting link as waiting once the creator's account on its platform is connected", () => {
+    const detail = toContentDetail(
+      row({
+        ...SUBMITTED,
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-15',
+          ),
+        ],
+        contracts: {
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+            social_accounts: [
+              {
+                platform: 'instagram',
+                is_connected: true,
+                platform_user_id: '1784',
+              },
+            ],
+          },
+        },
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links.map((link) => link.performance?.state)).toEqual([
+      'waiting',
+      'not_connected',
+    ]);
+  });
+
+  it('gives the time an admin filled a link in (AC 3)', () => {
+    const detail = toContentDetail(
+      row({
+        ...SUBMITTED,
+        content_links: [
+          {
+            ...linkRow(
+              'tiktok',
+              'https://www.tiktok.com/@rangga/video/1',
+              '2026-09-15',
+            ),
+            views: 5000,
+            data_state: 'manual',
+            manual_at: new Date('2026-09-18T03:00:00.000Z'),
+          },
+        ],
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links[0].performance).toMatchObject({
+      state: 'manual',
+      manualAt: '2026-09-18T03:00:00.000Z',
+    });
   });
 });
 
@@ -728,6 +856,34 @@ describe('toContentDetail with a stored history', () => {
       ['proposal_approved', { name: null, role: 'admin' }, undefined],
       ['scheduled', { name: 'Rangga Pratama', role: 'creator' }, undefined],
     ]);
+  });
+
+  // PBI-27 AC 16: numbers an admin typed in are a step of the timeline, naming the platform.
+  it('words manual performance numbers as a step by an admin, naming the platform', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Performance Entered', '2026-09-04T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              platform: 'tiktok',
+              before: { views: null, state: 'not_connected' },
+              after: { views: 500, state: 'manual' },
+            },
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z'),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toEqual({
+      id: 'e2',
+      type: 'performance_entered',
+      at: '2026-09-04T03:00:00.000Z',
+      actor: { name: null, role: 'admin' },
+      payload: { platform: 'tiktok' },
+    });
   });
 
   it('reads a proposal the system scheduled at H-1 as a step by the system, not by anyone', () => {

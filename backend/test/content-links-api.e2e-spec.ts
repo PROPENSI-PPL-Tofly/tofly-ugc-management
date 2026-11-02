@@ -384,6 +384,16 @@ describe('content links API (e2e)', () => {
           platform: 'instagram',
           url: reel('new-3'),
           submittedAt: day(0).toISOString().slice(0, 10),
+          // The new video starts unmeasured (PBI-27); this creator's accounts are not connected.
+          performance: {
+            views: null,
+            likes: null,
+            comments: null,
+            shares: null,
+            state: 'not_connected',
+            lastSyncedAt: null,
+            manualAt: null,
+          },
         },
       ]);
       expect(detail.body.events[0]).toMatchObject({

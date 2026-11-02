@@ -48,11 +48,32 @@ model content_links {
   submitted_at   DateTime         @db.Date
   submitted_by   String           @db.Uuid
   created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  /// PBI-27: null is no data yet, never 0.
+  views          Int?
+  likes          Int?
+  comments       Int?
+  shares         Int?
+  data_state     link_data_state  @default(waiting)
+  last_synced_at DateTime?        @db.Timestamptz(6)
+  /// The admin who typed the numbers in; set together with manual_at.
+  manual_by      String?          @db.Uuid
+  manual_at      DateTime?        @db.Timestamptz(6)
   contents       contents         @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users          users            @relation(fields: [submitted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manual_users   users?           @relation("content_links_manual_by", fields: [manual_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([content_id, platform])
   @@index([submitted_by], map: "content_links_submitted_by_idx")
+  @@index([manual_by], map: "content_links_manual_by_idx")
+}
+
+enum link_data_state {
+  waiting
+  not_connected
+  synced
+  not_found
+  sync_failed
+  manual
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -167,6 +188,7 @@ model users {
   app_sessions           app_sessions[]
   content_events         content_events[]
   content_links          content_links[]
+  content_links_manual   content_links[]          @relation("content_links_manual_by")
   invoice_adjustments    invoice_adjustments[]
   invoice_comments       invoice_comments[]
   invoice_payment_proofs invoice_payment_proofs[]
