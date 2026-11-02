@@ -54,6 +54,11 @@ const STEP_FOR: Record<
         replaced: true,
       }),
   },
+  // Numbers an admin typed in (PBI-27 AC 16); the values stay on the server's record.
+  'Performance Entered': {
+    type: 'performance_entered',
+    payload: (data) => details({ platform: data.platform('platform') }),
+  },
   'Creator Comment': {
     type: 'creator_comment',
     payload: (data) => details({ note: data.text('comment') }),

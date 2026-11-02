@@ -772,6 +772,66 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(within(section).getByText("15 Sep 2026")).toBeInTheDocument();
     });
 
+    describe("with each link's performance (PBI-27 27.5)", () => {
+      const measured = {
+        platform: "instagram" as const,
+        url: "https://instagram.com/reel/abc",
+        submittedAt: "2026-10-18",
+        performance: {
+          views: 12400,
+          likes: null,
+          comments: null,
+          shares: null,
+          state: "not_connected" as const,
+          lastSyncedAt: null,
+          manualAt: null,
+        },
+      };
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("shows a card per link with its numbers and state instead of the plain rows", async () => {
+        open(detail({ status: "link_submitted", links: [measured] }));
+
+        const section = await screen.findByRole("region", { name: "Link dan performa" });
+        const card = within(section).getByRole("group", { name: "Performa Instagram" });
+        expect(within(card).getByText("12.400")).toBeInTheDocument();
+        expect(within(card).getByText("Akun belum terhubung")).toBeInTheDocument();
+        expect(screen.queryByRole("region", { name: "Tautan video" })).not.toBeInTheDocument();
+      });
+
+      it("names the creator by first name in the not-connected tip", async () => {
+        open(detail({ status: "link_submitted", links: [measured] }));
+
+        expect(
+          await screen.findByRole("button", { name: "Tentang Akun belum terhubung" }),
+        ).toHaveAccessibleDescription("Rangga belum menghubungkan akun ini.");
+      });
+
+      it("reads the content again once manual numbers are saved, so the card shows them", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+        const { load } = open(detail({ status: "link_submitted", links: [measured] }));
+
+        fireEvent.click(await screen.findByRole("button", { name: "Isi Manual" }));
+        fireEvent.change(screen.getByRole("textbox", { name: "Views" }), { target: { value: "500" } });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+        fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Simpan" }));
+
+        await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+      });
+
+      it("gives a creator the numbers without Sinkronkan Sekarang or Isi Manual (AC 20)", async () => {
+        open(detail({ status: "link_submitted", links: [measured] }), { role: "creator" });
+
+        const section = await screen.findByRole("region", { name: "Link dan performa" });
+        expect(within(section).getByText("12.400")).toBeInTheDocument();
+        expect(within(section).queryByRole("button", { name: "Sinkronkan Sekarang" })).toBeNull();
+        expect(within(section).queryByRole("button", { name: "Isi Manual" })).toBeNull();
+      });
+    });
+
     it("shows no link section while nothing has been sent", async () => {
       open(detail({ links: [] }));
 
