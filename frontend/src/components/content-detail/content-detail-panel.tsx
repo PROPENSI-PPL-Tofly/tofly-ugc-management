@@ -166,6 +166,8 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   proposal_approved: "bg-muted ring-muted",
   auto_scheduled: "bg-muted ring-muted",
   creator_comment: "bg-muted ring-muted",
+  // Numbers typed in move no status either.
+  performance_entered: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
 };
 
