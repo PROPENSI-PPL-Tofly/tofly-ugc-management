@@ -12,7 +12,7 @@ import { SOCIAL_PLATFORMS, SOCIAL_PLATFORM_LABELS, type SocialPlatform } from ".
 export const PERFORMANCE_PATH = "/creator/performance";
 
 /**
- * The creator's own accounts (19.3). The contract this page assumes until 19.3 lands:
+ * The creator's own accounts (19.3), answered as
  * `{ accounts: [{ platform, connected, username, connectedAt, lastSyncAt? }] }`, one entry per
  * platform the creator has an account on, tokens never included. `lastSyncAt` stays null until
  * PBI-27 syncs.

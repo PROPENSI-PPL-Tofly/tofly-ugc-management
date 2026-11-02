@@ -5,6 +5,7 @@
 
 import type { ContentStatus } from '../../contents/content-lifecycle.js';
 import type { ContentTag } from '../../contents/content-tags.js';
+import type { SocialConnection } from '../../social/social-connection.js';
 import type {
   ContentOutcome,
   Productivity,
@@ -39,6 +40,8 @@ export interface CreatorSummary {
   name: string;
   email: string;
   socials: Partial<Record<'instagram' | 'tiktok', string>>;
+  /** Whether each of those accounts is connected, for Admin's badges (PBI-19). */
+  socialConnections: Partial<Record<'instagram' | 'tiktok', SocialConnection>>;
   accessRevokeDate: string | null;
 
   contract: ContractSummary;

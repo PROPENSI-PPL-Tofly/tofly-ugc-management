@@ -1,4 +1,4 @@
-import type { ConnectedAccount, SocialAccountStore } from '../ports.js';
+import type { LinkResult, SocialAccountLinker } from '../ports.js';
 import {
   InstagramApiError,
   type InstagramAccount,
@@ -24,30 +24,28 @@ const errorPath = (code: string) =>
 
 function setup(
   connect: () => Promise<InstagramAccount> = async () => ACCOUNT,
-  save: (account: ConnectedAccount) => Promise<void> = async () => undefined,
+  link: SocialAccountLinker['link'] = async (): Promise<LinkResult> => 'linked',
 ) {
   const client = { connect: vi.fn(connect) };
-  const store: SocialAccountStore & { save: ReturnType<typeof vi.fn> } = {
-    save: vi.fn(save),
-  };
+  const linker = { link: vi.fn(link) };
   const log = { warn: vi.fn() };
-  const service = new InstagramConnectService(client, store, log);
-  return { client, store, log, service };
+  const service = new InstagramConnectService(client, linker, log);
+  return { client, linker, log, service };
 }
 
 describe('InstagramConnectService.complete', () => {
   it('hands a Professional account and its token to storage and lands on Performa connected', async () => {
-    const { store, service } = setup();
+    const { linker, service } = setup();
 
     await expect(service.complete(CREATOR, CODE)).resolves.toBe(CONNECTED);
-    expect(store.save).toHaveBeenCalledWith({
-      creatorId: CREATOR,
+    expect(linker.link).toHaveBeenCalledWith(CREATOR, {
       platform: 'instagram',
       platformUserId: '17841400000000000',
       username: 'rangga.creates',
       accessToken: TOKEN,
+      accessTokenExpiresAt: EXPIRES_AT,
       refreshToken: null,
-      tokenExpiresAt: EXPIRES_AT,
+      refreshTokenExpiresAt: null,
     });
   });
 
@@ -69,7 +67,7 @@ describe('InstagramConnectService.complete', () => {
   });
 
   it('refuses a personal account as not_professional and saves nothing', async () => {
-    const { store, service } = setup(async () => ({
+    const { linker, service } = setup(async () => ({
       ...ACCOUNT,
       accountType: 'PERSONAL',
     }));
@@ -77,7 +75,7 @@ describe('InstagramConnectService.complete', () => {
     await expect(service.complete(CREATOR, CODE)).resolves.toBe(
       errorPath('not_professional'),
     );
-    expect(store.save).not.toHaveBeenCalled();
+    expect(linker.link).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -94,14 +92,23 @@ describe('InstagramConnectService.complete', () => {
     ],
     ['platform_error', new TypeError('something unexpected')],
   ])('lands on Performa with %s when Instagram fails', async (code, error) => {
-    const { store, log, service } = setup(async () => {
+    const { linker, log, service } = setup(async () => {
       throw error;
     });
 
     await expect(service.complete(CREATOR, CODE)).resolves.toBe(
       errorPath(code),
     );
-    expect(store.save).not.toHaveBeenCalled();
+    expect(linker.link).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalledOnce();
+  });
+
+  it('lands on Performa with account_taken when another creator holds the account', async () => {
+    const { log, service } = setup(undefined, async () => 'taken');
+
+    await expect(service.complete(CREATOR, CODE)).resolves.toBe(
+      errorPath('account_taken'),
+    );
     expect(log.warn).toHaveBeenCalledOnce();
   });
 

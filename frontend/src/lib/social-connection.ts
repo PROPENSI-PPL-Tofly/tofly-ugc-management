@@ -1,7 +1,7 @@
 // Whether each of a creator's Instagram and TikTok accounts is connected (PBI-19, 19.5), as the
 // badges in Creator Database and Creator Detail show it. The only reader of the backend's
 // answer (19.3), so a change to its shape stops here. Anything missing or malformed reads as
-// not connected: 19.3 has not shipped yet, and a bad value should cost a badge, not the page.
+// not connected: a bad value should cost a badge, not the page.
 
 import { EMPTY, formatDate, formatTimestamp, jakartaDay } from "./format";
 

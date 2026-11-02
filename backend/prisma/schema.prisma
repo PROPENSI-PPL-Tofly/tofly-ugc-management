@@ -107,9 +107,22 @@ model social_accounts {
   refresh_token_expires_at DateTime?       @db.Timestamptz(6)
   connected_at             DateTime?       @db.Timestamptz(6)
   creators                 creators        @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  social_username_changes  social_username_changes[]
 
   @@unique([creator_id, platform])
   @@unique([platform, platform_user_id])
+}
+
+/// Each time a connect replaced an account's username with the platform's (PBI-19, AC 9).
+model social_username_changes {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  social_account_id String          @db.Uuid
+  old_username      String
+  new_username      String
+  changed_at        DateTime        @default(now()) @db.Timestamptz(6)
+  social_accounts   social_accounts @relation(fields: [social_account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([social_account_id, changed_at(sort: Desc)], map: "social_username_changes_account_changed_idx")
 }
 
 model submissions {

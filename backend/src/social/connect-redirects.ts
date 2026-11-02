@@ -2,7 +2,11 @@ import type { SocialPlatform } from './connect-state.js';
 
 // Why a connect attempt failed (PBI-19, AC 4). The Performa page owns the wording.
 export type ConnectError =
-  'cancelled' | 'not_professional' | 'not_tester' | 'platform_error';
+  | 'cancelled'
+  | 'not_professional'
+  | 'not_tester'
+  | 'account_taken'
+  | 'platform_error';
 
 // A fixed, same-origin path: nothing from the request decides where a connect lands, so the
 // callback cannot be turned into an open redirect.

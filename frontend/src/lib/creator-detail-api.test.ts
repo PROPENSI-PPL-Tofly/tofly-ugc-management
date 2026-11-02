@@ -405,7 +405,7 @@ describe("toCreatorDetailView connections", () => {
     });
   });
 
-  it("reads every account as not connected while the answer has no connections (19.3 not merged)", () => {
+  it("reads every account as not connected while the answer has no connections", () => {
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).connections).toEqual({
       instagram: { connected: false, connectedAt: null, lastSyncAt: null },
       tiktok: { connected: false, connectedAt: null, lastSyncAt: null },

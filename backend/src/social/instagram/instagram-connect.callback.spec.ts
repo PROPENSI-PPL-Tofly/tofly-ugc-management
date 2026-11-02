@@ -8,8 +8,7 @@ import request from 'supertest';
 import type { CreatorRequest } from '../../auth/creator-request.js';
 import { DevCreatorGuard } from '../../auth/dev-creator.guard.js';
 import { signState } from '../connect-state.js';
-import type { SocialAccountStore } from '../ports.js';
-import { storageNotReady } from '../unready-store.js';
+import type { LinkResult, SocialAccountLinker } from '../ports.js';
 import {
   INSTAGRAM_GRAPH_URL,
   INSTAGRAM_TOKEN_URL,
@@ -75,7 +74,7 @@ function instagram(replies: InstagramReplies = {}) {
 describe('GET /social/instagram/callback with Instagram mocked', () => {
   let app: INestApplication;
   const log = { warn: vi.fn() };
-  const save = vi.fn<SocialAccountStore['save']>();
+  const link = vi.fn<SocialAccountLinker['link']>();
 
   const signedIn = {
     canActivate(context: ExecutionContext) {
@@ -84,10 +83,7 @@ describe('GET /social/instagram/callback with Instagram mocked', () => {
     },
   };
 
-  async function start(
-    replies: InstagramReplies = {},
-    store: SocialAccountStore = { save },
-  ) {
+  async function start(replies: InstagramReplies = {}) {
     const client = new InstagramClient(
       CONFIG,
       instagram(replies) as unknown as typeof fetch,
@@ -100,7 +96,7 @@ describe('GET /social/instagram/callback with Instagram mocked', () => {
         { provide: INSTAGRAM_LOG, useValue: log },
         {
           provide: INSTAGRAM_CONNECT,
-          useValue: new InstagramConnectService(client, store, log),
+          useValue: new InstagramConnectService(client, { link }, log),
         },
       ],
     })
@@ -125,7 +121,7 @@ describe('GET /social/instagram/callback with Instagram mocked', () => {
 
   beforeEach(() => {
     log.warn.mockReset();
-    save.mockReset().mockResolvedValue(undefined);
+    link.mockReset().mockResolvedValue('linked' satisfies LinkResult);
   });
 
   afterEach(async () => {
@@ -137,14 +133,14 @@ describe('GET /social/instagram/callback with Instagram mocked', () => {
 
     const response = await callback();
 
-    expect(save).toHaveBeenCalledWith({
-      creatorId: CREATOR,
+    expect(link).toHaveBeenCalledWith(CREATOR, {
       platform: 'instagram',
       platformUserId: '17841400000000000',
       username: 'rangga.creates',
       accessToken: LONG_TOKEN,
+      accessTokenExpiresAt: new Date(NOW + SIXTY_DAYS_S * 1000),
       refreshToken: null,
-      tokenExpiresAt: new Date(NOW + SIXTY_DAYS_S * 1000),
+      refreshTokenExpiresAt: null,
     });
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe(
@@ -163,7 +159,7 @@ describe('GET /social/instagram/callback with Instagram mocked', () => {
     const response = await callback();
 
     expect(response.headers.location).toBe(errorPath('not_professional'));
-    expect(save).not.toHaveBeenCalled();
+    expect(link).not.toHaveBeenCalled();
   });
 
   it('lands an account that is not a tester of the app on not_tester', async () => {
@@ -181,7 +177,7 @@ describe('GET /social/instagram/callback with Instagram mocked', () => {
     const response = await callback();
 
     expect(response.headers.location).toBe(errorPath('not_tester'));
-    expect(save).not.toHaveBeenCalled();
+    expect(link).not.toHaveBeenCalled();
   });
 
   it('lands an error from Instagram on platform_error', async () => {
@@ -190,11 +186,21 @@ describe('GET /social/instagram/callback with Instagram mocked', () => {
     const response = await callback();
 
     expect(response.headers.location).toBe(errorPath('platform_error'));
-    expect(save).not.toHaveBeenCalled();
+    expect(link).not.toHaveBeenCalled();
   });
 
-  it('lands on platform_error while account storage (19.3) is not built', async () => {
-    await start({}, storageNotReady);
+  it('lands an account another creator holds on account_taken', async () => {
+    link.mockResolvedValue('taken');
+    await start();
+
+    const response = await callback();
+
+    expect(response.headers.location).toBe(errorPath('account_taken'));
+  });
+
+  it('lands on platform_error when account storage fails', async () => {
+    link.mockRejectedValue(new Error('storage unavailable'));
+    await start();
 
     const response = await callback();
 
