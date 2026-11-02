@@ -1,4 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CONNECTION_SELECT } from '../performance/account-connections.js';
+import { LINK_PERFORMANCE_SELECT } from '../performance/link-performance.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LINKS_AS_HANDED_IN } from './content-links.js';
 import {
@@ -21,7 +23,8 @@ const CONTENT_DETAIL_SELECT = {
   // The links in the order they were handed in: the first is the content's submitted one.
   content_links: {
     orderBy: LINKS_AS_HANDED_IN,
-    select: { platform: true, url: true, submitted_at: true },
+    // With each link's numbers and state (PBI-27); LINK_PERFORMANCE_SELECT never names manual_by.
+    select: { ...LINK_PERFORMANCE_SELECT, url: true, submitted_at: true },
   },
   video_submitted_at: true,
   approval_bypassed: true,
@@ -30,7 +33,13 @@ const CONTENT_DETAIL_SELECT = {
   contracts: {
     select: {
       creators: {
-        select: { first_name: true, middle_name: true, last_name: true },
+        select: {
+          first_name: true,
+          middle_name: true,
+          last_name: true,
+          // Whether each account is connected, for the links' effective states; never a token.
+          social_accounts: { select: CONNECTION_SELECT },
+        },
       },
     },
   },

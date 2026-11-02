@@ -4,9 +4,10 @@ import { taskActions, type TaskAction } from '../me/task-actions.js';
 import { firstLink } from './content-links.js';
 import { contentTags, type ContentTag } from './content-tags.js';
 import type { ConnectionRow } from '../performance/account-connections.js';
-import type {
-  LinkPerformance,
-  StoredLinkPerformance,
+import {
+  toLinkPerformance,
+  type LinkPerformance,
+  type StoredLinkPerformance,
 } from '../performance/link-performance.mapper.js';
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
@@ -283,7 +284,13 @@ export function toContentDetail(
       platform: link.platform,
       url: link.url,
       submittedAt: link.submitted_at.toISOString().slice(0, 10),
-      performance: null,
+      // Judged by the creator's account on that link's own platform (PBI-27 AC 19, 20).
+      performance: toLinkPerformance(
+        link,
+        row.contracts.creators.social_accounts.find(
+          (account) => account.platform === link.platform,
+        ),
+      ),
     })),
     // The stored history is the record; a content with none falls back to what its rows prove.
     events:
