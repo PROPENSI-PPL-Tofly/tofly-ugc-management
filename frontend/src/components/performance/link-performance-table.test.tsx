@@ -100,4 +100,19 @@ describe("LinkPerformanceTable", () => {
 
     expect(screen.queryByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).not.toBeInTheDocument();
   });
+
+  it("carries the action the list gives each row, and none on a creator's list", () => {
+    const { unmount } = render(
+      <LinkPerformanceTable
+        rows={[row()]}
+        actions={() => <button type="button">Sinkronkan</button>}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Sinkronkan" })).toBeInTheDocument();
+    unmount();
+
+    render(<LinkPerformanceTable rows={[row()]} />);
+    expect(screen.queryByRole("button", { name: "Sinkronkan" })).not.toBeInTheDocument();
+  });
 });
