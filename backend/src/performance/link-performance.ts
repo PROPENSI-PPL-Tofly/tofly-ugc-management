@@ -73,15 +73,17 @@ function isEmptyField(value: unknown): boolean {
 
 /** A whole number in range, from a JSON number or digits typed into a form field; else null. */
 function wholeNumber(value: unknown): number | null {
+  // Number() trims the spaces itself; the pattern keeps out what it would also read ('1e3').
   const number =
-    typeof value === 'string' && /^\d+$/.test(value.trim())
-      ? Number(value.trim())
+    // Stryker disable next-line ConditionalExpression: equivalent mutant. test() turns a number into its own digits and Number() gives it back unchanged, so only the type checker needs the typeof.
+    typeof value === 'string' && /^\s*\d+\s*$/.test(value)
+      ? Number(value)
       : value;
-  return typeof number === 'number' &&
-    Number.isSafeInteger(number) &&
-    number >= 0 &&
-    number <= MAX_METRIC
-    ? number
+  // isSafeInteger is false for anything that is not a number, so no typeof check is needed.
+  return Number.isSafeInteger(number) &&
+    (number as number) >= 0 &&
+    (number as number) <= MAX_METRIC
+    ? (number as number)
     : null;
 }
 
@@ -90,10 +92,8 @@ function wholeNumber(value: unknown): number | null {
  * is answered in one 422 keyed by its name; with nothing filled the answer is on `metrics`.
  */
 export function checkManualPerformance(body: unknown): LinkMetrics {
-  const fields =
-    body !== null && typeof body === 'object' && !Array.isArray(body)
-      ? (body as Record<string, unknown>)
-      : {};
+  // Any value reads as fields: a list, a text or a number simply has none of the four names.
+  const fields = Object(body ?? {}) as Record<string, unknown>;
   const metrics: LinkMetrics = {
     views: null,
     likes: null,
