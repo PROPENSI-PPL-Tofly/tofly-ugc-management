@@ -1,0 +1,139 @@
+name: ZAP Baseline
+
+on:
+  push:
+    # Every branch a subtask is pushed to, not just the integration branches: the scan is how
+    # a change gets its web-security check as it is written. Paths keep docs-only pushes cheap.
+    # `*` does not cross `/`, so `**` keeps any nested branch name covered.
+    branches: ["**"]
+    paths:
+      - "frontend/**"
+      - "backend/**"
+      - "compose.yaml"
+      - ".zap/**"
+      - "scripts/zap.ps1"
+      - ".github/workflows/zap.yml"
+  workflow_dispatch:
+
+jobs:
+  zap:
+    name: ZAP baseline scan
+    runs-on: ubuntu-latest
+    # Only one scan per branch at a time; a newer push cancels the superseded run.
+    concurrency:
+      group: zap-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    services:
+      postgres:
+        # The same major as Cloud SQL (staging, production), compose.yaml and Backend CI.
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      # The app connects as its own role, exactly as in Backend CI and every deployed
+      # environment; migrations run as postgres, as they do there.
+      DATABASE_URL: postgresql://tofly_app:tofly_app@localhost:5432/postgres
+      DIRECT_URL: postgresql://tofly_app:tofly_app@localhost:5432/postgres
+      MIGRATOR_DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      # The same SQL, tool and order as Backend CI's "Prepare the CI database", then the seed
+      # so the spider meets real rows (creator pages, contents with links) instead of empty
+      # lists and 404s that hide whole sections of the app from the scan.
+      - name: Prepare the scan database
+        working-directory: backend
+        run: |
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -f prisma/ops/bootstrap-roles.sql
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 \
+            -c "create role tofly_app login password 'tofly_app'" \
+            -c "grant anon, authenticated to tofly_app"
+          DATABASE_URL="$MIGRATOR_DB_URL" DIRECT_URL="$MIGRATOR_DB_URL" npx prisma migrate deploy
+          psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -v app_role=tofly_app \
+            -f prisma/ops/hand-off-ownership.sql
+          npm run db:seed
+
+      - name: Build the backend
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+
+      # DEV_AUTH_ENABLED is the guards' local stand-in (backend/src/auth/admin.guard.ts): with
+      # it, a request without a session is read as a signed-in admin, so the spider crawls the
+      # real pages instead of stopping at the login screen. The guards refuse it whenever
+      # NODE_ENV=production, and it is set nowhere else in CI or the deploy jobs.
+      - name: Start the backend
+        working-directory: backend
+        env:
+          DEV_AUTH_ENABLED: "true"
+          FRONTEND_URL: http://localhost:3000
+          LOCAL_STORAGE_DIR: /tmp/tofly-storage
+          PORT: "3001"
+        run: |
+          mkdir -p "$LOCAL_STORAGE_DIR"
+          nohup node dist/main > /tmp/zap-backend.log 2>&1 &
+
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          # The same two copies frontend/Dockerfile makes: Next traces neither .next/static
+          # nor public into standalone, and the app boots completely unstyled without them.
+          cp -r .next/static .next/standalone/.next/static
+          mkdir -p .next/standalone/public
+
+      - name: Start the frontend
+        working-directory: frontend
+        env:
+          BACKEND_URL: http://localhost:3001
+          HOSTNAME: 0.0.0.0
+          PORT: "3000"
+        run: nohup node .next/standalone/server.js > /tmp/zap-frontend.log 2>&1 &
+
+      # The scan must never run against a half-booted stack: /api/health walks the whole
+      # frontend -> backend -> database chain, the same path the deploy smoke test checks.
+      - name: Wait for the app
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/health > /dev/null 2>&1; then
+              echo "healthy after $((i * 2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::the app never became healthy"
+          tail -n 60 /tmp/zap-backend.log /tmp/zap-frontend.log || true
+          exit 1
+
+      # Passive scan: traditional spider plus the client spider (-j, for the React pages) and
+      # the passive rules. -I reports warnings without failing the check; FAIL-level alerts
+      # still turn it red (fail_action). Severity per rule is tuned in .zap/rules.tsv. The
+      # action uploads the zap_scan report artifact on every run.
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: http://localhost:3000
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-j -m 5 -I"
+          fail_action: true
+          allow_issue_writing: false

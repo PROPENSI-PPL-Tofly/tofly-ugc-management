@@ -1,0 +1,10 @@
+# ZAP baseline rules — https://www.zaproxy.org/docs/docker/baseline-scan/
+# Format: <rule id><TAB><IGNORE|INFO|WARN|FAIL><TAB><reason>. '#' lines and blank lines are ignored.
+#
+# Severity policy: the check fails only on FAIL-level alerts; WARNs are reported and never
+# block a push. Raise an id to FAIL here once a finding must gate merges.
+#
+# The scan runs over plain HTTP against localhost, where transport-only checks can never pass.
+# Both rules become real findings the day this scans the HTTPS staging URL.
+10011	IGNORE	(Cookie Without Secure Flag - plain-HTTP scan target)
+10038	IGNORE	(Strict-Transport-Security Header Not Set - plain-HTTP scan target)

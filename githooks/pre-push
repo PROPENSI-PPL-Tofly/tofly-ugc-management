@@ -1,0 +1,57 @@
+#!/bin/sh
+# ZAP baseline gate before every push. Enable it in a clone with one command:
+#
+#     git config core.hooksPath githooks
+#
+# Runs the same passive scan as scripts/zap.ps1 against the app on localhost:3000 and blocks
+# the push only when FAIL-level findings appear; warnings merely report. Everything else
+# (Docker down, app not running, scan errors) warns and lets the push through.
+#
+# Bypass:      git push --no-verify      (or ZAP_SKIP=1 git push)
+# Requires:    Docker running, app up on localhost:3000 (scripts/zap.ps1 header shows how).
+# Tune rules:  .zap/rules.tsv
+
+[ "${ZAP_SKIP:-}" = "1" ] && exit 0
+
+# Whichever shell started git, make sure Git's own coreutils (grep, awk, mktemp, cygpath)
+# resolve: git_bin is <Git>/cmd, so ../usr/bin is <Git>/usr/bin where they live.
+git_exe="$(command -v git 2>/dev/null)"
+if [ -n "$git_exe" ]; then
+  git_bin="$(dirname "$git_exe")"
+  PATH="$git_bin/../usr/bin:$git_bin/../bin:$PATH"
+  export PATH
+fi
+
+if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+  echo "[zap] Docker is not available - skipping the security scan for this push." >&2
+  exit 0
+fi
+
+if ! curl -fsS -o /dev/null --max-time 5 http://localhost:3000/api/health 2>/dev/null; then
+  echo "[zap] app is not running on localhost:3000 - start the stack to enable the scan (see scripts/zap.ps1)." >&2
+  exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)"
+out="$(mktemp)"
+
+echo "[zap] baseline scan before push (passive; bypass with --no-verify)..." >&2
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$root")\\scripts\\zap.ps1" >"$out" 2>&1
+status=$?
+cat "$out"
+
+# The scan summary line reads "FAIL-NEW: 0  FAIL-INPROG: 0  WARN-NEW: 6 ...". Only FAIL
+# findings block the push; that policy lives here and in .zap/rules.tsv.
+fails=$(grep -oE 'FAIL-(NEW|INPROG): [0-9]+' "$out" | grep -oE '[0-9]+$' | awk '{s+=$1} END {print s+0}')
+rm -f "$out"
+
+if [ "${fails:-0}" -gt 0 ]; then
+  echo "[zap] $fails FAIL-level finding(s) - push blocked. Fix them or tune .zap/rules.tsv." >&2
+  echo "[zap] report: zap-report.html (bypass with --no-verify)" >&2
+  exit 1
+fi
+
+if [ "$status" -ne 0 ]; then
+  echo "[zap] scan did not finish cleanly (exit $status) - pushing anyway, report may be incomplete." >&2
+fi
+exit 0
