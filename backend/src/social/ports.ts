@@ -11,6 +11,7 @@ import type { SocialPlatform } from './oauth-state.js';
  */
 export type ConnectError =
   | 'cancelled'
+  | 'not_professional'
   | 'not_tester'
   | 'account_taken'
   | 'platform_error'

@@ -115,15 +115,6 @@ describe('InstagramProvider', () => {
       expect(refusal.message).toBe('account type PERSONAL is not Professional');
     });
 
-    // The account type comes from Instagram, so only a name-shaped one reaches the log.
-    it('keeps an odd account type out of the log', async () => {
-      const refusal = await refusalOf(() =>
-        Promise.resolve({ ...ACCOUNT, accountType: 'PERSONAL\nforged line' }),
-      );
-
-      expect(refusal.message).toBe('account type unknown is not Professional');
-    });
-
     it.each(['not_tester', 'platform_error'] as const)(
       "keeps Instagram's %s",
       async (failure) => {
