@@ -85,6 +85,40 @@ describe('toInvoiceContent', () => {
     ).toMatchObject({ platform: 'tiktok', videoSubmittedAt: day(-1) });
   });
 
+  it('reads all four numbers from that same first link, a 0 as 0 and no data as null (PBI-27 27.1)', () => {
+    expect(
+      toInvoiceContent(
+        contentRow({
+          status: 'link_submitted',
+          video_submitted_at: day(-1),
+          content_links: [
+            {
+              platform: 'tiktok',
+              views: 45200,
+              likes: 0,
+              comments: 212,
+              shares: null,
+            },
+          ] as unknown as InvoiceContentRow['content_links'],
+        }),
+      ),
+    ).toMatchObject({
+      platform: 'tiktok',
+      views: 45200,
+      likes: 0,
+      comments: 212,
+      shares: null,
+    });
+  });
+
+  it('has no numbers before a link, and never falls back to the old content columns', () => {
+    expect(
+      toInvoiceContent(
+        contentRow({ views: 9000, likes: 400 } as Partial<InvoiceContentRow>),
+      ),
+    ).toMatchObject({ views: null, likes: null, comments: null, shares: null });
+  });
+
   it('has no platform before a link, or for a link kept from before platforms were recorded', () => {
     expect(toInvoiceContent(contentRow()).platform).toBeNull();
     expect(
@@ -502,15 +536,20 @@ describe('the columns an invoice is read from', () => {
       status: true,
       deadline: true,
       video_submitted_at: true,
-      // The first link's platform is the one its performance bonus is judged on, as the single
-      // link's was before PBI-38.
+      // The first link handed in decides the platform the bonus is judged on, as the single
+      // link did before PBI-38, and its own four numbers are what that platform's metric reads
+      // (PBI-27 27.1). The old contents.views and contents.likes are no longer read.
       content_links: {
         orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
         take: 1,
-        select: { platform: true },
+        select: {
+          platform: true,
+          views: true,
+          likes: true,
+          comments: true,
+          shares: true,
+        },
       },
-      views: true,
-      likes: true,
     });
   });
 });
