@@ -3,9 +3,10 @@ import {
   RefreshRefused,
   RefreshUnavailable,
 } from '../../social/token-refresh.js';
-import type { SyncLink } from '../performance-source.js';
+import type { PerformanceSource, SourceLink } from '../ports.js';
 import {
   REFRESH_MARGIN_MS,
+  TIKTOK_READ_TIMEOUT_MS,
   TikTokPerformanceSource,
 } from './tiktok-performance-source.js';
 import { TIKTOK_VIDEO_QUERY_URL } from './tiktok-video-query.js';
@@ -15,7 +16,7 @@ const NOW = new Date('2026-11-02T19:00:00.000Z'); // 02.00 WIB, the daily sync
 const VIDEO_A = '7432100000000000001';
 const VIDEO_B = '7432100000000000002';
 
-const link = (id: string, url: string): SyncLink => ({ id, url });
+const link = (id: string, url: string): SourceLink => ({ id, url });
 const full = (video: string) =>
   `https://www.tiktok.com/@rangga.creates/video/${video}`;
 
@@ -108,10 +109,13 @@ function setup(
     fetchImpl,
     () => NOW.getTime(),
   );
-  const read = (links: SyncLink[], deadline = AbortSignal.timeout(5000)) =>
+  const read = (links: SourceLink[], deadline = AbortSignal.timeout(5000)) =>
     source.read(CREATOR, links, deadline);
-  return { store, refresher, log, fetchImpl, read };
+  return { store, refresher, log, fetchImpl, source, read };
 }
+
+/** The port's answer for an account it could read with. */
+const readAs = (readings: unknown[]) => ({ outcome: 'read', readings });
 
 /** The bearer token video/query was called with. */
 function bearerOf(fetchImpl: ReturnType<typeof tiktok>): string | undefined {
@@ -123,15 +127,30 @@ function bearerOf(fetchImpl: ReturnType<typeof tiktok>): string | undefined {
 }
 
 describe('TikTokPerformanceSource', () => {
-  it('reads TikTok', () => {
-    expect(setup().read).toBeDefined();
-    expect(
-      new TikTokPerformanceSource(
-        { load: vi.fn(), replace: vi.fn(), disconnect: vi.fn() },
-        { refresh: vi.fn() },
-        { warn: vi.fn() },
-      ).platform,
-    ).toBe('tiktok');
+  // One port for every platform (#138's ports.ts), so the sync (27.4) reads Instagram and
+  // TikTok alike.
+  it('is the TikTok PerformanceSource of ports.ts', () => {
+    const port: PerformanceSource = new TikTokPerformanceSource(
+      { load: vi.fn(), replace: vi.fn(), disconnect: vi.fn() },
+      { refresh: vi.fn() },
+      { warn: vi.fn() },
+    );
+
+    expect(port.platform).toBe('tiktok');
+  });
+
+  // The port asks no deadline, so a read called through it still ends: within Finalize's 20 s.
+  it('gives a read called without a deadline TIKTOK_READ_TIMEOUT_MS of its own', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    const { fetchImpl, source } = setup();
+
+    await source.read(CREATOR, [link('l1', full(VIDEO_A))]);
+
+    expect(TIKTOK_READ_TIMEOUT_MS).toBe(20_000);
+    expect(timeout).toHaveBeenCalledWith(TIKTOK_READ_TIMEOUT_MS);
+    const deadline = timeout.mock.results.at(-1)?.value as AbortSignal;
+    expect(fetchImpl.mock.calls[0][1]?.signal).toBe(deadline);
+    timeout.mockRestore();
   });
 
   it('reads the four counts of each link, in the order the links came', async () => {
@@ -139,38 +158,37 @@ describe('TikTokPerformanceSource', () => {
 
     await expect(
       read([link('l2', full(VIDEO_B)), link('l1', full(VIDEO_A))]),
-    ).resolves.toEqual([
-      {
-        linkId: 'l2',
-        state: 'synced',
-        metrics: { views: 12400, likes: 830, comments: 41, shares: 0 },
-      },
-      {
-        linkId: 'l1',
-        state: 'synced',
-        metrics: { views: 12400, likes: 830, comments: 41, shares: 0 },
-      },
-    ]);
+    ).resolves.toEqual(
+      readAs([
+        {
+          linkId: 'l2',
+          outcome: 'synced',
+          metrics: { views: 12400, likes: 830, comments: 41, shares: 0 },
+        },
+        {
+          linkId: 'l1',
+          outcome: 'synced',
+          metrics: { views: 12400, likes: 830, comments: 41, shares: 0 },
+        },
+      ]),
+    );
   });
 
   it('asks nothing, not even for the tokens, when there are no links', async () => {
     const { store, fetchImpl, read } = setup();
 
-    await expect(read([])).resolves.toEqual([]);
+    await expect(read([])).resolves.toEqual(readAs([]));
     expect(store.load).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  // PRD 27 AC "6 state": "Akun belum terhubung".
-  it('reads every link as not connected when the creator has no TikTok connected', async () => {
+  // PRD 27 AC "6 state": "Akun belum terhubung", once for the account.
+  it('answers disconnected when the creator has no TikTok connected', async () => {
     const { fetchImpl, read } = setup({ stored: null });
 
     await expect(
       read([link('l1', full(VIDEO_A)), link('l2', full(VIDEO_B))]),
-    ).resolves.toEqual([
-      { linkId: 'l1', state: 'not_connected' },
-      { linkId: 'l2', state: 'not_connected' },
-    ]);
+    ).resolves.toEqual({ outcome: 'disconnected' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -184,9 +202,9 @@ describe('TikTokPerformanceSource', () => {
 
       await expect(
         read([link('l1', 'https://vt.tiktok.com/ZSxyz12/')]),
-      ).resolves.toEqual([
-        expect.objectContaining({ linkId: 'l1', state: 'synced' }),
-      ]);
+      ).resolves.toEqual(
+        readAs([expect.objectContaining({ linkId: 'l1', outcome: 'synced' })]),
+      );
     });
 
     // A video deleted, made private, or posted from another account than the connected one is
@@ -196,10 +214,12 @@ describe('TikTokPerformanceSource', () => {
 
       await expect(
         read([link('l1', full(VIDEO_A)), link('l2', full(VIDEO_B))]),
-      ).resolves.toEqual([
-        expect.objectContaining({ linkId: 'l1', state: 'synced' }),
-        { linkId: 'l2', state: 'not_found' },
-      ]);
+      ).resolves.toEqual(
+        readAs([
+          expect.objectContaining({ linkId: 'l1', outcome: 'synced' }),
+          { linkId: 'l2', outcome: 'not_found' },
+        ]),
+      );
     });
 
     it.each([
@@ -210,9 +230,9 @@ describe('TikTokPerformanceSource', () => {
       async (_, url) => {
         const { fetchImpl, read } = setup({ fetchImpl: tiktok(() => found()) });
 
-        await expect(read([link('l1', url)])).resolves.toEqual([
-          { linkId: 'l1', state: 'not_found' },
-        ]);
+        await expect(read([link('l1', url)])).resolves.toEqual(
+          readAs([{ linkId: 'l1', outcome: 'not_found' }]),
+        );
         expect(bearerOf(fetchImpl)).toBeUndefined();
       },
     );
@@ -230,10 +250,16 @@ describe('TikTokPerformanceSource', () => {
           link('l1', 'https://vt.tiktok.com/ZSdown/'),
           link('l2', full(VIDEO_A)),
         ]),
-      ).resolves.toEqual([
-        { linkId: 'l1', state: 'failed' },
-        expect.objectContaining({ linkId: 'l2', state: 'synced' }),
-      ]);
+      ).resolves.toEqual(
+        readAs([
+          {
+            linkId: 'l1',
+            outcome: 'failed',
+            reason: 'share link unreachable',
+          },
+          expect.objectContaining({ linkId: 'l2', outcome: 'synced' }),
+        ]),
+      );
     });
 
     it('reads the links of a batch video/query failed as failed', async () => {
@@ -241,9 +267,11 @@ describe('TikTokPerformanceSource', () => {
         fetchImpl: tiktok(() => json({ error: { code: 'x' } }, 500)),
       });
 
-      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual([
-        { linkId: 'l1', state: 'failed' },
-      ]);
+      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual(
+        readAs([
+          { linkId: 'l1', outcome: 'failed', reason: 'video/query failed' },
+        ]),
+      );
     });
 
     it('reads the links as failed when video/query refuses the token', async () => {
@@ -258,10 +286,16 @@ describe('TikTokPerformanceSource', () => {
           link('l1', full(VIDEO_A)),
           link('l2', 'https://www.instagram.com/p/x/'),
         ]),
-      ).resolves.toEqual([
-        { linkId: 'l1', state: 'failed' },
-        { linkId: 'l2', state: 'not_found' },
-      ]);
+      ).resolves.toEqual(
+        readAs([
+          {
+            linkId: 'l1',
+            outcome: 'failed',
+            reason: 'video/query refused the token',
+          },
+          { linkId: 'l2', outcome: 'not_found' },
+        ]),
+      );
       // A token that is refused but not expired is found out by the next run's refresh.
       expect(store.disconnect).not.toHaveBeenCalled();
     });
@@ -336,14 +370,14 @@ describe('TikTokPerformanceSource', () => {
       });
       store.replace.mockResolvedValue(false);
 
-      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual([
-        expect.objectContaining({ state: 'synced' }),
-      ]);
+      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual(
+        readAs([expect.objectContaining({ outcome: 'synced' })]),
+      );
     });
 
     // PRD 27 "Ketahanan": refresh fails → the account is "Belum terhubung" and its links
     // "Akun belum terhubung".
-    it('disconnects the account and reads its links as not connected when TikTok refuses the refresh', async () => {
+    it('disconnects the account and answers disconnected when TikTok refuses the refresh', async () => {
       const { store, fetchImpl, log, read } = setup({
         stored: tokens({ accessTokenExpiresAt: null }),
         refresh: () =>
@@ -356,10 +390,7 @@ describe('TikTokPerformanceSource', () => {
 
       await expect(
         read([link('l1', full(VIDEO_A)), link('l2', full(VIDEO_B))]),
-      ).resolves.toEqual([
-        { linkId: 'l1', state: 'not_connected' },
-        { linkId: 'l2', state: 'not_connected' },
-      ]);
+      ).resolves.toEqual({ outcome: 'disconnected' });
       expect(store.disconnect).toHaveBeenCalledWith(
         CREATOR,
         'tiktok',
@@ -377,9 +408,9 @@ describe('TikTokPerformanceSource', () => {
         stored: tokens({ accessTokenExpiresAt: null, refreshToken: null }),
       });
 
-      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual([
-        { linkId: 'l1', state: 'not_connected' },
-      ]);
+      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual({
+        outcome: 'disconnected',
+      });
       expect(refresher.refresh).not.toHaveBeenCalled();
       expect(store.disconnect).toHaveBeenCalledWith(
         CREATOR,
@@ -396,9 +427,15 @@ describe('TikTokPerformanceSource', () => {
           Promise.reject(new RefreshUnavailable('token endpoint unreachable')),
       });
 
-      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual([
-        { linkId: 'l1', state: 'failed' },
-      ]);
+      await expect(read([link('l1', full(VIDEO_A))])).resolves.toEqual(
+        readAs([
+          {
+            linkId: 'l1',
+            outcome: 'failed',
+            reason: 'token endpoint unreachable',
+          },
+        ]),
+      );
       expect(store.disconnect).not.toHaveBeenCalled();
       expect(store.replace).not.toHaveBeenCalled();
       expect(bearerOf(fetchImpl)).toBeUndefined();
