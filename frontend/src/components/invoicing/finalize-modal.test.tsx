@@ -153,6 +153,20 @@ describe("FinalizeModal", () => {
       );
     });
 
+    it("still offers Finalize tetap when the server names no link", async () => {
+      moves.finalizeInvoice.mockResolvedValueOnce({
+        ok: false,
+        code: "INVOICE_BONUS_PENDING",
+        message: "Bonus performa masih menunggu data.",
+      });
+      render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+
+      expect(await screen.findByRole("button", { name: "Finalize tetap" })).toBeEnabled();
+      expect(screen.getByRole("list", { name: "Konten yang belum ada datanya" })).toBeEmptyDOMElement();
+    });
+
     it("freezes anyway, accepting the pending bonus, from Finalize tetap", async () => {
       moves.finalizeInvoice.mockResolvedValueOnce({
         ok: false,

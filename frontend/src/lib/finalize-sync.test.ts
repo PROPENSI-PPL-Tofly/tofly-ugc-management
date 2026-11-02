@@ -32,7 +32,7 @@ describe("readWaitingLinks (PBI-28 AC 9)", () => {
   it("reads each link still without data, with the metric it waits on", () => {
     const waiting = { ...NAMED, state: "not_connected", metric: "likes" };
 
-    expect(readWaitingLinks([waiting, { ...waiting, metric: "reach" }])).toEqual([waiting]);
+    expect(readWaitingLinks([waiting, { ...waiting, metric: "reach" }, "c-3", null])).toEqual([waiting]);
   });
 
   it("reads anything that is not a list as none", () => {
