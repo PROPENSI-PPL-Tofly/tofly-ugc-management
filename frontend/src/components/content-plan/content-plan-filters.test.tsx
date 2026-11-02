@@ -204,6 +204,36 @@ describe("ContentPlanFilters", () => {
     view.unmount();
   });
 
+  it("drops a type and a status pick from their chips, one press each", () => {
+    searchParams = new URLSearchParams({
+      tab: "action",
+      type: "evergreen,specific",
+      status: "pending,draft_review",
+    });
+    let view = renderFilters({
+      tab: "action",
+      type: ["evergreen", "specific"],
+      status: ["pending", "draft_review"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" }));
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      "/admin/content-plan?tab=action&type=specific&status=pending%2Cdraft_review",
+      { scroll: false },
+    );
+
+    view = view.rerenderWith(
+      new URLSearchParams({ tab: "action", type: "specific", status: "pending,draft_review" }),
+      { tab: "action", type: ["specific"], status: ["pending", "draft_review"] },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Status: Pending" }));
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      "/admin/content-plan?tab=action&type=specific&status=draft_review",
+      { scroll: false },
+    );
+    view.unmount();
+  });
+
   // On a slow connection the URL changes well after the tick, and a second tick used to be
   // built on the old URL: Salsa was dropped the moment Rangga was ticked.
   it("keeps the first creator when a second is ticked before the URL has changed", () => {

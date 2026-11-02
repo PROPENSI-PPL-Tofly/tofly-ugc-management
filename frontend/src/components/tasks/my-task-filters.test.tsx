@@ -110,6 +110,33 @@ describe("MyTaskFilters", () => {
     expect(replace).toHaveBeenLastCalledWith("/creator/tasks?status=draft_revision", { scroll: false });
   });
 
+  it("drops a type pick from its chip, leaving the status picks alone", () => {
+    renderOn(
+      { type: "evergreen,specific", status: "scheduled,draft_revision" },
+      { type: ["evergreen", "specific"], status: ["scheduled", "draft_revision"] },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" }));
+
+    expect(replace).toHaveBeenLastCalledWith(
+      "/creator/tasks?type=specific&status=scheduled%2Cdraft_revision",
+      { scroll: false },
+    );
+  });
+
+  it("drops a status pick from its chip, leaving the type picks alone", () => {
+    renderOn(
+      { type: "specific", status: "scheduled,draft_revision" },
+      { type: ["specific"], status: ["scheduled", "draft_revision"] },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" }));
+
+    expect(replace).toHaveBeenLastCalledWith("/creator/tasks?type=specific&status=draft_revision", {
+      scroll: false,
+    });
+  });
+
   // A typed or stale address can name what the page does not hold. The list ignores it, so
   // the bar must not draw it as a pick either.
   it("shows no chip for a type or a status the address names but the filter does not offer", () => {
