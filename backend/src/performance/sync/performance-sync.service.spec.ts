@@ -106,11 +106,11 @@ function syncing(platform: 'instagram' | 'tiktok') {
   }));
 }
 
-function log(): SyncLog & {
-  log: ReturnType<typeof vi.fn>;
-  warn: ReturnType<typeof vi.fn>;
-} {
-  return { log: vi.fn(), warn: vi.fn() };
+function log() {
+  return {
+    log: vi.fn<(message: string) => void>(),
+    warn: vi.fn<(message: string) => void>(),
+  } satisfies SyncLog;
 }
 
 /** A clock that moves on 1.5 s each time it is read, so a run has a duration. */
@@ -201,7 +201,8 @@ describe('PerformanceSyncService', () => {
           data: {
             ...METRICS,
             data_state: 'synced',
-            last_synced_at: STARTED,
+            // The moment the platform answered: the clock's second reading, after the run began.
+            last_synced_at: new Date(STARTED.getTime() + 1500),
             manual_by: null,
             manual_at: null,
           },
@@ -234,7 +235,7 @@ describe('PerformanceSyncService', () => {
       expect(s.queryRaw).toHaveBeenCalledTimes(1);
       const [query] = s.queryRaw.mock.calls[0] as [Prisma.Sql];
       expect(query.sql).toMatch(
-        /UPDATE contents SET performance_sync_lease_until = \$1 WHERE id = ANY\(\$2::uuid\[\]\) AND \(performance_sync_lease_until IS NULL OR performance_sync_lease_until <= \$3\) RETURNING id/,
+        /UPDATE contents SET performance_sync_lease_until = \? WHERE id = ANY\(\?::uuid\[\]\) AND \(performance_sync_lease_until IS NULL OR performance_sync_lease_until <= \?\) RETURNING id/,
       );
       expect(query.values).toEqual([
         new Date(STARTED.getTime() + LEASE_MS.all),
