@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { formatTimestamp } from "@/lib/format";
 import { type InvoiceRow } from "@/lib/invoice";
 import { FinalizeModal } from "./finalize-modal";
@@ -92,7 +92,7 @@ describe("FinalizeModal", () => {
     );
     await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
     // The modal settles (its wait message goes) before the test ends, so no update lands after it.
-    await vi.waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
   describe("a bonus still waiting for performance data", () => {
@@ -187,7 +187,7 @@ describe("FinalizeModal", () => {
         expect(moves.finalizeInvoice).toHaveBeenLastCalledWith(ROW.contractId, { acceptPendingBonus: true }),
       );
       await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
-      await vi.waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+      await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     });
   });
 
