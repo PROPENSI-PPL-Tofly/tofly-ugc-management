@@ -384,6 +384,16 @@ describe('content links API (e2e)', () => {
           platform: 'instagram',
           url: reel('new-3'),
           submittedAt: day(0).toISOString().slice(0, 10),
+          // PBI-27: the new video starts with no numbers; this creator never connected Instagram.
+          performance: {
+            views: null,
+            likes: null,
+            comments: null,
+            shares: null,
+            state: 'not_connected',
+            lastSyncedAt: null,
+            manualAt: null,
+          },
         },
       ]);
       expect(detail.body.events[0]).toMatchObject({
