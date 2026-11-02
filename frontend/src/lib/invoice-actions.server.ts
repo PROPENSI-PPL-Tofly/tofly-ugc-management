@@ -11,6 +11,12 @@
 import { backendPost } from "./backend.server";
 import { isUuid } from "./creator-detail";
 import {
+  readLastSync,
+  readWaitingLinks,
+  type LastSyncReport,
+  type WaitingLink,
+} from "./finalize-sync";
+import {
   adjustmentAmount,
   adjustmentReason,
   refusalMessage,
@@ -26,53 +32,76 @@ export type ActionOutcome =
   | { ok: true }
   | { ok: false; code: string; message: string; fieldErrors?: AdjustmentErrors };
 
+/** What Finalize comes to (PBI-28): the frozen invoice with its last sync, or why not. */
+export type FinalizeOutcome =
+  | { ok: true; lastSync: LastSyncReport }
+  | {
+      ok: false;
+      code: string;
+      message: string;
+      /** With INVOICE_BONUS_PENDING only: the links whose bonus still waits. */
+      waiting?: WaitingLink[];
+      lastSync?: LastSyncReport;
+    };
+
+/** A move the backend or this layer refused. */
+type Refusal = Extract<ActionOutcome, { ok: false }>;
+
 /** What every failure says when there is no operator-facing message to show. */
 const GENERIC_FAILURE = "Permintaan tidak dapat diproses. Coba lagi.";
 
-function refuse(code: string, message: string, fieldErrors?: AdjustmentErrors): ActionOutcome {
+function refuse(code: string, message: string, fieldErrors?: AdjustmentErrors): Refusal {
   return fieldErrors ? { ok: false, code, message, fieldErrors } : { ok: false, code, message };
 }
 
 /** The coded refusals of the invoice lifecycle read for an admin; unknown ones stand as sent. */
-function readRefusal(status: number, body: Record<string, unknown>): ActionOutcome {
+function readRefusal(status: number, body: Record<string, unknown>): Refusal {
   const code = typeof body.code === "string" ? body.code : `HTTP_${status}`;
   const said = typeof body.message === "string" ? body.message : "";
   return refuse(code, refusalMessage(code) ?? (said !== "" ? said : GENERIC_FAILURE));
 }
 
-async function move(path: string, body?: unknown): Promise<ActionOutcome> {
-  const response = await backendPost(path, body);
-
-  if (response.ok) return { ok: true };
-
-  // Only a message written for the operator passes through; anything else is generic (OWASP A05).
-  let parsed: Record<string, unknown> = {};
+/** A refusal's body, or null when it could not be read. */
+async function bodyOf(response: Response): Promise<Record<string, unknown> | null> {
   try {
-    parsed = (await response.json()) as Record<string, unknown>;
+    return (await response.json()) as Record<string, unknown>;
   } catch {
-    return refuse(`HTTP_${response.status}`, GENERIC_FAILURE);
+    return null;
   }
+}
+
+/** Why the backend refused a move, in words for the admin, and the body it said it in. */
+async function refusalOf(response: Response): Promise<[Refusal, Record<string, unknown>]> {
+  // Only a message written for the operator passes through; anything else is generic (OWASP A05).
+  const parsed = await bodyOf(response);
+  if (parsed === null) return [refuse(`HTTP_${response.status}`, GENERIC_FAILURE), {}];
 
   // A lifecycle refusal can come as a 422 too (INVOICE_DATA_INCOMPLETE, INVOICE_BONUS_PENDING);
   // its code says so, where a field check sends errors instead.
   if (response.status === 422 && typeof parsed.code !== "string") {
     const errors = parsed.errors as AdjustmentErrors | undefined;
-    return refuse(
-      "INVALID",
-      typeof parsed.message === "string" ? parsed.message : GENERIC_FAILURE,
-      errors,
-    );
+    return [
+      refuse("INVALID", typeof parsed.message === "string" ? parsed.message : GENERIC_FAILURE, errors),
+      parsed,
+    ];
   }
 
   if (response.status >= 400 && response.status < 500) {
-    return readRefusal(response.status, parsed);
+    return [readRefusal(response.status, parsed), parsed];
   }
 
-  return refuse(`HTTP_${response.status}`, GENERIC_FAILURE);
+  return [refuse(`HTTP_${response.status}`, GENERIC_FAILURE), parsed];
+}
+
+async function move(path: string, body?: unknown): Promise<ActionOutcome> {
+  const response = await backendPost(path, body);
+  if (response.ok) return { ok: true };
+  const [outcome] = await refusalOf(response);
+  return outcome;
 }
 
 /** The path guards every invoice move shares: an id the API would take and an admin asking. */
-async function allowed(contractId: string): Promise<ActionOutcome | null> {
+async function allowed(contractId: string): Promise<Refusal | null> {
   if (typeof contractId !== "string" || !isUuid(contractId)) {
     return refuse("INVOICE_NOT_FOUND", REFUSAL_MESSAGES.INVOICE_NOT_FOUND);
   }
@@ -114,11 +143,18 @@ export async function addInvoiceAdjustment(
 export async function finalizeInvoice(
   contractId: string,
   { acceptPendingBonus }: { acceptPendingBonus?: boolean } = {},
-): Promise<ActionOutcome> {
+): Promise<FinalizeOutcome> {
   const blocked = await allowed(contractId);
   if (blocked) return blocked;
 
-  return move(`/invoices/${contractId}/finalize`, {
+  const response = await backendPost(`/invoices/${contractId}/finalize`, {
     acceptPendingBonus: acceptPendingBonus === true,
   });
+  // PBI-28: how the last sync went comes back with the frozen invoice (AC 8).
+  if (response.ok) return { ok: true, lastSync: readLastSync((await bodyOf(response))?.lastSync) };
+
+  const [outcome, body] = await refusalOf(response);
+  if (outcome.code !== "INVOICE_BONUS_PENDING") return outcome;
+  // The links still without data, so the admin can fill them in or freeze anyway (AC 9).
+  return { ...outcome, waiting: readWaitingLinks(body.waiting), lastSync: readLastSync(body.lastSync) };
 }

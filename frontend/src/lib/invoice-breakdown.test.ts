@@ -214,6 +214,39 @@ describe("breakdownPopup", () => {
       expect(view.lines[0].amount).toBe("+ Rp250.000");
     });
 
+    // PBI-28 AC 6: the line says where the number came from, and when a sync last read it.
+    it.each([
+      [{ source: "synced", lastSyncedAt: "2026-11-01T19:00:00.000Z" }, "TikTok · 12.500 Views · Tier 2 · Tersinkron 2 Nov 2026, 02.00 WIB"],
+      [{ source: "synced", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Tersinkron"],
+      [{ source: "manual", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Diisi manual"],
+      [{ noData: true, value: 0, tier: 0, amount: 0 }, "TikTok · Views · Tidak ada data"],
+    ] as const)("words a line with %o", (extra, detail) => {
+      const view = breakdownPopup(
+        "bonus",
+        breakdown({
+          bonus: {
+            ...EMPTY_BREAKDOWN.bonus,
+            lines: [
+              {
+                kind: "performance",
+                contentId: "c-1",
+                name: "Konten",
+                platform: "tiktok",
+                metric: "views",
+                value: 12500,
+                tier: 2,
+                amount: 250000,
+                ...extra,
+              },
+            ],
+            total: 250000,
+          },
+        }),
+      );
+
+      expect(view.lines[0].detail).toBe(detail);
+    });
+
     it.each([
       ["instagram", "likes", "Instagram · 900 Likes · Tier 1"],
       ["instagram", "comments", "Instagram · 900 Comments · Tier 1"],

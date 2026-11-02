@@ -5,7 +5,7 @@
 //
 // Pure module: no React and no next/headers, so the table, the popup and tests all share it.
 
-import { formatDate, formatDeduction, formatRupiah } from "./format";
+import { formatDate, formatDeduction, formatRupiah, formatTimestamp } from "./format";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -60,6 +60,12 @@ export interface PerformanceBonusLine {
   /** Which tier it earned, 1 for the lowest. */
   tier: number;
   amount: number;
+  /** Where the number came from (PBI-28 AC 6); absent on a line from before links had one. */
+  source?: "synced" | "manual" | null;
+  /** When a sync last read it, ISO; null when never or filled by hand. */
+  lastSyncedAt?: string | null;
+  /** A link frozen without data at Finalize: Rp0, no value or tier (28.2). */
+  noData?: boolean;
 }
 
 export type BonusLine = SpecificBonusLine | PerformanceBonusLine;
@@ -202,8 +208,15 @@ function rated(line: RatedLine): Described {
 function bonusDetail(line: BonusLine): string {
   if (line.kind === "specific") return "Bonus konten Specific tepat waktu";
 
+  if (line.noData) return `${PLATFORM_LABELS[line.platform]} · ${METRIC_LABELS[line.metric]} · Tidak ada data`;
+
   const reached = `${COUNT_FORMAT.format(line.value)} ${METRIC_LABELS[line.metric]}`;
-  return `${PLATFORM_LABELS[line.platform]} · ${reached} · Tier ${line.tier}`;
+  const where = `${PLATFORM_LABELS[line.platform]} · ${reached} · Tier ${line.tier}`;
+  if (line.source === "manual") return `${where} · Diisi manual`;
+  if (line.source === "synced") {
+    return line.lastSyncedAt ? `${where} · Tersinkron ${formatTimestamp(line.lastSyncedAt)}` : `${where} · Tersinkron`;
+  }
+  return where;
 }
 
 function bonus(line: BonusLine): Described {
