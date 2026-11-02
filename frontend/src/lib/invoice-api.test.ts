@@ -4,8 +4,7 @@ import {
   toInvoiceList,
   toInvoiceListQuery,
   type RawInvoiceList,
-  type RawInvoiceRow,
-} from "./invoice-api";
+  type RawInvoiceRow, type RawInvoiceLine } from "./invoice-api";
 import { DEFAULT_INVOICE_PARAMS, type InvoiceParams } from "./invoice";
 
 const STATE: InvoiceParams = {
@@ -369,7 +368,7 @@ describe("toInvoiceBreakdown", () => {
               amount: 0,
               basis: { platform: "tiktok", metric: "likes", status: "no_data" },
             },
-          ],
+          ] as RawInvoiceLine[],
         },
       },
     };
@@ -464,6 +463,10 @@ describe("toInvoiceBreakdown", () => {
           value: 12400,
           tier: 1,
           amount: 150000,
+          // A line recorded before links carried a source (PBI-28) says nothing about one.
+          source: null,
+          lastSyncedAt: null,
+          noData: false,
         },
       ],
       total: 0,
