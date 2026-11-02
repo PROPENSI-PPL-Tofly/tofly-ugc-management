@@ -18,21 +18,28 @@ import type {
 /** Delivered content that can earn a bonus, so its platform is known. */
 type DeliveredContent = InvoiceContent & { platform: SocialPlatform };
 
-/** The contents columns a metric is read from; a metric with no column yet has no data. */
-const METRIC_COLUMNS: Partial<
-  Record<PerformanceMetric, keyof Pick<InvoiceContent, 'views' | 'likes'>>
-> = {
+/**
+ * Where each metric a platform can be judged on is read: the content's first link carries all
+ * four (PBI-27 27.1). A Record over every metric, so one added later cannot be left unread.
+ */
+const METRIC_COLUMNS: Readonly<
+  Record<
+    PerformanceMetric,
+    keyof Pick<InvoiceContent, 'views' | 'likes' | 'comments' | 'shares'>
+  >
+> = Object.freeze({
   views: 'views',
   likes: 'likes',
-};
+  comments: 'comments',
+  shares: 'shares',
+});
 
 /** A content item's value on a metric, or null while there is none to read. */
 function metricValue(
   content: InvoiceContent,
   metric: PerformanceMetric,
 ): number | null {
-  const column = METRIC_COLUMNS[metric];
-  return column ? content[column] : null;
+  return content[METRIC_COLUMNS[metric]];
 }
 
 /** The highest tier a value reaches, numbered from 1 in ascending order, or null below the lowest. */
@@ -61,8 +68,8 @@ function eligible(content: InvoiceContent): content is DeliveredContent {
 }
 
 /**
- * Per content item, the highest tier its platform's metric reaches. Performance data arrives
- * with PBI-19, and metrics such as comments and shares have no column yet. While any item that
+ * Per content item, the highest tier its platform's metric reaches. Each item is measured on
+ * its first link's number for the platform's metric (PBI-27), one line per item at most. While any item that
  * could earn a bonus has no value to measure, the bonus waits for data, so a partial sum never
  * reads as final; the lines already known are kept.
  */
