@@ -30,3 +30,30 @@ alter table content_links
     and (comments is null or comments >= 0)
     and (shares is null or shares >= 0)
   );
+
+-- Who typed numbers in by hand, and when (AC 16). Set together by a manual entry and cleared
+-- together by a sync or a replaced link, so the check keeps them paired (OWASP A08:2025). No
+-- action on delete: an admin account named here is never removed, as with submitted_by.
+alter table content_links
+  add column manual_by uuid references users(id) on delete no action on update no action,
+  add column manual_at timestamptz(6),
+  add constraint content_links_manual_check check ((manual_by is null) = (manual_at is null));
+
+create index content_links_manual_by_idx on content_links(manual_by);
+
+-- A manual entry is recorded in the content timeline with its old and new numbers (AC 16).
+alter table content_events drop constraint content_events_event_type_check;
+alter table content_events add constraint content_events_event_type_check check (
+  event_type in (
+    'Scheduled',
+    'Draft Submitted',
+    'Revision Requested',
+    'Draft Approved',
+    'Link Submitted',
+    'Link Replaced',
+    'Creator Comment',
+    'Proposal Approved',
+    'Auto Scheduled',
+    'Performance Entered'
+  )
+);
