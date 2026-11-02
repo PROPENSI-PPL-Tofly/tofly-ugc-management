@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   CONNECTION_SELECT,
-  LINK_PERFORMANCE_COLUMNS,
+  LINK_PERFORMANCE_SELECT,
 } from '../performance/performance-links.js';
 import { LINKS_AS_HANDED_IN } from './content-links.js';
 import {
@@ -25,7 +25,7 @@ const CONTENT_DETAIL_SELECT = {
   // The links in the order they were handed in: the first is the content's submitted one.
   content_links: {
     orderBy: LINKS_AS_HANDED_IN,
-    select: { submitted_at: true, ...LINK_PERFORMANCE_COLUMNS },
+    select: { submitted_at: true, ...LINK_PERFORMANCE_SELECT },
   },
   video_submitted_at: true,
   approval_bypassed: true,

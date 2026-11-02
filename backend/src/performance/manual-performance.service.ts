@@ -15,9 +15,14 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   canEnterManually,
   effectiveState,
-  type LinkDataState,
   type LinkMetrics,
+  type LinkPerformance,
 } from './link-performance.js';
+import {
+  CONNECTION_SELECT,
+  isConnected,
+  type AccountConnection,
+} from './performance-links.js';
 
 /** Everything the manual input rule decides on, read in one query. No token is among it. */
 export const MANUAL_LINK_SELECT = {
@@ -36,13 +41,7 @@ export const MANUAL_LINK_SELECT = {
           invoice: { select: { status: true } },
           creators: {
             select: {
-              social_accounts: {
-                select: {
-                  platform: true,
-                  is_connected: true,
-                  platform_user_id: true,
-                },
-              },
+              social_accounts: CONNECTION_SELECT,
             },
           },
         },
@@ -60,11 +59,7 @@ export interface ManualLinkRow extends LinkMetrics {
     contracts: {
       invoice: { status: invoice_status } | null;
       creators: {
-        social_accounts: {
-          platform: social_platform;
-          is_connected: boolean;
-          platform_user_id: string | null;
-        }[];
+        social_accounts: AccountConnection[];
       };
     };
   };
@@ -97,25 +92,6 @@ export interface ManualPerformanceClient {
   $transaction<T>(
     work: (transaction: ManualPerformanceTransaction) => Promise<T>,
   ): Promise<T>;
-}
-
-/** One link's numbers and state, as Content Detail shows them (AC 3, 19). */
-export interface LinkPerformance extends LinkMetrics {
-  platform: social_platform | null;
-  url: string;
-  state: LinkDataState;
-  lastSyncedAt: string | null;
-  manualAt: string | null;
-}
-
-/** Whether the creator's account on the link's platform is connected, as connectionOf reads it. */
-function accountConnected(row: ManualLinkRow): boolean {
-  return row.contents.contracts.creators.social_accounts.some(
-    (account) =>
-      account.platform === row.platform &&
-      account.is_connected &&
-      account.platform_user_id !== null,
-  );
 }
 
 function metricsOf(row: LinkMetrics): LinkMetrics {
@@ -168,7 +144,13 @@ export class ManualPerformanceService {
         });
       }
 
-      const before = effectiveState(row.data_state, accountConnected(row));
+      const before = effectiveState(
+        row.data_state,
+        isConnected(
+          row.contents.contracts.creators.social_accounts,
+          row.platform,
+        ),
+      );
       if (!canEnterManually(before)) {
         throw new ConflictException({
           code: 'MANUAL_NOT_ALLOWED',

@@ -3,8 +3,11 @@ import { joinName } from '../creators/evergreen.js';
 import { isSocialPlatform } from '../contents/link-rules.js';
 import { listOf, withoutUnset } from '../list-query.js';
 import { isUuid } from '../uuid.js';
-import { effectiveState, type LinkMetrics } from './link-performance.js';
-import type { LinkPerformance } from './manual-performance.service.js';
+import {
+  effectiveState,
+  type LinkMetrics,
+  type LinkPerformance,
+} from './link-performance.js';
 
 // The admin's "Performa Konten" list (PBI-27, AC 22-26) and the per-link numbers every reader
 // shows (AC 19-20): which links, filtered how, and each one as the API answers it.
@@ -59,7 +62,7 @@ export interface StoredLinkPerformance extends LinkMetrics {
   manual_at: Date | null;
 }
 
-export const LINK_PERFORMANCE_COLUMNS = {
+export const LINK_PERFORMANCE_SELECT = {
   platform: true,
   url: true,
   views: true,
@@ -90,7 +93,7 @@ export interface PerformanceLinkRow extends StoredLinkPerformance {
 
 export const PERFORMANCE_LINK_SELECT = {
   id: true,
-  ...LINK_PERFORMANCE_COLUMNS,
+  ...LINK_PERFORMANCE_SELECT,
   contents: {
     select: {
       id: true,
@@ -113,7 +116,7 @@ export const PERFORMANCE_LINK_SELECT = {
 } as const;
 
 /** Connected as connectionOf (PBI-19) reads it: the flag and a platform account behind it. */
-function isConnected(
+export function isConnected(
   accounts: readonly AccountConnection[],
   platform: social_platform | null,
 ): boolean {

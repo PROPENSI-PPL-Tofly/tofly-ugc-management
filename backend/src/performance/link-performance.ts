@@ -1,4 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
+import type { social_platform } from '@prisma/client';
 
 // The rules every reader and writer of a link's performance numbers shares (PBI-27, 27.1),
 // without Prisma or a clock, so the manual input route, Content Detail and the sync agree.
@@ -24,6 +25,15 @@ export type LinkDataState =
   | 'not_found'
   | 'sync_failed'
   | 'manual';
+
+/** One link's numbers and state, as every reader shows them (AC 3, 19, 20). */
+export interface LinkPerformance extends LinkMetrics {
+  platform: social_platform | null;
+  url: string;
+  state: LinkDataState;
+  lastSyncedAt: string | null;
+  manualAt: string | null;
+}
 
 /**
  * States in which the platform cannot give the numbers, so an admin may type them (AC 14). A

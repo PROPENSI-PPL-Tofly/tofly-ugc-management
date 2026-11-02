@@ -3,7 +3,7 @@ import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
 import { firstLink } from './content-links.js';
 import { contentTags, type ContentTag } from './content-tags.js';
-import type { LinkPerformance } from '../performance/manual-performance.service.js';
+import type { LinkPerformance } from '../performance/link-performance.js';
 import {
   performanceOf,
   type AccountConnection,

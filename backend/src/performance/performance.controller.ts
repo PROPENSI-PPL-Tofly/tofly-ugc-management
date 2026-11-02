@@ -16,11 +16,11 @@ import {
 import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { isSocialPlatform } from '../contents/link-rules.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from '../creators/paging.js';
-import { checkManualPerformance } from './link-performance.js';
 import {
-  ManualPerformanceService,
+  checkManualPerformance,
   type LinkPerformance,
-} from './manual-performance.service.js';
+} from './link-performance.js';
+import { ManualPerformanceService } from './manual-performance.service.js';
 import { checkPerformanceLinksQuery } from './performance-links.js';
 import {
   PerformanceLinksService,
