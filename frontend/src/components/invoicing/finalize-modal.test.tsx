@@ -91,6 +91,8 @@ describe("FinalizeModal", () => {
       expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false }),
     );
     await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
+    // The modal settles (its wait message goes) before the test ends, so no update lands after it.
+    await vi.waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
   describe("a bonus still waiting for performance data", () => {
@@ -185,6 +187,7 @@ describe("FinalizeModal", () => {
         expect(moves.finalizeInvoice).toHaveBeenLastCalledWith(ROW.contractId, { acceptPendingBonus: true }),
       );
       await vi.waitFor(() => expect(onFinalized).toHaveBeenCalled());
+      await vi.waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     });
   });
 
