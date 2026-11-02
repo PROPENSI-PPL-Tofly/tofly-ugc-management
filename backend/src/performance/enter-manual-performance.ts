@@ -1,7 +1,13 @@
 import type { link_data_state, social_platform } from '@prisma/client';
-import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { LINK_RULES } from '../contents/link-rules.js';
+import {
+  invoiceState,
+  type InvoiceLifecycleStatus,
+} from '../invoices/invoice-lifecycle.js';
 import { adminActor } from '../contents/content-event-actors.js';
-import type { ConnectionRow } from './account-connections.js';
+import { isConnected, type ConnectionRow } from './account-connections.js';
+import { linkState } from './link-state.js';
 import type { PerformanceMetrics } from './manual-performance-input.js';
 
 /** A content's link on one platform and its contract's invoice, read under the contract lock. */
@@ -80,7 +86,27 @@ export class EnterManualPerformance {
     adminUserId: string | null,
     now: Date,
   ): ManualPlan {
-    const link = target.link!;
+    // manual_by and manual_at are stored together: with no admin account there is no one to name.
+    if (adminUserId === null) {
+      throw new ForbiddenException({
+        code: 'ADMIN_ACCOUNT_REQUIRED',
+        message: 'Angka manual hanya bisa diisi oleh akun Admin',
+      });
+    }
+    // The frozen snapshot was calculated from these numbers, whatever else is wrong (AC 18).
+    invoiceState(target.invoiceStatus).assertCanEnterPerformance();
+
+    const link = target.link;
+    if (!link) {
+      throw new NotFoundException({
+        code: 'LINK_NOT_FOUND',
+        message: `Belum ada link ${LINK_RULES[this.platform].label} untuk konten ini`,
+      });
+    }
+    linkState(link.data_state).assertAcceptsManual(
+      isConnected(target.connection),
+    );
+
     const entered = countsOf(this.metrics);
 
     return {
@@ -88,14 +114,14 @@ export class EnterManualPerformance {
       data: {
         ...entered,
         data_state: 'manual',
-        manual_by: adminUserId!,
+        manual_by: adminUserId,
         manual_at: now,
       },
       event: {
         content_id: target.contentId,
         event_type: 'Performance Entered',
         ...adminActor(adminUserId),
-        actor_user_id: adminUserId!,
+        actor_user_id: adminUserId,
         occurred_at: now,
         event_data: {
           platform: this.platform,
