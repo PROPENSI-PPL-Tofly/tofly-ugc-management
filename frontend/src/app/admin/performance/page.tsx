@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/shell/app-shell";
+import { PerformanceBoard } from "@/components/performance/performance-board";
 import { LoadError } from "@/components/ui/load-error";
 import {
   parsePerformanceLinksParams,
@@ -44,7 +45,9 @@ export default async function PerformancePage({
         <p className="px-5 py-14 text-center text-[13px] text-muted">
           Belum ada link yang dikirim
         </p>
-      ) : null}
+      ) : (
+        <PerformanceBoard rows={result.items} />
+      )}
     </AppShell>
   );
 }

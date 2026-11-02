@@ -1,3 +1,4 @@
+import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { InfoTip } from "@/components/ui/info-tip";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { EMPTY, formatTimestamp } from "@/lib/format";
@@ -22,10 +23,13 @@ const CELL = "px-5 py-3 align-top";
 export function LinkPerformanceTable({
   rows,
   showCreator = false,
+  onRowClick,
 }: Readonly<{
   rows: readonly PerformanceLinkRow[];
   /** The admin's list names whose link each row is; a creator reads their own. */
   showCreator?: boolean;
+  /** The admin's rows open their content's detail (AC 25); a creator's list offers no press. */
+  onRowClick?: (row: PerformanceLinkRow) => void;
 }>) {
   return (
     <div className="overflow-x-auto">
@@ -58,9 +62,32 @@ export function LinkPerformanceTable({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.linkId} className="border-b border-rule last:border-none">
+            <tr
+              key={row.linkId}
+              onClick={
+                onRowClick
+                  ? () => {
+                      // Dragging across a name to copy it ends in a click here: copying, not
+                      // opening (the same guard as the admin's other tables).
+                      if (window.getSelection()?.toString()) return;
+                      onRowClick(row);
+                    }
+                  : undefined
+              }
+              className={`border-b border-rule last:border-none ${
+                onRowClick ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
+              }`}
+            >
               {showCreator ? <td className={CELL}>{row.creatorName}</td> : null}
-              <td className={`${CELL} wrap-anywhere`}>{row.contentName}</td>
+              <td className={`${CELL} wrap-anywhere`}>
+                {onRowClick ? (
+                  <ContentNameButton onOpen={() => onRowClick(row)}>
+                    {row.contentName}
+                  </ContentNameButton>
+                ) : (
+                  row.contentName
+                )}
+              </td>
               <td className={CELL}>
                 <span className="flex items-center gap-1.5">
                   {row.platform ? <PlatformIcon platform={row.platform} /> : null}
