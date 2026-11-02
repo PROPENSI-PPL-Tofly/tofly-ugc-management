@@ -6,6 +6,7 @@ const TODAY = "2026-10-09";
 
 function task(overrides: Partial<MyTask> = {}): MyTask {
   return {
+    platforms: [],
     id: "content-1",
     name: "Tutorial Latihan Listening",
     type: "specific",

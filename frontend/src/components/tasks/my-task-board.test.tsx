@@ -74,6 +74,7 @@ vi.mock("@/components/my-task/submit-video-modal", () => ({
 
 function task(overrides: Partial<MyTask> = {}): MyTask {
   return {
+    platforms: [],
     id: "content-1",
     name: "Evg_1_RanggaPratama_12102026",
     type: "evergreen",
@@ -412,6 +413,23 @@ describe("MyTaskBoard content detail panel", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
+  });
+
+  it("opens the link modal from a sent content's panel, closing the panel", async () => {
+    fetchContentDetail.mockResolvedValue({
+      ...panelDetail(),
+      status: "link_submitted" as const,
+      waitingOn: null,
+      creatorActions: [],
+      links: [{ platform: "instagram", url: "https://www.instagram.com/reel/C8abc12345/" }],
+    });
+    render(<MyTaskBoard tasks={[task()]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah / Ganti Link" }));
+
+    expect(await screen.findByRole("dialog", { name: "video-modal" })).toHaveTextContent("content-1");
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
   it("hands the panel's submit action back to the row's submit modal", async () => {

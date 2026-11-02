@@ -30,6 +30,7 @@ function planOf(overrides: Partial<ContentPlanResponse> = {}): ContentPlanRespon
   return {
     items: [
       {
+        platforms: [],
         contentId: "content-1",
         name: "Evg_1_Salsa_15Sep2026",
         creatorId: "id-1",

@@ -203,6 +203,7 @@ describe("B2.6 creator access display", () => {
 });
 
 const LATE_DONE: CreatorContentRow = {
+  platforms: [],
   contentId: "content-done-late",
   name: "Late hand-in",
   type: "specific",

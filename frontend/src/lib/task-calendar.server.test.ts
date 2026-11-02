@@ -19,6 +19,7 @@ const COUNTS: MyTasksCounts = { all: 6, action: 3, waiting: 2, done: 1 };
 
 function task(id: string): MyTask {
   return {
+    platforms: [],
     id,
     name: `Konten ${id}`,
     type: "specific",

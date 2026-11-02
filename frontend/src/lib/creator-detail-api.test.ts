@@ -65,6 +65,7 @@ const RAW: RawCreatorDetail = {
 const CONTENTS: RawContentList = {
   items: [
     {
+      platforms: [],
       id: "content-7",
       name: "Evg_1_LestariWulandari_15102026",
       creatorId: "creator-1",
@@ -339,6 +340,7 @@ describe("toCreatorDetailView", () => {
         status: "draft_revision",
         tags: ["overdue"],
         revisionCount: 2,
+        platforms: [],
       },
     ]);
     expect(view.page).toBe(2);

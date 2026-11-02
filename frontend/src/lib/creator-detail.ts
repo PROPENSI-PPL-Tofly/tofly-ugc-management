@@ -15,6 +15,7 @@ import {
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
+import type { Platform } from "./platform-links";
 import type { ContentStatus, ContentTag, ContractPeriod } from "./creators";
 import { formatDate } from "./format";
 import type { InvoiceStatus } from "./invoice";
@@ -191,6 +192,8 @@ export interface CreatorContentRow {
   tags: ContentTag[];
   /** How many times an admin asked for a revision. */
   revisionCount: number;
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: Platform[];
 }
 
 export interface CreatorDetailView {

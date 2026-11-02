@@ -12,6 +12,8 @@
 // renamed parameter is fixed here without touching the filter bar, the table or the page.
 
 import type { ContentType } from "./contents";
+import type { Platform } from "./platform-links";
+
 import type {
   ContentPlanCounts,
   ContentPlanParams,
@@ -69,6 +71,8 @@ export interface RawContentListItem {
   status: ContentStatus;
   tags: ContentTag[];
   revisionCount: number;
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: Platform[];
 }
 
 export interface RawContentList {
