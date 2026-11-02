@@ -41,6 +41,23 @@ describe("PanelHead", () => {
     expect(screen.getByText("Kontrak dan progres")).toBeInTheDocument();
   });
 
+  // The Performa panel's hint ends with a Kebijakan Privasi link (Sprint 3 prototype).
+  it("renders a hint that carries a control after its text", () => {
+    render(
+      <PanelHead
+        title="Akun Terhubung"
+        hint={
+          <>
+            Hubungkan akun. <button type="button">Kebijakan Privasi</button>
+          </>
+        }
+      />,
+    );
+
+    const link = screen.getByRole("button", { name: "Kebijakan Privasi" });
+    expect(link.closest("p")).toHaveTextContent("Hubungkan akun. Kebijakan Privasi");
+  });
+
   it("renders without a hint", () => {
     render(<PanelHead title="Semua creator" />);
     expect(screen.getByRole("heading", { name: "Semua creator" })).toBeInTheDocument();

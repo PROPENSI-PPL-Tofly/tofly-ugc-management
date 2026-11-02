@@ -41,6 +41,28 @@ export default function PrivacyPage() {
               mencatat pekerjaan konten.
             </p>
 
+            {/* PBI-19, AC 15: what a connected account gives Tofly, why, how long, and how to stop it. */}
+            <h2 className={SECTION}>Data performa dari Instagram dan TikTok</h2>
+            <p className={BODY}>
+              <b>Data yang diambil.</b> Jika Anda menghubungkan akun Instagram Professional atau
+              TikTok, Tofly mengambil username serta angka performa (views, likes, comments, shares)
+              dari konten yang Anda buat sendiri. Tofly tidak memposting, mengubah, atau menghapus
+              apa pun di akun Anda.
+            </p>
+            <p className={BODY}>
+              <b>Dipakai untuk apa.</b> Menampilkan performa konten Anda dan menghitung bonus
+              performa di invoice.
+            </p>
+            <p className={BODY}>
+              <b>Berapa lama disimpan.</b> Akses ke akun Anda disimpan selama akun masih terhubung
+              dan dihapus saat Anda menekan Putuskan. Angka performa yang sudah tersimpan tetap
+              disimpan sebagai bagian dari catatan invoice.
+            </p>
+            <p className={BODY}>
+              <b>Cara memutus akses.</b> Buka halaman Performa dan tekan Putuskan pada akun yang
+              ingin diputus. Angka yang sudah tersimpan tetap ada, tetapi tidak diperbarui lagi.
+            </p>
+
             <h2 className={SECTION}>Cookie</h2>
             <p className={BODY}>
               Tofly memakai cookie yang tidak dapat dibaca oleh skrip halaman: satu untuk menyelesaikan

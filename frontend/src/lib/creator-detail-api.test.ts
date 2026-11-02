@@ -386,3 +386,27 @@ describe("toCreatorDetailView", () => {
     expect(view.page).toBe(1);
   });
 });
+
+// PBI-19, AC 12: the profile's connection badges, read through the one adapter for them.
+describe("toCreatorDetailView connections", () => {
+  it("reads each account's connection from the creator's answer", () => {
+    const raw = {
+      ...RAW,
+      socialConnections: {
+        instagram: { connected: true, connectedAt: "2026-10-29T10:00:00Z", lastSyncAt: null },
+      },
+    };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).connections).toEqual({
+      instagram: { connected: true, connectedAt: "2026-10-29T10:00:00Z", lastSyncAt: null },
+      tiktok: { connected: false, connectedAt: null, lastSyncAt: null },
+    });
+  });
+
+  it("reads every account as not connected while the answer has no connections (19.3 not merged)", () => {
+    expect(toCreatorDetailView(RAW, CONTENTS, BARE).connections).toEqual({
+      instagram: { connected: false, connectedAt: null, lastSyncAt: null },
+      tiktok: { connected: false, connectedAt: null, lastSyncAt: null },
+    });
+  });
+});

@@ -3,6 +3,7 @@ import { ShellNav, type Place } from "./shell-nav";
 const PLACES: Place[] = [
   { href: "/creator/dashboard", label: "Dashboard" },
   { href: "/creator/tasks", label: "Task Saya" },
+  { href: "/creator/performance", label: "Performa" },
   { href: "/creator/payments", label: "Pembayaran" },
 ];
 

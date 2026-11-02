@@ -13,6 +13,7 @@ import { MeModule } from './me/me.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProposalsModule } from './contents/proposals.module.js';
 import { RateFormulaModule } from './rate-formula/rate-formula.module.js';
+import { SocialModule } from './social/social.module.js';
 import { requireStorageInProduction } from './storage/file-store.provider.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
 
@@ -45,6 +46,7 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
     MeModule,
     SessionModule,
     GoogleAuthModule,
+    SocialModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

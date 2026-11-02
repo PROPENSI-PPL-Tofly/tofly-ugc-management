@@ -437,4 +437,62 @@ describe("CreatorTable", () => {
       expect(screen.queryByRole("button", { name: "Detail" })).not.toBeInTheDocument();
     });
   });
+
+  // PBI-19, AC 11: a badge per platform next to the username.
+  describe("connection badges", () => {
+    const connected = {
+      instagram: { connected: true, connectedAt: "2026-10-29T10:00:00Z", lastSyncAt: null },
+      tiktok: { connected: false, connectedAt: null, lastSyncAt: null },
+    };
+
+    it("puts each account's badge next to its username", () => {
+      render(<CreatorTable creators={[creator({ socialConnections: connected })]} total={1} />);
+
+      const instagram = screen.getByText("Instagram @rangga.creates").parentElement!;
+      const tiktok = screen.getByText("TikTok @ranggacreates").parentElement!;
+      expect(
+        within(instagram).getByRole("button", { name: "Instagram Terhubung" }),
+      ).toBeInTheDocument();
+      expect(
+        within(tiktok).getByRole("button", { name: "TikTok Belum terhubung" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows every account as Belum terhubung while the backend sends no connections (19.3)", () => {
+      render(<CreatorTable creators={[creator()]} total={1} />);
+
+      expect(screen.getByRole("button", { name: "Instagram Belum terhubung" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+    });
+
+    it("gives no badge to a platform the creator has no username for", () => {
+      render(
+        <CreatorTable creators={[creator({ socials: { instagram: "rangga.creates" } })]} total={1} />,
+      );
+
+      expect(screen.getByRole("button", { name: /^Instagram / })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^TikTok / })).toBeNull();
+    });
+
+    it("keeps each badge on its username's line, however long the username", () => {
+      render(
+        <CreatorTable
+          creators={[creator({ socials: { instagram: "a.very.long.instagram.handle" } })]}
+          total={1}
+        />,
+      );
+
+      const line = screen.getByText("Instagram @a.very.long.instagram.handle").parentElement!;
+      expect(line).toHaveClass("whitespace-nowrap");
+      expect(line).not.toHaveClass("flex-wrap");
+    });
+
+    it("does not open the creator's page when a badge is pressed", () => {
+      render(<CreatorTable creators={[creator({ socialConnections: connected })]} total={1} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Instagram Terhubung" }));
+
+      expect(push).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -13,7 +13,7 @@ describe("CreatorNav", () => {
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
-  it("leads to the Dashboard first, then Task Saya, then Pembayaran", () => {
+  it("leads to the Dashboard first, then Task Saya, Performa and Pembayaran, as the prototype orders them", () => {
     vi.mocked(usePathname).mockReturnValue("/creator/tasks");
 
     render(<CreatorNav />);
@@ -21,6 +21,7 @@ describe("CreatorNav", () => {
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Dashboard",
       "Task Saya",
+      "Performa",
       "Pembayaran",
     ]);
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
@@ -70,6 +71,18 @@ describe("CreatorNav", () => {
       );
     },
   );
+
+  // PBI-19, 19.4: the Performa page holds the Akun Terhubung panel.
+  it("leads to Performa and marks it as current there", () => {
+    vi.mocked(usePathname).mockReturnValue("/creator/performance");
+
+    render(<CreatorNav />);
+
+    const link = screen.getByRole("link", { name: "Performa" });
+    expect(link).toHaveAttribute("href", "/creator/performance");
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Pembayaran" })).not.toHaveAttribute("aria-current");
+  });
 
   it("leads to Pembayaran and marks it as current there", () => {
     vi.mocked(usePathname).mockReturnValue("/creator/payments");

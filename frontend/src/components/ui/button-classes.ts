@@ -1,7 +1,7 @@
 // Plain module (no "use client") so server components can style a link as a button too;
 // a function exported from a client module cannot be called during server rendering.
 
-export type Variant = "default" | "accent" | "ghost" | "attention" | "positive" | "danger";
+export type Variant = "default" | "accent" | "ghost" | "attention" | "positive" | "danger" | "danger-outline";
 
 // Same control vocabulary as the pagination links: brand blue carries the primary
 // action, everything else stays on the blue-tinted neutral scale. The three toned variants
@@ -14,6 +14,8 @@ const VARIANTS: Record<Variant, string> = {
   attention: "border-amber bg-amber-wash text-amber-ink hover:bg-amber/30",
   positive: "border-green bg-green-wash text-green-ink hover:bg-green/15",
   danger: "border-red bg-red text-accent-ink hover:bg-red-ink",
+  // The prototype's .btn-danger-outline: a step that takes something away, quieter than danger.
+  "danger-outline": "border-red bg-surface text-red-ink hover:bg-red-wash",
 };
 
 /** The button look on its own, for a link that should read as a button (e.g. a page's main way in). */
