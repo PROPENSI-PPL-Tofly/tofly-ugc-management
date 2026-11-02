@@ -50,12 +50,12 @@ export function fetchPerformanceLinks(
 }
 
 /**
- * The creator's own page of links for their Performa page (AC 20). The request names nobody:
- * the endpoint scopes the rows to the session's creator, so no address can reach another
- * creator's numbers (OWASP A01).
+ * The creator's own page of links for their Performa page (AC 20). The request names nobody —
+ * not even a creator picked in the address: the endpoint scopes the rows to the session's
+ * creator, so no address can reach another creator's numbers (OWASP A01).
  */
 export function fetchMyPerformanceLinks(
   state: PerformanceLinksState,
 ): Promise<PerformanceLinksPage> {
-  return fetchLinks(MY_PERFORMANCE_LINKS_PATH, state);
+  return fetchLinks(MY_PERFORMANCE_LINKS_PATH, { ...state, creator: [] });
 }
