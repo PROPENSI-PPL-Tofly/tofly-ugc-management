@@ -152,6 +152,79 @@ describe('content_links performance schema (e2e)', () => {
     });
   });
 
+  it('keeps manual_by and manual_at nullable, with manual_by naming a user', async () => {
+    const found = await columns();
+
+    expect(found.get('manual_by')).toMatchObject({
+      udt_name: 'uuid',
+      is_nullable: 'YES',
+    });
+    expect(found.get('manual_at')).toMatchObject({
+      data_type: 'timestamp with time zone',
+      is_nullable: 'YES',
+    });
+    await expect(
+      withLink(
+        (tx, id) =>
+          tx.$executeRaw`
+          UPDATE content_links SET manual_by = ${randomUUID()}::uuid, manual_at = now()
+          WHERE id = ${id}::uuid
+        `,
+      ),
+    ).rejects.toThrow(/foreign key/i);
+  });
+
+  it('stores who typed numbers in and when together, or neither', async () => {
+    const stamped = await withLink(async (tx, id) => {
+      const [admin] = await tx.$queryRaw<{ id: string }[]>`
+        INSERT INTO users (email) VALUES (${`perf-admin-${randomUUID()}@example.com`})
+        RETURNING id
+      `;
+      return tx.$executeRaw`
+        UPDATE content_links SET manual_by = ${admin.id}::uuid, manual_at = now()
+        WHERE id = ${id}::uuid
+      `;
+    });
+    expect(stamped).toBe(1);
+
+    await expect(
+      withLink(
+        (tx, id) =>
+          tx.$executeRaw`UPDATE content_links SET manual_at = now() WHERE id = ${id}::uuid`,
+      ),
+    ).rejects.toThrow(/content_links_manual_check/);
+    await expect(
+      withLink(async (tx, id) => {
+        const [admin] = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (email) VALUES (${`perf-admin-${randomUUID()}@example.com`})
+          RETURNING id
+        `;
+        return tx.$executeRaw`
+          UPDATE content_links SET manual_by = ${admin.id}::uuid WHERE id = ${id}::uuid
+        `;
+      }),
+    ).rejects.toThrow(/content_links_manual_check/);
+  });
+
+  it('accepts Performance Entered in the content timeline and still refuses an unknown kind', async () => {
+    async function record(eventType: string) {
+      return withLink(async (tx, id) => {
+        const [link] = await tx.$queryRaw<{ content_id: string }[]>`
+          SELECT content_id FROM content_links WHERE id = ${id}::uuid
+        `;
+        return tx.$executeRaw`
+          INSERT INTO content_events (content_id, event_type, actor_name, actor_role, event_data)
+          VALUES (${link.content_id}::uuid, ${eventType}, 'Admin', 'admin', '{"platform":"instagram"}'::jsonb)
+        `;
+      });
+    }
+
+    await expect(record('Performance Entered')).resolves.toBe(1);
+    await expect(record('Performance Guessed')).rejects.toThrow(
+      /content_events_event_type_check/,
+    );
+  });
+
   it('stores a real 0 and refuses a negative number in any metric', async () => {
     const zero = await withLink(async (tx, id) => {
       const [stored] = await tx.$queryRaw<Record<string, number>[]>`
