@@ -83,3 +83,6 @@ const STATES: Readonly<Record<link_data_state, LinkState>> = Object.freeze({
 export function linkState(stored: link_data_state): LinkState {
   return STATES[stored];
 }
+
+/** What a replaced link's performance columns are set back to (PBI-38 AC 9). */
+export const CLEARED_PERFORMANCE = Object.freeze({});

@@ -1,6 +1,6 @@
 import type { link_data_state } from '@prisma/client';
 import { ConflictException } from '@nestjs/common';
-import { linkState } from './link-state.js';
+import { CLEARED_PERFORMANCE, linkState } from './link-state.js';
 
 const ALL_STATES: link_data_state[] = [
   'waiting',
@@ -74,5 +74,24 @@ describe('linkState', () => {
     for (const state of ALL_STATES) {
       expect(linkState(state).stored).toBe(state);
     }
+  });
+
+  describe('a replaced link (PBI-38 AC 9)', () => {
+    it('starts again with no numbers, waiting, never synced and not filled by hand', () => {
+      expect(CLEARED_PERFORMANCE).toEqual({
+        views: null,
+        likes: null,
+        comments: null,
+        shares: null,
+        data_state: 'waiting',
+        last_synced_at: null,
+        manual_by: null,
+        manual_at: null,
+      });
+    });
+
+    it('cannot be changed at runtime', () => {
+      expect(Object.isFrozen(CLEARED_PERFORMANCE)).toBe(true);
+    });
   });
 });
