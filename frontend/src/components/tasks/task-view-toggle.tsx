@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import type { MyTasksParams } from "@/lib/my-tasks";
 import { TASK_VIEWS, taskViewHref, type TaskView } from "@/lib/task-view";
 
 // A segmented control, as the prototype draws it: two halves in one rounded frame, the view
 // being shown filled in.
 const FRAME = "inline-flex overflow-hidden rounded-(--radius-control) border border-rule";
-const HALF = "px-3 py-1.5 text-[12.5px] font-semibold";
+const HALF = `flex items-center px-3 py-1.5 text-[12.5px] font-semibold ${PHONE_TARGET}`;
 const ON = "bg-ink text-surface";
 const OFF = "bg-surface text-ink-2 hover:bg-surface-2";
 

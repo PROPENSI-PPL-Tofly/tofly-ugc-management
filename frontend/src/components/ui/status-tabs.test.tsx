@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { StatusTabs, type StatusTabDef } from "./status-tabs";
+import { SCROLL_HINT } from "./use-scroll-hint";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 type Key = "all" | "todo" | "wait" | "done";
 
@@ -30,6 +32,14 @@ function renderTabs(active: Key = "all", counts = COUNTS) {
 const tabs = () => screen.getAllByRole("tab");
 
 describe("StatusTabs", () => {
+  // The approved design: on a phone the tabs are one Tampilkan choice inside the folded filters
+  // (TabChoice), so the row of tabs steps aside below sm and stays as it is from sm up.
+  it("steps aside on a phone, where the tabs are a choice in the filters", () => {
+    renderTabs();
+
+    expect(screen.getByRole("tablist", { name: "Tab Task Saya" })).toHaveClass("max-sm:hidden");
+  });
+
   it("names its tab list and offers each tab in order, counting only those that count", () => {
     renderTabs();
 
@@ -129,5 +139,24 @@ describe("StatusTabs", () => {
     const list = screen.getByRole("tablist");
     expect(list.className).toContain("overflow-x-auto");
     expect(list.className).not.toContain("flex-wrap");
+  });
+
+  it("fades the edge of the tab row where more tabs sit off-screen on a phone", () => {
+    renderTabs();
+    const list = screen.getByRole("tablist");
+    Object.defineProperty(list, "clientWidth", { configurable: true, value: 300 });
+    Object.defineProperty(list, "scrollWidth", { configurable: true, value: 420 });
+    fireEvent.scroll(list);
+
+    expect(list).toHaveAttribute("data-more", "end");
+    expect(list).toHaveClass(...SCROLL_HINT.split(" "));
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives each tab a 44px press on a phone, chosen or not", () => {
+    renderTabs("wait");
+
+    for (const tab of tabs()) expectPhoneTarget(tab);
   });
 });

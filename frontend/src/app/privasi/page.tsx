@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Panel } from "@/components/ui/panel";
+import { MIN_TARGET } from "@/components/ui/touch-target";
 
 export const metadata = {
   title: "Kebijakan Privasi — Tofly",
@@ -63,7 +64,7 @@ export default function PrivacyPage() {
             <p className="mt-7 text-[13px]">
               <Link
                 href="/login"
-                className="font-semibold text-accent-deep underline underline-offset-2 hover:text-accent"
+                className={`inline-flex items-center font-semibold text-accent-deep underline underline-offset-2 hover:text-accent ${MIN_TARGET}`}
               >
                 Kembali ke halaman masuk
               </Link>

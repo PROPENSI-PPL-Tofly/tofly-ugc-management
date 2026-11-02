@@ -173,6 +173,13 @@ describe("CreatorInvoiceView", () => {
       expect(total).toHaveTextContent("Rp550.000");
     });
 
+    // Approved design: the total closes Rincian as a navy bar, so the sum reads as the sum.
+    it("draws the total as the closing navy bar", () => {
+      renderView({ status: "finalized" });
+
+      expect(screen.getByRole("group", { name: "Total invoice" })).toHaveClass("bg-ink", "text-accent-ink");
+    });
+
     it("says a total the penalty used up is held at Rp0", () => {
       renderView({ totalAmount: 0, floored: true });
 
@@ -250,6 +257,16 @@ describe("CreatorInvoiceView", () => {
       expect(within(turn).getByRole("button", { name: "aksi confirm" })).toBeInTheDocument();
       // The proof is linked once, where the creator is asked about it.
       expect(screen.getAllByRole("link", { name: "Lihat Bukti" })).toHaveLength(1);
+    });
+
+    // Approved design: the turn is a card that names itself, so the ask reads as the creator's
+    // move at a glance, edged in the accent like the other emphasised boxes.
+    it("names the creator's turn on its card, edged firmly", () => {
+      renderView({ status: "finalized" }, action);
+
+      const turn = screen.getByRole("region", { name: "Giliran kamu" });
+      expect(within(turn).getByText("Giliran kamu")).toHaveClass("uppercase");
+      expect(turn).toHaveClass("border-[1.5px]", "border-accent");
     });
 
     it("offers no move while it is the admin's turn, only says whose it is", () => {

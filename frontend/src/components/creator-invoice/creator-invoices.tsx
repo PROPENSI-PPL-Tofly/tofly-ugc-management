@@ -6,14 +6,15 @@ import { ContentDetailPanel } from "@/components/content-detail/content-detail-p
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
-import { PanelHead } from "@/components/ui/panel";
+import { PanelBand } from "@/components/ui/panel";
 import { useToast } from "@/components/ui/toast";
 import { currentAndHistory, type CreatorInvoice, type CreatorInvoiceAction } from "@/lib/creator-invoice";
 import { CreatorInvoiceView } from "./creator-invoice-view";
 import { InvoiceHistory } from "./invoice-history";
 import { InvoiceMove } from "./invoice-move";
 
-const PANEL = "rounded-(--radius-panel) border border-rule bg-surface shadow-whisper";
+// The invoice in play edged in the creator's accent, the history in the quieter rule colour.
+const PANEL = "rounded-(--radius-panel) border-[1.5px] bg-surface shadow-whisper";
 
 /**
  * The Pembayaran page's body (PBI-13, subtask 13.3): the latest contract's invoice in full, the
@@ -58,12 +59,12 @@ export function CreatorInvoices({ invoices }: Readonly<{ invoices: readonly Crea
 
   return (
     <div className="flex flex-col gap-5">
-      <section aria-label="Invoice Periode Ini" className={PANEL}>
-        <PanelHead title="Invoice Periode Ini" />
+      <section aria-label="Invoice Periode Ini" className={`border-accent/35 ${PANEL}`}>
+        <PanelBand title="Invoice Periode Ini" tone="accent" />
         {current === null ? (
           <EmptyState title="Belum ada invoice." hint="Invoice muncul setelah kontrak pertama kamu dibuat." />
         ) : (
-          <div className="px-5 pb-5">
+          <div className="px-5 pt-4 pb-5 max-sm:px-4">
             <CreatorInvoiceView
               invoice={current}
               onOpenContent={setContentId}
@@ -75,8 +76,8 @@ export function CreatorInvoices({ invoices }: Readonly<{ invoices: readonly Crea
       </section>
 
       {current === null ? null : (
-        <section aria-label="Riwayat Invoice" className={`overflow-hidden ${PANEL}`}>
-          <PanelHead title="Riwayat Invoice" />
+        <section aria-label="Riwayat Invoice" className={`overflow-hidden border-rule ${PANEL}`}>
+          <PanelBand title="Riwayat Invoice" tone="quiet" count={history.length} noun="invoice" />
           <InvoiceHistory invoices={history} onOpen={(invoice) => setOpenedId(invoice.contractId)} />
         </section>
       )}

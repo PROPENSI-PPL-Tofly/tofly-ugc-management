@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ContentPlanRow, ContentPlanTab } from "@/lib/content-plan";
+import { expectMinTarget } from "@/test/touch-target";
 import { ContentPlanTable } from "./content-plan-table";
 
 const ROW: ContentPlanRow = {
@@ -72,6 +73,106 @@ describe("ContentPlanTable", () => {
   });
 
   // The prototype opens the panel from anywhere on the row; the button stays for the keyboard.
+  // Measured in Edge at true 320/375/390/430 px on the live page: the table is 890 px wide in a
+  // 286–396 px area, so Deadline, Status, Tags and Tinjau/Detail sit off-screen. Below lg each
+  // row becomes a card, as Task Saya's and the Creator Database's do. jsdom lays nothing out,
+  // so these pin what the layout is built from; the browser measurement is the evidence.
+  describe("on a phone, below lg", () => {
+    function rowOf(name: string) {
+      return screen.getByText(name).closest("tr") as HTMLElement;
+    }
+
+    // A table whose display changes can lose its semantics in some browsers, so the table, its
+    // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
+    it("reads each card as a row of cells, one per column, under explicit table roles", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Unboxing Botol" }]);
+
+      const table = screen.getByRole("table");
+      expect(table).toHaveAttribute("role", "table");
+      for (const group of within(table).getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
+      }
+      const columns = within(table).getAllByRole("columnheader");
+      const [, ...records] = within(table).getAllByRole("row");
+      expect(records).toHaveLength(2);
+      for (const record of records) {
+        expect(record).toHaveAttribute("role", "row");
+        expect(within(record).getAllByRole("cell")).toHaveLength(columns.length);
+      }
+    });
+
+    it("keeps table semantics while the rows become separate cards", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Unboxing Botol" }]);
+
+      const [head, body] = screen.getAllByRole("rowgroup");
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(head).toHaveClass("max-lg:sr-only");
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      for (const name of ["Video Review Kopi", "Unboxing Botol"]) {
+        expect(rowOf(name)).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border");
+      }
+    });
+
+    it("keeps the hidden headings inside the table's own area, so the page never widens", () => {
+      renderTable();
+
+      expect(screen.getByRole("table").closest(".overflow-x-auto")).toHaveClass("relative");
+    });
+
+    it("names every value by its column, since the column headers are hidden", () => {
+      renderTable([{ ...ROW, tags: ["overdue"], revisionCount: 2 }]);
+
+      const cells = within(rowOf("Video Review Kopi")).getAllByRole("cell");
+      expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Kreator",
+        "Tipe",
+        "Deadline",
+        "Status",
+        "Tags",
+        null,
+      ]);
+    });
+
+    it("leaves the Tags line out of a card that has no tag and no revision", () => {
+      renderTable();
+
+      const tags = within(rowOf("Video Review Kopi")).getAllByRole("cell")[5];
+      expect(tags).toBeEmptyDOMElement();
+      expect(tags).toHaveClass("max-lg:empty:hidden");
+    });
+
+    // The deadline sort lived only in the header row, which is hidden below lg: phones had no
+    // visible way to turn the order over, and the header's button stayed focusable while unseen.
+    it("offers a visible deadline sort below lg that turns the order over", () => {
+      const { onSortToggle } = renderTable();
+
+      const sort = screen.getByRole("button", { name: "Urutkan deadline: terjauh dulu" });
+      expect(sort).toHaveTextContent("Deadline");
+      expect(sort).toHaveTextContent("Terjauh dulu");
+      expect(sort.parentElement).toHaveClass("lg:hidden");
+
+      fireEvent.click(sort);
+      expect(onSortToggle).toHaveBeenCalledOnce();
+    });
+
+    it("keeps one sort control per width: the header's button is removed below lg, its name kept", () => {
+      renderTable();
+
+      const header = screen.getByRole("columnheader", { name: /Deadline/ });
+      expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
+    });
+
+    it("gives Tinjau and Detail a full-width touch target at least 44px tall", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Selesai", status: "link_submitted" }]);
+
+      for (const name of ["Tinjau Video Review Kopi", "Detail Selesai"]) {
+        expect(screen.getByRole("button", { name })).toHaveClass("max-lg:w-full", "max-lg:min-h-11");
+      }
+    });
+  });
+
   describe("opening from the row", () => {
     it("opens the content from a press anywhere on its row", () => {
       const { onOpen } = renderTable();
@@ -234,5 +335,21 @@ describe("ContentPlanTable", () => {
     const { onSortToggle } = renderTable();
     fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
     expect(onSortToggle).toHaveBeenCalledOnce();
+  });
+
+  // Measured by hit-testing: the creator's name answered 20px tall on a phone's card and 17px in
+  // the desktop row, under WCAG 2.5.8's 24px. It is a lone link to the creator, so it gets 24px.
+  it("gives the creator's link at least a 24px press", () => {
+    renderTable();
+
+    expectMinTarget(screen.getByRole("link", { name: "Salsa" }));
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (727 of 871px at 1024px).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    renderTable();
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });

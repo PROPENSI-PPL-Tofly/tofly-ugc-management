@@ -256,11 +256,18 @@ describe("toCreatorDetailView", () => {
           total: 4,
           isCurrent: true,
           progress: { submitted: 2, total: 4, percent: 50 },
-          performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk" },
+          performance: {
+            onTimeRate: 0,
+            avgRevisions: 2.33,
+            productivity: "risk",
+            productivityLabel: "Berisiko",
+          },
         },
       ],
     } as unknown as RawCreatorDetail;
 
+    // The period's own progress and performance are carried for Creator Detail to show; the
+    // fixed rate and the counts the progress already holds are not.
     expect(toCreatorDetailView(answered, CONTENTS, BARE).selected).toEqual({
       contractId: NEWEST,
       periodNumber: 2,
@@ -272,7 +279,37 @@ describe("toCreatorDetailView", () => {
       evergreenCount: 2,
       remainingEvergreenQuota: 4,
       daysBetween: 14,
+      progress: { submitted: 2, total: 4, percent: 50 },
+      performance: {
+        onTimeRate: 0,
+        avgRevisions: 2.33,
+        productivity: "risk",
+        productivityLabel: "Berisiko",
+      },
     });
+  });
+
+  it("keeps each period's own measurements apart", () => {
+    const answered = {
+      ...RAW,
+      contractHistory: [
+        period(OLDEST, {
+          progress: { submitted: 3, total: 3, percent: 100 },
+          performance: { onTimeRate: 100, avgRevisions: 0, productivity: "good", productivityLabel: "Baik" },
+        }),
+        period(NEWEST, {
+          progress: { submitted: 1, total: 6, percent: 17 },
+          performance: { onTimeRate: 50, avgRevisions: 3, productivity: "risk", productivityLabel: "Berisiko" },
+        }),
+      ],
+    } as RawCreatorDetail;
+
+    const [newest, oldest] = toCreatorDetailView(answered, CONTENTS, BARE).periods;
+
+    expect(newest.performance?.onTimeRate).toBe(50);
+    expect(newest.progress?.submitted).toBe(1);
+    expect(oldest.performance?.productivityLabel).toBe("Baik");
+    expect(oldest.progress?.percent).toBe(100);
   });
 
   it.each([

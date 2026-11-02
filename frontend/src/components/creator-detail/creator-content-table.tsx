@@ -13,9 +13,15 @@ import { needsReview } from "@/lib/content-plan";
 import type { ContentType } from "@/lib/contents";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 align-top";
+
+// Below lg a row reads as a card, as the roster's and Task Saya's do: cells stack, and a value
+// names its column from data-label since the header row is hidden.
+const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+const LABELLED =
+  "max-lg:flex max-lg:items-start max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-xs max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
 /** The type sits under the name as a small pill, coloured apart as the prototype colours them. */
 const TYPE_TONES: Record<ContentType, Tone> = {
@@ -52,26 +58,28 @@ export function CreatorContentTable({
 
   return (
     // Positioned, so the sr-only heading below is laid out inside the scroll area, not the page.
-    <div className="relative overflow-x-auto">
-      <table className="w-full text-[13px]">
-        <thead>
-          <tr className="border-b border-rule text-left text-muted">
-            <th scope="col" className={HEAD}>
+    <ScrollFrame>
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
+      <table role="table" className="w-full text-[13px] max-lg:block">
+        <thead role="rowgroup" className="max-lg:sr-only">
+          <tr role="row" className="border-b border-rule text-left text-muted">
+            <th role="columnheader" scope="col" className={HEAD}>
               Konten
             </th>
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               Deadline
             </th>
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               Status
             </th>
-            <th scope="col" className={HEAD}>
+            <th role="columnheader" scope="col" className={HEAD}>
               {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
               <span className="sr-only">Aksi</span>
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup" className="max-lg:block">
           {rows.map((row) => {
             const action = needsReview(row.status) ? "Tinjau" : "Detail";
 
@@ -80,21 +88,27 @@ export function CreatorContentTable({
               // in the last cell is the same door for the keyboard and for screen readers.
               <tr
                 key={row.contentId}
+                role="row"
                 onClick={() => {
                   // Dragging across a name to copy it ends in a click here: copying, not opening.
                   if (window.getSelection()?.toString()) return;
                   onOpen(row.contentId);
                 }}
-                className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
+                className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2 max-lg:block max-lg:px-5 max-lg:py-3"
               >
-                <td className={`${CELL} min-w-52`}>
+                <td className={`${CELL} min-w-52 max-lg:min-w-0`}>
                   <p className="font-semibold text-ink wrap-anywhere">{row.name}</p>
                   <p className="mt-1">
                     <Pill tone={TYPE_TONES[row.type]}>{CONTENT_TYPE_LABELS[row.type]}</Pill>
                   </p>
                 </td>
-                <td className={`${CELL} whitespace-nowrap`}>{formatDate(row.deadline)}</td>
-                <td className={CELL}>
+                <td
+                  data-label="Deadline"
+                  className={`${CELL} ${LABELLED} whitespace-nowrap`}
+                >
+                  {formatDate(row.deadline)}
+                </td>
+                <td data-label="Status" className={`${CELL} ${LABELLED}`}>
                   <span className="flex flex-wrap items-center gap-1.5">
                     {/* A pill, as the prototype draws a status on this page. */}
                     <Pill tone={CONTENT_STATUS_TONES[row.status]}>
@@ -108,7 +122,7 @@ export function CreatorContentTable({
                     ) : null}
                   </span>
                 </td>
-                <td className={CELL}>
+                <td className={`${CELL} max-lg:pt-2`}>
                   <button
                     type="button"
                     // Every row has one; the content's name tells them apart when heard.
@@ -118,7 +132,9 @@ export function CreatorContentTable({
                       event.stopPropagation();
                       onOpen(row.contentId);
                     }}
-                    className={`${buttonClasses(needsReview(row.status) ? "accent" : "ghost")} px-2 py-1`}
+                    // A full-width target on a phone, well above WCAG 2.5.8's 24px. The ghost
+                    // variant gains a border there, so it still reads as a button in a card.
+                    className={`${buttonClasses(needsReview(row.status) ? "accent" : "ghost")} px-2 py-1 max-lg:min-h-11 max-lg:w-full max-lg:border-rule`}
                   >
                     {action}
                   </button>
@@ -128,6 +144,6 @@ export function CreatorContentTable({
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

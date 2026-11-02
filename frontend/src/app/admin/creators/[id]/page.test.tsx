@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import type { CreatorDetailView, CreatorPeriod } from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 import CreatorDetailPage, { metadata } from "./page";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const FIRST = "11111111-1111-4111-8111-111111111111";
@@ -121,6 +122,63 @@ describe("Creator Detail page", () => {
       "href",
       "/admin/creators",
     );
+  });
+
+  describe("the way back to the Creator Database", () => {
+    function backLink() {
+      return screen.getByRole("link", { name: "← Kembali ke Creator Database" });
+    }
+
+    // A one-line text link was 20px tall: under the 24px WCAG 2.5.8 asks for, on the page's
+    // only way back. On a phone it gets the 44px a main way around needs.
+    it("is a 44px press on a phone", async () => {
+      await renderPage();
+
+      expectPhoneTarget(backLink());
+    });
+
+    it("returns to the search, filters and page the admin left", async () => {
+      await renderPage({ return: "q=nadia&contractStatus=active&productivity=risk&page=3" });
+
+      expect(backLink()).toHaveAttribute(
+        "href",
+        "/admin/creators?q=nadia&contractStatus=active&productivity=risk&page=3",
+      );
+    });
+
+    it("returns to only the parts of the view that were set", async () => {
+      await renderPage({ return: "productivity=no_data" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators?productivity=no_data");
+    });
+
+    it("returns to the bare roster when the view held nothing the roster reads", async () => {
+      await renderPage({ return: "contractStatus=bogus&page=-1&next=%2F%2Fevil.example" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators");
+    });
+
+    it("keeps the view to return to on the links to another period", async () => {
+      await renderPage({ return: "page=3" });
+
+      const periods = within(screen.getByRole("navigation", { name: "Pilih periode kontrak" }));
+      expect(periods.getByRole("link", { name: /Periode 1/ })).toHaveAttribute(
+        "href",
+        `${PAGE}?contract=${FIRST}&return=page%3D3`,
+      );
+      expect(periods.getByRole("link", { name: /Periode 2/ })).toHaveAttribute(
+        "href",
+        `${PAGE}?return=page%3D3`,
+      );
+    });
+
+    it("keeps the view to return to when the detail cannot be loaded", async () => {
+      vi.mocked(fetchCreatorDetail).mockRejectedValue(new Error("503"));
+
+      await renderPage({ return: "q=nadia" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators?q=nadia");
+    });
   });
 
   // PBI-4: creator → contract history per period → content per contract, on one page.

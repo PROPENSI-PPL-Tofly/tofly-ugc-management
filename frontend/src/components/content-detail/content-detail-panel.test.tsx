@@ -144,6 +144,53 @@ describe("ContentDetailPanel", () => {
     expect(kirim).toBeEnabled();
   });
 
+  // Client feedback B4: the note is required (the backend refuses an empty or blank one), but
+  // nothing on screen said so, and Kirim Revisi was disabled without a reason.
+  describe("the required revision note", () => {
+    async function openRevisionForm() {
+      open(detail());
+      fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+      return screen.getByRole("textbox", { name: "Catatan revisi untuk creator" });
+    }
+
+    it("marks the field as required on screen, and to assistive technology", async () => {
+      const note = await openRevisionForm();
+
+      expect(note).toBeRequired();
+      expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true");
+    });
+
+    it("says nothing is wrong before the admin has left the field", async () => {
+      const note = await openRevisionForm();
+
+      expect(note).not.toHaveAttribute("aria-invalid", "true");
+      expect(screen.queryByText("Catatan revisi wajib diisi sebelum dikirim.")).toBeNull();
+    });
+
+    it("says why Kirim Revisi is unavailable once the field is left empty or blank", async () => {
+      const note = await openRevisionForm();
+
+      fireEvent.change(note, { target: { value: "   " } });
+      fireEvent.blur(note);
+
+      const message = screen.getByText("Catatan revisi wajib diisi sebelum dikirim.");
+      expect(note).toHaveAttribute("aria-invalid", "true");
+      expect(note.getAttribute("aria-describedby")).toContain(message.id);
+      expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeDisabled();
+    });
+
+    it("clears the message as soon as real text is typed", async () => {
+      const note = await openRevisionForm();
+      fireEvent.blur(note);
+
+      fireEvent.change(note, { target: { value: "Audio terlalu pelan." } });
+
+      expect(screen.queryByText("Catatan revisi wajib diisi sebelum dikirim.")).toBeNull();
+      expect(note).toHaveAttribute("aria-invalid", "false");
+      expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled();
+    });
+  });
+
   it("sends the trimmed note and reports the decision upward", async () => {
     const revise = vi.fn().mockResolvedValue(undefined);
     const onDecided = vi.fn();
@@ -575,6 +622,18 @@ describe("ContentDetailPanel", () => {
       expect(screen.getByTestId("step-text")).toHaveTextContent(
         "Kreator mengajukan konten ini. Setujui untuk menjadwalkannya, atau tolak untuk menghapusnya.",
       );
+    });
+
+    it("keeps the optional rejection reason free of a required mark or message", async () => {
+      open(proposal());
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+      const reason = screen.getByRole("textbox", { name: "Alasan penolakan (opsional)" });
+      fireEvent.blur(reason);
+
+      expect(reason).not.toBeRequired();
+      expect(screen.queryByText("*")).toBeNull();
+      expect(reason).not.toHaveAttribute("aria-invalid", "true");
     });
 
     it("tells the proposing creator it is with the admin, with nothing to press", async () => {

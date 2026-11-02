@@ -47,6 +47,73 @@ describe("CreatorContentTable", () => {
     expect(scrollArea).toHaveClass("relative");
   });
 
+  // Measured in Edge at true 320/375/390/430 px: the table is 628 px wide in a 286-396 px area,
+  // so Status, its tags and Detail/Tinjau all sat off-screen. Below lg each row reads as a card,
+  // as the roster and Task Saya do. jsdom lays nothing out, so these pin what the layout is built
+  // from; the browser measurement is the evidence for the layout itself.
+  describe("on a phone, below lg", () => {
+    function cells() {
+      return within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell");
+    }
+
+    // A table whose display changes can lose its semantics in some browsers, so the table, its
+    // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
+    it("reads each card as a row of cells, one per column, under explicit table roles", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Spc_Done", status: "link_submitted" }]);
+
+      const table = screen.getByRole("table");
+      expect(table).toHaveAttribute("role", "table");
+      for (const group of within(table).getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
+      }
+      const columns = within(table).getAllByRole("columnheader");
+      const [, ...records] = within(table).getAllByRole("row");
+      expect(records).toHaveLength(2);
+      for (const record of records) {
+        expect(record).toHaveAttribute("role", "row");
+        expect(within(record).getAllByRole("cell")).toHaveLength(columns.length);
+      }
+    });
+
+    it("keeps table semantics while the rows stack as cards", () => {
+      renderTable();
+
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
+      expect(rowOf("Evg_7_RanggaPratama_26092026")).toHaveClass("max-lg:block");
+      expect(cells()).toHaveLength(4);
+    });
+
+    it("names the deadline and the status by their columns, since the headers are hidden", () => {
+      renderTable();
+
+      expect(cells().map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Deadline",
+        "Status",
+        null,
+      ]);
+    });
+
+    it("lets a long name wrap instead of holding the card wider than the phone", () => {
+      renderTable();
+
+      const [name] = cells();
+      expect(name).toHaveClass("min-w-52");
+      expect(name).toHaveClass("max-lg:min-w-0");
+    });
+
+    it("gives Detail and Tinjau a full-width touch target at least 44px tall", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Spc_Done", status: "link_submitted" }]);
+
+      for (const name of ["Tinjau Evg_7_RanggaPratama_26092026", "Detail Spc_Done"]) {
+        const button = screen.getByRole("button", { name });
+        expect(button).toHaveClass("max-lg:w-full");
+        expect(button).toHaveClass("max-lg:min-h-11");
+      }
+    });
+  });
+
   it("fills a row with the content, its type under the name, and its formatted deadline", () => {
     renderTable();
 
@@ -242,5 +309,13 @@ describe("CreatorContentTable", () => {
 
     expect(screen.getByText('<img src=x onerror="alert(1)">')).toBeInTheDocument();
     expect(container.querySelector("img, script")).toBeNull();
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as Content Plan's does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    renderTable();
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });

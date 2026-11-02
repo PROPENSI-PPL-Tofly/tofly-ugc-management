@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { MyTask } from "@/lib/my-tasks";
+import { expectPhoneTarget } from "@/test/touch-target";
 import { TaskCalendar } from "./task-calendar";
 
 const TODAY = "2026-10-09";
@@ -28,6 +29,13 @@ function renderCalendar(tasks: MyTask[] = [task()], today = TODAY) {
 /** The month grid alone: the list under it names the same tasks, for small screens. */
 function grid() {
   return within(screen.getByRole("table"));
+}
+
+/** The task chips in a day's cell, leaving out the button that chooses the day. */
+function chips(cell: HTMLElement): HTMLElement[] {
+  return within(cell)
+    .queryAllByRole("button")
+    .filter((button) => button.hasAttribute("data-group"));
 }
 
 /** The cell of one calendar day. */
@@ -73,7 +81,7 @@ describe("TaskCalendar", () => {
         name: "Tutorial Latihan Listening · Scheduled",
       }),
     ).toHaveTextContent("Tutorial Latihan Listening");
-    expect(within(day(container, "2026-10-13")).queryByRole("button")).not.toBeInTheDocument();
+    expect(chips(day(container, "2026-10-13"))).toEqual([]);
   });
 
   it("shortens an Evergreen chip but still names the content in full for a screen reader", () => {
@@ -114,11 +122,10 @@ describe("TaskCalendar", () => {
       task({ id: "b", name: "Kedua" }),
     ]);
 
-    expect(
-      within(day(container, "2026-10-12"))
-        .getAllByRole("button")
-        .map((chip) => chip.textContent),
-    ).toEqual(["Pertama", "Kedua"]);
+    expect(chips(day(container, "2026-10-12")).map((chip) => chip.textContent)).toEqual([
+      "Pertama",
+      "Kedua",
+    ]);
   });
 
   it("asks to open the content a chip stands for", () => {
@@ -176,6 +183,32 @@ describe("TaskCalendar", () => {
       fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
 
       expect(container.querySelector('[aria-current="date"]')).not.toBeInTheDocument();
+    });
+
+    // Client feedback C4: a deadline range picked on the table must still mean something on the
+    // calendar, which used to open on today's month and look empty for a range elsewhere.
+    it("opens on the month a chosen deadline range starts in, with Hari Ini a press away", () => {
+      const onOpen = vi.fn();
+      render(
+        <TaskCalendar
+          tasks={[OCTOBER, task({ id: "dec", name: "Konten Desember", deadline: "2026-12-05" })]}
+          today={TODAY}
+          opensOn="2026-12-03"
+          onOpen={onOpen}
+        />,
+      );
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+      expect(grid().getByRole("button", { name: /Konten Desember/ })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Hari Ini" }));
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on today's month when the range names no day", () => {
+      render(<TaskCalendar tasks={[OCTOBER]} today={TODAY} opensOn={null} onOpen={vi.fn()} />);
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
     });
 
     it("has nowhere to go back to while the current month is shown", () => {
@@ -305,5 +338,196 @@ describe("TaskCalendar", () => {
       "Overdue",
       "Hari Ini",
     ]);
+  });
+
+  // Client feedback C2: on a phone the grid only shows dots, and the list under it holds the
+  // whole month. Choosing a day narrows that list to the day, without touching the filters,
+  // the tab or the view: the calendar only shows the tasks it is handed.
+  describe("choosing a day", () => {
+    const ON_12 = task({ id: "a", name: "Review serum", deadline: "2026-10-12" });
+    const ON_20 = task({ id: "b", name: "Unboxing botol", deadline: "2026-10-20", status: "draft_review" });
+
+    function agenda() {
+      return screen.getByRole("region", { name: /^Task / });
+    }
+
+    function entries() {
+      return within(agenda())
+        .queryAllByRole("listitem")
+        .map((item) => item.textContent);
+    }
+
+    it("offers each day as a button named by its date and how many tasks fall on it", () => {
+      renderCalendar([ON_12]);
+
+      expect(grid().getByRole("button", { name: "12 Okt 2026, 1 task" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+      expect(grid().getByRole("button", { name: "13 Okt 2026, tidak ada task" })).toBeInTheDocument();
+    });
+
+    it("lists only the chosen day's tasks, and marks the day as chosen", () => {
+      const { container } = renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      expect(grid().getByRole("button", { name: "12 Okt 2026, 1 task" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(day(container, "2026-10-12")).toHaveAttribute("data-selected");
+      expect(agenda()).toHaveAccessibleName("Task 12 Okt 2026");
+      expect(entries()).toEqual([expect.stringContaining("Review serum")]);
+    });
+
+    it("moves to another day on the next press, letting go of the first", () => {
+      renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+
+      expect(agenda()).toHaveAccessibleName("Task 20 Okt 2026");
+      expect(entries()).toEqual([expect.stringContaining("Unboxing botol")]);
+      expect(grid().getByRole("button", { name: "12 Okt 2026, 1 task" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("says so when the chosen day has no task", () => {
+      renderCalendar([ON_12]);
+
+      fireEvent.click(grid().getByRole("button", { name: "13 Okt 2026, tidak ada task" }));
+
+      expect(within(agenda()).getByText("Tidak ada task di tanggal ini.")).toBeInTheDocument();
+      expect(entries()).toEqual([]);
+    });
+
+    it("opens the content an entry of the chosen day stands for", () => {
+      const { onOpen } = renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+      fireEvent.click(within(agenda()).getByRole("button", { name: /Unboxing botol/ }));
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith("b");
+    });
+
+    it("goes back to the whole month, from its own button or by pressing the day again", () => {
+      renderCalendar([ON_12, ON_20]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      fireEvent.click(within(agenda()).getByRole("button", { name: "Lihat sebulan" }));
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+      expect(entries()).toHaveLength(2);
+
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+      fireEvent.click(grid().getByRole("button", { name: "20 Okt 2026, 1 task" }));
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+    });
+
+    // Measured at 375px: 24px tall, beside a heading in a row that has room for 44px. On a phone
+    // it is the way out of a day's agenda, so it is a 44px press there like the days are.
+    it("makes Lihat sebulan a 44px press on a phone that still goes back to the month", () => {
+      renderCalendar([ON_12, ON_20]);
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      const back = within(agenda()).getByRole("button", { name: "Lihat sebulan" });
+      expectPhoneTarget(back);
+
+      fireEvent.click(back);
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+    });
+
+    it("announces the agenda's new heading as it changes", () => {
+      renderCalendar([ON_12]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      const heading = within(agenda()).getByRole("heading", { name: "Task 12 Okt 2026" });
+      expect(heading.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+    });
+
+    it("shows the chosen day's agenda at every width, where the month's list is for phones only", () => {
+      renderCalendar([ON_12]);
+
+      expect(agenda()).toHaveClass("sm:hidden");
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      expect(agenda()).not.toHaveClass("sm:hidden");
+    });
+
+    it("keeps the chosen day when a filter hands it different tasks", () => {
+      const { rerender, onOpen } = renderCalendar([ON_12, ON_20]);
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+
+      const other = task({ id: "c", name: "Haul kemasan", deadline: "2026-10-12", type: "evergreen" });
+      rerender(<TaskCalendar tasks={[other]} today={TODAY} onOpen={onOpen} />);
+
+      expect(agenda()).toHaveAccessibleName("Task 12 Okt 2026");
+      expect(entries()).toEqual([expect.stringContaining("Haul kemasan")]);
+    });
+
+    it("lets go of the chosen day when the month is turned", () => {
+      renderCalendar([ON_12]);
+
+      fireEvent.click(grid().getByRole("button", { name: "12 Okt 2026, 1 task" }));
+      fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
+
+      expect(agenda()).toHaveAccessibleName("Task bulan ini");
+    });
+  });
+
+  // Measured by hit-testing at 375px: the month arrows answered 24x30px and a day 30x24px. On a
+  // phone they are how the month is turned and a day's agenda opened, so each is 44px tall (the
+  // arrows 44px wide as well; seven days share the row, so a day keeps the width it has).
+  it("gives the month arrows and each day a 44px press on a phone", () => {
+    renderCalendar();
+
+    for (const name of ["Bulan Sebelumnya", "Bulan Berikutnya"]) {
+      expectPhoneTarget(screen.getByRole("button", { name }));
+      expect(screen.getByRole("button", { name })).toHaveClass("max-sm:min-w-11");
+    }
+    const days = grid()
+      .getAllByRole("button")
+      .filter((button) => button.hasAttribute("aria-pressed"));
+    expect(days.length).toBeGreaterThan(27);
+    for (const button of days) expectPhoneTarget(button);
+  });
+
+  // Measured with the app's CSS at 375px: a task chip, only a dot on a phone, answered 35x12px
+  // in a 48px-wide day. Seven days share the row, so a chip cannot be 44px wide; on a phone it
+  // spans its whole day (the cell's padding included) and is 44px tall, the day growing to fit.
+  // What shows stays the dot: the chip's wash is dropped there, so the press grows, not the mark.
+  it("makes each task chip a 44px press across its day on a phone that still opens the task", () => {
+    const { container, onOpen } = renderCalendar([
+      task({ id: "content-7", deadline: "2026-10-12" }),
+      task({ id: "content-8", name: "Kedua", deadline: "2026-10-12" }),
+    ]);
+    const chipsOn12 = chips(day(container, "2026-10-12"));
+    expect(chipsOn12).toHaveLength(2);
+
+    for (const chip of chipsOn12) {
+      expectPhoneTarget(chip);
+      // Across the day: width from the margins, not w-full, so the cell's padding is covered.
+      expect(chip).toHaveClass("max-sm:-mx-1.5", "max-sm:w-auto");
+      // The mark stays an 8px dot, without the chip's wash behind it.
+      expect(chip).toHaveClass("max-sm:bg-transparent");
+      expect(chip.querySelector('[aria-hidden="true"]')).toHaveClass("size-2", "sm:hidden");
+    }
+
+    fireEvent.click(chipsOn12[1]);
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("content-8");
+  });
+
+  it("keeps a task chip's look from sm up, where it shows the task's name", () => {
+    const { container } = renderCalendar([task({ id: "content-7", deadline: "2026-10-12" })]);
+    const [chip] = chips(day(container, "2026-10-12"));
+
+    expect(chip).toHaveClass("w-full", "px-1.5", "py-0.5", "bg-amber-wash");
+    for (const name of chip.className.split(" ")) {
+      if (name.includes("min-h") || name.includes("-mx-") || name.includes("w-auto")) {
+        expect(name.startsWith("max-sm:")).toBe(true);
+      }
+    }
   });
 });

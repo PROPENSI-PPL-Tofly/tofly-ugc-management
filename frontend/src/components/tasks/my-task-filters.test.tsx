@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { DEFAULT_MY_TASKS_PARAMS, type MyTasksParams } from "@/lib/my-tasks";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { DEFAULT_MY_TASKS_PARAMS, type MyTasksCounts, type MyTasksParams } from "@/lib/my-tasks";
 import { MyTaskFilters } from "./my-task-filters";
+import { MyTaskTabBar } from "./my-task-tab-bar";
 
 const replace = vi.fn();
 let searchParams = new URLSearchParams();
@@ -11,10 +12,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/creator/tasks",
 }));
 
+const COUNTS: MyTasksCounts = { all: 5, action: 3, waiting: 1, done: 1 };
+
 /** Renders the bar on an address, with the server's reading of it as the bar's state. */
 function renderOn(query: Record<string, string> = {}, state: Partial<MyTasksParams> = {}) {
   searchParams = new URLSearchParams(query);
-  return render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} />);
+  return render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} counts={COUNTS} />);
 }
 
 beforeEach(() => {
@@ -31,7 +34,7 @@ describe("MyTaskFilters", () => {
     renderOn();
 
     expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Tipe:/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Tipe" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Status:/ })).toBeInTheDocument();
     expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
     expect(screen.getByLabelText("Periode")).toBeInTheDocument();
@@ -92,13 +95,66 @@ describe("MyTaskFilters", () => {
     expect(replace).toHaveBeenCalledWith("/creator/tasks?tab=action&q=serum", { scroll: false });
   });
 
-  it("puts picked types in the address, comma-separated", () => {
-    renderOn();
+  // Client feedback C5: one type at a time reads plainer as a set of radio choices than as a
+  // checklist behind a pill. The address keeps the values it always had.
+  describe("Tipe, one choice at a time", () => {
+    it("offers Semua and every type as radios in one named group, Semua chosen by default", () => {
+      renderOn();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Tipe:/ }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Specific" }));
+      const group = within(screen.getByRole("group", { name: "Tipe" }));
+      const radios = group.getAllByRole("radio");
+      expect(radios.map((radio) => radio.closest("label")?.textContent)).toEqual([
+        "Semua",
+        "Evergreen",
+        "Specific",
+      ]);
+      expect(group.getByRole("radio", { name: "Semua" })).toBeChecked();
+      // One name, so the arrow keys move between them and Tab stops on the group once.
+      expect(new Set(radios.map((radio) => radio.getAttribute("name"))).size).toBe(1);
+      expect(screen.queryByRole("button", { name: /^Tipe:/ })).not.toBeInTheDocument();
+    });
 
-    expect(replace).toHaveBeenLastCalledWith("/creator/tasks?type=specific", { scroll: false });
+    it.each([
+      ["Evergreen", "evergreen"],
+      ["Specific", "specific"],
+    ])("puts %s in the address under the value it always had", (name, value) => {
+      renderOn();
+
+      fireEvent.click(screen.getByRole("radio", { name }));
+
+      expect(replace).toHaveBeenLastCalledWith(`/creator/tasks?type=${value}`, { scroll: false });
+    });
+
+    it("shows the address's type as the chosen radio", () => {
+      renderOn({ type: "specific" }, { type: ["specific"] });
+
+      expect(screen.getByRole("radio", { name: "Specific" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "Semua" })).not.toBeChecked();
+    });
+
+    it("goes back to every type with Semua, keeping the tab and the other filters", () => {
+      renderOn({ tab: "waiting", type: "specific", overdue: "yes" }, { tab: "waiting", type: ["specific"] });
+
+      fireEvent.click(screen.getByRole("radio", { name: "Semua" }));
+
+      expect(replace).toHaveBeenLastCalledWith("/creator/tasks?tab=waiting&overdue=yes", { scroll: false });
+    });
+
+    it("moves from one type straight to the other, never to both", () => {
+      renderOn({ type: "evergreen" }, { type: ["evergreen"] });
+
+      fireEvent.click(screen.getByRole("radio", { name: "Specific" }));
+
+      expect(replace).toHaveBeenLastCalledWith("/creator/tasks?type=specific", { scroll: false });
+    });
+
+    it("is cleared by Reset with everything else", () => {
+      renderOn({ type: "evergreen", q: "serum" }, { type: ["evergreen"], q: "serum" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+      expect(replace).toHaveBeenLastCalledWith("/creator/tasks", { scroll: false });
+    });
   });
 
   it("puts picked statuses in the address", () => {
@@ -118,20 +174,24 @@ describe("MyTaskFilters", () => {
       { type: ["evergreen"], status: ["scheduled"] },
     );
 
-    expect(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Evergreen" })).toBeChecked();
     expect(screen.getByRole("button", { name: "Hapus filter Status: Scheduled" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("Evergreen");
+    expect(screen.getAllByRole("button", { name: /^Hapus filter/ })).toHaveLength(1);
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Scheduled");
   });
 
-  it("shows every pick of a type the address repeats, as the list is narrowed by all of them", () => {
+  // Every type named is every type: the list shows all of them, so the choice reads Semua.
+  it("reads an address naming every type, repeated or not, as Semua", () => {
     searchParams = new URLSearchParams("type=evergreen&type=specific");
     render(
-      <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, type: ["evergreen", "specific"] }} />,
+      <MyTaskFilters
+        state={{ ...DEFAULT_MY_TASKS_PARAMS, type: ["evergreen", "specific"] }}
+        counts={COUNTS}
+      />,
     );
 
-    expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("2 dipilih");
+    expect(screen.getByRole("radio", { name: "Semua" })).toBeChecked();
+    expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
   });
 
   it("shows no chip for a status another tab holds", () => {
@@ -172,11 +232,27 @@ describe("MyTaskFilters", () => {
   it("picks a period, and the custom days once Pilih tanggal is chosen", () => {
     renderOn({ period: "custom" }, { period: "custom" });
 
-    fireEvent.change(screen.getByLabelText("Dari"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Deadline mulai"), { target: { value: "2026-10-01" } });
 
     expect(replace).toHaveBeenLastCalledWith("/creator/tasks?period=custom&from=2026-10-01", {
       scroll: false,
     });
+  });
+
+  // Like the period chip: both days go in one navigation, so no address with one day left on
+  // it is ever opened. The range stays picked, and so do the tab and the other filters.
+  it("clears both custom days in one navigation with Kosongkan tanggal", () => {
+    renderOn(
+      { tab: "waiting", type: "specific", period: "custom", from: "2026-10-01", to: "2026-10-31" },
+      { tab: "waiting", period: "custom" },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Kosongkan tanggal" }));
+
+    expect(replace).toHaveBeenCalledExactlyOnceWith(
+      "/creator/tasks?tab=waiting&type=specific&period=custom",
+      { scroll: false },
+    );
   });
 
   it("says Perlu Dikerjakan ignores the period, since work to do never hides behind a date", () => {
@@ -226,7 +302,7 @@ describe("MyTaskFilters", () => {
     ) {
       searchParams = new URLSearchParams({ view: "calendar", ...query });
       return render(
-        <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} view="calendar" />,
+        <MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, ...state }} view="calendar" counts={COUNTS} />,
       );
     }
 
@@ -271,10 +347,101 @@ describe("MyTaskFilters", () => {
 
   it("keeps the table's address free of a view when it is told the view is the table", () => {
     searchParams = new URLSearchParams({ overdue: "yes" });
-    render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, overdue: "yes" }} view="table" />);
+    render(<MyTaskFilters state={{ ...DEFAULT_MY_TASKS_PARAMS, overdue: "yes" }} view="table" counts={COUNTS} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
     expect(replace).toHaveBeenLastCalledWith("/creator/tasks", { scroll: false });
+  });
+
+  // The approved design folds the filters behind one Filter button on a phone, with no row of
+  // chips: the button counts what is on, and the open controls show each choice themselves.
+  describe("folded on a phone", () => {
+    const NARROWED = {
+      type: "evergreen",
+      status: "scheduled,draft_revision",
+      overdue: "yes",
+      period: "custom",
+      from: "2026-12-03",
+      to: "2026-12-20",
+    };
+
+    it("counts every active filter, each pick on its own, and draws no chip row", () => {
+      renderOn(NARROWED, { period: "custom" });
+
+      expect(screen.getByRole("button", { name: "Filter, 5 aktif" })).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+    });
+
+    // The approved design moves the tabs into the folded filters on a phone, as one choice.
+    it("offers the tabs as one Tampilkan choice, each with its count", () => {
+      renderOn({ tab: "waiting" }, { tab: "waiting" });
+
+      expect(screen.getByRole("combobox", { name: "Tampilkan" })).toHaveValue("waiting");
+      expect(
+        Array.from(screen.getByRole("combobox", { name: "Tampilkan" }).querySelectorAll("option")).map(
+          (option) => option.textContent,
+        ),
+      ).toEqual(["Semua (5)", "Perlu Dikerjakan (3)", "Menunggu Admin (1)", "Selesai (1)"]);
+    });
+
+    // Picking a tab in the filters must be the very same move as pressing it in the tab row:
+    // one navigation, to the same address (the tab's contract applied, the view kept).
+    it("picks a tab exactly as pressing it does: one navigation to the same address", () => {
+      const query = { type: "specific", status: "scheduled", period: "month", view: "calendar", page: "2" };
+      const state = { type: ["specific" as const], status: ["scheduled" as const], period: "month" as const };
+
+      searchParams = new URLSearchParams(query);
+      const bar = render(<MyTaskTabBar active="all" counts={COUNTS} />);
+      fireEvent.click(screen.getByRole("tab", { name: /Menunggu Admin/ }));
+      expect(replace).toHaveBeenCalledOnce();
+      const pressed = replace.mock.calls[0];
+      bar.unmount();
+      replace.mockClear();
+
+      renderOn(query, state);
+      fireEvent.change(screen.getByRole("combobox", { name: "Tampilkan" }), { target: { value: "waiting" } });
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith(...pressed);
+    });
+
+    it("counts a tab other than Semua as a filter in use", () => {
+      renderOn({ tab: "waiting" }, { tab: "waiting" });
+
+      expect(screen.getByRole("button", { name: "Filter, 1 aktif" })).toBeInTheDocument();
+    });
+
+    it("counts nothing while nothing is narrowed, the search being its own box", () => {
+      renderOn({ q: "serum" });
+
+      expect(screen.getByRole("button", { name: "Filter" })).toBeInTheDocument();
+    });
+
+    // E1: a period is taken off where it is chosen. Picking Semua periode takes the period and
+    // both custom days off in one navigation, so the list renders once and no address with half
+    // a period on it is ever opened; the tab, the view and the search stay.
+    it("takes the deadline range off in one navigation, keeping the tab, the view and the search", () => {
+      renderOn(
+        { ...NARROWED, tab: "waiting", view: "calendar", q: "serum" },
+        { tab: "waiting", period: "custom" },
+      );
+
+      fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), { target: { value: "all" } });
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith(
+        "/creator/tasks?type=evergreen&status=scheduled%2Cdraft_revision&overdue=yes&tab=waiting&view=calendar&q=serum",
+        { scroll: false },
+      );
+    });
+
+    it("takes a named period off in one navigation, keeping every other filter", () => {
+      renderOn({ type: "specific", period: "month", tab: "waiting" }, { tab: "waiting", period: "month" });
+
+      fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), { target: { value: "all" } });
+
+      expect(replace).toHaveBeenCalledExactlyOnceWith("/creator/tasks?type=specific&tab=waiting", {
+        scroll: false,
+      });
+    });
   });
 });

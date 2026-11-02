@@ -47,6 +47,7 @@ function renderPlan() {
       <ContentPlanTabBar active="all" counts={COUNTS} />
       <ContentPlanFilters
         state={DEFAULT_CONTENT_PLAN_PARAMS}
+        counts={COUNTS}
         creators={[
           { id: "id-1", name: "Salsa" },
           { id: "id-2", name: "Rangga" },
