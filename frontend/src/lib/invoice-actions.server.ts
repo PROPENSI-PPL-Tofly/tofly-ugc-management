@@ -44,15 +44,18 @@ export type FinalizeOutcome =
       lastSync?: LastSyncReport;
     };
 
+/** A move the backend or this layer refused. */
+type Refusal = Extract<ActionOutcome, { ok: false }>;
+
 /** What every failure says when there is no operator-facing message to show. */
 const GENERIC_FAILURE = "Permintaan tidak dapat diproses. Coba lagi.";
 
-function refuse(code: string, message: string, fieldErrors?: AdjustmentErrors): ActionOutcome {
+function refuse(code: string, message: string, fieldErrors?: AdjustmentErrors): Refusal {
   return fieldErrors ? { ok: false, code, message, fieldErrors } : { ok: false, code, message };
 }
 
 /** The coded refusals of the invoice lifecycle read for an admin; unknown ones stand as sent. */
-function readRefusal(status: number, body: Record<string, unknown>): ActionOutcome {
+function readRefusal(status: number, body: Record<string, unknown>): Refusal {
   const code = typeof body.code === "string" ? body.code : `HTTP_${status}`;
   const said = typeof body.message === "string" ? body.message : "";
   return refuse(code, refusalMessage(code) ?? (said !== "" ? said : GENERIC_FAILURE));
@@ -68,7 +71,7 @@ async function bodyOf(response: Response): Promise<Record<string, unknown> | nul
 }
 
 /** Why the backend refused a move, in words for the admin, and the body it said it in. */
-async function refusalOf(response: Response): Promise<[ActionOutcome, Record<string, unknown>]> {
+async function refusalOf(response: Response): Promise<[Refusal, Record<string, unknown>]> {
   // Only a message written for the operator passes through; anything else is generic (OWASP A05).
   const parsed = await bodyOf(response);
   if (parsed === null) return [refuse(`HTTP_${response.status}`, GENERIC_FAILURE), {}];
@@ -98,7 +101,7 @@ async function move(path: string, body?: unknown): Promise<ActionOutcome> {
 }
 
 /** The path guards every invoice move shares: an id the API would take and an admin asking. */
-async function allowed(contractId: string): Promise<ActionOutcome | null> {
+async function allowed(contractId: string): Promise<Refusal | null> {
   if (typeof contractId !== "string" || !isUuid(contractId)) {
     return refuse("INVOICE_NOT_FOUND", REFUSAL_MESSAGES.INVOICE_NOT_FOUND);
   }
@@ -142,7 +145,7 @@ export async function finalizeInvoice(
   { acceptPendingBonus }: { acceptPendingBonus?: boolean } = {},
 ): Promise<FinalizeOutcome> {
   const blocked = await allowed(contractId);
-  if (blocked) return blocked as FinalizeOutcome;
+  if (blocked) return blocked;
 
   const response = await backendPost(`/invoices/${contractId}/finalize`, {
     acceptPendingBonus: acceptPendingBonus === true,
@@ -151,7 +154,7 @@ export async function finalizeInvoice(
   if (response.ok) return { ok: true, lastSync: readLastSync((await bodyOf(response))?.lastSync) };
 
   const [outcome, body] = await refusalOf(response);
-  if (outcome.ok || outcome.code !== "INVOICE_BONUS_PENDING") return outcome as FinalizeOutcome;
+  if (outcome.code !== "INVOICE_BONUS_PENDING") return outcome;
   // The links still without data, so the admin can fill them in or freeze anyway (AC 9).
   return { ...outcome, waiting: readWaitingLinks(body.waiting), lastSync: readLastSync(body.lastSync) };
 }
