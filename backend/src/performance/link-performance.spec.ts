@@ -1,6 +1,7 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import {
   canEnterManually,
+  CLEARED_PERFORMANCE,
   checkManualPerformance,
   effectiveState,
   MAX_METRIC,
@@ -47,11 +48,14 @@ describe('checkManualPerformance', () => {
     });
   });
 
-  it.each([undefined, null, '', '   '])('reads %j as an empty field', (empty) => {
-    expect(checkManualPerformance({ views: 1, shares: empty }).shares).toBe(
-      null,
-    );
-  });
+  it.each([undefined, null, '', '   '])(
+    'reads %j as an empty field',
+    (empty) => {
+      expect(checkManualPerformance({ views: 1, shares: empty }).shares).toBe(
+        null,
+      );
+    },
+  );
 
   it('accepts 0 and the highest number, at both ends of the range', () => {
     expect(checkManualPerformance({ views: 0, likes: MAX_METRIC })).toEqual({
@@ -134,5 +138,21 @@ describe('canEnterManually (AC 14)', () => {
     ['manual', true],
   ])('%s → %s', (state, allowed) => {
     expect(canEnterManually(state)).toBe(allowed);
+  });
+});
+
+describe('CLEARED_PERFORMANCE', () => {
+  it("is a new video's start: no numbers, waiting, never synced or filled by hand", () => {
+    expect(CLEARED_PERFORMANCE).toEqual({
+      views: null,
+      likes: null,
+      comments: null,
+      shares: null,
+      data_state: 'waiting',
+      last_synced_at: null,
+      manual_by: null,
+      manual_at: null,
+    });
+    expect(Object.isFrozen(CLEARED_PERFORMANCE)).toBe(true);
   });
 });
