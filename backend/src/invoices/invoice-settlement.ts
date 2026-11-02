@@ -7,10 +7,33 @@
 
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { InvoiceBreakdown } from './invoice-calculator.js';
+import type { LastSync, WaitingLink } from './finalize-performance.js';
 import type {
   ComponentResult,
   InvoiceComponentKey,
+  InvoiceLine,
 } from './invoice-component.js';
+
+/** What the admin is told about performance data when Finalize stops or freezes (PBI-28). */
+export interface PendingPerformance {
+  waiting: readonly WaitingLink[];
+  lastSync: LastSync;
+}
+
+const NOTHING_PENDING: PendingPerformance = {
+  waiting: [],
+  lastSync: { status: 'unavailable', notUpdated: [] },
+};
+
+/** A link frozen without data: Rp0, marked so a line correction (PBI-32) can find it. */
+function noDataLine(link: WaitingLink): InvoiceLine {
+  return {
+    contentId: link.contentId,
+    contentName: link.contentName,
+    amount: 0,
+    basis: { platform: link.platform, metric: link.metric, status: 'no_data' },
+  };
+}
 
 export interface SettledBreakdown {
   components: Record<InvoiceComponentKey, ComponentResult>;
@@ -23,6 +46,7 @@ export interface SettledBreakdown {
 export function settleForFinalize(
   breakdown: InvoiceBreakdown,
   acceptPendingBonus: boolean,
+  pending: PendingPerformance = NOTHING_PENDING,
 ): SettledBreakdown {
   const { performanceBonus, ...rest } = breakdown.components;
 
@@ -45,6 +69,8 @@ export function settleForFinalize(
     throw new UnprocessableEntityException({
       code: 'INVOICE_BONUS_PENDING',
       message: 'Bonus performa masih menunggu data',
+      waiting: pending.waiting,
+      lastSync: pending.lastSync,
     });
   }
 
@@ -60,6 +86,7 @@ export function settleForFinalize(
         ...performanceBonus,
         amount: measured,
         status: 'calculated',
+        lines: [...performanceBonus.lines, ...pending.waiting.map(noDataLine)],
       },
     },
     rawTotal: breakdown.rawTotal + measured,
