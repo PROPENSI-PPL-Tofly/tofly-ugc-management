@@ -122,6 +122,14 @@ describe("fetchMyPerformanceLinks", () => {
     expect(mockedGet).toHaveBeenCalledWith(`${MY_PERFORMANCE_LINKS_PATH}?platform=tiktok&page=3`);
   });
 
+  it("never names a creator: the endpoint scopes the rows to the session (OWASP A01)", async () => {
+    mockedGet.mockResolvedValue(new Response(JSON.stringify(answer()), { status: 200 }));
+
+    await fetchMyPerformanceLinks(parsePerformanceLinksParams({ creator: CREATOR_A }));
+
+    expect(mockedGet).toHaveBeenCalledWith(`${MY_PERFORMANCE_LINKS_PATH}?page=1`);
+  });
+
   it("reads the API's page answer into the list's rows", async () => {
     mockedGet.mockResolvedValue(new Response(JSON.stringify(answer()), { status: 200 }));
 
