@@ -4,10 +4,10 @@ import {
   FilterSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
-  ResetFilters,
   SearchBox,
   offeredPicks,
 } from "@/components/filters/filter-controls";
+import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
@@ -69,51 +69,90 @@ export function ContentPlanFilters({
   const to = param("to") === "all" ? "" : param("to");
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
-      <SearchBox label="Cari konten atau creator" value={search} onChange={setSearch} />
+    <>
+      <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
+        <SearchBox label="Cari konten atau creator" value={search} onChange={setSearch} />
 
-      <MultiSelect
-        label="Creator"
-        options={creatorOptions}
-        selected={pickedCreators()}
-        onChange={(next) => setListParam("creator", next)}
-      />
-
-      <MultiSelect
-        label="Tipe"
-        options={typeOptions}
-        selected={offeredPicks(listParam("type"), typeOptions)}
-        onChange={(next) => setListParam("type", next)}
-      />
-
-      {statusOptions.length > 1 ? (
         <MultiSelect
-          label="Status"
-          options={statusOptions}
-          selected={offeredPicks(listParam("status"), statusOptions)}
-          onChange={(next) => setListParam("status", next)}
+          label="Creator"
+          options={creatorOptions}
+          selected={pickedCreators()}
+          onChange={(next) => setListParam("creator", next)}
         />
-      ) : null}
 
-      {state.tab === "done" ? null : (
-        <FilterSelect
-          label="Overdue"
-          value={param("overdue")}
-          options={OVERDUE_OPTIONS}
-          onChange={(value) => setParam("overdue", value)}
+        <MultiSelect
+          label="Tipe"
+          options={typeOptions}
+          selected={offeredPicks(listParam("type"), typeOptions)}
+          onChange={(next) => setListParam("type", next)}
         />
-      )}
 
-      {/* The period from the bar's own state, like the select beside it, so the two agree. */}
-      <PeriodFilter
-        period={param("period")}
-        from={from}
-        to={to}
-        ignored={state.tab === "action" && param("period") !== "all"}
-        onChange={setParam}
+        {statusOptions.length > 1 ? (
+          <MultiSelect
+            label="Status"
+            options={statusOptions}
+            selected={offeredPicks(listParam("status"), statusOptions)}
+            onChange={(next) => setListParam("status", next)}
+          />
+        ) : null}
+
+        {state.tab === "done" ? null : (
+          <FilterSelect
+            label="Overdue"
+            value={param("overdue")}
+            options={OVERDUE_OPTIONS}
+            onChange={(value) => setParam("overdue", value)}
+          />
+        )}
+
+        {/* The period from the bar's own state, like the select beside it, so the two agree. */}
+        <PeriodFilter
+          period={param("period")}
+          from={from}
+          to={to}
+          ignored={state.tab === "action" && param("period") !== "all"}
+          onChange={setParam}
+        />
+      </div>
+
+      {/* Every pick named after its filter, gathered below the bar as the benchmark lays them. */}
+      <FilterChips
+        chips={[
+          ...pickedChips("Creator", pickedCreators(), creatorOptions, (value) =>
+            setListParam(
+              "creator",
+              pickedCreators().filter((pick) => pick !== value),
+            ),
+          ),
+          ...pickedChips(
+            "Tipe",
+            offeredPicks(listParam("type"), typeOptions),
+            typeOptions,
+            (value) =>
+              setListParam(
+                "type",
+                offeredPicks(listParam("type"), typeOptions).filter((pick) => pick !== value),
+              ),
+          ),
+          ...(statusOptions.length > 1
+            ? pickedChips(
+                "Status",
+                offeredPicks(listParam("status"), statusOptions),
+                statusOptions,
+                (value) =>
+                  setListParam(
+                    "status",
+                    offeredPicks(listParam("status"), statusOptions).filter(
+                      (pick) => pick !== value,
+                    ),
+                  ),
+              )
+            : []),
+        ]}
+        canReset={isFilteredNow}
+        resetDisabled={pending}
+        onReset={resetKeepingTab}
       />
-
-      {isFilteredNow ? <ResetFilters onReset={resetKeepingTab} disabled={pending} /> : null}
-    </div>
+    </>
   );
 }
