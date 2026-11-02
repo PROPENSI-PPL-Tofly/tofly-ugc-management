@@ -1388,3 +1388,46 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
     });
   });
 });
+
+describe("the creator's link numbers (PBI-27, 27.6)", () => {
+  /** A link whose platform still reads it fails, where an admin may type the numbers (AC 14). */
+  function link(state: "synced" | "sync_failed") {
+    return {
+      platform: "instagram" as const,
+      url: "https://instagram.com/p/x",
+      submittedAt: "2026-10-18",
+      performance: {
+        views: 12400,
+        likes: 900,
+        comments: null,
+        shares: null,
+        state,
+        lastSyncedAt: state === "synced" ? "2026-11-01T03:00:00.000Z" : null,
+        manualAt: null,
+      },
+    };
+  }
+
+  it("shows a creator their own numbers read-only, with no sync and no manual input (AC 20)", async () => {
+    open(detail({ status: "link_submitted", links: [link("sync_failed")] }), {
+      role: "creator",
+    });
+
+    expect(await screen.findByText("12.400")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sinkronkan/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Isi Manual" })).not.toBeInTheDocument();
+  });
+
+  it("offers an admin the same card's actions, so the withheld ones are real (AC 12, 14)", async () => {
+    open(detail({ status: "link_submitted", links: [link("sync_failed")] }));
+
+    expect(await screen.findByRole("button", { name: "Sinkronkan Sekarang" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Isi Manual" })).toBeInTheDocument();
+  });
+
+  it("reads a 403 as numbers that are not the creator's: the panel's failure, with a retry (AC 21)", async () => {
+    open(Promise.reject(new ContentDetailError(403)), { role: "creator" });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Detail konten gagal dimuat");
+  });
+});
