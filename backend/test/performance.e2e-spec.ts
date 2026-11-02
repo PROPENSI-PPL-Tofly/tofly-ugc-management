@@ -397,4 +397,188 @@ describe('content performance (e2e)', () => {
       ).toBe(1);
     });
   });
+
+  describe('reading performance: the lists and Content Detail (AC 19-26)', () => {
+    let lister: Creator;
+    let listerCookie: string;
+    let other: Creator;
+    let instagramPost = 0;
+    const reel = () =>
+      `https://www.instagram.com/reel/${MARKER}-list-${(instagramPost += 1)}/`;
+
+    /** A delivered content with one link handed in `daysAgo` days ago. */
+    async function handedIn(
+      who: Creator,
+      platform: social_platform,
+      daysAgo: number,
+      numbers: Partial<Record<'views' | 'likes', number>> = {},
+    ) {
+      const url = platform === 'tiktok' ? tiktok() : reel();
+      const content = await prisma.contents.create({
+        data: {
+          contract_id: who.contractId,
+          name: `${MARKER} list ${(seq += 1)}`,
+          type: 'evergreen',
+          deadline: day(-daysAgo + 1),
+          status: 'link_submitted',
+          video_submitted_at: day(-daysAgo),
+          content_links: {
+            create: {
+              ...storedLink(url, day(-daysAgo), who.userId, platform),
+              ...numbers,
+            },
+          },
+        },
+      });
+      return { contentId: content.id, url };
+    }
+
+    const list = (query: string, cookie = admin) =>
+      as(app, cookie).get(`/performance/links${query}`);
+
+    let newest: { contentId: string; url: string };
+    let middle: { contentId: string; url: string };
+    let oldest: { contentId: string; url: string };
+
+    beforeAll(async () => {
+      lister = await creator('lister');
+      other = await creator('other-lister');
+      await account(lister, 'instagram', true);
+      listerCookie = await signIn(app, {
+        userId: lister.userId,
+        role: 'creator',
+        creatorId: lister.creatorId,
+      });
+      oldest = await handedIn(lister, 'instagram', 9, { views: 0, likes: 3 });
+      middle = await handedIn(lister, 'tiktok', 6);
+      newest = await handedIn(lister, 'instagram', 2, { views: 800 });
+      await handedIn(other, 'tiktok', 1, { views: 5 });
+    });
+
+    it("lists one creator's links newest first with their content, creator and effective state", async () => {
+      const response = await list(`?creator=${lister.creatorId}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        page: 1,
+        pageSize: 10,
+        total: 3,
+        totalPages: 1,
+      });
+      expect(
+        response.body.items.map((item: { url: string }) => item.url),
+      ).toEqual([newest.url, middle.url, oldest.url]);
+      expect(response.body.items[0]).toEqual({
+        linkId: expect.any(String),
+        contentId: newest.contentId,
+        contentName: expect.stringContaining(MARKER),
+        creatorId: lister.creatorId,
+        creatorName: `${MARKER} lister`,
+        platform: 'instagram',
+        url: newest.url,
+        views: 800,
+        likes: null,
+        comments: null,
+        shares: null,
+        // Instagram is connected for this creator, so a waiting link stays waiting.
+        state: 'waiting',
+        lastSyncedAt: null,
+        manualAt: null,
+      });
+      // TikTok is not connected: the waiting link reads not_connected. A stored 0 stays 0.
+      expect(response.body.items[1].state).toBe('not_connected');
+      expect(response.body.items[2]).toMatchObject({ views: 0, likes: 3 });
+    });
+
+    it('narrows by repeated creators and platforms', async () => {
+      const both = await list(
+        `?creator=${lister.creatorId}&creator=${other.creatorId}&platform=tiktok`,
+      );
+
+      expect(both.status).toBe(200);
+      expect(both.body.total).toBe(2);
+      expect(
+        both.body.items.every(
+          (item: { platform: string }) => item.platform === 'tiktok',
+        ),
+      ).toBe(true);
+    });
+
+    it('pages in the database: the last page holds the rest, a page past the end is empty', async () => {
+      const first = await list(`?creator=${lister.creatorId}&pageSize=2`);
+      const second = await list(
+        `?creator=${lister.creatorId}&pageSize=2&page=2`,
+      );
+      const past = await list(`?creator=${lister.creatorId}&pageSize=2&page=3`);
+
+      expect(first.body).toMatchObject({ total: 3, totalPages: 2 });
+      expect(first.body.items).toHaveLength(2);
+      expect(
+        second.body.items.map((item: { url: string }) => item.url),
+      ).toEqual([oldest.url]);
+      expect(past.body).toMatchObject({ items: [], total: 3, totalPages: 2 });
+    });
+
+    it('answers an empty page for a creator with no links, and 400 for a bad filter', async () => {
+      const nobody = await creator('no-links');
+
+      expect((await list(`?creator=${nobody.creatorId}`)).body).toEqual({
+        items: [],
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 0,
+      });
+      expect((await list('?platform=youtube')).status).toBe(400);
+    });
+
+    it('keeps the admin list from creators (403) and the signed out (401)', async () => {
+      expect((await list('', listerCookie)).status).toBe(403);
+      expect((await list('', '')).status).toBe(401);
+    });
+
+    it('gives a creator their own links only, whatever creator the address names (AC 20, OWASP A01:2025)', async () => {
+      const response = await as(app, listerCookie).get(
+        `/me/performance/links?creator=${other.creatorId}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.total).toBe(3);
+      expect(
+        response.body.items.every(
+          (item: { creatorId: string }) => item.creatorId === lister.creatorId,
+        ),
+      ).toBe(true);
+      expect((await as(app, admin).get('/me/performance/links')).status).toBe(
+        403,
+      );
+      expect((await as(app, '').get('/me/performance/links')).status).toBe(401);
+    });
+
+    it("gives every Content Detail link its performance, for the admin and the creator, and hides another creator's content", async () => {
+      const asAdmin = await as(app, admin).get(`/contents/${oldest.contentId}`);
+      const asCreator = await as(app, listerCookie).get(
+        `/me/contents/${oldest.contentId}`,
+      );
+      const notTheirs = await as(app, listerCookie).get(
+        `/me/contents/${(await handedIn(other, 'tiktok', 3)).contentId}`,
+      );
+
+      const performance = {
+        views: 0,
+        likes: 3,
+        comments: null,
+        shares: null,
+        state: 'waiting',
+        lastSyncedAt: null,
+        manualAt: null,
+      };
+      expect(asAdmin.status).toBe(200);
+      expect(asAdmin.body.links[0].performance).toEqual(performance);
+      expect(asCreator.status).toBe(200);
+      expect(asCreator.body.links[0].performance).toEqual(performance);
+      expect(JSON.stringify(asCreator.body)).not.toMatch(/manual_?by/i);
+      expect(notTheirs.status).toBe(404);
+    });
+  });
 });
