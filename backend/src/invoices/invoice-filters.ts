@@ -75,7 +75,9 @@ export function checkInvoiceFilters(
   const from = calendarDay('contractEndFrom', contractEndFrom);
   const to = calendarDay('contractEndTo', contractEndTo);
   if (from && to && from > to) {
-    throw new BadRequestException('contractEndFrom must not be after contractEndTo');
+    throw new BadRequestException(
+      'contractEndFrom must not be after contractEndTo',
+    );
   }
   if (from) filters.contractEndFrom = from;
   if (to) filters.contractEndTo = to;

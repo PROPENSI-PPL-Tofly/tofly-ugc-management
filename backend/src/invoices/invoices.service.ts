@@ -80,8 +80,10 @@ const HAS_CONTRACT = {
 /** A named contract-end range narrows the roster in the query; without one it stays open. */
 function rosterWhere(filters: InvoiceFilters): Prisma.creatorsWhereInput {
   const end: Prisma.DateTimeFilter = {};
-  if (filters.contractEndFrom) end.gte = new Date(`${filters.contractEndFrom}T00:00:00Z`);
-  if (filters.contractEndTo) end.lte = new Date(`${filters.contractEndTo}T00:00:00Z`);
+  if (filters.contractEndFrom)
+    end.gte = new Date(`${filters.contractEndFrom}T00:00:00Z`);
+  if (filters.contractEndTo)
+    end.lte = new Date(`${filters.contractEndTo}T00:00:00Z`);
 
   return Object.keys(end).length > 0
     ? { contracts: { some: { end_date: end } } }
