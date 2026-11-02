@@ -54,6 +54,12 @@ const STEP_FOR: Record<
         replaced: true,
       }),
   },
+  // An admin's manual numbers (PBI-27 AC 16). The step names the platform only: the numbers
+  // and the admin stay in content_events for the audit (OWASP A01).
+  'Performance Entered': {
+    type: 'performance_entered',
+    payload: (data) => details({ platform: data.platform('platform') }),
+  },
   'Creator Comment': {
     type: 'creator_comment',
     payload: (data) => details({ note: data.text('comment') }),
