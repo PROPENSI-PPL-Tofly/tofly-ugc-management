@@ -43,7 +43,8 @@ describe("saveManualPerformance (PBI-27 AC 14-18)", () => {
     respond(
       answer(422, {
         message: "Angka performa tidak valid",
-        errors: { views: "Isi bilangan bulat 0 sampai 999.999.999", other: "ignored" },
+        // A field the form does not show, and a message that is not text, are both left out.
+        errors: { views: "Isi bilangan bulat 0 sampai 999.999.999", other: "ignored", likes: 5 },
       }),
     );
 
@@ -51,6 +52,15 @@ describe("saveManualPerformance (PBI-27 AC 14-18)", () => {
       ok: false,
       message: "Angka performa tidak valid",
       errors: { views: "Isi bilangan bulat 0 sampai 999.999.999" },
+    });
+  });
+
+  it("keeps only the message when none of the refused fields is one the form shows", async () => {
+    respond(answer(422, { message: "Angka performa tidak valid", errors: { other: "ignored" } }));
+
+    await expect(saveManualPerformance(CONTENT_ID, "instagram", VALUES)).resolves.toEqual({
+      ok: false,
+      message: "Angka performa tidak valid",
     });
   });
 
