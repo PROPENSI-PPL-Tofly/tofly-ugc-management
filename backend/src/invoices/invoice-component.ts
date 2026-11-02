@@ -22,8 +22,11 @@ export interface InvoiceContent {
   /** Postgres `date`, midnight UTC; when the final video link was handed in. */
   videoSubmittedAt: Date | null;
   platform: SocialPlatform | null;
+  /** The first link's numbers (PBI-27); null is no data yet, never 0. */
   views: number | null;
   likes: number | null;
+  comments: number | null;
+  shares: number | null;
 }
 
 export interface InvoiceContract {

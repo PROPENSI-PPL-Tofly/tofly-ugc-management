@@ -51,15 +51,20 @@ export const CONTENT_SELECT = {
   status: true,
   deadline: true,
   video_submitted_at: true,
-  // The first link's platform is the one its performance bonus is judged on, as the single
-  // link's was before PBI-38.
+  // The first link handed in decides the platform the bonus is judged on, as the single link did
+  // before PBI-38, and its own numbers are what that platform's metric reads (PBI-27 27.1). One
+  // row per content, so one content still earns at most one bonus line.
   content_links: {
     orderBy: LINKS_AS_HANDED_IN,
     take: 1,
-    select: { platform: true },
+    select: {
+      platform: true,
+      views: true,
+      likes: true,
+      comments: true,
+      shares: true,
+    },
   },
-  views: true,
-  likes: true,
 } satisfies Prisma.contentsSelect;
 
 export type InvoiceCreatorRow = Prisma.creatorsGetPayload<{
@@ -86,6 +91,7 @@ export function creatorName(
 }
 
 export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
+  const primary = row.content_links[0];
   return {
     id: row.id,
     name: row.name,
@@ -93,9 +99,12 @@ export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
     status: row.status,
     deadline: row.deadline,
     videoSubmittedAt: row.video_submitted_at,
-    platform: row.content_links[0]?.platform ?? null,
-    views: row.views,
-    likes: row.likes,
+    platform: primary?.platform ?? null,
+    // No link yet means no numbers; the old contents columns are never read (expand, then contract).
+    views: primary?.views ?? null,
+    likes: primary?.likes ?? null,
+    comments: primary?.comments ?? null,
+    shares: primary?.shares ?? null,
   };
 }
 

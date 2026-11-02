@@ -59,6 +59,8 @@ export function content(
     platform: null,
     views: null,
     likes: null,
+    comments: null,
+    shares: null,
     ...overrides,
   };
 }

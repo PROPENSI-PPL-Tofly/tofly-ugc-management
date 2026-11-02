@@ -27,10 +27,15 @@ function contentRow(
     deadline: day(10),
     video_submitted_at: null,
     content_links: [],
-    views: null,
-    likes: null,
     ...overrides,
   };
+}
+
+/** A content's first link as CONTENT_SELECT reads it, with no numbers yet. */
+function link(
+  platform: InvoiceContentRow['content_links'][number]['platform'],
+): InvoiceContentRow['content_links'][number] {
+  return { platform, views: null, likes: null, comments: null, shares: null };
 }
 
 function contractRow(
@@ -79,7 +84,7 @@ describe('toInvoiceContent', () => {
         contentRow({
           status: 'link_submitted',
           video_submitted_at: day(-1),
-          content_links: [{ platform: 'tiktok' }],
+          content_links: [link('tiktok')],
         }),
       ),
     ).toMatchObject({ platform: 'tiktok', videoSubmittedAt: day(-1) });
@@ -99,7 +104,7 @@ describe('toInvoiceContent', () => {
               comments: 212,
               shares: null,
             },
-          ] as unknown as InvoiceContentRow['content_links'],
+          ],
         }),
       ),
     ).toMatchObject({
@@ -122,7 +127,7 @@ describe('toInvoiceContent', () => {
   it('has no platform before a link, or for a link kept from before platforms were recorded', () => {
     expect(toInvoiceContent(contentRow()).platform).toBeNull();
     expect(
-      toInvoiceContent(contentRow({ content_links: [{ platform: null }] })).platform,
+      toInvoiceContent(contentRow({ content_links: [link(null)] })).platform,
     ).toBeNull();
   });
 });
