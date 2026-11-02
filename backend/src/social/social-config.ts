@@ -1,3 +1,5 @@
+import { instagramConfig } from './instagram/instagram-config.js';
+import { InstagramProvider } from './instagram/instagram-provider.js';
 import { OAuthStateSigner } from './oauth-state.js';
 import type { SocialAccountLinker, SocialOAuthProvider } from './ports.js';
 import {
@@ -55,8 +57,12 @@ export function socialWiring(env: Env, rows: SocialAccountRows): SocialWiring {
   }
 
   const tiktok = tiktokConfig(env);
+  const instagram = instagramConfig(env);
   return {
-    providers: tiktok ? [new TikTokProvider(tiktok)] : [],
+    providers: [
+      ...(tiktok ? [new TikTokProvider(tiktok)] : []),
+      ...(instagram ? [new InstagramProvider(instagram)] : []),
+    ],
     signer,
     linker: new PrismaSocialAccountLinker(rows, new TokenCipher(tokenKey)),
   };
