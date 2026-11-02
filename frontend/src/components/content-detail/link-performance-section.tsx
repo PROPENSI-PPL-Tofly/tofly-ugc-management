@@ -215,7 +215,7 @@ function LinkCard({
       >
         <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
           <PlatformIcon platform={platform} />
-          <CreatorLink link={link.url} label={shortUrl(link.url)} />
+          <CreatorLink link={link.url} label={shortUrl(link.url)} look="chip" />
           <time dateTime={link.submittedAt} className="text-xs text-muted">
             Dikirim {formatDate(link.submittedAt)}
           </time>
@@ -311,7 +311,7 @@ export function LinkPerformanceSection({
           ) : (
             // A link kept from before platforms were recorded has nothing to be measured on.
             <li key={link.url} className="flex items-center gap-2 text-[13px]">
-              <CreatorLink link={link.url} label={shortUrl(link.url)} />
+              <CreatorLink link={link.url} label={shortUrl(link.url)} look="chip" />
               <time dateTime={link.submittedAt} className="text-xs text-muted">
                 {formatDate(link.submittedAt)}
               </time>
