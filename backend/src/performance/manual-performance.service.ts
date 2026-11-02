@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma, link_data_state, social_platform } from '@prisma/client';
 import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
+import { lockContractRow } from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   CONNECTION_SELECT,
@@ -57,6 +58,13 @@ export interface ManualPerformanceClient {
 const METRIC_SELECT = Object.fromEntries(
   METRIC_NAMES.map((name) => [name, true]),
 ) as Record<(typeof METRIC_NAMES)[number], true>;
+
+function contentNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: 'CONTENT_NOT_FOUND',
+    message: 'Konten tidak ditemukan',
+  });
+}
 
 /** Everything a manual entry decides on, for one platform, in one query. */
 function contentSelect(platform: social_platform) {
@@ -112,17 +120,25 @@ export class ManualPerformanceService {
     const command = new EnterManualPerformance(platform, metrics);
 
     return this.prisma.$transaction(async (transaction) => {
-      // Links exist only on delivered content; anything else reads as missing.
+      // Links exist only on delivered content; anything else reads as missing. This first read
+      // only finds whose contract to lock: nothing it returns is decided on.
+      const where = { id: contentId, status: 'link_submitted' } as const;
+      const owner = await transaction.contents.findFirst({
+        where,
+        select: { id: true, contract_id: true },
+      });
+      if (!owner) throw contentNotFound();
+
+      // Finalize locks the contract before reading the numbers it freezes. Taking the same lock
+      // before reading the invoice puts this entry wholly before or wholly after a Finalize:
+      // after it, the invoice reads finalized and the entry is refused (AC 18, OWASP A08:2025).
+      await lockContractRow(transaction, owner.contract_id);
+
       const content = await transaction.contents.findFirst({
-        where: { id: contentId, status: 'link_submitted' },
+        where,
         select: contentSelect(platform),
       });
-      if (!content) {
-        throw new NotFoundException({
-          code: 'CONTENT_NOT_FOUND',
-          message: 'Konten tidak ditemukan',
-        });
-      }
+      if (!content) throw contentNotFound();
 
       const [link] = content.content_links;
       const plan = command.plan(
