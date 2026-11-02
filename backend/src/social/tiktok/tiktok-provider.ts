@@ -5,6 +5,12 @@ import {
   type PlatformAccount,
   type SocialOAuthProvider,
 } from '../ports.js';
+import type { RefreshedTokens } from '../social-token-store.js';
+import {
+  RefreshRefused,
+  RefreshUnavailable,
+  type TokenRefresher,
+} from '../token-refresh.js';
 import type { TikTokConfig } from './tiktok-config.js';
 import {
   callTikTok,
@@ -63,6 +69,36 @@ interface TokenGrant {
   refreshSeconds: number;
 }
 
+/**
+ * The tokens in a token endpoint answer, which a code exchange and a refresh share, or null
+ * when any of them is missing or unusable.
+ */
+function grantOf(body: Json): TokenGrant | null {
+  const {
+    access_token,
+    expires_in,
+    open_id,
+    refresh_token,
+    refresh_expires_in,
+  } = body;
+  if (
+    !isText(access_token) ||
+    !isLifetime(expires_in) ||
+    !isText(open_id) ||
+    !isText(refresh_token) ||
+    !isLifetime(refresh_expires_in)
+  ) {
+    return null;
+  }
+  return {
+    accessToken: access_token,
+    accessSeconds: expires_in,
+    openId: open_id,
+    refreshToken: refresh_token,
+    refreshSeconds: refresh_expires_in,
+  };
+}
+
 /** A TikTok answer that was JSON. */
 interface Answer extends TikTokAnswer {
   body: Json;
@@ -73,7 +109,7 @@ interface Answer extends TikTokAnswer {
  * the tokens only ever travel server to TikTok. `fetch` and the clock are injected so tests
  * stand in for TikTok and pin the token expiry.
  */
-export class TikTokProvider implements SocialOAuthProvider {
+export class TikTokProvider implements SocialOAuthProvider, TokenRefresher {
   readonly platform = 'tiktok' as const;
 
   constructor(
@@ -150,22 +186,9 @@ export class TikTokProvider implements SocialOAuthProvider {
       throw platformError(`${label} answered ${status}`);
     }
 
-    const {
-      access_token,
-      expires_in,
-      open_id,
-      refresh_token,
-      refresh_expires_in,
-      scope,
-    } = body;
-    if (
-      !isText(access_token) ||
-      !isLifetime(expires_in) ||
-      !isText(open_id) ||
-      !isText(refresh_token) ||
-      !isLifetime(refresh_expires_in) ||
-      !isText(scope)
-    ) {
+    const grant = grantOf(body);
+    const { scope } = body;
+    if (grant === null || !isText(scope)) {
       throw platformError(`${label} sent an unusable answer`);
     }
 
@@ -181,12 +204,63 @@ export class TikTokProvider implements SocialOAuthProvider {
       throw new PlatformRefusal('cancelled', `scope not granted: ${missing}`);
     }
 
+    return grant;
+  }
+
+  /**
+   * POST /v2/oauth/token/ with grant_type=refresh_token (27.3). TikTok naming an error
+   * (outside a rate limit or an outage) is a refusal; anything else that brings no new tokens
+   * is unavailable for now. A message names only the endpoint and TikTok's error name.
+   */
+  async refresh(
+    refreshToken: string,
+    deadline: AbortSignal,
+  ): Promise<RefreshedTokens> {
+    const label = 'token endpoint';
+    let answer: TikTokAnswer;
+    try {
+      answer = await callTikTok(
+        this.fetchImpl,
+        TIKTOK_TOKEN_URL,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            accept: 'application/json',
+          },
+          body: new URLSearchParams({
+            client_key: this.config.clientKey,
+            client_secret: this.config.clientSecret,
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+          }).toString(),
+        },
+        deadline,
+      );
+    } catch {
+      throw new RefreshUnavailable(`${label} unreachable`);
+    }
+
+    const { ok, status, body } = answer;
+    const outage = status === 429 || status >= 500;
+    if (body?.error !== undefined && !outage) {
+      throw new RefreshRefused(
+        `${label} refused the refresh: ${logSafeName(body.error)}`,
+      );
+    }
+    const grant = ok && body !== undefined ? grantOf(body) : null;
+    if (grant === null) {
+      throw new RefreshUnavailable(
+        `${label} answered ${status} without new tokens`,
+      );
+    }
+
+    const now = this.now().getTime();
     return {
-      accessToken: access_token,
-      accessSeconds: expires_in,
-      openId: open_id,
-      refreshToken: refresh_token,
-      refreshSeconds: refresh_expires_in,
+      accessToken: grant.accessToken,
+      accessTokenExpiresAt: new Date(now + grant.accessSeconds * 1000),
+      refreshToken: grant.refreshToken,
+      refreshTokenExpiresAt: new Date(now + grant.refreshSeconds * 1000),
     };
   }
 
