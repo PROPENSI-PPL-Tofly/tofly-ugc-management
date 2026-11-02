@@ -590,4 +590,38 @@ describe('InstagramPerformanceSource', () => {
       expect(JSON.stringify(result)).not.toContain(NEW_TOKEN);
     });
   });
+
+  // 27.4 builds the adapter with only its accounts: the clock and fetch are the real ones.
+  describe('built with only its accounts', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    it('uses the real clock and the global fetch', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(NOW);
+      const fetchImpl = instagram();
+      vi.stubGlobal('fetch', fetchImpl);
+      const accounts = accountsWith({
+        ...CONNECTED,
+        expiresAt: new Date(NOW.getTime() + 2 * DAY_MS),
+      });
+
+      const result = await new InstagramPerformanceSource(accounts).read(
+        CREATOR,
+        [{ id: 'link-1', url: reel('AAA111') }],
+      );
+
+      expect(fetchImpl).toHaveBeenCalled();
+      expect(accounts.saveToken).toHaveBeenCalledWith(
+        CREATOR,
+        NEW_TOKEN,
+        new Date(NOW.getTime() + SIXTY_DAYS_S * 1000),
+      );
+      expect(result).toMatchObject({
+        readings: [{ linkId: 'link-1', outcome: 'synced' }],
+      });
+    });
+  });
 });
