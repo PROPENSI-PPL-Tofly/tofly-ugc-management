@@ -1,6 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import type { link_data_state, social_platform } from '@prisma/client';
+import {
+  PrismaClient,
+  type link_data_state,
+  type social_platform,
+} from '@prisma/client';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
@@ -314,6 +318,46 @@ describe('content performance (e2e)', () => {
       expect(signedOut.status).toBe(401);
       expect(crossSite.status).toBe(403);
       expect((await linkOf(contentId)).data_state).toBe('sync_failed');
+    });
+
+    it('keeps the numbers untouched when the timeline write fails: both land or neither (OWASP A10:2025)', async () => {
+      const contentId = await linked(owner, 'not_found', { views: 70 });
+      // A trigger, made by the role that runs migrations, refuses this content's timeline event.
+      // Only this content: every other test's events still land.
+      const migrator = new PrismaClient({
+        datasourceUrl: process.env.MIGRATOR_DB_URL ?? process.env.DATABASE_URL,
+      });
+      // Built from the test's own UUID, never from input.
+      const fn = `e2e_refuse_${contentId.replaceAll('-', '_')}`;
+      await migrator.$executeRawUnsafe(
+        `CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+           IF NEW.content_id = '${contentId}'::uuid THEN RAISE EXCEPTION 'timeline refused'; END IF;
+           RETURN NEW; END $$`,
+      );
+      await migrator.$executeRawUnsafe(
+        `CREATE TRIGGER ${fn} BEFORE INSERT ON content_events FOR EACH ROW EXECUTE FUNCTION ${fn}()`,
+      );
+
+      try {
+        const response = await enter(contentId, { views: 12_400 });
+
+        expect(response.status).toBe(500);
+        expect(JSON.stringify(response.body)).not.toMatch(
+          /timeline refused|content_events|trigger/,
+        );
+        expect(await linkOf(contentId)).toMatchObject({
+          views: 70,
+          data_state: 'not_found',
+          manual_by: null,
+          manual_at: null,
+        });
+      } finally {
+        await migrator.$executeRawUnsafe(
+          `DROP TRIGGER ${fn} ON content_events`,
+        );
+        await migrator.$executeRawUnsafe(`DROP FUNCTION ${fn}()`);
+        await migrator.$disconnect();
+      }
     });
   });
 });
