@@ -5,7 +5,7 @@ import {
   type TikTokAnswer,
 } from '../../social/tiktok/tiktok-http.js';
 
-import type { PerformanceMetrics } from '../performance-source.js';
+import type { PerformanceMetrics } from '../ports.js';
 
 // The counts of a creator's TikTok videos (PBI-27, 27.3), read with Display API's video/query.
 // Only videos of the account the token belongs to come back, and only public ones (sandbox

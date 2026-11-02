@@ -6,7 +6,7 @@ import {
 import { tiktokConfig } from '../social/tiktok/tiktok-config.js';
 import { TikTokProvider } from '../social/tiktok/tiktok-provider.js';
 import { TokenCipher } from '../social/token-cipher.js';
-import type { PerformanceSource } from './performance-source.js';
+import type { PerformanceSource } from './ports.js';
 import { TikTokPerformanceSource } from './tiktok/tiktok-performance-source.js';
 
 type Env = Record<string, string | undefined>;
