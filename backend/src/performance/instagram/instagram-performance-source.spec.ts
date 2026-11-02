@@ -339,6 +339,29 @@ describe('InstagramPerformanceSource', () => {
     },
   );
 
+  // Retrying can never match a link that is not an Instagram post, so it is not failed.
+  it('still reads a link that is not an Instagram post as not found when the media list fails', async () => {
+    const { result } = await read(
+      [
+        { id: 'link-1', url: 'https://www.tiktok.com/@rangga/video/7432' },
+        { id: 'link-2', url: reel('BBB222') },
+      ],
+      { pages: ['network'] },
+    );
+
+    expect(result).toEqual({
+      outcome: 'read',
+      readings: [
+        { linkId: 'link-1', outcome: 'not_found' },
+        {
+          linkId: 'link-2',
+          outcome: 'failed',
+          reason: 'media list: Instagram unreachable',
+        },
+      ],
+    });
+  });
+
   it('fails only the link whose insights could not be read', async () => {
     const { result } = await read(
       [
