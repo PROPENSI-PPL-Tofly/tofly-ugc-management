@@ -122,7 +122,13 @@ abstract class FrozenInvoiceState implements InvoiceState {
     );
   }
 
-  assertCanEnterPerformance(): void {}
+  /** The bonus was frozen from these numbers; a correction now goes through an adjustment. */
+  assertCanEnterPerformance(): never {
+    throw refused(
+      'INVOICE_FINALIZED',
+      'Invoice sudah difinalisasi. Koreksi lewat penyesuaian.',
+    );
+  }
 
   private finalized(): ConflictException {
     return new ConflictException({
