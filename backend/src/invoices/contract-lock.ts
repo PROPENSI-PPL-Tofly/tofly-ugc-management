@@ -8,6 +8,16 @@ export interface ContractLockClient {
   $queryRaw(query: Prisma.Sql): Promise<unknown>;
 }
 
+/** Locks the contract row until the transaction ends. */
+export async function lockContractRow(
+  tx: ContractLockClient,
+  contractId: string,
+): Promise<void> {
+  await tx.$queryRaw(
+    Prisma.sql`SELECT id FROM contracts WHERE id = ${contractId}::uuid FOR UPDATE`,
+  );
+}
+
 /** Locks the contract the content belongs to until the transaction ends; no row when there is no content. */
 export async function lockContractOfContent(
   tx: ContractLockClient,

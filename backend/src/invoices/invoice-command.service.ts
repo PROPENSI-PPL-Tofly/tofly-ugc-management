@@ -23,6 +23,7 @@ import {
 import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
+import { lockContractRow } from './contract-lock.js';
 import { contractLastDay } from './invoice-days.js';
 import { settleForFinalize } from './invoice-settlement.js';
 import type { FinalizeRequest } from './finalize-request.js';
@@ -87,7 +88,7 @@ export class InvoiceCommandService implements InvoiceCommands {
   ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }> {
     return this.prisma.$transaction(
       async (tx) => {
-        await this.lockContract(tx, contractId);
+        await lockContractRow(tx, contractId);
         await this.requireContract(tx, contractId);
 
         const invoice = await tx.invoices.upsert({
@@ -131,7 +132,7 @@ export class InvoiceCommandService implements InvoiceCommands {
 
     return this.prisma.$transaction(
       async (tx) => {
-        await this.lockContract(tx, contractId);
+        await lockContractRow(tx, contractId);
 
         const contract = await tx.contracts.findUnique({
           where: { id: contractId },
@@ -224,15 +225,6 @@ export class InvoiceCommandService implements InvoiceCommands {
         return { invoiceStatus: 'finalized', adjustments, snapshot };
       },
       { isolationLevel: 'ReadCommitted' },
-    );
-  }
-
-  private async lockContract(
-    tx: Prisma.TransactionClient,
-    contractId: string,
-  ): Promise<void> {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT id FROM contracts WHERE id = ${contractId}::uuid FOR UPDATE`,
     );
   }
 
