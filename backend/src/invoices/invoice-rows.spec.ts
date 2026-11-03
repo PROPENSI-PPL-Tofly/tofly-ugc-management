@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { FORMULA, TODAY, day } from './invoice-test-data.js';
+import { FORMULA, SYNCED_AT, TODAY, day } from './invoice-test-data.js';
 import {
   CONTENT_SELECT,
   INVOICE_SELECT,
@@ -27,8 +27,21 @@ function contentRow(
     deadline: day(10),
     video_submitted_at: null,
     content_links: [],
+    ...overrides,
+  };
+}
+
+type LinkRow = InvoiceContentRow['content_links'][number];
+
+function linkRow(overrides: Partial<LinkRow> = {}): LinkRow {
+  return {
+    platform: 'instagram',
     views: null,
     likes: null,
+    comments: null,
+    shares: null,
+    last_synced_at: null,
+    manual_at: null,
     ...overrides,
   };
 }
@@ -73,23 +86,69 @@ describe('creatorName', () => {
 });
 
 describe('toInvoiceContent', () => {
-  it('takes the platform of the content\'s first link (PBI-38)', () => {
-    expect(
-      toInvoiceContent(
-        contentRow({
-          status: 'link_submitted',
-          video_submitted_at: day(-1),
-          content_links: [{ platform: 'tiktok' }],
+  it('reads every link in the order handed in, with its four numbers and where they came from (28.1)', () => {
+    // Arrange
+    const typedInLater = new Date(SYNCED_AT.getTime() + 60_000);
+    const row = contentRow({
+      status: 'link_submitted',
+      video_submitted_at: day(-1),
+      content_links: [
+        linkRow({
+          views: 41_200,
+          likes: 900,
+          comments: 12,
+          shares: 3,
+          last_synced_at: SYNCED_AT,
         }),
-      ),
-    ).toMatchObject({ platform: 'tiktok', videoSubmittedAt: day(-1) });
+        linkRow({
+          platform: 'tiktok',
+          likes: 1_000,
+          last_synced_at: SYNCED_AT,
+          manual_at: typedInLater,
+        }),
+      ],
+    });
+
+    // Act
+    const mapped = toInvoiceContent(row);
+
+    // Assert
+    expect(mapped).toMatchObject({ videoSubmittedAt: day(-1) });
+    expect(mapped.links).toEqual([
+      {
+        platform: 'instagram',
+        views: 41_200,
+        likes: 900,
+        comments: 12,
+        shares: 3,
+        source: 'synced',
+        lastSyncedAt: SYNCED_AT,
+      },
+      {
+        platform: 'tiktok',
+        views: null,
+        likes: 1_000,
+        comments: null,
+        shares: null,
+        source: 'manual',
+        lastSyncedAt: SYNCED_AT,
+      },
+    ]);
   });
 
-  it('has no platform before a link, or for a link kept from before platforms were recorded', () => {
-    expect(toInvoiceContent(contentRow()).platform).toBeNull();
+  it('has no source for a link no sync or admin has measured yet', () => {
     expect(
-      toInvoiceContent(contentRow({ content_links: [{ platform: null }] })).platform,
-    ).toBeNull();
+      toInvoiceContent(contentRow({ content_links: [linkRow()] })).links,
+    ).toEqual([expect.objectContaining({ source: null, lastSyncedAt: null })]);
+  });
+
+  it('has no links before the first, and leaves out one kept from before platforms were recorded', () => {
+    expect(toInvoiceContent(contentRow()).links).toEqual([]);
+    expect(
+      toInvoiceContent(
+        contentRow({ content_links: [linkRow({ platform: null, views: 9 })] }),
+      ).links,
+    ).toEqual([]);
   });
 });
 
@@ -502,15 +561,19 @@ describe('the columns an invoice is read from', () => {
       status: true,
       deadline: true,
       video_submitted_at: true,
-      // The first link's platform is the one its performance bonus is judged on, as the single
-      // link's was before PBI-38.
+      // Every link is judged on its own platform's numbers (28.1).
       content_links: {
         orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
-        take: 1,
-        select: { platform: true },
+        select: {
+          platform: true,
+          views: true,
+          likes: true,
+          comments: true,
+          shares: true,
+          last_synced_at: true,
+          manual_at: true,
+        },
       },
-      views: true,
-      likes: true,
     });
   });
 });

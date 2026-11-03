@@ -359,8 +359,6 @@ describe('InvoicesService', () => {
         deadline: day(-10),
         video_submitted_at: day(-8),
         content_links: [],
-        views: null,
-        likes: null,
       });
       prisma.contents.findMany.mockResolvedValue([
         late('rangga-1', 'rangga-c'),
