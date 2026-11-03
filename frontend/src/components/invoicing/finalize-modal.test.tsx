@@ -311,6 +311,75 @@ describe("FinalizeModal", () => {
       expect(screen.getByRole("button", { name: "Finalize tetap" })).toBeInTheDocument();
     });
 
+    it("opens the waiting content's detail, where the admin can type its numbers (AC 9)", async () => {
+      moves.finalizeInvoice.mockResolvedValue({
+        ok: false,
+        code: "INVOICE_BONUS_PENDING",
+        message: "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
+        report: {
+          lastSync: null,
+          bonusGaps: {
+            available: true,
+            waiting: [
+              {
+                contentId: "c-2",
+                contentName: "Review Kopi",
+                platform: "instagram",
+                metric: "views",
+                state: "not_connected",
+              },
+            ],
+          },
+        },
+      });
+      const onOpenContent = vi.fn();
+      render(
+        <FinalizeModal
+          row={ROW}
+          onCancel={vi.fn()}
+          onFinalized={vi.fn()}
+          onOpenContent={onOpenContent}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+      const waiting = await screen.findByRole("group", { name: "Konten yang masih menunggu data" });
+
+      fireEvent.click(within(waiting).getByRole("button", { name: "Review Kopi" }));
+
+      expect(onOpenContent).toHaveBeenCalledWith("c-2");
+    });
+
+    it("keeps a waiting name plain when no content can be opened", async () => {
+      moves.finalizeInvoice.mockResolvedValue({
+        ok: false,
+        code: "INVOICE_BONUS_PENDING",
+        message: "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
+        report: {
+          lastSync: null,
+          bonusGaps: {
+            available: true,
+            waiting: [
+              {
+                contentId: "c-2",
+                contentName: "Review Kopi",
+                platform: "instagram",
+                metric: "views",
+                state: "not_connected",
+              },
+            ],
+          },
+        },
+      });
+      render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+      const waiting = await screen.findByRole("group", { name: "Konten yang masih menunggu data" });
+
+      expect(within(waiting).queryByRole("button", { name: "Review Kopi" })).not.toBeInTheDocument();
+      expect(within(waiting).getByText(/Review Kopi/)).toBeInTheDocument();
+    });
+
     it("keeps a refusal for another reason visible as before", async () => {
       moves.finalizeInvoice.mockResolvedValue({
         ok: false,
