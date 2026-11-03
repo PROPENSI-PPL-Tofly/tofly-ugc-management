@@ -1,0 +1,46 @@
+name: Jira subtask status
+
+# Moves the subtask a PR belongs to along the SCRUM board: opening the PR into
+# its PBI branch puts the subtask in Testing, merging it puts it in Done. The
+# subtask comes from the branch name (feat/<name>_<no> → SCRUM-<no>) or a
+# SCRUM-<no> in the PR title; PBIs and subtasks already further along are left
+# alone, and a merge only reaches Done once no other open PR into a PBI branch
+# names the same subtask (.github/scripts/jira-subtask-status.mjs).
+#
+# pull_request_target, not pull_request: since 2025-12-08 GitHub always runs
+# this event from the workflow file on the default branch, so this one file on
+# main covers every feat/pbi-* branch, including ones cut before it existed.
+# It also gets the Jira secrets. Never check out or run the PR's own code here.
+on:
+  pull_request_target:
+    types: [opened, reopened, closed]
+    branches: ["feat/pbi-*"]
+
+permissions:
+  contents: read
+  # Listing the other open PRs before a subtask goes to Done.
+  pull-requests: read
+
+jobs:
+  move:
+    name: Move subtask
+    # Only branches pushed to this repo; a fork PR could name any subtask.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The default branch's copy of the script, never the PR head.
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Move the subtask in Jira
+        env:
+          JIRA_BASE_URL: https://kaniaalmyra.atlassian.net
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/jira-subtask-status.mjs
