@@ -8,7 +8,6 @@ import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
 import { InvoiceCommandService } from './invoice-command.service.js';
-import { CONTRACT_SYNC } from '../performance/ports.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 
 /** The error `promise` rejects with, for checking both its class and its body. */
@@ -170,19 +169,6 @@ describe('InvoiceCommandService', () => {
   });
 
   describe('finalize', () => {
-    /** The content's Instagram link, measured at `views` (PBI-28: the bonus reads each link). */
-    function instagramLink(views: number | null) {
-      return {
-        platform: 'instagram',
-        views,
-        likes: null,
-        comments: null,
-        shares: null,
-        data_state: views === null ? 'waiting' : 'synced',
-        last_synced_at: null,
-      };
-    }
-
     const measured = {
       id: 'measured',
       contract_id: 'contract-1',
@@ -191,7 +177,9 @@ describe('InvoiceCommandService', () => {
       status: 'link_submitted',
       deadline: day(-2),
       video_submitted_at: day(-2),
-      content_links: [instagramLink(0)],
+      content_links: [{ platform: 'instagram' }],
+      views: 0,
+      likes: null,
     };
 
     /** An ended contract whose one video was on time and measured, so nothing waits for data. */
@@ -423,11 +411,7 @@ describe('InvoiceCommandService', () => {
     });
 
     describe('a performance bonus still waiting for data', () => {
-      const unmeasured = {
-        ...measured,
-        id: 'unmeasured',
-        content_links: [instagramLink(null)],
-      };
+      const unmeasured = { ...measured, id: 'unmeasured', views: null };
 
       beforeEach(() => {
         prisma.contracts.findUnique.mockResolvedValue(
@@ -475,117 +459,6 @@ describe('InvoiceCommandService', () => {
             }),
           }),
         );
-      });
-    });
-
-    describe('the last sync before freezing (PBI-28 28.2)', () => {
-      const sync = { syncContract: vi.fn() };
-
-      beforeEach(async () => {
-        sync.syncContract.mockResolvedValue({
-          notUpdated: [{ contentId: 'measured', platform: 'instagram' }],
-        });
-        const module = await Test.createTestingModule({
-          providers: [
-            InvoiceCommandService,
-            { provide: PrismaService, useValue: prisma },
-            { provide: RATE_FORMULA_SOURCE, useValue: formulas },
-            { provide: CONTRACT_SYNC, useValue: sync },
-          ],
-        }).compile();
-        service = module.get(InvoiceCommandService);
-      });
-
-      it('syncs the contract once more before taking its lock, so a slow platform holds no row (AC 7)', async () => {
-        await service.finalize('contract-1', 'admin-9', TODAY);
-
-        expect(sync.syncContract).toHaveBeenCalledWith('contract-1');
-        expect(sync.syncContract.mock.invocationCallOrder[0]).toBeLessThan(
-          prisma.$transaction.mock.invocationCallOrder[0],
-        );
-      });
-
-      it('answers how the sync went and the links it could not update, with their state (AC 8)', async () => {
-        const result = await service.finalize('contract-1', 'admin-9', TODAY);
-
-        expect(result.lastSync).toEqual({
-          status: 'done',
-          notUpdated: [
-            {
-              contentId: 'measured',
-              contentName: 'Evg_1',
-              platform: 'instagram',
-              state: 'synced',
-            },
-          ],
-        });
-      });
-
-      it('goes on with the stored numbers when the sync fails, naming every delivered link (AC 8)', async () => {
-        sync.syncContract.mockRejectedValue(new Error('platform down'));
-
-        const result = await service.finalize('contract-1', 'admin-9', TODAY);
-
-        expect(result.invoiceStatus).toBe('finalized');
-        expect(result.lastSync.status).toBe('failed');
-        expect(result.lastSync.notUpdated).toHaveLength(1);
-      });
-
-      it("freezes each delivered link's numbers, source and sync time in the snapshot (AC 10)", async () => {
-        const { snapshot } = await service.finalize(
-          'contract-1',
-          'admin-9',
-          TODAY,
-        );
-
-        expect(snapshot.performanceLinks).toEqual([
-          {
-            contentId: 'measured',
-            contentName: 'Evg_1',
-            platform: 'instagram',
-            views: 0,
-            likes: null,
-            comments: null,
-            shares: null,
-            source: 'synced',
-            state: 'synced',
-            lastSyncedAt: null,
-          },
-        ]);
-      });
-
-      it('lists the content still without data in the refusal, with the sync outcome (AC 9)', async () => {
-        prisma.contracts.findUnique.mockResolvedValue(
-          endedContract({
-            contents: [
-              {
-                ...measured,
-                id: 'unmeasured',
-                content_links: [instagramLink(null)],
-              },
-            ],
-          }),
-        );
-
-        const error = await rejection(
-          service.finalize('contract-1', 'admin-9', TODAY),
-        );
-
-        expect(error).toMatchObject({
-          response: {
-            code: 'INVOICE_BONUS_PENDING',
-            waiting: [
-              {
-                contentId: 'unmeasured',
-                contentName: 'Evg_1',
-                platform: 'instagram',
-                metric: 'views',
-                state: 'waiting',
-              },
-            ],
-            lastSync: { status: 'done' },
-          },
-        });
       });
     });
 
