@@ -170,6 +170,44 @@ describe("CreatorInvoiceView", () => {
       expect(lines[1]).toHaveTextContent("TikTok · 1.200 Likes · Tier 1 · Diisi manual");
     });
 
+    // PBI-28 28.4: a finalized invoice in Riwayat Invoice says when each bonus line was locked.
+    it("ends each bonus line of a finalized invoice with the day it was locked", () => {
+      const base = aCreatorInvoice();
+      renderView({
+        status: "finalized",
+        bonusAmount: 150000,
+        breakdown: {
+          ...base.breakdown,
+          bonus: {
+            ...base.breakdown.bonus,
+            performance: "ready",
+            total: 150000,
+            lockedOn: "2026-09-01T17:30:00.000Z",
+            lines: [
+              {
+                kind: "performance",
+                contentId: "c-1",
+                name: "Unboxing Kelas TOEFL",
+                platform: "instagram",
+                metric: "views",
+                value: 41200,
+                tier: 2,
+                amount: 150000,
+                source: "manual",
+                lastSyncedAt: null,
+              },
+            ],
+          },
+        },
+      });
+
+      fireEvent.click(within(part("Bonus Performa")).getByRole("button", { name: /Bonus Performa/ }));
+
+      expect(within(part("Bonus Performa")).getByRole("listitem")).toHaveTextContent(
+        "Instagram · 41.200 Views · Tier 2 · Diisi manual · Dikunci pada 2 Sep 2026",
+      );
+    });
+
     it("says a contract that has not started has not, beside its fixed rate", () => {
       renderView({ notStarted: true });
 

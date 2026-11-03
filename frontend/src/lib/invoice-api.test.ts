@@ -408,6 +408,8 @@ describe("toInvoiceBreakdown", () => {
       ],
       total: 0,
       performance: "waiting",
+      // Still running: nothing is locked yet.
+      lockedOn: null,
       rules: {
         tiers: [
           {
@@ -422,6 +424,25 @@ describe("toInvoiceBreakdown", () => {
         ],
         specificBonus: 100000,
       },
+    });
+  });
+
+  // PBI-28 28.4: a finalized invoice's bonus says when it was locked, once for the invoice,
+  // for the admin's Rincian and the creator's alike.
+  describe("when the bonus was locked", () => {
+    const lockedOn = (snapshot: { finalizedAt: string } | null) =>
+      toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, snapshot }).bonus.lockedOn;
+
+    it("is the moment the invoice was finalized", () => {
+      expect(lockedOn({ finalizedAt: "2026-11-02T17:00:00.000Z" })).toBe("2026-11-02T17:00:00.000Z");
+    });
+
+    it("is nothing while the invoice still runs", () => {
+      expect(lockedOn(null)).toBeNull();
+    });
+
+    it("is nothing for a finalize moment it cannot read, rather than a broken date", () => {
+      expect(lockedOn({ finalizedAt: "bukan-waktu" })).toBeNull();
     });
   });
 
@@ -569,6 +590,7 @@ describe("toInvoiceBreakdown", () => {
         total: 0,
         performance: "waiting",
         rules: { tiers: [], specificBonus: 0 },
+        lockedOn: null,
       },
       penalty: { lines: [], total: 0 },
     });

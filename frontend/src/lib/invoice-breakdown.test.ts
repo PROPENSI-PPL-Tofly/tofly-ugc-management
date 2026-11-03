@@ -293,6 +293,54 @@ describe("breakdownPopup", () => {
       });
     });
 
+    // PBI-28 28.4: on a finalized invoice each bonus line says the day it was locked, in Jakarta.
+    describe("a locked bonus", () => {
+      const performance = {
+        kind: "performance" as const,
+        contentId: "c-1",
+        name: "Evg_1_Rangga_01102026",
+        platform: "tiktok" as const,
+        metric: "views" as const,
+        value: 12500,
+        tier: 2,
+        amount: 250000,
+        source: "synced" as const,
+        lastSyncedAt: null,
+      };
+      const lockedView = (lockedOn: string | null) =>
+        breakdownPopup(
+          "bonus",
+          breakdown({
+            bonus: {
+              ...EMPTY_BREAKDOWN.bonus,
+              lockedOn,
+              lines: [
+                performance,
+                { ...performance, platform: "instagram", noData: true, value: 0, tier: 0, amount: 0 },
+                { kind: "specific", contentId: "c-2", name: "Spc_1_Rangga_05102026", amount: 100000 },
+              ],
+              total: 350000,
+            },
+          }),
+        );
+
+      it("ends every bonus line with the day it was locked, a no-data line and a Specific one included", () => {
+        expect(lockedView("2026-11-02T17:00:00.000Z").lines.map((line) => line.detail)).toEqual([
+          "TikTok · 12.500 Views · Tier 2 · Tersinkron · Dikunci pada 3 Nov 2026",
+          "Instagram · Views · Tidak ada data · Dikunci pada 3 Nov 2026",
+          "Bonus konten Specific tepat waktu · Dikunci pada 3 Nov 2026",
+        ]);
+      });
+
+      it("says nothing is locked while the invoice still runs", () => {
+        expect(lockedView(null).lines.map((line) => line.detail)).toEqual([
+          "TikTok · 12.500 Views · Tier 2 · Tersinkron",
+          "Instagram · Views · Tidak ada data",
+          "Bonus konten Specific tepat waktu",
+        ]);
+      });
+    });
+
     describe("the tier info above the lines", () => {
       const rules = {
         tiers: [
