@@ -287,6 +287,68 @@ describe('InvoiceCommandService', () => {
       },
     );
 
+    const linkRow = {
+      content_id: 'measured',
+      content_name: 'Evg_1',
+      platform: 'tiktok',
+      views: 12_400,
+      likes: 830,
+      comments: 0,
+      shares: null,
+      data_state: 'sync_failed',
+      last_synced_at: new Date('2026-10-30T19:00:00.000Z'),
+      manual_at: null,
+    };
+    const frozenLink = {
+      contentId: 'measured',
+      contentName: 'Evg_1',
+      platform: 'tiktok',
+      views: 12_400,
+      likes: 830,
+      comments: 0,
+      shares: null,
+      source: 'synced',
+      state: 'sync_failed',
+      lastSyncedAt: '2026-10-30T19:00:00.000Z',
+    };
+
+    /** The lock answers nothing; the share-locked read of the links answers `rows`. */
+    function linksRead(rows: unknown[]) {
+      prisma.$queryRaw.mockImplementation(async (query: Prisma.Sql) =>
+        query.text.includes('FOR SHARE') ? rows : [],
+      );
+    }
+
+    // OWASP A08:2025 Software or Data Integrity Failures: AC 10, every delivered link's numbers are
+    // frozen with the invoice, read under the contract lock in the transaction that saves it.
+    it('freezes each delivered link in the snapshot, read after the contract lock and before the contract', async () => {
+      linksRead([linkRow]);
+
+      const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(result.snapshot.performanceLinks).toEqual([frozenLink]);
+      const [lock, links] = prisma.$queryRaw.mock.calls.map(([query]) => query);
+      expect(lock.text).toContain('FROM contracts');
+      expect(links.text).toContain('FOR SHARE OF l');
+      expect(links.values).toEqual(['contract-1']);
+      expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+        prisma.contracts.findUnique.mock.invocationCallOrder[0],
+      );
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            snapshot: expect.objectContaining({ performanceLinks: [frozenLink] }),
+          }),
+        }),
+      );
+    });
+
+    it('freezes an empty list for a contract with no delivered link', async () => {
+      const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(result.snapshot.performanceLinks).toEqual([]);
+    });
+
     // OWASP Top 10:2025 A05 (Injection): the contract id reaches the lock as a bound parameter.
     it('locks the contract with its id bound as a parameter, never spliced into the SQL', async () => {
       const id = "contract-1'; DROP TABLE invoices; --";
