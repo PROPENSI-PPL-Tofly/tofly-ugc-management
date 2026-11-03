@@ -50,11 +50,14 @@ describe('noDataLine (for PBI-28.1 to call)', () => {
   it.each([
     ['a number', 'likes'],
     ['a measured 0', 'views'],
-  ] as const)('refuses a link whose configured metric holds %s', (_, metric) => {
-    const measured = { ...link, views: 0 };
+  ] as const)(
+    'refuses a link whose configured metric holds %s',
+    (_, metric) => {
+      const measured = { ...link, views: 0 };
 
-    expect(() => noDataLine(measured, metric)).toThrow(
-      `link of content-1 has ${metric}; only a missing metric gets a no_data line`,
-    );
-  });
+      expect(() => noDataLine(measured, metric)).toThrow(
+        `link of content-1 has ${metric}; only a missing metric gets a no_data line`,
+      );
+    },
+  );
 });
