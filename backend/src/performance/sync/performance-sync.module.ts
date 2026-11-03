@@ -13,8 +13,8 @@ import {
 import { SYNC_SECRET, SyncSecretGuard } from './sync-secret.guard.js';
 import { syncSources } from './sync-sources.js';
 
-// Syncing performance numbers (PBI-27, 27.4): the Cloud Scheduler run and "Sinkronkan". Nothing is
-// exported yet; Finalize's last sync (PBI-28) binds PerformanceSyncService#syncContract when it lands.
+// Syncing performance numbers (PBI-27, 27.4): the Cloud Scheduler run and "Sinkronkan". The service
+// is exported for Finalize's last sync (PBI-28), which calls only its syncContract.
 @Module({
   imports: [PrismaModule],
   controllers: [
@@ -35,5 +35,6 @@ import { syncSources } from './sync-sources.js';
     },
     PerformanceSyncService,
   ],
+  exports: [PerformanceSyncService],
 })
 export class PerformanceSyncModule {}

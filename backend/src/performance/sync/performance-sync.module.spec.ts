@@ -45,12 +45,9 @@ describe('PerformanceSyncModule', () => {
     expect(module.get(SYNC_SECRET)).toBe('from-secret-manager');
   });
 
-  it('is part of the performance feature and exports nothing until Finalize (PBI-28) wires it in', () => {
+  it('is part of the performance feature', () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.IMPORTS, PerformanceModule),
     ).toContain(PerformanceSyncModule);
-    expect(
-      Reflect.getMetadata(MODULE_METADATA.EXPORTS, PerformanceSyncModule),
-    ).toBeUndefined();
   });
 });
