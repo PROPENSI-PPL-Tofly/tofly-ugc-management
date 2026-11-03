@@ -54,6 +54,63 @@ describe('PerformanceLastSync', () => {
     );
   });
 
+  // OWASP A06:2025 Insecure Design: a slow platform holds Finalize for 20 s at most (AC 7-8).
+  describe('the 20-second wait', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    const never = () => new Promise<never>(() => {});
+    const after = (ms: number) => () =>
+      new Promise<{ notUpdated: [] }>((resolve) =>
+        setTimeout(() => resolve({ notUpdated: [] }), ms),
+      );
+
+    it('is still waiting at 19,999 ms and answers timed_out at exactly 20,000 ms', async () => {
+      const { adapter } = adapterFor(never);
+      let answer: unknown;
+      void adapter.beforeFinalize(contractId).then((value) => (answer = value));
+
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(answer).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(answer).toEqual({ status: 'timed_out', notUpdated: null });
+    });
+
+    it('takes a sync that answers at 19,999 ms', async () => {
+      const { adapter } = adapterFor(after(19_999));
+      const answer = adapter.beforeFinalize(contractId);
+
+      await vi.advanceTimersByTimeAsync(19_999);
+
+      await expect(answer).resolves.toEqual({ status: 'done', notUpdated: [] });
+    });
+
+    it('leaves no timer behind, whether the sync answers or the wait runs out', async () => {
+      const answered = adapterFor(after(5)).adapter.beforeFinalize(contractId);
+      await vi.advanceTimersByTimeAsync(5);
+      await answered;
+      expect(vi.getTimerCount()).toBe(0);
+
+      const timedOut = adapterFor(never).adapter.beforeFinalize(contractId);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await timedOut;
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('warns that the wait ran out, naming the contract', async () => {
+      const { adapter, log } = adapterFor(never);
+      const answer = adapter.beforeFinalize(contractId);
+
+      await vi.advanceTimersByTimeAsync(20_000);
+      await answer;
+
+      expect(log.warn).toHaveBeenCalledWith(
+        `finalize last sync timed_out for contract ${contractId} (DeadlineExceeded)`,
+      );
+    });
+  });
+
   it('logs nothing when the sync answers', async () => {
     const { adapter, log } = adapterFor(async () => ({ notUpdated: [] }));
 
