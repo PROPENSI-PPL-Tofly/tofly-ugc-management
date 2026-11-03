@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
+import type request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { day } from './days.js';
@@ -261,6 +262,44 @@ describe('content performance (e2e)', () => {
       expect(response.body.message).toBe(
         'Invoice sudah difinalisasi. Koreksi lewat penyesuaian.',
       );
+    });
+
+    it('waits for a Finalize that holds the contract, then refuses, leaving the frozen numbers alone (AC 18)', async () => {
+      const racing = await newCreator('racing', false);
+      const invoice = await prisma.invoices.create({
+        data: { contract_id: racing.contractId, status: 'running' },
+      });
+      const content = await linked(racing, 'racing');
+      let entry: Promise<request.Response> | undefined;
+
+      // Finalize's transaction, cut down to its lock and its status write: it holds the contract
+      // row from its first statement to its commit, as InvoiceCommandService.finalize does.
+      await prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM contracts WHERE id = ${racing.contractId}::uuid FOR UPDATE`;
+          entry = as(app, admin)
+            .put(`/contents/${content.id}/links/tiktok/performance`)
+            .send({ views: 1 })
+            .then((response) => response);
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          await tx.invoices.update({
+            where: { id: invoice.id },
+            data: {
+              status: 'finalized',
+              snapshot: {},
+              finalized_at: new Date(),
+              finalized_by: adminId,
+            },
+          });
+        },
+        { timeout: 10_000 },
+      );
+      const response = await entry!;
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('INVOICE_FINALIZED');
+      const link = await linkOf(content.id, 'tiktok');
+      expect(link).toMatchObject({ views: null, data_state: 'waiting' });
     });
 
     it('answers 422 per field (AC 15)', async () => {

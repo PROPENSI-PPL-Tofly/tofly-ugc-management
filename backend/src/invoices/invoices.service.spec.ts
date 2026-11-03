@@ -597,9 +597,7 @@ describe('InvoicesService', () => {
       expect(prisma.creators.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            contracts: {
-              some: { end_date: { gte: new Date('2026-06-01T00:00:00Z') } },
-            },
+            contracts: { some: { end_date: { gte: new Date('2026-06-01T00:00:00Z') } } },
           },
         }),
       );

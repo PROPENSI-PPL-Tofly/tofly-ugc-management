@@ -36,6 +36,16 @@ describe("AdminNav", () => {
     expect(link).toHaveAttribute("aria-current", "page");
   });
 
+  it("lists Performa Konten between the content work and the invoicing, and marks it current on its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/performance");
+
+    render(<AdminNav />);
+
+    const link = screen.getByRole("link", { name: "Performa Konten" });
+    expect(link).toHaveAttribute("href", "/admin/performance");
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
   it("marks Content Plan as current on its page", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/content-plan");
 

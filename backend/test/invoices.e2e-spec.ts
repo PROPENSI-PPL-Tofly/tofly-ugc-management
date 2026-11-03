@@ -278,7 +278,9 @@ describe('Invoices API (e2e)', () => {
       ]),
     );
     expect(nadia.components.penalty.amount).toBe(250_000);
-    expect(nadia.components.performanceBonus.status).toBe('waiting_for_data');
+    expect(nadia.components.performanceBonus.status).toBe(
+      'waiting_for_data',
+    );
     expect(nadia).toMatchObject({ total: 1_850_000, floored: false });
     expect(nadia.contract.status).toBe('active');
   });
@@ -319,7 +321,9 @@ describe('Invoices API (e2e)', () => {
       );
     };
 
-    expect(await names({ q: `${MARKER} nad` })).toEqual([`${MARKER} Nadia`]);
+    expect(await names({ q: `${MARKER} nad` })).toEqual([
+      `${MARKER} Nadia`,
+    ]);
     expect(await names({ q: MARKER, contract: 'active' })).toEqual([
       `${MARKER} Nadia`,
     ]);
@@ -642,28 +646,17 @@ describe('Invoices API (e2e)', () => {
   // rupiah, so a typo or a number past 2^53 can never be stored rounded or inflate a payout.
   it.each([
     ['a fraction of a rupiah', 1.5, 'Jumlah harus angka bulat dan bukan nol'],
-    [
-      'one rupiah over the limit',
-      10_000_001,
-      'Jumlah maksimal Rp10.000.000 per penyesuaian',
-    ],
-    [
-      'past the safe integer range',
-      Number.MAX_SAFE_INTEGER + 2,
-      'Jumlah maksimal Rp10.000.000 per penyesuaian',
-    ],
-  ])(
-    'refuses an amount that is %s and stores nothing',
-    async (_case, amount, message) => {
-      await expectAdjustmentStateUnchanged(async () => {
-        const response = await admin
-          .post(adjustmentPath())
-          .send({ amount, reason: 'Out of range' })
-          .expect(422);
-        expect(response.body.errors).toEqual({ amount: message });
-      });
-    },
-  );
+    ['one rupiah over the limit', 10_000_001, 'Jumlah maksimal Rp10.000.000 per penyesuaian'],
+    ['past the safe integer range', Number.MAX_SAFE_INTEGER + 2, 'Jumlah maksimal Rp10.000.000 per penyesuaian'],
+  ])('refuses an amount that is %s and stores nothing', async (_case, amount, message) => {
+    await expectAdjustmentStateUnchanged(async () => {
+      const response = await admin
+        .post(adjustmentPath())
+        .send({ amount, reason: 'Out of range' })
+        .expect(422);
+      expect(response.body.errors).toEqual({ amount: message });
+    });
+  });
 
   it('accepts exactly Rp10.000.000 either way', async () => {
     await expectCreatedAdjustment(10_000_000, 'Limit plus');
@@ -755,16 +748,9 @@ describe('Invoices API (e2e)', () => {
                 status: 'link_submitted',
                 video_submitted_at: day(-2),
                 content_links: {
-                  create: {
-                    ...storedLink(
-                      'https://example.com/access-evergreen',
-                      day(-2),
-                      user.id,
-                      'instagram',
-                    ),
-                    views: 0,
-                  },
+                  create: storedLink('https://example.com/access-evergreen', day(-2), user.id, 'instagram'),
                 },
+                views: 0,
               },
             },
           },
@@ -923,16 +909,9 @@ describe('Invoices API (e2e)', () => {
                   status: 'link_submitted',
                   video_submitted_at: day(-2),
                   content_links: {
-                    create: {
-                      ...storedLink(
-                        'https://example.com/finalization-evergreen',
-                        day(-2),
-                        user.id,
-                        'instagram',
-                      ),
-                      views: 0,
-                    },
+                    create: storedLink('https://example.com/finalization-evergreen', day(-2), user.id, 'instagram'),
                   },
+                  views: 0,
                 },
                 {
                   name: `${MARKER} on-time specific`,
@@ -968,7 +947,9 @@ describe('Invoices API (e2e)', () => {
         additionalContent: { amount: 100_000, status: 'calculated' },
         performanceBonus: { amount: 0, status: 'calculated' },
         penalty: { amount: 0, status: 'calculated' },
-        adjustments: [{ amount: 25_000, reason, actorId: adminId }],
+        adjustments: [
+          { amount: 25_000, reason, actorId: adminId },
+        ],
         rawTotal: 1_125_000,
         total: 1_125_000,
         floored: false,
@@ -1019,16 +1000,9 @@ describe('Invoices API (e2e)', () => {
                 status: 'link_submitted',
                 video_submitted_at: day(-5),
                 content_links: {
-                  create: {
-                    ...storedLink(
-                      'https://example.com/early-end-evergreen',
-                      day(-5),
-                      user.id,
-                      'instagram',
-                    ),
-                    views: 0,
-                  },
+                  create: storedLink('https://example.com/early-end-evergreen', day(-5), user.id, 'instagram'),
                 },
+                views: 0,
               },
             },
           },
@@ -1089,16 +1063,9 @@ describe('Invoices API (e2e)', () => {
                   status: 'link_submitted',
                   video_submitted_at: day(-50),
                   content_links: {
-                    create: {
-                      ...storedLink(
-                        'https://example.com/renewed-evergreen',
-                        day(-50),
-                        user.id,
-                        'instagram',
-                      ),
-                      views: 0,
-                    },
+                    create: storedLink('https://example.com/renewed-evergreen', day(-50), user.id, 'instagram'),
                   },
+                  views: 0,
                 },
               },
             },
@@ -1120,13 +1087,12 @@ describe('Invoices API (e2e)', () => {
     });
     const [earlier, current] = creatorRow.contracts;
     const listed = async () =>
-      (
-        await admin.get('/invoices').query({ q: name }).expect(200)
-      ).body.items.map(
-        (item: {
-          contract: { id: string; period: number };
-          invoiceStatus: string;
-        }) => [item.contract.id, item.contract.period, item.invoiceStatus],
+      (await admin.get('/invoices').query({ q: name }).expect(200)).body.items.map(
+        (item: { contract: { id: string; period: number }; invoiceStatus: string }) => [
+          item.contract.id,
+          item.contract.period,
+          item.invoiceStatus,
+        ],
       );
 
     expect(await listed()).toEqual([
@@ -1191,12 +1157,7 @@ describe('Invoices API (e2e)', () => {
                 status: 'link_submitted',
                 video_submitted_at: day(-2),
                 content_links: {
-                  create: storedLink(
-                    'https://example.com/unmeasured-evergreen',
-                    day(-2),
-                    user.id,
-                    'instagram',
-                  ),
+                  create: storedLink('https://example.com/unmeasured-evergreen', day(-2), user.id, 'instagram'),
                 },
               },
             },
@@ -1263,16 +1224,9 @@ describe('Invoices API (e2e)', () => {
                   status: 'link_submitted',
                   video_submitted_at: day(-2),
                   content_links: {
-                    create: {
-                      ...storedLink(
-                        'https://example.com/history-evergreen',
-                        day(-2),
-                        user.id,
-                        'instagram',
-                      ),
-                      views: 0,
-                    },
+                    create: storedLink('https://example.com/history-evergreen', day(-2), user.id, 'instagram'),
                   },
+                  views: 0,
                 },
                 {
                   name: `${MARKER} history specific`,
@@ -1349,16 +1303,9 @@ describe('Invoices API (e2e)', () => {
                 status: 'link_submitted',
                 video_submitted_at: day(-2),
                 content_links: {
-                  create: {
-                    ...storedLink(
-                      `https://example.com/${slug}`,
-                      day(-2),
-                      user.id,
-                      'instagram',
-                    ),
-                    views: views,
-                  },
+                  create: storedLink(`https://example.com/${slug}`, day(-2), user.id, 'instagram'),
                 },
+                views,
               },
             },
           },

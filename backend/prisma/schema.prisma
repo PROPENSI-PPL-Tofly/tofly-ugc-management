@@ -10,27 +10,29 @@ datasource db {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model contents {
-  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contract_id        String           @db.Uuid
-  name               String
-  type               content_type
-  brief              String           @default("")
-  deadline           DateTime         @db.Date
-  status             content_status   @default(scheduled)
-  proposal_notes     String?
-  video_link         String?
-  video_submitted_at DateTime?        @db.Date
-  platform           social_platform?
-  views              Int?
-  likes              Int?
-  engagement         Decimal?         @db.Decimal(5, 2)
-  created_at         DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime         @default(now()) @db.Timestamptz(6)
-  approval_bypassed  Boolean          @default(false)
-  contracts          contracts        @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  submissions        submissions[]
-  content_events     content_events[]
-  content_links      content_links[]
+  id                           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id                  String           @db.Uuid
+  name                         String
+  type                         content_type
+  brief                        String           @default("")
+  deadline                     DateTime         @db.Date
+  status                       content_status   @default(scheduled)
+  proposal_notes               String?
+  video_link                   String?
+  video_submitted_at           DateTime?        @db.Date
+  platform                     social_platform?
+  views                        Int?
+  likes                        Int?
+  engagement                   Decimal?         @db.Decimal(5, 2)
+  created_at                   DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime         @default(now()) @db.Timestamptz(6)
+  approval_bypassed            Boolean          @default(false)
+  /// PBI-27: until when a performance sync holds this content; null when none does.
+  performance_sync_lease_until DateTime?        @db.Timestamptz(6)
+  contracts                    contracts        @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  submissions                  submissions[]
+  content_events               content_events[]
+  content_links                content_links[]
 
   @@index([contract_id, deadline], map: "contents_contract_deadline_idx")
 }

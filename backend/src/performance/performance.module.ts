@@ -9,12 +9,13 @@ import {
   PerformanceLinksController,
 } from './performance.controller.js';
 import { PerformanceLinksService } from './performance-links.service.js';
+import { PerformanceSyncModule } from './sync/performance-sync.module.js';
 
 // Content performance (PBI-27): the numbers per link, typed in by an admin, listed for them, and
 // listed for each creator on their own Performa page.
 // The platform adapters (27.2, 27.3) and the sync (27.4) join this module.
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, PerformanceSyncModule],
   controllers: [
     ManualPerformanceController,
     PerformanceLinksController,

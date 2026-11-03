@@ -1,6 +1,6 @@
 import { calculateInvoice, DEFAULT_COMPONENTS } from './invoice-calculator.js';
 import type { InvoiceComponentKey } from './invoice-component.js';
-import { content, context, contract, day, link } from './invoice-test-data.js';
+import { content, context, contract, day } from './invoice-test-data.js';
 
 describe('calculateInvoice', () => {
   it('runs the four components in the order they are shown', () => {
@@ -28,7 +28,8 @@ describe('calculateInvoice', () => {
             status: 'link_submitted',
             deadline: day(-5),
             videoSubmittedAt: day(-5),
-            links: [link('instagram', { views: 12_400 })],
+            platform: 'instagram',
+            views: 12_400,
           }),
         ],
       }),
