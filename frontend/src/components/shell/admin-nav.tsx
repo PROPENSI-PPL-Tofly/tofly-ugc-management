@@ -4,6 +4,7 @@ import { ShellNav, type Place } from "./shell-nav";
 const PLACES: Place[] = [
   { href: "/admin/creators", label: "Creator Database", icon: "people" },
   { href: "/admin/content-plan", label: "Content Plan", icon: "calendar" },
+  { href: "/admin/performance", label: "Performa Konten", icon: "chart" },
   { href: "/admin/invoicing", label: "Rate & Invoicing", icon: "receipt" },
 ];
 
