@@ -1,0 +1,3 @@
+# Raw OWASP ZAP reports, kept byte for byte as ZAP wrote them: its HTML has trailing whitespace.
+* -whitespace
+.gitattributes whitespace
