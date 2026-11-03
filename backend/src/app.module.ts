@@ -21,7 +21,9 @@ import { SubmissionsModule } from './submissions/submissions.module.js';
 import { RejectNulCharactersInterceptor } from './reject-nul-characters.interceptor.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
-function validate(config: Record<string, unknown>): Record<string, unknown> {
+export function validate(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
   for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
     if (!config[key]) {
       throw new Error(`Missing required env var: ${key}`);
