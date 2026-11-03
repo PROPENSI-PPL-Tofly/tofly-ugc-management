@@ -40,6 +40,13 @@ export const DATA_STATE_LABELS: Record<DataState, string> = {
   manual: "Diisi manual",
 };
 
+/**
+ * What a creator is told wherever they send or follow their links (PBI-28 AC 13): the numbers
+ * count for the bonus only until the invoice is finalized.
+ */
+export const PERFORMANCE_LOCK_REMINDER =
+  "Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.";
+
 /** The highest number an admin may type (AC 15), as the API holds it. */
 export const MAX_METRIC = 999_999_999;
 

@@ -32,6 +32,7 @@ export function useVideoLinksModal(role: Role): {
           content={opened}
           platforms={role === "admin" ? ADMIN_PLATFORMS : undefined}
           links={opened.links}
+          lockReminder={role !== "admin"}
           onClose={() => setOpened(null)}
           onSubmitted={() => {
             confirm("Link video diperbarui.");
