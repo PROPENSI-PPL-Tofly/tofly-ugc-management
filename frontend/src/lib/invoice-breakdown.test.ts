@@ -284,6 +284,15 @@ describe("breakdownPopup", () => {
         expect(viewOf(extra).detail).toBe(detail);
       });
 
+      // As the prototype's componentsHtml words it: a measured link below the first tier earned
+      // nothing, so it says so, at "Rp0" rather than "+ Rp0" (review #160).
+      it("words a link below Tier 1 as not reaching it, at Rp0", () => {
+        const line = viewOf({ value: 800, tier: 0, amount: 0, source: "synced", lastSyncedAt: null });
+
+        expect(line.detail).toBe("TikTok · 800 Views · Belum capai Tier 1 · Tersinkron");
+        expect(line.amount).toBe("Rp0");
+      });
+
       // 28.2's Rp0 line: no value or tier to show, and never "+ Rp0" as if something were earned.
       it("words a link frozen without data as such, at Rp0", () => {
         const line = viewOf({ noData: true, value: 0, tier: 0, amount: 0, source: null, lastSyncedAt: null });

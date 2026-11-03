@@ -130,6 +130,23 @@ describe("LinkPerformanceSection: Sinkronkan Sekarang (AC 12, 13)", () => {
     expect(props.onChanged).not.toHaveBeenCalled();
   });
 
+  // PBI-28 AC 13, as the prototype's "Link & Performa" puts it for a creator (review #160).
+  it.each([
+    ["reminds a creator", "creator", true],
+    ["does not remind an admin", "admin", false],
+  ] as const)("%s, above the cards, that the numbers lock at Finalize", (_, role, reminded) => {
+    show([SYNCED, NOT_CONNECTED], { role });
+
+    const note = screen.queryByRole("note");
+    expect(note !== null).toBe(reminded);
+    if (note) {
+      expect(note).toHaveTextContent(
+        "Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.",
+      );
+      expect(note.compareDocumentPosition(card("Instagram")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
   it("is not offered to a creator, who only reads the numbers (AC 20)", () => {
     show([SYNCED, NOT_CONNECTED], { role: "creator" });
 
