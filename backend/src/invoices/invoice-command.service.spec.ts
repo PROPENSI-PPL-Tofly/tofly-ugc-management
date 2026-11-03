@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
 import { InvoiceCommandService } from './invoice-command.service.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
+import { LAST_SYNC, type LastSyncResult } from './last-sync.js';
 
 /** The error `promise` rejects with, for checking both its class and its body. */
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
@@ -50,10 +51,13 @@ describe('InvoiceCommandService', () => {
     $transaction: vi.fn(),
   };
   const formulas = { current: vi.fn() };
+  const DONE: LastSyncResult = { status: 'done', notUpdated: [] };
+  const lastSync = { beforeFinalize: vi.fn() };
 
   beforeEach(async () => {
     vi.clearAllMocks();
     formulas.current.mockResolvedValue(FORMULA);
+    lastSync.beforeFinalize.mockResolvedValue(DONE);
     prisma.invoice_adjustments.findMany.mockResolvedValue([]);
     prisma.$queryRaw.mockResolvedValue([]);
     prisma.$transaction.mockImplementation(
@@ -67,6 +71,7 @@ describe('InvoiceCommandService', () => {
         InvoiceCommandService,
         { provide: PrismaService, useValue: prisma },
         { provide: RATE_FORMULA_SOURCE, useValue: formulas },
+        { provide: LAST_SYNC, useValue: lastSync },
       ],
     }).compile();
 
@@ -249,6 +254,38 @@ describe('InvoiceCommandService', () => {
         },
       });
     });
+
+    // OWASP A06:2025 Insecure Design: the platforms are asked before the contract is locked, so a
+    // slow platform never holds the lock every command on the contract queues on (AC 7).
+    it('runs the last sync for the contract once, before its transaction and lock', async () => {
+      let lockedDuringSync = true;
+      lastSync.beforeFinalize.mockImplementation(async () => {
+        lockedDuringSync =
+          prisma.$transaction.mock.calls.length > 0 ||
+          prisma.$queryRaw.mock.calls.length > 0;
+        return DONE;
+      });
+
+      await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(lastSync.beforeFinalize).toHaveBeenCalledTimes(1);
+      expect(lastSync.beforeFinalize).toHaveBeenCalledWith('contract-1');
+      expect(lockedDuringSync).toBe(false);
+    });
+
+    // OWASP A10:2025 Mishandling of Exceptional Conditions: AC 8, a sync that failed or ran out of
+    // time leaves Finalize to freeze the numbers already stored.
+    it.each(['failed', 'timed_out'] as const)(
+      'still finalizes with the stored numbers when the last sync %s',
+      async (status) => {
+        lastSync.beforeFinalize.mockResolvedValue({ status, notUpdated: null });
+
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.invoiceStatus).toBe('finalized');
+        expect(prisma.invoices.updateMany).toHaveBeenCalledTimes(1);
+      },
+    );
 
     // OWASP Top 10:2025 A05 (Injection): the contract id reaches the lock as a bound parameter.
     it('locks the contract with its id bound as a parameter, never spliced into the SQL', async () => {
