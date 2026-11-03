@@ -127,7 +127,7 @@ test("matches statuses by id, so translated status names still move", async () =
 });
 
 test("flags a subtask whose workflow has no transition to the target as failed", async () => {
-  const { fetch, moved } = fakeJira({ "SCRUM-241": { subtask: true, status: "10002" } });
+  const { fetch, moved } = fakeJira({ "SCRUM-241": { subtask: true, status: "10002", names: ["In Progress"] } });
   const noDone = async (url, init) => {
     const res = await fetch(url, init);
     if (!url.endsWith("/transitions")) return res;

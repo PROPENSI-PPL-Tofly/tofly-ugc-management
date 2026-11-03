@@ -5,9 +5,14 @@
 import { readFileSync, appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+// SCRUM's workflow status ids (GET /rest/api/3/issue/SCRUM-238/transitions,
+// 2026-11-03). Matched by id because Jira may translate the built-in names
+// into the token owner's language.
+const STATUS_ID = { Idea: "10000", "To Do": "10001", "In Progress": "10002", Testing: "10003", Done: "10004" };
+
 // Statuses a subtask may still be in when its PR opens. Testing and Done are
 // left alone, so a fix PR never drags a finished subtask back.
-const BEFORE_TESTING = new Set(["Idea", "To Do", "In Progress"]);
+const BEFORE_TESTING = new Set([STATUS_ID.Idea, STATUS_ID["To Do"], STATUS_ID["In Progress"]]);
 
 // SCRUM-238 counts, SCRUM-27.6 (a PBI's subtask numbering) does not.
 const TITLE_KEY = /\bSCRUM-(\d+)(?![\d.])/g;
@@ -27,9 +32,9 @@ export function targetStatus({ action, merged }) {
   return null;
 }
 
-export function shouldMove(current, target) {
-  if (target === "Testing") return BEFORE_TESTING.has(current);
-  return current !== target;
+export function shouldMove(currentId, target) {
+  if (target === "Testing") return BEFORE_TESTING.has(currentId);
+  return currentId !== STATUS_ID[target];
 }
 
 async function jiraCall(fetch, jira, path, init = {}) {
@@ -44,30 +49,32 @@ async function jiraCall(fetch, jira, path, init = {}) {
 
 async function syncOne({ key, target, jira, fetch }) {
   const issue = await (await jiraCall(fetch, jira, `${key}?fields=issuetype,status`)).json();
-  if (!issue.fields.issuetype.subtask) return `${key}: not a subtask, skipped`;
+  if (!issue.fields.issuetype.subtask) return { text: `${key}: not a subtask, skipped`, failed: false };
 
   const current = issue.fields.status.name;
-  if (!shouldMove(current, target)) return `${key}: already ${current}, left alone`;
+  if (!shouldMove(issue.fields.status.id, target)) {
+    return { text: `${key}: already ${current}, left alone`, failed: false };
+  }
 
   const { transitions } = await (await jiraCall(fetch, jira, `${key}/transitions`)).json();
-  const transition = transitions.find((t) => t.to.name.toLowerCase() === target.toLowerCase());
-  if (!transition) return `${key}: no transition from ${current} to ${target}`;
+  const transition = transitions.find((t) => t.to.id === STATUS_ID[target]);
+  if (!transition) return { text: `${key}: no transition from ${current} to ${target}`, failed: true };
 
   await jiraCall(fetch, jira, `${key}/transitions`, {
     method: "POST",
     body: JSON.stringify({ transition: { id: transition.id } }),
   });
-  return `${key}: ${current} → ${target}`;
+  return { text: `${key}: ${current} → ${target}`, failed: false };
 }
 
-// One line per key. A failing key is reported, never thrown, so the others still move.
+// One entry per key. A failing key is reported, never thrown, so the others still move.
 export async function syncSubtasks({ keys, target, jira, fetch }) {
   const log = [];
   for (const key of keys) {
     try {
       log.push(await syncOne({ key, target, jira, fetch }));
     } catch (err) {
-      log.push(`${key}: ${err.message}`);
+      log.push({ text: `${key}: ${err.message}`, failed: true });
     }
   }
   return log;
@@ -93,9 +100,10 @@ async function main() {
   }
 
   const log = await syncSubtasks({ keys, target, jira, fetch });
-  for (const line of log) console.log(line);
+  // A wrong or expired token gets 404 (Jira hides the issue), not 401.
+  for (const { text, failed } of log) console.log(failed ? `::warning::${text}` : text);
   if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Jira subtasks\n\n${log.map((l) => `- ${l}`).join("\n")}\n`);
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Jira subtasks\n\n${log.map((l) => `- ${l.text}`).join("\n")}\n`);
   }
 }
 
