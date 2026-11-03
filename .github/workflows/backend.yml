@@ -360,7 +360,14 @@ jobs:
       # A brand-new service has no previous revision to protect, so its first
       # deploy takes traffic directly — the smoke test still gates the run.
       - name: Deploy candidate revision
+        env:
+          DB_SECRET: ${{ vars.DB_SECRET }}
         run: |
+          # --timeout 600 matches the scheduler's --attempt-deadline 600s, so the daily sync (4 groups
+          # at once, up to 60 s each) is not cut at Cloud Run's 300 s default with its lease held.
+          # Each environment has its own performance sync secret (PERFORMANCE_SYNC_SECRET_STAGING or
+          # _PROD), named after its DB secret, so staging's scheduler can never start prod's sync.
+          SYNC_SECRET="PERFORMANCE_SYNC_SECRET_${DB_SECRET#DB_URL_}"
           if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; then
             TRAFFIC="--no-traffic"
           else
@@ -372,10 +379,11 @@ jobs:
             --region "$REGION" \
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
-            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
+            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest" \
             --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
+            --timeout 600 \
             --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
 
       # Hits the candidate at its tag URL, so a broken revision is caught while
@@ -406,3 +414,25 @@ jobs:
         run: |
           gcloud run services update-traffic "$SERVICE" --region "$REGION" --to-latest
           echo "serving: $(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
+
+      # The daily performance sync (PBI-27): Cloud Scheduler POSTs /internal/performance-sync at
+      # 02:00 WIB with the environment's secret header. Created on the first deploy and updated on
+      # every later one, so the job always points at this service with the current secret. The
+      # secret is masked before it is read into the step, so it never reaches the log.
+      - name: Schedule the daily performance sync
+        env:
+          DB_SECRET: ${{ vars.DB_SECRET }}
+        run: |
+          SYNC_SECRET="PERFORMANCE_SYNC_SECRET_${DB_SECRET#DB_URL_}"
+          VALUE="$(gcloud secrets versions access latest --secret "$SYNC_SECRET")"
+          echo "::add-mask::$VALUE"
+          URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
+          JOB="performance-sync-$SERVICE"
+          ARGS=(--location "$REGION" --schedule "0 2 * * *" --time-zone "Asia/Jakarta"
+            --uri "$URL/internal/performance-sync" --http-method POST --attempt-deadline 600s)
+          if gcloud scheduler jobs describe "$JOB" --location "$REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$JOB" "${ARGS[@]}" --update-headers "x-sync-secret=$VALUE" --quiet >/dev/null
+          else
+            gcloud scheduler jobs create http "$JOB" "${ARGS[@]}" --headers "x-sync-secret=$VALUE" --quiet >/dev/null
+          fi
+          echo "scheduled $JOB: 02:00 Asia/Jakarta -> $URL/internal/performance-sync"
