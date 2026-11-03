@@ -6,6 +6,7 @@ import {
   subtaskKeys,
   targetStatus,
   shouldMove,
+  heldByOpenPrs,
   syncSubtasks,
 } from "./jira-subtask-status.mjs";
 
@@ -137,4 +138,51 @@ test("flags a subtask whose workflow has no transition to the target as failed",
   const log = await syncSubtasks({ keys: ["SCRUM-241"], target: "Done", jira, fetch: noDone });
   assert.deepEqual(moved, []);
   assert.deepEqual(log, [{ text: "SCRUM-241: no transition from In Progress to Done", failed: true }]);
+});
+
+const openPr = (number, title, head, base = "feat/pbi-28-performance-bonus") => ({
+  number,
+  title,
+  head: { ref: head },
+  base: { ref: base },
+});
+
+test("holds a subtask another open PR into a PBI branch still names, by branch or title", () => {
+  const held = heldByOpenPrs({
+    keys: ["SCRUM-229", "SCRUM-238"],
+    mergedNumber: 153,
+    openPrs: [
+      openPr(155, "feat(backend): add per-link performance data", "feat/performance-data-foundation_229"),
+      openPr(156, "fix(backend): lock the contract (SCRUM-229)", "fix/manual-entry-contract-lock"),
+    ],
+  });
+  assert.deepEqual([...held], [["SCRUM-229", [155, 156]]]);
+});
+
+test("does not hold a subtask for open PRs into staging or main, or for the merged PR itself", () => {
+  const held = heldByOpenPrs({
+    keys: ["SCRUM-238"],
+    mergedNumber: 160,
+    openPrs: [
+      openPr(160, "feat(frontend): bonus lines (SCRUM-238)", "feat/creator-bonus-breakdown_238"),
+      openPr(149, "feat: release (SCRUM-238)", "feat/pbi-28-performance-bonus", "staging"),
+    ],
+  });
+  assert.equal(held.size, 0);
+});
+
+test("leaves a held subtask where it is and still moves the others to Done", async () => {
+  const { fetch, moved } = fakeJira({
+    "SCRUM-229": { subtask: true, status: "10003", names: ["Testing"] },
+    "SCRUM-238": { subtask: true, status: "10003", names: ["Testing"] },
+  });
+  const log = await syncSubtasks({
+    keys: ["SCRUM-229", "SCRUM-238"],
+    target: "Done",
+    held: new Map([["SCRUM-229", [155, 156]]]),
+    jira,
+    fetch,
+  });
+  assert.deepEqual(moved, [["SCRUM-238", "51"]]);
+  assert.deepEqual(log[0], { text: "SCRUM-229: open PR #155, #156 still names it, left alone", failed: false });
 });
