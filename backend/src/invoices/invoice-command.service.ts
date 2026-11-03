@@ -28,7 +28,12 @@ import { contractLastDay } from './invoice-days.js';
 import { settleForFinalize } from './invoice-settlement.js';
 import type { FinalizeRequest } from './finalize-request.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
-import { LAST_SYNC, type LastSync } from './last-sync.js';
+import {
+  LAST_SYNC,
+  lastSyncReport,
+  type LastSync,
+  type LastSyncDto,
+} from './last-sync.js';
 import { lockDeliveredLinks, toFrozenLink } from './frozen-links.js';
 
 // The admin's commands on a running invoice (PBI-12): recording a manual adjustment and
@@ -64,6 +69,8 @@ export interface InvoiceCommands {
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto;
+    /** How the last sync before freezing went (AC 8). */
+    lastSync: LastSyncDto;
   }>;
 }
 
@@ -130,18 +137,22 @@ export class InvoiceCommandService implements InvoiceCommands {
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto;
+    /** How the last sync before freezing went (AC 8). */
+    lastSync: LastSyncDto;
   }> {
     const formula = await this.formulas.current();
     // The platforms are asked first, outside the transaction: a sync takes up to 20 s and must
     // never hold the contract lock every other command on this contract waits for (AC 7).
-    await this.lastSync.beforeFinalize(contractId);
+    const synced = await this.lastSync.beforeFinalize(contractId);
 
     return this.prisma.$transaction(
       async (tx) => {
         await lockContractRow(tx, contractId);
         // Read after the lock, so a manual entry queued on it has committed; share-locked, so no
         // sync writes a number between here and the commit (AC 10-11).
-        const links = await lockDeliveredLinks(tx, contractId);
+        const links = (await lockDeliveredLinks(tx, contractId)).map(
+          toFrozenLink,
+        );
 
         const contract = await tx.contracts.findUnique({
           where: { id: contractId },
@@ -215,7 +226,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           finalizedAt: today.toISOString(),
           formula,
           performanceBonusPending: settled.performanceBonusPending,
-          performanceLinks: links.map(toFrozenLink),
+          performanceLinks: links,
         };
 
         const updated = await tx.invoices.updateMany({
@@ -232,7 +243,12 @@ export class InvoiceCommandService implements InvoiceCommands {
           throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
         }
 
-        return { invoiceStatus: 'finalized', adjustments, snapshot };
+        return {
+          invoiceStatus: 'finalized',
+          adjustments,
+          snapshot,
+          lastSync: lastSyncReport(synced, links),
+        };
       },
       { isolationLevel: 'ReadCommitted' },
     );
