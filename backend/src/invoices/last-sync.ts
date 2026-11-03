@@ -6,8 +6,8 @@ import type { UnsyncedLink } from '../performance/sync/sync-outcome.js';
 
 export const LAST_SYNC = Symbol('LAST_SYNC');
 
-/** How the last sync ended. */
-export type LastSyncStatus = 'done' | 'failed';
+/** How the last sync ended: answered, rejected, or still running when the 20 s ran out. */
+export type LastSyncStatus = 'done' | 'failed' | 'timed_out';
 
 export interface LastSyncResult {
   status: LastSyncStatus;
