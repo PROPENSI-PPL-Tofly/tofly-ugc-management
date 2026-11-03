@@ -211,6 +211,9 @@ describe("the browser's origin on an invoice move", () => {
 });
 
 describe("finalizeInvoice", () => {
+  /** An answer from before Finalize carried its report: nothing to read on it. */
+  const NO_REPORT = { lastSync: null, bonusGaps: null };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("BACKEND_URL", "http://localhost:3001");
@@ -226,7 +229,7 @@ describe("finalizeInvoice", () => {
   });
 
   it("asks the contract's invoice to freeze, with the browser's session", async () => {
-    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: true });
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: true, report: NO_REPORT });
 
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
       `http://localhost:3001/invoices/${CONTRACT}/finalize`,
@@ -235,12 +238,52 @@ describe("finalizeInvoice", () => {
   });
 
   it("says the admin accepted freezing a bonus still waiting for data, when they did", async () => {
-    await expect(finalizeInvoice(CONTRACT, { acceptPendingBonus: true })).resolves.toEqual({ ok: true });
+    await expect(finalizeInvoice(CONTRACT, { acceptPendingBonus: true })).resolves.toEqual({ ok: true, report: NO_REPORT });
 
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
       `http://localhost:3001/invoices/${CONTRACT}/finalize`,
       expect.objectContaining({ body: JSON.stringify({ acceptPendingBonus: true }) }),
     );
+  });
+
+  it("carries the last sync report and the bonus gaps off Finalize's answer (AC 8, 9)", async () => {
+    const notUpdated = [
+      { contentId: "c-1", contentName: "Evg_1_RanggaPratama_12102026", platform: "tiktok", state: "sync_failed" },
+    ];
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      reply(200, {
+        lastSync: { status: "failed", notUpdated },
+        bonusDataGaps: { available: false, reason: "PBI_28_1_PENDING" },
+      }),
+    );
+
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({
+      ok: true,
+      report: {
+        lastSync: { status: "failed", notUpdated },
+        bonusGaps: { available: false, reason: "PBI_28_1_PENDING" },
+      },
+    });
+  });
+
+  it("carries the waiting list on the pending-bonus refusal, so Finalize tetap knows what it accepts (AC 9)", async () => {
+    const waiting = [
+      { contentId: "c-2", contentName: "Review Kopi", platform: "instagram", metric: "views", state: "not_connected" },
+    ];
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      reply(422, {
+        code: "INVOICE_BONUS_PENDING",
+        message: "Bonus performa masih menunggu data",
+        bonusDataGaps: { available: true, waiting },
+      }),
+    );
+
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({
+      ok: false,
+      code: "INVOICE_BONUS_PENDING",
+      message: "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
+      report: { lastSync: null, bonusGaps: { available: true, waiting } },
+    });
   });
 
   // OWASP Top 10:2025 A05 (Injection): only a real true accepts; anything else a caller passes is
@@ -264,7 +307,7 @@ describe("finalizeInvoice", () => {
   ])("reads a 422 %s refusal by its code", async (code, message) => {
     vi.mocked(globalThis.fetch).mockResolvedValue(reply(422, { code, message: "server words" }));
 
-    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: false, code, message });
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: false, code, message, report: NO_REPORT });
   });
 
   it("refuses an id the API would never take, without asking it", async () => {
@@ -293,7 +336,7 @@ describe("finalizeInvoice", () => {
   ])("reads a %s refusal for the admin", async (code, message) => {
     vi.mocked(globalThis.fetch).mockResolvedValue(reply(409, { code }));
 
-    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: false, code, message });
+    await expect(finalizeInvoice(CONTRACT)).resolves.toEqual({ ok: false, code, message, report: NO_REPORT });
   });
 
   it("names a refusal that sent no code by its status, in the words the server sent", async () => {
@@ -303,6 +346,7 @@ describe("finalizeInvoice", () => {
       ok: false,
       code: "HTTP_404",
       message: "Kontrak tidak ditemukan",
+      report: NO_REPORT,
     });
   });
 
@@ -313,6 +357,7 @@ describe("finalizeInvoice", () => {
       ok: false,
       code: "HTTP_400",
       message: "Permintaan tidak dapat diproses. Coba lagi.",
+      report: NO_REPORT,
     });
   });
 
@@ -323,6 +368,7 @@ describe("finalizeInvoice", () => {
       ok: false,
       code: "INVALID",
       message: "Permintaan tidak dapat diproses. Coba lagi.",
+      report: NO_REPORT,
     });
   });
 
