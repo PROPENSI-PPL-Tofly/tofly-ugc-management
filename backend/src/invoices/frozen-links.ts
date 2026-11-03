@@ -1,4 +1,4 @@
-import type { link_data_state, social_platform } from '@prisma/client';
+import { Prisma, type link_data_state, type social_platform } from '@prisma/client';
 
 // Each delivered link as a finalized invoice keeps it (PBI-28 28.2, AC 10): the numbers the
 // contract was paid on, frozen in the snapshot so a later sync or manual entry never moves them.
@@ -59,4 +59,29 @@ export function toFrozenLink(row: FrozenLinkRow): FrozenPerformanceLinkDto {
     state: row.data_state,
     lastSyncedAt: row.last_synced_at?.toISOString() ?? null,
   };
+}
+
+/** The part of a transaction client the read uses. */
+export interface FrozenLinksClient {
+  $queryRaw<T = unknown>(query: Prisma.Sql): Promise<T>;
+}
+
+/**
+ * The contract's delivered links, first handed in first, read and share-locked in one statement.
+ * Under Read Committed each statement sees what was committed when it began; the share lock then
+ * keeps any sync or manual write off these rows until Finalize commits, so the snapshot holds one
+ * consistent set of numbers (AC 10-11).
+ */
+export function lockDeliveredLinks(
+  tx: FrozenLinksClient,
+  contractId: string,
+): Promise<FrozenLinkRow[]> {
+  return tx.$queryRaw<FrozenLinkRow[]>(Prisma.sql`
+    SELECT l.content_id, c.name AS content_name, l.platform, l.views, l.likes, l.comments,
+      l.shares, l.data_state, l.last_synced_at, l.manual_at
+    FROM content_links l JOIN contents c ON c.id = l.content_id
+    WHERE c.contract_id = ${contractId}::uuid AND c.status = 'link_submitted'
+      AND l.platform IS NOT NULL
+    ORDER BY c.deadline, c.id, l.submitted_at, l.created_at, l.id
+    FOR SHARE OF l`);
 }
