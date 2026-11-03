@@ -1,4 +1,8 @@
-import { toFrozenLink, type FrozenLinkRow } from './frozen-links.js';
+import {
+  lockDeliveredLinks,
+  toFrozenLink,
+  type FrozenLinkRow,
+} from './frozen-links.js';
 
 // What a finalized invoice keeps of each delivered link (PBI-28 28.2, AC 10): its four numbers as
 // they stood, where they came from, its state and when a sync last brought them.
@@ -97,5 +101,31 @@ describe('toFrozenLink', () => {
       state: 'waiting',
       lastSyncedAt: null,
     });
+  });
+});
+
+describe('lockDeliveredLinks', () => {
+  // OWASP A08:2025 Software or Data Integrity Failures: the links are read and share-locked in one
+  // statement, so no sync can change a number between this read and the invoice's commit.
+  it("reads and share-locks the contract's delivered links in one statement, first handed in first", async () => {
+    const rows = [row()];
+    const tx = { $queryRaw: vi.fn().mockResolvedValue(rows) };
+
+    await expect(lockDeliveredLinks(tx, 'contract-1')).resolves.toBe(rows);
+
+    const [query] = tx.$queryRaw.mock.calls[0];
+    expect(query.text.replace(/\s+/g, ' ').trim()).toBe(
+      "SELECT l.content_id, c.name AS content_name, l.platform, l.views, l.likes, l.comments, l.shares, l.data_state, l.last_synced_at, l.manual_at FROM content_links l JOIN contents c ON c.id = l.content_id WHERE c.contract_id = $1::uuid AND c.status = 'link_submitted' AND l.platform IS NOT NULL ORDER BY c.deadline, c.id, l.submitted_at, l.created_at, l.id FOR SHARE OF l",
+    );
+  });
+
+  // OWASP A05:2025 Injection: the contract id is bound, never spliced into the SQL.
+  it('binds the contract id as a parameter', async () => {
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const id = "contract-1'; DROP TABLE content_links; --";
+
+    await lockDeliveredLinks(tx, id);
+
+    expect(tx.$queryRaw.mock.calls[0][0].values).toEqual([id]);
   });
 });
