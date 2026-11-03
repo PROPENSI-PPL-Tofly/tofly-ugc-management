@@ -212,12 +212,16 @@ function basisText(line: RawInvoiceLine, key: string): string {
  */
 function lineSource(line: RawInvoiceLine): Pick<PerformanceBonusLine, "source" | "lastSyncedAt" | "noData"> {
   const { source, lastSyncedAt } = line.basis;
-  const readable = typeof lastSyncedAt === "string" && !Number.isNaN(Date.parse(lastSyncedAt));
   return {
     source: source === "synced" || source === "manual" ? source : null,
-    lastSyncedAt: readable ? lastSyncedAt : null,
+    lastSyncedAt: readableMoment(lastSyncedAt),
     noData: line.basis.status === "no_data",
   };
+}
+
+/** An ISO moment the page can show, or null for anything else: never a broken date on screen. */
+function readableMoment(value: unknown): string | null {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
 }
 
 function tierRules(formula: RawRateFormula | null): BonusTierRule[] {
@@ -281,6 +285,8 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
       })),
       total: performanceBonus.amount ?? 0,
       performance: performanceBonus.status === "waiting_for_data" ? "waiting" : "ready",
+      // Once per invoice, for the admin's Rincian and the creator's alike (PBI-28 28.4).
+      lockedOn: readableMoment(raw.snapshot?.finalizedAt),
       rules: { tiers: tierRules(raw.formula), specificBonus: raw.formula?.specificBonus ?? 0 },
     },
     penalty: {
