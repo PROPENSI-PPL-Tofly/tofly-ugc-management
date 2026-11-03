@@ -1,6 +1,7 @@
 import {
   BREAKDOWN_KINDS,
   breakdownPopup,
+  type BonusLine,
   type InvoiceBreakdown,
 } from "./invoice-breakdown";
 
@@ -242,6 +243,54 @@ describe("breakdownPopup", () => {
       );
 
       expect(view.lines[0].detail).toBe(detail);
+    });
+
+    // PBI-28 AC 6: every bonus line says where its number came from and when it was synced.
+    describe("where a line's number came from", () => {
+      const viewOf = (extra: Partial<Extract<BonusLine, { kind: "performance" }>>) =>
+        breakdownPopup(
+          "bonus",
+          breakdown({
+            bonus: {
+              ...EMPTY_BREAKDOWN.bonus,
+              lines: [
+                {
+                  kind: "performance",
+                  contentId: "c-1",
+                  name: "Evg_1_Rangga_01102026",
+                  platform: "tiktok",
+                  metric: "views",
+                  value: 12500,
+                  tier: 2,
+                  amount: 250000,
+                  ...extra,
+                },
+              ],
+              total: 250000,
+            },
+          }),
+        ).lines[0];
+
+      it.each([
+        [
+          "synced, with the moment in Jakarta's time",
+          { source: "synced", lastSyncedAt: "2026-11-02T19:00:00.000Z" },
+          "TikTok · 12.500 Views · Tier 2 · Tersinkron 3 Nov 2026, 02.00 WIB",
+        ],
+        ["synced, before any sync time was kept", { source: "synced", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Tersinkron"],
+        ["typed in by an admin", { source: "manual", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Diisi manual"],
+        ["from before links carried a source", { source: null, lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2"],
+      ] as const)("words a line %s", (_, extra, detail) => {
+        expect(viewOf(extra).detail).toBe(detail);
+      });
+
+      // 28.2's Rp0 line: no value or tier to show, and never "+ Rp0" as if something were earned.
+      it("words a link frozen without data as such, at Rp0", () => {
+        const line = viewOf({ noData: true, value: 0, tier: 0, amount: 0, source: null, lastSyncedAt: null });
+
+        expect(line.detail).toBe("TikTok · Views · Tidak ada data");
+        expect(line.amount).toBe("Rp0");
+      });
     });
 
     describe("the tier info above the lines", () => {

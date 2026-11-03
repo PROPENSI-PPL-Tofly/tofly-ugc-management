@@ -3,6 +3,7 @@ import {
   toInvoiceBreakdown,
   toInvoiceList,
   toInvoiceListQuery,
+  type RawInvoiceLine,
   type RawInvoiceList,
   type RawInvoiceRow,
 } from "./invoice-api";
@@ -399,6 +400,10 @@ describe("toInvoiceBreakdown", () => {
           value: 12400,
           tier: 1,
           amount: 150000,
+          // A line from before links carried a source says none, rather than guessing one.
+          source: null,
+          lastSyncedAt: null,
+          noData: false,
         },
       ],
       total: 0,
@@ -417,6 +422,88 @@ describe("toInvoiceBreakdown", () => {
         ],
         specificBonus: 100000,
       },
+    });
+  });
+
+  // PBI-28 AC 6 and 12: one line per link, each saying where its number came from, so the
+  // creator's Rincian reads exactly as the admin's.
+  describe("each bonus line's source", () => {
+    const bonusLines = (lines: RawInvoiceLine[]) =>
+      toInvoiceBreakdown({
+        ...RAW_RANGGA_DETAIL,
+        components: {
+          ...RAW_RANGGA_DETAIL.components,
+          performanceBonus: { amount: 200000, status: "calculated", lines },
+        },
+      }).bonus.lines;
+    const crossPosted = (basis: RawInvoiceLine["basis"]): RawInvoiceLine => ({
+      contentId: "c1c1c1c1-0000-4000-8000-000000000001",
+      contentName: "Review cross-post",
+      amount: 100000,
+      basis,
+    });
+
+    it("keeps one line per link of a cross-posted content, each with its source and sync time", () => {
+      expect(
+        bonusLines([
+          crossPosted({
+            platform: "instagram",
+            metric: "views",
+            value: 41200,
+            tier: 2,
+            source: "synced",
+            lastSyncedAt: "2026-11-02T19:00:00.000Z",
+          }),
+          crossPosted({ platform: "tiktok", metric: "likes", value: 1200, tier: 1, source: "manual" }),
+        ]),
+      ).toEqual([
+        {
+          kind: "performance",
+          contentId: "c1c1c1c1-0000-4000-8000-000000000001",
+          name: "Review cross-post",
+          platform: "instagram",
+          metric: "views",
+          value: 41200,
+          tier: 2,
+          amount: 100000,
+          source: "synced",
+          lastSyncedAt: "2026-11-02T19:00:00.000Z",
+          noData: false,
+        },
+        {
+          kind: "performance",
+          contentId: "c1c1c1c1-0000-4000-8000-000000000001",
+          name: "Review cross-post",
+          platform: "tiktok",
+          metric: "likes",
+          value: 1200,
+          tier: 1,
+          amount: 100000,
+          source: "manual",
+          lastSyncedAt: null,
+          noData: false,
+        },
+      ]);
+    });
+
+    // 28.2 freezes a link that never had a number as an Rp0 line, so it can be corrected later.
+    it("marks a link frozen without data", () => {
+      const [line] = bonusLines([crossPosted({ platform: "tiktok", metric: "views", status: "no_data" })]);
+
+      expect(line).toMatchObject({ platform: "tiktok", noData: true, source: null, lastSyncedAt: null });
+    });
+
+    it.each([
+      ["a source it does not know", { source: "scraped" }],
+      ["a sync time that is a number", { source: "synced", lastSyncedAt: 1793646000 }],
+      ["a sync time it cannot read", { source: "synced", lastSyncedAt: "bukan-waktu" }],
+    ])("drops %s rather than show it", (_, extra) => {
+      const [line] = bonusLines([crossPosted({ platform: "instagram", metric: "views", value: 900, tier: 1, ...extra })]);
+
+      expect(line).toMatchObject({
+        source: extra.source === "synced" ? "synced" : null,
+        lastSyncedAt: null,
+      });
     });
   });
 

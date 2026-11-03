@@ -133,6 +133,43 @@ describe("CreatorInvoiceView", () => {
       );
     });
 
+    // PBI-28 AC 6 and 12: Estimasi Pendapatan and Riwayat Invoice both open this view, and its
+    // bonus reads as the admin's Rincian: one line per link, each with its source and sync time.
+    it("lists a cross-posted content's bonus once per link, each saying where its number came from", () => {
+      const base = aCreatorInvoice();
+      const link = { kind: "performance" as const, contentId: "c-1", name: "Review cross-post", amount: 100000 };
+      renderView({
+        bonusAmount: 200000,
+        breakdown: {
+          ...base.breakdown,
+          bonus: {
+            ...base.breakdown.bonus,
+            performance: "ready",
+            total: 200000,
+            lines: [
+              {
+                ...link,
+                platform: "instagram",
+                metric: "views",
+                value: 41200,
+                tier: 2,
+                source: "synced",
+                lastSyncedAt: "2026-11-02T19:00:00.000Z",
+              },
+              { ...link, platform: "tiktok", metric: "likes", value: 1200, tier: 1, source: "manual", lastSyncedAt: null },
+            ],
+          },
+        },
+      });
+
+      fireEvent.click(within(part("Bonus Performa")).getByRole("button", { name: /Bonus Performa/ }));
+
+      const lines = within(part("Bonus Performa")).getAllByRole("listitem");
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toHaveTextContent("Instagram · 41.200 Views · Tier 2 · Tersinkron 3 Nov 2026, 02.00 WIB");
+      expect(lines[1]).toHaveTextContent("TikTok · 1.200 Likes · Tier 1 · Diisi manual");
+    });
+
     it("says a contract that has not started has not, beside its fixed rate", () => {
       renderView({ notStarted: true });
 
