@@ -613,6 +613,24 @@ describe('InvoiceCommandService', () => {
         expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
       });
 
+      // AC 9 and the Rp0 no_data lines wait on PBI-28.1: both answers say so instead of a list.
+      it('says the waiting links are not available yet, in the refusal and once frozen anyway', async () => {
+        const refused = await rejection(
+          service.finalize('contract-1', 'admin-9', TODAY),
+        );
+        const frozen = await service.finalize('contract-1', 'admin-9', TODAY, {
+          acceptPendingBonus: true,
+        });
+
+        const pending = { available: false, reason: 'PBI_28_1_PENDING' };
+        expect(refused).toMatchObject({ response: { bonusDataGaps: pending } });
+        expect(frozen.bonusDataGaps).toEqual(pending);
+        expect(frozen.snapshot).not.toHaveProperty('bonusDataGaps');
+        expect(frozen.snapshot.performanceBonus.lines).not.toContainEqual(
+          expect.objectContaining({ basis: expect.objectContaining({ status: 'no_data' }) }),
+        );
+      });
+
       // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot says the bonus
       // was frozen before its data was complete, so the final amount stays traceable.
       it('freezes it at what was measured once accepted, and marks the snapshot so', async () => {
