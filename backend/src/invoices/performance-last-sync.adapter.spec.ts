@@ -36,4 +36,29 @@ describe('PerformanceLastSync', () => {
       notUpdated: null,
     });
   });
+
+  // OWASP A09:2025 Security Logging and Alerting Failures: a failed last sync is never silent, and
+  // the warning names the contract and the error's kind only, never its message (it may quote a
+  // token or a platform's answer).
+  it.each([
+    [new TypeError('token abc123 rejected'), 'TypeError'],
+    ['token abc123 rejected', 'unknown error'],
+  ])('warns once with the contract and the kind of %s, never its text', async (reason, kind) => {
+    const { adapter, log } = adapterFor(() => Promise.reject(reason));
+
+    await adapter.beforeFinalize(contractId);
+
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn).toHaveBeenCalledWith(
+      `finalize last sync failed for contract ${contractId} (${kind})`,
+    );
+  });
+
+  it('logs nothing when the sync answers', async () => {
+    const { adapter, log } = adapterFor(async () => ({ notUpdated: [] }));
+
+    await adapter.beforeFinalize(contractId);
+
+    expect(log.warn).not.toHaveBeenCalled();
+  });
 });
