@@ -4,7 +4,8 @@ name: Jira subtask status
 # its PBI branch puts the subtask in Testing, merging it puts it in Done. The
 # subtask comes from the branch name (feat/<name>_<no> → SCRUM-<no>) or a
 # SCRUM-<no> in the PR title; PBIs and subtasks already further along are left
-# alone (.github/scripts/jira-subtask-status.mjs).
+# alone, and a merge only reaches Done once no other open PR into a PBI branch
+# names the same subtask (.github/scripts/jira-subtask-status.mjs).
 #
 # pull_request_target, not pull_request: since 2025-12-08 GitHub always runs
 # this event from the workflow file on the default branch, so this one file on
@@ -17,6 +18,8 @@ on:
 
 permissions:
   contents: read
+  # Listing the other open PRs before a subtask goes to Done.
+  pull-requests: read
 
 jobs:
   move:
@@ -39,4 +42,5 @@ jobs:
           JIRA_BASE_URL: https://kaniaalmyra.atlassian.net
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: node .github/scripts/jira-subtask-status.mjs
