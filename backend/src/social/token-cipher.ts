@@ -9,6 +9,15 @@ const KEY = /^[A-Za-z0-9+/]{43}=$/;
 const SEALED =
   /^v1\.([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]*)$/;
 
+/**
+ * The associated data a token is sealed with: the creator and the platform it belongs to, so a
+ * token copied to another creator's or platform's row does not open there. Every writer and
+ * reader of social_accounts tokens uses this one shape, or stored tokens stop opening.
+ */
+export function tokenContext(creatorId: string, platform: string): string {
+  return `${creatorId}:${platform}`;
+}
+
 /** Any failure to open a stored token, without saying which part failed. */
 export class TokenCipherError extends Error {
   override readonly name = 'TokenCipherError';

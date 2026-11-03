@@ -5,7 +5,7 @@ import type {
   PlatformAccount,
   SocialAccountLinker,
 } from './ports.js';
-import type { TokenCipher } from './token-cipher.js';
+import { tokenContext, type TokenCipher } from './token-cipher.js';
 
 /** The slice of Prisma the linker touches, so tests stub exactly that. */
 export type SocialAccountRows = Pick<PrismaService, 'social_accounts'>;
@@ -45,7 +45,7 @@ export class PrismaSocialAccountLinker implements SocialAccountLinker {
     });
 
     // The tokens open only for this creator and platform (associated data).
-    const context = `${creatorId}:${account.platform}`;
+    const context = tokenContext(creatorId, account.platform);
     const values = {
       platform_user_id: account.platformUserId,
       // The platform's handle replaces the one typed at Tambah Creator (PRD 19, Username).
