@@ -352,6 +352,32 @@ describe('content performance (e2e)', () => {
     });
   });
 
+  describe('GET /me/performance/links (AC 20)', () => {
+    it("lists only the signed-in creator's links, even when the address names another", async () => {
+      await linked(owner, 'mine-listed');
+      await linked(other, 'not-mine');
+
+      const response = await as(app, creator).get(
+        `/me/performance/links?creator=${other.creatorId}&pageSize=50`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.pageSize).toBe(10);
+      const urls = response.body.items.map((item: { url: string }) => item.url);
+      expect(urls).toContain(reel('mine-listed'));
+      expect(urls).not.toContain(reel('not-mine'));
+      for (const item of response.body.items) {
+        expect(item.creatorId).toBe(owner.creatorId);
+      }
+    });
+
+    it("refuses an admin session with 403: the list is a creator's own", async () => {
+      expect((await as(app, admin).get('/me/performance/links')).status).toBe(
+        403,
+      );
+    });
+  });
+
   describe("a creator's own Content Detail (AC 20)", () => {
     it("shows their numbers read-only, and another creator's content is not found (AC 21)", async () => {
       const own = await linked(owner, 'own');
