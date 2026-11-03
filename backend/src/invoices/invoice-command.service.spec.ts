@@ -337,7 +337,9 @@ describe('InvoiceCommandService', () => {
       expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            snapshot: expect.objectContaining({ performanceLinks: [frozenLink] }),
+            snapshot: expect.objectContaining({
+              performanceLinks: [frozenLink],
+            }),
           }),
         }),
       );
@@ -393,7 +395,10 @@ describe('InvoiceCommandService', () => {
       it.each(['failed', 'timed_out'] as const)(
         'names every delivered link when the sync %s, since none can be vouched for',
         async (status) => {
-          lastSync.beforeFinalize.mockResolvedValue({ status, notUpdated: null });
+          lastSync.beforeFinalize.mockResolvedValue({
+            status,
+            notUpdated: null,
+          });
 
           const result = await service.finalize('contract-1', 'admin-9', TODAY);
 

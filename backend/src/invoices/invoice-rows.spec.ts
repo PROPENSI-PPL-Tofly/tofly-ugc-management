@@ -582,8 +582,23 @@ describe('savedSnapshot', () => {
 
     it.each([
       ['a synced link', [link]],
-      ['a manual link', [{ ...link, source: 'manual', state: 'manual', lastSyncedAt: null }]],
-      ['a link that never had numbers', [{ ...link, views: null, likes: null, source: null, state: 'waiting', lastSyncedAt: null }]],
+      [
+        'a manual link',
+        [{ ...link, source: 'manual', state: 'manual', lastSyncedAt: null }],
+      ],
+      [
+        'a link that never had numbers',
+        [
+          {
+            ...link,
+            views: null,
+            likes: null,
+            source: null,
+            state: 'waiting',
+            lastSyncedAt: null,
+          },
+        ],
+      ],
       ['no link at all', []],
     ])('reads back the frozen links of %s', (_, performanceLinks) => {
       const saved = { ...complete, performanceLinks };
@@ -603,12 +618,15 @@ describe('savedSnapshot', () => {
       ['an unknown state', [{ ...link, state: 'stale' }]],
       ['a sync time that is not text', [{ ...link, lastSyncedAt: 0 }]],
       ['a link that is not an object', [null]],
-    ])('keeps the snapshot but leaves out frozen links holding %s', (_, performanceLinks) => {
-      const read = savedSnapshot({ ...complete, performanceLinks });
+    ])(
+      'keeps the snapshot but leaves out frozen links holding %s',
+      (_, performanceLinks) => {
+        const read = savedSnapshot({ ...complete, performanceLinks });
 
-      expect(read).toEqual(complete);
-      expect(read).not.toHaveProperty('performanceLinks');
-    });
+        expect(read).toEqual(complete);
+        expect(read).not.toHaveProperty('performanceLinks');
+      },
+    );
   });
 
   it.each([
