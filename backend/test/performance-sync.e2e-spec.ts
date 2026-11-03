@@ -3,13 +3,14 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
-import {
-  CONTRACT_SYNC,
-  type ContractSync,
-  type PerformanceSource,
-  type SourceResult,
+import type {
+  PerformanceSource,
+  SourceResult,
 } from '../src/performance/ports.js';
-import { PERFORMANCE_SOURCES } from '../src/performance/sync/performance-sync.service.js';
+import {
+  PERFORMANCE_SOURCES,
+  PerformanceSyncService,
+} from '../src/performance/sync/performance-sync.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { day } from './days.js';
 import { storedLink } from './links.js';
@@ -254,13 +255,13 @@ describe('performance sync (e2e)', () => {
     });
   });
 
-  describe('the last sync before Finalize (CONTRACT_SYNC)', () => {
+  describe('syncContract (the last sync before Finalize)', () => {
     it("syncs only that contract's delivered links, isolating a failing one (AC 4, 6)", async () => {
       const contract = await newCreator('contract');
       const delivered = await content(contract);
       const drafting = await content(contract, 'draft_review');
       const other = await content(budi);
-      const sync = app.get<ContractSync>(CONTRACT_SYNC);
+      const sync = app.get(PerformanceSyncService);
 
       expect(await sync.syncContract(contract.contractId)).toEqual({
         notUpdated: [],

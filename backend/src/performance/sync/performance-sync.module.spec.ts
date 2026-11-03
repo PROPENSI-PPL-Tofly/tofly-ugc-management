@@ -1,9 +1,7 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
-import { InvoicesModule } from '../../invoices/invoices.module.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PerformanceModule } from '../performance.module.js';
-import { CONTRACT_SYNC } from '../ports.js';
 import {
   PERFORMANCE_SOURCES,
   PerformanceSyncService,
@@ -34,12 +32,6 @@ describe('PerformanceSyncModule', () => {
     expect(module.get(SyncSecretGuard)).toBeInstanceOf(SyncSecretGuard);
   });
 
-  it('hands Finalize the same sync through CONTRACT_SYNC, so its last sync is a real one (PBI-28)', async () => {
-    const module = await compile();
-
-    expect(module.get(CONTRACT_SYNC)).toBe(module.get(PerformanceSyncService));
-  });
-
   it('reads the scheduler secret from PERFORMANCE_SYNC_SECRET', async () => {
     vi.stubEnv('PERFORMANCE_SYNC_SECRET', 'from-secret-manager');
     const module = await compile();
@@ -47,15 +39,12 @@ describe('PerformanceSyncModule', () => {
     expect(module.get(SYNC_SECRET)).toBe('from-secret-manager');
   });
 
-  it('is part of the performance feature and of invoicing, where Finalize injects CONTRACT_SYNC', () => {
+  it('is part of the performance feature and exports nothing until Finalize (PBI-28) wires it in', () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.IMPORTS, PerformanceModule),
     ).toContain(PerformanceSyncModule);
     expect(
-      Reflect.getMetadata(MODULE_METADATA.IMPORTS, InvoicesModule),
-    ).toContain(PerformanceSyncModule);
-    expect(
       Reflect.getMetadata(MODULE_METADATA.EXPORTS, PerformanceSyncModule),
-    ).toEqual([CONTRACT_SYNC]);
+    ).toBeUndefined();
   });
 });

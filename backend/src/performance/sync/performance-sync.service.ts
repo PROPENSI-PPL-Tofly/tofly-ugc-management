@@ -12,11 +12,7 @@ import {
   type social_platform,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import type {
-  ContractSync,
-  PerformanceSource,
-  UnsyncedLink,
-} from '../ports.js';
+import type { PerformanceSource } from '../ports.js';
 import { mapWithLimit, withDeadline } from './run-limits.js';
 import {
   outcomesFor,
@@ -24,6 +20,7 @@ import {
   type GroupResult,
   type LinkOutcome,
   type LinkWrite,
+  type UnsyncedLink,
 } from './sync-outcome.js';
 import {
   canSync,
@@ -115,7 +112,7 @@ function nameOf(error: unknown): string {
  * platform is one more source and no change here (Strategy, Dependency Inversion, Open/Closed).
  */
 @Injectable()
-export class PerformanceSyncService implements ContractSync {
+export class PerformanceSyncService {
   private readonly sources: ReadonlyMap<social_platform, PerformanceSource>;
 
   constructor(

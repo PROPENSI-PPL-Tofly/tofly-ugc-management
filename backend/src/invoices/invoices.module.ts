@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { PerformanceSyncModule } from '../performance/sync/performance-sync.module.js';
 import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
 import { InvoicePaymentsModule } from './invoice-payments.module.js';
 import { InvoiceCommandService } from './invoice-command.service.js';
@@ -12,8 +11,8 @@ import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 
 @Module({
-  // The payment proof each row shows (PBI-13); the last sync Finalize runs (27.4, CONTRACT_SYNC).
-  imports: [RateFormulaModule, InvoicePaymentsModule, PerformanceSyncModule],
+  // The payment proof each row shows (PBI-13).
+  imports: [RateFormulaModule, InvoicePaymentsModule],
   controllers: [InvoicesController],
   providers: [
     InvoicesService,

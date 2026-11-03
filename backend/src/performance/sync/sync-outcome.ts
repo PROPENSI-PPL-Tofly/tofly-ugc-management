@@ -3,9 +3,17 @@ import type {
   LinkReading,
   PerformanceMetrics,
   SourceResult,
-  UnsyncedLink,
 } from '../ports.js';
 import type { SyncGroup } from './sync-selection.js';
+
+/**
+ * One link a sync could not bring up to date, named by its content and platform (a content holds
+ * one link per platform). The sync owns this shape; Finalize's last sync (PBI-28) reads it.
+ */
+export interface UnsyncedLink {
+  contentId: string;
+  platform: social_platform;
+}
 
 // What one source call means for each of its links (PBI-27, 27.4, AC 3, 6, 7, 8, 17), without
 // Prisma or a clock of its own, so every sync writes the same states.
