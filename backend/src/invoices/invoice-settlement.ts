@@ -6,6 +6,7 @@
 // waiting for a formula cannot be frozen at all.
 
 import { UnprocessableEntityException } from '@nestjs/common';
+import type { BonusDataGapsDto } from './bonus-data-gaps.js';
 import type { InvoiceBreakdown } from './invoice-calculator.js';
 import type {
   ComponentResult,
@@ -23,6 +24,8 @@ export interface SettledBreakdown {
 export function settleForFinalize(
   breakdown: InvoiceBreakdown,
   acceptPendingBonus: boolean,
+  /** What is known of the waiting links (AC 9), carried in the refusal; PBI-28.1 fills it. */
+  bonusDataGaps?: BonusDataGapsDto,
 ): SettledBreakdown {
   const { performanceBonus, ...rest } = breakdown.components;
 
@@ -45,6 +48,7 @@ export function settleForFinalize(
     throw new UnprocessableEntityException({
       code: 'INVOICE_BONUS_PENDING',
       message: 'Bonus performa masih menunggu data',
+      ...(bonusDataGaps && { bonusDataGaps }),
     });
   }
 

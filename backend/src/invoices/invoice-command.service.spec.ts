@@ -627,7 +627,9 @@ describe('InvoiceCommandService', () => {
         expect(frozen.bonusDataGaps).toEqual(pending);
         expect(frozen.snapshot).not.toHaveProperty('bonusDataGaps');
         expect(frozen.snapshot.performanceBonus.lines).not.toContainEqual(
-          expect.objectContaining({ basis: expect.objectContaining({ status: 'no_data' }) }),
+          expect.objectContaining({
+            basis: expect.objectContaining({ status: 'no_data' }),
+          }),
         );
       });
 

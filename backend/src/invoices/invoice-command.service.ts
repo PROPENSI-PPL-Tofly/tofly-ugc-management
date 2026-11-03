@@ -35,6 +35,7 @@ import {
   type LastSyncDto,
 } from './last-sync.js';
 import { lockDeliveredLinks, toFrozenLink } from './frozen-links.js';
+import { bonusDataGaps, type BonusDataGapsDto } from './bonus-data-gaps.js';
 
 // The admin's commands on a running invoice (PBI-12): recording a manual adjustment and
 // finalizing the invoice into its frozen snapshot. The reads stay in InvoicesService. This is
@@ -71,6 +72,8 @@ export interface InvoiceCommands {
     snapshot: InvoiceSnapshotDto;
     /** How the last sync before freezing went (AC 8). */
     lastSync: LastSyncDto;
+    /** AC 9 and the Rp0 no_data lines: not available until PBI-28.1 (bonus-data-gaps.ts). */
+    bonusDataGaps: BonusDataGapsDto;
   }>;
 }
 
@@ -139,6 +142,8 @@ export class InvoiceCommandService implements InvoiceCommands {
     snapshot: InvoiceSnapshotDto;
     /** How the last sync before freezing went (AC 8). */
     lastSync: LastSyncDto;
+    /** AC 9 and the Rp0 no_data lines: not available until PBI-28.1 (bonus-data-gaps.ts). */
+    bonusDataGaps: BonusDataGapsDto;
   }> {
     const formula = await this.formulas.current();
     // The platforms are asked first, outside the transaction: a sync takes up to 20 s and must
@@ -204,9 +209,13 @@ export class InvoiceCommandService implements InvoiceCommands {
           today,
         });
 
+        // PBI-28.1 INTEGRATION POINT: its per-link calculation answers the waiting links and the
+        // Rp0 no_data lines here, from the same locked `links` (see bonus-data-gaps.ts).
+        const gaps = bonusDataGaps();
         const settled = settleForFinalize(
           breakdown,
           request.acceptPendingBonus,
+          gaps,
         );
 
         const adjustmentRows = await tx.invoice_adjustments.findMany({
@@ -248,6 +257,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           adjustments,
           snapshot,
           lastSync: lastSyncReport(synced, links),
+          bonusDataGaps: gaps,
         };
       },
       { isolationLevel: 'ReadCommitted' },
