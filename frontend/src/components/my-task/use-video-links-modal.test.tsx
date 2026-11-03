@@ -81,6 +81,16 @@ describe("useVideoLinksModal", () => {
     expect(screen.queryByLabelText("Link TikTok")).toBeNull();
   });
 
+  // PBI-28 AC 13: the reminder speaks of the creator's own bonus, so only a creator reads it.
+  it.each([
+    ["reminds a creator", "creator", true],
+    ["does not remind an admin", "admin", false],
+  ] as const)("%s that the numbers lock at Finalize", (_, role, reminded) => {
+    open(role);
+
+    expect(screen.queryByRole("note") !== null).toBe(reminded);
+  });
+
   it("opens empty fields for an answer that lists no links", () => {
     open("creator", { ...DETAIL, links: undefined });
 
