@@ -343,6 +343,83 @@ describe('InvoiceCommandService', () => {
       );
     });
 
+    describe('the links the last sync did not update (AC 8)', () => {
+      const instagramRow = {
+        ...linkRow,
+        content_id: 'second',
+        content_name: 'Evg_2',
+        platform: 'instagram',
+        data_state: 'synced',
+      };
+      const tiktokReport = {
+        contentId: 'measured',
+        contentName: 'Evg_1',
+        platform: 'tiktok',
+        state: 'sync_failed',
+      };
+
+      beforeEach(() => linksRead([linkRow, instagramRow]));
+
+      it('names each link the sync left as it was, with its content, platform and state as frozen', async () => {
+        lastSync.beforeFinalize.mockResolvedValue({
+          status: 'done',
+          notUpdated: [{ contentId: 'measured', platform: 'tiktok' }],
+        });
+
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.lastSync).toEqual({
+          status: 'done',
+          notUpdated: [tiktokReport],
+        });
+      });
+
+      // OWASP A01:2025 Broken Access Control: the answer names only this contract's links, even if
+      // the sync's list held a content or platform that is not one of them.
+      it("names only this contract's delivered links, whatever else the sync's list holds", async () => {
+        lastSync.beforeFinalize.mockResolvedValue({
+          status: 'done',
+          notUpdated: [
+            { contentId: 'another-contracts-content', platform: 'tiktok' },
+            { contentId: 'measured', platform: 'instagram' },
+          ],
+        });
+
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.lastSync.notUpdated).toEqual([]);
+      });
+
+      it.each(['failed', 'timed_out'] as const)(
+        'names every delivered link when the sync %s, since none can be vouched for',
+        async (status) => {
+          lastSync.beforeFinalize.mockResolvedValue({ status, notUpdated: null });
+
+          const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+          expect(result.lastSync).toEqual({
+            status,
+            notUpdated: [
+              tiktokReport,
+              {
+                contentId: 'second',
+                contentName: 'Evg_2',
+                platform: 'instagram',
+                state: 'synced',
+              },
+            ],
+          });
+        },
+      );
+
+      it('keeps the outcome out of the frozen snapshot', async () => {
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.lastSync).toEqual({ status: 'done', notUpdated: [] });
+        expect(result.snapshot).not.toHaveProperty('lastSync');
+      });
+    });
+
     it('freezes an empty list for a contract with no delivered link', async () => {
       const result = await service.finalize('contract-1', 'admin-9', TODAY);
 
