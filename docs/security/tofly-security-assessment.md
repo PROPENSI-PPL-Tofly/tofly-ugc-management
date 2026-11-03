@@ -1,6 +1,7 @@
 # Tofly security assessment (OWASP ZAP)
 
-Assessed on 3 November 2026 on branch `feat/last-sync-finalize-snapshot_236`. The original scans ran at commit
+Assessed on 3 November 2026 against `feat/last-sync-finalize-snapshot_236`; the patches and this report live on
+`feat/security-assessment-236`, branched from it. The original scans ran at commit
 `a33bfe9`; the rescans ran with the patches in this document. Only a local, isolated copy of Tofly with fictional data
 was scanned.
 
@@ -69,7 +70,8 @@ No Critical or High finding was raised. Access control held in every scan:
 | Full          | `zap-full-scan.py -t http://host.docker.internal:3000 -m 2` + admin session | Frontend `:3000` (and `/api` through it) | Yes, capped at 6 min (shortened for time) |
 | Baseline      | `zap-baseline.py -t http://host.docker.internal:3000 -m 3 -j` (AJAX spider) | Frontend `:3000`, unauthenticated        | No (passive)                              |
 
-The reports (HTML and JSON) are in `docs/security/zap-reports/`. They contain no session tokens.
+The reports (HTML and JSON) are in `docs/security/scan-evidence/`. The folder is not named `zap-reports`, because the
+root `.gitignore` rule `zap-report*` would keep it out of git. The reports contain no session tokens.
 
 **Did the authenticated scans reach the protected handlers?** Yes. PostgreSQL's per-table counters in the disposable
 database, before and after the authenticated scans, show:
@@ -278,7 +280,7 @@ Rescans ran against the same environment (same database and sessions) with the p
 | Overall                                           | API admin / creator | 2 / 2 warnings                         | 1 / 1 warning (only `GET /`'s content type)                                                                                                              |
 
 **Full scan rerun (post-patch):** same environment, fresh test sessions minted the same way (the earlier ones had passed
-their 30-minute idle timeout). Report: `zap-reports/after-full.{html,json}`.
+their 30-minute idle timeout). Report: `scan-evidence/after-full.{html,json}`.
 
 - **Limits, disclosed:** a 2-minute spider, an active scan capped at 6 minutes, and 2 threads per host. Not every page
   state was reached; 55 URLs were found, as before.
@@ -296,20 +298,20 @@ Commits, RED before GREEN (no fix was committed without a failing test first):
 
 | Commit    | What it adds                                                                                                                                                                                                                                 |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `8bc894b` | [RED][SECURITY][OWASP-A10] Interceptor unit tests: NUL in a top-level field, a nested field, a list item, an object in a list, a key → 400; clean, empty, text and list bodies pass; non-HTTP contexts are untouched                         |
-| `1e4fe8d` | [GREEN] The interceptor                                                                                                                                                                                                                      |
-| `7f12887` | [RED] `test/nul-characters.e2e-spec.ts`: through the real app with real sessions, NUL in an admin comment, an adjustment reason and a creator comment → 400 with nothing stored. The same comment without NUL → 201. Signed out → still 401. |
-| `b9e5a50` | [GREEN] `APP_INTERCEPTOR` registration                                                                                                                                                                                                       |
-| `85e9f99` | [RED][SECURITY][OWASP-A02] `security-headers.spec.ts`: the API CSP is `default-src 'none';frame-ancestors 'none'`, and helmet's other headers stay. `test/app.e2e-spec.ts` expects the new policy.                                           |
-| `3877dbf` | [GREEN] API CSP                                                                                                                                                                                                                              |
-| `faf62cf` | [RED][SECURITY][OWASP-A02] The policy also names `base-uri` and `form-action` as `'none'`, after the first rescan flagged directives without a fallback                                                                                      |
-| `ab16964` | [GREEN] The two directives                                                                                                                                                                                                                   |
+| `8f6dd4b` | [RED][SECURITY][OWASP-A10] Interceptor unit tests: NUL in a top-level field, a nested field, a list item, an object in a list, a key → 400; clean, empty, text and list bodies pass; non-HTTP contexts are untouched                         |
+| `7bdd863` | [GREEN] The interceptor                                                                                                                                                                                                                      |
+| `500fa75` | [RED] `test/nul-characters.e2e-spec.ts`: through the real app with real sessions, NUL in an admin comment, an adjustment reason and a creator comment → 400 with nothing stored. The same comment without NUL → 201. Signed out → still 401. |
+| `1d507c2` | [GREEN] `APP_INTERCEPTOR` registration                                                                                                                                                                                                       |
+| `9806568` | [RED][SECURITY][OWASP-A02] `security-headers.spec.ts`: the API CSP is `default-src 'none';frame-ancestors 'none'`, and helmet's other headers stay. `test/app.e2e-spec.ts` expects the new policy.                                           |
+| `739a6b1` | [GREEN] API CSP                                                                                                                                                                                                                              |
+| `22b0702` | [RED][SECURITY][OWASP-A02] The policy also names `base-uri` and `form-action` as `'none'`, after the first rescan flagged directives without a fallback                                                                                      |
+| `c3bbb16` | [GREEN] The two directives                                                                                                                                                                                                                   |
 
 The RED end-to-end run failed 3 of 5 with 500s, matching the scan. After GREEN it passed 5 of 5.
 
 **Final checks:**
 
-- **Unit tests:** 2,887 passed, including `src/app.module.spec.ts` (`1a8df76` RED, `85f4327` GREEN). That spec covers the
+- **Unit tests:** 2,887 passed, including `src/app.module.spec.ts` (`7691f8c` RED, `d061c73` GREEN). That spec covers the
   `APP_INTERCEPTOR` registration and the boot-time `validate`, which is now exported so its existing refusal of a
   missing database URL is tested.
 - **PostgreSQL end-to-end:** on a fresh separate database, 435 passed, 6 skipped. The 6 skips are pre-existing:

@@ -1,0 +1,985 @@
+{
+	"@programName": "ZAP",
+	"@version": "2.17.0",
+	"@generated": "Tue, 3 Nov 2026 04:59:18",
+	"created": "2026-11-03T04:59:18.712496483Z",
+	"insights":[
+		{
+			"level": "Medium",
+			"reason": "Exceeded High",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.code.4xx",
+			"description": "Percentage of responses with status code 4xx",
+			"statistic": "85"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.code.2xx",
+			"description": "Percentage of responses with status code 2xx",
+			"statistic": "14"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.endpoint.ctype.application/json",
+			"description": "Percentage of endpoints with content type application/json",
+			"statistic": "96"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.endpoint.ctype.text/html",
+			"description": "Percentage of endpoints with content type text/html",
+			"statistic": "1"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.endpoint.method.GET",
+			"description": "Percentage of endpoints with method GET",
+			"statistic": "67"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.endpoint.method.POST",
+			"description": "Percentage of endpoints with method POST",
+			"statistic": "27"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.endpoint.method.PUT",
+			"description": "Percentage of endpoints with method PUT",
+			"statistic": "5"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://host.docker.internal:3001",
+			"key": "insight.endpoint.total",
+			"description": "Count of total endpoints",
+			"statistic": "55"
+		}
+	],
+	"site":[ 
+		{
+			"@name": "http://host.docker.internal:3001",
+			"@host": "host.docker.internal",
+			"@port": "3001",
+			"@ssl": "false",
+			"alerts": [ 
+				{
+					"pluginid": "100001",
+					"alertRef": "100001",
+					"alert": "Unexpected Content-Type was returned",
+					"name": "Unexpected Content-Type was returned",
+					"riskcode": "1",
+					"confidence": "3",
+					"riskdesc": "Low (High)",
+					"desc": "<p>A Content-Type of text/html was returned by the server.</p><p>This is not one of the types expected to be returned by an API.</p><p>Raised by the 'Alert on Unexpected Content Types' script</p>",
+					"instances":[ 
+						{
+							"id": "240",
+							"uri": "http://host.docker.internal:3001",
+							"nodeName": "http:\/\/host.docker.internal:3001",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "text/html",
+							"otherinfo": ""
+						},
+						{
+							"id": "2944",
+							"uri": "http://host.docker.internal:3001/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "text/html",
+							"otherinfo": ""
+						}
+					],
+					"count": "2",
+					"systemic": false,
+					"solution": "",
+					"otherinfo": "",
+					"reference": "",
+					"cweid": "-1",
+					"wascid": "-1",
+					"sourceid": "286"
+				},
+				{
+					"pluginid": "100000",
+					"alertRef": "100000-1",
+					"alert": "A Client Error response code was returned by the server",
+					"name": "A Client Error response code was returned by the server",
+					"riskcode": "0",
+					"confidence": "3",
+					"riskdesc": "Informational (High)",
+					"desc": "<p>A response code of 404 was returned by the server.</p><p>This may indicate that the application is failing to handle unexpected input correctly.</p><p>Raised by the 'Alert on HTTP Response Code Error' script</p>",
+					"instances":[ 
+						{
+							"id": "22",
+							"uri": "http://host.docker.internal:3001/4771116453872096853",
+							"nodeName": "http:\/\/host.docker.internal:3001\/4771116453872096853",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "241",
+							"uri": "http://host.docker.internal:3001/auth",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2946",
+							"uri": "http://host.docker.internal:3001/auth/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "23",
+							"uri": "http://host.docker.internal:3001/auth/7959357131892186300",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth\/7959357131892186300",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "24",
+							"uri": "http://host.docker.internal:3001/auth/session/8320131900355822434",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth\/session\/8320131900355822434",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "3390",
+							"uri": "http://host.docker.internal:3001/auth/session/actuator/health",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth\/session\/actuator\/health",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "26",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/6228294033262326254",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/6228294033262326254",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "292",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2949",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "27",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/3636226827666843790",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/3636226827666843790",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "293",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/tiktok",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/tiktok",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2950",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/tiktok/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/tiktok\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "28",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/tiktok/1096575114033200555",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/tiktok\/1096575114033200555",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "25",
+							"uri": "http://host.docker.internal:3001/contents/2147807764783709671",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/2147807764783709671",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "1",
+							"uri": "http://host.docker.internal:3001/creators/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2951",
+							"uri": "http://host.docker.internal:3001/creators/16148c67-4000-4854-b3a3-0d8eaf211bd8/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "29",
+							"uri": "http://host.docker.internal:3001/creators/1945497164582805439",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators\/1945497164582805439",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "30",
+							"uri": "http://host.docker.internal:3001/invoices/2007275349650994885",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/2007275349650994885",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "333",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2953",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "31",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/8356090148906497639",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/8356090148906497639",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2",
+							"uri": "http://host.docker.internal:3001/submissions",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "2954",
+							"uri": "http://host.docker.internal:3001/submissions/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "3",
+							"uri": "http://host.docker.internal:3001/submissions/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2955",
+							"uri": "http://host.docker.internal:3001/submissions/16148c67-4000-4854-b3a3-0d8eaf211bd8/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "32",
+							"uri": "http://host.docker.internal:3001/submissions/6734632164646057615",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions\/6734632164646057615",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "2188",
+							"uri": "http://host.docker.internal:3001/computeMetadata/v1/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/computeMetadata\/v1\/ ()({})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "3293",
+							"uri": "http://host.docker.internal:3001/contents",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents ()({contractId,type,name,brief,deadline})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "43",
+							"uri": "http://host.docker.internal:3001/contents",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents ()({contractId,type,name,brief,deadline})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						},
+						{
+							"id": "20",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/comments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/comments ()({comment})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "403",
+							"otherinfo": ""
+						},
+						{
+							"id": "2940",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/comments/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/comments\/ ()({comment})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "403",
+							"otherinfo": ""
+						},
+						{
+							"id": "0",
+							"uri": "http://host.docker.internal:3001/creators",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators ()({firstName,lastName,email,phoneNumber,contract:{startDate,endDate,contractType,daysBetween,contentQuota,fixedRate}})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						},
+						{
+							"id": "2942",
+							"uri": "http://host.docker.internal:3001/creators/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators\/ ()({firstName,lastName,email,phoneNumber,contract:{startDate,endDate,contractType,daysBetween,contentQuota,fixedRate}})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						},
+						{
+							"id": "3318",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/adjustments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/adjustments ()({amount,reason})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "177",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/adjustments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/adjustments ()({amount,reason})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						},
+						{
+							"id": "3330",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/comments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/comments ()({text})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "2977",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/comments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/comments ()({text})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						},
+						{
+							"id": "2186",
+							"uri": "http://host.docker.internal:3001/latest/meta-data/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/latest\/meta-data\/ ()({})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2196",
+							"uri": "http://host.docker.internal:3001/metadata/instance",
+							"nodeName": "http:\/\/host.docker.internal:3001\/metadata\/instance ()({})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2197",
+							"uri": "http://host.docker.internal:3001/metadata/v1",
+							"nodeName": "http:\/\/host.docker.internal:3001\/metadata\/v1 ()({})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2190",
+							"uri": "http://host.docker.internal:3001/opc/v1/instance/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/opc\/v1\/instance\/ ()({})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2192",
+							"uri": "http://host.docker.internal:3001/opc/v2/instance/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/opc\/v2\/instance\/ ()({})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "2198",
+							"uri": "http://host.docker.internal:3001/openstack/latest/meta_data.json",
+							"nodeName": "http:\/\/host.docker.internal:3001\/openstack\/latest\/meta_data.json ()({})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "21",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/tiktok/performance",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/tiktok\/performance ()({views,likes,comments,shares})",
+							"method": "PUT",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "44",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/tiktok/performance",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/tiktok\/performance ()({views,likes,comments,shares})",
+							"method": "PUT",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						},
+						{
+							"id": "2941",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/links/tiktok/performance/",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/links\/tiktok\/performance\/ ()({views,likes,comments,shares})",
+							"method": "PUT",
+							"param": "",
+							"attack": "",
+							"evidence": "404",
+							"otherinfo": ""
+						},
+						{
+							"id": "3337",
+							"uri": "http://host.docker.internal:3001/rate-formula",
+							"nodeName": "http:\/\/host.docker.internal:3001\/rate-formula ()({latePenaltyPerDay,maxPenaltyDays,specificBonus,performanceBonus:{instagram:{metric,tiers:[{threshold,bonus}]},tiktok:{metric,tiers:[{threshold,bonus}]}}})",
+							"method": "PUT",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "239",
+							"uri": "http://host.docker.internal:3001/rate-formula",
+							"nodeName": "http:\/\/host.docker.internal:3001\/rate-formula ()({latePenaltyPerDay,maxPenaltyDays,specificBonus,performanceBonus:{instagram:{metric,tiers:[{threshold,bonus}]},tiktok:{metric,tiers:[{threshold,bonus}]}}})",
+							"method": "PUT",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						}
+					],
+					"count": "48",
+					"systemic": false,
+					"solution": "",
+					"otherinfo": "",
+					"reference": "",
+					"cweid": "388",
+					"wascid": "20",
+					"sourceid": "33"
+				},
+				{
+					"pluginid": "10027",
+					"alertRef": "10027",
+					"alert": "Information Disclosure - Suspicious Comments",
+					"name": "Information Disclosure - Suspicious Comments",
+					"riskcode": "0",
+					"confidence": "2",
+					"riskdesc": "Informational (Medium)",
+					"desc": "<p>The response appears to contain suspicious comments which may help an attacker.</p>",
+					"instances":[ 
+						{
+							"id": "16",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": ":\"\\\"/><xsl:value-of select=\\\"system-property('",
+							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"<!--\"}},{\"id\":\"8727ccf4-66a1-4250-926e-eb63d60c2c4b\",\"type\":\"creator_comment\",\"at\":\"2026-11-03T04:45:41.864Z\",\"actor\":{\"name\":\"R\", see evidence field for the suspicious comment/snippet."
+						},
+						{
+							"id": "17",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/events",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/events",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": ":\"\\\"/><xsl:value-of select=\\\"system-property('",
+							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"<!--\"},\"actor_user_id\":null},{\"id\":\"8727ccf4-66a1-4250-926e-eb63d60c2c4b\",\"content_id\":\"16148c67-4000-4854-b3a3-0d8eaf211bd8\",\"e\", see evidence field for the suspicious comment/snippet."
+						},
+						{
+							"id": "139",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/comments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/comments",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "4de3\",\"authorName\":\"Admin\",\"authorRole\":\"admi",
+							"otherinfo": "The following pattern was used: \\bADMIN\\b and was detected in likely comment: \"<!--\",\"createdAt\":\"2026-11-03T04:44:46.804Z\"},{\"id\":\"e7de50cc-9833-4033-9d58-f556ee004de3\",\"authorName\":\"Admin\",\"authorRole\":\"ad\", see evidence field for the suspicious comment/snippet."
+						}
+					],
+					"count": "3",
+					"systemic": false,
+					"solution": "<p>Remove all comments that return information that may help an attacker and fix any underlying problems they refer to.</p>",
+					"otherinfo": "<p>The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"<!--\"}},{\"id\":\"8727ccf4-66a1-4250-926e-eb63d60c2c4b\",\"type\":\"creator_comment\",\"at\":\"2026-11-03T04:45:41.864Z\",\"actor\":{\"name\":\"R\", see evidence field for the suspicious comment/snippet.</p>",
+					"reference": "",
+					"cweid": "615",
+					"wascid": "13",
+					"sourceid": "5"
+				},
+				{
+					"pluginid": "10049",
+					"alertRef": "10049-1",
+					"alert": "Non-Storable Content",
+					"name": "Non-Storable Content",
+					"riskcode": "0",
+					"confidence": "2",
+					"riskdesc": "Informational (Medium)",
+					"desc": "<p>The response contents are not storable by caching components such as proxy servers. If the response does not contain sensitive, personal or user-specific information, it may benefit from being stored and cached, to improve performance.</p>",
+					"instances":[ 
+						{
+							"id": "125",
+							"uri": "http://host.docker.internal:3001/auth/session",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth\/session",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "no-store",
+							"otherinfo": ""
+						},
+						{
+							"id": "135",
+							"uri": "http://host.docker.internal:3001/submissions",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "400",
+							"otherinfo": ""
+						},
+						{
+							"id": "12",
+							"uri": "http://host.docker.internal:3001/contents",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents ()({contractId,type,name,brief,deadline})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "201",
+							"otherinfo": ""
+						},
+						{
+							"id": "13",
+							"uri": "http://host.docker.internal:3001/creators",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators ()({firstName,lastName,email,phoneNumber,contract:{startDate,endDate,contractType,daysBetween,contentQuota,fixedRate}})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "422",
+							"otherinfo": ""
+						},
+						{
+							"id": "133",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/adjustments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/adjustments ()({amount,reason})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "201",
+							"otherinfo": ""
+						}
+					],
+					"count": "5",
+					"systemic": true,
+					"solution": "<p>The content may be marked as storable by ensuring that the following conditions are satisfied:</p><p>The request method must be understood by the cache and defined as being cacheable (\"GET\", \"HEAD\", and \"POST\" are currently defined as cacheable)</p><p>The response status code must be understood by the cache (one of the 1XX, 2XX, 3XX, 4XX, or 5XX response classes are generally understood)</p><p>The \"no-store\" cache directive must not appear in the request or response header fields</p><p>For caching by \"shared\" caches such as \"proxy\" caches, the \"private\" response directive must not appear in the response</p><p>For caching by \"shared\" caches such as \"proxy\" caches, the \"Authorization\" header field must not appear in the request, unless the response explicitly allows it (using one of the \"must-revalidate\", \"public\", or \"s-maxage\" Cache-Control response directives)</p><p>In addition to the conditions above, at least one of the following conditions must also be satisfied by the response:</p><p>It must contain an \"Expires\" header field</p><p>It must contain a \"max-age\" response directive</p><p>For \"shared\" caches such as \"proxy\" caches, it must contain a \"s-maxage\" response directive</p><p>It must contain a \"Cache Control Extension\" that allows it to be cached</p><p>It must have a status code that is defined as cacheable by default (200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501).</p>",
+					"otherinfo": "",
+					"reference": "<p>https://datatracker.ietf.org/doc/html/rfc7234</p><p>https://datatracker.ietf.org/doc/html/rfc7231</p><p>https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html</p>",
+					"cweid": "524",
+					"wascid": "13",
+					"sourceid": "26"
+				},
+				{
+					"pluginid": "10112",
+					"alertRef": "10112",
+					"alert": "Session Management Response Identified",
+					"name": "Session Management Response Identified",
+					"riskcode": "0",
+					"confidence": "2",
+					"riskdesc": "Informational (Medium)",
+					"desc": "<p>The given response has been identified as containing a session management token. The 'Other Info' field contains a set of header tokens that can be used in the Header Based Session Management Method. If the request is in a context which has a Session Management Method set to \"Auto-Detect\" then this rule will change the session management to use the tokens identified.</p>",
+					"instances":[ 
+						{
+							"id": "123",
+							"uri": "http://host.docker.internal:3001/auth/session",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth\/session",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "7",
+							"uri": "http://host.docker.internal:3001/contents",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "10",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "9",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/events",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/events",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "8",
+							"uri": "http://host.docker.internal:3001/creators",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "4",
+							"uri": "http://host.docker.internal:3001/creators/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "138",
+							"uri": "http://host.docker.internal:3001/invoices",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "134",
+							"uri": "http://host.docker.internal:3001/invoices/d7e47965-06ba-4bfc-8354-09c5d2cfadc0",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/d7e47965-06ba-4bfc-8354-09c5d2cfadc0",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "130",
+							"uri": "http://host.docker.internal:3001/rate-formula",
+							"nodeName": "http:\/\/host.docker.internal:3001\/rate-formula",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "126",
+							"uri": "http://host.docker.internal:3001/submissions",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "124",
+							"uri": "http://host.docker.internal:3001/submissions/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/submissions\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "129",
+							"uri": "http://host.docker.internal:3001/auth/session/activity",
+							"nodeName": "http:\/\/host.docker.internal:3001\/auth\/session\/activity ()({})",
+							"method": "POST",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "5",
+							"uri": "http://host.docker.internal:3001/contents",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents ()({contractId,type,name,brief,deadline})",
+							"method": "POST",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "6",
+							"uri": "http://host.docker.internal:3001/creators",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators ()({firstName,lastName,email,phoneNumber,contract:{startDate,endDate,contractType,daysBetween,contentQuota,fixedRate}})",
+							"method": "POST",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						},
+						{
+							"id": "127",
+							"uri": "http://host.docker.internal:3001/invoices/9ea8f987-a660-4085-96ea-0e274511ac24/adjustments",
+							"nodeName": "http:\/\/host.docker.internal:3001\/invoices\/9ea8f987-a660-4085-96ea-0e274511ac24\/adjustments ()({amount,reason})",
+							"method": "POST",
+							"param": "__session",
+							"attack": "",
+							"evidence": "__session",
+							"otherinfo": "cookie:__session"
+						}
+					],
+					"count": "15",
+					"systemic": false,
+					"solution": "<p>This is an informational alert rather than a vulnerability and so there is nothing to fix.</p>",
+					"otherinfo": "<p>cookie:__session</p>",
+					"reference": "<p>https://www.zaproxy.org/docs/desktop/addons/authentication-helper/session-mgmt-id/</p>",
+					"cweid": "-1",
+					"wascid": "-1",
+					"sourceid": "26"
+				},
+				{
+					"pluginid": "10049",
+					"alertRef": "10049-3",
+					"alert": "Storable and Cacheable Content",
+					"name": "Storable and Cacheable Content",
+					"riskcode": "0",
+					"confidence": "2",
+					"riskdesc": "Informational (Medium)",
+					"desc": "<p>The response contents are storable by caching components such as proxy servers, and may be retrieved directly from the cache, rather than from the origin server by the caching servers, in response to similar requests from other users. If the response data is sensitive, personal or user-specific, this may result in sensitive information being leaked. In some cases, this may even result in a user gaining complete control of the session of another user, depending on the configuration of the caching components in use in their environment. This is primarily an issue where \"shared\" caching servers such as \"proxy\" caches are configured on the local network. This configuration is typically found in corporate or educational environments, for instance.</p>",
+					"instances":[ 
+						{
+							"id": "11",
+							"uri": "http://host.docker.internal:3001/contents",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": "In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234."
+						},
+						{
+							"id": "18",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": "In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234."
+						},
+						{
+							"id": "19",
+							"uri": "http://host.docker.internal:3001/contents/16148c67-4000-4854-b3a3-0d8eaf211bd8/events",
+							"nodeName": "http:\/\/host.docker.internal:3001\/contents\/16148c67-4000-4854-b3a3-0d8eaf211bd8\/events",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": "In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234."
+						},
+						{
+							"id": "15",
+							"uri": "http://host.docker.internal:3001/creators",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": "In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234."
+						},
+						{
+							"id": "14",
+							"uri": "http://host.docker.internal:3001/creators/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"nodeName": "http:\/\/host.docker.internal:3001\/creators\/16148c67-4000-4854-b3a3-0d8eaf211bd8",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": "In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234."
+						}
+					],
+					"count": "5",
+					"systemic": true,
+					"solution": "<p>Validate that the response does not contain sensitive, personal or user-specific information. If it does, consider the use of the following HTTP response headers, to limit, or prevent the content being stored and retrieved from the cache by another user:</p><p>Cache-Control: no-cache, no-store, must-revalidate, private</p><p>Pragma: no-cache</p><p>Expires: 0</p><p>This configuration directs both HTTP 1.0 and HTTP 1.1 compliant caching servers to not store the response, and to not retrieve the response (without validation) from the cache, in response to a similar request.</p>",
+					"otherinfo": "<p>In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234.</p>",
+					"reference": "<p>https://datatracker.ietf.org/doc/html/rfc7234</p><p>https://datatracker.ietf.org/doc/html/rfc7231</p><p>https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html</p>",
+					"cweid": "524",
+					"wascid": "13",
+					"sourceid": "6"
+				}
+			]
+		}
+	],
+	"sequences":[
+	]
+
+}

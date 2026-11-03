@@ -1,0 +1,512 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tofly backend (scan-only, admin)",
+    "version": "local"
+  },
+  "servers": [
+    {
+      "url": "http://host.docker.internal:3001"
+    }
+  ],
+  "paths": {
+    "/contents/{id}/events": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ]
+      }
+    },
+    "/contents/{id}": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ]
+      }
+    },
+    "/contents": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "contractId": "9ea8f987-a660-4085-96ea-0e274511ac24",
+                  "type": "specific",
+                  "name": "ZAP scan content",
+                  "brief": "scan",
+                  "deadline": "2026-12-20"
+                }
+              },
+              "example": {
+                "contractId": "9ea8f987-a660-4085-96ea-0e274511ac24",
+                "type": "specific",
+                "name": "ZAP scan content",
+                "brief": "scan",
+                "deadline": "2026-12-20"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/creators": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "firstName": "Zap",
+                  "lastName": "Scan",
+                  "email": "zap.scan@example.com",
+                  "phoneNumber": "081234567890",
+                  "contract": {
+                    "startDate": "2026-12-01",
+                    "endDate": "2027-02-28",
+                    "contractType": "regular",
+                    "daysBetween": 14,
+                    "contentQuota": 4,
+                    "fixedRate": 1000000
+                  }
+                }
+              },
+              "example": {
+                "firstName": "Zap",
+                "lastName": "Scan",
+                "email": "zap.scan@example.com",
+                "phoneNumber": "081234567890",
+                "contract": {
+                  "startDate": "2026-12-01",
+                  "endDate": "2027-02-28",
+                  "contractType": "regular",
+                  "daysBetween": 14,
+                  "contentQuota": 4,
+                  "fixedRate": 1000000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/creators/{id}": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ]
+      }
+    },
+    "/submissions": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/submissions/{id}": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/invoices": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/invoices/{creatorId}": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "creatorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "d7e47965-06ba-4bfc-8354-09c5d2cfadc0"
+            }
+          }
+        ]
+      }
+    },
+    "/invoices/{contractId}/adjustments": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "contractId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "9ea8f987-a660-4085-96ea-0e274511ac24"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "amount": 1000,
+                  "reason": "ZAP scan adjustment"
+                }
+              },
+              "example": {
+                "amount": 1000,
+                "reason": "ZAP scan adjustment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rate-formula": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "latePenaltyPerDay": 50000,
+                  "maxPenaltyDays": 3,
+                  "specificBonus": 100000,
+                  "performanceBonus": {
+                    "instagram": {
+                      "metric": "views",
+                      "tiers": [
+                        {
+                          "threshold": 10000,
+                          "bonus": 150000
+                        }
+                      ]
+                    },
+                    "tiktok": {
+                      "metric": "views",
+                      "tiers": [
+                        {
+                          "threshold": 10000,
+                          "bonus": 150000
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "example": {
+                "latePenaltyPerDay": 50000,
+                "maxPenaltyDays": 3,
+                "specificBonus": 100000,
+                "performanceBonus": {
+                  "instagram": {
+                    "metric": "views",
+                    "tiers": [
+                      {
+                        "threshold": 10000,
+                        "bonus": 150000
+                      }
+                    ]
+                  },
+                  "tiktok": {
+                    "metric": "views",
+                    "tiers": [
+                      {
+                        "threshold": 10000,
+                        "bonus": 150000
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{contractId}/comments": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "contractId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "9ea8f987-a660-4085-96ea-0e274511ac24"
+            }
+          }
+        ]
+      },
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "contractId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "9ea8f987-a660-4085-96ea-0e274511ac24"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "text": "ZAP scan comment"
+                }
+              },
+              "example": {
+                "text": "ZAP scan comment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contents/{id}/comments": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "comment": "ZAP scan comment"
+                }
+              },
+              "example": {
+                "comment": "ZAP scan comment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/session": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/auth/session/activity": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {}
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/contents/{id}/links/{platform}/performance": {
+      "put": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          },
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "tiktok"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "views": 100,
+                  "likes": 5,
+                  "comments": 1,
+                  "shares": 0
+                }
+              },
+              "example": {
+                "views": 100,
+                "likes": 5,
+                "comments": 1,
+                "shares": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

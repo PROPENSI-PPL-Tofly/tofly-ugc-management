@@ -1,0 +1,227 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tofly backend (scan-only, creator)",
+    "version": "local"
+  },
+  "servers": [
+    {
+      "url": "http://host.docker.internal:3001"
+    }
+  ],
+  "paths": {
+    "/contents/{id}/events": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ]
+      }
+    },
+    "/contents/{id}": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ]
+      }
+    },
+    "/me/contents": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/me/contents/{id}": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/contents/{id}/comments": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "16148c67-4000-4854-b3a3-0d8eaf211bd8"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "comment": "ZAP scan comment"
+                }
+              },
+              "example": {
+                "comment": "ZAP scan comment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/invoices/{contractId}/comments": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "contractId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "9ea8f987-a660-4085-96ea-0e274511ac24"
+            }
+          }
+        ]
+      },
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "parameters": [
+          {
+            "name": "contractId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "9ea8f987-a660-4085-96ea-0e274511ac24"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "text": "ZAP scan comment"
+                }
+              },
+              "example": {
+                "text": "ZAP scan comment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/invoices": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/auth/session": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    },
+    "/auth/session/activity": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {}
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/me/social-accounts": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "any"
+          }
+        }
+      }
+    }
+  }
+}
