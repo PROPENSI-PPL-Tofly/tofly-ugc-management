@@ -48,16 +48,17 @@ test("moves to Done only when a closed PR was merged", () => {
   assert.equal(targetStatus({ action: "synchronize", merged: false }), null);
 });
 
+// SCRUM workflow status ids: Idea 10000, To Do 10001, In Progress 10002, Testing 10003, Done 10004.
 test("never pulls a subtask back from Testing or Done to Testing", () => {
-  assert.equal(shouldMove("In Progress", "Testing"), true);
-  assert.equal(shouldMove("To Do", "Testing"), true);
-  assert.equal(shouldMove("Testing", "Testing"), false);
-  assert.equal(shouldMove("Done", "Testing"), false);
+  assert.equal(shouldMove("10002", "Testing"), true);
+  assert.equal(shouldMove("10001", "Testing"), true);
+  assert.equal(shouldMove("10003", "Testing"), false);
+  assert.equal(shouldMove("10004", "Testing"), false);
 });
 
 test("moves anything not yet Done to Done", () => {
-  assert.equal(shouldMove("Testing", "Done"), true);
-  assert.equal(shouldMove("Done", "Done"), false);
+  assert.equal(shouldMove("10003", "Done"), true);
+  assert.equal(shouldMove("10004", "Done"), false);
 });
 
 // A fake Jira that answers the three calls the script makes and records each transition.
@@ -77,16 +78,16 @@ function fakeJira(issues) {
         ok: true,
         json: async () => ({
           transitions: [
-            { id: "21", to: { name: "In Progress" } },
-            { id: "31", to: { name: "Testing" } },
-            { id: "41", to: { name: "Done" } },
+            { id: "31", to: { id: "10002", name: issue.names?.[1] ?? "In Progress" } },
+            { id: "41", to: { id: "10003", name: "Testing" } },
+            { id: "51", to: { id: "10004", name: issue.names?.[2] ?? "Done" } },
           ],
         }),
       };
     }
     return {
       ok: true,
-      json: async () => ({ fields: { issuetype: { subtask: issue.subtask }, status: { name: issue.status } } }),
+      json: async () => ({ fields: { issuetype: { subtask: issue.subtask }, status: { id: issue.status, name: issue.names?.[0] ?? issue.status } } }),
     };
   };
   return { fetch, moved };
@@ -95,22 +96,45 @@ function fakeJira(issues) {
 const jira = { baseUrl: "https://example.atlassian.net", email: "a@b.c", token: "t" };
 
 test("transitions an In Progress subtask to Testing through the matching transition", async () => {
-  const { fetch, moved } = fakeJira({ "SCRUM-229": { subtask: true, status: "In Progress" } });
+  const { fetch, moved } = fakeJira({ "SCRUM-229": { subtask: true, status: "10002", names: ["In Progress"] } });
   const log = await syncSubtasks({ keys: ["SCRUM-229"], target: "Testing", jira, fetch });
-  assert.deepEqual(moved, [["SCRUM-229", "31"]]);
-  assert.match(log[0], /SCRUM-229: In Progress → Testing/);
+  assert.deepEqual(moved, [["SCRUM-229", "41"]]);
+  assert.deepEqual(log, [{ text: "SCRUM-229: In Progress → Testing", failed: false }]);
 });
 
 test("leaves a PBI (not a subtask) alone", async () => {
-  const { fetch, moved } = fakeJira({ "SCRUM-28": { subtask: false, status: "In Progress" } });
+  const { fetch, moved } = fakeJira({ "SCRUM-28": { subtask: false, status: "10002" } });
   const log = await syncSubtasks({ keys: ["SCRUM-28"], target: "Done", jira, fetch });
   assert.deepEqual(moved, []);
-  assert.match(log[0], /SCRUM-28: not a subtask, skipped/);
+  assert.deepEqual(log, [{ text: "SCRUM-28: not a subtask, skipped", failed: false }]);
 });
 
 test("reports a missing issue and still handles the others", async () => {
-  const { fetch, moved } = fakeJira({ "SCRUM-238": { subtask: true, status: "Testing" } });
+  const { fetch, moved } = fakeJira({ "SCRUM-238": { subtask: true, status: "10003" } });
   const log = await syncSubtasks({ keys: ["SCRUM-999", "SCRUM-238"], target: "Done", jira, fetch });
-  assert.deepEqual(moved, [["SCRUM-238", "41"]]);
-  assert.match(log[0], /SCRUM-999: .*404/);
+  assert.deepEqual(moved, [["SCRUM-238", "51"]]);
+  assert.match(log[0].text, /SCRUM-999: .*404/);
+  assert.equal(log[0].failed, true);
+});
+
+test("matches statuses by id, so translated status names still move", async () => {
+  const { fetch, moved } = fakeJira({
+    "SCRUM-240": { subtask: true, status: "10003", names: ["测试", "进行中", "完成"] },
+  });
+  const log = await syncSubtasks({ keys: ["SCRUM-240"], target: "Done", jira, fetch });
+  assert.deepEqual(moved, [["SCRUM-240", "51"]]);
+  assert.equal(log[0].failed, false);
+});
+
+test("flags a subtask whose workflow has no transition to the target as failed", async () => {
+  const { fetch, moved } = fakeJira({ "SCRUM-241": { subtask: true, status: "10002" } });
+  const noDone = async (url, init) => {
+    const res = await fetch(url, init);
+    if (!url.endsWith("/transitions")) return res;
+    const body = await res.json();
+    return { ok: true, json: async () => ({ transitions: body.transitions.filter((t) => t.to.id !== "10004") }) };
+  };
+  const log = await syncSubtasks({ keys: ["SCRUM-241"], target: "Done", jira, fetch: noDone });
+  assert.deepEqual(moved, []);
+  assert.deepEqual(log, [{ text: "SCRUM-241: no transition from In Progress to Done", failed: true }]);
 });
