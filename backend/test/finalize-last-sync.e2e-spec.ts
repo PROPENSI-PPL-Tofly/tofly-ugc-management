@@ -369,49 +369,62 @@ describe('Finalize with its last sync (e2e, PBI-28 28.2)', () => {
   });
 
   describe('a write landing while Finalize runs (Read Committed, MVCC)', () => {
+    // These tests open their own database clients, which can take seconds on a cold CI runner.
+    const CLIENTS_TIMEOUT_MS = 20_000;
+
     // A link write that waits for nothing Finalize holds: no platform source reads Instagram here,
     // so the sync writes nothing and only this test's own writer touches the row.
-    it('waits for an uncommitted write to the link and freezes the number it committed', async () => {
-      const { contractId, contents } = await endedContract('racing', [
-        {
-          platform: 'instagram',
-          numbers: {
-            views: 9_000,
-            data_state: 'manual',
-            manual_by: adminUser,
-            manual_at: new Date(),
+    it(
+      'waits for an uncommitted write to the link and freezes the number it committed',
+      async () => {
+        const { contractId, contents } = await endedContract('racing', [
+          {
+            platform: 'instagram',
+            numbers: {
+              views: 9_000,
+              data_state: 'manual',
+              manual_by: adminUser,
+              manual_at: new Date(),
+            },
           },
-        },
-      ]);
-      const writer = new PrismaClient();
-      let commit!: () => void;
-      const committed = new Promise<void>((resolve) => (commit = resolve));
-      const written = writer.$transaction(
-        async (tx) => {
-          await tx.content_links.updateMany({
-            where: { content_id: contents[0].id },
-            data: { views: 12_400 },
-          });
-          await committed;
-        },
-        { timeout: 20_000 },
-      );
+        ]);
+        const writer = new PrismaClient();
+        let commit!: () => void;
+        const committed = new Promise<void>((resolve) => (commit = resolve));
+        let wrote!: () => void;
+        const holding = new Promise<void>((resolve) => (wrote = resolve));
+        const written = writer.$transaction(
+          async (tx) => {
+            await tx.content_links.updateMany({
+              where: { content_id: contents[0].id },
+              data: { views: 12_400 },
+            });
+            wrote();
+            await committed;
+          },
+          { timeout: 20_000 },
+        );
 
-      try {
-        const pending = finalize(contractId).then((r) => r);
-        await blockedOn('FOR SHARE OF l');
-        commit();
-        await written;
-        const response = await pending;
+        try {
+          // Finalize starts only once the write holds the row: a writer still connecting would
+          // otherwise come second and queue behind Finalize's share lock instead.
+          await holding;
+          const pending = finalize(contractId).then((r) => r);
+          await blockedOn('FOR SHARE OF l');
+          commit();
+          await written;
+          const response = await pending;
 
-        expect(response.status).toBe(201);
-        expect(response.body.snapshot.performanceLinks[0].views).toBe(12_400);
-      } finally {
-        commit();
-        await written.catch(() => undefined);
-        await writer.$disconnect();
-      }
-    });
+          expect(response.status).toBe(201);
+          expect(response.body.snapshot.performanceLinks[0].views).toBe(12_400);
+        } finally {
+          commit();
+          await written.catch(() => undefined);
+          await writer.$disconnect();
+        }
+      },
+      CLIENTS_TIMEOUT_MS,
+    );
 
     // Learning 3: why Finalize stays in Read Committed. Repeatable Read takes its snapshot at the
     // first statement, here the lock wait itself, so it reads past a write committed meanwhile.
@@ -469,6 +482,7 @@ describe('Finalize with its last sync (e2e, PBI-28 28.2)', () => {
           await reader.$disconnect();
         }
       },
+      CLIENTS_TIMEOUT_MS,
     );
   });
 });
