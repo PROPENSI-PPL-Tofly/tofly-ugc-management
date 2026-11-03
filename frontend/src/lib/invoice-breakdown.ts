@@ -223,17 +223,18 @@ function bonusDetail(line: BonusLine): string {
   if (line.noData) return `${platform} · ${METRIC_LABELS[line.metric]} · Tidak ada data`;
 
   const reached = `${COUNT_FORMAT.format(line.value)} ${METRIC_LABELS[line.metric]}`;
-  return [platform, reached, `Tier ${line.tier}`, ...sourceDetail(line)].join(" · ");
+  // A measured link below the first tier, as the prototype words it.
+  const tier = line.tier > 0 ? `Tier ${line.tier}` : "Belum capai Tier 1";
+  return [platform, reached, tier, ...sourceDetail(line)].join(" · ");
 }
 
 function bonus(line: BonusLine): Described {
-  // A link frozen without data earned nothing: "Rp0", never "+ Rp0" as if it had.
-  const earned = line.kind === "specific" || !line.noData;
+  // A line that earned nothing (no data, or below Tier 1) reads "Rp0", never "+ Rp0".
   return {
     contentId: line.contentId,
     name: line.name,
     detail: bonusDetail(line),
-    amount: earned ? `+ ${formatRupiah(line.amount)}` : formatRupiah(line.amount),
+    amount: line.amount > 0 ? `+ ${formatRupiah(line.amount)}` : formatRupiah(line.amount),
     tone: "plain",
   };
 }
