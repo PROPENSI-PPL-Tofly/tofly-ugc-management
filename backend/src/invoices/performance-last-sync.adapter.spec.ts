@@ -98,6 +98,30 @@ describe('PerformanceLastSync', () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
+    // Promise.race settles with the first answer but never stops the loser: the sync runs on.
+    it.each([
+      ['answers', (ms: number) => after(ms)()],
+      [
+        'rejects',
+        (ms: number) =>
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('late')), ms),
+          ),
+      ],
+    ])('keeps timed_out when the sync %s after the wait ran out, with no stray rejection', async (_, late) => {
+      const { adapter, sync, log } = adapterFor(() => late(25_000));
+      const answer = adapter.beforeFinalize(contractId);
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      await expect(answer).resolves.toEqual({
+        status: 'timed_out',
+        notUpdated: null,
+      });
+      expect(sync.syncContract).toHaveBeenCalledTimes(1);
+      expect(log.warn).toHaveBeenCalledTimes(1);
+    });
+
     it('warns that the wait ran out, naming the contract', async () => {
       const { adapter, log } = adapterFor(never);
       const answer = adapter.beforeFinalize(contractId);
