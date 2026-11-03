@@ -5,7 +5,7 @@
 import { Prisma } from '@prisma/client';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { jakartaDay } from '../creators/evergreen.js';
-import { isFrozenLink } from './frozen-links.js';
+import { isFrozenLink, sourceOf } from './frozen-links.js';
 import {
   contractStatus,
   currentContract,
@@ -19,7 +19,11 @@ import type {
 import { calculateInvoice } from './invoice-calculator.js';
 import { contractLastDay } from './invoice-days.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
-import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
+import type {
+  InvoiceContent,
+  InvoiceContract,
+  InvoiceLink,
+} from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
 
 /**
@@ -52,15 +56,19 @@ export const CONTENT_SELECT = {
   status: true,
   deadline: true,
   video_submitted_at: true,
-  // The first link's platform is the one its performance bonus is judged on, as the single
-  // link's was before PBI-38.
+  // Every link is judged on its own platform's numbers (28.1).
   content_links: {
     orderBy: LINKS_AS_HANDED_IN,
-    take: 1,
-    select: { platform: true },
+    select: {
+      platform: true,
+      views: true,
+      likes: true,
+      comments: true,
+      shares: true,
+      last_synced_at: true,
+      manual_at: true,
+    },
   },
-  views: true,
-  likes: true,
 } satisfies Prisma.contentsSelect;
 
 export type InvoiceCreatorRow = Prisma.creatorsGetPayload<{
@@ -86,6 +94,25 @@ export function creatorName(
     .join(' ');
 }
 
+type InvoiceLinkRow = InvoiceContentRow['content_links'][number];
+
+/**
+ * A link whose platform is known, with its numbers and who measured them. A link kept from before
+ * platforms were recorded has none, so no platform's tiers can judge it and it is left out.
+ */
+function toInvoiceLink(row: InvoiceLinkRow): InvoiceLink | [] {
+  if (row.platform === null) return [];
+  return {
+    platform: row.platform,
+    views: row.views,
+    likes: row.likes,
+    comments: row.comments,
+    shares: row.shares,
+    source: sourceOf(row),
+    lastSyncedAt: row.last_synced_at,
+  };
+}
+
 export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
   return {
     id: row.id,
@@ -94,9 +121,7 @@ export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
     status: row.status,
     deadline: row.deadline,
     videoSubmittedAt: row.video_submitted_at,
-    platform: row.content_links[0]?.platform ?? null,
-    views: row.views,
-    likes: row.likes,
+    links: row.content_links.flatMap(toInvoiceLink),
   };
 }
 

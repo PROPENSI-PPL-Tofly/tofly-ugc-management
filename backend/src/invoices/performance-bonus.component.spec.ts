@@ -270,7 +270,12 @@ describe('PerformanceBonusComponent', () => {
       // Arrange
       const crossPosted = delivered({
         links: [
-          link({ platform: 'instagram', views: 50_000, source: 'synced', lastSyncedAt: SYNCED_AT }),
+          link({
+            platform: 'instagram',
+            views: 50_000,
+            source: 'synced',
+            lastSyncedAt: SYNCED_AT,
+          }),
           link({ platform: 'tiktok', likes: null, views: 3_000 }),
         ],
       });
