@@ -228,12 +228,13 @@ function bonusDetail(line: BonusLine): string {
   return [platform, reached, tier, ...sourceDetail(line)].join(" · ");
 }
 
-function bonus(line: BonusLine): Described {
+/** One bonus line, its detail ending with the invoice's lock wording ("" while it runs). */
+function bonus(line: BonusLine, lock: string): Described {
   // A line that earned nothing (no data, or below Tier 1) reads "Rp0", never "+ Rp0".
   return {
     contentId: line.contentId,
     name: line.name,
-    detail: bonusDetail(line),
+    detail: bonusDetail(line) + lock,
     amount: line.amount > 0 ? `+ ${formatRupiah(line.amount)}` : formatRupiah(line.amount),
     tone: "plain",
   };
@@ -316,10 +317,7 @@ const COLUMNS: Record<BreakdownKind, (breakdown: InvoiceBreakdown) => ColumnView
     const lock = lockWording(column.lockedOn);
     return {
       info: tierInfo(column.rules),
-      lines: column.lines.map((line) => {
-        const described = bonus(line);
-        return { ...described, detail: described.detail + lock };
-      }),
+      lines: column.lines.map((line) => bonus(line, lock)),
       total: column.total,
       empty: "Belum ada konten yang mendapat bonus.",
       note: column.performance === "waiting" ? `Bonus performa: ${WAITING_FOR_DATA}` : null,
