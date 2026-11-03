@@ -748,9 +748,8 @@ describe('Invoices API (e2e)', () => {
                 status: 'link_submitted',
                 video_submitted_at: day(-2),
                 content_links: {
-                  create: storedLink('https://example.com/access-evergreen', day(-2), user.id, 'instagram'),
+                  create: { ...storedLink('https://example.com/access-evergreen', day(-2), user.id, 'instagram'), views: 0 },
                 },
-                views: 0,
               },
             },
           },
@@ -909,9 +908,8 @@ describe('Invoices API (e2e)', () => {
                   status: 'link_submitted',
                   video_submitted_at: day(-2),
                   content_links: {
-                    create: storedLink('https://example.com/finalization-evergreen', day(-2), user.id, 'instagram'),
+                    create: { ...storedLink('https://example.com/finalization-evergreen', day(-2), user.id, 'instagram'), views: 0 },
                   },
-                  views: 0,
                 },
                 {
                   name: `${MARKER} on-time specific`,
@@ -1000,9 +998,8 @@ describe('Invoices API (e2e)', () => {
                 status: 'link_submitted',
                 video_submitted_at: day(-5),
                 content_links: {
-                  create: storedLink('https://example.com/early-end-evergreen', day(-5), user.id, 'instagram'),
+                  create: { ...storedLink('https://example.com/early-end-evergreen', day(-5), user.id, 'instagram'), views: 0 },
                 },
-                views: 0,
               },
             },
           },
@@ -1063,9 +1060,8 @@ describe('Invoices API (e2e)', () => {
                   status: 'link_submitted',
                   video_submitted_at: day(-50),
                   content_links: {
-                    create: storedLink('https://example.com/renewed-evergreen', day(-50), user.id, 'instagram'),
+                    create: { ...storedLink('https://example.com/renewed-evergreen', day(-50), user.id, 'instagram'), views: 0 },
                   },
-                  views: 0,
                 },
               },
             },
@@ -1224,9 +1220,8 @@ describe('Invoices API (e2e)', () => {
                   status: 'link_submitted',
                   video_submitted_at: day(-2),
                   content_links: {
-                    create: storedLink('https://example.com/history-evergreen', day(-2), user.id, 'instagram'),
+                    create: { ...storedLink('https://example.com/history-evergreen', day(-2), user.id, 'instagram'), views: 0 },
                   },
-                  views: 0,
                 },
                 {
                   name: `${MARKER} history specific`,
@@ -1303,9 +1298,8 @@ describe('Invoices API (e2e)', () => {
                 status: 'link_submitted',
                 video_submitted_at: day(-2),
                 content_links: {
-                  create: storedLink(`https://example.com/${slug}`, day(-2), user.id, 'instagram'),
+                  create: { ...storedLink(`https://example.com/${slug}`, day(-2), user.id, 'instagram'), views },
                 },
-                views,
               },
             },
           },
