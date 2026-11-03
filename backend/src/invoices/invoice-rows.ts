@@ -5,6 +5,7 @@
 import { Prisma } from '@prisma/client';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { jakartaDay } from '../creators/evergreen.js';
+import { isFrozenLink } from './frozen-links.js';
 import {
   contractStatus,
   currentContract,
@@ -284,7 +285,16 @@ function isSnapshot(value: unknown): value is InvoiceSnapshotDto {
 export function savedSnapshot(
   value: Prisma.JsonValue | null,
 ): InvoiceSnapshotDto | null {
-  return isSnapshot(value) ? value : null;
+  if (!isSnapshot(value)) return null;
+  const snapshot: InvoiceSnapshotDto = value;
+  // Tolerant Reader: the frozen links came later (PBI-28) and are optional. A list that is not
+  // what Finalize writes is left out, never the snapshot: dropping that would recalculate a
+  // finalized invoice live (OWASP A08).
+  const links: unknown = snapshot.performanceLinks;
+  if (links === undefined) return snapshot;
+  if (Array.isArray(links) && links.every(isFrozenLink)) return snapshot;
+  const { performanceLinks: _, ...frozen } = snapshot;
+  return frozen;
 }
 
 /** What the invoices table holds for an invoice besides where it stands in the pipeline. */

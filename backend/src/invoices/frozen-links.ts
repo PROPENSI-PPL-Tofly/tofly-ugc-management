@@ -1,4 +1,4 @@
-import { Prisma, type link_data_state, type social_platform } from '@prisma/client';
+import { Prisma, link_data_state, social_platform } from '@prisma/client';
 
 // Each delivered link as a finalized invoice keeps it (PBI-28 28.2, AC 10): the numbers the
 // contract was paid on, frozen in the snapshot so a later sync or manual entry never moves them.
@@ -84,4 +84,30 @@ export function lockDeliveredLinks(
       AND l.platform IS NOT NULL
     ORDER BY c.deadline, c.id, l.submitted_at, l.created_at, l.id
     FOR SHARE OF l`);
+}
+
+const PLATFORMS: readonly unknown[] = Object.values(social_platform);
+const STATES: readonly unknown[] = Object.values(link_data_state);
+const SOURCES: readonly unknown[] = ['synced', 'manual', null];
+
+function isCount(value: unknown): boolean {
+  return value === null || (Number.isSafeInteger(value) && (value as number) >= 0);
+}
+
+/** Whether a stored entry is one Finalize writes (toFrozenLink), field by field. */
+export function isFrozenLink(value: unknown): value is FrozenPerformanceLinkDto {
+  if (typeof value !== 'object' || value === null) return false;
+  const link = value as Record<string, unknown>;
+  return (
+    typeof link.contentId === 'string' &&
+    typeof link.contentName === 'string' &&
+    PLATFORMS.includes(link.platform) &&
+    isCount(link.views) &&
+    isCount(link.likes) &&
+    isCount(link.comments) &&
+    isCount(link.shares) &&
+    SOURCES.includes(link.source) &&
+    STATES.includes(link.state) &&
+    (link.lastSyncedAt === null || typeof link.lastSyncedAt === 'string')
+  );
 }
