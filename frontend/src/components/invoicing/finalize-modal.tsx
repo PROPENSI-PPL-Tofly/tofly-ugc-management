@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { finalizeInvoice } from "@/lib/invoice-actions.server";
@@ -29,11 +30,14 @@ export function FinalizeModal({
   row,
   onCancel,
   onFinalized,
+  onOpenContent,
 }: Readonly<{
   row: InvoiceRow;
   onCancel: () => void;
   /** The invoice was frozen; the invoice reads again. */
   onFinalized: () => void;
+  /** A waiting content is opened at its Content Detail, where its numbers can be typed (AC 9). */
+  onOpenContent?: (contentId: string) => void;
 }>) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -161,7 +165,7 @@ export function FinalizeModal({
           </strong>
         </div>
 
-        {waiting ? <WaitingGaps gaps={waiting} /> : null}
+        {waiting ? <WaitingGaps gaps={waiting} onOpenContent={onOpenContent} /> : null}
         {leftBehind ? <LeftBehind links={leftBehind} /> : null}
 
         {refusal ? (
@@ -175,11 +179,15 @@ export function FinalizeModal({
 }
 
 /**
- * What still waits for data, beside "Finalize tetap" (AC 9): each content with its state. The
- * PBI-28.1 marker says why there is no list yet — never an empty one, which would read as
- * "nothing is waiting" (28.2's rule).
+ * What still waits for data, beside "Finalize tetap" (AC 9): each content with its state, its
+ * name opening the Content Detail where the admin can type the missing numbers. The PBI-28.1
+ * marker says why there is no list yet — never an empty one, which would read as "nothing is
+ * waiting" (28.2's rule).
  */
-function WaitingGaps({ gaps }: Readonly<{ gaps: BonusGaps }>) {
+function WaitingGaps({
+  gaps,
+  onOpenContent,
+}: Readonly<{ gaps: BonusGaps; onOpenContent?: (contentId: string) => void }>) {
   return (
     <div role="group" aria-label="Konten yang masih menunggu data">
       <h3 className="text-[13px] font-bold">Konten yang masih menunggu data</h3>
@@ -193,8 +201,15 @@ function WaitingGaps({ gaps }: Readonly<{ gaps: BonusGaps }>) {
         <ul className="flex flex-col gap-1 text-[13px]">
           {gaps.waiting.map((link) => (
             <li key={`${link.contentId}:${link.platform}`}>
-              {link.contentName} · {PLATFORM_LABELS[link.platform]} ·{" "}
-              <span>{DATA_STATE_LABELS[link.state]}</span>
+              {onOpenContent ? (
+                <ContentNameButton onOpen={() => onOpenContent(link.contentId)}>
+                  {link.contentName}
+                </ContentNameButton>
+              ) : (
+                link.contentName
+              )}
+              {" · "}
+              {PLATFORM_LABELS[link.platform]} · <span>{DATA_STATE_LABELS[link.state]}</span>
             </li>
           ))}
         </ul>

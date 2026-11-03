@@ -168,7 +168,12 @@ export function useBreakdownPopups({
         onClose={closeAll}
         onOpenContent={setContentId}
         actions={
-          <InvoiceActions row={row} onAdjust={() => setAdjusting(true)} onMutated={moved} />
+          <InvoiceActions
+            row={row}
+            onAdjust={() => setAdjusting(true)}
+            onMutated={moved}
+            onOpenContent={setContentId}
+          />
         }
         editor={
           adjusting ? (
