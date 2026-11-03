@@ -363,6 +363,8 @@ jobs:
         env:
           DB_SECRET: ${{ vars.DB_SECRET }}
         run: |
+          # --timeout 600 matches the scheduler's --attempt-deadline 600s, so the daily sync (4 groups
+          # at once, up to 60 s each) is not cut at Cloud Run's 300 s default with its lease held.
           # Each environment has its own performance sync secret (PERFORMANCE_SYNC_SECRET_STAGING or
           # _PROD), named after its DB secret, so staging's scheduler can never start prod's sync.
           SYNC_SECRET="PERFORMANCE_SYNC_SECRET_${DB_SECRET#DB_URL_}"
@@ -381,6 +383,7 @@ jobs:
             --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
+            --timeout 600 \
             --min-instances "${{ vars.CLOUD_RUN_MIN_INSTANCES }}" --max-instances 3
 
       # Hits the candidate at its tag URL, so a broken revision is caught while

@@ -163,7 +163,8 @@ only accepts deployments from its own branch.
   `performance-sync-<service>` (`0 2 * * *`, `Asia/Jakarta`, attempt deadline 600 s) that POSTs
   `<service URL>/internal/performance-sync` with the header `x-sync-secret` read from the
   environment's `PERFORMANCE_SYNC_SECRET_*` secret (masked in the log). Every deploy re-points
-  the job at the service and the current secret version.
+  the job at the service and the current secret version. The backend deploys with
+  `--timeout 600` to match that deadline, so a long daily run is not cut at Cloud Run's 300 s.
 
 Runtime config on the service: `--add-cloudsql-instances` mounts the instance's unix socket;
 `DATABASE_URL` and `DIRECT_URL` (the same URL, nothing pools in between) and
