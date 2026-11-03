@@ -29,6 +29,7 @@ import { settleForFinalize } from './invoice-settlement.js';
 import type { FinalizeRequest } from './finalize-request.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 import { LAST_SYNC, type LastSync } from './last-sync.js';
+import { lockDeliveredLinks, toFrozenLink } from './frozen-links.js';
 
 // The admin's commands on a running invoice (PBI-12): recording a manual adjustment and
 // finalizing the invoice into its frozen snapshot. The reads stay in InvoicesService. This is
@@ -138,6 +139,9 @@ export class InvoiceCommandService implements InvoiceCommands {
     return this.prisma.$transaction(
       async (tx) => {
         await lockContractRow(tx, contractId);
+        // Read after the lock, so a manual entry queued on it has committed; share-locked, so no
+        // sync writes a number between here and the commit (AC 10-11).
+        const links = await lockDeliveredLinks(tx, contractId);
 
         const contract = await tx.contracts.findUnique({
           where: { id: contractId },
@@ -211,6 +215,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           finalizedAt: today.toISOString(),
           formula,
           performanceBonusPending: settled.performanceBonusPending,
+          performanceLinks: links.map(toFrozenLink),
         };
 
         const updated = await tx.invoices.updateMany({
