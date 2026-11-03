@@ -16,7 +16,7 @@ describe('contract lock', () => {
     await lockContractRow(tx, CONTRACT_ID);
 
     const [query] = tx.$queryRaw.mock.calls[0];
-    expect(query.sql).toBe(
+    expect(query.text).toBe(
       'SELECT id FROM contracts WHERE id = $1::uuid FOR UPDATE',
     );
     expect(query.values).toEqual([CONTRACT_ID]);
@@ -28,7 +28,7 @@ describe('contract lock', () => {
     await lockContractOfContent(tx, CONTENT_ID);
 
     const [query] = tx.$queryRaw.mock.calls[0];
-    expect(query.sql).toBe(
+    expect(query.text).toBe(
       'SELECT contracts.id FROM contracts JOIN contents ON contents.contract_id = contracts.id WHERE contents.id = $1::uuid FOR UPDATE OF contracts',
     );
     expect(query.values).toEqual([CONTENT_ID]);
