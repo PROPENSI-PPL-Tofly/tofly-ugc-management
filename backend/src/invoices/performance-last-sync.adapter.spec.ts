@@ -22,4 +22,18 @@ describe('PerformanceLastSync', () => {
     });
     expect(sync.syncContract).toHaveBeenCalledWith(contractId);
   });
+
+  // OWASP A10:2025 Mishandling of Exceptional Conditions: a sync that throws fails no Finalize.
+  it.each([
+    ['an Error', new Error('platform down')],
+    ['a thrown string', 'boom'],
+    ['undefined', undefined],
+  ])('answers failed, with no list it can vouch for, when the sync rejects with %s', async (_, reason) => {
+    const { adapter } = adapterFor(() => Promise.reject(reason));
+
+    await expect(adapter.beforeFinalize(contractId)).resolves.toEqual({
+      status: 'failed',
+      notUpdated: null,
+    });
+  });
 });
