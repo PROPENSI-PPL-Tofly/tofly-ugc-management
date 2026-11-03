@@ -16,7 +16,11 @@ export class PerformanceLastSync implements LastSync {
   ) {}
 
   async beforeFinalize(contractId: string): Promise<LastSyncResult> {
-    const { notUpdated } = await this.sync.syncContract(contractId);
-    return { status: 'done', notUpdated };
+    try {
+      const { notUpdated } = await this.sync.syncContract(contractId);
+      return { status: 'done', notUpdated };
+    } catch {
+      return { status: 'failed', notUpdated: null };
+    }
   }
 }

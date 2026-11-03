@@ -7,14 +7,18 @@ import type { UnsyncedLink } from '../performance/sync/sync-outcome.js';
 export const LAST_SYNC = Symbol('LAST_SYNC');
 
 /** How the last sync ended. */
-export type LastSyncStatus = 'done';
+export type LastSyncStatus = 'done' | 'failed';
 
 export interface LastSyncResult {
   status: LastSyncStatus;
-  /** The links the sync left as they were. */
-  notUpdated: UnsyncedLink[];
+  /**
+   * The links the sync left as they were; null when it ended without saying, so no link can be
+   * vouched for.
+   */
+  notUpdated: UnsyncedLink[] | null;
 }
 
 export interface LastSync {
+  /** Never rejects: a sync that fails is an answer, and Finalize goes on with stored numbers. */
   beforeFinalize(contractId: string): Promise<LastSyncResult>;
 }
