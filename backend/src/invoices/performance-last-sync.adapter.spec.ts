@@ -28,14 +28,17 @@ describe('PerformanceLastSync', () => {
     ['an Error', new Error('platform down')],
     ['a thrown string', 'boom'],
     ['undefined', undefined],
-  ])('answers failed, with no list it can vouch for, when the sync rejects with %s', async (_, reason) => {
-    const { adapter } = adapterFor(() => Promise.reject(reason));
+  ])(
+    'answers failed, with no list it can vouch for, when the sync rejects with %s',
+    async (_, reason) => {
+      const { adapter } = adapterFor(() => Promise.reject(reason));
 
-    await expect(adapter.beforeFinalize(contractId)).resolves.toEqual({
-      status: 'failed',
-      notUpdated: null,
-    });
-  });
+      await expect(adapter.beforeFinalize(contractId)).resolves.toEqual({
+        status: 'failed',
+        notUpdated: null,
+      });
+    },
+  );
 
   // OWASP A09:2025 Security Logging and Alerting Failures: a failed last sync is never silent, and
   // the warning names the contract and the error's kind only, never its message (it may quote a
@@ -43,16 +46,19 @@ describe('PerformanceLastSync', () => {
   it.each([
     [new TypeError('token abc123 rejected'), 'TypeError'],
     ['token abc123 rejected', 'unknown error'],
-  ])('warns once with the contract and the kind of %s, never its text', async (reason, kind) => {
-    const { adapter, log } = adapterFor(() => Promise.reject(reason));
+  ])(
+    'warns once with the contract and the kind of %s, never its text',
+    async (reason, kind) => {
+      const { adapter, log } = adapterFor(() => Promise.reject(reason));
 
-    await adapter.beforeFinalize(contractId);
+      await adapter.beforeFinalize(contractId);
 
-    expect(log.warn).toHaveBeenCalledTimes(1);
-    expect(log.warn).toHaveBeenCalledWith(
-      `finalize last sync failed for contract ${contractId} (${kind})`,
-    );
-  });
+      expect(log.warn).toHaveBeenCalledTimes(1);
+      expect(log.warn).toHaveBeenCalledWith(
+        `finalize last sync failed for contract ${contractId} (${kind})`,
+      );
+    },
+  );
 
   // OWASP A06:2025 Insecure Design: a slow platform holds Finalize for 20 s at most (AC 7-8).
   describe('the 20-second wait', () => {
@@ -108,19 +114,22 @@ describe('PerformanceLastSync', () => {
             setTimeout(() => reject(new Error('late')), ms),
           ),
       ],
-    ])('keeps timed_out when the sync %s after the wait ran out, with no stray rejection', async (_, late) => {
-      const { adapter, sync, log } = adapterFor(() => late(25_000));
-      const answer = adapter.beforeFinalize(contractId);
+    ])(
+      'keeps timed_out when the sync %s after the wait ran out, with no stray rejection',
+      async (_, late) => {
+        const { adapter, sync, log } = adapterFor(() => late(25_000));
+        const answer = adapter.beforeFinalize(contractId);
 
-      await vi.advanceTimersByTimeAsync(30_000);
+        await vi.advanceTimersByTimeAsync(30_000);
 
-      await expect(answer).resolves.toEqual({
-        status: 'timed_out',
-        notUpdated: null,
-      });
-      expect(sync.syncContract).toHaveBeenCalledTimes(1);
-      expect(log.warn).toHaveBeenCalledTimes(1);
-    });
+        await expect(answer).resolves.toEqual({
+          status: 'timed_out',
+          notUpdated: null,
+        });
+        expect(sync.syncContract).toHaveBeenCalledTimes(1);
+        expect(log.warn).toHaveBeenCalledTimes(1);
+      },
+    );
 
     it('warns that the wait ran out, naming the contract', async () => {
       const { adapter, log } = adapterFor(never);

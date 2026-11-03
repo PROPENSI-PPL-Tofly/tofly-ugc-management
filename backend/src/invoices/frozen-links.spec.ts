@@ -45,7 +45,11 @@ describe('toFrozenLink', () => {
   it('marks numbers an admin typed in as manual', () => {
     expect(
       toFrozenLink(
-        row({ data_state: 'manual', last_synced_at: null, manual_at: TYPED_AT }),
+        row({
+          data_state: 'manual',
+          last_synced_at: null,
+          manual_at: TYPED_AT,
+        }),
       ),
     ).toMatchObject({ source: 'manual', state: 'manual', lastSyncedAt: null });
   });
@@ -58,7 +62,9 @@ describe('toFrozenLink', () => {
     'names %s as the source of the numbers a not_found or sync_failed link kept',
     (_, stamps, source) => {
       for (const data_state of ['not_found', 'sync_failed'] as const) {
-        expect(toFrozenLink(row({ data_state, ...stamps })).source).toBe(source);
+        expect(toFrozenLink(row({ data_state, ...stamps })).source).toBe(
+          source,
+        );
       }
     },
   );

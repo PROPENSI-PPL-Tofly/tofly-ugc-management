@@ -49,8 +49,7 @@ export class PerformanceLastSync implements LastSync {
     } catch (error) {
       // The deadline only stops the waiting: the sync itself runs on to its own 20 s limits, and
       // whatever it saves later never reaches this invoice's snapshot.
-      const status =
-        error instanceof DeadlineExceeded ? 'timed_out' : 'failed';
+      const status = error instanceof DeadlineExceeded ? 'timed_out' : 'failed';
       this.log.warn(
         `finalize last sync ${status} for contract ${contractId} (${kindOf(error)})`,
       );

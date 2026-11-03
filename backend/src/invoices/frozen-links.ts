@@ -91,11 +91,15 @@ const STATES: readonly unknown[] = Object.values(link_data_state);
 const SOURCES: readonly unknown[] = ['synced', 'manual', null];
 
 function isCount(value: unknown): boolean {
-  return value === null || (Number.isSafeInteger(value) && (value as number) >= 0);
+  return (
+    value === null || (Number.isSafeInteger(value) && (value as number) >= 0)
+  );
 }
 
 /** Whether a stored entry is one Finalize writes (toFrozenLink), field by field. */
-export function isFrozenLink(value: unknown): value is FrozenPerformanceLinkDto {
+export function isFrozenLink(
+  value: unknown,
+): value is FrozenPerformanceLinkDto {
   if (typeof value !== 'object' || value === null) return false;
   const link = value as Record<string, unknown>;
   return (
