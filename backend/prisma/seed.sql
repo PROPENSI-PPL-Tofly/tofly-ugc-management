@@ -213,8 +213,9 @@ join contracts k on k.creator_id = c.id and k.end_date = current_date + s.contra
 
 -- Each submitted video's link, as POST /contents/:id/video stores it (PBI-38): one row per
 -- platform in content_links on the day the content was submitted, handed in by its creator. A
--- video is posted on the creator's Instagram, or on their TikTok when they have no Instagram;
--- Rangga cross-posts every video on both, so a content with two links shows too. The post id is
+-- video is posted on the creator's Instagram; Rangga cross-posts every video on TikTok too, so a
+-- content with two links shows. Every creator with a submitted video here has Instagram, so the
+-- TikTok-only case below is for a seed row added later (Bagas has no submitted content yet). The post id is
 -- made from the content's name, so every link is its own video and the seed stays repeatable.
 insert into content_links (content_id, platform, url, normalized_url, submitted_at, submitted_by)
 select n.id,
