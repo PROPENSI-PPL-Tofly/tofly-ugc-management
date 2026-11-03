@@ -106,6 +106,19 @@ describe('MyPerformanceLinksController (PBI-27 AC 20)', () => {
     );
   });
 
+  it.each(['?pageSize=50', '?pageSize=51', '?pageSize=x'])(
+    'keeps the Performa page at 10 rows whatever %s asks',
+    async (query) => {
+      const response = await get(query);
+
+      expect(response.status).toBe(200);
+      expect(links.list).toHaveBeenCalledExactlyOnceWith(
+        { page: 1, pageSize: 10 },
+        { creators: [CREATOR] },
+      );
+    },
+  );
+
   it.each(['?page=0', '?page=x', '?platform=youtube'])(
     'answers 400 for %s before reading anything',
     async (query) => {

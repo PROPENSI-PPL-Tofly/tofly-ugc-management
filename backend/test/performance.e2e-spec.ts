@@ -319,12 +319,14 @@ describe('content performance (e2e)', () => {
       await linked(other, 'not-mine');
 
       const response = await as(app, creator).get(
-        `/me/performance/links?creator=${other.creatorId}`,
+        `/me/performance/links?creator=${other.creatorId}&pageSize=50`,
       );
 
       expect(response.status).toBe(200);
       expect(response.body.pageSize).toBe(10);
-      expect(response.body.items.length).toBeGreaterThan(0);
+      const urls = response.body.items.map((item: { url: string }) => item.url);
+      expect(urls).toContain(reel('mine-listed'));
+      expect(urls).not.toContain(reel('not-mine'));
       for (const item of response.body.items) {
         expect(item.creatorId).toBe(owner.creatorId);
       }
