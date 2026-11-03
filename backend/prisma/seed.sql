@@ -354,7 +354,7 @@ select h.id,
        'Admin',
        'admin',
        case when h.status = 'draft_approved' then h.updated_at
-            else h.last_draft_at + interval '1 hour' end,
+            else h.last_draft_at + interval '1 day 4 hours' end,
        '{}'::jsonb
 from seed_history h
 where h.status = 'draft_approved'
