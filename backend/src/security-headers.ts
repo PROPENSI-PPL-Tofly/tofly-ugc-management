@@ -16,7 +16,13 @@ export function applySecurityHeaders(app: INestApplication): void {
     helmet({
       contentSecurityPolicy: {
         useDefaults: false,
-        directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+        // base-uri and form-action do not fall back to default-src, so they are named too.
+        directives: {
+          defaultSrc: ["'none'"],
+          baseUri: ["'none'"],
+          formAction: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
       },
     }),
   );
