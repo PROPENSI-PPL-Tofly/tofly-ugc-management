@@ -28,6 +28,7 @@ import { contractLastDay } from './invoice-days.js';
 import { settleForFinalize } from './invoice-settlement.js';
 import type { FinalizeRequest } from './finalize-request.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
+import { LAST_SYNC, type LastSync } from './last-sync.js';
 
 // The admin's commands on a running invoice (PBI-12): recording a manual adjustment and
 // finalizing the invoice into its frozen snapshot. The reads stay in InvoicesService. This is
@@ -79,6 +80,7 @@ export class InvoiceCommandService implements InvoiceCommands {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoiceCommandClient,
     @Inject(RATE_FORMULA_SOURCE) private readonly formulas: RateFormulaSource,
+    @Inject(LAST_SYNC) private readonly lastSync: LastSync,
   ) {}
 
   async addAdjustment(
@@ -129,6 +131,9 @@ export class InvoiceCommandService implements InvoiceCommands {
     snapshot: InvoiceSnapshotDto;
   }> {
     const formula = await this.formulas.current();
+    // The platforms are asked first, outside the transaction: a sync takes up to 20 s and must
+    // never hold the contract lock every other command on this contract waits for (AC 7).
+    await this.lastSync.beforeFinalize(contractId);
 
     return this.prisma.$transaction(
       async (tx) => {
