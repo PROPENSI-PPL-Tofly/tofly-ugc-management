@@ -35,9 +35,11 @@ describe('applySecurityHeaders', () => {
   // wildcard and 'unsafe-inline' sources on API responses that reach the browser through the
   // frontend proxy (/api/auth/google). The API serves JSON and redirects, never a page, so its
   // policy allows nothing to load and nothing to frame it.
+  // base-uri and form-action do not fall back to default-src, so they are named too (ZAP 10055
+  // "Failure to Define Directive with No Fallback" on the first rescan).
   it('sends an API content security policy that allows nothing to load or frame it', () => {
     expect(headersSet()['content-security-policy']).toBe(
-      "default-src 'none';frame-ancestors 'none'",
+      "default-src 'none';base-uri 'none';form-action 'none';frame-ancestors 'none'",
     );
   });
 
