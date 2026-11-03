@@ -11,6 +11,10 @@ import type {
   social_platform,
 } from '@prisma/client';
 import { adminActor } from '../contents/content-event-actors.js';
+import {
+  lockContractOfContent,
+  type ContractLockClient,
+} from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   canEnterManually,
@@ -65,7 +69,7 @@ export interface ManualLinkRow extends LinkMetrics {
   };
 }
 
-export interface ManualPerformanceTransaction {
+export interface ManualPerformanceTransaction extends ContractLockClient {
   content_links: {
     findFirst(args: {
       where: { content_id: string; platform: social_platform };
@@ -123,6 +127,8 @@ export class ManualPerformanceService {
     now: Date,
   ): Promise<LinkPerformance> {
     return this.prisma.$transaction(async (transaction) => {
+      // Queues behind a Finalize already under way, so the invoice status read next is final.
+      await lockContractOfContent(transaction, contentId);
       const row = await transaction.content_links.findFirst({
         where: { content_id: contentId, platform },
         select: MANUAL_LINK_SELECT,

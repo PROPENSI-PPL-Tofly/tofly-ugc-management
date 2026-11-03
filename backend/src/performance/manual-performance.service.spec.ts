@@ -71,6 +71,7 @@ async function refusal(
 
 describe('ManualPerformanceService', () => {
   const transaction = {
+    $queryRaw: vi.fn(),
     content_links: { findFirst: vi.fn(), updateMany: vi.fn() },
     content_events: { create: vi.fn() },
   };
@@ -85,6 +86,20 @@ describe('ManualPerformanceService', () => {
     vi.clearAllMocks();
     transaction.content_links.findFirst.mockResolvedValue(row());
     transaction.content_links.updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it("locks the content's contract row before it reads the invoice, so it queues behind Finalize (AC 18)", async () => {
+    await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW);
+
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
+    const [lock] = transaction.$queryRaw.mock.calls[0] as [
+      { sql: string; values: unknown[] },
+    ];
+    expect(lock.sql).toMatch(/FOR UPDATE OF contracts$/);
+    expect(lock.values).toEqual([CONTENT_ID]);
+    expect(transaction.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.content_links.findFirst.mock.invocationCallOrder[0],
+    );
   });
 
   it("reads the content's link on that platform, with only the columns the rule needs", async () => {
