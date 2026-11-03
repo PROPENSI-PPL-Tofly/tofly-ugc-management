@@ -1,6 +1,7 @@
 // Moves the Jira subtasks a pull request names along the SCRUM workflow
 // (Idea → To Do → In Progress → Testing → Done): opening a PR into a
-// feat/pbi-* branch puts its subtask in Testing, merging it puts it in Done.
+// feat/pbi-* branch puts its subtask in Testing, merging it puts it in Done,
+// unless another open PR into a PBI branch still names the same subtask.
 // Run by .github/workflows/jira-subtask-status.yml; no dependencies.
 import { readFileSync, appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -37,6 +38,20 @@ export function shouldMove(currentId, target) {
   return currentId !== STATUS_ID[target];
 }
 
+// Subtask key → numbers of the other open PRs into a PBI branch that still
+// name it, so a subtask split over several PRs reaches Done with the last one.
+export function heldByOpenPrs({ keys, openPrs, mergedNumber }) {
+  const held = new Map();
+  const others = openPrs.filter((pr) => pr.number !== mergedNumber && pr.base.ref.startsWith("feat/pbi-"));
+  for (const key of keys) {
+    const numbers = others
+      .filter((pr) => subtaskKeys({ title: pr.title, branch: pr.head.ref }).includes(key))
+      .map((pr) => pr.number);
+    if (numbers.length > 0) held.set(key, numbers);
+  }
+  return held;
+}
+
 async function jiraCall(fetch, jira, path, init = {}) {
   const auth = Buffer.from(`${jira.email}:${jira.token}`).toString("base64");
   const res = await fetch(`${jira.baseUrl}/rest/api/3/issue/${path}`, {
@@ -68,9 +83,14 @@ async function syncOne({ key, target, jira, fetch }) {
 }
 
 // One entry per key. A failing key is reported, never thrown, so the others still move.
-export async function syncSubtasks({ keys, target, jira, fetch }) {
+export async function syncSubtasks({ keys, target, held = new Map(), jira, fetch }) {
   const log = [];
   for (const key of keys) {
+    if (held.has(key)) {
+      const prs = held.get(key).map((n) => `#${n}`).join(", ");
+      log.push({ text: `${key}: open PR ${prs} still names it, left alone`, failed: false });
+      continue;
+    }
     try {
       log.push(await syncOne({ key, target, jira, fetch }));
     } catch (err) {
@@ -78,6 +98,19 @@ export async function syncSubtasks({ keys, target, jira, fetch }) {
     }
   }
   return log;
+}
+
+async function listOpenPrs(fetch, repository, token) {
+  const prs = [];
+  for (let page = 1; ; page++) {
+    const res = await fetch(`https://api.github.com/repos/${repository}/pulls?state=open&per_page=100&page=${page}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+    const batch = await res.json();
+    prs.push(...batch);
+    if (batch.length < 100) return prs;
+  }
 }
 
 async function main() {
@@ -99,7 +132,18 @@ async function main() {
     return;
   }
 
-  const log = await syncSubtasks({ keys, target, jira, fetch });
+  let held = new Map();
+  if (target === "Done") {
+    try {
+      const openPrs = await listOpenPrs(fetch, process.env.GITHUB_REPOSITORY, process.env.GITHUB_TOKEN);
+      held = heldByOpenPrs({ keys, openPrs, mergedNumber: pr.number });
+    } catch (err) {
+      console.log(`::warning::Could not list open PRs (${err.message}); no subtask was moved to Done.`);
+      return;
+    }
+  }
+
+  const log = await syncSubtasks({ keys, target, held, jira, fetch });
   // A wrong or expired token gets 404 (Jira hides the issue), not 401.
   for (const { text, failed } of log) console.log(failed ? `::warning::${text}` : text);
   if (process.env.GITHUB_STEP_SUMMARY) {
