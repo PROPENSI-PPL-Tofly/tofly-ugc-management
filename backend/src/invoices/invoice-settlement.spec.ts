@@ -6,6 +6,7 @@ import {
   type InvoiceLine,
 } from './invoice-component.js';
 import { settleForFinalize } from './invoice-settlement.js';
+import { BONUS_DATA_GAPS_PENDING_PBI_28_1 } from './bonus-data-gaps.js';
 
 function line(contentId: string, amount: number): InvoiceLine {
   return { contentId, contentName: contentId, amount, basis: {} };
@@ -72,6 +73,24 @@ describe('settleForFinalize', () => {
       response: {
         code: 'INVOICE_BONUS_PENDING',
         message: 'Bonus performa masih menunggu data',
+      },
+    });
+  });
+
+  // AC 9 needs PBI-28.1: the refusal says the waiting list is not available, never an empty one.
+  it('carries what is known of the waiting links in the refusal', () => {
+    const error = refusal(() =>
+      settleForFinalize(
+        breakdown(waitingForData('performanceBonus')),
+        false,
+        BONUS_DATA_GAPS_PENDING_PBI_28_1,
+      ),
+    );
+
+    expect(error).toMatchObject({
+      response: {
+        code: 'INVOICE_BONUS_PENDING',
+        bonusDataGaps: { available: false, reason: 'PBI_28_1_PENDING' },
       },
     });
   });

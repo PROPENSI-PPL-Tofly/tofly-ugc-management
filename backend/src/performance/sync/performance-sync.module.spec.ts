@@ -32,6 +32,12 @@ describe('PerformanceSyncModule', () => {
     expect(module.get(SyncSecretGuard)).toBeInstanceOf(SyncSecretGuard);
   });
 
+  it("shares the sync with Finalize's last sync (PBI-28), and nothing else", () => {
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.EXPORTS, PerformanceSyncModule),
+    ).toEqual([PerformanceSyncService]);
+  });
+
   it('reads the scheduler secret from PERFORMANCE_SYNC_SECRET', async () => {
     vi.stubEnv('PERFORMANCE_SYNC_SECRET', 'from-secret-manager');
     const module = await compile();
@@ -39,12 +45,9 @@ describe('PerformanceSyncModule', () => {
     expect(module.get(SYNC_SECRET)).toBe('from-secret-manager');
   });
 
-  it('is part of the performance feature and exports nothing until Finalize (PBI-28) wires it in', () => {
+  it('is part of the performance feature', () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.IMPORTS, PerformanceModule),
     ).toContain(PerformanceSyncModule);
-    expect(
-      Reflect.getMetadata(MODULE_METADATA.EXPORTS, PerformanceSyncModule),
-    ).toBeUndefined();
   });
 });

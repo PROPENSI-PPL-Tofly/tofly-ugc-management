@@ -559,6 +559,76 @@ describe('savedSnapshot', () => {
     expect(savedSnapshot(null)).toBeNull();
   });
 
+  // Tolerant Reader (PBI-28 AC 10-11): snapshots saved before links were frozen and after both
+  // read; a frozen part that cannot be trusted is left out, never the whole snapshot, since an
+  // unreadable snapshot would send a finalized invoice back to a live calculation.
+  describe('the frozen links (PBI-28 AC 10)', () => {
+    const link = {
+      contentId: 'content-1',
+      contentName: 'Evg_1',
+      platform: 'tiktok',
+      views: 12_400,
+      likes: 0,
+      comments: null,
+      shares: null,
+      source: 'synced',
+      state: 'synced',
+      lastSyncedAt: '2026-10-30T19:00:00.000Z',
+    };
+
+    it('reads a snapshot saved before links were frozen as it was', () => {
+      expect(savedSnapshot(complete)).not.toHaveProperty('performanceLinks');
+    });
+
+    it.each([
+      ['a synced link', [link]],
+      [
+        'a manual link',
+        [{ ...link, source: 'manual', state: 'manual', lastSyncedAt: null }],
+      ],
+      [
+        'a link that never had numbers',
+        [
+          {
+            ...link,
+            views: null,
+            likes: null,
+            source: null,
+            state: 'waiting',
+            lastSyncedAt: null,
+          },
+        ],
+      ],
+      ['no link at all', []],
+    ])('reads back the frozen links of %s', (_, performanceLinks) => {
+      const saved = { ...complete, performanceLinks };
+
+      expect(savedSnapshot(saved)).toBe(saved);
+    });
+
+    // OWASP A08:2025 Software or Data Integrity Failures: a frozen list that is not what Finalize
+    // writes is never shown as if it were, and the frozen totals still stand.
+    it.each([
+      ['not a list', { links: [link] }],
+      ['a link without a content', [{ ...link, contentId: 7 }]],
+      ['an unknown platform', [{ ...link, platform: 'youtube' }]],
+      ['a negative number', [{ ...link, views: -1 }]],
+      ['a fractional number', [{ ...link, likes: 1.5 }]],
+      ['an unknown source', [{ ...link, source: 'guessed' }]],
+      ['an unknown state', [{ ...link, state: 'stale' }]],
+      ['a sync time that is not text', [{ ...link, lastSyncedAt: 0 }]],
+      ['a link that is not an object', [null]],
+    ])(
+      'keeps the snapshot but leaves out frozen links holding %s',
+      (_, performanceLinks) => {
+        const read = savedSnapshot({ ...complete, performanceLinks });
+
+        expect(read).toEqual(complete);
+        expect(read).not.toHaveProperty('performanceLinks');
+      },
+    );
+  });
+
   it.each([
     ['a string', 'snapshot'],
     ['an array', [complete]],
