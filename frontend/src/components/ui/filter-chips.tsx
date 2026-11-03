@@ -1,6 +1,7 @@
 "use client";
 
 import { ResetFilters } from "@/components/filters/filter-controls";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 
 /**
  * The bar's active picks, gathered in one row below the filters (the benchmark's layout): each
@@ -40,8 +41,7 @@ export function pickedChips(
   }));
 }
 
-const CHIP =
-  "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
+const CHIP = `inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2 ${PHONE_TARGET}`;
 
 export function FilterChips({
   chips,
@@ -60,8 +60,14 @@ export function FilterChips({
   if (chips.length === 0 && !canReset) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-rule px-5 py-3">
-      <div role="group" aria-label="Filter aktif" className="flex flex-wrap items-center gap-2">
+    // On a phone the chips wrap inside their own group, so Reset keeps its place beside them on
+    // the first line rather than dropping onto a line of its own.
+    <div className="flex flex-wrap items-center gap-2 border-t border-rule px-5 py-3 max-sm:flex-nowrap max-sm:items-start">
+      <div
+        role="group"
+        aria-label="Filter aktif"
+        className="flex flex-wrap items-center gap-2 max-sm:min-w-0 max-sm:flex-1"
+      >
         {chips.map((chip) => (
           <button
             key={chip.id}

@@ -7,6 +7,7 @@ import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlatformIcons } from "@/components/ui/platform-icon";
 import { StatusDot } from "@/components/ui/pill";
+import { MIN_TARGET } from "@/components/ui/touch-target";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
@@ -21,7 +22,13 @@ import {
 } from "@/lib/content-plan";
 import { creatorDetailBase } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
-import { DeadlineSortTh } from "./deadline-sort";
+import { DeadlineSortButton, DeadlineSortTh } from "./deadline-sort";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
+
+const HEAD = "px-5 py-3 font-semibold";
+const CELL = "px-5 py-3 max-lg:block max-lg:px-0 max-lg:py-1";
+const LABELLED =
+  "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-xs max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
 /**
  * The Content Plan's table: one row per piece, its status and tags read the same way every
@@ -60,33 +67,41 @@ export function ContentPlanTable({
   const settled = tab === "done";
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px]">
-        <thead>
-          <tr className="border-b border-rule text-left text-muted">
-            <th className="px-5 py-3 font-semibold">Nama Konten</th>
-            <th className="px-5 py-3 font-semibold">Kreator</th>
-            <th className="px-5 py-3 font-semibold">Tipe</th>
-            <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
-            <th className="px-5 py-3 font-semibold">Status</th>
-            <th className="px-5 py-3 font-semibold">Tags</th>
-            {settled ? null : <th className="px-5 py-3 font-semibold">Aksi</th>}
+    // Positioned, so the visually hidden headings below lg are laid out inside this area.
+    <ScrollFrame>
+      {/* Below lg the header row is hidden, so the deadline sort gets a button of its own. */}
+      <DeadlineSortButton sort={sort} onToggle={onSortToggle} />
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
+      <table role="table" className="w-full text-[13px] max-lg:block">
+        <thead role="rowgroup" className="max-lg:sr-only">
+          <tr role="row" className="border-b border-rule text-left text-muted">
+            <th role="columnheader" className={HEAD}>Nama Konten</th>
+            <th role="columnheader" className={HEAD}>Kreator</th>
+            <th role="columnheader" className={HEAD}>Tipe</th>
+            <DeadlineSortTh sort={sort} onToggle={onSortToggle} stacked />
+            <th role="columnheader" className={HEAD}>Status</th>
+            <th role="columnheader" className={HEAD}>Tags</th>
+            {settled ? null : <th role="columnheader" className={HEAD}>Aksi</th>}
           </tr>
         </thead>
-        <tbody>
+        {/* Below lg each piece is a card of its own, 12 px apart on the page colour, as Task
+            Saya's tasks are; a value names its column from data-label. */}
+        <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3 max-lg:bg-paper max-lg:p-3">
           {items.map((row) => (
             // A press anywhere on the row opens its panel, as in the prototype. The name is a
             // real button, the same door for the keyboard and for screen readers.
             <tr
               key={row.contentId}
+              role="row"
               onClick={() => {
                 // Dragging across a name to copy it ends in a click here: copying, not opening.
                 if (window.getSelection()?.toString()) return;
                 onOpen(row.contentId);
               }}
-              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
+              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
             >
-              <td className="px-5 py-3">
+              <td className={`${CELL} wrap-anywhere max-lg:pb-2 max-lg:text-sm max-lg:font-semibold`}>
                 <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
                 {row.platforms.length ? (
                   <div className="mt-1">
@@ -94,29 +109,35 @@ export function ContentPlanTable({
                   </div>
                 ) : null}
               </td>
-              <td className="px-5 py-3">
+              <td data-label="Kreator" className={`${CELL} ${LABELLED}`}>
                 {/* The way to this creator's detail page, which holds their content plan. It is
                     a link of its own, so the row must not open the panel on the same press. */}
                 <Link
                   href={creatorDetailBase(row.creatorId)}
                   onClick={(event) => event.stopPropagation()}
-                  className="underline decoration-rule underline-offset-[3px] hover:decoration-ink"
+                  className={`inline-flex items-center underline decoration-rule underline-offset-[3px] hover:decoration-ink ${MIN_TARGET}`}
                 >
                   {row.creatorName}
                 </Link>
               </td>
-              <td className="px-5 py-3">{CONTENT_TYPE_LABELS[row.type]}</td>
-              <td className="px-5 py-3 whitespace-nowrap">{formatDate(row.deadline)}</td>
-              <td className="px-5 py-3 whitespace-nowrap">
+              <td data-label="Tipe" className={`${CELL} ${LABELLED}`}>
+                {CONTENT_TYPE_LABELS[row.type]}
+              </td>
+              <td data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
+                {formatDate(row.deadline)}
+              </td>
+              <td data-label="Status" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                   {CONTENT_STATUS_LABELS[row.status]}
                 </StatusDot>
               </td>
-              <td className="px-5 py-3">
+              {/* Empty when there is nothing to flag, so a card shows no bare Tags line. */}
+              <td data-label="Tags" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
                 <ContentTags tags={row.tags} />
               </td>
               {settled ? null : (
-                <td className="px-5 py-3">
+                // Empty unless the piece awaits a decision, so a card shows no bare action line.
+                <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
                   <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
                 </td>
               )}
@@ -124,6 +145,6 @@ export function ContentPlanTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

@@ -32,7 +32,7 @@ describe("CreatorContentTable", () => {
 
     expect(
       screen.getAllByRole("columnheader").map((heading) => heading.textContent),
-    ).toEqual(["Konten", "Deadline↑", "Status", "Aksi"]);
+    ).toEqual(["Konten", "Deadline↑Deadline", "Status", "Aksi"]);
   });
 
   it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {
@@ -48,6 +48,79 @@ describe("CreatorContentTable", () => {
     // out against the page and widens it by however far the table overflows (117 px at 375 px).
     const scrollArea = screen.getByText("Aksi").closest(".overflow-x-auto");
     expect(scrollArea).toHaveClass("relative");
+  });
+
+  // Measured in Edge at true 320/375/390/430 px: the table is 628 px wide in a 286-396 px area,
+  // so Status, its tags and Detail/Tinjau all sat off-screen. Below lg each row reads as a card,
+  // as the roster and Task Saya do. jsdom lays nothing out, so these pin what the layout is built
+  // from; the browser measurement is the evidence for the layout itself.
+  describe("on a phone, below lg", () => {
+    function cells() {
+      return within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell");
+    }
+
+    // A table whose display changes can lose its semantics in some browsers, so the table, its
+    // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
+    it("reads each card as a row of cells, one per column, under explicit table roles", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Spc_Done", status: "link_submitted" }]);
+
+      const table = screen.getByRole("table");
+      expect(table).toHaveAttribute("role", "table");
+      for (const group of within(table).getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
+      }
+      const columns = within(table).getAllByRole("columnheader");
+      const [, ...records] = within(table).getAllByRole("row");
+      expect(records).toHaveLength(2);
+      for (const record of records) {
+        expect(record).toHaveAttribute("role", "row");
+        expect(within(record).getAllByRole("cell")).toHaveLength(columns.length);
+      }
+    });
+
+    it("keeps table semantics while the rows stack as cards", () => {
+      renderTable();
+
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
+      expect(rowOf("Evg_7_RanggaPratama_26092026")).toHaveClass("max-lg:block");
+      expect(cells()).toHaveLength(4);
+    });
+
+    it("names the deadline and the status by their columns, since the headers are hidden", () => {
+      renderTable();
+
+      expect(cells().map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Deadline",
+        "Status",
+        null,
+      ]);
+    });
+
+    it("lets a long name wrap instead of holding the card wider than the phone", () => {
+      renderTable();
+
+      const [name] = cells();
+      expect(name).toHaveClass("min-w-52");
+      expect(name).toHaveClass("max-lg:min-w-0");
+    });
+
+    it("gives Tinjau a full-width touch target at least 44px tall", () => {
+      renderTable();
+
+      const button = screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" });
+      expect(button).toHaveClass("max-lg:w-full");
+      expect(button).toHaveClass("max-lg:min-h-11");
+    });
+
+    it("keeps one sort control per width: the header's button is removed below lg, its name kept", () => {
+      renderTable();
+
+      const header = screen.getByRole("columnheader", { name: /Deadline/ });
+      expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
+    });
   });
 
   it("fills a row with the content, its type under the name, and its formatted deadline", () => {
@@ -230,7 +303,7 @@ describe("CreatorContentTable", () => {
     it("leaves the heading row alone", () => {
       const { onOpen } = renderTable();
 
-      fireEvent.click(screen.getByText("Deadline"));
+      fireEvent.click(within(screen.getByRole("columnheader", { name: /Deadline/ })).getByRole("button"));
 
       expect(onOpen).not.toHaveBeenCalled();
     });
@@ -238,6 +311,17 @@ describe("CreatorContentTable", () => {
     describe("when the press ends a text selection", () => {
       afterEach(() => {
         vi.restoreAllMocks();
+      });
+
+      it("does not open the panel when the selection ends on the row itself", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "26 Sep",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("26 Sep 2026"));
+
+        expect(onOpen).not.toHaveBeenCalled();
       });
 
       it("does not open the panel over the text just selected", () => {
@@ -335,5 +419,13 @@ describe("CreatorContentTable", () => {
     expect(screen.getByText("Overdue")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "Aksi" })).toBeNull();
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as Content Plan's does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    renderTable();
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });

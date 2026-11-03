@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { expectPhoneTarget } from "@/test/touch-target";
 import { FilterChips, pickedChips, type FilterChip } from "./filter-chips";
 
 const remove = vi.fn();
@@ -16,6 +17,13 @@ function chip(over: Partial<FilterChip> = {}): FilterChip {
 describe("FilterChips", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  // Measured at 375px: each chip was 20px tall, the press that widens the list again.
+  it("gives each chip a 44px press on a phone", () => {
+    render(<FilterChips chips={[chip()]} canReset onReset={vi.fn()} />);
+
+    expectPhoneTarget(screen.getByRole("button", { name: "Hapus filter Creator: Adit Prakoso" }));
   });
 
   it("reads every chip as the filter it came from, in the benchmark's format", () => {
@@ -70,6 +78,23 @@ describe("FilterChips", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
     expect(onReset).toHaveBeenCalledOnce();
+  });
+
+  // Seen at 375px with two 44px chips: Reset dropped onto a line of its own under them, with
+  // the row's padding below it. On a phone the chips wrap inside their own group instead, so
+  // Reset stays on the first line beside them; from sm up the row is as it was.
+  it("keeps Reset on the chips' first line on a phone, the chips wrapping beside it", () => {
+    render(
+      <FilterChips
+        chips={[chip(), chip({ id: "s:1", filterLabel: "Status", valueLabel: "Scheduled" })]}
+        canReset
+        onReset={vi.fn()}
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "Filter aktif" });
+    expect(group.parentElement).toHaveClass("max-sm:flex-nowrap", "max-sm:items-start");
+    expect(group).toHaveClass("max-sm:min-w-0", "max-sm:flex-1", "flex-wrap");
   });
 
   it("holds Reset while a change is still on its way", () => {

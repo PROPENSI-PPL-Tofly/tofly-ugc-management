@@ -198,7 +198,8 @@ export function Modal({
               type="button"
               onClick={onClose}
               aria-label="Tutup dialog"
-              className="cursor-pointer rounded-(--radius-control) border-none bg-transparent px-1 text-lg leading-none text-muted hover:text-ink"
+              // The same ✕ in a target at least 32px square, 44px on a phone (WCAG 2.5.8).
+              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-(--radius-control) border-none bg-transparent text-lg leading-none text-muted hover:text-ink max-sm:size-11"
             >
               ✕
             </button>

@@ -31,11 +31,14 @@ export function CreatorContentFilters({ tab = "all" }: Readonly<{ tab?: ContentP
     setParam(key, values.join(","));
   }
 
+  /** Clears both filters, but the open period, the tab and the way back to the roster survive. */
   function resetKeepingPeriodAndTab() {
     const contract = param("contract");
+    const back = param("return");
     resetKeeping({
       ...(contract === "all" ? {} : { contract }),
       ...(tab === "all" ? {} : { tab }),
+      ...(back === "all" ? {} : { return: back }),
     });
   }
 

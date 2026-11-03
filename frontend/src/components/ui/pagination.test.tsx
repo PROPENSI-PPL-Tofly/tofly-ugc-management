@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { useLinkStatus } from "next/link";
 import { Pagination } from "./pagination";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
@@ -62,6 +63,16 @@ describe("Pagination", () => {
     expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveAttribute(
       "href",
       "/admin/creators?page=3",
+    );
+  });
+
+  // Same press as the buttons beside it (approved design), still for reduced motion.
+  it("gives a little when a page link is pressed, unless motion is reduced", () => {
+    render(<Pagination {...CREATORS} page={2} pageSize={10} total={23} totalPages={3} />);
+
+    expect(screen.getByRole("link", { name: "Berikutnya" })).toHaveClass(
+      "active:scale-[.97]",
+      "motion-reduce:active:scale-100",
     );
   });
 
@@ -255,5 +266,14 @@ describe("Pagination", () => {
     // The page count and both buttons need about 300 px; a 320 px panel leaves them 246.
     const controls = screen.getByText("Halaman 2 dari 4").parentElement;
     expect(controls).toHaveClass("flex-wrap");
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives the neighbouring pages a 44px press on a phone, and the page it cannot leave for", () => {
+    render(<Pagination {...CREATORS} page={1} pageSize={10} total={23} totalPages={3} />);
+
+    expectPhoneTarget(screen.getByRole("link", { name: "Berikutnya" }));
+    expectPhoneTarget(screen.getByText("Sebelumnya"));
   });
 });
