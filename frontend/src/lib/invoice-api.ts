@@ -9,6 +9,7 @@ import type {
   BonusPlatform,
   BonusTierRule,
   InvoiceBreakdown,
+  PerformanceBonusLine,
 } from "./invoice-breakdown";
 import {
   INVOICE_PAGE_SIZE,
@@ -204,6 +205,21 @@ function basisText(line: RawInvoiceLine, key: string): string {
   return String(line.basis[key]);
 }
 
+/**
+ * Where a bonus line's number came from (PBI-28 AC 6), as 28.1 and 28.2 put it in the basis.
+ * Only known values pass: an unknown source or a sync time that is not a readable moment is
+ * shown as nothing, never as text the backend did not mean.
+ */
+function lineSource(line: RawInvoiceLine): Pick<PerformanceBonusLine, "source" | "lastSyncedAt" | "noData"> {
+  const { source, lastSyncedAt } = line.basis;
+  const readable = typeof lastSyncedAt === "string" && !Number.isNaN(Date.parse(lastSyncedAt));
+  return {
+    source: source === "synced" || source === "manual" ? source : null,
+    lastSyncedAt: readable ? lastSyncedAt : null,
+    noData: line.basis.status === "no_data",
+  };
+}
+
 function tierRules(formula: RawRateFormula | null): BonusTierRule[] {
   if (!formula) return [];
 
@@ -261,6 +277,7 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
         value: basisNumber(line, "value"),
         tier: basisNumber(line, "tier"),
         amount: line.amount,
+        ...lineSource(line),
       })),
       total: performanceBonus.amount ?? 0,
       performance: performanceBonus.status === "waiting_for_data" ? "waiting" : "ready",

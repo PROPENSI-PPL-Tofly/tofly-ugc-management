@@ -5,7 +5,7 @@
 //
 // Pure module: no React and no next/headers, so the table, the popup and tests all share it.
 
-import { formatDate, formatDeduction, formatRupiah } from "./format";
+import { formatDate, formatDeduction, formatRupiah, formatTimestamp } from "./format";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -60,6 +60,12 @@ export interface PerformanceBonusLine {
   /** Which tier it earned, 1 for the lowest. */
   tier: number;
   amount: number;
+  /** Where the number came from (PBI-28 AC 6); null on a line from before links carried one. */
+  source?: "synced" | "manual" | null;
+  /** When a sync last read the number, ISO; null when never, or when an admin typed it in. */
+  lastSyncedAt?: string | null;
+  /** A link frozen without data at Finalize (28.2): Rp0, with no value or tier to show. */
+  noData?: boolean;
 }
 
 export type BonusLine = SpecificBonusLine | PerformanceBonusLine;
@@ -199,19 +205,33 @@ function rated(line: RatedLine): Described {
   };
 }
 
+/** "Tersinkron 3 Nov 2026, 02.00 WIB" or "Diisi manual" (PBI-28 AC 6); nothing when unknown. */
+function sourceDetail(line: PerformanceBonusLine): string[] {
+  if (line.source === "manual") return ["Diisi manual"];
+  if (line.source === "synced") {
+    return [line.lastSyncedAt ? `Tersinkron ${formatTimestamp(line.lastSyncedAt)}` : "Tersinkron"];
+  }
+  return [];
+}
+
 function bonusDetail(line: BonusLine): string {
   if (line.kind === "specific") return "Bonus konten Specific tepat waktu";
 
+  const platform = PLATFORM_LABELS[line.platform];
+  if (line.noData) return `${platform} · ${METRIC_LABELS[line.metric]} · Tidak ada data`;
+
   const reached = `${COUNT_FORMAT.format(line.value)} ${METRIC_LABELS[line.metric]}`;
-  return `${PLATFORM_LABELS[line.platform]} · ${reached} · Tier ${line.tier}`;
+  return [platform, reached, `Tier ${line.tier}`, ...sourceDetail(line)].join(" · ");
 }
 
 function bonus(line: BonusLine): Described {
+  // A link frozen without data earned nothing: "Rp0", never "+ Rp0" as if it had.
+  const earned = line.kind === "specific" || !line.noData;
   return {
     contentId: line.contentId,
     name: line.name,
     detail: bonusDetail(line),
-    amount: `+ ${formatRupiah(line.amount)}`,
+    amount: earned ? `+ ${formatRupiah(line.amount)}` : formatRupiah(line.amount),
     tone: "plain",
   };
 }
