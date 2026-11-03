@@ -50,7 +50,9 @@ No Critical or High finding was raised. Access control held in every scan:
 
 - **Tool:** OWASP ZAP 2.17.0, `ghcr.io/zaproxy/zaproxy:stable` (image created 16 October 2026).
 - **OpenAPI:** the backend publishes no OpenAPI/Swagger. A **scan-only OpenAPI 3 document** was generated from the
-  routes the running app actually registers (67 Express routes, deduplicated).
+  routes the running app actually registers. The app registers **67** Express route entries, which are **51** unique
+  method-and-path routes: 16 entries are trailing-slash re-registrations, such as `GET /creators/` beside
+  `GET /creators`.
   - The admin document holds 21 operations and the creator document 12. Path parameters use real ids from the
     disposable database, and write operations carry example JSON bodies.
   - Deliberately excluded: `DELETE` routes and state-ending moves (finalize, approve/reject, acknowledge,
@@ -86,6 +88,19 @@ database, before and after the authenticated scans, show:
   script. It is kept as an **unauthenticated** API scan, in which every protected operation answered 401 or 403.
 - **`POST /creators`:** it inserted nothing; every attempt was answered 422, because the example body did not match
   the validator. The route was therefore tested only at its validation layer.
+
+### Route coverage (reconciled)
+
+| Category                          | Count  | Routes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unique routes the app registers   | **51** | from 67 registrations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Scanned (union of both documents) | **27** | 21 admin operations and 12 creator operations; 6 in both: `GET /contents/{id}`, `GET /contents/{id}/events`, `GET /health`, `POST /contents/{id}/comments`, `GET /auth/session`, `POST /auth/session/activity`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Excluded on purpose               | **22** | State-ending or irreversible: `POST /invoices/{contractId}/finalize`, `PATCH /contents/{id}/proposal/approve`, `POST /contents/{id}/proposal/reject`, `PATCH /submissions/{id}/approve`, `PATCH /submissions/{id}/revise`, `POST /me/invoices/{contractId}/acknowledge`, `POST /me/invoices/{contractId}/confirm-receipt`, `DELETE /me/social-accounts/{platform}`, `POST /auth/logout`. Uploads and file reads: `POST`/`GET /invoices/{contractId}/payment-proof`, `GET /me/invoices/{contractId}/payment-proof`, `POST /contents/{id}/draft`, `POST /contents/{id}/video`. Link submission: `POST /contents/{id}/links`, `PUT /contents/{id}/links/{platform}`. Sync: `POST /internal/performance-sync`, `POST /contents/{id}/performance-sync`. External OAuth: `GET /auth/google`, `GET /auth/google/callback`, `GET /social/{platform}/connect`, `GET /social/{platform}/callback`. |
+| Excluded by mistake               | **1**  | `GET /performance/links`: my filter for link-submission routes also matched it. **Not scanned.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Template route                    | **1**  | `GET /` was excluded from the documents, but ZAP requested it anyway as the base URL (alert 100001).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Scanned only partly               | —      | `POST /creators`: every request was refused with 422 by the validator, so creation was never reached. As the creator, `GET /contents/{id}` and `GET /contents/{id}/events` answered 403 for the seeded content id, so only their access control was tested. `PUT /contents/{id}/links/{platform}/performance`: no link row changed, so only its refusals were reached.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+The scan therefore covered **27 of 51 routes (53%)**, some only partly. The other 24 are **not** claimed to be secure.
 
 ## 4. Initial Scan Results
 
@@ -262,8 +277,18 @@ Rescans ran against the same environment (same database and sessions) with the p
 | Overall                                           | Baseline            | 5 warnings, 63 passed, 2 Medium alerts | 4 warnings, 64 passed, **no Medium**                                                                                                                     |
 | Overall                                           | API admin / creator | 2 / 2 warnings                         | 1 / 1 warning (only `GET /`'s content type)                                                                                                              |
 
-The full scan was not rerun. Neither patched finding came from it, and its findings (COOP/COEP, big redirect, the two
-false positives) are all on the frontend, which did not change.
+**Full scan rerun (post-patch):** same environment, fresh test sessions minted the same way (the earlier ones had passed
+their 30-minute idle timeout). Report: `zap-reports/after-full.{html,json}`.
+
+- **Limits, disclosed:** a 2-minute spider, an active scan capped at 6 minutes, and 2 threads per host. Not every page
+  state was reached; 55 URLs were found, as before.
+- **Result:** 140 rules passed and 3 warnings, the same as before: big redirect (2), COOP/COEP missing (5 + 5),
+  dangerous JS functions (2).
+  - The "dangerous JS functions" hit is still the stored ZAP payload from the first API scan. The potential-XSS alert
+    on `?q=` is still the escaped value.
+  - No new alert, no Medium or High, and no session token in the report.
+- **Backend log during the rerun:** 0 unhandled exceptions.
+- **Unchanged as expected:** neither patched finding came from this scan, and the frontend did not change.
 
 ## 8. Regression Test Evidence
 
@@ -284,12 +309,21 @@ The RED end-to-end run failed 3 of 5 with 500s, matching the scan. After GREEN i
 
 **Final checks:**
 
-- **Unit tests:** 2,883 passed.
+- **Unit tests:** 2,887 passed, including `src/app.module.spec.ts` (`1a8df76` RED, `85f4327` GREEN). That spec covers the
+  `APP_INTERCEPTOR` registration and the boot-time `validate`, which is now exported so its existing refusal of a
+  missing database URL is tested.
 - **PostgreSQL end-to-end:** on a fresh separate database, 435 passed, 6 skipped. The 6 skips are pre-existing:
   `contents-concurrency` runs only when `CONTENTS_TEST_DATABASE_URL` is set, as in CI.
 - **Lint, type check, build:** all exit 0.
-- **Coverage on every changed source file:** `reject-nul-characters.interceptor.ts` and `security-headers.ts` are at
-  100% statements, branches, functions and lines.
+- **Coverage on every changed backend source file:** `app.module.ts`, `reject-nul-characters.interceptor.ts` and
+  `security-headers.ts` are all at 100% statements, branches, functions and lines.
+  - The project config leaves `*.module.ts` out of coverage, so `app.module.ts` was measured with a one-off config
+    that includes it.
+  - That run first showed 87.5% statements and 50% branches (`validate`'s missing-URL `throw`), which the spec above
+    closed.
+- **`helmet()` registration:** reviewed. `applySecurityHeaders` calls `app.use(helmet(...))` exactly once, and
+  `main.ts` calls it once per app. The existing unit test already asserts `app.use` is called once, so no change was
+  needed.
 
 ## 9. Remaining Risks and Limitations
 
@@ -303,8 +337,8 @@ The RED end-to-end run failed 3 of 5 with 500s, matching the scan. After GREEN i
   - `POST /creators` was only reached at its validation layer.
   - **These routes are not claimed to be secure.** They are covered by the project's own guard and end-to-end tests,
     not by this scan.
-- **Frontend pages:** the authenticated full scan's active phase was capped at 6 minutes, and its spider at 2, so not
-  every admin and creator page state was attacked.
+- **Frontend pages:** the full scans' active phase was capped (12 minutes before, 6 after) and the spider at 2–3
+  minutes, so not every admin and creator page state was attacked.
 - **Business logic:** ZAP does not test business-logic flaws such as cross-creator access by id. Those are covered by
   the existing end-to-end tests: a creator gets 403/404 on another creator's data, as observed here.
 - **Unpatched hardening:** the potential issues in section 5 (COOP/COEP, `Cache-Control` on API responses, the
