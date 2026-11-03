@@ -223,6 +223,29 @@ describe('Finalize with its last sync (e2e, PBI-28 28.2)', () => {
     ]);
   });
 
+  // AC 9 and the Rp0 no_data lines need PBI-28.1: through the real app, both answers say so.
+  it('says the waiting links and no-data lines are not available until PBI-28.1, in the 422 and once frozen', async () => {
+    const { contractId } = await endedContract('gaps', [
+      { platform: 'instagram' },
+    ]);
+    const pending = { available: false, reason: 'PBI_28_1_PENDING' };
+
+    const refused = await admin
+      .post(`/invoices/${contractId}/finalize`)
+      .send({})
+      .expect(422);
+    const frozen = await finalize(contractId).expect(201);
+
+    expect(refused.body).toMatchObject({
+      code: 'INVOICE_BONUS_PENDING',
+      bonusDataGaps: pending,
+    });
+    expect(frozen.body.bonusDataGaps).toEqual(pending);
+    expect(await storedSnapshot(contractId)).not.toHaveProperty(
+      'bonusDataGaps',
+    );
+  });
+
   // 27.4 keeps an admin's numbers and their manual state when the platform fails to read them.
   it('names a link the platform could not read, freezes the manual numbers it kept, and still finalizes (AC 8)', async () => {
     answer = async (_, links) => ({
