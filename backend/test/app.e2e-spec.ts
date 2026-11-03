@@ -40,8 +40,8 @@ describe('AppController (e2e)', () => {
     expect(response.headers['x-powered-by']).toBeUndefined();
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-frame-options']).toBe('SAMEORIGIN');
-    expect(response.headers['content-security-policy']).toContain(
-      "default-src 'self'",
+    expect(response.headers['content-security-policy']).toBe(
+      "default-src 'none';frame-ancestors 'none'",
     );
     expect(response.headers['referrer-policy']).toBeDefined();
   });
