@@ -223,8 +223,9 @@ function CodeStep({
     startOver(verifyProblem(outcome));
   }
 
+  // Kirim Ulang is disabled while any call is pending, so only the form needs the ref's guard;
+  // the ref is still set here so a submit cannot start a check during a resend.
   async function resend() {
-    if (inFlight.current) return;
     inFlight.current = true;
     setBusy("resend");
     setAlert(null);
