@@ -69,7 +69,14 @@ one transaction, so callers cannot run the steps in the wrong order:
 - **Why two tables:** when an email fails, its code row is removed, so the code sent before it stays the newest and
   usable. But the request must still count towards AC 5, because the provider may have delivered it anyway.
 - **Cleanup:** every request deletes all `login_code_requests` rows older than the hour, whatever their email. The
-  delete uses the `requested_at` index, so the table holds about an hour of traffic and needs no scheduled job.
+  delete uses the `requested_at` index, so while requests keep arriving the table holds about an hour of traffic.
+  - If requests stop, the rows from the last active hour (at most five per email) stay until the next request. The
+    limit is unaffected, because it only counts the last hour, but those emails are kept for longer than they need to
+    be.
+  - A scheduled cleanup is a **future maintenance improvement, outside 39.2's acceptance criteria and Definition of
+    Done**. It is planned as one job shared with 39.3, which also needs a cleanup for `login_codes` (see
+    "Dependencies"), and it will come in a separate PR once agreed with the 39.3 owner. This PR adds no scheduler, no
+    cleanup endpoint and no new infrastructure.
 - `login_codes` is not cleaned by 39.2. Its rows are what 39.3 reads (see "Dependencies").
 - **Issue order:**
   - Each code is placed just after the email's newest request while the lock is held:
@@ -168,6 +175,10 @@ delivered" would need error types from 39.1's adapter; that is not part of this 
     `created_at desc`. That order is now the issue order, with no ties.
   - Removing old `login_codes` rows (used, expired or replaced) is left open. Any cleanup must keep the newest row per
     email, because verification reads it.
+  - **Future improvement, separate PR:** one scheduled cleanup shared by both tables, which removes
+    `login_code_requests` rows older than the hour and old `login_codes` rows, to be designed with the 39.3 owner.
+    Cloud Run scales to zero, so it would need an external trigger (such as Cloud Scheduler, like the performance sync)
+    rather than a timer in the app. It is not part of 39.2's acceptance criteria.
 - **39.4 (frontend):** AC 4's "Kirim Ulang" unlocks after 60 seconds with a visible countdown. That is the sign-in
   screen's job. The backend enforces only AC 5's five requests per rolling hour, and a new code still replaces the old
   one.
