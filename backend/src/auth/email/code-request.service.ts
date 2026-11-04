@@ -21,6 +21,15 @@ export type CodeRequestResult =
 const SENT: CodeRequestResult = { outcome: 'sent' };
 const FAILED: CodeRequestResult = { outcome: 'failed' };
 
+function addMinutes(moment: Date, minutes: number): Date {
+  return new Date(moment.getTime() + minutes * MINUTE_MS);
+}
+
+/** Whole minutes until `moment`, rounded up: 30 seconds left still reads as one minute. */
+function minutesUntil(moment: Date, now: Date): number {
+  return Math.ceil((moment.getTime() - now.getTime()) / MINUTE_MS);
+}
+
 /** A mail or database error can quote the address or the code, so only its class is logged. */
 function safeReason(error: unknown): string {
   return error instanceof Error ? error.name : 'unknown error';
@@ -54,18 +63,18 @@ export class CodeRequestService {
         email,
         codeHash: principal ? codeHash : decoyCodeHash(),
         createdAt: now,
-        expiresAt: new Date(now.getTime() + CODE_LIFETIME_MINUTES * MINUTE_MS),
-        windowStart: new Date(
-          now.getTime() - REQUEST_WINDOW_MINUTES * MINUTE_MS,
-        ),
+        expiresAt: addMinutes(now, CODE_LIFETIME_MINUTES),
+        windowStart: addMinutes(now, -REQUEST_WINDOW_MINUTES),
         limit: MAX_REQUESTS_PER_WINDOW,
       });
       if (!issued.issued) {
-        const freesAt =
-          issued.oldestCreatedAt.getTime() + REQUEST_WINDOW_MINUTES * MINUTE_MS;
+        const freesAt = addMinutes(
+          issued.oldestCreatedAt,
+          REQUEST_WINDOW_MINUTES,
+        );
         return {
           outcome: 'limited',
-          retryAfterMinutes: Math.ceil((freesAt - now.getTime()) / MINUTE_MS),
+          retryAfterMinutes: minutesUntil(freesAt, now),
         };
       }
       if (!principal) return SENT;
