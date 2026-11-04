@@ -1,7 +1,8 @@
 // Moves the Jira subtasks a pull request names along the SCRUM workflow
 // (Idea → To Do → In Progress → Testing → Done): opening a PR into a
-// feat/pbi-* branch puts its subtask in Testing, merging it puts it in Done,
-// unless another open PR into a PBI branch still names the same subtask.
+// feat/pbi-* branch, or retargeting one to it, puts its subtask in Testing;
+// merging it puts it in Done, unless another open PR into a PBI branch still
+// names the same subtask.
 // Run by .github/workflows/jira-subtask-status.yml; no dependencies.
 import { readFileSync, appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -27,8 +28,11 @@ export function subtaskKeys({ title, branch }) {
   return [...new Set(numbers)].map((n) => `SCRUM-${n}`);
 }
 
-export function targetStatus({ action, merged }) {
+// A PR opened into main or another branch and then retargeted to its PBI branch arrives as
+// "edited" with changes.base; the workflow's branch filter has already checked the new base.
+export function targetStatus({ action, merged, changes }) {
   if (action === "opened" || action === "reopened") return "Testing";
+  if (action === "edited" && changes?.base) return "Testing";
   if (action === "closed" && merged) return "Done";
   return null;
 }
@@ -114,8 +118,8 @@ async function listOpenPrs(fetch, repository, token) {
 }
 
 async function main() {
-  const { action, pull_request: pr } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-  const target = targetStatus({ action, merged: pr.merged });
+  const { action, changes, pull_request: pr } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
+  const target = targetStatus({ action, merged: pr.merged, changes });
   const keys = subtaskKeys({ title: pr.title, branch: pr.head.ref });
   if (!target || keys.length === 0) {
     console.log(`Nothing to move (action ${action}, keys ${keys.join(", ") || "none"}).`);
