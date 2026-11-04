@@ -7,6 +7,7 @@ import {
   COMMITTED_STATUSES,
   type ContentStatus,
 } from '../contents/content-lifecycle.js';
+import type { link_data_state } from '@prisma/client';
 import type { PerformanceMetric, RateFormula } from './rate-formula.js';
 
 export type SocialPlatform = 'instagram' | 'tiktok';
@@ -21,9 +22,13 @@ export type LinkSource = 'synced' | 'manual' | null;
  */
 export type InvoiceLink = {
   platform: SocialPlatform;
+  /** Its data state (PBI-27): why a missing number is missing, e.g. sync_failed. */
+  state: link_data_state;
   source: LinkSource;
   /** When a sync last brought this link's numbers; null if none ever did. */
   lastSyncedAt: Date | null;
+  /** When an admin last typed its numbers in; null if none ever did. */
+  manualAt: Date | null;
 } & Record<PerformanceMetric, number | null>;
 
 export interface InvoiceContent {

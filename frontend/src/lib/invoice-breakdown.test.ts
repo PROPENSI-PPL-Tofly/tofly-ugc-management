@@ -279,6 +279,11 @@ describe("breakdownPopup", () => {
         ],
         ["synced, before any sync time was kept", { source: "synced", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Tersinkron"],
         ["typed in by an admin", { source: "manual", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Diisi manual"],
+        [
+          "typed in by an admin, with the Jakarta day it was typed in, as the prototype words it",
+          { source: "manual", lastSyncedAt: null, manualAt: "2026-11-01T18:30:00.000Z" },
+          "TikTok · 12.500 Views · Tier 2 · Diisi manual 2 Nov 2026",
+        ],
         ["from before links carried a source", { source: null, lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2"],
       ] as const)("words a line %s", (_, extra, detail) => {
         expect(viewOf(extra).detail).toBe(detail);
@@ -299,6 +304,29 @@ describe("breakdownPopup", () => {
 
         expect(line.detail).toBe("TikTok · Views · Tidak ada data");
         expect(line.amount).toBe("Rp0");
+      });
+
+      // The prototype's frozen no-data line names why the number is missing.
+      it("names the state of a link frozen without data", () => {
+        const line = viewOf({ noData: true, state: "sync_failed", value: 0, tier: 0, amount: 0 });
+
+        expect(line.detail).toBe("TikTok · Tidak ada data (Gagal sinkron)");
+        expect(line.amount).toBe("Rp0");
+      });
+
+      // AC 5: a link 28.1 judged but has no number for yet reads "Menunggu data", never "0 Views".
+      it("words a link still waiting for its number by its state, with Menunggu data as the amount", () => {
+        const line = viewOf({ waiting: true, state: "not_connected", value: 0, tier: 0, amount: 0 });
+
+        expect(line.detail).toBe("TikTok · Akun belum terhubung");
+        expect(line.amount).toBe("Menunggu data");
+      });
+
+      it("words a waiting link with no known state by its metric", () => {
+        const line = viewOf({ waiting: true, state: null, value: 0, tier: 0, amount: 0 });
+
+        expect(line.detail).toBe("TikTok · Views");
+        expect(line.amount).toBe("Menunggu data");
       });
     });
 

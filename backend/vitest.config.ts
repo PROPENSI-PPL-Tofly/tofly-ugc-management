@@ -9,6 +9,9 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.spec.ts'],
+    // A developer's backend/.env turns the dev sign-in on (ConfigModule loads it when a test boots
+    // AppModule), which answers 200 where a test expects 401. Pinned off, as in CI.
+    env: { DEV_AUTH_ENABLED: 'false', DEV_CREATOR_ID: '' },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],

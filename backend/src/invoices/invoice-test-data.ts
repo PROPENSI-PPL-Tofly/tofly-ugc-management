@@ -73,8 +73,10 @@ export function link(overrides: Partial<InvoiceLink> = {}): InvoiceLink {
     likes: null,
     comments: null,
     shares: null,
+    state: 'waiting',
     source: null,
     lastSyncedAt: null,
+    manualAt: null,
     ...overrides,
   };
 }

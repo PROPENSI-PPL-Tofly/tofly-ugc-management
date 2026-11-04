@@ -110,59 +110,24 @@ and `CONTRACT_DEADLINE_MS` instead of adding a second deadline helper.
 
 Also A05 Injection: the contract id is bound in the links query, never spliced into the SQL.
 
-## Integration dependencies: NOT complete, waiting on PBI-28.1
+## Integration dependencies: connected (fix/pbi-28-integration, 4 Nov)
 
-PBI-28.1 (per-link bonus) was reverted in #151 and has not been redone. Two SCRUM-236 requirements depend on its
-per-link calculation, so **they are not done**:
+PBI-28.1 (#165) landed with per-link bonus lines; a link without its configured metric is a line with
+`basis.status = 'waiting'`, carrying its `state` (link `data_state`). The two SCRUM-236 parts that waited on it
+are now done:
 
-1. **AC 9:** the list of links eligible for a bonus that are still missing their configured metric, shown in the
-   `INVOICE_BONUS_PENDING` 422 beside "Finalize tetap".
-2. **Rp0 bonus lines** with `basis.status = 'no_data'` for each such link that is frozen anyway.
+1. **AC 9:** `bonusDataGaps(performanceBonus)` in `bonus-data-gaps.ts` reads the waiting lines of the bonus that
+   Finalize calculates on the locked contract and answers `{ available: true, waiting, noDataLines }`. The
+   `INVOICE_BONUS_PENDING` 422 and Finalize's success answer both carry it; it is never written into the snapshot.
+2. **Rp0 no_data lines:** when `acceptPendingBonus` is true, `settleForFinalize` turns each waiting line into its
+   `frozenWithoutData` line (Rp0, `status: 'no_data'`, state and trace kept). Totals don't change, and the
+   snapshot keeps one line per link frozen without data, for PBI-32 to correct later.
 
-### What exists now (the integration point)
-
-`backend/src/invoices/bonus-data-gaps.ts`, marked `PBI-28.1 INTEGRATION POINT`, contains:
-
-- **`WaitingBonusLinkDto`:** `{ contentId, contentName, platform, metric, state }`.
-- **`BonusDataGapsDto`:** either `{ available: false, reason: 'PBI_28_1_PENDING' }` or
-  `{ available: true, waiting: WaitingBonusLinkDto[], noDataLines: InvoiceLine[] }`.
-- **`bonusDataGaps()`:** today it always answers the frozen `available: false` marker. It never answers an empty
-  list, which would falsely read as "nothing is waiting".
-- **`noDataLine(link, metric)`:** builds the Rp0 line `basis: { platform, metric, status: 'no_data' }`. It refuses a
-  link that has the number, a measured 0 included. Nothing calls it yet.
-
-The marker reaches the API in two places:
-
-- the `INVOICE_BONUS_PENDING` 422 body: `bonusDataGaps`;
-- Finalize's success answer: `bonusDataGaps`.
-
-It is never written into the frozen snapshot, and no Rp0 line is added today. Tests:
-
-- `bonus-data-gaps.spec.ts`
-- `invoice-settlement.spec.ts`
-- `invoice-command.service.spec.ts`
-- `finalize-last-sync.e2e-spec.ts`
-
-### What to connect when PBI-28.1 lands
-
-1. **`bonusDataGaps()`:** replace it (in `invoice-command.service.ts`, at the comment
-   `PBI-28.1 INTEGRATION POINT`) with 28.1's per-link calculation. Run it over the share-locked `links` Finalize
-   already reads (`lockDeliveredLinks`), so the bonus, `performanceLinks` and the waiting list are one set of
-   numbers. Return `{ available: true, waiting, noDataLines }`, where:
-   - `waiting` is each eligible link whose configured metric is null;
-   - `noDataLines` is `noDataLine(link, metric)` for each of those links.
-2. **`settleForFinalize`:** when `acceptPendingBonus` is true and the gaps are available, add `noDataLines` to
-   `performanceBonus.lines`. They are Rp0, so totals don't change. The snapshot then keeps one line per waiting
-   link, for PBI-32 to correct later.
-3. **Remove** the `available: false` branch, `BONUS_DATA_GAPS_PENDING_PBI_28_1`, and the tests that pin it.
-4. **The frontend (28.3):** read `bonusDataGaps.available` before listing anything. `false` means "not available
-   yet", never "nothing is waiting".
-
-Until then, today's bonus is still one line per content from `contents.views/likes` (pre-28.1). The frozen links
-record the link numbers, and the bonus lines' own `basis.value` records what the bonus used.
+The `available: false` / `PBI_28_1_PENDING` marker and `noDataLine(link, metric)` are gone. `available: true`
+stays in the answer so a reader that checks it still reads the list.
 
 Other notes:
 
 - The 422 for a pending bonus does not yet carry `lastSync`. It can be added together with the waiting list.
-- Finalize's response gains `lastSync` and `bonusDataGaps`. The 28.3 frontend (#145) was reverted, so no UI reads
-  them yet.
+- Finalize's response gains `lastSync` and `bonusDataGaps`. The 28.3 frontend (#166) reads both in the Finalize
+  dialog.

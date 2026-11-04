@@ -22,6 +22,7 @@ import {
   type PendingBonus,
 } from "./invoice";
 import { periodRange } from "./deadline-period";
+import { DATA_STATE_LABELS, type DataState } from "./link-performance";
 import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -210,13 +211,22 @@ function basisText(line: RawInvoiceLine, key: string): string {
  * Only known values pass: an unknown source or a sync time that is not a readable moment is
  * shown as nothing, never as text the backend did not mean.
  */
-function lineSource(line: RawInvoiceLine): Pick<PerformanceBonusLine, "source" | "lastSyncedAt" | "noData"> {
-  const { source, lastSyncedAt } = line.basis;
+function lineSource(
+  line: RawInvoiceLine,
+): Pick<PerformanceBonusLine, "source" | "lastSyncedAt" | "manualAt" | "noData" | "waiting" | "state"> {
+  const { source, lastSyncedAt, manualAt, state } = line.basis;
   return {
     source: source === "synced" || source === "manual" ? source : null,
     lastSyncedAt: readableMoment(lastSyncedAt),
+    manualAt: readableMoment(manualAt),
     noData: line.basis.status === "no_data",
+    waiting: line.basis.status === "waiting",
+    state: isDataState(state) ? state : null,
   };
+}
+
+function isDataState(value: unknown): value is DataState {
+  return typeof value === "string" && Object.hasOwn(DATA_STATE_LABELS, value);
 }
 
 /** An ISO moment the page can show, or null for anything else: never a broken date on screen. */

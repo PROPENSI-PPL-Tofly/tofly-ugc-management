@@ -253,7 +253,7 @@ describe("finalizeInvoice", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       reply(200, {
         lastSync: { status: "failed", notUpdated },
-        bonusDataGaps: { available: false, reason: "PBI_28_1_PENDING" },
+        bonusDataGaps: { available: true, waiting: [], noDataLines: [] },
       }),
     );
 
@@ -261,7 +261,7 @@ describe("finalizeInvoice", () => {
       ok: true,
       report: {
         lastSync: { status: "failed", notUpdated },
-        bonusGaps: { available: false, reason: "PBI_28_1_PENDING" },
+        bonusGaps: { available: true, waiting: [] },
       },
     });
   });

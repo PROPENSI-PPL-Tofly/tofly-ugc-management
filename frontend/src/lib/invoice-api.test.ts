@@ -403,7 +403,10 @@ describe("toInvoiceBreakdown", () => {
           // A line from before links carried a source says none, rather than guessing one.
           source: null,
           lastSyncedAt: null,
+          manualAt: null,
           noData: false,
+          waiting: false,
+          state: null,
         },
       ],
       total: 0,
@@ -489,7 +492,10 @@ describe("toInvoiceBreakdown", () => {
           amount: 100000,
           source: "synced",
           lastSyncedAt: "2026-11-02T19:00:00.000Z",
+          manualAt: null,
           noData: false,
+          waiting: false,
+          state: null,
         },
         {
           kind: "performance",
@@ -502,7 +508,10 @@ describe("toInvoiceBreakdown", () => {
           amount: 100000,
           source: "manual",
           lastSyncedAt: null,
+          manualAt: null,
           noData: false,
+          waiting: false,
+          state: null,
         },
       ]);
     });
@@ -512,6 +521,23 @@ describe("toInvoiceBreakdown", () => {
       const [line] = bonusLines([crossPosted({ platform: "tiktok", metric: "views", status: "no_data" })]);
 
       expect(line).toMatchObject({ platform: "tiktok", noData: true, source: null, lastSyncedAt: null });
+    });
+
+    // 28.1's line for a judged link with no number yet, named by its state (AC 5, prototype).
+    it("marks a link still waiting for its number, with its state", () => {
+      const [line] = bonusLines([
+        crossPosted({ platform: "tiktok", metric: "likes", status: "waiting", state: "not_connected" }),
+      ]);
+
+      expect(line).toMatchObject({ waiting: true, noData: false, state: "not_connected" });
+    });
+
+    it("reads when an admin typed the numbers in, and no state it does not know", () => {
+      const [line] = bonusLines([
+        crossPosted({ source: "manual", manualAt: "2026-11-01T18:30:00.000Z", state: "hacked" }),
+      ]);
+
+      expect(line).toMatchObject({ manualAt: "2026-11-01T18:30:00.000Z", state: null });
     });
 
     it.each([

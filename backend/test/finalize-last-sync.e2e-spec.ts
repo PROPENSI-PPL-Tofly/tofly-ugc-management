@@ -223,12 +223,12 @@ describe('Finalize with its last sync (e2e, PBI-28 28.2)', () => {
     ]);
   });
 
-  // AC 9 and the Rp0 no_data lines need PBI-28.1: through the real app, both answers say so.
-  it('says the waiting links and no-data lines are not available until PBI-28.1, in the 422 and once frozen', async () => {
-    const { contractId } = await endedContract('gaps', [
+  // AC 9 through the real app: the 422 lists the waiting link with the state it reads as, and
+  // freezing anyway keeps it as an Rp0 no_data line.
+  it('lists the waiting links in the 422 and once frozen, and freezes each as a no_data line', async () => {
+    const { contractId, contents } = await endedContract('gaps', [
       { platform: 'instagram' },
     ]);
-    const pending = { available: false, reason: 'PBI_28_1_PENDING' };
 
     const refused = await admin
       .post(`/invoices/${contractId}/finalize`)
@@ -236,14 +236,37 @@ describe('Finalize with its last sync (e2e, PBI-28 28.2)', () => {
       .expect(422);
     const frozen = await finalize(contractId).expect(201);
 
+    // The creator has no Instagram account, so the link reads as not connected (PBI-27 AC 3).
+    const state = 'not_connected';
+    const waiting = [
+      {
+        contentId: contents[0].id,
+        contentName: contents[0].name,
+        platform: 'instagram',
+        metric: 'views',
+        state,
+      },
+    ];
     expect(refused.body).toMatchObject({
       code: 'INVOICE_BONUS_PENDING',
-      bonusDataGaps: pending,
+      bonusDataGaps: { available: true, waiting },
     });
-    expect(frozen.body.bonusDataGaps).toEqual(pending);
-    expect(await storedSnapshot(contractId)).not.toHaveProperty(
-      'bonusDataGaps',
-    );
+    expect(frozen.body.bonusDataGaps).toMatchObject({
+      available: true,
+      waiting,
+    });
+    const snapshot = await storedSnapshot(contractId);
+    expect(snapshot).not.toHaveProperty('bonusDataGaps');
+    expect(snapshot.performanceBonus).toMatchObject({
+      amount: 0,
+      lines: [
+        {
+          contentId: contents[0].id,
+          amount: 0,
+          basis: { platform: 'instagram', status: 'no_data', state },
+        },
+      ],
+    });
   });
 
   // 27.4 keeps an admin's numbers and their manual state when the platform fails to read them.

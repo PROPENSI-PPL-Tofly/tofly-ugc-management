@@ -72,7 +72,7 @@ export interface InvoiceCommands {
     snapshot: InvoiceSnapshotDto;
     /** How the last sync before freezing went (AC 8). */
     lastSync: LastSyncDto;
-    /** AC 9 and the Rp0 no_data lines: not available until PBI-28.1 (bonus-data-gaps.ts). */
+    /** The links the bonus still waited on when it was frozen (AC 9). */
     bonusDataGaps: BonusDataGapsDto;
   }>;
 }
@@ -142,7 +142,7 @@ export class InvoiceCommandService implements InvoiceCommands {
     snapshot: InvoiceSnapshotDto;
     /** How the last sync before freezing went (AC 8). */
     lastSync: LastSyncDto;
-    /** AC 9 and the Rp0 no_data lines: not available until PBI-28.1 (bonus-data-gaps.ts). */
+    /** The links the bonus still waited on when it was frozen (AC 9). */
     bonusDataGaps: BonusDataGapsDto;
   }> {
     const formula = await this.formulas.current();
@@ -209,9 +209,8 @@ export class InvoiceCommandService implements InvoiceCommands {
           today,
         });
 
-        // PBI-28.1 INTEGRATION POINT: its per-link calculation answers the waiting links and the
-        // Rp0 no_data lines here, from the same locked `links` (see bonus-data-gaps.ts).
-        const gaps = bonusDataGaps();
+        // The waiting links (AC 9), from the bonus calculated on the contract locked above.
+        const gaps = bonusDataGaps(breakdown.components.performanceBonus);
         const settled = settleForFinalize(
           breakdown,
           request.acceptPendingBonus,

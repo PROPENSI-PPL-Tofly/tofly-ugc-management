@@ -390,6 +390,34 @@ describe("Bonus Performa, one line per link (PBI-28 AC 6)", () => {
     expect(line).not.toHaveTextContent("+ Rp0");
   });
 
+  // AC 5: a link with no number yet reads "Menunggu data" by its state, never as "0 Views".
+  it("reads a link still waiting for its number as Menunggu data, named by its state", () => {
+    setup(
+      withBonus([
+        {
+          kind: "performance",
+          contentId: "c-1",
+          name: "Evg_1_RanggaPratama_12102026",
+          platform: "tiktok",
+          metric: "likes",
+          value: 0,
+          tier: 0,
+          amount: 0,
+          waiting: true,
+          state: "not_connected",
+        },
+      ]),
+    );
+
+    unfold("Bonus Performa");
+    const [line] = within(part("Bonus Performa")).getAllByRole("listitem");
+
+    expect(line).toHaveTextContent("TikTok · Akun belum terhubung");
+    expect(line).toHaveTextContent("Menunggu data");
+    expect(line).not.toHaveTextContent("0 Likes");
+    expect(line).not.toHaveTextContent("Belum capai Tier 1");
+  });
+
   it("keeps a line from before links carried a source unnamed, rather than guessing one", () => {
     setup(withBonus([{ ...LINKS[0], source: undefined, lastSyncedAt: undefined }]));
 

@@ -6,10 +6,25 @@ import {
   type InvoiceLine,
 } from './invoice-component.js';
 import { settleForFinalize } from './invoice-settlement.js';
-import { BONUS_DATA_GAPS_PENDING_PBI_28_1 } from './bonus-data-gaps.js';
+import { bonusDataGaps } from './bonus-data-gaps.js';
 
 function line(contentId: string, amount: number): InvoiceLine {
   return { contentId, contentName: contentId, amount, basis: {} };
+}
+
+/** A link 28.1 judged but could not measure: Rp0, shown as waiting. */
+function waitingLine(contentId: string): InvoiceLine {
+  return {
+    contentId,
+    contentName: contentId,
+    amount: 0,
+    basis: {
+      platform: 'instagram',
+      metric: 'views',
+      status: 'waiting',
+      state: 'not_found',
+    },
+  };
 }
 
 /** A breakdown the calculator could give: 1.000.000 fixed, 50.000 penalty, the bonus as given. */
@@ -77,22 +92,52 @@ describe('settleForFinalize', () => {
     });
   });
 
-  // AC 9 needs PBI-28.1: the refusal says the waiting list is not available, never an empty one.
-  it('carries what is known of the waiting links in the refusal', () => {
+  // AC 9: the refusal lists the waiting links beside "Finalize tetap".
+  it('carries the waiting links in the refusal', () => {
+    const bonus = waitingForData('performanceBonus', [waitingLine('waiting-1')]);
     const error = refusal(() =>
-      settleForFinalize(
-        breakdown(waitingForData('performanceBonus')),
-        false,
-        BONUS_DATA_GAPS_PENDING_PBI_28_1,
-      ),
+      settleForFinalize(breakdown(bonus), false, bonusDataGaps(bonus)),
     );
 
     expect(error).toMatchObject({
       response: {
         code: 'INVOICE_BONUS_PENDING',
-        bonusDataGaps: { available: false, reason: 'PBI_28_1_PENDING' },
+        bonusDataGaps: {
+          available: true,
+          waiting: [
+            {
+              contentId: 'waiting-1',
+              contentName: 'waiting-1',
+              platform: 'instagram',
+              metric: 'views',
+              state: 'not_found',
+            },
+          ],
+        },
       },
     });
+  });
+
+  // A frozen invoice no longer waits: its unmeasured links are kept as Rp0 "no data" lines.
+  it('freezes each waiting link of an accepted pending bonus as a no_data line', () => {
+    const settled = settleForFinalize(
+      breakdown(
+        waitingForData('performanceBonus', [
+          line('measured-1', 100_000),
+          waitingLine('waiting-1'),
+        ]),
+      ),
+      true,
+    );
+
+    expect(settled.components.performanceBonus.lines).toEqual([
+      line('measured-1', 100_000),
+      {
+        ...waitingLine('waiting-1'),
+        basis: { ...waitingLine('waiting-1').basis, status: 'no_data' },
+      },
+    ]);
+    expect(settled.components.performanceBonus.amount).toBe(100_000);
   });
 
   it('freezes an accepted pending bonus at what the measured content earned', () => {

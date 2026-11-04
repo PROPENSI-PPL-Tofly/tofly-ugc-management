@@ -5,6 +5,12 @@
 import { Prisma } from '@prisma/client';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { jakartaDay } from '../creators/evergreen.js';
+import { effectiveState } from '../performance/link-performance.js';
+import {
+  CONNECTION_SELECT,
+  isConnected,
+  type AccountConnection,
+} from '../performance/performance-links.js';
 import { isFrozenLink, sourceOf } from './frozen-links.js';
 import {
   contractStatus,
@@ -65,9 +71,14 @@ export const CONTENT_SELECT = {
       likes: true,
       comments: true,
       shares: true,
+      data_state: true,
       last_synced_at: true,
       manual_at: true,
     },
+  },
+  // Whether each link's account is connected, for the state the link reads as.
+  contracts: {
+    select: { creators: { select: { social_accounts: CONNECTION_SELECT } } },
   },
 } satisfies Prisma.contentsSelect;
 
@@ -97,10 +108,14 @@ export function creatorName(
 type InvoiceLinkRow = InvoiceContentRow['content_links'][number];
 
 /**
- * A link whose platform is known, with its numbers and who measured them. A link kept from before
- * platforms were recorded has none, so no platform's tiers can judge it and it is left out.
+ * A link whose platform is known, with its numbers, who measured them and the state it reads as
+ * on the Performa page. A link kept from before platforms were recorded has none, so no
+ * platform's tiers can judge it and it is left out.
  */
-function toInvoiceLink(row: InvoiceLinkRow): InvoiceLink | [] {
+function toInvoiceLink(
+  row: InvoiceLinkRow,
+  accounts: readonly AccountConnection[],
+): InvoiceLink | [] {
   if (row.platform === null) return [];
   return {
     platform: row.platform,
@@ -108,8 +123,10 @@ function toInvoiceLink(row: InvoiceLinkRow): InvoiceLink | [] {
     likes: row.likes,
     comments: row.comments,
     shares: row.shares,
+    state: effectiveState(row.data_state, isConnected(accounts, row.platform)),
     source: sourceOf(row),
     lastSyncedAt: row.last_synced_at,
+    manualAt: row.manual_at,
   };
 }
 
@@ -121,7 +138,9 @@ export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
     status: row.status,
     deadline: row.deadline,
     videoSubmittedAt: row.video_submitted_at,
-    links: row.content_links.flatMap(toInvoiceLink),
+    links: row.content_links.flatMap((link) =>
+      toInvoiceLink(link, row.contracts.creators.social_accounts),
+    ),
   };
 }
 

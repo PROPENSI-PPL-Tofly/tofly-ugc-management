@@ -128,7 +128,7 @@ describe("FinalizeModal", () => {
         ok: false,
         code: "INVOICE_BONUS_PENDING",
         message: "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
-        report: { lastSync: null, bonusGaps: { available: false, reason: "PBI_28_1_PENDING" } },
+        report: { lastSync: null, bonusGaps: { available: true, waiting: [] } },
       });
       render(<FinalizeModal row={PENDING} onCancel={vi.fn()} onFinalized={vi.fn()} />);
 
@@ -137,7 +137,7 @@ describe("FinalizeModal", () => {
         expect(moves.finalizeInvoice).toHaveBeenCalledWith(ROW.contractId, { acceptPendingBonus: false }),
       );
 
-      fireEvent.click(await screen.findByRole("button", { name: "Finalize tetap" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Tetap Finalize" }));
       await vi.waitFor(() =>
         expect(moves.finalizeInvoice).toHaveBeenLastCalledWith(ROW.contractId, {
           acceptPendingBonus: true,
@@ -204,7 +204,9 @@ describe("FinalizeModal", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-      expect(await screen.findByRole("status")).toHaveTextContent("Mengambil angka terbaru…");
+      expect(await screen.findByRole("status")).toHaveTextContent(
+        "Mengambil angka terbaru dari Instagram dan TikTok…",
+      );
       expect(screen.getByRole("button", { name: "Batal" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Finalize" })).toBeDisabled();
 
@@ -235,12 +237,37 @@ describe("FinalizeModal", () => {
       fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
       const left = await screen.findByRole("group", { name: "Link yang tidak diperbarui" });
+      expect(left).toHaveTextContent("1 link tidak diperbarui, Finalize memakai angka yang tersimpan.");
       expect(within(left).getByText(/Evg_1_RanggaPratama_12102026/)).toBeInTheDocument();
       expect(within(left).getByText("Gagal sinkron")).toBeInTheDocument();
       expect(onFinalized).not.toHaveBeenCalled();
 
       fireEvent.click(screen.getByRole("button", { name: "Selesai" }));
       expect(onFinalized).toHaveBeenCalled();
+    });
+
+    // The invoice is already frozen while the report shows: every way out reads it again.
+    it("hands the frozen invoice back when the report is closed with Escape (AC 8)", async () => {
+      moves.finalizeInvoice.mockResolvedValue({
+        ok: true,
+        report: {
+          lastSync: {
+            status: "timed_out",
+            notUpdated: [{ contentId: "c-1", contentName: "Evg_1", platform: "tiktok", state: "sync_failed" }],
+          },
+          bonusGaps: null,
+        },
+      });
+      const onCancel = vi.fn();
+      const onFinalized = vi.fn();
+      render(<FinalizeModal row={ROW} onCancel={onCancel} onFinalized={onFinalized} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+      await screen.findByRole("group", { name: "Link yang tidak diperbarui" });
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+      expect(onFinalized).toHaveBeenCalled();
+      expect(onCancel).not.toHaveBeenCalled();
     });
 
     it("closes at once when the last sync updated everything (AC 8)", async () => {
@@ -293,22 +320,60 @@ describe("FinalizeModal", () => {
       expect(within(waiting).getByText("Akun belum terhubung")).toBeInTheDocument();
       expect(within(waiting).getByText(/Kembali lagi/)).toBeInTheDocument();
       expect(within(waiting).getByText("Menunggu data")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Finalize tetap" })).toBeInTheDocument();
+      expect(waiting).toHaveTextContent(
+        "Bonus masih menunggu data untuk 2 link. Isi angkanya manual di Content Detail, atau tetap finalize: link tanpa data dikunci Rp0 dan bisa dikoreksi lewat penyesuaian sebelum creator ack.",
+      );
+      expect(screen.getByRole("button", { name: "Tetap Finalize" })).toBeInTheDocument();
+      // An expected step before freezing anyway, not an error.
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
-    it("says the waiting list is not available until PBI-28.1 rather than showing an empty one (AC 9)", async () => {
+    // Once frozen anyway nothing waits any more: only the sync report stays, before Selesai.
+    it("drops the waiting list once Tetap Finalize has frozen the invoice", async () => {
+      const waiting = [
+        { contentId: "c-2", contentName: "Review Kopi", platform: "instagram", metric: "views", state: "sync_failed" },
+      ];
+      moves.finalizeInvoice
+        .mockResolvedValueOnce({
+          ok: false,
+          code: "INVOICE_BONUS_PENDING",
+          message: "Bonus performa masih menunggu data",
+          report: { lastSync: null, bonusGaps: { available: true, waiting } },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          report: {
+            lastSync: {
+              status: "failed",
+              notUpdated: [{ contentId: "c-2", contentName: "Review Kopi", platform: "instagram", state: "sync_failed" }],
+            },
+            bonusGaps: { available: true, waiting },
+          },
+        });
+      render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Tetap Finalize" }));
+
+      await screen.findByRole("group", { name: "Link yang tidak diperbarui" });
+      expect(screen.queryByRole("group", { name: "Konten yang masih menunggu data" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Selesai" })).toBeInTheDocument();
+    });
+
+    it("says the waiting list could not be read rather than showing an empty one (AC 9)", async () => {
       moves.finalizeInvoice.mockResolvedValue({
         ok: false,
         code: "INVOICE_BONUS_PENDING",
         message: "Bonus performa masih menunggu data. Konfirmasi untuk mengunci bonus yang sudah terukur.",
-        report: { lastSync: null, bonusGaps: { available: false, reason: "PBI_28_1_PENDING" } },
+        report: { lastSync: null, bonusGaps: null },
       });
       render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
 
       fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
 
-      expect(await screen.findByText(/belum tersedia hingga PBI-28\.1/)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Finalize tetap" })).toBeInTheDocument();
+      expect(await screen.findByText("Daftar konten yang menunggu data tidak dapat dimuat.")).toBeInTheDocument();
+      expect(screen.queryByText(/PBI-28/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Tetap Finalize" })).toBeInTheDocument();
     });
 
     it("opens the waiting content's detail, where the admin can type its numbers (AC 9)", async () => {

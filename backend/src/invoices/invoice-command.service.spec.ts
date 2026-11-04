@@ -181,6 +181,7 @@ describe('InvoiceCommandService', () => {
       likes: null,
       comments: null,
       shares: null,
+      data_state: 'synced',
       last_synced_at: null,
       manual_at: null,
     };
@@ -193,6 +194,17 @@ describe('InvoiceCommandService', () => {
       deadline: day(-2),
       video_submitted_at: day(-2),
       content_links: [measuredLink],
+      contracts: {
+        creators: {
+          social_accounts: [
+            {
+              platform: 'instagram',
+              is_connected: true,
+              platform_user_id: 'ig-1',
+            },
+          ],
+        },
+      },
     };
 
     /** An ended contract whose one video was on time and measured, so nothing waits for data. */
@@ -603,7 +615,9 @@ describe('InvoiceCommandService', () => {
       const unmeasured = {
         ...measured,
         id: 'unmeasured',
-        content_links: [{ ...measuredLink, views: null }],
+        content_links: [
+          { ...measuredLink, views: null, data_state: 'sync_failed' },
+        ],
       };
 
       beforeEach(() => {
@@ -625,8 +639,8 @@ describe('InvoiceCommandService', () => {
         expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
       });
 
-      // AC 9 and the Rp0 no_data lines wait on PBI-28.1: both answers say so instead of a list.
-      it('says the waiting links are not available yet, in the refusal and once frozen anyway', async () => {
+      // AC 9: both answers list the waiting link, and the frozen invoice keeps it as an Rp0 no_data line.
+      it('lists the waiting links in the refusal and once frozen anyway, and freezes each as no_data', async () => {
         const refused = await rejection(
           service.finalize('contract-1', 'admin-9', TODAY),
         );
@@ -634,15 +648,30 @@ describe('InvoiceCommandService', () => {
           acceptPendingBonus: true,
         });
 
-        const pending = { available: false, reason: 'PBI_28_1_PENDING' };
-        expect(refused).toMatchObject({ response: { bonusDataGaps: pending } });
-        expect(frozen.bonusDataGaps).toEqual(pending);
+        const waiting = [
+          {
+            contentId: 'unmeasured',
+            contentName: 'Evg_1',
+            platform: 'instagram',
+            metric: 'views',
+            state: 'sync_failed',
+          },
+        ];
+        expect(refused).toMatchObject({
+          response: { bonusDataGaps: { available: true, waiting } },
+        });
+        expect(frozen.bonusDataGaps).toMatchObject({ available: true, waiting });
         expect(frozen.snapshot).not.toHaveProperty('bonusDataGaps');
-        expect(frozen.snapshot.performanceBonus.lines).not.toContainEqual(
+        expect(frozen.snapshot.performanceBonus.lines).toEqual([
           expect.objectContaining({
-            basis: expect.objectContaining({ status: 'no_data' }),
+            contentId: 'unmeasured',
+            amount: 0,
+            basis: expect.objectContaining({
+              status: 'no_data',
+              state: 'sync_failed',
+            }),
           }),
-        );
+        ]);
       });
 
       // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot says the bonus

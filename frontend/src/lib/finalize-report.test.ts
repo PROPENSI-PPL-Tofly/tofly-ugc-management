@@ -22,12 +22,19 @@ describe("toFinalizeReport", () => {
     expect(
       toFinalizeReport({
         lastSync: { status: "done", notUpdated: [NOT_UPDATED] },
-        bonusDataGaps: { available: false, reason: "PBI_28_1_PENDING" },
+        bonusDataGaps: { available: true, waiting: [], noDataLines: [] },
       }),
     ).toEqual({
       lastSync: { status: "done", notUpdated: [NOT_UPDATED] },
-      bonusGaps: { available: false, reason: "PBI_28_1_PENDING" },
+      bonusGaps: { available: true, waiting: [] },
     });
+  });
+
+  // Finalize now always lists the waiting links (28.1 connected): the old marker is no answer.
+  it("reads the old not-yet-available marker as no list at all", () => {
+    expect(
+      toFinalizeReport({ bonusDataGaps: { available: false, reason: "PBI_28_1_PENDING" } }).bonusGaps,
+    ).toBeNull();
   });
 
   it("reads the waiting links the moment the gaps open (AC 9)", () => {
@@ -62,6 +69,18 @@ describe("toFinalizeReport", () => {
     });
 
     expect(report.lastSync?.notUpdated).toEqual([NOT_UPDATED]);
+  });
+
+  it("drops a waiting entry it cannot read, and a last sync without its list", () => {
+    const report = toFinalizeReport({
+      lastSync: { status: "done", notUpdated: "semua" },
+      bonusDataGaps: {
+        available: true,
+        waiting: [WAITING, { ...WAITING, metric: "saves" }, { ...WAITING, platform: "youtube" }],
+      },
+    });
+
+    expect(report).toEqual({ lastSync: null, bonusGaps: { available: true, waiting: [WAITING] } });
   });
 
   it("reads an answer from before the report existed as no report at all", () => {

@@ -1,18 +1,11 @@
 import type { link_data_state, social_platform } from '@prisma/client';
-import type { FrozenPerformanceLinkDto } from './frozen-links.js';
-import type { InvoiceLine } from './invoice-component.js';
+import type { ComponentResult, InvoiceLine } from './invoice-component.js';
 import type { PerformanceMetric } from './rate-formula.js';
 
-// ─── PBI-28.1 INTEGRATION POINT ───────────────────────────────────────────────────────────────
-// Two SCRUM-236 requirements need PBI-28.1's per-link bonus, which was reverted (#151) and not yet
-// redone. They are NOT complete:
-//   - AC 9: the links eligible for a bonus still missing their configured metric (the "waiting"
-//     list beside "Finalize tetap");
-//   - the Rp0 bonus line, basis.status 'no_data', for each such link frozen anyway.
-// Until 28.1 lands, Finalize reports them as unavailable, naming the dependency. It never answers
-// an empty list (which would read as "nothing is waiting") or adds a line of its own.
-// What 28.1 must connect is in docs/SCRUM-236-learnings.md, "Integration dependencies".
-// ───────────────────────────────────────────────────────────────────────────────────────────────
+// What Finalize knows of the links the performance bonus still waits on (PBI-28 AC 9), read off
+// the per-link bonus lines 28.1 calculates: every judged link without its configured metric is a
+// line with basis.status 'waiting'. Finalize runs the calculation on the contract it has locked,
+// so the list, the bonus and the frozen links are one set of numbers.
 
 /** One link eligible for a bonus whose configured metric has no number yet (AC 9). */
 export interface WaitingBonusLinkDto {
@@ -26,45 +19,49 @@ export interface WaitingBonusLinkDto {
 }
 
 /**
- * What Finalize knows of the bonus's data gaps. `available: false` is the only answer before
- * PBI-28.1; the `available: true` shape is the contract 28.1's per-link calculation fills.
+ * The waiting links beside "Tetap Finalize", and the Rp0 line each is frozen as if the admin
+ * freezes anyway. `available` stays in the answer so a reader that checks it still reads the list.
  */
-export type BonusDataGapsDto =
-  | { available: false; reason: 'PBI_28_1_PENDING' }
-  | {
-      available: true;
-      waiting: WaitingBonusLinkDto[];
-      noDataLines: InvoiceLine[];
-    };
+export interface BonusDataGapsDto {
+  available: true;
+  waiting: WaitingBonusLinkDto[];
+  noDataLines: InvoiceLine[];
+}
 
-export const BONUS_DATA_GAPS_PENDING_PBI_28_1 = Object.freeze({
-  available: false,
-  reason: 'PBI_28_1_PENDING',
-} as const);
+function isWaiting(line: InvoiceLine): boolean {
+  return line.basis.status === 'waiting';
+}
 
-/** PBI-28.1: replace with the per-link calculation's waiting links and no-data lines. */
-export function bonusDataGaps(): BonusDataGapsDto {
-  return BONUS_DATA_GAPS_PENDING_PBI_28_1;
+/** The waiting link a bonus line describes; the component wrote its basis (waitingLine). */
+function waitingLink({
+  contentId,
+  contentName,
+  basis,
+}: InvoiceLine): WaitingBonusLinkDto {
+  return {
+    contentId,
+    contentName,
+    platform: basis.platform as social_platform,
+    metric: basis.metric as PerformanceMetric,
+    state: basis.state as link_data_state,
+  };
 }
 
 /**
- * The Rp0 line of a link frozen without its configured metric, for PBI-28.1's calculator to emit
- * once it knows the link is eligible. A link that has the number (a measured 0 included) is not a
- * gap, so asking for its line is a programming error.
+ * The line a frozen invoice keeps for a link still waiting: Rp0, marked no_data, with its state and
+ * trace, since the numbers will never come in for it (PBI-32 corrects it later). A measured line
+ * is kept as it is.
  */
-export function noDataLine(
-  link: FrozenPerformanceLinkDto,
-  metric: PerformanceMetric,
-): InvoiceLine {
-  if (link[metric] !== null) {
-    throw new Error(
-      `link of ${link.contentId} has ${metric}; only a missing metric gets a no_data line`,
-    );
-  }
+export function frozenWithoutData(line: InvoiceLine): InvoiceLine {
+  if (!isWaiting(line)) return line;
+  return { ...line, amount: 0, basis: { ...line.basis, status: 'no_data' } };
+}
+
+export function bonusDataGaps(bonus: ComponentResult): BonusDataGapsDto {
+  const waiting = bonus.lines.filter(isWaiting);
   return {
-    contentId: link.contentId,
-    contentName: link.contentName,
-    amount: 0,
-    basis: { platform: link.platform, metric, status: 'no_data' },
+    available: true,
+    waiting: waiting.map(waitingLink),
+    noDataLines: waiting.map(frozenWithoutData),
   };
 }
