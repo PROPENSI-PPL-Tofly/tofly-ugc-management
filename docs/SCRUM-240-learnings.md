@@ -64,6 +64,12 @@ one transaction, so callers cannot run the steps in the wrong order:
 | `login_codes` | `20261104120000_login_codes` | One row per code or decoy; only the HMAC | verification (39.3): the newest row per email |
 | `login_code_requests` | `20261104130000_login_code_requests` | One row per request the limit let through, sent or not | the hourly limit (AC 5) |
 
+- **Two migrations, kept apart on purpose:** `login_code_requests` came after `login_codes` had already been applied
+  to local and test databases. Editing an applied migration changes its checksum, so the request log is its own
+  migration.
+- **A refused request (429) records nothing.** Only requests the limit lets through are counted, so pressing the button
+  again while locked out does not push the lockout further back. The issuer test "refuses with the oldest counted
+  request once the window is full, storing and recording nothing" holds this.
 - Both tables have check constraints on the normalized email, RLS on, and `anon` and `authenticated` revoked.
   `data-api-access.e2e-spec.ts` holds both to that.
 - **Why two tables:** when an email fails, its code row is removed, so the code sent before it stays the newest and
