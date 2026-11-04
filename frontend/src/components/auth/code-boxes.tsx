@@ -39,7 +39,8 @@ export function CodeBoxes({
   const boxes = useRef<(HTMLInputElement | null)[]>([]);
 
   function focus(index: number) {
-    boxes.current[Math.min(index, CODE_LENGTH - 1)]?.focus();
+    // Every box is mounted while the group is: the refs are set before any event can fire.
+    (boxes.current[Math.min(index, CODE_LENGTH - 1)] as HTMLInputElement).focus();
   }
 
   function fill(text: string) {
