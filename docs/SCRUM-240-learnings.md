@@ -48,18 +48,46 @@ Why this pattern fits here:
 
 ### Repository
 
-`PrismaLoginCodeIssuer` is the only code that writes SQL for issuing. It keeps the lock, the count and the insert in one
-transaction behind `issue()`, so callers cannot run them in the wrong order.
+`PrismaLoginCodeIssuer` is the only code that writes SQL for issuing. Behind `issue()` it does all of the following in
+one transaction, so callers cannot run the steps in the wrong order:
+
+1. Take the lock.
+2. Forget requests older than the hour.
+3. Count the email's requests in `login_code_requests`.
+4. Store the code in `login_codes`, after placing it in issue order.
+5. Record the request.
+
+## Data model
+
+| Table | Migration | Holds | Read by |
+|---|---|---|---|
+| `login_codes` | `20261104120000_login_codes` | One row per code or decoy; only the HMAC | verification (39.3): the newest row per email |
+| `login_code_requests` | `20261104130000_login_code_requests` | One row per request the limit let through, sent or not | the hourly limit (AC 5) |
+
+- Both tables have check constraints on the normalized email, RLS on, and `anon` and `authenticated` revoked.
+  `data-api-access.e2e-spec.ts` holds both to that.
+- **Why two tables:** when an email fails, its code row is removed, so the code sent before it stays the newest and
+  usable. But the request must still count towards AC 5, because the provider may have delivered it anyway.
+- **Cleanup:** every request deletes all `login_code_requests` rows older than the hour, whatever their email. The
+  delete uses the `requested_at` index, so the table holds about an hour of traffic and needs no scheduled job.
+- `login_codes` is not cleaned by 39.2. Its rows are what 39.3 reads (see "Dependencies").
+- **Issue order:**
+  - Each code is placed just after the email's newest request while the lock is held:
+    `created_at = max(own clock, newest + 1 ms)`. The expiry moves with it, so every code lives exactly 10 minutes.
+  - Without this, a request that read the clock first but reached the lock second gets an older `created_at`, and two
+    requests can share a millisecond. Verification would then treat the wrong code as the newest. This was reproduced
+    against Postgres before the fix.
+  - `now()` would not help: it is fixed at the start of the transaction, before the lock wait.
 
 ## OWASP Top 10 (2025)
 
 | Category | Risk | Mitigation | Where | Test |
 |---|---|---|---|---|
-| A01 Broken Access Control | A code for someone who has no access | Only a principal from the whitelist gets a real code. Revoked creators and unknown emails get a decoy no code matches. The route is same-origin only, so another site cannot make a browser spend a user's limit. The table is closed to `anon` and `authenticated`, with RLS on. | `code-request.service.ts`, `email-request.controller.ts`, migration `20261104120000_login_codes` | service spec: "a revoked creator"; controller spec: "refuses a request from another site"; e2e `email-code-request`: revoked creator; `data-api-access.e2e-spec.ts` |
+| A01 Broken Access Control | A code for someone who has no access | Only a principal from the whitelist gets a real code. Revoked creators and unknown emails get a decoy no code matches. The route is same-origin only, so another site cannot make a browser spend a user's limit. Both tables are closed to `anon` and `authenticated`, with RLS on. | `code-request.service.ts`, `email-request.controller.ts`, migrations `20261104120000_login_codes` and `20261104130000_login_code_requests` | service spec: "a revoked creator"; controller spec: "refuses a request from another site"; e2e `email-code-request`: revoked creator; `data-api-access.e2e-spec.ts` |
 | A04 Cryptographic Failures | A database dump reveals codes | Only HMAC-SHA256 under `LOGIN_CODE_SECRET` is stored, with #172's helper. The plain code exists only in the email. Codes come from `crypto.randomInt`; decoys from `randomBytes(32)`. | `login-code-hash.ts` (from #172), `login-code-generator.ts`, `code_hash` check constraint | "hashes exactly as the verification of #172 will"; e2e: stored hash equals `hashLoginCode(email, sentCode, secret)`; `login-codes.e2e-spec.ts`: refuses a plain code |
 | A05 Injection | SQL through the email | Strict email rule (PRD 3.4, at most 254 characters), checked before any lookup. All SQL goes through Prisma; the one raw statement binds the email as a parameter. | `request-body.ts`, `prisma-login-code-issuer.ts` | request-body spec: a quote in the address; issuer spec: "as a bound value" |
-| A06 Insecure Design | Account enumeration; flooding an inbox | The same answer and the same rate limit for every address. Decoys look exactly like real hashes. The limit holds under concurrency through an advisory lock. | `code-request.service.ts`, `prisma-login-code-issuer.ts` | "answers exactly what a registered email gets"; "limits ... exactly as a registered one"; e2e: 5 of 12 / 5 of 10 simultaneous requests |
-| A07 Authentication Failures | Guessable or long-lived codes | Six digits from a CSPRNG, valid exactly 10 minutes. A new code replaces the old one through the newest-row rule. Five requests per hour. | `login-code-generator.ts`, `code-request.service.ts` | "lets the code live exactly ten minutes"; "makes the new code the newest"; e2e: "replaces the earlier code" |
+| A06 Insecure Design | Account enumeration; flooding an inbox | The same answer and the same rate limit for every address. Decoys look exactly like real hashes. The limit counts every request let through, failed sends included, and holds under concurrency through an advisory lock. | `code-request.service.ts`, `prisma-login-code-issuer.ts`, `login_code_requests` | "answers exactly what a registered email gets"; "limits ... exactly as a registered one"; "still counts the unsent request"; e2e: 5 of 12 / 5 of 10 simultaneous requests, "counts a failed send towards the hourly limit" |
+| A07 Authentication Failures | Guessable or long-lived codes; the wrong code treated as live | Six digits from a CSPRNG, valid exactly 10 minutes. A new code replaces the old one through the newest-row rule, and `created_at` follows issue order so "newest" is never wrong or tied. Five requests per hour. | `login-code-generator.ts`, `code-request.service.ts`, `prisma-login-code-issuer.ts` | "lets the code live exactly ten minutes"; "makes the new code the newest"; issuer e2e "issue order"; e2e: "replaces the earlier code" |
 | A09 Security Logging and Alerting Failures | Codes or addresses in the logs | Only the error class is logged, never the email, code, hash or provider message. | `code-request.service.ts` | "logs the error class only: no email, code, hash or provider message" |
 | A10 Mishandling of Exceptional Conditions | A failure that leaves a dead code or a 500 | Every failure answers `failed` (503). An unsent row is removed by its own id, so the earlier code still works. Missing pieces fail closed: no sender, no secret. | `code-request.service.ts`, `email-sender.ts`, `email-request.module.ts` | "removes the unsent code, so the code sent before it still verifies"; e2e: "keeps the earlier code the newest when the new one cannot be sent"; module spec: "fails closed" |
 
@@ -88,16 +116,30 @@ drop the failure message, or add a randomized delay to the decoy path.
    - **Rule:** 39.1 must be merged into `feat/pbi-39-email-sign-in` **before** PBI-39 is merged into `main` or
      `staging`, or deployed anywhere.
 
-Also note: a request whose email failed is not counted towards the hourly limit, because its row is removed. That
-assumes no email went out. Whether that assumption is safe, for example after a provider timeout, is still under review
-with the PO.
+### A send that fails may still have been delivered
+
+A provider can accept an email and then time out before our call returns. The backend sees a failure in both cases and
+cannot tell the two apart. In both cases it:
+
+- answers 503 "Kode gagal dikirim. Coba lagi.";
+- removes the new code's row, so the code sent before it stays the newest and usable;
+- **keeps the request counted** in `login_code_requests`, so retries after ambiguous failures cannot get past five
+  emails an hour (AC 5).
+
+**What we accept:** if that email did arrive, the code in it **does not work**, because its row is gone. The user
+uses the earlier code or asks for a new one, inside the same hourly limit. Telling "rejected" apart from "maybe
+delivered" would need error types from 39.1's adapter; that is not part of this PR.
 
 ## Dependencies and coordination
 
 - **39.1 (SMTP), owner to confirm:**
-  - `EmailSender` in `backend/src/email/email-sender.ts` is a proposal: `send({ to, senderName, subject, text })`,
-    injected under `EMAIL_SENDER`.
-  - The 39.1 owner should confirm or adjust this shape before either PR merges.
+  - `EmailSender` in `backend/src/email/email-sender.ts` is still `send({ to, senderName, subject, text })`, injected
+    under `EMAIL_SENDER`. It is a generic transport meant to be reusable (PBI-11) and kept apart from template
+    rendering.
+  - **Pending with the 39.1 owner:** 39.1 requires HTML and plain-text sign-in templates. The proposal is to add
+    `html` to the same transport, `send({ to, senderName, subject, text, html })`. Who owns the sign-in templates and
+    how they are rendered must be agreed with the 39.1 owner before this shared interface changes. No
+    template-specific sender is introduced.
   - Until then the module binds `unreadyEmailSender`, so every registered request answers 503 and nothing is stored for
     it. That is fail-closed by design.
 - **39.3 (#172):**
@@ -122,6 +164,13 @@ with the PO.
   - #172 adds `requireLoginCodeSecretInProduction` to the boot validation; this PR relies on it rather than adding it
     again. Without the secret, every code request answers 503 alike: registered and unknown addresses fail the same
     way.
+  - 39.3 reads `login_codes` only. It needs nothing from `login_code_requests`, and its `latest()` keeps ordering by
+    `created_at desc`. That order is now the issue order, with no ties.
+  - Removing old `login_codes` rows (used, expired or replaced) is left open. Any cleanup must keep the newest row per
+    email, because verification reads it.
+- **39.4 (frontend):** AC 4's "Kirim Ulang" unlocks after 60 seconds with a visible countdown. That is the sign-in
+  screen's job. The backend enforces only AC 5's five requests per rolling hour, and a new code still replaces the old
+  one.
 
 ## Three technical learnings
 
@@ -150,10 +199,12 @@ with the PO.
   - **What I chose:** `pg_advisory_xact_lock(hashtextextended('login_codes:' || email, 0))`. It locks a *key* rather
     than a row, so it works for addresses that have no row at all. It is released automatically at commit or rollback.
 - **What I did:**
-  - `PrismaLoginCodeIssuer.issue()` takes the lock first, then counts the newest five rows inside the window, then
-    inserts, all in one transaction.
-  - The unit spec checks the order `begin → lock → count → insert → commit`, and that the email is a bound parameter,
-    not part of the SQL text.
+  - `PrismaLoginCodeIssuer.issue()` takes the lock first. Then it counts the email's requests in
+    `login_code_requests` inside the window, stores the code and records the request, all in one transaction.
+  - The unit spec checks that order, and that the email is a bound parameter, not part of the SQL text.
+  - The lock also turned out to be the safe place to fix ordering. While it is held, nothing else can issue for that
+    email, so placing each code just after the newest request makes `created_at` follow the real issue order (see
+    "Data model").
   - With the lock, the experiment gives **5 of 12 in every round**. The committed e2e test
     `login-code-issuer.e2e-spec.ts` ("lets exactly five of twelve simultaneous requests for one email through") holds
     the lock version to that, and passed 5 runs out of 5.
@@ -201,6 +252,10 @@ with the PO.
   - Verification only reads the newest row, so inserting a new code automatically kills the previous one. That is
     good, until sending the new code fails.
   - Then the user has an old code in their inbox that no longer works, and a new code they never received.
+  - Later I noticed a second problem. My first fix removed the failed request's row, and the limit counted those same
+    rows. So a failed request did not count towards "five per hour".
+  - A provider can accept an email and still time out, so a "failed" email may have been delivered. Retries could then
+    put more than five emails an hour into someone's inbox.
 - **Solution I considered and why:**
   - **Keep the transaction open while sending and roll back on failure:** this holds a database connection and the
     lock for the whole SMTP call. And if the commit fails after the email went out, the user holds a dead code.
@@ -208,6 +263,11 @@ with the PO.
   - **What I chose:** commit the row, send, and if sending fails, delete *that row by its id*. Deleting "the newest row
     for this email" would be wrong when two requests overlap: it could remove the code the other request just sent
     successfully.
+  - For the limit, I compared three options:
+    - **Keep the failed code row:** it would count, but it would also become the newest and kill the earlier code.
+    - **Have 39.1 report "rejected" vs "maybe delivered":** this depends on another subtask's error types.
+    - **What I chose:** a separate request log, `login_code_requests`. Its only job is counting, so removing a code row
+      never frees a slot.
 - **What I did:**
   - `issue()` returns the new row's id, and `deliver()` in the service calls `discard(id)` when `send` rejects.
   - `discard` is `deleteMany({ where: { id } })`.
@@ -216,5 +276,14 @@ with the PO.
   - "removes the unsent code, so the code sent before it still verifies" and the e2e test "keeps the earlier code the
     newest when the new one cannot be sent" check the user-visible side: the earlier code's hash is the newest row
     again, and the answer is 503 "Kode gagal dikirim. Coba lagi."
-  - What I learned: undoing a failed step should name the exact thing it created, not "the latest one", because under
-    concurrency "the latest" can belong to someone else.
+  - Tests that a failed send still counts:
+    - "still counts the unsent request towards the limit: the provider may have delivered it" (service spec);
+    - "still counts a request whose code was discarded, so a failed email cannot free its slot" (issuer e2e);
+    - "counts a failed send towards the hourly limit, while its code row is removed" (HTTP e2e): one success, one
+      failure, three successes, then 429, with 4 code rows but 5 requests recorded.
+  - What I learned:
+    - Undoing a failed step should name the exact thing it created, not "the latest one". Under concurrency, "the
+      latest" can belong to someone else.
+    - When one table does two jobs (the live code and the rate-limit count), undoing one job can quietly undo the
+      other.
+    - I also had to be honest about what is left: a code that was delivered after a timeout will not work.
