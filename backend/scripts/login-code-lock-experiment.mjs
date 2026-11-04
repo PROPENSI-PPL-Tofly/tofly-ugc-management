@@ -67,29 +67,39 @@ export function disposableDatabaseUrl(env) {
   return value;
 }
 
-/** PrismaLoginCodeIssuer.issue(), with the advisory lock optional. */
+/** PrismaLoginCodeIssuer.issue(), query for query, with the advisory lock optional. */
 function issue(prisma, Prisma, email, withLock) {
   const now = new Date();
+  const windowStart = new Date(now.getTime() - 3_600_000);
   return prisma.$transaction(async (tx) => {
     if (withLock) {
       await tx.$executeRaw(
         Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`login_codes:${email}`}, 0))`,
       );
     }
-    const recent = await tx.login_codes.findMany({
-      where: { email, created_at: { gt: new Date(now.getTime() - 3_600_000) } },
-      orderBy: { created_at: 'desc' },
+    await tx.login_code_requests.deleteMany({
+      where: { requested_at: { lte: windowStart } },
+    });
+    const recent = await tx.login_code_requests.findMany({
+      where: { email, requested_at: { gt: windowStart } },
+      orderBy: { requested_at: 'desc' },
       take: LIMIT,
-      select: { created_at: true },
+      select: { requested_at: true },
     });
     if (recent.length >= LIMIT) return false;
+    const newest = recent[0]?.requested_at.getTime() ?? -Infinity;
+    const createdAt = new Date(Math.max(now.getTime(), newest + 1));
     await tx.login_codes.create({
       data: {
         email,
         code_hash: randomBytes(32).toString('hex'),
-        created_at: now,
-        expires_at: new Date(now.getTime() + 600_000),
+        created_at: createdAt,
+        expires_at: new Date(createdAt.getTime() + 600_000),
       },
+      select: { id: true },
+    });
+    await tx.login_code_requests.create({
+      data: { email, requested_at: createdAt },
       select: { id: true },
     });
     return true;
@@ -130,6 +140,9 @@ async function main() {
     }
   } finally {
     await prisma.login_codes.deleteMany({ where: { email: { in: emails } } });
+    await prisma.login_code_requests.deleteMany({
+      where: { email: { in: emails } },
+    });
     await prisma.$disconnect();
   }
 }
