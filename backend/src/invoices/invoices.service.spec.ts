@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceSnapshotDto } from './dto/invoice-list.dto.js';
+import { INVOICE_ROSTER_REPOSITORY } from './invoice-roster.repository.js';
 import type { InvoiceCreatorRow } from './invoice-rows.js';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
 import { INVOICE_STATUS_SOURCE, type InvoiceStatus } from './invoice-status.js';
@@ -10,6 +11,7 @@ import {
   PaymentProofService,
   type PaymentProofReader,
 } from './payment-proof.service.js';
+import { PrismaInvoiceRosterRepository } from './prisma-invoice-roster.repository.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 
 function adjustmentRow(id: string, amount: string) {
@@ -99,6 +101,12 @@ describe('InvoicesService', () => {
       providers: [
         InvoicesService,
         { provide: PrismaService, useValue: prisma },
+        // The real repository on the stubbed tables, so these specs still pin the queries the
+        // listing makes; prisma-invoice-roster.repository.spec.ts tests it on its own.
+        {
+          provide: INVOICE_ROSTER_REPOSITORY,
+          useClass: PrismaInvoiceRosterRepository,
+        },
         { provide: RATE_FORMULA_SOURCE, useValue: formulas },
         { provide: INVOICE_STATUS_SOURCE, useValue: statuses },
         { provide: PaymentProofService, useValue: proofs },
@@ -359,8 +367,6 @@ describe('InvoicesService', () => {
         deadline: day(-10),
         video_submitted_at: day(-8),
         content_links: [],
-        views: null,
-        likes: null,
       });
       prisma.contents.findMany.mockResolvedValue([
         late('rangga-1', 'rangga-c'),
@@ -1499,5 +1505,63 @@ describe('InvoicesService', () => {
 
     expect(methods).not.toContain('addAdjustment');
     expect(methods).not.toContain('finalize');
+  });
+});
+
+// The listing depends on the InvoiceRosterRepository port, not on the tables behind it: a
+// stand-in repository is enough to list and calculate invoices.
+describe('InvoicesService on a stand-in roster repository', () => {
+  it('lists from what the repository answers, without querying content itself', async () => {
+    // Arrange
+    const roster = {
+      creators: vi.fn().mockResolvedValue([row()]),
+      contentsOf: vi.fn().mockResolvedValue(new Map()),
+    };
+    const prisma = {
+      creators: { findMany: vi.fn(), findUnique: vi.fn() },
+      contents: { findMany: vi.fn() },
+      invoices: { findMany: vi.fn().mockResolvedValue([]) },
+      invoice_adjustments: {
+        findMany: vi.fn().mockResolvedValue([]),
+        groupBy: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        InvoicesService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: INVOICE_ROSTER_REPOSITORY, useValue: roster },
+        {
+          provide: RATE_FORMULA_SOURCE,
+          useValue: { current: vi.fn().mockResolvedValue(FORMULA) },
+        },
+        {
+          provide: INVOICE_STATUS_SOURCE,
+          useValue: {
+            statuses: vi.fn((ids: readonly string[]) =>
+              Promise.resolve(new Map(ids.map((id) => [id, 'accruing']))),
+            ),
+          },
+        },
+        {
+          provide: PaymentProofService,
+          useValue: { forContracts: vi.fn().mockResolvedValue(new Map()) },
+        },
+      ],
+    }).compile();
+    const service = module.get(InvoicesService);
+    const filters = { q: 'rangga' };
+
+    // Act
+    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, filters);
+
+    // Assert
+    expect(roster.creators).toHaveBeenCalledExactlyOnceWith(filters);
+    expect(roster.contentsOf).toHaveBeenCalledExactlyOnceWith(['contract-1']);
+    expect(prisma.creators.findMany).not.toHaveBeenCalled();
+    expect(prisma.contents.findMany).not.toHaveBeenCalled();
+    expect(result.items.map((item) => item.creatorName)).toEqual([
+      'Rangga Pratama',
+    ]);
   });
 });

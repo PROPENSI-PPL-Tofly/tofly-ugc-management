@@ -5,11 +5,15 @@ import type {
   InvoiceContent,
   InvoiceContext,
   InvoiceContract,
+  InvoiceLink,
 } from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
 
 /** 18 Sep 2026, midnight UTC: 07:00 the same day in Jakarta. */
 export const TODAY = new Date('2026-09-18T00:00:00Z');
+
+/** The evening before TODAY, when the last sync brought a link's numbers. */
+export const SYNCED_AT = new Date('2026-09-17T13:00:00Z');
 
 /** A calendar day relative to TODAY, the way Postgres `date` columns arrive (midnight UTC). */
 export function day(offset: number): Date {
@@ -56,9 +60,21 @@ export function content(
     status: 'scheduled',
     deadline: day(10),
     videoSubmittedAt: null,
-    platform: null,
+    links: [],
+    ...overrides,
+  };
+}
+
+/** One of a content's video links, on Instagram, with no numbers yet. */
+export function link(overrides: Partial<InvoiceLink> = {}): InvoiceLink {
+  return {
+    platform: 'instagram',
     views: null,
     likes: null,
+    comments: null,
+    shares: null,
+    source: null,
+    lastSyncedAt: null,
     ...overrides,
   };
 }

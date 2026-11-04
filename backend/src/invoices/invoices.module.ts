@@ -4,12 +4,14 @@ import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
 import { InvoicePaymentsModule } from './invoice-payments.module.js';
 import { InvoiceCommandService } from './invoice-command.service.js';
 import { InvoiceConfirmationService } from './invoice-confirmation.service.js';
+import { INVOICE_ROSTER_REPOSITORY } from './invoice-roster.repository.js';
 import { INVOICE_STATUS_SOURCE } from './invoice-status.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesService } from './invoices.service.js';
 import { LAST_SYNC } from './last-sync.js';
 import { PerformanceLastSync } from './performance-last-sync.adapter.js';
 import { PersistedInvoiceStatusSource } from './persisted-invoice-status.source.js';
+import { PrismaInvoiceRosterRepository } from './prisma-invoice-roster.repository.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 
@@ -19,6 +21,11 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
   controllers: [InvoicesController],
   providers: [
     InvoicesService,
+    // The creators, contracts and content the running invoice is calculated from (Repository).
+    {
+      provide: INVOICE_ROSTER_REPOSITORY,
+      useClass: PrismaInvoiceRosterRepository,
+    },
     // The admin's adjustments and finalizing (PBI-12), for this module's admin-only controller.
     // Not exported: the creator's routes that import this module cannot inject them.
     InvoiceCommandService,

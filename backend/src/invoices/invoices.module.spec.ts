@@ -13,6 +13,8 @@ import { PerformanceSyncModule } from '../performance/sync/performance-sync.modu
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LAST_SYNC } from './last-sync.js';
 import { PerformanceLastSync } from './performance-last-sync.adapter.js';
+import { INVOICE_ROSTER_REPOSITORY } from './invoice-roster.repository.js';
+import { PrismaInvoiceRosterRepository } from './prisma-invoice-roster.repository.js';
 
 describe('InvoicesModule', () => {
   it('registers the invoices controller and service', () => {
@@ -47,6 +49,15 @@ describe('InvoicesModule', () => {
     ).toContainEqual({
       provide: RATE_FORMULA_SOURCE,
       useClass: StoredRateFormulaSource,
+    });
+  });
+
+  it('reads the roster and its content through the Prisma repository (28.1)', () => {
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.PROVIDERS, InvoicesModule),
+    ).toContainEqual({
+      provide: INVOICE_ROSTER_REPOSITORY,
+      useClass: PrismaInvoiceRosterRepository,
     });
   });
 

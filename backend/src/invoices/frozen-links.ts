@@ -39,7 +39,9 @@ export interface FrozenPerformanceLinkDto {
  * A sync stamps last_synced_at and an admin stamps manual_at; a link the platform then could
  * not read (not_found, sync_failed) keeps the numbers of whichever came last.
  */
-function sourceOf(row: FrozenLinkRow): FrozenLinkSource {
+export function sourceOf(
+  row: Pick<FrozenLinkRow, 'last_synced_at' | 'manual_at'>,
+): FrozenLinkSource {
   const synced = row.last_synced_at?.getTime() ?? null;
   const typed = row.manual_at?.getTime() ?? null;
   if (typed !== null && (synced === null || typed >= synced)) return 'manual';
