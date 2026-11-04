@@ -16,6 +16,12 @@ export type CodeRequestResult =
   | { outcome: 'failed' };
 
 const SENT: CodeRequestResult = { outcome: 'sent' };
+const FAILED: CodeRequestResult = { outcome: 'failed' };
+
+/** An SMTP or database error can quote the email or the code, so only its class is logged. */
+function safeReason(error: unknown): string {
+  return error instanceof Error ? error.name : 'unknown error';
+}
 
 /**
  * The first step of signing in with an email code. Every address takes the same path: a code is
@@ -36,9 +42,22 @@ export class EmailCodeRequestService {
   ) {}
 
   async request(email: string): Promise<CodeRequestResult> {
+    const step = await this.issue(email).catch((error: unknown) => {
+      this.logger.warn(`Sign-in code request failed: ${safeReason(error)}`);
+      return FAILED;
+    });
+    if ('outcome' in step) return step;
+    return step.mail ? this.send(email, step.code) : SENT;
+  }
+
+  /** Stores the row; answers the code to mail, or the outcome when there is nothing to send. */
+  private async issue(
+    email: string,
+  ): Promise<CodeRequestResult | { code: string; mail: boolean }> {
     const now = this.now();
     const principal = await this.whitelist.resolve(email);
     const code = this.drawCode();
+    // Hashed for every address, so a missing secret fails them all alike.
     const realHash = this.hash(email, code);
     const result = await this.issuer.issue(
       {
@@ -54,7 +73,16 @@ export class EmailCodeRequestService {
         minutesToWait: minutesToWait(result.oldestInWindow, now),
       };
     }
-    if (principal) await this.mailer.sendSignInCode(email, code);
-    return SENT;
+    return { code, mail: principal !== null };
+  }
+
+  private async send(email: string, code: string): Promise<CodeRequestResult> {
+    try {
+      await this.mailer.sendSignInCode(email, code);
+      return SENT;
+    } catch (error) {
+      this.logger.warn(`Sign-in code email not sent: ${safeReason(error)}`);
+      return FAILED;
+    }
   }
 }
