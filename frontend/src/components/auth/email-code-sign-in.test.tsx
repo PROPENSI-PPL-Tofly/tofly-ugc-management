@@ -304,6 +304,32 @@ describe("EmailCodeSignIn: entering the code", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  // The code is a password for ten minutes: it lives in component state and nowhere else.
+  it("never writes the code to browser storage or the console, whatever the answer", async () => {
+    const stored = vi.spyOn(Storage.prototype, "setItem");
+    const logged = (["log", "info", "warn", "error", "debug"] as const).map((level) =>
+      vi.spyOn(console, level).mockImplementation(() => {}),
+    );
+    vi.mocked(verifyCode)
+      .mockResolvedValueOnce({ kind: "wrong", attemptsLeft: 4 })
+      .mockResolvedValueOnce({ kind: "signed_in", redirectTo: "/creator/dashboard" });
+    render(<EmailCodeSignIn />);
+    await reachCodeStep();
+
+    typeCode("111111");
+    submitCode();
+    await settle();
+    typeCode("654321");
+    submitCode();
+    await settle();
+
+    expect(stored).not.toHaveBeenCalled();
+    logged.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    expect(document.cookie).not.toContain("654321");
+    stored.mockRestore();
+    logged.forEach((spy) => spy.mockRestore());
+  });
+
   it("goes back to the email step on Ganti email, keeping the email typed", async () => {
     render(<EmailCodeSignIn />);
     await reachCodeStep();
