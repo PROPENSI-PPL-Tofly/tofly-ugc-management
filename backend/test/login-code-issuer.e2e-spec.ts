@@ -114,4 +114,66 @@ describe('PrismaLoginCodeIssuer against Postgres (e2e)', () => {
       await prisma.login_code_requests.count({ where: { email: fresh } }),
     ).toBe(1);
   });
+
+  describe('issue order', () => {
+    /** The email's codes as #172's latest() orders them: newest first. */
+    function newestFirst(email: string) {
+      return prisma.login_codes.findMany({
+        where: { email },
+        orderBy: { created_at: 'desc' },
+      });
+    }
+
+    it('makes the code issued last the newest even when its clock read earlier', async () => {
+      const email = freshEmail();
+      const t = Date.now();
+      // B read the clock 5 ms after A but reached the lock first.
+      await issuer.issue(request(email, new Date(t + 5)));
+      const a = await issuer.issue(request(email, new Date(t)));
+
+      const [newest] = await newestFirst(email);
+      expect(a).toEqual({ issued: true, id: newest.id });
+      expect(newest.created_at).toEqual(new Date(t + 6));
+    });
+
+    it('never lets two codes share a creation time, so the newest is never a tie', async () => {
+      const email = freshEmail();
+      const t = new Date();
+      const first = await issuer.issue(request(email, t));
+      const second = await issuer.issue(request(email, t));
+
+      const rows = await newestFirst(email);
+      expect(rows.map((row) => row.id)).toEqual([
+        second.issued && second.id,
+        first.issued && first.id,
+      ]);
+      expect(rows[0].created_at.getTime()).toBe(t.getTime() + 1);
+    });
+
+    it('gives simultaneous requests distinct, increasing times in the order they were issued', async () => {
+      const email = freshEmail();
+      const t = new Date();
+      await Promise.all(
+        Array.from({ length: 5 }, () => issuer.issue(request(email, t))),
+      );
+
+      const times = (await newestFirst(email)).map((row) =>
+        row.created_at.getTime(),
+      );
+      expect(new Set(times).size).toBe(5);
+    });
+
+    it('keeps every code valid for exactly ten minutes from its own creation time', async () => {
+      const email = freshEmail();
+      const t = Date.now();
+      await issuer.issue(request(email, new Date(t + 5)));
+      await issuer.issue(request(email, new Date(t)));
+
+      for (const row of await newestFirst(email)) {
+        expect(row.expires_at.getTime() - row.created_at.getTime()).toBe(
+          10 * MINUTE,
+        );
+      }
+    });
+  });
 });

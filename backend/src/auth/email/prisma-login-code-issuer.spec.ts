@@ -140,6 +140,45 @@ describe('PrismaLoginCodeIssuer', () => {
     });
   });
 
+  describe('issue order', () => {
+    /** What the issuer stored for a request whose clock read NOW, given the newest request so far. */
+    async function storedAfter(newest: Date) {
+      const { prisma, tx } = fakePrisma([{ requested_at: newest }]);
+      await new PrismaLoginCodeIssuer(prisma).issue(REQUEST);
+      const [[code]] = tx.login_codes.create.mock.calls as unknown as [
+        [{ data: { created_at: Date; expires_at: Date } }],
+      ];
+      const [[logged]] = tx.login_code_requests.create.mock
+        .calls as unknown as [[{ data: { requested_at: Date } }]];
+      return { ...code.data, requested_at: logged.data.requested_at };
+    }
+
+    it('moves a code whose clock read earlier than the newest request to just after it', async () => {
+      const newest = new Date(NOW.getTime() + 5);
+      const stored = await storedAfter(newest);
+      expect(stored.created_at).toEqual(new Date(newest.getTime() + 1));
+      expect(stored.requested_at).toEqual(stored.created_at);
+    });
+
+    it('moves a code whose clock read the very same millisecond to just after it', async () => {
+      const stored = await storedAfter(NOW);
+      expect(stored.created_at).toEqual(new Date(NOW.getTime() + 1));
+    });
+
+    it('keeps its own time when it is already the latest', async () => {
+      const stored = await storedAfter(new Date(NOW.getTime() - 1));
+      expect(stored.created_at).toEqual(NOW);
+      expect(stored.expires_at).toEqual(REQUEST.expiresAt);
+    });
+
+    it('keeps the code valid for exactly its lifetime from the moved creation time', async () => {
+      const stored = await storedAfter(new Date(NOW.getTime() + 5));
+      expect(stored.expires_at.getTime() - stored.created_at.getTime()).toBe(
+        REQUEST.expiresAt.getTime() - REQUEST.createdAt.getTime(),
+      );
+    });
+  });
+
   describe('discard', () => {
     it('deletes the one code row by its id and leaves the request counted', async () => {
       const { prisma, tx } = fakePrisma([]);
