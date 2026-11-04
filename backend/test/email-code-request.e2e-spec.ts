@@ -86,6 +86,9 @@ describe('POST /auth/email/request (e2e)', () => {
     await prisma.login_codes.deleteMany({
       where: { email: { in: [CREATOR, ADMIN, REVOKED, UNKNOWN] } },
     });
+    await prisma.login_code_requests.deleteMany({
+      where: { email: { in: [CREATOR, ADMIN, REVOKED, UNKNOWN] } },
+    });
     await prisma.creators.deleteMany({ where: { user_id: { in: userIds } } });
     await prisma.users.deleteMany({ where: { id: { in: userIds } } });
     await app.close();
@@ -95,6 +98,9 @@ describe('POST /auth/email/request (e2e)', () => {
   beforeEach(async () => {
     outbox.sent.length = 0;
     await prisma.login_codes.deleteMany({
+      where: { email: { in: [CREATOR, ADMIN, REVOKED, UNKNOWN] } },
+    });
+    await prisma.login_code_requests.deleteMany({
       where: { email: { in: [CREATOR, ADMIN, REVOKED, UNKNOWN] } },
     });
   });
@@ -177,6 +183,22 @@ describe('POST /auth/email/request (e2e)', () => {
     const rows = await rowsOf(CREATOR);
     expect(rows).toHaveLength(1);
     expect(rows[0].code_hash).toBe(hashLoginCode(CREATOR, sent, SECRET));
+  });
+
+  it('counts a failed send towards the hourly limit, keeping the earlier code the newest', async () => {
+    await post(CREATOR).expect(200);
+    const sent = outbox.codeSentTo(CREATOR)!;
+    outbox.failNext = true;
+    await post(CREATOR).expect(503);
+    for (let i = 0; i < 3; i += 1) await post(CREATOR).expect(200);
+
+    await post(CREATOR).expect(429);
+
+    expect(await rowsOf(CREATOR)).toHaveLength(4);
+    expect(
+      await prisma.login_code_requests.count({ where: { email: CREATOR } }),
+    ).toBe(5);
+    expect(sent).toMatch(/^d{6}$/);
   });
 
   it.each([

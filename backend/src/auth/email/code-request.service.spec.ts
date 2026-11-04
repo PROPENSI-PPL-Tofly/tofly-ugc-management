@@ -27,27 +27,33 @@ interface StoredRow {
 }
 
 /**
- * A fake of the login_codes table: the same rules as the Prisma adapter (the newest `limit` rows
- * inside the window decide; a refused request stores nothing), kept in memory.
+ * A fake of login_codes and login_code_requests, with the Prisma adapter's rules kept in memory:
+ * the newest `limit` requests inside the window decide, a refused request stores nothing, and
+ * discarding a code leaves its request counted.
  */
 class FakeIssuer implements LoginCodeIssuer {
   rows: StoredRow[] = [];
+  requests: { email: string; requestedAt: Date }[] = [];
   private next = 0;
 
   issue(request: IssueRequest): Promise<IssueResult> {
-    const recent = this.rows
+    const recent = this.requests
       .filter(
         (row) =>
-          row.email === request.email && row.createdAt > request.windowStart,
+          row.email === request.email && row.requestedAt > request.windowStart,
       )
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())
       .slice(0, request.limit);
     if (recent.length >= request.limit) {
       return Promise.resolve({
         issued: false,
-        oldestCreatedAt: recent[recent.length - 1].createdAt,
+        oldestCreatedAt: recent[recent.length - 1].requestedAt,
       });
     }
+    this.requests.push({
+      email: request.email,
+      requestedAt: request.createdAt,
+    });
     this.next += 1;
     const id = `code-${this.next}`;
     this.rows.push({
@@ -275,17 +281,20 @@ describe('CodeRequestService', () => {
       );
     });
 
-    it('does not count the unsent request towards the limit', async () => {
+    it('still counts the unsent request towards the limit: the provider may have delivered it', async () => {
       let now = NOW;
       const { service, send } = setup({ now: () => now });
-      send.mockRejectedValueOnce(new Error('SMTP down'));
+      send.mockRejectedValueOnce(new Error('SMTP timeout'));
       await service.request(CREATOR);
       const results = [];
       for (const minutes of [1, 2, 3, 4, 5]) {
         now = new Date(NOW.getTime() + minutes * MINUTE);
         results.push(await service.request(CREATOR));
       }
-      expect(results).toEqual(Array(5).fill({ outcome: 'sent' }));
+      expect(results).toEqual([
+        ...Array(4).fill({ outcome: 'sent' }),
+        { outcome: 'limited', retryAfterMinutes: 55 },
+      ]);
     });
 
     it('logs the error class only: no email, code, hash or provider message', async () => {

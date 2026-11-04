@@ -13,21 +13,34 @@ const REQUEST: IssueRequest = {
   limit: 5,
 };
 
-/** A fake Prisma client: one transaction at a time, recording every step in order. */
-function fakePrisma(recent: { created_at: Date }[]) {
+/**
+ * A fake Prisma client: one transaction at a time, recording every step in order. `recent` is
+ * what the request log answers for the email's last hour, newest first.
+ */
+function fakePrisma(recent: { requested_at: Date }[]) {
   const steps: string[] = [];
   const tx = {
     $executeRaw: vi.fn((query: Prisma.Sql) => {
       steps.push('lock');
       return Promise.resolve(query.values.length);
     }),
-    login_codes: {
+    login_code_requests: {
+      deleteMany: vi.fn((_args: unknown) => {
+        steps.push('forget old requests');
+        return Promise.resolve({ count: 0 });
+      }),
       findMany: vi.fn((_args: unknown) => {
-        steps.push('count');
+        steps.push('count requests');
         return Promise.resolve(recent);
       }),
       create: vi.fn((_args: unknown) => {
-        steps.push('insert');
+        steps.push('record request');
+        return Promise.resolve({ id: 'request-row' });
+      }),
+    },
+    login_codes: {
+      create: vi.fn((_args: unknown) => {
+        steps.push('insert code');
         return Promise.resolve({ id: 'new-row' });
       }),
     },
@@ -46,10 +59,18 @@ function fakePrisma(recent: { created_at: Date }[]) {
 
 describe('PrismaLoginCodeIssuer', () => {
   describe('issue', () => {
-    it('locks the email, counts and inserts inside one transaction, in that order', async () => {
+    it('locks the email, then counts, stores the code and records the request in one transaction', async () => {
       const { prisma, steps } = fakePrisma([]);
       await new PrismaLoginCodeIssuer(prisma).issue(REQUEST);
-      expect(steps).toEqual(['begin', 'lock', 'count', 'insert', 'commit']);
+      expect(steps).toEqual([
+        'begin',
+        'lock',
+        'forget old requests',
+        'count requests',
+        'insert code',
+        'record request',
+        'commit',
+      ]);
     });
 
     it('takes a transaction-scoped advisory lock keyed by the email, as a bound value', async () => {
@@ -61,19 +82,29 @@ describe('PrismaLoginCodeIssuer', () => {
       expect(query.values).toEqual([`login_codes:${EMAIL}`]);
     });
 
-    it('reads only the rows of the email inside the window, newest first, no more than the limit', async () => {
+    it('forgets every request older than the window, whatever its email, so the log stays about an hour long', async () => {
       const { prisma, tx } = fakePrisma([]);
       await new PrismaLoginCodeIssuer(prisma).issue(REQUEST);
-      expect(tx.login_codes.findMany).toHaveBeenCalledWith({
-        where: { email: EMAIL, created_at: { gt: REQUEST.windowStart } },
-        orderBy: { created_at: 'desc' },
+      expect(tx.login_code_requests.deleteMany).toHaveBeenCalledExactlyOnceWith(
+        { where: { requested_at: { lte: REQUEST.windowStart } } },
+      );
+    });
+
+    it('counts the email’s requests inside the window, not its codes, newest first, no more than the limit', async () => {
+      const { prisma, tx } = fakePrisma([]);
+      await new PrismaLoginCodeIssuer(prisma).issue(REQUEST);
+      expect(tx.login_code_requests.findMany).toHaveBeenCalledWith({
+        where: { email: EMAIL, requested_at: { gt: REQUEST.windowStart } },
+        orderBy: { requested_at: 'desc' },
         take: 5,
-        select: { created_at: true },
+        select: { requested_at: true },
       });
     });
 
-    it('stores the row while the window has room and answers its id', async () => {
-      const { prisma, tx } = fakePrisma([{ created_at: NOW }]);
+    it('stores the code and records the request while the window has room, answering the code’s id', async () => {
+      const { prisma, tx } = fakePrisma([
+        { requested_at: new Date('2026-11-04T02:30:00.000Z') },
+      ]);
       await expect(
         new PrismaLoginCodeIssuer(prisma).issue(REQUEST),
       ).resolves.toEqual({ issued: true, id: 'new-row' });
@@ -86,31 +117,37 @@ describe('PrismaLoginCodeIssuer', () => {
         },
         select: { id: true },
       });
+      expect(tx.login_code_requests.create).toHaveBeenCalledWith({
+        data: { email: EMAIL, requested_at: NOW },
+        select: { id: true },
+      });
     });
 
-    it('refuses with the oldest counted row once the window is full, storing nothing', async () => {
+    it('refuses with the oldest counted request once the window is full, storing and recording nothing', async () => {
       const oldest = new Date('2026-11-04T02:10:00.000Z');
       const { prisma, tx } = fakePrisma([
-        { created_at: new Date('2026-11-04T02:50:00.000Z') },
-        { created_at: new Date('2026-11-04T02:40:00.000Z') },
-        { created_at: new Date('2026-11-04T02:30:00.000Z') },
-        { created_at: new Date('2026-11-04T02:20:00.000Z') },
-        { created_at: oldest },
+        { requested_at: new Date('2026-11-04T02:50:00.000Z') },
+        { requested_at: new Date('2026-11-04T02:40:00.000Z') },
+        { requested_at: new Date('2026-11-04T02:30:00.000Z') },
+        { requested_at: new Date('2026-11-04T02:20:00.000Z') },
+        { requested_at: oldest },
       ]);
       await expect(
         new PrismaLoginCodeIssuer(prisma).issue(REQUEST),
       ).resolves.toEqual({ issued: false, oldestCreatedAt: oldest });
       expect(tx.login_codes.create).not.toHaveBeenCalled();
+      expect(tx.login_code_requests.create).not.toHaveBeenCalled();
     });
   });
 
   describe('discard', () => {
-    it('deletes the one row by its id, never by email or by recency', async () => {
-      const { prisma } = fakePrisma([]);
+    it('deletes the one code row by its id and leaves the request counted', async () => {
+      const { prisma, tx } = fakePrisma([]);
       await new PrismaLoginCodeIssuer(prisma).discard('row-1');
       expect(prisma.login_codes.deleteMany).toHaveBeenCalledExactlyOnceWith({
         where: { id: 'row-1' },
       });
+      expect(tx.login_code_requests.deleteMany).not.toHaveBeenCalled();
     });
   });
 });
