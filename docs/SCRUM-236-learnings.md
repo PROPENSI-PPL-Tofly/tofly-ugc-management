@@ -129,5 +129,5 @@ stays in the answer so a reader that checks it still reads the list.
 Other notes:
 
 - The 422 for a pending bonus does not yet carry `lastSync`. It can be added together with the waiting list.
-- Finalize's response gains `lastSync` and `bonusDataGaps`. The 28.3 frontend (#145) was reverted, so no UI reads
-  them yet.
+- Finalize's response gains `lastSync` and `bonusDataGaps`. The 28.3 frontend (#166) reads both in the Finalize
+  dialog.

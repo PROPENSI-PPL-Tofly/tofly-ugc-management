@@ -71,6 +71,18 @@ describe("toFinalizeReport", () => {
     expect(report.lastSync?.notUpdated).toEqual([NOT_UPDATED]);
   });
 
+  it("drops a waiting entry it cannot read, and a last sync without its list", () => {
+    const report = toFinalizeReport({
+      lastSync: { status: "done", notUpdated: "semua" },
+      bonusDataGaps: {
+        available: true,
+        waiting: [WAITING, { ...WAITING, metric: "saves" }, { ...WAITING, platform: "youtube" }],
+      },
+    });
+
+    expect(report).toEqual({ lastSync: null, bonusGaps: { available: true, waiting: [WAITING] } });
+  });
+
   it("reads an answer from before the report existed as no report at all", () => {
     expect(toFinalizeReport({})).toEqual({ lastSync: null, bonusGaps: null });
     expect(toFinalizeReport("bukan jawaban")).toEqual({ lastSync: null, bonusGaps: null });

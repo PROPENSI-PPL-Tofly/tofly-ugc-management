@@ -42,9 +42,10 @@ export function FinalizeModal({
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // The report's two lists: what the last sync left behind (shown before closing, AC 8) and what
-  // still waits for data (shown beside Finalize tetap, AC 9).
+  // still waits for data (shown beside Tetap Finalize, AC 9).
   const [leftBehind, setLeftBehind] = useState<NotUpdatedLink[] | null>(null);
-  const [waiting, setWaiting] = useState<BonusGaps | null>(null);
+  // Set once the server answered that the bonus still waits; gaps is null when its list was unreadable.
+  const [waiting, setWaiting] = useState<{ gaps: BonusGaps | null } | null>(null);
   // Freezing cannot be undone: focus starts on the safe answer, as ConfirmDialog does.
   const cancelRef = useRef<HTMLButtonElement>(null);
   // A bonus still waiting for data is frozen at what was measured: the dialog shows that, not the
@@ -53,7 +54,7 @@ export function FinalizeModal({
 
   /**
    * One press asks without accepting anything: the server answers what still waits (AC 9) and
-   * "Finalize tetap" is the freeze-anyway made with that list on screen. The run carries the
+   * "Tetap Finalize" is the freeze-anyway made with that list on screen. The run carries the
    * last sync (AC 7); the links it left behind are named before closing (AC 8).
    */
   async function confirm(acceptPendingBonus: boolean) {
@@ -71,7 +72,9 @@ export function FinalizeModal({
         return;
       }
       if (outcome.code === "INVOICE_BONUS_PENDING") {
-        setWaiting(outcome.report.bonusGaps ?? { available: false, reason: "PBI_28_1_PENDING" });
+        // The expected step before "Tetap Finalize", not an error: the list says what waits.
+        setWaiting({ gaps: outcome.report.bonusGaps });
+        return;
       }
       setRefusal(outcome.message);
     } catch {
@@ -84,7 +87,8 @@ export function FinalizeModal({
   return (
     <Modal
       title={`Finalize invoice ${invoiceTitle(row)}`}
-      onClose={onCancel}
+      // Once the report shows, the invoice is already frozen: every way out reads it again.
+      onClose={leftBehind ? onFinalized : onCancel}
       initialFocus={cancelRef}
       footer={
         leftBehind ? (
@@ -100,7 +104,7 @@ export function FinalizeModal({
               onClick={() => void confirm(waiting !== null)}
               disabled={busy}
             >
-              {waiting ? "Finalize tetap" : "Finalize"}
+              {waiting ? "Tetap Finalize" : "Finalize"}
             </Button>
           </>
         )
@@ -114,7 +118,7 @@ export function FinalizeModal({
 
         {busy ? (
           <p role="status" className="text-[13px] text-muted">
-            Mengambil angka terbaru…
+            Mengambil angka terbaru dari Instagram dan TikTok…
           </p>
         ) : null}
 
@@ -165,7 +169,7 @@ export function FinalizeModal({
           </strong>
         </div>
 
-        {waiting ? <WaitingGaps gaps={waiting} onOpenContent={onOpenContent} /> : null}
+        {waiting ? <WaitingGaps gaps={waiting.gaps} onOpenContent={onOpenContent} /> : null}
         {leftBehind ? <LeftBehind links={leftBehind} /> : null}
 
         {refusal ? (
@@ -179,40 +183,45 @@ export function FinalizeModal({
 }
 
 /**
- * What still waits for data, beside "Finalize tetap" (AC 9): each content with its state, its
- * name opening the Content Detail where the admin can type the missing numbers. The PBI-28.1
- * marker says why there is no list yet — never an empty one, which would read as "nothing is
- * waiting" (28.2's rule).
+ * What still waits for data, beside "Tetap Finalize" (AC 9), worded as the prototype's banner:
+ * each content with its state, its name opening the Content Detail where the admin can type the
+ * missing numbers. An unreadable list says so, never an empty one, which would read as "nothing
+ * is waiting".
  */
 function WaitingGaps({
   gaps,
   onOpenContent,
-}: Readonly<{ gaps: BonusGaps; onOpenContent?: (contentId: string) => void }>) {
+}: Readonly<{ gaps: BonusGaps | null; onOpenContent?: (contentId: string) => void }>) {
   return (
     <div role="group" aria-label="Konten yang masih menunggu data">
       <h3 className="text-[13px] font-bold">Konten yang masih menunggu data</h3>
-      {gaps.available === false ? (
-        <p className="text-[13px] text-muted">
-          Daftar konten yang masih menunggu data belum tersedia hingga PBI-28.1.
-        </p>
+      {gaps === null ? (
+        <p className="text-[13px] text-muted">Daftar konten yang menunggu data tidak dapat dimuat.</p>
       ) : gaps.waiting.length === 0 ? (
         <p className="text-[13px] text-muted">Tidak ada konten yang menunggu data.</p>
       ) : (
-        <ul className="flex flex-col gap-1 text-[13px]">
-          {gaps.waiting.map((link) => (
-            <li key={`${link.contentId}:${link.platform}`}>
-              {onOpenContent ? (
-                <ContentNameButton onOpen={() => onOpenContent(link.contentId)}>
-                  {link.contentName}
-                </ContentNameButton>
-              ) : (
-                link.contentName
-              )}
-              {" · "}
-              {PLATFORM_LABELS[link.platform]} · <span>{DATA_STATE_LABELS[link.state]}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="text-[13px]">
+            Bonus masih menunggu data untuk {gaps.waiting.length} link. Isi angkanya manual di Content
+            Detail, atau tetap finalize: link tanpa data dikunci Rp0 dan bisa dikoreksi lewat
+            penyesuaian sebelum creator ack.
+          </p>
+          <ul className="flex flex-col gap-1 text-[13px]">
+            {gaps.waiting.map((link) => (
+              <li key={`${link.contentId}:${link.platform}`}>
+                {onOpenContent ? (
+                  <ContentNameButton onOpen={() => onOpenContent(link.contentId)}>
+                    {link.contentName}
+                  </ContentNameButton>
+                ) : (
+                  link.contentName
+                )}
+                {" · "}
+                {PLATFORM_LABELS[link.platform]} · <span>{DATA_STATE_LABELS[link.state]}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
@@ -222,7 +231,9 @@ function WaitingGaps({
 function LeftBehind({ links }: Readonly<{ links: readonly NotUpdatedLink[] }>) {
   return (
     <div role="group" aria-label="Link yang tidak diperbarui">
-      <h3 className="text-[13px] font-bold">Link yang tidak diperbarui sinkron terakhir</h3>
+      <h3 className="text-[13px] font-bold">
+        {links.length} link tidak diperbarui, Finalize memakai angka yang tersimpan.
+      </h3>
       <ul className="flex flex-col gap-1 text-[13px]">
         {links.map((link) => (
           <li key={`${link.contentId}:${link.platform}`}>

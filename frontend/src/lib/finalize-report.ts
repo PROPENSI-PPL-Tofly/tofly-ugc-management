@@ -35,13 +35,13 @@ export interface WaitingBonusLink {
 }
 
 /**
- * What Finalize knows of the bonus's data gaps (28.2's PBI-28.1 integration point). Until 28.1
- * connects its per-link calculation the answer is `available: false`, naming the dependency —
- * never an empty list, which would read as "nothing is waiting".
+ * The links the bonus still waits on, as Finalize lists them from 28.1's per-link calculation
+ * (AC 9). An empty list means nothing waits; an answer that cannot be read is no list (null).
  */
-export type BonusGaps =
-  | { available: false; reason: "PBI_28_1_PENDING" }
-  | { available: true; waiting: WaitingBonusLink[] };
+export interface BonusGaps {
+  available: true;
+  waiting: WaitingBonusLink[];
+}
 
 /** The report Finalize's answer carries, on its success as on its refusal; null where unread. */
 export interface FinalizeReport {
@@ -96,11 +96,6 @@ function toWaiting(entry: unknown): WaitingBonusLink | null {
 
 function toBonusGaps(raw: unknown): BonusGaps | null {
   if (!isRecord(raw)) return null;
-  if (raw.available === false) {
-    return raw.reason === "PBI_28_1_PENDING"
-      ? { available: false, reason: "PBI_28_1_PENDING" }
-      : null;
-  }
   if (raw.available === true && Array.isArray(raw.waiting)) {
     return {
       available: true,

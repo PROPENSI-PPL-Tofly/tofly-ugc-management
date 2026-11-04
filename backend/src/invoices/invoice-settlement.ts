@@ -24,7 +24,7 @@ export interface SettledBreakdown {
 export function settleForFinalize(
   breakdown: InvoiceBreakdown,
   acceptPendingBonus: boolean,
-  /** The waiting links (AC 9), carried in the refusal beside "Finalize tetap". */
+  /** The waiting links (AC 9), carried in the refusal beside "Tetap Finalize". */
   bonusDataGaps?: BonusDataGapsDto,
 ): SettledBreakdown {
   const { performanceBonus, ...rest } = breakdown.components;

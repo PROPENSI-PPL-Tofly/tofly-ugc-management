@@ -6,6 +6,7 @@
 // Pure module: no React and no next/headers, so the table, the popup and tests all share it.
 
 import { formatDate, formatDeduction, formatJakartaDay, formatRupiah, formatTimestamp } from "./format";
+import { DATA_STATE_LABELS, type DataState } from "./link-performance";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -66,6 +67,12 @@ export interface PerformanceBonusLine {
   lastSyncedAt?: string | null;
   /** A link frozen without data at Finalize (28.2): Rp0, with no value or tier to show. */
   noData?: boolean;
+  /** A link 28.1 judged but has no number for yet (AC 5): "Menunggu data", not a zero. */
+  waiting?: boolean;
+  /** The link's data state (PBI-27), which says why a number is missing; null when unknown. */
+  state?: DataState | null;
+  /** When an admin typed the numbers in, ISO; null when never. */
+  manualAt?: string | null;
 }
 
 export type BonusLine = SpecificBonusLine | PerformanceBonusLine;
@@ -207,9 +214,14 @@ function rated(line: RatedLine): Described {
   };
 }
 
-/** "Tersinkron 3 Nov 2026, 02.00 WIB" or "Diisi manual" (PBI-28 AC 6); nothing when unknown. */
+/**
+ * "Tersinkron 3 Nov 2026, 02.00 WIB" or "Diisi manual 2 Nov 2026" (PBI-28 AC 6, as the prototype
+ * words it); nothing when unknown.
+ */
 function sourceDetail(line: PerformanceBonusLine): string[] {
-  if (line.source === "manual") return ["Diisi manual"];
+  if (line.source === "manual") {
+    return [line.manualAt ? `Diisi manual ${formatJakartaDay(line.manualAt)}` : "Diisi manual"];
+  }
   if (line.source === "synced") {
     return [line.lastSyncedAt ? `Tersinkron ${formatTimestamp(line.lastSyncedAt)}` : "Tersinkron"];
   }
@@ -220,7 +232,14 @@ function bonusDetail(line: BonusLine): string {
   if (line.kind === "specific") return "Bonus konten Specific tepat waktu";
 
   const platform = PLATFORM_LABELS[line.platform];
-  if (line.noData) return `${platform} · ${METRIC_LABELS[line.metric]} · Tidak ada data`;
+  // Why there is no number, as the prototype names it; the metric when the state is not known.
+  const missing = line.state ? DATA_STATE_LABELS[line.state] : null;
+  if (line.waiting) return `${platform} · ${missing ?? METRIC_LABELS[line.metric]}`;
+  if (line.noData) {
+    return missing
+      ? `${platform} · Tidak ada data (${missing})`
+      : `${platform} · ${METRIC_LABELS[line.metric]} · Tidak ada data`;
+  }
 
   const reached = `${COUNT_FORMAT.format(line.value)} ${METRIC_LABELS[line.metric]}`;
   // A measured link below the first tier, as the prototype words it.
@@ -230,12 +249,15 @@ function bonusDetail(line: BonusLine): string {
 
 /** One bonus line, its detail ending with the invoice's lock wording ("" while it runs). */
 function bonus(line: BonusLine, lock: string): Described {
-  // A line that earned nothing (no data, or below Tier 1) reads "Rp0", never "+ Rp0".
+  // A line that earned nothing (no data, or below Tier 1) reads "Rp0", never "+ Rp0"; one still
+  // waiting for its number has no amount yet.
+  const waiting = line.kind === "performance" && line.waiting;
+  const amount = line.amount > 0 ? `+ ${formatRupiah(line.amount)}` : formatRupiah(line.amount);
   return {
     contentId: line.contentId,
     name: line.name,
     detail: bonusDetail(line) + lock,
-    amount: line.amount > 0 ? `+ ${formatRupiah(line.amount)}` : formatRupiah(line.amount),
+    amount: waiting ? WAITING_FOR_DATA : amount,
     tone: "plain",
   };
 }

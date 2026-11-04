@@ -19,7 +19,7 @@ export interface WaitingBonusLinkDto {
 }
 
 /**
- * The waiting links beside "Finalize tetap", and the Rp0 line each is frozen as if the admin
+ * The waiting links beside "Tetap Finalize", and the Rp0 line each is frozen as if the admin
  * freezes anyway. `available` stays in the answer so a reader that checks it still reads the list.
  */
 export interface BonusDataGapsDto {
