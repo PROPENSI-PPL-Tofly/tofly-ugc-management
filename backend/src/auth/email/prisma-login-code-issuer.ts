@@ -78,17 +78,24 @@ export class PrismaLoginCodeIssuer implements LoginCodeIssuer {
           oldestCreatedAt: recent[recent.length - 1].requested_at,
         };
       }
+      // Verification reads the code with the latest created_at. The clock was read before this
+      // request waited for the lock, so a request that read it earlier can get here later, and two
+      // can read the same millisecond. Placing the code just after the email's newest request
+      // makes created_at follow the order codes are really issued in; the expiry moves with it.
+      const newest = recent[0]?.requested_at.getTime() ?? -Infinity;
+      const shift = Math.max(0, newest + 1 - request.createdAt.getTime());
+      const createdAt = new Date(request.createdAt.getTime() + shift);
       const row = await tx.login_codes.create({
         data: {
           email: request.email,
           code_hash: request.codeHash,
-          created_at: request.createdAt,
-          expires_at: request.expiresAt,
+          created_at: createdAt,
+          expires_at: new Date(request.expiresAt.getTime() + shift),
         },
         select: { id: true },
       });
       await tx.login_code_requests.create({
-        data: { email: request.email, requested_at: request.createdAt },
+        data: { email: request.email, requested_at: createdAt },
         select: { id: true },
       });
       return { issued: true, id: row.id };
