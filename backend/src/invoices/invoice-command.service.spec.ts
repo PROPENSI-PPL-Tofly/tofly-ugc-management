@@ -194,6 +194,17 @@ describe('InvoiceCommandService', () => {
       deadline: day(-2),
       video_submitted_at: day(-2),
       content_links: [measuredLink],
+      contracts: {
+        creators: {
+          social_accounts: [
+            {
+              platform: 'instagram',
+              is_connected: true,
+              platform_user_id: 'ig-1',
+            },
+          ],
+        },
+      },
     };
 
     /** An ended contract whose one video was on time and measured, so nothing waits for data. */
