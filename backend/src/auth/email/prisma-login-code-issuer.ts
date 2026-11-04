@@ -8,13 +8,22 @@ import type {
 /** The part of a Prisma transaction client issuing a code uses. */
 interface IssueTransaction {
   $executeRaw(query: Prisma.Sql): Promise<number>;
-  login_codes: {
+  login_code_requests: {
+    deleteMany(args: {
+      where: { requested_at: { lte: Date } };
+    }): Promise<unknown>;
     findMany(args: {
-      where: { email: string; created_at: { gt: Date } };
-      orderBy: { created_at: 'desc' };
+      where: { email: string; requested_at: { gt: Date } };
+      orderBy: { requested_at: 'desc' };
       take: number;
-      select: { created_at: true };
-    }): Promise<{ created_at: Date }[]>;
+      select: { requested_at: true };
+    }): Promise<{ requested_at: Date }[]>;
+    create(args: {
+      data: { email: string; requested_at: Date };
+      select: { id: true };
+    }): Promise<{ id: string }>;
+  };
+  login_codes: {
     create(args: {
       data: {
         email: string;
@@ -35,7 +44,7 @@ export interface LoginCodesClient {
   };
 }
 
-/** login_codes in Postgres, through Prisma. */
+/** login_codes and login_code_requests in Postgres, through Prisma. */
 export class PrismaLoginCodeIssuer implements LoginCodeIssuer {
   constructor(private readonly prisma: LoginCodesClient) {}
 
@@ -48,19 +57,25 @@ export class PrismaLoginCodeIssuer implements LoginCodeIssuer {
       await tx.$executeRaw(
         Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`login_codes:${request.email}`}, 0))`,
       );
-      const recent = await tx.login_codes.findMany({
+      // Requests older than the window never count again; any request clears them, so the log
+      // holds about an hour of traffic without a scheduled job.
+      await tx.login_code_requests.deleteMany({
+        where: { requested_at: { lte: request.windowStart } },
+      });
+      // The limit counts requests, not codes: a code removed after a failed email keeps its slot.
+      const recent = await tx.login_code_requests.findMany({
         where: {
           email: request.email,
-          created_at: { gt: request.windowStart },
+          requested_at: { gt: request.windowStart },
         },
-        orderBy: { created_at: 'desc' },
+        orderBy: { requested_at: 'desc' },
         take: request.limit,
-        select: { created_at: true },
+        select: { requested_at: true },
       });
       if (recent.length >= request.limit) {
         return {
           issued: false,
-          oldestCreatedAt: recent[recent.length - 1].created_at,
+          oldestCreatedAt: recent[recent.length - 1].requested_at,
         };
       }
       const row = await tx.login_codes.create({
@@ -70,6 +85,10 @@ export class PrismaLoginCodeIssuer implements LoginCodeIssuer {
           created_at: request.createdAt,
           expires_at: request.expiresAt,
         },
+        select: { id: true },
+      });
+      await tx.login_code_requests.create({
+        data: { email: request.email, requested_at: request.createdAt },
         select: { id: true },
       });
       return { issued: true, id: row.id };

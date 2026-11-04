@@ -1,6 +1,6 @@
-// What requesting a code needs from the login_codes table. Verifying a code (#172, SCRUM-241)
-// reads the same table through its own port, LoginCodeStore; the two stay apart so neither
-// subtask has to change the other's interface.
+// What requesting a code needs from the login_codes and login_code_requests tables. Verifying a
+// code (#172, SCRUM-241) reads login_codes through its own port, LoginCodeStore; the two stay
+// apart so neither subtask has to change the other's interface.
 
 export interface IssueRequest {
   /** Trimmed and lower-cased. */
@@ -9,24 +9,27 @@ export interface IssueRequest {
   codeHash: string;
   createdAt: Date;
   expiresAt: Date;
-  /** Rows created after this moment count towards the limit. */
+  /** Requests made after this moment count towards the limit. */
   windowStart: Date;
-  /** How many rows the window may hold before a request is refused. */
+  /** How many requests the window may hold before another is refused. */
   limit: number;
 }
 
 export type IssueResult =
   | { issued: true; id: string }
-  /** Refused, nothing stored: the oldest of the `limit` newest rows decides when to retry. */
+  /** Refused, nothing stored: the oldest of the `limit` newest requests decides when to retry. */
   | { issued: false; oldestCreatedAt: Date };
 
 export interface LoginCodeIssuer {
   /**
-   * Counts the email's rows in the window and stores the new one as one atomic step per email,
-   * so simultaneous requests cannot both see room for the last slot.
+   * Counts the email's requests in the window, then stores the new code and records the request,
+   * as one atomic step per email, so simultaneous requests cannot both see room for the last slot.
    */
   issue(request: IssueRequest): Promise<IssueResult>;
-  /** Removes the one row `issue` answered with, after its email could not be sent. */
+  /**
+   * Removes the one code row `issue` answered with, after its email could not be sent. The request
+   * stays counted: the provider may have delivered the email even though the send failed.
+   */
   discard(id: string): Promise<void>;
 }
 
