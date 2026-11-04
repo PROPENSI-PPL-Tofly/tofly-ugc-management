@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
+import { ALERT, FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import { EMAIL_FORMAT, MAX_EMAIL_LENGTH } from "@/lib/creator-form";
 import {
   requestCode,
@@ -16,13 +16,12 @@ import { useCountdown } from "./use-countdown";
 /** AC: "Kirim Ulang" unlocks this long after a code was sent. */
 export const RESEND_AFTER_SECONDS = 60;
 
-const ALERT =
-  "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
 const NOTICE =
   "rounded-(--radius-control) border border-green-wash bg-green-wash px-3 py-2 text-[13px] text-green-ink";
 const WIDE = "flex w-full items-center justify-center py-2 text-[13px]";
 
 const INCOMPLETE_CODE = "Masukkan 6 digit kode.";
+const CODE_FORMAT = new RegExp(`^\\d{${CODE_LENGTH}}$`);
 
 /** What the screen says about a code that did not sign anyone in; 39.3 leaves the wording here. */
 const VERIFY_PROBLEM: Record<Exclude<CodeVerifyOutcome["kind"], "signed_in" | "wrong">, string> = {
@@ -204,7 +203,7 @@ function CodeStep({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (inFlight.current) return;
-    if (!new RegExp(`^\\d{${CODE_LENGTH}}$`).test(code)) {
+    if (!CODE_FORMAT.test(code)) {
       setAlert(INCOMPLETE_CODE);
       setInvalid(true);
       return;

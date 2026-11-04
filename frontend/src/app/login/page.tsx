@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EmailCodeSignIn } from "@/components/auth/email-code-sign-in";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { ALERT } from "@/components/ui/form-classes";
 import { Panel } from "@/components/ui/panel";
 import { MIN_TARGET } from "@/components/ui/touch-target";
 import { loginErrorMessage } from "@/lib/login-errors";
@@ -23,9 +24,6 @@ async function signedInRole(): Promise<Role | null> {
     return null;
   }
 }
-
-const ALERT =
-  "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
 
 /** Google's "G", in Google's own colours as its sign-in branding requires. */
 function GoogleMark() {
