@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { formatTimestamp } from "@/lib/format";
 import { DASH, type InvoiceRow } from "@/lib/invoice";
-import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
+import type { InvoiceBreakdown, PerformanceBonusLine } from "@/lib/invoice-breakdown";
 import { InvoiceRincian } from "./invoice-rincian";
 
 const ROW: InvoiceRow = {
@@ -52,6 +52,48 @@ const BREAKDOWN: InvoiceBreakdown = {
     total: 150000,
   },
 };
+
+/** The same invoice with the bonus measured per link (PBI-28's lines, 28.1's shape). */
+function withBonus(
+  lines: InvoiceBreakdown["bonus"]["lines"],
+  over: Partial<Props> = {},
+): Partial<Props> {
+  return {
+    breakdown: {
+      ...BREAKDOWN,
+      bonus: { ...BREAKDOWN.bonus, performance: "ready", lines },
+    },
+    ...over,
+  };
+}
+
+/** One content cross-posted: one link the platform read, one the admin typed in. */
+const LINKS: PerformanceBonusLine[] = [
+  {
+    kind: "performance",
+    contentId: "c-1",
+    name: "Evg_1_RanggaPratama_12102026",
+    platform: "instagram",
+    metric: "views",
+    value: 41200,
+    tier: 2,
+    amount: 150000,
+    source: "synced",
+    lastSyncedAt: "2026-11-02T19:00:00.000Z",
+  },
+  {
+    kind: "performance",
+    contentId: "c-1",
+    name: "Evg_1_RanggaPratama_12102026",
+    platform: "tiktok",
+    metric: "likes",
+    value: 1200,
+    tier: 1,
+    amount: 75000,
+    source: "manual",
+    lastSyncedAt: null,
+  },
+];
 
 type Props = ComponentProps<typeof InvoiceRincian>;
 
@@ -305,5 +347,78 @@ describe("InvoiceRincian", () => {
 
     expect(screen.getByText("Tidak ada rincian untuk creator ini.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Bonus Performa, one line per link (PBI-28 AC 6)", () => {
+  it("shows each link's line with its platform, value and metric, tier, source and last sync", () => {
+    setup(withBonus(LINKS));
+
+    unfold("Bonus Performa");
+    const lines = within(part("Bonus Performa")).getAllByRole("listitem");
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveTextContent(
+      "Instagram · 41.200 Views · Tier 2 · Tersinkron 3 Nov 2026, 02.00 WIB",
+    );
+    expect(lines[1]).toHaveTextContent("TikTok · 1.200 Likes · Tier 1 · Diisi manual");
+    expect(lines[1]).toHaveTextContent("+ Rp75.000");
+  });
+
+  it("reads a link frozen without data as Tidak ada data at Rp0, never as an earning", () => {
+    setup(
+      withBonus([
+        {
+          kind: "performance",
+          contentId: "c-1",
+          name: "Evg_1_RanggaPratama_12102026",
+          platform: "instagram",
+          metric: "views",
+          value: 0,
+          tier: 0,
+          amount: 0,
+          noData: true,
+        },
+      ]),
+    );
+
+    unfold("Bonus Performa");
+    const [line] = within(part("Bonus Performa")).getAllByRole("listitem");
+
+    expect(line).toHaveTextContent("Instagram · Views · Tidak ada data");
+    expect(line).toHaveTextContent("Rp0");
+    expect(line).not.toHaveTextContent("+ Rp0");
+  });
+
+  it("keeps a line from before links carried a source unnamed, rather than guessing one", () => {
+    setup(withBonus([{ ...LINKS[0], source: undefined, lastSyncedAt: undefined }]));
+
+    unfold("Bonus Performa");
+    const [line] = within(part("Bonus Performa")).getAllByRole("listitem");
+
+    expect(line).toHaveTextContent("Instagram · 41.200 Views · Tier 2");
+    expect(line).not.toHaveTextContent("Tersinkron");
+    expect(line).not.toHaveTextContent("Diisi manual");
+  });
+
+  it("ends each bonus line of a finalized invoice with the day it was locked", () => {
+    setup({
+      breakdown: {
+        ...BREAKDOWN,
+        bonus: {
+          ...BREAKDOWN.bonus,
+          performance: "ready",
+          lines: LINKS,
+          lockedOn: "2026-11-02T19:30:00.000Z",
+        },
+      },
+      row: { ...ROW, invoiceStatus: "finalized", frozenAt: "2026-11-02T19:30:00.000Z" },
+    });
+
+    unfold("Bonus Performa");
+    const lines = within(part("Bonus Performa")).getAllByRole("listitem");
+
+    expect(lines[0]).toHaveTextContent("Dikunci pada 3 Nov 2026");
+    expect(lines[1]).toHaveTextContent("Dikunci pada 3 Nov 2026");
   });
 });
