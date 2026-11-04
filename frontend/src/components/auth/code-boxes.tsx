@@ -85,7 +85,6 @@ export function CodeBoxes({ value, onChange, disabled, invalid, describedBy }: C
       {chars.map((char, index) => (
         <input
           // The boxes never move or change in number, so their position is their identity.
-          // eslint-disable-next-line react/no-array-index-key
           key={index}
           ref={(element) => {
             refs.current[index] = element;
