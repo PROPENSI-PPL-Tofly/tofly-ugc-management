@@ -328,6 +328,38 @@ describe("FinalizeModal", () => {
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
+    // Once frozen anyway nothing waits any more: only the sync report stays, before Selesai.
+    it("drops the waiting list once Tetap Finalize has frozen the invoice", async () => {
+      const waiting = [
+        { contentId: "c-2", contentName: "Review Kopi", platform: "instagram", metric: "views", state: "sync_failed" },
+      ];
+      moves.finalizeInvoice
+        .mockResolvedValueOnce({
+          ok: false,
+          code: "INVOICE_BONUS_PENDING",
+          message: "Bonus performa masih menunggu data",
+          report: { lastSync: null, bonusGaps: { available: true, waiting } },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          report: {
+            lastSync: {
+              status: "failed",
+              notUpdated: [{ contentId: "c-2", contentName: "Review Kopi", platform: "instagram", state: "sync_failed" }],
+            },
+            bonusGaps: { available: true, waiting },
+          },
+        });
+      render(<FinalizeModal row={ROW} onCancel={vi.fn()} onFinalized={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Tetap Finalize" }));
+
+      await screen.findByRole("group", { name: "Link yang tidak diperbarui" });
+      expect(screen.queryByRole("group", { name: "Konten yang masih menunggu data" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Selesai" })).toBeInTheDocument();
+    });
+
     it("says the waiting list could not be read rather than showing an empty one (AC 9)", async () => {
       moves.finalizeInvoice.mockResolvedValue({
         ok: false,
