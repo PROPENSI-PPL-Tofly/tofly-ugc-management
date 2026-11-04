@@ -35,7 +35,7 @@ describe('loginCodeHasher', () => {
 
   it('refuses to hash without a secret, rather than hash with an empty key', () => {
     expect(() => loginCodeHasher(undefined)('a@example.com', '123456')).toThrow(
-      PortNotReady,
+      new PortNotReady('LOGIN_CODE_SECRET is not configured'),
     );
   });
 });
