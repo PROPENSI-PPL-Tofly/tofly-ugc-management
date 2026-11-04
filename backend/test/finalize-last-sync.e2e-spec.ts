@@ -223,7 +223,7 @@ describe('Finalize with its last sync (e2e, PBI-28 28.2)', () => {
     ]);
   });
 
-  // AC 9 through the real app: the 422 lists the waiting link with the state Finalize read, and
+  // AC 9 through the real app: the 422 lists the waiting link with the state it reads as, and
   // freezing anyway keeps it as an Rp0 no_data line.
   it('lists the waiting links in the 422 and once frozen, and freezes each as a no_data line', async () => {
     const { contractId, contents } = await endedContract('gaps', [
@@ -236,10 +236,8 @@ describe('Finalize with its last sync (e2e, PBI-28 28.2)', () => {
       .expect(422);
     const frozen = await finalize(contractId).expect(201);
 
-    const { data_state: state } =
-      await prisma.content_links.findFirstOrThrow({
-        where: { content_id: contents[0].id },
-      });
+    // The creator has no Instagram account, so the link reads as not connected (PBI-27 AC 3).
+    const state = 'not_connected';
     const waiting = [
       {
         contentId: contents[0].id,
