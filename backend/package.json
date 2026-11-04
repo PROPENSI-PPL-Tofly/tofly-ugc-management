@@ -25,7 +25,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
-    "email:test": "npm run build && node dist/email/send-test-email.js"
+    "email:test": "npm run build && node dist/email/send-test-email-cli.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.22.0",
