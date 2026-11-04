@@ -337,6 +337,19 @@ model app_sessions {
   @@index([absoluteExpiresAt], map: "app_sessions_absolute_expires_at_idx")
 }
 
+/// Sign-in codes sent by email (PBI-39). Only the code's HMAC is stored; see the migration.
+model login_codes {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String
+  codeHash  String    @map("code_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  attempts  Int       @default(0)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([email, createdAt(sort: Desc)], map: "login_codes_email_created_at_idx")
+}
+
 enum content_status {
   pending
   scheduled
