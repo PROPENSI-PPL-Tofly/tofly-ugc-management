@@ -5,7 +5,13 @@ import { buttonClasses } from "@/components/ui/button-classes";
 import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import { requestSignInCode, verifySignInCode } from "@/lib/email-sign-in-api";
 import { CODE_LENGTH, CodeBoxes } from "./code-boxes";
-import { CLOSED, emailProblem, emailSignInFlow, type CodeStep } from "./email-sign-in-flow";
+import {
+  CLOSED,
+  emailProblem,
+  emailSignInFlow,
+  type CodeStep,
+  type EmailStep,
+} from "./email-sign-in-flow";
 import { useCountdown } from "./use-countdown";
 
 const ALERT =
@@ -32,10 +38,9 @@ export function EmailCodeSignIn() {
     if (outcome.kind === "sent") countdown.start(outcome.resendAfterSeconds);
   }
 
-  function submitEmail(event: FormEvent<HTMLFormElement>) {
+  function submitEmail(step: EmailStep, event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (flow.step !== "email") return;
-    const email = flow.email.trim();
+    const email = step.email.trim();
     const problem = emailProblem(email);
     if (problem !== null) {
       dispatch({ type: "emailRefused", problem });
@@ -45,11 +50,10 @@ export function EmailCodeSignIn() {
     void sendCode(email);
   }
 
-  async function submitCode(event: FormEvent<HTMLFormElement>) {
+  async function submitCode(step: CodeStep, event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (flow.step !== "code") return;
     dispatch({ type: "verifyStarted" });
-    const outcome = await verifySignInCode(flow.email, flow.code);
+    const outcome = await verifySignInCode(step.email, step.code);
     dispatch({ type: "verifyAnswered", outcome });
     // A full page load, as after Google: the router cache holds nothing for the new session.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -72,7 +76,7 @@ export function EmailCodeSignIn() {
     const emailId = `${ids}-email`;
     const fieldErrorId = `${ids}-email-error`;
     return (
-      <form noValidate onSubmit={submitEmail} className="flex flex-col gap-3">
+      <form noValidate onSubmit={(event) => submitEmail(flow, event)} className="flex flex-col gap-3">
         <label htmlFor={emailId} className="text-[13px] font-semibold text-ink">
           Email
         </label>
@@ -81,7 +85,6 @@ export function EmailCodeSignIn() {
           type="email"
           autoComplete="email"
           // The step was opened on purpose; the field is what it is for.
-          // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           value={flow.email}
           onChange={(event) => dispatch({ type: "emailTyped", email: event.target.value })}
@@ -116,7 +119,7 @@ export function EmailCodeSignIn() {
       ids={ids}
       secondsLeft={countdown.secondsLeft}
       onCode={(code) => dispatch({ type: "codeTyped", code })}
-      onSubmit={submitCode}
+      onSubmit={(event) => void submitCode(flow, event)}
       onResend={() => void sendCode(flow.email)}
       onChangeEmail={() => dispatch({ type: "changeEmail" })}
     />
@@ -146,7 +149,8 @@ function CodeForm({
 
   // Into the first box when the step opens and after a refused code, so the next try is typed.
   useEffect(() => {
-    if (ready) (boxes.current as HTMLDivElement).querySelector("input")?.focus();
+    // The boxes are mounted with the form, so the first input is always there.
+    if (ready) ((boxes.current as HTMLDivElement).querySelector("input") as HTMLInputElement).focus();
   }, [ready]);
 
   return (
