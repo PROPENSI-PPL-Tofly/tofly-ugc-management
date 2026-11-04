@@ -27,6 +27,15 @@ function contentRow(
     deadline: day(10),
     video_submitted_at: null,
     content_links: [],
+    // Both accounts connected, so a link reads the state it is stored with.
+    contracts: {
+      creators: {
+        social_accounts: [
+          { platform: 'instagram', is_connected: true, platform_user_id: 'ig-1' },
+          { platform: 'tiktok', is_connected: true, platform_user_id: 'tt-1' },
+        ],
+      },
+    },
     ...overrides,
   };
 }
@@ -140,6 +149,26 @@ describe('toInvoiceContent', () => {
         lastSyncedAt: SYNCED_AT,
         manualAt: typedInLater,
       },
+    ]);
+  });
+
+  // As the Performa page reads it (PBI-27 AC 3): a link of an account that is not connected will
+  // never be synced, so it reads as not connected rather than waiting.
+  it('reads a waiting link of a creator whose account is not connected as not_connected', () => {
+    const row = contentRow({
+      content_links: [linkRow(), linkRow({ platform: 'tiktok' })],
+      contracts: {
+        creators: {
+          social_accounts: [
+            { platform: 'tiktok', is_connected: true, platform_user_id: 'tt-1' },
+          ],
+        },
+      },
+    });
+
+    expect(toInvoiceContent(row).links.map(({ state }) => state)).toEqual([
+      'not_connected',
+      'waiting',
     ]);
   });
 
@@ -580,6 +609,22 @@ describe('the columns an invoice is read from', () => {
           data_state: true,
           last_synced_at: true,
           manual_at: true,
+        },
+      },
+      // Whether each link's account is connected, for the state the link reads as.
+      contracts: {
+        select: {
+          creators: {
+            select: {
+              social_accounts: {
+                select: {
+                  platform: true,
+                  is_connected: true,
+                  platform_user_id: true,
+                },
+              },
+            },
+          },
         },
       },
     });
