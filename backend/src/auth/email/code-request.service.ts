@@ -2,7 +2,7 @@ import type { EmailSender } from '../../email/email-sender.js';
 import type { WarningLog } from '../google/google-sign-in.service.js';
 import type { WhitelistResolver } from '../google/ports.js';
 import { loginCodeEmail } from './login-code-email.js';
-import { generateLoginCode } from './login-code-generator.js';
+import { decoyCodeHash, generateLoginCode } from './login-code-generator.js';
 import type { LoginCodeHasher } from './login-code-hash.js';
 import type { LoginCodeIssuer } from './login-code-issuer.js';
 
@@ -17,7 +17,11 @@ export type CodeRequestResult = { outcome: 'sent' };
 
 const SENT: CodeRequestResult = { outcome: 'sent' };
 
-/** The first step of signing in with an email code: issue one and email it. */
+/**
+ * The first step of signing in with an email code: issue one and email it. An address the
+ * whitelist does not know, or no longer lets in, gets no email but a decoy row in its place, so
+ * it is rate-limited and later verified like any other and its answers match a registered one.
+ */
 export class CodeRequestService {
   constructor(
     private readonly issuer: LoginCodeIssuer,
@@ -33,15 +37,18 @@ export class CodeRequestService {
   async request(email: string): Promise<CodeRequestResult> {
     const now = this.now();
     const code = this.code();
-    await this.whitelist.resolve(email);
+    // Hashed for every address alike, so a missing secret fails registered and unknown ones the same.
+    const codeHash = this.hash(email, code);
+    const principal = await this.whitelist.resolve(email);
     await this.issuer.issue({
       email,
-      codeHash: this.hash(email, code),
+      codeHash: principal ? codeHash : decoyCodeHash(),
       createdAt: now,
       expiresAt: new Date(now.getTime() + CODE_LIFETIME_MINUTES * MINUTE_MS),
       windowStart: new Date(now.getTime() - REQUEST_WINDOW_MINUTES * MINUTE_MS),
       limit: MAX_REQUESTS_PER_WINDOW,
     });
+    if (!principal) return SENT;
     await this.sender.send(loginCodeEmail(email, code, CODE_LIFETIME_MINUTES));
     return SENT;
   }
