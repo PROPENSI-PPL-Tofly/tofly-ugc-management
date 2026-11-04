@@ -392,10 +392,14 @@ describe("EmailCodeSignIn: Kirim Ulang", () => {
   it("leaves no countdown running once the screen goes back to the email step", async () => {
     render(<EmailCodeSignIn />);
     await reachCodeStep();
-    expect(vi.getTimerCount()).toBe(1);
+    const cleared = vi.spyOn(globalThis, "clearInterval");
 
     fireEvent.click(screen.getByRole("button", { name: "Ganti email" }));
 
-    expect(vi.getTimerCount()).toBe(0);
+    // React keeps timers of its own, so the countdown's interval is watched being cleared.
+    expect(cleared).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(emailField()).toBeEnabled();
+    cleared.mockRestore();
   });
 });
