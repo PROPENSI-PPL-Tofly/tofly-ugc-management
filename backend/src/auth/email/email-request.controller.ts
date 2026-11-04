@@ -14,12 +14,10 @@ import {
 import type { Request, Response } from 'express';
 import { assertSameOrigin } from '../same-origin.js';
 import type { EmailCodeRequestService } from './email-code-request.service.js';
+import { RESEND_AFTER_SECONDS } from './login-code-request.js';
 import { checkRequestBody } from './request-body.js';
 
 export const EMAIL_CODE_REQUEST = 'EMAIL_CODE_REQUEST';
-
-/** AC 4: "Kirim Ulang" unlocks after this long. */
-export const RESEND_AFTER_SECONDS = 60;
 
 /** Its own controller on the shared auth/email prefix, beside SCRUM-241's verify. */
 @Controller('auth/email')

@@ -7,6 +7,9 @@ export const CODE_LIFETIME_MS = 10 * 60 * 1000;
 export const CODES_PER_HOUR = 5;
 export const RATE_WINDOW_MS = 60 * 60 * 1000;
 
+/** AC 4: "Kirim Ulang" unlocks after this long. */
+export const RESEND_AFTER_SECONDS = 60;
+
 const CODE_RANGE = 1_000_000;
 const DECOY_BYTES = 32;
 
