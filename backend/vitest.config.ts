@@ -18,7 +18,13 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: [
         'src/main.ts',
-        'src/**/*.module.ts',
+        // Nest wiring is proven by booting the app. The email sign-in modules (PBI-39) are measured
+        // instead: they choose which adapter (Prisma, a fail-closed sender) a request really gets.
+        'src/*.module.ts',
+        'src/*/*.module.ts',
+        'src/auth/google/*.module.ts',
+        'src/auth/session/*.module.ts',
+        'src/performance/sync/*.module.ts',
         'src/**/*.spec.ts',
         // Prisma connection wiring (extends PrismaClient, $connect on boot):
         // its correctness is proven by the live DB health check, not unit tests.
@@ -31,6 +37,14 @@ export default defineConfig({
         // The creator identity and Task Saya code is held to full coverage: a line or branch
         // no test runs there is an access rule nobody has checked.
         'src/auth/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        // Outgoing email (PBI-39): a message that reaches the wrong address, or a failure nobody
+        // notices, is a security bug, so every line is held to the auth standard.
+        'src/email/**': {
           lines: 100,
           branches: 100,
           functions: 100,
