@@ -25,8 +25,24 @@ describe("Login page", () => {
     expect(screen.getByText("Tofly Creator Management System")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Masuk" })).toBeInTheDocument();
     expect(
-      screen.getByText("Gunakan akun Google yang sudah didaftarkan oleh Admin."),
+      screen.getByText("Gunakan akun Google atau email yang sudah didaftarkan oleh Admin."),
     ).toBeInTheDocument();
+  });
+
+  // PBI-39 AC 1: both ways in, for every visitor; whether the email has access is the backend's
+  // answer, never something the page decides beforehand.
+  it("offers signing in with Google and with an email code", async () => {
+    await renderLogin();
+
+    expect(screen.getByRole("link", { name: "Masuk dengan Google" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Masuk dengan Kode Email" })).toBeInTheDocument();
+    expect(screen.getByText("atau")).toBeInTheDocument();
+  });
+
+  it("keeps offering the email code after a refused Google sign-in", async () => {
+    await renderLogin({ error: "not_authorized" });
+
+    expect(screen.getByRole("button", { name: "Masuk dengan Kode Email" })).toBeInTheDocument();
   });
 
   it("starts Google sign-in with a full-page navigation to the backend flow", async () => {
