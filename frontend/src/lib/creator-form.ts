@@ -62,7 +62,7 @@ export interface CreatorFormErrors {
 
 // The API's pattern (backend new-creator.ts): dot-separated runs of allowed characters on both
 // sides of one "@", and at least one dot in the domain.
-const EMAIL_FORMAT =
+export const EMAIL_FORMAT =
   /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 /**
