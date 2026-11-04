@@ -31,6 +31,19 @@ describe('validate (environment at boot)', () => {
     },
   );
 
+  it('fails fast in production without the login code secret', () => {
+    expect(() =>
+      validate({
+        ...complete,
+        NODE_ENV: 'production',
+        GOOGLE_CLIENT_ID: 'id',
+        GOOGLE_CLIENT_SECRET: 'secret',
+        GOOGLE_REDIRECT_URI: 'http://localhost/callback',
+        STORAGE_BUCKET: 'bucket',
+      }),
+    ).toThrow('Missing required env var: LOGIN_CODE_SECRET');
+  });
+
   it('accepts a configuration naming both database URLs', () => {
     expect(validate(complete)).toBe(complete);
   });
