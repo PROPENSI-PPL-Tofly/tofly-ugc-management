@@ -65,7 +65,8 @@ transaction behind `issue()`, so callers cannot run them in the wrong order.
 
 ## Known security limitations (for the Product Owner)
 
-Account enumeration is **reduced, not completely prevented**. Two signals remain because of what the PBI asks for:
+Account enumeration is **reduced, not completely prevented**. Three signals remain. The first two come from what
+the PBI asks for; the third lasts only until 39.1 is merged:
 
 1. **Timing.** A registered address waits for the email to be handed to SMTP; an unknown one does not. A careful attacker
    measuring response times may tell them apart. Answering before sending would hide this, but then the backend could
@@ -73,11 +74,23 @@ Account enumeration is **reduced, not completely prevented**. Two signals remain
 2. **Delivery failure.** "Kode gagal dikirim. Coba lagi." can only reach a registered address, because unknown
    addresses never send. While SMTP is failing, a 503 reveals that the address is registered.
 
-Both are accepted for now (decision T1). Either can be revisited with the PO: for example, send asynchronously and
+Signals 1 and 2 are accepted for now (decision T1). Either can be revisited with the PO: for example, send asynchronously and
 drop the failure message, or add a randomized delay to the decoy path.
 
-Also note: a request whose email failed is not counted towards the hourly limit, because its row is removed. No email
-went out, so nothing is flooded, but a stream of 503s is not rate-limited.
+3. **Before 39.1 is merged, every registered address is revealed.** Until the SMTP adapter of 39.1 replaces
+   `unreadyEmailSender`, sending always fails:
+   - a registered address answers **503** "Kode gagal dikirim";
+   - an unknown or revoked one answers **200**.
+
+   Anyone could tell the two apart with a single request.
+   - **Where this matters:** CI deploys only `main` (production) and `staging`. The `build` job in
+     `.github/workflows/backend.yml` requires one of those refs, and `feat/pbi-39-email-sign-in` is never deployed.
+   - **Rule:** 39.1 must be merged into `feat/pbi-39-email-sign-in` **before** PBI-39 is merged into `main` or
+     `staging`, or deployed anywhere.
+
+Also note: a request whose email failed is not counted towards the hourly limit, because its row is removed. That
+assumes no email went out. Whether that assumption is safe, for example after a provider timeout, is still under review
+with the PO.
 
 ## Dependencies and coordination
 
@@ -98,10 +111,14 @@ went out, so nothing is flooded, but a stream of 503s is not rate-limited.
   - That belongs to 39.3. Until it lands, verifying any code answers 503, even with both PRs merged.
   - What 39.3 needs from this table:
     - `latest` = newest row by `created_at desc`, using the `(email, created_at desc)` index;
-    - `attempts` is capped at 5 by a check constraint;
+    - `attempts` is capped at 5 by a check constraint (`between 0 and 5`);
     - decoy rows look exactly like real ones.
-  - `app.module.ts`: both PRs add one import and one module. They are placed on different lines, so git should merge
-    them without a conflict.
+  - **The attempts cap was checked against #172's code.** `LoginCodeStore.recordWrongAttempt` answers `null` "when the
+    code had already reached the limit", `MAX_CODE_ATTEMPTS` is 5, and #172's fake store returns `null` at 5 without
+    incrementing. An adapter that keeps that contract never writes 6.
+  - **Merging with #172 has been checked.** `git merge-tree --write-tree HEAD origin/feat/email-code-verification_241`
+    merged without conflicts at #172's `56d99bf`. That includes `app.module.ts`, where both PRs add an import and a
+    module on different lines, and the identical `checkEmail` export.
   - #172 adds `requireLoginCodeSecretInProduction` to the boot validation; this PR relies on it rather than adding it
     again. Without the secret, every code request answers 503 alike: registered and unknown addresses fail the same
     way.
@@ -111,13 +128,18 @@ went out, so nothing is flooded, but a stream of 503s is not rate-limited.
 ### 1. A transaction alone did not stop the rate limit race; an advisory lock did
 
 - **Problem I found:**
-  - My first idea for "five requests per hour" was simple: count the email's rows from the last hour, and insert a new
-    one if there are fewer than five.
-  - I put both steps in one Prisma transaction and expected that to be safe.
-  - It was not. Postgres runs in READ COMMITTED by default, so two transactions can both count the same four rows and
-    both insert a fifth.
-  - I checked this instead of assuming it. I ran `login-code-issuer.e2e-spec.ts`, which fires 12 simultaneous requests
-    for one email at a real Postgres, against the adapter without a lock. **All 12 were issued, in 3 runs out of 3.**
+  - The obvious way to do "five requests per hour" is: count the email's rows from the last hour, and insert a new one
+    if there are fewer than five.
+  - It is tempting to think that wrapping both steps in one Prisma transaction makes this safe.
+  - It does not. Postgres runs in READ COMMITTED by default. A row inserted by one transaction is invisible to the others
+    until it commits, so simultaneous requests can all count the same rows and all insert.
+  - I wanted to see this rather than take it on trust, so I ran an **experiment**. The adapter I committed always had
+    the lock; the version without it only ever existed in the experiment.
+  - I ran the adapter's exact queries 12 times at once for one email against a real Postgres, once inside a plain
+    transaction and once with the lock. Without the lock, **12 of 12 were issued in 3 rounds out of 3**.
+  - The experiment is now `backend/scripts/login-code-lock-experiment.mjs`. It only runs against a disposable local
+    database named in `LOGIN_CODE_EXPERIMENT_DATABASE_URL`.
+  - It is a script and not a test on purpose: a test that expects a race to happen would be flaky.
 - **Solution I considered and why:**
   - **`SELECT ... FOR UPDATE` on the user's row:** this is what the invoices code does (`contract-lock.ts`). But
     unknown emails have no user row to lock. Unknown addresses would then not be limited the same way, which leaks
@@ -132,8 +154,12 @@ went out, so nothing is flooded, but a stream of 503s is not rate-limited.
     inserts, all in one transaction.
   - The unit spec checks the order `begin → lock → count → insert → commit`, and that the email is a bound parameter,
     not part of the SQL text.
-  - With the lock, the same e2e test gives **exactly 5 issued and 7 refused, in 5 runs out of 5**. Through HTTP,
-    `email-code-request.e2e-spec.ts` sends 10 simultaneous requests and gets 5 × 200 and 5 × 429.
+  - With the lock, the experiment gives **5 of 12 in every round**. The committed e2e test
+    `login-code-issuer.e2e-spec.ts` ("lets exactly five of twelve simultaneous requests for one email through") holds
+    the lock version to that, and passed 5 runs out of 5.
+  - Through HTTP, `email-code-request.e2e-spec.ts` sends 10 simultaneous requests and gets 5 × 200 and 5 × 429.
+  - Only these real-database runs prove the locking. The unit spec uses a fake transaction, so it can check the order of
+    the steps but not what Postgres does.
   - What I learned: under READ COMMITTED each statement takes a fresh snapshot. So the count that runs *after* waiting
     for the lock sees the row the previous holder committed. That is why it works without SERIALIZABLE.
 
@@ -150,9 +176,12 @@ went out, so nothing is flooded, but a stream of 503s is not rate-limited.
   - **What I chose:** 32 random bytes as hex. That is the same 64-character shape as an HMAC-SHA256, and the check
     constraint `code_hash ~ '^[0-9a-f]{64}$'` holds for both kinds of row. It does not come from any code, so matching
     it would mean finding an HMAC collision.
-  - I also noticed that the registered path calls the hasher and the decoy path did not. If `LOGIN_CODE_SECRET` was
-    missing, only registered emails would fail, which is a leak of its own. So the service now hashes for every address
-    before checking the whitelist.
+  - While designing the decoy path, I spotted a less obvious difference. A decoy does not need the HMAC, so the natural
+    design would only call the hasher for registered addresses.
+  - But the hasher throws when `LOGIN_CODE_SECRET` is missing. With a misconfigured secret, registered emails would
+    fail and unknown ones would succeed, which is a leak of its own.
+  - So I designed the service to hash for every address, before asking the whitelist, from the first version that had
+    decoys.
 - **What I did:**
   - `decoyCodeHash()` is in `login-code-generator.ts`.
   - In `CodeRequestService`, the whitelist decides only *which* hash is stored and whether an email goes out.
