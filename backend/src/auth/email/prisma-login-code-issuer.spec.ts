@@ -33,10 +33,10 @@ function fakePrisma(recent: { created_at: Date }[]) {
     },
   };
   const prisma = {
-    $transaction: vi.fn(<T>(work: (client: typeof tx) => Promise<T>) => {
+    $transaction<T>(work: (client: typeof tx) => Promise<T>): Promise<T> {
       steps.push('begin');
       return work(tx).finally(() => steps.push('commit'));
-    }),
+    },
     login_codes: {
       deleteMany: vi.fn((_args: unknown) => Promise.resolve({ count: 1 })),
     },
