@@ -13,7 +13,8 @@ export const CODE_LIFETIME_MINUTES = 10;
 export const MAX_REQUESTS_PER_WINDOW = 5;
 export const REQUEST_WINDOW_MINUTES = 60;
 
-export type CodeRequestResult = { outcome: 'sent' };
+export type CodeRequestResult =
+  { outcome: 'sent' } | { outcome: 'limited'; retryAfterMinutes: number };
 
 const SENT: CodeRequestResult = { outcome: 'sent' };
 
@@ -40,7 +41,7 @@ export class CodeRequestService {
     // Hashed for every address alike, so a missing secret fails registered and unknown ones the same.
     const codeHash = this.hash(email, code);
     const principal = await this.whitelist.resolve(email);
-    await this.issuer.issue({
+    const issued = await this.issuer.issue({
       email,
       codeHash: principal ? codeHash : decoyCodeHash(),
       createdAt: now,
@@ -48,6 +49,14 @@ export class CodeRequestService {
       windowStart: new Date(now.getTime() - REQUEST_WINDOW_MINUTES * MINUTE_MS),
       limit: MAX_REQUESTS_PER_WINDOW,
     });
+    if (!issued.issued) {
+      const freesAt =
+        issued.oldestCreatedAt.getTime() + REQUEST_WINDOW_MINUTES * MINUTE_MS;
+      return {
+        outcome: 'limited',
+        retryAfterMinutes: Math.ceil((freesAt - now.getTime()) / MINUTE_MS),
+      };
+    }
     if (!principal) return SENT;
     await this.sender.send(loginCodeEmail(email, code, CODE_LIFETIME_MINUTES));
     return SENT;
