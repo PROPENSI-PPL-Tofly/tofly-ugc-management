@@ -145,6 +145,88 @@ describe('CodeRequestService', () => {
     });
   });
 
+  describe('the hourly limit', () => {
+    /** Requests from one email at the given offsets in milliseconds after NOW. */
+    async function requestsAt(email: string, offsets: number[]) {
+      let now = NOW;
+      const context = setup({ now: () => now });
+      const results = [];
+      for (const offset of offsets) {
+        now = new Date(NOW.getTime() + offset);
+        results.push(await context.service.request(email));
+      }
+      return { ...context, results };
+    }
+
+    const FIVE = [0, 1, 2, 3, 4].map((minutes) => minutes * MINUTE);
+
+    it('lets five requests through in one hour', async () => {
+      const { results, send } = await requestsAt(CREATOR, FIVE);
+      expect(results).toEqual(Array(5).fill({ outcome: 'sent' }));
+      expect(send).toHaveBeenCalledTimes(5);
+    });
+
+    it('refuses the sixth, storing and sending nothing', async () => {
+      const { results, issuer, send } = await requestsAt(CREATOR, [
+        ...FIVE,
+        10 * MINUTE,
+      ]);
+      expect(results[5]).toEqual({ outcome: 'limited', retryAfterMinutes: 50 });
+      expect(issuer.rows).toHaveLength(5);
+      expect(send).toHaveBeenCalledTimes(5);
+    });
+
+    it.each([
+      ['a minute and a second', 58 * MINUTE + 59_000, 2],
+      ['one millisecond', 60 * MINUTE - 1, 1],
+      ['59 minutes and 59 seconds', 1_000, 60],
+    ])(
+      'rounds a wait of %s up to whole minutes',
+      async (_, sixthAt, minutes) => {
+        const { results } = await requestsAt(CREATOR, [0, 0, 0, 0, 0, sixthAt]);
+        expect(results[5]).toEqual({
+          outcome: 'limited',
+          retryAfterMinutes: minutes,
+        });
+      },
+    );
+
+    it('lets a request through again once the oldest one is sixty minutes old', async () => {
+      const { results } = await requestsAt(CREATOR, [...FIVE, 60 * MINUTE]);
+      expect(results[5]).toEqual({ outcome: 'sent' });
+    });
+
+    it('rolls: after one slot frees up, the next wait runs from the second-oldest request', async () => {
+      const { results } = await requestsAt(CREATOR, [
+        ...FIVE,
+        60 * MINUTE,
+        60 * MINUTE + 30_000,
+      ]);
+      expect(results[6]).toEqual({ outcome: 'limited', retryAfterMinutes: 1 });
+    });
+
+    it('counts each email on its own', async () => {
+      let now = NOW;
+      const { service } = setup({ now: () => now });
+      for (const minutes of [0, 1, 2, 3, 4]) {
+        now = new Date(NOW.getTime() + minutes * MINUTE);
+        await service.request(CREATOR);
+      }
+      await expect(service.request(ADMIN)).resolves.toEqual({
+        outcome: 'sent',
+      });
+    });
+
+    it.each([
+      ['an unregistered email', UNKNOWN],
+      ['a revoked creator', REVOKED],
+    ])('limits %s exactly as a registered one', async (_, email) => {
+      const registered = await requestsAt(CREATOR, [...FIVE, 10 * MINUTE]);
+      const other = await requestsAt(email, [...FIVE, 10 * MINUTE]);
+      expect(other.results).toEqual(registered.results);
+    });
+  });
+
   describe('a whitelisted creator', () => {
     it('stores only the HMAC of the code, never the code itself', async () => {
       const { service, issuer } = setup();
