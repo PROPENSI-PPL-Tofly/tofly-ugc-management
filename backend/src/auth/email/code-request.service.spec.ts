@@ -14,6 +14,9 @@ const MINUTE = 60_000;
 const CREATOR = 'rangga@example.com';
 const ADMIN = 'admin@tofly.id';
 const CODE = '012345';
+/** The whitelist answers null for a revoked creator, exactly as for an unknown address. */
+const REVOKED = 'revoked@example.com';
+const UNKNOWN = 'nobody@example.com';
 
 interface StoredRow {
   id: string;
@@ -100,6 +103,48 @@ function setup(options: { now?: () => Date; code?: () => string } = {}) {
 }
 
 describe('CodeRequestService', () => {
+  describe.each([
+    ['an unregistered email', UNKNOWN],
+    ['a revoked creator', REVOKED],
+  ])('%s', (_, email) => {
+    it('sends no email', async () => {
+      const { service, send } = setup();
+      await service.request(email);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('still stores a row, so the rate limit and verification treat it like any address', async () => {
+      const { service, issuer } = setup();
+      await service.request(email);
+      expect(issuer.rows).toHaveLength(1);
+      expect(issuer.rows[0]).toMatchObject({ email, createdAt: NOW });
+      expect(issuer.rows[0].expiresAt.getTime() - NOW.getTime()).toBe(
+        10 * MINUTE,
+      );
+    });
+
+    it('stores a decoy shaped like a real hash that the generated code does not match', async () => {
+      const { service, issuer } = setup();
+      await service.request(email);
+      const { codeHash } = issuer.rows[0];
+      expect(codeHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(codeHash).not.toBe(hashLoginCode(email, CODE, SECRET));
+    });
+
+    it('draws a fresh decoy every time', async () => {
+      const { service, issuer } = setup();
+      await service.request(email);
+      await service.request(email);
+      expect(issuer.rows[0].codeHash).not.toBe(issuer.rows[1].codeHash);
+    });
+
+    it('answers exactly what a registered email gets', async () => {
+      const registered = await setup().service.request(CREATOR);
+      const unregistered = await setup().service.request(email);
+      expect(unregistered).toEqual(registered);
+    });
+  });
+
   describe('a whitelisted creator', () => {
     it('stores only the HMAC of the code, never the code itself', async () => {
       const { service, issuer } = setup();
