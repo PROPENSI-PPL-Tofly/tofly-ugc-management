@@ -169,7 +169,7 @@ export function FinalizeModal({
           </strong>
         </div>
 
-        {waiting ? <WaitingGaps gaps={waiting.gaps} onOpenContent={onOpenContent} /> : null}
+        {waiting && !leftBehind ? <WaitingGaps gaps={waiting.gaps} onOpenContent={onOpenContent} /> : null}
         {leftBehind ? <LeftBehind links={leftBehind} /> : null}
 
         {refusal ? (
