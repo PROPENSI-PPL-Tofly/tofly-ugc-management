@@ -55,6 +55,11 @@ function setup(principal: Principal | null = CREATOR, secret = SECRET) {
   return { issuer, whitelist, mailer, logger, service };
 }
 
+/** Everything the service wrote to the log, to check nothing personal is in it. */
+function logged(logger: { warn: ReturnType<typeof vi.fn> }): string {
+  return logger.warn.mock.calls.flat().join('\n');
+}
+
 describe('EmailCodeRequestService', () => {
   describe('a whitelisted email', () => {
     it.each([
@@ -140,6 +145,82 @@ describe('EmailCodeRequestService', () => {
         expect(mailer.sendSignInCode).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe('failures', () => {
+    it('reports an email that could not be sent and logs only the error class', async () => {
+      const { mailer, logger, service } = setup();
+      mailer.sendSignInCode.mockRejectedValue(
+        new TypeError(`SMTP refused ${EMAIL} with ${CODE}`),
+      );
+
+      await expect(service.request(EMAIL)).resolves.toEqual({
+        outcome: 'failed',
+      });
+      expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+        'Sign-in code email not sent: TypeError',
+      );
+    });
+
+    it.each([
+      [
+        'the whitelist',
+        (s: ReturnType<typeof setup>) =>
+          s.whitelist.resolve.mockRejectedValue(new RangeError(EMAIL)),
+        'RangeError',
+      ],
+      [
+        'login_codes',
+        (s: ReturnType<typeof setup>) => {
+          s.issuer.failure = new SyntaxError(EMAIL);
+        },
+        'SyntaxError',
+      ],
+      [
+        'something that is not an Error',
+        (s: ReturnType<typeof setup>) =>
+          s.whitelist.resolve.mockRejectedValue(EMAIL),
+        'unknown error',
+      ],
+    ])(
+      'fails closed when %s fails, logging no email',
+      async (_label, breakIt, reason) => {
+        const s = setup();
+        breakIt(s);
+
+        await expect(s.service.request(EMAIL)).resolves.toEqual({
+          outcome: 'failed',
+        });
+        expect(s.mailer.sendSignInCode).not.toHaveBeenCalled();
+        expect(s.logger.warn).toHaveBeenCalledExactlyOnceWith(
+          `Sign-in code request failed: ${reason}`,
+        );
+      },
+    );
+
+    it('fails for every address alike while LOGIN_CODE_SECRET is missing', async () => {
+      const registered = setup(CREATOR, '');
+      const unknown = setup(null, '');
+
+      await expect(registered.service.request(EMAIL)).resolves.toEqual({
+        outcome: 'failed',
+      });
+      await expect(unknown.service.request(EMAIL)).resolves.toEqual({
+        outcome: 'failed',
+      });
+      expect(registered.issuer.stored).toEqual([]);
+      expect(unknown.issuer.stored).toEqual([]);
+    });
+
+    it('never writes the email or the code to the log', async () => {
+      const { mailer, logger, service } = setup();
+      mailer.sendSignInCode.mockRejectedValue(new Error(`${EMAIL} ${CODE}`));
+
+      await service.request(EMAIL);
+
+      expect(logged(logger)).not.toContain(EMAIL);
+      expect(logged(logger)).not.toContain(CODE);
+    });
   });
 
   it('uses the clock, a CSPRNG code and a random decoy by default', async () => {
