@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CreatorLink } from "@/components/ui/creator-link";
 import { FIELD, FIELD_ERROR, NUMERIC_INPUT } from "@/components/ui/form-classes";
+import { PerformanceLockReminder } from "@/components/performance/performance-lock-reminder";
 import { InfoTip } from "@/components/ui/info-tip";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { Pill, type Tone } from "@/components/ui/pill";
@@ -293,6 +294,8 @@ export function LinkPerformanceSection({
           </Button>
         ) : null}
       </div>
+      {/* PBI-28 AC 13: the creator's own bonus, so only a creator is reminded. */}
+      {role === "creator" ? <PerformanceLockReminder className="mb-2" /> : null}
       <ul className="flex flex-col gap-2">
         {links.map((link) =>
           link.platform && link.performance ? (

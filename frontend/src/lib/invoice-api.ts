@@ -9,6 +9,7 @@ import type {
   BonusPlatform,
   BonusTierRule,
   InvoiceBreakdown,
+  PerformanceBonusLine,
 } from "./invoice-breakdown";
 import {
   INVOICE_PAGE_SIZE,
@@ -204,6 +205,25 @@ function basisText(line: RawInvoiceLine, key: string): string {
   return String(line.basis[key]);
 }
 
+/**
+ * Where a bonus line's number came from (PBI-28 AC 6), as 28.1 and 28.2 put it in the basis.
+ * Only known values pass: an unknown source or a sync time that is not a readable moment is
+ * shown as nothing, never as text the backend did not mean.
+ */
+function lineSource(line: RawInvoiceLine): Pick<PerformanceBonusLine, "source" | "lastSyncedAt" | "noData"> {
+  const { source, lastSyncedAt } = line.basis;
+  return {
+    source: source === "synced" || source === "manual" ? source : null,
+    lastSyncedAt: readableMoment(lastSyncedAt),
+    noData: line.basis.status === "no_data",
+  };
+}
+
+/** An ISO moment the page can show, or null for anything else: never a broken date on screen. */
+function readableMoment(value: unknown): string | null {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
+}
+
 function tierRules(formula: RawRateFormula | null): BonusTierRule[] {
   if (!formula) return [];
 
@@ -261,9 +281,12 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
         value: basisNumber(line, "value"),
         tier: basisNumber(line, "tier"),
         amount: line.amount,
+        ...lineSource(line),
       })),
       total: performanceBonus.amount ?? 0,
       performance: performanceBonus.status === "waiting_for_data" ? "waiting" : "ready",
+      // Once per invoice, for the admin's Rincian and the creator's alike (PBI-28 28.4).
+      lockedOn: readableMoment(raw.snapshot?.finalizedAt),
       rules: { tiers: tierRules(raw.formula), specificBonus: raw.formula?.specificBonus ?? 0 },
     },
     penalty: {

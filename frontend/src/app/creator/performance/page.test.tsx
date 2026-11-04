@@ -137,6 +137,50 @@ describe("Creator Performa page", () => {
   });
 });
 
+// PBI-28 AC 13: under the creator's own links, as the prototype puts it under Performa Konten.
+describe("the lock reminder", () => {
+  const REMINDER =
+    "Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.";
+
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    mockedLinks.mockReset();
+    mockedLinks.mockResolvedValue(EMPTY_LINKS);
+  });
+
+  it("tells the creator, with their links, that the numbers lock at Finalize", async () => {
+    mockedFetch.mockResolvedValue(ACCOUNTS);
+
+    await renderPage();
+
+    const links = screen.getByRole("region", { name: "Link yang dikirim" });
+    expect(within(links).getByRole("note")).toHaveTextContent(REMINDER);
+  });
+
+  // The reminder does not depend on the accounts, so their failure does not take it away.
+  it.each([
+    ["the accounts could not be loaded", () => mockedFetch.mockRejectedValue(new ConnectedAccountsError(500))],
+    ["the link list could not be loaded", () => {
+      mockedFetch.mockResolvedValue(ACCOUNTS);
+      mockedLinks.mockRejectedValue(new PerformanceLinksError(500));
+    }],
+  ])("still reminds the creator when %s", async (_, fail) => {
+    fail();
+
+    await renderPage();
+
+    expect(screen.getByRole("note")).toHaveTextContent(REMINDER);
+  });
+
+  it("says nothing of it to a creator whose session ended", async () => {
+    mockedFetch.mockRejectedValue(new ConnectedAccountsError(401));
+
+    await renderPage();
+
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
+});
+
 describe("the creator's link list (PBI-27, 27.6)", () => {
   beforeEach(() => {
     mockedFetch.mockReset();

@@ -1,6 +1,7 @@
 import { ConnectedAccountsPanel } from "@/components/performance/connected-accounts-panel";
 import { ConnectPrompt } from "@/components/performance/connect-prompt";
 import { LinkPerformanceTable } from "@/components/performance/link-performance-table";
+import { PerformanceLockReminder } from "@/components/performance/performance-lock-reminder";
 import { AppShell } from "@/components/shell/app-shell";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { LoadError } from "@/components/ui/load-error";
@@ -91,6 +92,8 @@ export default async function CreatorPerformancePage({
       {loaded.kind !== "signed_out" ? (
         <section aria-label="Link yang dikirim">
           <h2 className="px-5 pt-5 text-[13px] font-semibold">Link yang dikirim</h2>
+          {/* PBI-28 AC 13: the numbers below count for the bonus only until Finalize. */}
+          <PerformanceLockReminder className="mx-5 mt-2" />
 
           {loaded.kind === "ok" ? <ConnectPrompt accounts={loaded.accounts} /> : null}
 

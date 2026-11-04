@@ -1,6 +1,7 @@
 import {
   BREAKDOWN_KINDS,
   breakdownPopup,
+  type BonusLine,
   type InvoiceBreakdown,
 } from "./invoice-breakdown";
 
@@ -242,6 +243,111 @@ describe("breakdownPopup", () => {
       );
 
       expect(view.lines[0].detail).toBe(detail);
+    });
+
+    // PBI-28 AC 6: every bonus line says where its number came from and when it was synced.
+    describe("where a line's number came from", () => {
+      const viewOf = (extra: Partial<Extract<BonusLine, { kind: "performance" }>>) =>
+        breakdownPopup(
+          "bonus",
+          breakdown({
+            bonus: {
+              ...EMPTY_BREAKDOWN.bonus,
+              lines: [
+                {
+                  kind: "performance",
+                  contentId: "c-1",
+                  name: "Evg_1_Rangga_01102026",
+                  platform: "tiktok",
+                  metric: "views",
+                  value: 12500,
+                  tier: 2,
+                  amount: 250000,
+                  ...extra,
+                },
+              ],
+              total: 250000,
+            },
+          }),
+        ).lines[0];
+
+      it.each([
+        [
+          "synced, with the moment in Jakarta's time",
+          { source: "synced", lastSyncedAt: "2026-11-02T19:00:00.000Z" },
+          "TikTok · 12.500 Views · Tier 2 · Tersinkron 3 Nov 2026, 02.00 WIB",
+        ],
+        ["synced, before any sync time was kept", { source: "synced", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Tersinkron"],
+        ["typed in by an admin", { source: "manual", lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2 · Diisi manual"],
+        ["from before links carried a source", { source: null, lastSyncedAt: null }, "TikTok · 12.500 Views · Tier 2"],
+      ] as const)("words a line %s", (_, extra, detail) => {
+        expect(viewOf(extra).detail).toBe(detail);
+      });
+
+      // As the prototype's componentsHtml words it: a measured link below the first tier earned
+      // nothing, so it says so, at "Rp0" rather than "+ Rp0" (review #160).
+      it("words a link below Tier 1 as not reaching it, at Rp0", () => {
+        const line = viewOf({ value: 800, tier: 0, amount: 0, source: "synced", lastSyncedAt: null });
+
+        expect(line.detail).toBe("TikTok · 800 Views · Belum capai Tier 1 · Tersinkron");
+        expect(line.amount).toBe("Rp0");
+      });
+
+      // 28.2's Rp0 line: no value or tier to show, and never "+ Rp0" as if something were earned.
+      it("words a link frozen without data as such, at Rp0", () => {
+        const line = viewOf({ noData: true, value: 0, tier: 0, amount: 0, source: null, lastSyncedAt: null });
+
+        expect(line.detail).toBe("TikTok · Views · Tidak ada data");
+        expect(line.amount).toBe("Rp0");
+      });
+    });
+
+    // PBI-28 28.4: on a finalized invoice each bonus line says the day it was locked, in Jakarta.
+    describe("a locked bonus", () => {
+      const performance = {
+        kind: "performance" as const,
+        contentId: "c-1",
+        name: "Evg_1_Rangga_01102026",
+        platform: "tiktok" as const,
+        metric: "views" as const,
+        value: 12500,
+        tier: 2,
+        amount: 250000,
+        source: "synced" as const,
+        lastSyncedAt: null,
+      };
+      const lockedView = (lockedOn: string | null) =>
+        breakdownPopup(
+          "bonus",
+          breakdown({
+            bonus: {
+              ...EMPTY_BREAKDOWN.bonus,
+              lockedOn,
+              lines: [
+                performance,
+                { ...performance, platform: "instagram", noData: true, value: 0, tier: 0, amount: 0 },
+                { kind: "specific", contentId: "c-2", name: "Spc_1_Rangga_05102026", amount: 100000 },
+              ],
+              total: 350000,
+            },
+          }),
+        );
+
+      it("ends every bonus line with the day it was locked, a no-data line and a Specific one included", () => {
+        expect(lockedView("2026-11-02T17:00:00.000Z").lines.map((line) => line.detail)).toEqual([
+          "TikTok · 12.500 Views · Tier 2 · Tersinkron · Dikunci pada 3 Nov 2026",
+          "Instagram · Views · Tidak ada data · Dikunci pada 3 Nov 2026",
+          "Bonus konten Specific tepat waktu · Dikunci pada 3 Nov 2026",
+        ]);
+      });
+
+      it("says nothing is locked while the invoice still runs", () => {
+        expect(lockedView(null).lines.map((line) => line.detail)).toEqual([
+          "TikTok · 12.500 Views · Tier 2 · Tersinkron",
+          "Instagram · Views · Tidak ada data",
+          "Bonus konten Specific tepat waktu",
+        ]);
+      });
     });
 
     describe("the tier info above the lines", () => {

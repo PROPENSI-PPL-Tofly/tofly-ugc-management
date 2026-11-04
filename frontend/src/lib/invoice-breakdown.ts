@@ -5,7 +5,7 @@
 //
 // Pure module: no React and no next/headers, so the table, the popup and tests all share it.
 
-import { formatDate, formatDeduction, formatRupiah } from "./format";
+import { formatDate, formatDeduction, formatJakartaDay, formatRupiah, formatTimestamp } from "./format";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -60,6 +60,12 @@ export interface PerformanceBonusLine {
   /** Which tier it earned, 1 for the lowest. */
   tier: number;
   amount: number;
+  /** Where the number came from (PBI-28 AC 6); null on a line from before links carried one. */
+  source?: "synced" | "manual" | null;
+  /** When a sync last read the number, ISO; null when never, or when an admin typed it in. */
+  lastSyncedAt?: string | null;
+  /** A link frozen without data at Finalize (28.2): Rp0, with no value or tier to show. */
+  noData?: boolean;
 }
 
 export type BonusLine = SpecificBonusLine | PerformanceBonusLine;
@@ -107,6 +113,8 @@ export interface InvoiceBreakdown {
     /** "waiting" until performance data exists (PBI-19): the bonus is unknown, not zero. */
     performance: "waiting" | "ready";
     rules: BonusRules;
+    /** When Finalize locked the bonus, ISO; null or absent while the invoice still runs (28.4). */
+    lockedOn?: string | null;
   };
   penalty: { lines: PenaltyLine[]; total: number };
 }
@@ -199,21 +207,46 @@ function rated(line: RatedLine): Described {
   };
 }
 
+/** "Tersinkron 3 Nov 2026, 02.00 WIB" or "Diisi manual" (PBI-28 AC 6); nothing when unknown. */
+function sourceDetail(line: PerformanceBonusLine): string[] {
+  if (line.source === "manual") return ["Diisi manual"];
+  if (line.source === "synced") {
+    return [line.lastSyncedAt ? `Tersinkron ${formatTimestamp(line.lastSyncedAt)}` : "Tersinkron"];
+  }
+  return [];
+}
+
 function bonusDetail(line: BonusLine): string {
   if (line.kind === "specific") return "Bonus konten Specific tepat waktu";
 
+  const platform = PLATFORM_LABELS[line.platform];
+  if (line.noData) return `${platform} · ${METRIC_LABELS[line.metric]} · Tidak ada data`;
+
   const reached = `${COUNT_FORMAT.format(line.value)} ${METRIC_LABELS[line.metric]}`;
-  return `${PLATFORM_LABELS[line.platform]} · ${reached} · Tier ${line.tier}`;
+  // A measured link below the first tier, as the prototype words it.
+  const tier = line.tier > 0 ? `Tier ${line.tier}` : "Belum capai Tier 1";
+  return [platform, reached, tier, ...sourceDetail(line)].join(" · ");
 }
 
-function bonus(line: BonusLine): Described {
+/** One bonus line, its detail ending with the invoice's lock wording ("" while it runs). */
+function bonus(line: BonusLine, lock: string): Described {
+  // A line that earned nothing (no data, or below Tier 1) reads "Rp0", never "+ Rp0".
   return {
     contentId: line.contentId,
     name: line.name,
-    detail: bonusDetail(line),
-    amount: `+ ${formatRupiah(line.amount)}`,
+    detail: bonusDetail(line) + lock,
+    amount: line.amount > 0 ? `+ ${formatRupiah(line.amount)}` : formatRupiah(line.amount),
     tone: "plain",
   };
+}
+
+/**
+ * " · Dikunci pada 3 Nov 2026" for a finalized invoice, in Jakarta's day (PBI-28 28.4): numbers
+ * that come in after Finalize no longer change its bonus. Nothing while the invoice still runs.
+ * Worded once per invoice, since every bonus line of it was locked at the same moment.
+ */
+function lockWording(lockedOn: string | null | undefined): string {
+  return lockedOn ? ` · Dikunci pada ${formatJakartaDay(lockedOn)}` : "";
 }
 
 /** The rule, then each platform's tiers lowest first, then the Specific bonus when it is set. */
@@ -280,13 +313,16 @@ const COLUMNS: Record<BreakdownKind, (breakdown: InvoiceBreakdown) => ColumnView
     empty: "Belum ada konten tambahan yang selesai.",
     note: null,
   }),
-  bonus: ({ bonus: column }) => ({
-    info: tierInfo(column.rules),
-    lines: column.lines.map(bonus),
-    total: column.total,
-    empty: "Belum ada konten yang mendapat bonus.",
-    note: column.performance === "waiting" ? `Bonus performa: ${WAITING_FOR_DATA}` : null,
-  }),
+  bonus: ({ bonus: column }) => {
+    const lock = lockWording(column.lockedOn);
+    return {
+      info: tierInfo(column.rules),
+      lines: column.lines.map((line) => bonus(line, lock)),
+      total: column.total,
+      empty: "Belum ada konten yang mendapat bonus.",
+      note: column.performance === "waiting" ? `Bonus performa: ${WAITING_FOR_DATA}` : null,
+    };
+  },
   penalty: ({ penalty: column }) => ({
     info: null,
     lines: column.lines.map(penalty),

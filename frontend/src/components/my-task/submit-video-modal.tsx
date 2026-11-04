@@ -21,6 +21,7 @@ import {
   type VideoPlatform,
 } from "@/lib/video-links";
 import { saveVideoLinks, type VideoLinksSaver } from "@/lib/video-links-api";
+import { PerformanceLockReminder } from "@/components/performance/performance-lock-reminder";
 import { TaskSummary, type TaskContent } from "./task-summary";
 
 export interface SubmitVideoModalProps {
@@ -45,6 +46,10 @@ export interface SubmitVideoModalProps {
 
   // Allows the save behavior to be replaced during testing.
   saveLinksAction?: VideoLinksSaver;
+
+  // Whether to remind that the numbers lock at Finalize (PBI-28 AC 13). It speaks of the
+  // creator's own bonus, so an admin replacing a link is not shown it.
+  lockReminder?: boolean;
 }
 
 /**
@@ -81,6 +86,7 @@ export function SubmitVideoModal({
   onSubmitted,
   onPartlySaved,
   saveLinksAction = saveVideoLinks,
+  lockReminder = true,
 }: SubmitVideoModalProps) {
   // The links the server holds: those the modal opened with, plus any a partial save added.
   const [sent, setSent] = useState<LinkDraft>(() => draftFromLinks(links));
@@ -194,6 +200,8 @@ export function SubmitVideoModal({
       >
         <div className="flex flex-col gap-4">
           <TaskSummary content={content} />
+
+          {lockReminder ? <PerformanceLockReminder /> : null}
 
           {firstLink ? <p className="text-[12.5px] text-muted">Isi minimal satu link.</p> : null}
 

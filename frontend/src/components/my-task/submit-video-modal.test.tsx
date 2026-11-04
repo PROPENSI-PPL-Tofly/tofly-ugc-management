@@ -101,6 +101,33 @@ describe("SubmitVideoModal", () => {
     expect(field("Instagram")).not.toBeRequired();
   });
 
+  // PBI-28 AC 13: before sending, the creator learns the numbers stop counting at Finalize.
+  describe("the lock reminder", () => {
+    const REMINDER =
+      "Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.";
+
+    it("tells the creator, above the link fields, that the numbers lock at Finalize", () => {
+      renderModal();
+
+      const note = screen.getByRole("note");
+      expect(note).toHaveTextContent(REMINDER);
+      // Read before the fields, as the prototype puts it.
+      expect(note.compareDocumentPosition(field("Instagram")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("tells it again when links are added or replaced later", () => {
+      renderModal({ links: [{ platform: "tiktok", url: TIKTOK_VIDEO }] });
+
+      expect(screen.getByRole("note")).toHaveTextContent(REMINDER);
+    });
+
+    it("is left out for an admin, whose bonus it is not", () => {
+      renderModal({ lockReminder: false });
+
+      expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    });
+  });
+
   it("keeps Kirim Link disabled until one valid link is filled", () => {
     renderModal();
     expect(sendButton()).toBeDisabled();

@@ -64,6 +64,19 @@ export function formatTimestamp(timestamp: string | null): string {
   return `${JAKARTA_DAY_FORMAT.format(moment)}, ${JAKARTA_TIME_FORMAT.format(moment)} WIB`;
 }
 
+/**
+ * "3 Nov 2026" for an ISO moment: the day it fell on in Jakarta, without the time. A moment at
+ * 00.30 WIB is still the previous day in UTC, so the day is never read off the ISO string.
+ */
+export function formatJakartaDay(timestamp: string | null): string {
+  if (!timestamp) return EMPTY;
+
+  const moment = new Date(timestamp);
+  if (Number.isNaN(moment.getTime())) return EMPTY;
+
+  return JAKARTA_DAY_FORMAT.format(moment);
+}
+
 /** "10 Jun – 7 Des 2026" when both ends share a year, both full dates otherwise. */
 export function formatContractWindow(start: string | null, end: string | null): string {
   if (!start || !end) return "Belum ada kontrak";
