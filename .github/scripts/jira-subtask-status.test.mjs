@@ -43,6 +43,19 @@ test("moves to Testing when a PR is opened or reopened", () => {
   assert.equal(targetStatus({ action: "reopened", merged: false }), "Testing");
 });
 
+// #165 was opened into main and #166 into another subtask's branch, then both were retargeted
+// to feat/pbi-28: GitHub sends that as "edited" with changes.base, never as "opened".
+test("moves to Testing when an open PR is retargeted to a PBI branch", () => {
+  const base = { ref: { from: "main" } };
+  assert.equal(targetStatus({ action: "edited", merged: false, changes: { base } }), "Testing");
+});
+
+test("ignores an edit that leaves the base alone, such as a new title or body", () => {
+  assert.equal(targetStatus({ action: "edited", merged: false, changes: { title: { from: "wip" } } }), null);
+  assert.equal(targetStatus({ action: "edited", merged: false, changes: { body: { from: "" } } }), null);
+  assert.equal(targetStatus({ action: "edited", merged: false }), null);
+});
+
 test("moves to Done only when a closed PR was merged", () => {
   assert.equal(targetStatus({ action: "closed", merged: true }), "Done");
   assert.equal(targetStatus({ action: "closed", merged: false }), null);
