@@ -8,6 +8,7 @@ import { GoogleAuthModule } from './auth/google/google-auth.module.js';
 import { SessionModule } from './auth/session/session.module.js';
 import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
+import { EmailModule } from './email/email.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
 import { MeModule } from './me/me.module.js';
@@ -53,6 +54,7 @@ export function validate(
     GoogleAuthModule,
     SocialModule,
     PerformanceModule,
+    EmailModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
