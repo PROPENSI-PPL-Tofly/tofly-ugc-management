@@ -3,7 +3,6 @@ import { smtpConfig } from './email-config.js';
 import {
   SmtpEmailSender,
   emailSenderFromEnv,
-  type MailTransport,
 } from './smtp-email-sender.js';
 import { PortNotReady } from '../auth/google/unready-ports.js';
 import { unreadyEmailSender } from './email-sender.js';
@@ -82,6 +81,16 @@ describe('SmtpEmailSender', () => {
     );
     expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('123456'));
     expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('Invalid login'));
+  });
+
+  it('names the kind of a failure that is not an Error either', async () => {
+    const mail = transport();
+    const log = logger();
+    mail.sendMail.mockRejectedValue('boom');
+
+    await expect(new SmtpEmailSender(CONFIG, mail, log).send(MESSAGE)).rejects.toBe('boom');
+
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('(string)'));
   });
 });
 

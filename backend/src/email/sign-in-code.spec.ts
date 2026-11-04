@@ -26,6 +26,13 @@ describe('signInCodeEmail', () => {
     expect(email.text).toContain('<img src=x onerror="alert(1)">');
   });
 
+  it('escapes every character that would become markup in the HTML body', () => {
+    const email = signInCodeEmail('&<>"\'');
+
+    expect(email.html).toContain('&amp;&lt;&gt;&quot;&#39;');
+    expect(email.text).toContain('&<>"\'');
+  });
+
   it('says what to do when the code was not asked for', () => {
     const email = signInCodeEmail('123456');
 
