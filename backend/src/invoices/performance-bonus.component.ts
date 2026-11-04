@@ -62,6 +62,7 @@ function trace(link: InvoiceLink) {
   return {
     source: link.source,
     lastSyncedAt: link.lastSyncedAt?.toISOString() ?? null,
+    manualAt: link.manualAt?.toISOString() ?? null,
   };
 }
 
@@ -86,7 +87,10 @@ function earnedLine(
   };
 }
 
-/** A link whose metric has no number yet: shown as waiting, worth nothing until measured (AC 5). */
+/**
+ * A link whose metric has no number yet: shown as waiting, worth nothing until measured (AC 5).
+ * Its state says why (not_connected, sync_failed, ...), for the line and Finalize's list (AC 9).
+ */
 function waitingLine(
   content: InvoiceContent,
   link: InvoiceLink,
@@ -100,6 +104,7 @@ function waitingLine(
       platform: link.platform,
       metric,
       status: 'waiting',
+      state: link.state,
       ...trace(link),
     },
   };

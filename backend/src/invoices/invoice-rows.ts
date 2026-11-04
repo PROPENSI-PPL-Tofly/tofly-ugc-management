@@ -65,6 +65,7 @@ export const CONTENT_SELECT = {
       likes: true,
       comments: true,
       shares: true,
+      data_state: true,
       last_synced_at: true,
       manual_at: true,
     },
@@ -108,8 +109,10 @@ function toInvoiceLink(row: InvoiceLinkRow): InvoiceLink | [] {
     likes: row.likes,
     comments: row.comments,
     shares: row.shares,
+    state: row.data_state,
     source: sourceOf(row),
     lastSyncedAt: row.last_synced_at,
+    manualAt: row.manual_at,
   };
 }
 
