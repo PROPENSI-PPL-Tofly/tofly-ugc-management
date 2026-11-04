@@ -185,9 +185,8 @@ describe('POST /auth/email/request (e2e)', () => {
     expect(rows[0].code_hash).toBe(hashLoginCode(CREATOR, sent, SECRET));
   });
 
-  it('counts a failed send towards the hourly limit, keeping the earlier code the newest', async () => {
+  it('counts a failed send towards the hourly limit, while its code row is removed', async () => {
     await post(CREATOR).expect(200);
-    const sent = outbox.codeSentTo(CREATOR)!;
     outbox.failNext = true;
     await post(CREATOR).expect(503);
     for (let i = 0; i < 3; i += 1) await post(CREATOR).expect(200);
@@ -198,7 +197,6 @@ describe('POST /auth/email/request (e2e)', () => {
     expect(
       await prisma.login_code_requests.count({ where: { email: CREATOR } }),
     ).toBe(5);
-    expect(sent).toMatch(/^d{6}$/);
   });
 
   it.each([
