@@ -40,8 +40,10 @@ class FakeStore implements LoginCodeStore {
     return this.issue(EMAIL, CODE, { codeHash: 'unguessable-decoy' });
   }
 
+  /** A snapshot, as a database read is: parallel callers can both see an unused code. */
   latest() {
-    return Promise.resolve(this.rows.at(-1) ?? null);
+    const row = this.rows.at(-1);
+    return Promise.resolve(row ? { ...row } : null);
   }
 
   recordWrongAttempt(id: string) {
