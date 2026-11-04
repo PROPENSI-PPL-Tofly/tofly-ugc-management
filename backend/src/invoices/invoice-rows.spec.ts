@@ -40,6 +40,7 @@ function linkRow(overrides: Partial<LinkRow> = {}): LinkRow {
     likes: null,
     comments: null,
     shares: null,
+    data_state: 'waiting',
     last_synced_at: null,
     manual_at: null,
     ...overrides,
@@ -86,7 +87,7 @@ describe('creatorName', () => {
 });
 
 describe('toInvoiceContent', () => {
-  it('reads every link in the order handed in, with its four numbers and where they came from (28.1)', () => {
+  it('reads every link in the order handed in, with its four numbers, its state and where they came from (28.1)', () => {
     // Arrange
     const typedInLater = new Date(SYNCED_AT.getTime() + 60_000);
     const row = contentRow({
@@ -98,11 +99,13 @@ describe('toInvoiceContent', () => {
           likes: 900,
           comments: 12,
           shares: 3,
+          data_state: 'synced',
           last_synced_at: SYNCED_AT,
         }),
         linkRow({
           platform: 'tiktok',
           likes: 1_000,
+          data_state: 'manual',
           last_synced_at: SYNCED_AT,
           manual_at: typedInLater,
         }),
@@ -121,8 +124,10 @@ describe('toInvoiceContent', () => {
         likes: 900,
         comments: 12,
         shares: 3,
+        state: 'synced',
         source: 'synced',
         lastSyncedAt: SYNCED_AT,
+        manualAt: null,
       },
       {
         platform: 'tiktok',
@@ -130,8 +135,10 @@ describe('toInvoiceContent', () => {
         likes: 1_000,
         comments: null,
         shares: null,
+        state: 'manual',
         source: 'manual',
         lastSyncedAt: SYNCED_AT,
+        manualAt: typedInLater,
       },
     ]);
   });
@@ -570,6 +577,7 @@ describe('the columns an invoice is read from', () => {
           likes: true,
           comments: true,
           shares: true,
+          data_state: true,
           last_synced_at: true,
           manual_at: true,
         },

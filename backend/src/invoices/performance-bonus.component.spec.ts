@@ -52,6 +52,7 @@ describe('PerformanceBonusComponent', () => {
               tier: 2,
               source: 'synced',
               lastSyncedAt: '2026-09-17T13:00:00.000Z',
+              manualAt: null,
             },
           },
         ],
@@ -148,9 +149,13 @@ describe('PerformanceBonusComponent', () => {
       });
     });
 
-    it('names a manual entry as the source, with no sync time', () => {
+    it('names a manual entry as the source, with when it was typed in and no sync time', () => {
       // Arrange
-      const typedIn = link({ views: 12_000, source: 'manual' });
+      const typedIn = link({
+        views: 12_000,
+        source: 'manual',
+        manualAt: new Date('2026-09-17T08:30:00Z'),
+      });
 
       // Act
       const result = component.calculate(
@@ -161,6 +166,7 @@ describe('PerformanceBonusComponent', () => {
       expect(result.lines[0].basis).toMatchObject({
         source: 'manual',
         lastSyncedAt: null,
+        manualAt: '2026-09-17T08:30:00.000Z',
       });
     });
   });
@@ -266,7 +272,7 @@ describe('PerformanceBonusComponent', () => {
   });
 
   describe('a link with no number (AC 5)', () => {
-    it('shows the waiting link while the measured link keeps its bonus', () => {
+    it('shows the waiting link with its state while the measured link keeps its bonus', () => {
       // Arrange
       const crossPosted = delivered({
         links: [
@@ -276,7 +282,12 @@ describe('PerformanceBonusComponent', () => {
             source: 'synced',
             lastSyncedAt: SYNCED_AT,
           }),
-          link({ platform: 'tiktok', likes: null, views: 3_000 }),
+          link({
+            platform: 'tiktok',
+            likes: null,
+            views: 3_000,
+            state: 'not_connected',
+          }),
         ],
       });
 
@@ -298,6 +309,7 @@ describe('PerformanceBonusComponent', () => {
             tier: 2,
             source: 'synced',
             lastSyncedAt: '2026-09-17T13:00:00.000Z',
+            manualAt: null,
           },
         },
         {
@@ -308,8 +320,10 @@ describe('PerformanceBonusComponent', () => {
             platform: 'tiktok',
             metric: 'likes',
             status: 'waiting',
+            state: 'not_connected',
             source: null,
             lastSyncedAt: null,
+            manualAt: null,
           },
         },
       ]);
