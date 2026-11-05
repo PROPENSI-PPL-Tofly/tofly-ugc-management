@@ -368,6 +368,8 @@ jobs:
           # Each environment has its own performance sync secret (PERFORMANCE_SYNC_SECRET_STAGING or
           # _PROD), named after its DB secret, so staging's scheduler can never start prod's sync.
           SYNC_SECRET="PERFORMANCE_SYNC_SECRET_${DB_SECRET#DB_URL_}"
+          # Login codes are hashed under a key of their own per environment, for the same reason.
+          LOGIN_SECRET="LOGIN_CODE_SECRET_${DB_SECRET#DB_URL_}"
           if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; then
             TRAFFIC="--no-traffic"
           else
@@ -379,7 +381,7 @@ jobs:
             --region "$REGION" \
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
-            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest" \
+            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest,LOGIN_CODE_SECRET=$LOGIN_SECRET:latest" \
             --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},SMTP_HOST=${{ vars.SMTP_HOST }},SMTP_PORT=${{ vars.SMTP_PORT }},EMAIL_FROM=${{ vars.EMAIL_FROM }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
