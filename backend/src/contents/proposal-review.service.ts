@@ -35,6 +35,9 @@ export interface ProposalReviewClient {
       where: { id: string; status: 'pending' };
       data: { status: 'scheduled' };
     }) => Promise<{ count: number }>;
+    count: (args: {
+      where: { status: 'pending'; deadline: { lte: Date } };
+    }) => Promise<number>;
     updateManyAndReturn: (args: {
       where: { status: 'pending'; deadline: { lte: Date } };
       data: { status: 'scheduled' };
@@ -186,14 +189,19 @@ export class ProposalReviewService {
    * Schedules every proposal still pending from H-1 of its deadline on, approved or not, so the
    * creator can still hand it in, and records in each one's history that the system did it.
    * One statement for the move and one for the history, in one transaction; answers how many
-   * moved. On most requests nothing is due and nothing is written.
+   * moved. This runs before every content and creator request and nearly always finds nothing,
+   * so a plain count answers that case: a transaction would hold one of the instance's few
+   * connections for three round trips, which is what limited throughput under load.
    */
   async scheduleDue(now: Date): Promise<number> {
+    const due = { status: 'pending', deadline: { lte: schedulingCutoff(now) } } as const;
+    if ((await this.prisma.contents.count({ where: due })) === 0) return 0;
+
     return this.prisma.$transaction(async (transaction) => {
       // The status guard is in the UPDATE itself, so two requests promoting at once move (and
       // record) each proposal once: the second finds it no longer pending.
       const promoted = await transaction.contents.updateManyAndReturn({
-        where: { status: 'pending', deadline: { lte: schedulingCutoff(now) } },
+        where: due,
         data: { status: 'scheduled' },
         select: { id: true },
       });
