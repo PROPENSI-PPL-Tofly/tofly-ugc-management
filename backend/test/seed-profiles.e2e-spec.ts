@@ -134,6 +134,21 @@ describe('seeding by environment', () => {
     expect(userCount('true')).toBe(2);
   });
 
+  it('gives local development the admin account as well as the demo set', () => {
+    const run = spawnSync('npx', ['prisma', 'db', 'seed'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DATABASE_URL: urlOf(SCRATCH),
+        DIRECT_URL: urlOf(SCRATCH),
+      },
+    });
+
+    expect(run.status).toBe(0);
+    expect(userCount("email = 'admin@tofly.id' and is_admin")).toBe(1);
+    expect(Number(psql(SCRATCH, 'select count(*) from creators'))).toBe(12);
+  });
+
   describe('on the production database', () => {
     // Created here and dropped only if this run created it: a real `tofly` on the server stops
     // the test instead of being touched.

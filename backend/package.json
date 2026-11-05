@@ -24,6 +24,7 @@
     "db:up": "docker compose -f ../compose.yaml up -d --wait db",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "db:seed:files": "prisma db execute --file prisma/seeds/local-admin.sql --schema prisma/schema.prisma && prisma db execute --file prisma/seeds/demo.sql --schema prisma/schema.prisma",
     "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {
@@ -62,6 +63,6 @@
     "vitest": "^4.1.2"
   },
   "prisma": {
-    "seed": "prisma db execute --file prisma/seed.sql --schema prisma/schema.prisma"
+    "seed": "npm run db:seed:files"
   }
 }
