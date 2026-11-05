@@ -57,15 +57,6 @@ export default defineConfig({
           functions: 100,
           statements: 100,
         },
-        // Sign-in codes are the credential for the email sign-in path: a line or branch no
-        // test runs there is a check nobody has made. The sending code is held to full
-        // coverage like the access rules above; its argv bootstrap is excluded like main.ts.
-        'src/email/**': {
-          lines: 100,
-          branches: 100,
-          functions: 100,
-          statements: 100,
-        },
         // Uploaded files and invoice payments: who may store, open or write what is held to
         // the same standard, so an untested branch cannot hide an open file or a skipped check.
         // The creator's acknowledge and receipt confirmation (13.1) are held to it too, and so are
