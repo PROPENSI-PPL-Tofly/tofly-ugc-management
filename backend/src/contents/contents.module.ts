@@ -3,6 +3,8 @@ import { AdminGuard } from '../auth/admin.guard.js';
 import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { ContentDetailService } from './content-detail.service.js';
+import { ContentEditController } from './content-edit.controller.js';
+import { ContentEditService } from './content-edit.service.js';
 import { ContentEventHistoryService } from './content-event-history.service.js';
 import { ContentLinksController } from './content-links.controller.js';
 import { ContentListController } from './content-list.controller.js';
@@ -23,6 +25,7 @@ import { VideoSubmissionService } from './video-submission.service.js';
 
 @Module({
   controllers: [
+    ContentEditController,
     ContentLinksController,
     ContentListController,
     ContentsController,
@@ -31,6 +34,7 @@ import { VideoSubmissionService } from './video-submission.service.js';
     VideoSubmissionController,
   ],
   providers: [
+    ContentEditService,
     ContentCreationService,
     ContentDetailService,
     ContentEventHistoryService,
