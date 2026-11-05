@@ -25,6 +25,7 @@ function stubClient(stored: Stored | null, due?: string[]) {
   const tables = {
     contents: {
       findUnique: vi.fn(async () => row),
+      count: vi.fn(async () => due?.length ?? 0),
       updateMany: vi.fn(async ({ where, data }: Parameters<ProposalReviewClient['contents']['updateMany']>[0]) => {
         if ('id' in where) {
           if (!row || where.id !== ID || row.status !== where.status) return { count: 0 };
@@ -290,6 +291,28 @@ describe('ProposalReviewService.scheduleDue', () => {
 
     await expect(new ProposalReviewService(client, notifier()).scheduleDue(NOW)).resolves.toBe(0);
 
+    expect(client.content_events.createMany).not.toHaveBeenCalled();
+  });
+
+  it('opens no transaction when nothing is due, so a read holds no connection for it', async () => {
+    const { client } = stubClient(pending, []);
+
+    await new ProposalReviewService(client, notifier()).scheduleDue(NOW);
+
+    expect(client.contents.count).toHaveBeenCalledWith({
+      where: { status: 'pending', deadline: { lte: new Date('2026-10-11T00:00:00.000Z') } },
+    });
+    expect(client.$transaction).not.toHaveBeenCalled();
+    expect(client.contents.updateManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it('answers 0 when a simultaneous request promoted what the count saw', async () => {
+    const { client } = stubClient(pending, []);
+    vi.mocked(client.contents.count).mockResolvedValue(1);
+
+    await expect(new ProposalReviewService(client, notifier()).scheduleDue(NOW)).resolves.toBe(0);
+
+    expect(client.$transaction).toHaveBeenCalledTimes(1);
     expect(client.content_events.createMany).not.toHaveBeenCalled();
   });
 });
