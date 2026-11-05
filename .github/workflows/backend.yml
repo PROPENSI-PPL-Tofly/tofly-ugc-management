@@ -379,8 +379,8 @@ jobs:
             --region "$REGION" \
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
-            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest" \
-            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }}" \
+            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},SMTP_HOST=${{ vars.SMTP_HOST }},SMTP_PORT=${{ vars.SMTP_PORT }},EMAIL_FROM=${{ vars.EMAIL_FROM }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --timeout 600 \

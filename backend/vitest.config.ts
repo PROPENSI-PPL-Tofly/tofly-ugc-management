@@ -18,6 +18,7 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: [
         'src/main.ts',
+        'src/email/send-test-email-cli.ts',
         'src/**/*.module.ts',
         'src/**/*.spec.ts',
         // Prisma connection wiring (extends PrismaClient, $connect on boot):
@@ -37,6 +38,15 @@ export default defineConfig({
           statements: 100,
         },
         'src/me/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        // Sign-in codes are the credential for the email sign-in path: a line or branch no
+        // test runs there is a check nobody has made. The sending code is held to full
+        // coverage like the access rules above; its argv bootstrap is excluded like main.ts.
+        'src/email/**': {
           lines: 100,
           branches: 100,
           functions: 100,
