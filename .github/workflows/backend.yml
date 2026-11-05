@@ -325,8 +325,8 @@ jobs:
           psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -v emails="$ADMIN_EMAILS" \
             -f prisma/ops/seed-admins.sql
 
-      # What else the environment holds comes from its SEED_PROFILE variable: staging gets the demo
-      # set, production nothing more. A missing or unknown profile fails here, before the rollout.
+      # What else the environment holds comes from its SEED_PROFILE variable: both get a starting
+      # rate formula, and staging also gets the demo set. A missing or unknown profile fails here, before the rollout.
       - name: Seed environment data
         env:
           SEED_PROFILE: ${{ vars.SEED_PROFILE }}

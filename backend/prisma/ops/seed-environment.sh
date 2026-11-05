@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The data a deployed environment gets beyond its admin accounts, picked by SEED_PROFILE:
-#   baseline  nothing more (production)
-#   demo      the demo set (staging); REFRESH_DEMO_DATA=true rebuilds it first
+#   baseline  the starting rate formula (production)
+#   demo      the starting rate formula and the demo set (staging);
+#             REFRESH_DEMO_DATA=true rebuilds the demo set first
 # Anything else stops the deploy, so a missing variable can never pick a profile by accident.
 # Needs MIGRATOR_DB_URL.
 set -euo pipefail
@@ -14,9 +15,10 @@ run_sql() {
 
 case "${SEED_PROFILE:-}" in
   baseline)
-    echo "seed profile baseline: no data beyond the admin accounts"
+    run_sql seed-rate-formula.sql
     ;;
   demo)
+    run_sql seed-rate-formula.sql
     if [ "${REFRESH_DEMO_DATA:-false}" = "true" ]; then
       run_sql clear-demo.sql
     fi
