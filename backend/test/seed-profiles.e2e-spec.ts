@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { checkRateFormula } from '../src/rate-formula/rate-formula.js';
 
 // The deploy pipeline's seeding, exercised the way the migrate job runs it: psql and bash against
 // a real database. It gets a scratch database of its own, because the demo set would otherwise
@@ -45,6 +46,8 @@ function seedEnvironment(
 
 const userCount = (where: string) =>
   Number(psql(SCRATCH, `select count(*) from users where ${where}`));
+const formulaCount = () =>
+  Number(psql(SCRATCH, 'select count(*) from rate_formula'));
 const DEMO_USER = "email = 'rangga@example.com'";
 
 describe('seeding by environment', () => {
@@ -66,13 +69,6 @@ describe('seeding by environment', () => {
     psql(maintenance, `drop database if exists ${SCRATCH}`);
   });
 
-  it('adds nothing on the baseline profile', () => {
-    const run = seedEnvironment(SCRATCH, 'baseline', true);
-
-    expect(run.status).toBe(0);
-    expect(userCount('true')).toBe(0);
-  });
-
   it.each([[undefined], [''], ['prod']])(
     'fails the deploy on the unknown profile %j',
     (profile) => {
@@ -80,13 +76,72 @@ describe('seeding by environment', () => {
 
       expect(run.status).not.toBe(0);
       expect(userCount('true')).toBe(0);
+      expect(formulaCount()).toBe(0);
     },
   );
 
+  it('gives the baseline profile the rate formula and no users', () => {
+    const run = seedEnvironment(SCRATCH, 'baseline', true);
+
+    expect(run.status).toBe(0);
+    expect(userCount('true')).toBe(0);
+    expect(formulaCount()).toBe(1);
+  });
+
+  it('seeds a formula the app itself would accept', () => {
+    const tiers = (platform: string) =>
+      JSON.parse(
+        psql(
+          SCRATCH,
+          `select json_agg(json_build_object('threshold', threshold, 'bonus', bonus)
+                           order by position)
+           from performance_bonus_tiers where platform = '${platform}'`,
+        ),
+      ) as unknown;
+    const metric = (platform: string) =>
+      psql(
+        SCRATCH,
+        `select metric from performance_bonus_metrics where platform = '${platform}'`,
+      );
+    const [specificBonus, latePenaltyPerDay, maxPenaltyDays] = psql(
+      SCRATCH,
+      'select specific_bonus, late_penalty_per_day, max_penalty_days from rate_formula',
+    )
+      .split('|')
+      .map(Number);
+
+    const formula = checkRateFormula({
+      specificBonus,
+      latePenaltyPerDay,
+      maxPenaltyDays,
+      performanceBonus: {
+        instagram: { metric: metric('instagram'), tiers: tiers('instagram') },
+        tiktok: { metric: metric('tiktok'), tiers: tiers('tiktok') },
+      },
+    });
+
+    expect(formula.performanceBonus.instagram.tiers.length).toBeGreaterThan(1);
+    expect(formula.performanceBonus.tiktok.tiers.length).toBeGreaterThan(1);
+  });
+
+  it('never replaces a formula an admin has saved', () => {
+    psql(SCRATCH, 'update rate_formula set specific_bonus = 1');
+    psql(SCRATCH, "delete from performance_bonus_metrics where platform = 'tiktok'");
+
+    const run = seedEnvironment(SCRATCH, 'baseline');
+
+    expect(run.status).toBe(0);
+    expect(psql(SCRATCH, 'select specific_bonus from rate_formula')).toBe('1');
+    expect(psql(SCRATCH, 'select count(*) from performance_bonus_metrics')).toBe('1');
+  });
+
   it('loads the demo set without the local admin account', () => {
+    psql(SCRATCH, 'truncate rate_formula, performance_bonus_metrics cascade');
+
     const run = seedEnvironment(SCRATCH, 'demo');
 
     expect(run.status).toBe(0);
+    expect(formulaCount()).toBe(1);
     expect(userCount(DEMO_USER)).toBe(1);
     expect(userCount('is_admin')).toBe(0);
     expect(Number(psql(SCRATCH, 'select count(*) from creators'))).toBe(12);
