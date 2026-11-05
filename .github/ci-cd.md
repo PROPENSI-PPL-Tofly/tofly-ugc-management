@@ -148,9 +148,26 @@ only accepts deployments from its own branch.
   `postgres`
 - `prisma/ops/seed-admins.sql` with the environment's `ADMIN_EMAILS` — adds or promotes the team's
   admin accounts (skipped if the secret is unset)
+- `prisma/ops/seed-environment.sh` with the environment's `SEED_PROFILE` — see "Seed profiles" below
 - Runs **after** the image is pushed so a broken Dockerfile can never leave an environment
   migrated but not deployed; runs **before** `deploy` because the Prisma client is baked into the
   image at build time and must not reach an environment ahead of its schema
+
+#### Seed profiles
+
+| Where | Profile | Data |
+| --- | --- | --- |
+| local, CI, ZAP | `npm run db:seed` | `admin@tofly.id` + the demo set (`prisma/seeds/`) |
+| `staging` | `demo` | `ADMIN_EMAILS` + the demo set |
+| `production` | `baseline` | `ADMIN_EMAILS` only |
+
+A missing or unknown `SEED_PROFILE` fails `migrate`, so nothing is rolled out. The demo seed loads
+only when the set is absent, so a deploy never resets what testers are doing, and both demo scripts
+refuse a database named `tofly` whatever the profile says.
+
+Demo dates are offsets from the day they were loaded. To load them again, run the workflow by hand
+on `staging` with `refresh_demo_data`. That removes the twelve demo users and everything they own,
+and leaves every other row.
 
 **`deploy`** (`needs: build, migrate`, environment-scoped)
 
@@ -254,6 +271,7 @@ An environment variable overrides a repository variable of the same name.
 | `BACKEND_URL` | the `backend-prod` URL | the `backend` URL |
 | `GOOGLE_REDIRECT_URI` | `<frontend-prod URL>/api/auth/google/callback` | `<frontend URL>/api/auth/google/callback` |
 | `CLOUD_RUN_MIN_INSTANCES` | `0` or `1` | `0` or `1` |
+| `SEED_PROFILE` | `baseline` | `demo` |
 
 | Secret | Value |
 | --- | --- |
