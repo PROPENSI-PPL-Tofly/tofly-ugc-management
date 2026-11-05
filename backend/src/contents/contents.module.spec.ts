@@ -1,6 +1,8 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
+import { ContentEditController } from './content-edit.controller.js';
+import { ContentEditService } from './content-edit.service.js';
 import { ContentLinksController } from './content-links.controller.js';
 import { ContentListController } from './content-list.controller.js';
 import { ContentListService } from './content-list.service.js';
@@ -16,6 +18,20 @@ import {
 } from './link-change.service.js';
 
 describe('ContentsModule', () => {
+  it('registers the edit and delete controller and service (PBI-25)', () => {
+    const controllers = Reflect.getMetadata(
+      MODULE_METADATA.CONTROLLERS,
+      ContentsModule,
+    ) as unknown[];
+    const providers = Reflect.getMetadata(
+      MODULE_METADATA.PROVIDERS,
+      ContentsModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(ContentEditController);
+    expect(providers).toContain(ContentEditService);
+  });
+
   it('registers the contents controller and creation service', () => {
     const controllers = Reflect.getMetadata(
       MODULE_METADATA.CONTROLLERS,
