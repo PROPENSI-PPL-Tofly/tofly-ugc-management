@@ -171,6 +171,8 @@ Runtime config on the service: `--add-cloudsql-instances` mounts the instance's 
 `GOOGLE_CLIENT_SECRET` come from **Secret Manager** (`--set-secrets`), never env vars, and so does
 `PERFORMANCE_SYNC_SECRET` (from `PERFORMANCE_SYNC_SECRET_STAGING` or `_PROD`, picked by the
 suffix of `DB_SECRET`). With it unset or under 32 characters the sync route refuses everything.
+`LOGIN_CODE_SECRET` (from `LOGIN_CODE_SECRET_STAGING` or `_PROD`, picked the same way) is the HMAC
+key for stored login codes; the backend refuses to boot without it.
 `GOOGLE_CLIENT_ID` and `GOOGLE_REDIRECT_URI` are plain env.
 
 ### Frontend: `test` → `sonar` → `deploy`
@@ -379,9 +381,9 @@ make them members of `cloudsqlsuperuser`.
 
 | Service account | Used by | Extra access |
 | --- | --- | --- |
-| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_STAGING` |
+| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_STAGING`, `LOGIN_CODE_SECRET_STAGING` |
 | `run-frontend` | `frontend` (staging) | none |
-| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_PROD` |
+| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_PROD`, `LOGIN_CODE_SECRET_PROD` |
 | `run-frontend-prod` | `frontend-prod` | none |
 
 ### Secret Manager
@@ -392,6 +394,7 @@ make them members of `cloudsqlsuperuser`.
 | `DB_URL_STAGING` | the same for `tofly_staging` |
 | `GOOGLE_CLIENT_SECRET` | the Web OAuth client secret |
 | `PERFORMANCE_SYNC_SECRET_STAGING`, `PERFORMANCE_SYNC_SECRET_PROD` | 48 random bytes (base64url) each; the header Cloud Scheduler sends to start that environment's daily performance sync |
+| `LOGIN_CODE_SECRET_STAGING`, `LOGIN_CODE_SECRET_PROD` | 48 random bytes (base64url) each; the HMAC key for that environment's stored login codes |
 | `CLOUDSQL_POSTGRES_PASSWORD`, `CLOUDSQL_TOFLY_PROD_PASSWORD`, `CLOUDSQL_TOFLY_STAGING_PASSWORD` | the role passwords the URLs above are built from; no runtime account can read them |
 
 `connection_limit=5` keeps 3 instances × 2 environments well under the instance's connection cap.
