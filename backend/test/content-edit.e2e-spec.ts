@@ -110,13 +110,11 @@ describe('PATCH and DELETE /contents/:id (e2e)', () => {
     it('changes a Specific item and records old and new values in the timeline (AC 2, 4)', async () => {
       const item = await scheduled(`${MARKER} Promo`);
 
-      const response = await admin
-        .patch(`/contents/${item.id}`)
-        .send({
-          deadline: iso(25),
-          brief: 'Brief baru',
-          name: `${MARKER} Promo Akhir Tahun`,
-        });
+      const response = await admin.patch(`/contents/${item.id}`).send({
+        deadline: iso(25),
+        brief: 'Brief baru',
+        name: `${MARKER} Promo Akhir Tahun`,
+      });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -276,6 +274,29 @@ describe('PATCH and DELETE /contents/:id (e2e)', () => {
       await admin.delete(`/contents/${first.id}`).expect(204);
 
       await add().expect(201);
+    });
+  });
+
+  // PBI-38 AC 14: Tambah Konten holds the same H-5 line as an edit.
+  describe('POST /contents', () => {
+    it('refuses a deadline past the H-5 line and takes the H-5 day itself', async () => {
+      const lastDay = latestDeadline(iso(60));
+      const add = (deadline: string) =>
+        admin.post('/contents').send({
+          contractId,
+          type: 'specific',
+          name: `${MARKER} Tambah ${deadline}`,
+          brief: 'Brief',
+          deadline,
+        });
+
+      const late = await add(iso(56));
+
+      expect(late.status).toBe(422);
+      expect(late.body.errors).toEqual({
+        deadline: `Deadline paling lambat ${readableDay(lastDay)} (H-5 akhir kontrak)`,
+      });
+      await add(lastDay).expect(201);
     });
   });
 
