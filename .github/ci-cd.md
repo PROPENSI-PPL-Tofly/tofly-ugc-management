@@ -158,12 +158,17 @@ only accepts deployments from its own branch.
 | Where | Profile | Data |
 | --- | --- | --- |
 | local, CI, ZAP | `npm run db:seed` | `admin@tofly.id` + the demo set (`prisma/seeds/`) |
-| `staging` | `demo` | `ADMIN_EMAILS` + the demo set |
-| `production` | `baseline` | `ADMIN_EMAILS` only |
+| `staging` | `demo` | `ADMIN_EMAILS` + the starting rate formula + the demo set |
+| `production` | `baseline` | `ADMIN_EMAILS` + the starting rate formula |
 
 A missing or unknown `SEED_PROFILE` fails `migrate`, so nothing is rolled out. The demo seed loads
 only when the set is absent, so a deploy never resets what testers are doing, and both demo scripts
 refuse a database named `tofly` whatever the profile says.
+
+The starting rate formula (`prisma/ops/seed-rate-formula.sql`) holds placeholder figures for an
+admin to review in Atur Formula Rate. It only fills an environment with no formula, so one saved in
+the app is never replaced. The content fee is not part of it: that stays each contract's
+`fixed_rate`.
 
 Demo dates are offsets from the day they were loaded. To load them again, run the workflow by hand
 on `staging` with `refresh_demo_data`. That removes the twelve demo users and everything they own,
