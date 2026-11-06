@@ -21,6 +21,9 @@ import {
 /** What a failed upload says on its tile, as the prototype words it. */
 export const UPLOAD_FAILED = "Gagal diunggah";
 
+/** What the help line says when the server keeps an image the Admin asked to remove. */
+export const REMOVE_FAILED = "Gambar gagal dihapus. Coba lagi.";
+
 // How long a refusal stays on screen, as the prototype shows it.
 const MESSAGE_MS = 3500;
 
@@ -30,6 +33,9 @@ export interface ScreenshotUploader {
     file: File,
     options: { onProgress: (percent: number) => void; signal: AbortSignal },
   ): Promise<StoredImage>;
+  // Deletes a stored image, which would otherwise go out with the note (34.1 ties each image to
+  // the submission).
+  remove(imageId: string): Promise<void>;
 }
 
 export interface Screenshots {
@@ -104,6 +110,17 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
   }
 
   function remove(id: string) {
+    const upload = current.current.find((each) => each.id === id);
+    // Stored on the server: it leaves the list once the server has deleted it, so the five the
+    // list counts stay the five the server counts.
+    if (upload?.status === "done") {
+      uploader.remove(upload.imageId).then(
+        () => apply((list) => removed(list, id)),
+        () => setRefusal(REMOVE_FAILED),
+      );
+      return;
+    }
+    // Still uploading, or failed: nothing is stored yet, so it is only stopped here.
     controllers.current.get(id)?.abort();
     apply((list) => removed(list, id));
   }
