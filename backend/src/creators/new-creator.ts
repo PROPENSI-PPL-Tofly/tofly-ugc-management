@@ -1,7 +1,8 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { contract_type, social_platform } from '@prisma/client';
 import {
-  DEADLINE_AFTER_CONTRACT_END,
+  latestDeadline,
+  pastLatestDeadline,
   earliestDeadline,
   jakartaMidnight,
   readableDay,
@@ -324,8 +325,8 @@ function checkDeadlines(
     errors.deadlines = `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
   } else if (isoDay(deadlines[0]) < earliest) {
     errors.deadlines = `Deadline paling cepat ${readableDay(earliest)}`;
-  } else if (deadlines[deadlines.length - 1] > contractEnd) {
-    errors.deadlines = DEADLINE_AFTER_CONTRACT_END;
+  } else if (isoDay(deadlines[deadlines.length - 1]) > latestDeadline(isoDay(contractEnd))) {
+    errors.deadlines = pastLatestDeadline(isoDay(contractEnd));
   }
   return deadlines;
 }

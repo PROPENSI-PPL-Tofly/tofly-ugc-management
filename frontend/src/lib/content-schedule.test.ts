@@ -77,8 +77,8 @@ describe("validateEvergreenSlot", () => {
       expect(errors.deadline).toBe("Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)");
     });
 
-    it("accepts the contract end date itself", () => {
-      const errors = validateEvergreenSlot({ ...VALID_INPUT, deadline: "2026-12-31" });
+    it("accepts the H-5 line itself", () => {
+      const errors = validateEvergreenSlot({ ...VALID_INPUT, deadline: "2026-12-26" });
 
       expect(errors.deadline).toBeUndefined();
     });

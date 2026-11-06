@@ -106,10 +106,10 @@ describe('checkSchedule', () => {
     expect(checkSchedule(valid, TODAY)).toEqual({});
   });
 
-  it('accepts deadlines on the first and the last day of the contract', () => {
+  it('accepts deadlines on the first day of the contract and on the H-5 line', () => {
     expect(
       checkSchedule(
-        { ...valid, quota: 2, deadlines: ['2026-09-12', '2026-11-12'] },
+        { ...valid, quota: 2, deadlines: ['2026-09-12', '2026-11-07'] },
         TODAY,
       ),
     ).toEqual({});
