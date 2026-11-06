@@ -9,6 +9,7 @@ import {
   type AccountConnection,
   type StoredLinkPerformance,
 } from '../performance/performance-links.js';
+import { noteImageOf, type NoteImage, type StoredNoteImage } from '../submissions/note-image.js';
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 import { editWindow, type EditWindow } from './content-edit.js';
 import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
@@ -42,6 +43,10 @@ export interface DetailSubmissionRow {
   created_at: Date;
   updated_at: Date;
   revision_notes: string | null;
+  /** The same note as sanitized rich text (PBI-34); null for a note from before it (AC 9). */
+  revision_notes_html: string | null;
+  /** The screenshots attached to the note (PBI-34, AC 8), first attached first. */
+  revision_note_images: StoredNoteImage[];
   /** What the creator wrote to the admin with this hand-in, if anything. */
   creator_notes: string | null;
 }
@@ -97,6 +102,10 @@ export interface ContentEvent {
     version?: number;
     link?: string;
     note?: string;
+    /** The note as sanitized rich text (PBI-34 AC 8); absent for a plain or legacy note (AC 9). */
+    noteHtml?: string;
+    /** The note's screenshots (PBI-34 AC 8); absent when the note has none. */
+    images?: NoteImage[];
     platform?: social_platform;
     replaced?: true;
     /** What an admin's edit changed (PBI-25 AC 4), each field's old and new value. */
@@ -228,12 +237,21 @@ export function buildEvents(
     });
 
     if (said(submission.revision_notes)) {
+      const images = submission.revision_note_images.map(noteImageOf);
       events.push({
         id: `${submission.id}:revision`,
         type: 'revision_requested',
         at: submission.updated_at.toISOString(),
         actor: { name: null, role: 'admin' },
-        payload: { note: submission.revision_notes },
+        payload: {
+          note: submission.revision_notes,
+          // A note from before rich text carries no HTML and no screenshots, and so reads
+          // exactly as it always did (AC 9).
+          ...(said(submission.revision_note_html) && {
+            noteHtml: submission.revision_note_html,
+          }),
+          ...(images.length > 0 && { images }),
+        },
       });
     }
   });
