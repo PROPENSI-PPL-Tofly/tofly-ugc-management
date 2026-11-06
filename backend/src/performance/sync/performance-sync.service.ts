@@ -50,6 +50,12 @@ export const LEASE_MS: Readonly<Record<SyncScope['kind'], number>> = {
   contract: 60_000,
 };
 
+/** A source that sees one video twice keeps it on the earlier link; the id breaks a tie. */
+const OLDEST_LINK_FIRST: [{ created_at: 'asc' }, { id: 'asc' }] = [
+  { created_at: 'asc' },
+  { id: 'asc' },
+];
+
 export const SYNC_CONTENT_SELECT = {
   status: true,
   contracts: { select: { invoice: { select: { status: true } } } },
@@ -66,6 +72,7 @@ export interface PerformanceSyncClient {
     findMany(args: {
       where: Prisma.content_linksWhereInput;
       select: typeof SYNC_LINK_SELECT;
+      orderBy: typeof OLDEST_LINK_FIRST;
     }): Promise<SyncLinkRow[]>;
     updateMany(args: {
       where: { id: string; data_state: link_data_state };
@@ -190,6 +197,7 @@ export class PerformanceSyncService {
     const rows = await this.prisma.content_links.findMany({
       where: syncableLinks(scope),
       select: SYNC_LINK_SELECT,
+      orderBy: OLDEST_LINK_FIRST,
     });
     const leaseUntil = new Date(startedAt.getTime() + LEASE_MS[scope.kind]);
     const claimed = await this.claim(

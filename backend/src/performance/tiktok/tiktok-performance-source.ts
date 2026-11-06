@@ -48,6 +48,25 @@ type Access =
   | { outcome: 'failed'; reason: string };
 
 /**
+ * One video reached through two links stays with the first, and later ones read as not found:
+ * share links hide the video until a sync follows them, so a duplicate can get past the unique
+ * link check (PBI-38 AC 5). Links arrive oldest first. This sees one creator's syncable links.
+ */
+function firstClaimOnly(matches: readonly Match[]): Match[] {
+  const claimed = new Set<string>();
+  return matches.map((match) => {
+    if (!('video' in match)) {
+      return match;
+    }
+    if (claimed.has(match.video)) {
+      return { outcome: 'not_found' };
+    }
+    claimed.add(match.video);
+    return match;
+  });
+}
+
+/**
  * The TikTok source of performance numbers (PBI-27, 27.3), behind the PerformanceSource of
  * ports.ts that Instagram (27.2) implements too: each link is matched to its video (a share link
  * followed first), the token refreshed when due, and the counts read with video/query, 20 ids a
@@ -97,8 +116,8 @@ export class TikTokPerformanceSource implements PerformanceSource {
       };
     }
 
-    const matches = await Promise.all(
-      links.map((link) => this.match(link, deadline)),
+    const matches = firstClaimOnly(
+      await Promise.all(links.map((link) => this.match(link, deadline))),
     );
     const videos = matches.flatMap((match) =>
       'video' in match ? [match.video] : [],
