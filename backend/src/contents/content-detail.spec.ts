@@ -728,6 +728,7 @@ describe('toContentDetail link performance (PBI-27)', () => {
           ),
         ],
         contracts: {
+          ...row().contracts,
           creators: {
             first_name: 'Rangga',
             middle_name: null,

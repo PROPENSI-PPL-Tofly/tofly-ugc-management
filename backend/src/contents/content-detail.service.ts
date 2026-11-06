@@ -5,6 +5,7 @@ import {
   LINK_PERFORMANCE_SELECT,
 } from '../performance/performance-links.js';
 import { LINKS_AS_HANDED_IN } from './content-links.js';
+import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
 import {
   toContentDetail,
   type ContentDetail,
@@ -31,8 +32,13 @@ const CONTENT_DETAIL_SELECT = {
   approval_bypassed: true,
   created_at: true,
   updated_at: true,
+  // The contract's dates and invoice decide whether and where an admin may move the deadline
+  // (PBI-25 AC 1, 3, 9); a creator's read never sends them.
   contracts: {
     select: {
+      start_date: true,
+      end_date: true,
+      invoice: { select: { status: true } },
       creators: {
         select: {
           first_name: true,
@@ -124,6 +130,11 @@ export class ContentDetailService implements ContentDetailReader {
       });
     }
 
-    return toContentDetail(row, now);
+    // Only an admin edits, so only an admin's read carries the edit window.
+    return toContentDetail(
+      row,
+      now,
+      options?.creatorId ? undefined : { bufferDays: DEFAULT_BUFFER_DAYS },
+    );
   }
 }

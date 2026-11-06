@@ -139,21 +139,82 @@ export function checkContentEdit(body: unknown): ContentEdit {
   return edit;
 }
 
+/** What decides whether a content may still change (AC 1, 9), read off any row that has it. */
+export interface ChangeFacts {
+  status: content_status;
+  /** How many drafts were handed in. */
+  drafts: number;
+  /** ISO days. */
+  contractStart: string;
+  contractEnd: string;
+  /** Null before the contract has an invoice at all. */
+  invoiceStatus: InvoiceLifecycleStatus | null;
+}
+
+/** The days an edited deadline may take (AC 3), as the date picker offers them. */
+export interface EditWindow {
+  earliestDeadline: string;
+  latestDeadline: string;
+}
+
 /**
- * AC 1, 9: only content still "Scheduled" with no draft may change, and only while its
- * contract's invoice runs. The draft is named first: it is the one the admin can see on the panel.
+ * Why a content may no longer change, or null while it still may. The one rule behind both the
+ * 409 an edit or delete gets and the panel hiding Ubah and Hapus, so the two cannot drift. The
+ * draft is named first: it is the one the admin can see on the panel.
  */
-export function assertChangeable(content: EditableContent): void {
-  if (content.status !== 'scheduled' || content._count.submissions > 0) {
-    throw new ConflictException({
+function changeRefusal(facts: ChangeFacts): ConflictException | null {
+  if (facts.status !== 'scheduled' || facts.drafts > 0) {
+    return new ConflictException({
       code: 'CONTENT_NOT_EDITABLE',
       message:
         'Konten hanya bisa diubah atau dihapus selama berstatus Scheduled dan belum ada draft',
     });
   }
-  invoiceState(
-    content.contracts.invoice?.status ?? 'running',
-  ).assertCanChangeSchedule();
+  try {
+    invoiceState(facts.invoiceStatus ?? 'running').assertCanChangeSchedule();
+    return null;
+  } catch (refusal) {
+    return refusal as ConflictException;
+  }
+}
+
+function changeFactsOf(content: EditableContent): ChangeFacts {
+  return {
+    status: content.status,
+    drafts: content._count.submissions,
+    contractStart: isoDay(content.contracts.start_date),
+    contractEnd: isoDay(content.contracts.end_date),
+    invoiceStatus: content.contracts.invoice?.status ?? null,
+  };
+}
+
+/** AC 1, 9: only content still "Scheduled" with no draft may change, and only while its invoice runs. */
+export function assertChangeable(content: EditableContent): void {
+  const refusal = changeRefusal(changeFactsOf(content));
+  if (refusal) {
+    throw refusal;
+  }
+}
+
+/**
+ * The earliest and latest day an edited deadline may take, or null when the content may not
+ * change at all (AC 1, 3, 9). The same two bounds deadlineProblem judges an edit by.
+ */
+export function editWindow(
+  facts: ChangeFacts,
+  rules: SchedulingRules,
+): EditWindow | null {
+  if (changeRefusal(facts)) {
+    return null;
+  }
+  return {
+    earliestDeadline: earliestDeadline(
+      facts.contractStart,
+      rules.today,
+      rules.bufferDays,
+    ),
+    latestDeadline: latestDeadline(facts.contractEnd),
+  };
 }
 
 function isoDay(date: Date): string {
