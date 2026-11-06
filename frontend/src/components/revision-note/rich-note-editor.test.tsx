@@ -181,6 +181,39 @@ describe("RichNoteEditor links", () => {
     expect(screen.getByRole("textbox", { name: "URL link" })).toBeInTheDocument();
   });
 
+  // Corner: the refusal steps back after 3.5 seconds, as the prototype's does, and not before.
+  it("hides the refusal after 3.5 seconds, not a moment sooner", async () => {
+    renderEditor();
+    const link = await screen.findByRole("button", { name: "Tambah link" });
+    // Only now: the queries that wait run on real time, so the clock is faked once they are done.
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(link);
+      fireEvent.change(screen.getByRole("textbox", { name: "URL link" }), {
+        target: { value: "javascript:alert(1)" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Terapkan" }));
+
+      act(() => vi.advanceTimersByTime(3499));
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Link harus diawali http:// atau https://",
+      );
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the selection in the text when Link is pressed", async () => {
+    renderEditor();
+
+    expect(
+      fireEvent.mouseDown(await screen.findByRole("button", { name: "Tambah link" })),
+    ).toBe(false);
+  });
+
   // Corner: the scheme in capitals is still http(s), and spaces around the address are dropped.
   it("takes HTTPS in capitals and trims the spaces around the address", async () => {
     const { onChange } = renderEditor();
