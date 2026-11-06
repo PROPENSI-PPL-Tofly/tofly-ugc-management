@@ -20,7 +20,8 @@ function fakeUploader() {
   const upload = vi.fn<ScreenshotUploader["upload"]>(
     (_file, { signal }) => new Promise((resolve) => calls.push({ signal, resolve })),
   );
-  return { uploader: { upload }, upload, calls };
+  const remove = vi.fn<ScreenshotUploader["remove"]>().mockResolvedValue(undefined);
+  return { uploader: { upload, remove }, upload, calls };
 }
 
 function renderField(uploader: ScreenshotUploader, disabled = false) {

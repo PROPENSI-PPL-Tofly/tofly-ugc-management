@@ -19,7 +19,9 @@ function fakeUploader() {
     (file, { onProgress, signal }) =>
       new Promise((resolve, reject) => calls.push({ file, onProgress, signal, resolve, reject })),
   );
-  return { uploader: { upload }, upload, calls };
+  // Deleting a stored image on the server; a mock, so a test checks which image it was asked for.
+  const remove = vi.fn<ScreenshotUploader["remove"]>().mockResolvedValue(undefined);
+  return { uploader: { upload, remove }, upload, remove, calls };
 }
 
 const image = (name = "shot.png", type = "image/png") => new File(["x"], name, { type });
@@ -247,5 +249,47 @@ describe("ScreenshotList on a phone", () => {
       expectMinTarget(button);
       expectPhoneTarget(button);
     }
+  });
+});
+
+describe("removing a stored screenshot", () => {
+  // AC 5 with 34.1: a stored image is deleted on the server, or it would still go out with the
+  // note.
+  it("deletes a stored image on the server, then takes it off the list", async () => {
+    const { uploader, remove, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(image("intro.png"));
+    await act(async () => calls[0].resolve({ imageId: "img-1", url: "https://signed/1" }));
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Hapus gambar" })));
+
+    expect(remove).toHaveBeenCalledWith("img-1");
+    expect(screen.queryByRole("img", { name: "Lampiran" })).not.toBeInTheDocument();
+    expect(addButton()).toHaveTextContent("5 sisa");
+  });
+
+  // Negative: an image still uploading is not stored yet, so there is nothing to delete.
+  it("does not ask the server to delete an image that is still uploading", () => {
+    const { uploader, remove } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(image());
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus gambar" }));
+
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  // Corner: when the server cannot delete it, the image stays, with the reason.
+  it("keeps the image and says so when the server cannot delete it", async () => {
+    const { uploader, remove, calls } = fakeUploader();
+    remove.mockRejectedValueOnce(new Error("network"));
+    render(<Harness uploader={uploader} />);
+    pick(image());
+    await act(async () => calls[0].resolve({ imageId: "img-1", url: "https://signed/1" }));
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Hapus gambar" })));
+
+    expect(screen.getByRole("img", { name: "Lampiran" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Gambar gagal dihapus. Coba lagi.");
   });
 });
