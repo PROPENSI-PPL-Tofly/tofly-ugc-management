@@ -83,7 +83,7 @@ export function editFieldsOf(detail: EditableDetail): EditFields {
 export function checkEdit(
   fields: EditFields,
   detail: EditableDetail,
-  window: EditWindow,
+  bounds: EditWindow,
 ): EditErrors {
   const errors: EditErrors = {};
 
@@ -95,10 +95,10 @@ export function checkEdit(
   if (fields.deadline === "") {
     errors.deadline = "Deadline wajib diisi";
   } else if (fields.deadline !== detail.deadline) {
-    if (fields.deadline < window.earliestDeadline) {
-      errors.deadline = `Deadline paling cepat ${formatDate(window.earliestDeadline)}`;
-    } else if (fields.deadline > window.latestDeadline) {
-      errors.deadline = `Deadline paling lambat ${formatDate(window.latestDeadline)} (H-5 akhir kontrak)`;
+    if (fields.deadline < bounds.earliestDeadline) {
+      errors.deadline = `Deadline paling cepat ${formatDate(bounds.earliestDeadline)}`;
+    } else if (fields.deadline > bounds.latestDeadline) {
+      errors.deadline = `Deadline paling lambat ${formatDate(bounds.latestDeadline)} (H-5 akhir kontrak)`;
     }
   }
 

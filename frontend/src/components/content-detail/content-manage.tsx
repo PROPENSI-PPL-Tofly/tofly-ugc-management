@@ -124,7 +124,7 @@ type Touched = Partial<Record<keyof EditFields, boolean>>;
  */
 export function EditForm({
   detail,
-  window,
+  bounds,
   creatorFirstName,
   update,
   onCancel,
@@ -132,7 +132,7 @@ export function EditForm({
   onRefused,
 }: Readonly<{
   detail: EditableDetail;
-  window: EditWindow;
+  bounds: EditWindow;
   creatorFirstName: string;
   update: ContentManagePorts["update"];
   onCancel: () => void;
@@ -147,7 +147,7 @@ export function EditForm({
   const [asking, setAsking] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const checked = checkEdit(fields, detail, window);
+  const checked = checkEdit(fields, detail, bounds);
   const changes = editChanges(fields, detail);
   const specific = detail.type === "specific";
   // The date is judged as soon as it is picked; the text fields once left, so a field is not
@@ -278,8 +278,8 @@ export function EditForm({
           <input
             type="date"
             required
-            min={window.earliestDeadline}
-            max={window.latestDeadline}
+            min={bounds.earliestDeadline}
+            max={bounds.latestDeadline}
             className={FIELD}
             value={fields.deadline}
             aria-invalid={shown.deadline ? true : undefined}
@@ -294,7 +294,7 @@ export function EditForm({
           </span>
         ) : (
           <span id={`${id}-deadline-range`} className="text-xs text-muted">
-            {formatDate(window.earliestDeadline)} – {formatDate(window.latestDeadline)}
+            {formatDate(bounds.earliestDeadline)} – {formatDate(bounds.latestDeadline)}
           </span>
         )}
       </div>

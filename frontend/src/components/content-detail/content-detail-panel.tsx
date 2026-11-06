@@ -690,7 +690,7 @@ export function ContentDetailPanel({
             {editWindow && editing ? (
               <EditForm
                 detail={loaded}
-                window={editWindow}
+                bounds={editWindow}
                 creatorFirstName={loaded.creatorName.split(" ")[0]}
                 update={update}
                 onCancel={() => setEditing(false)}
