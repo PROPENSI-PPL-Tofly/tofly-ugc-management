@@ -85,6 +85,11 @@ const FRAME = "rounded-(--radius-control) border border-rule bg-surface";
 const TOOL_BUTTON =
   "rounded-md px-2.5 py-1 text-[12.5px] text-ink hover:bg-surface-2 aria-pressed:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40";
 
+// The files a clipboard or a drop carries; none when it carries no list at all.
+function filesIn(transfer: DataTransfer | null): File[] {
+  return Array.from(transfer?.files ?? []);
+}
+
 // A paste from a web page brings its HTML. Only its plain-text twin goes in, one paragraph a
 // line, so the page's styling, links, images and scripts never reach the note (AC 1, OWASP A05).
 // A plain paste is left to ProseMirror, which already keeps each line and adds no styling.
@@ -132,7 +137,7 @@ export function RichNoteEditor({
     editorProps: {
       handlePaste: (view, event) => {
         // A pasted file is a screenshot for the list, never part of the text.
-        const files = Array.from(event.clipboardData?.files ?? []);
+        const files = filesIn(event.clipboardData);
         if (files.length === 0) return pasteAsPlainText(view, event);
         onFiles?.(files);
         return true;
@@ -140,7 +145,7 @@ export function RichNoteEditor({
       handleDOMEvents: {
         // Taken before ProseMirror places the drop, so a dropped file never lands in the text.
         drop: (_view, event) => {
-          const files = Array.from(event.dataTransfer?.files ?? []);
+          const files = filesIn(event.dataTransfer);
           if (files.length === 0) return false;
           event.preventDefault();
           onFiles?.(files);
