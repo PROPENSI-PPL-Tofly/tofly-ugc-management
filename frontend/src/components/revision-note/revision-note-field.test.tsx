@@ -162,6 +162,18 @@ describe("RevisionNoteField layout, as the prototype draws it", () => {
     ]);
   });
 
+  // On a narrow screen the toolbar wraps: the divider goes with Tambah Gambar, never left at the
+  // end of a line.
+  it("keeps the divider together with Tambah Gambar when the toolbar wraps", async () => {
+    renderField(fakeUploader().uploader);
+
+    const toolbar = await screen.findByRole("toolbar", { name: "Format catatan revisi" });
+    const divider = within(toolbar).getByRole("separator");
+    const add = within(toolbar).getByRole("button", { name: /Tambah Gambar/ });
+    expect(divider.parentElement).not.toBe(toolbar);
+    expect(divider.parentElement).toContainElement(add);
+  });
+
   // The images sit inside the editor's frame, under the text.
   it("shows the screenshots inside the editor's frame", async () => {
     renderField(fakeUploader().uploader);

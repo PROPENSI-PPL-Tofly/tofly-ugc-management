@@ -1,5 +1,6 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import type { StoredImage } from "@/lib/revision-note-uploads";
+import { expectMinTarget, expectPhoneTarget } from "@/test/touch-target";
 import { ScreenshotList } from "./screenshot-list";
 import { useScreenshots, type ScreenshotUploader } from "./use-screenshots";
 
@@ -229,5 +230,22 @@ describe("useScreenshots", () => {
     act(() => result.current.retry(result.current.uploads[0].id));
 
     expect(upload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ScreenshotList on a phone", () => {
+  // WCAG 2.5.8 / 2.5.5, as the app's touch-target rules ask: × and Coba lagi are pressed with a
+  // finger.
+  it("makes × and Coba lagi big enough to press with a finger", async () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(image());
+    await act(async () => calls[0].reject(new Error("network")));
+
+    for (const name of ["Hapus gambar", "Coba lagi"]) {
+      const button = screen.getByRole("button", { name });
+      expectMinTarget(button);
+      expectPhoneTarget(button);
+    }
   });
 });
