@@ -146,39 +146,6 @@ function ReadyEditor({ editor, disabled, max, countId }: Readonly<ReadyEditorPro
   });
 
   const [linkOpen, setLinkOpen] = useState(false);
-  const [address, setAddress] = useState("");
-  const [linkError, setLinkError] = useState<string | null>(null);
-
-  // A refusal steps back after a few seconds, as the prototype's does.
-  useEffect(() => {
-    if (!linkError) return;
-    const timer = setTimeout(() => setLinkError(null), MESSAGE_MS);
-    return () => clearTimeout(timer);
-  }, [linkError]);
-
-  function applyLink() {
-    const href = address.trim();
-    if (!WEB_ADDRESS.test(href)) {
-      setLinkError(LINK_ADDRESS_INVALID);
-      return;
-    }
-    const chain = editor.chain().focus();
-    // Selected words become the link's text; with none, the address itself goes in, then a space
-    // so the next words typed are not part of the link.
-    if (editor.state.selection.empty) {
-      chain
-        .insertContent([
-          { type: "text", text: href, marks: [{ type: "link", attrs: { href } }] },
-          { type: "text", text: " " },
-        ])
-        .run();
-    } else {
-      chain.extendMarkRange("link").setLink({ href }).run();
-    }
-    setLinkOpen(false);
-    setAddress("");
-    setLinkError(null);
-  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -213,33 +180,76 @@ function ReadyEditor({ editor, disabled, max, countId }: Readonly<ReadyEditorPro
             Link
           </button>
         </div>
-        {linkOpen ? (
-          <div className="flex flex-col gap-1 border-b border-rule p-1.5">
-            <div className="flex gap-1.5">
-              <input
-                type="url"
-                aria-label="URL link"
-                placeholder="https://…"
-                value={address}
-                aria-invalid={linkError !== null}
-                onChange={(event) => {
-                  setAddress(event.target.value);
-                  setLinkError(null);
-                }}
-                className="flex-1 rounded-md border border-rule px-2.5 py-1.5 text-[12.5px] text-ink"
-              />
-              <Button onClick={applyLink}>Terapkan</Button>
-            </div>
-            {linkError ? (
-              <p role="alert" className="text-xs text-red-ink">
-                {linkError}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+        {linkOpen ? <LinkRow editor={editor} onDone={() => setLinkOpen(false)} /> : null}
         <EditorContent editor={editor} />
       </div>
       <CharLimit id={countId} length={state.length} max={max} />
+    </div>
+  );
+}
+
+interface LinkRowProps {
+  editor: Editor;
+  onDone: () => void;
+}
+
+// The address row under the toolbar. It is unmounted when it closes, so a new link always starts
+// from an empty address and no refusal left over.
+function LinkRow({ editor, onDone }: Readonly<LinkRowProps>) {
+  const [address, setAddress] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // A refusal steps back after a few seconds, as the prototype's does.
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), MESSAGE_MS);
+    return () => clearTimeout(timer);
+  }, [error]);
+
+  function apply() {
+    const href = address.trim();
+    if (!WEB_ADDRESS.test(href)) {
+      setError(LINK_ADDRESS_INVALID);
+      return;
+    }
+    const chain = editor.chain().focus();
+    // Selected words become the link's text; with none, the address itself goes in, then a space
+    // so the next words typed are not part of the link.
+    if (editor.state.selection.empty) {
+      chain
+        .insertContent([
+          { type: "text", text: href, marks: [{ type: "link", attrs: { href } }] },
+          { type: "text", text: " " },
+        ])
+        .run();
+    } else {
+      chain.extendMarkRange("link").setLink({ href }).run();
+    }
+    onDone();
+  }
+
+  return (
+    <div className="flex flex-col gap-1 border-b border-rule p-1.5">
+      <div className="flex gap-1.5">
+        <input
+          type="url"
+          aria-label="URL link"
+          placeholder="https://…"
+          value={address}
+          aria-invalid={error !== null}
+          onChange={(event) => {
+            setAddress(event.target.value);
+            setError(null);
+          }}
+          className="flex-1 rounded-md border border-rule px-2.5 py-1.5 text-[12.5px] text-ink"
+        />
+        <Button onClick={apply}>Terapkan</Button>
+      </div>
+      {error ? (
+        <p role="alert" className="text-xs text-red-ink">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
