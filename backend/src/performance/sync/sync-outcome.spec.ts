@@ -30,7 +30,7 @@ function group(
 }
 
 describe('outcomesFor', () => {
-  it("saves a synced link's four numbers, empty ones staying empty, with the sync time (AC 1-3)", () => {
+  it("saves a synced link's numbers with the sync time, leaving out the ones the platform gave none for (AC 1-3)", () => {
     const [outcome] = outcomesFor(
       group({ id: 'l1' }),
       {
@@ -47,13 +47,17 @@ describe('outcomesFor', () => {
       storedState: 'waiting',
       synced: true,
       write: {
-        ...METRICS,
+        views: 12400,
+        likes: 830,
+        shares: 0,
         data_state: 'synced',
         last_synced_at: NOW,
         manual_by: null,
         manual_at: null,
       },
     });
+    // Left out, not null: an empty insight must not erase a number already stored.
+    expect(outcome.write).not.toHaveProperty('comments');
   });
 
   it("lets the platform's numbers replace ones an admin typed in, dropping the manual stamp (AC 17)", () => {
