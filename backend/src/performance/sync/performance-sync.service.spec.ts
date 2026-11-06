@@ -151,6 +151,7 @@ describe('PerformanceSyncService', () => {
       await service.syncAll();
 
       expect(s.findMany).toHaveBeenCalledWith({
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         where: {
           platform: { not: null },
           contents: {

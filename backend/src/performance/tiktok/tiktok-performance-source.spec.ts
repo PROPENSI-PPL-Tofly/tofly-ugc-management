@@ -222,6 +222,29 @@ describe('TikTokPerformanceSource', () => {
       );
     });
 
+    // PBI-38 AC 5: two share links can hide one video, and only a sync can see through them.
+    // The earliest link keeps it, so one video never earns a bonus twice.
+    it('gives a video reached through two links to the first link only', async () => {
+      const { read } = setup({
+        fetchImpl: tiktok(() => found(VIDEO_A), {
+          'https://vt.tiktok.com/ZSfirst/': full(VIDEO_A),
+          'https://vm.tiktok.com/ZSsecond/': full(VIDEO_A),
+        }),
+      });
+
+      await expect(
+        read([
+          link('l1', 'https://vt.tiktok.com/ZSfirst/'),
+          link('l2', 'https://vm.tiktok.com/ZSsecond/'),
+        ]),
+      ).resolves.toEqual(
+        readAs([
+          expect.objectContaining({ linkId: 'l1', outcome: 'synced' }),
+          { linkId: 'l2', outcome: 'not_found' },
+        ]),
+      );
+    });
+
     it.each([
       ['a share link that leads to no video', 'https://vt.tiktok.com/ZSgone/'],
       ['a link that is not TikTok', 'https://www.instagram.com/p/DAbC123xyz/'],
