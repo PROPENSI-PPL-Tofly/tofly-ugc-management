@@ -1,7 +1,6 @@
 "use client";
 
-import { createElement, useState, type ReactNode } from "react";
-import { Modal } from "@/components/ui/modal";
+import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteImage } from "@/lib/content-detail";
 
 // A revision note as the Content Detail panel reads it (PBI-34, 34.3): its formatting and its
@@ -86,7 +85,7 @@ function Thumbnail({
 
   if (state === "broken") {
     return (
-      <span className="flex size-16 items-center justify-center rounded-(--radius-control) border border-rule p-1 text-center text-[10.5px] leading-tight text-muted">
+      <span className="flex h-15 w-20 items-center justify-center rounded-(--radius-control) border border-rule p-1 text-center text-[10.5px] leading-tight text-muted">
         {BROKEN_IMAGE}
       </span>
     );
@@ -98,7 +97,7 @@ function Thumbnail({
       aria-label={`Buka gambar ${position}`}
       aria-busy={state === "loading"}
       onClick={onOpen}
-      className={`size-16 overflow-hidden rounded-(--radius-control) border border-rule ${
+      className={`h-15 w-20 cursor-zoom-in overflow-hidden rounded-(--radius-control) border border-rule ${
         state === "loading" ? "animate-pulse bg-surface-2" : ""
       }`}
     >
@@ -119,29 +118,74 @@ function FullImage({ image, position }: Readonly<{ image: NoteImage; position: n
   const [state, setState] = useState<ImageState>("loading");
 
   if (state === "broken") {
-    return <p className="py-10 text-center text-sm text-muted">{BROKEN_IMAGE}</p>;
+    return <p className="text-sm text-white">{BROKEN_IMAGE}</p>;
   }
 
   return (
     <>
-      {state === "loading" ? (
-        <p className="py-10 text-center text-sm text-muted">Memuat gambar...</p>
-      ) : null}
+      {state === "loading" ? <p className="text-sm text-white">Memuat gambar...</p> : null}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={image.url}
         alt={`Gambar ${position} catatan revisi`}
         onLoad={() => setState("loaded")}
         onError={() => setState("broken")}
-        className={state === "loading" ? "hidden" : "mx-auto max-h-[70vh] max-w-full object-contain"}
+        className={
+          state === "loading" ? "hidden" : "max-h-[88vh] max-w-[92vw] rounded-lg bg-white object-contain"
+        }
       />
     </>
+  );
+}
+
+/**
+ * The full-size view, as the prototype draws it: the image alone on a dark screen, and a press
+ * anywhere or Escape closes it. `data-modal-dialog` makes it the top dialog, so the panel behind
+ * it answers neither that press nor that key.
+ */
+function ImageOverlay({
+  label,
+  onClose,
+  children,
+}: Readonly<{ label: string; onClose: () => void; children: ReactNode }>) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    overlayRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "Tab") event.preventDefault();
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      opener?.focus();
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      data-modal-dialog=""
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 focus:outline-none"
+    >
+      {children}
+    </div>
   );
 }
 
 function NoteImages({ images }: Readonly<{ images: readonly NoteImage[] }>) {
   // One index, not a flag per thumbnail: only one overlay can ever be open (AC 8).
   const [opened, setOpened] = useState<number | null>(null);
+  const close = useCallback(() => setOpened(null), []);
 
   return (
     <>
@@ -157,9 +201,9 @@ function NoteImages({ images }: Readonly<{ images: readonly NoteImage[] }>) {
       </div>
 
       {opened === null ? null : (
-        <Modal title={`Gambar ${opened + 1} dari ${images.length}`} onClose={() => setOpened(null)}>
+        <ImageOverlay label={`Gambar ${opened + 1} dari ${images.length}`} onClose={close}>
           <FullImage image={images[opened]} position={opened + 1} />
-        </Modal>
+        </ImageOverlay>
       )}
     </>
   );
