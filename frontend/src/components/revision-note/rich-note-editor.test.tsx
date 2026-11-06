@@ -285,6 +285,17 @@ describe("RichNoteEditor paste", () => {
     await waitFor(() => expect(lastHtml(onChange)).toBe("<p>baris 1</p><p>baris 2</p>"));
   });
 
+  // Corner: a blank line between two paragraphs of a copied page stays a blank line.
+  it("keeps a blank line of a styled paste as an empty line", async () => {
+    const { onChange } = renderEditor();
+
+    await paste(clipboard("baris 1\n\nbaris 2", "<p><b>baris 1</b></p><p></p><p>baris 2</p>"));
+
+    await waitFor(() =>
+      expect(lastHtml(onChange)).toBe("<p>baris 1</p><p></p><p>baris 2</p>"),
+    );
+  });
+
   // Corner (Jira: stops at 1,000): a paste longer than the room left is cut, not refused.
   it.each([
     ["a styled paste", clipboard("a".repeat(1200), `<p><b>${"a".repeat(1200)}</b></p>`)],
