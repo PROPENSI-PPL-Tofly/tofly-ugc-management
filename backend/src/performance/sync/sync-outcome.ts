@@ -25,9 +25,12 @@ export interface UnsyncedLink {
 export type GroupResult =
   SourceResult | { outcome: 'error' } | { outcome: 'unavailable' };
 
+/** The numbers a platform gave. One it left empty is absent, so the stored number stays. */
+type ReportedMetrics = Partial<Record<keyof PerformanceMetrics, number>>;
+
 /** The columns a sync writes on one link; numbers only when the platform gave them. */
 export type LinkWrite =
-  | (PerformanceMetrics & {
+  | (ReportedMetrics & {
       data_state: 'synced';
       last_synced_at: Date;
       manual_by: null;
@@ -54,12 +57,19 @@ export interface SyncSummary {
   notUpdated: UnsyncedLink[];
 }
 
+function reported(metrics: PerformanceMetrics): ReportedMetrics {
+  return Object.fromEntries(
+    Object.entries(metrics).filter(([, value]) => value !== null),
+  );
+}
+
 function writeFor(reading: LinkReading | undefined, now: Date): LinkWrite {
   switch (reading?.outcome) {
     case 'synced':
-      // The platform's numbers replace any an admin typed in (AC 17); empty stays empty (AC 2).
+      // The platform's numbers replace any an admin typed in (AC 17). A number it left empty
+      // keeps what is stored, and one never stored stays empty (AC 2).
       return {
-        ...reading.metrics,
+        ...reported(reading.metrics),
         data_state: 'synced',
         last_synced_at: now,
         manual_by: null,

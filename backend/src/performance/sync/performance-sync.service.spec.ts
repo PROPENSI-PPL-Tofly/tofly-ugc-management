@@ -199,7 +199,9 @@ describe('PerformanceSyncService', () => {
         {
           where: { id: 'a-tt-1', data_state: 'waiting' },
           data: {
-            ...METRICS,
+            views: 12400,
+            likes: 830,
+            comments: 41,
             data_state: 'synced',
             // The moment the platform answered: the clock's second reading, after the run began.
             last_synced_at: new Date(STARTED.getTime() + 1500),
