@@ -103,6 +103,17 @@ describe("RevisionNoteField", () => {
     expect(screen.getByRole("button", { name: /Tambah Gambar/ })).toBeDisabled();
   });
 
+  // The PBI-34 prototype's own words, which also tell the Admin a screenshot can be pasted or
+  // dragged.
+  it("hints at what to write and that screenshots can be pasted or dragged", async () => {
+    renderField(fakeUploader().uploader);
+
+    expect(await screen.findByRole("textbox", { name: "Catatan revisi" })).toHaveAttribute(
+      "aria-placeholder",
+      "Jelaskan bagian yang perlu diubah. Paste atau drag screenshot ke sini untuk melampirkan gambar.",
+    );
+  });
+
   // Corner: closing the form mid-upload cancels the upload instead of leaving it running.
   it("cancels an upload still running when the form closes", async () => {
     const { uploader, calls } = fakeUploader();

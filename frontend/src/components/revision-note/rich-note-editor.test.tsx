@@ -426,3 +426,29 @@ describe("RichNoteEditor screenshots", () => {
     expect(noteStaysEmpty(onChange)).toBe(true);
   });
 });
+
+describe("RichNoteEditor placeholder", () => {
+  const PLACEHOLDER = "Jelaskan bagian yang perlu diubah.";
+
+  // The prototype's hint, on the empty note and for screen readers too.
+  it("shows its placeholder while the note is empty", async () => {
+    renderEditor({ placeholder: PLACEHOLDER });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box).toHaveAttribute("aria-placeholder", PLACEHOLDER);
+    await waitFor(() =>
+      expect(box.querySelector("[data-placeholder]")).toHaveAttribute(
+        "data-placeholder",
+        PLACEHOLDER,
+      ),
+    );
+  });
+
+  // Negative: once there are words, the hint is gone.
+  it("drops the placeholder once the note has words", async () => {
+    renderEditor({ placeholder: PLACEHOLDER, initialContent: "<p>Intro</p>" });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box.querySelector("[data-placeholder]")).toBeNull();
+  });
+});
