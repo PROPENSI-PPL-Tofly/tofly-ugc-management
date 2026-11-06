@@ -173,6 +173,7 @@ model revision_note_images {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   submission_id String   @db.Uuid
   object_key    String   @unique @db.Uuid
+  file_name     String   @db.VarChar(255)
   content_type  String
   size_bytes    Int
   uploaded_by   String   @db.Uuid

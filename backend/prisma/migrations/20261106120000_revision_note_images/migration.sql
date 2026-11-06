@@ -9,6 +9,7 @@ create table revision_note_images (
   submission_id uuid not null
     references submissions(id) on delete cascade on update no action,
   object_key uuid unique not null,
+  file_name varchar(255) not null,
   content_type text not null,
   size_bytes integer not null,
   uploaded_by uuid not null
