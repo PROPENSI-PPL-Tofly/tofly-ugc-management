@@ -1489,3 +1489,56 @@ describe("the creator's link numbers (PBI-27, 27.6)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Detail konten gagal dimuat");
   });
 });
+
+describe("ContentDetailPanel revision notes (PBI-34)", () => {
+  afterEach(cleanup);
+
+  function revisionStep(payload: ContentDetail["events"][number]["payload"]) {
+    return detail({
+      events: [
+        {
+          id: "rev-1",
+          type: "revision_requested",
+          at: "2026-09-21T03:00:00.000Z",
+          actor: { name: "Dewi Lestari", role: "admin" },
+          payload,
+        },
+      ],
+    });
+  }
+
+  it.each(["admin", "creator"] as const)(
+    "shows the %s the formatted note with its thumbnails, opening one in an overlay (AC 8)",
+    async (role) => {
+      // Arrange
+      open(
+        revisionStep({
+          note: "Perbaiki intro",
+          noteHtml: "<p>Perbaiki <strong>intro</strong></p>",
+          images: [{ id: "image-1", url: "/api/note-images/image-1", contentType: "image/png" }],
+        }),
+        { role },
+      );
+
+      // Act
+      fireEvent.click(await screen.findByRole("button", { name: "Buka gambar 1" }));
+
+      // Assert
+      expect(screen.getByText("intro").tagName).toBe("STRONG");
+      expect(screen.getByRole("dialog", { name: "Gambar 1 dari 1" })).toBeInTheDocument();
+    },
+  );
+
+  it("shows a note from before formatting exactly as it was (AC 9)", async () => {
+    // Arrange
+    open(revisionStep({ note: "Audio terlalu pelan.\nTambahkan subtitle." }));
+
+    // Act
+    const words = await screen.findByText(/Audio terlalu pelan/);
+
+    // Assert
+    expect(words.tagName).toBe("P");
+    expect(words).toHaveClass("whitespace-pre-line");
+    expect(screen.queryByRole("button", { name: /Buka gambar/ })).toBeNull();
+  });
+});
