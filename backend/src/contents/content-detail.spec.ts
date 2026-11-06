@@ -291,6 +291,30 @@ describe('buildEvents', () => {
     expect(detail.events[0].payload).toEqual({ note: 'Audio terlalu pelan.' });
   });
 
+  it('reads a stored revision step that recorded no screenshots as having none (AC 8)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: {
+              revision_note: 'Perbaiki intro.',
+              revision_note_html: '<p>Perbaiki intro.</p>',
+              images: [],
+            },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toEqual({
+      note: 'Perbaiki intro.',
+      noteHtml: '<p>Perbaiki intro.</p>',
+    });
+  });
+
   it('drops a screenshot entry it cannot read rather than making one up (OWASP A05)', () => {
     const detail = toContentDetail(
       row({

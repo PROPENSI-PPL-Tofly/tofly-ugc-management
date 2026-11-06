@@ -222,6 +222,17 @@ describe('RevisionNoteImagesController', () => {
         IMAGE_ID,
       );
     });
+
+    it('refuses a caller no guard signed in', async () => {
+      principal = null;
+
+      const res = await request(app.getHttpServer()).delete(
+        `/submissions/${SUBMISSION_ID}/revision-note-images/${IMAGE_ID}`,
+      );
+
+      expect(res.status).toBe(401);
+      expect(images.remove).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET /submissions/:id/revision-note-images/:imageId', () => {
