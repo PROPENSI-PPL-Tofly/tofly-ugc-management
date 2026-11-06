@@ -62,9 +62,13 @@ class InstagramReadError extends Error {
 // Instagram refused the token itself: expired, revoked, or the app's access removed.
 class TokenRefused extends Error {}
 
+// A rate limit is left out: it says nothing about the token, so the account stays connected.
 function isRefusal(error: InstagramReadError): boolean {
   return (
-    error.status !== undefined && error.status >= 400 && error.status < 500
+    error.status !== undefined &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    error.status !== 429
   );
 }
 
