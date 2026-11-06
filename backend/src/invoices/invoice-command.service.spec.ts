@@ -331,7 +331,7 @@ describe('InvoiceCommandService', () => {
       });
       expect(result.snapshot.adjustments).toEqual(result.adjustments);
       expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-        prisma.contracts.findUnique.mock.invocationCallOrder[0],
+        prisma.contracts.findUnique.mock.invocationCallOrder[1],
       );
       expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { invoice_id: 'invoice-1' } }),
@@ -425,7 +425,7 @@ describe('InvoiceCommandService', () => {
       expect(links.text).toContain('FOR SHARE OF l');
       expect(links.values).toEqual(['contract-1']);
       expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
-        prisma.contracts.findUnique.mock.invocationCallOrder[0],
+        prisma.contracts.findUnique.mock.invocationCallOrder[1],
       );
       expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({

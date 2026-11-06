@@ -91,6 +91,16 @@ function codeError(code: string, message: string): ConflictException {
   return new ConflictException({ code, message });
 }
 
+// An early end counts: the contract stops on the day access was revoked.
+function assertContractEnded(
+  contract: Parameters<typeof contractLastDay>[0],
+  today: Date,
+): void {
+  if (jakartaDay(today) <= contractLastDay(contract)) {
+    throw codeError('CONTRACT_NOT_ENDED', 'Kontrak belum berakhir');
+  }
+}
+
 @Injectable()
 export class InvoiceCommandService implements InvoiceCommands {
   constructor(
@@ -153,6 +163,37 @@ export class InvoiceCommandService implements InvoiceCommands {
     );
   }
 
+  // A first look, without a lock, so a refused Finalize never reaches the platforms and moves
+  // nothing. The transaction checks both again under the lock, and that check is the one that
+  // holds.
+  private async assertFinalizable(
+    contractId: string,
+    today: Date,
+  ): Promise<void> {
+    const contract = await this.prisma.contracts.findUnique({
+      where: { id: contractId },
+      select: {
+        id: true,
+        start_date: true,
+        end_date: true,
+        content_quota: true,
+        fixed_rate: true,
+        creators: { select: { access_revoke_date: true } },
+        invoice: { select: { status: true } },
+      },
+    });
+    if (!contract) this.contractNotFound();
+
+    const { creators, invoice, ...row } = contract;
+    assertContractEnded(
+      toInvoiceContract(row, creators.access_revoke_date),
+      today,
+    );
+    if (invoice) {
+      invoiceState(invoice.status).assertCanFinalize();
+    }
+  }
+
   async finalize(
     contractId: string,
     /** The admin who freezes the invoice, from the session. */
@@ -169,6 +210,7 @@ export class InvoiceCommandService implements InvoiceCommands {
     bonusDataGaps: BonusDataGapsDto;
   }> {
     const formula = await this.formulas.current();
+    await this.assertFinalizable(contractId, today);
     // The platforms are asked first, outside the transaction: a sync takes up to 20 s and must
     // never hold the contract lock every other command on this contract waits for (AC 7).
     const synced = await this.lastSync.beforeFinalize(contractId);
@@ -211,10 +253,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           contract.creators.access_revoke_date,
         );
 
-        // An early end counts: the contract stops on the day access was revoked.
-        if (jakartaDay(today) <= contractLastDay(invoiceContract)) {
-          throw codeError('CONTRACT_NOT_ENDED', 'Kontrak belum berakhir');
-        }
+        assertContractEnded(invoiceContract, today);
 
         const invoice = await tx.invoices.upsert({
           where: { contract_id: contractId },
