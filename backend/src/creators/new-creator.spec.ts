@@ -537,16 +537,18 @@ describe('checkNewCreator', () => {
       ).toEqual({ deadlines: 'Deadline paling cepat 28 Sep 2026' });
     });
 
-    it('accepts the contract end date and rejects the day after it', () => {
+    it('accepts the H-5 line and rejects the day after it (PBI-38 AC 14)', () => {
       expect(() =>
         checkNewCreator(
-          body(three('2026-10-06', '2026-10-13', '2026-12-31')),
+          body(three('2026-10-06', '2026-10-13', '2026-12-26')),
           TODAY,
         ),
       ).not.toThrow();
       expect(
-        errorsFor(body(three('2026-10-06', '2026-10-13', '2027-01-01'))),
-      ).toEqual({ deadlines: 'Deadline tidak boleh setelah akhir kontrak' });
+        errorsFor(body(three('2026-10-06', '2026-10-13', '2026-12-27'))),
+      ).toEqual({
+        deadlines: 'Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)',
+      });
     });
 
     it('allows more than one slot on the same day, as the PRD does', () => {

@@ -3,6 +3,7 @@ import {
   evergreenName,
   jakartaDay,
   joinName,
+  latestDeadline,
   splitName,
 } from './evergreen.js';
 
@@ -77,6 +78,21 @@ describe('jakartaDay', () => {
   });
 });
 
+// PBI-38 AC 14: no deadline falls later than the contract end minus the H-5 buffer.
+describe('latestDeadline', () => {
+  it('is five days before the contract end', () => {
+    expect(latestDeadline('2026-12-31')).toBe('2026-12-26');
+  });
+
+  it('counts back across a month end', () => {
+    expect(latestDeadline('2026-12-03')).toBe('2026-11-28');
+  });
+
+  it('counts back across a leap day', () => {
+    expect(latestDeadline('2028-03-02')).toBe('2028-02-26');
+  });
+});
+
 describe('checkSchedule', () => {
   const TODAY = '2026-09-12';
   const valid = {
@@ -139,6 +155,24 @@ describe('checkSchedule', () => {
         TODAY,
       ),
     ).toEqual({});
+  });
+
+  // PBI-38 AC 14: 2026-11-12 ends the contract, so 2026-11-07 is the last day allowed.
+  it('accepts a deadline on the H-5 line and rejects the day after it', () => {
+    expect(
+      checkSchedule(
+        { ...valid, deadlines: ['2026-09-26', '2026-10-10', '2026-11-07'] },
+        TODAY,
+      ),
+    ).toEqual({});
+    expect(
+      checkSchedule(
+        { ...valid, deadlines: ['2026-09-26', '2026-10-10', '2026-11-08'] },
+        TODAY,
+      ),
+    ).toEqual({
+      deadlines: 'Deadline paling lambat 7 Nov 2026 (H-5 akhir kontrak)',
+    });
   });
 
   it('rejects a deadline outside the contract period', () => {

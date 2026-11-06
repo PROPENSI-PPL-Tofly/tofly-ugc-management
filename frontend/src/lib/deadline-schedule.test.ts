@@ -71,6 +71,18 @@ describe('generateDeadlineSchedule', () => {
     expect(deadlines).toEqual(expected); // Check that the generated deadlines match the expected deadlines
   });
 
+  // PBI-38 AC 14: the auto schedule stops at the H-5 line, as the API does.
+  it('never places a deadline past the H-5 line', () => {
+    const deadlines = generateDeadlineSchedule({
+      ...defaultInput,
+      contractEnd: '2026-10-10',
+      intervalDays: 1,
+      quota: 100,
+    });
+
+    expect(deadlines.at(-1)).toBe('2026-10-05');
+  });
+
   it('returns no deadlines when the first deadline would be after the contract ends', () => { // Test case for when the first deadline is after the contract end
     const deadlines = generateDeadlineSchedule({
       ...defaultInput,
