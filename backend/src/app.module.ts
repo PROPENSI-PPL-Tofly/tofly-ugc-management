@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
@@ -10,14 +11,19 @@ import { CreatorsModule } from './creators/creators.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
 import { MeModule } from './me/me.module.js';
+import { PerformanceModule } from './performance/performance.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProposalsModule } from './contents/proposals.module.js';
 import { RateFormulaModule } from './rate-formula/rate-formula.module.js';
+import { SocialModule } from './social/social.module.js';
 import { requireStorageInProduction } from './storage/file-store.provider.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
+import { RejectNulCharactersInterceptor } from './reject-nul-characters.interceptor.js';
 
 // Fail fast at boot if DB creds are missing, instead of a buried Prisma error later.
-function validate(config: Record<string, unknown>): Record<string, unknown> {
+export function validate(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
   for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
     if (!config[key]) {
       throw new Error(`Missing required env var: ${key}`);
@@ -45,8 +51,15 @@ function validate(config: Record<string, unknown>): Record<string, unknown> {
     MeModule,
     SessionModule,
     GoogleAuthModule,
+    SocialModule,
+    PerformanceModule,
   ],
   controllers: [AppController, HealthController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Every request body, every route: a NUL character is a 400, never a 500 from PostgreSQL
+    // (security assessment, OWASP A10:2025).
+    { provide: APP_INTERCEPTOR, useClass: RejectNulCharactersInterceptor },
+  ],
 })
 export class AppModule {}

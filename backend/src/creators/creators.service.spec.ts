@@ -6,6 +6,23 @@ import { CreatorsService, type CreatorRow } from './creators.service.js';
 
 const TODAY = new Date('2026-09-18T00:00:00Z');
 
+const NOT_CONNECTED_ROW = {
+  is_connected: false,
+  platform_user_id: null,
+  connected_at: null,
+};
+
+// OWASP A01:2025: everything the creator endpoints read of an account. No token column.
+const ACCOUNT_COLUMNS = {
+  platform: true,
+  username: true,
+  is_connected: true,
+  platform_user_id: true,
+  connected_at: true,
+};
+
+const NOT_CONNECTED = { connected: false, connectedAt: null, lastSyncAt: null };
+
 function day(offset: number): Date {
   return new Date(Date.UTC(2026, 8, 18 + offset));
 }
@@ -19,8 +36,12 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
     access_revoke_date: null,
     users: { email: 'rangga@example.com' },
     social_accounts: [
-      { platform: 'instagram', username: 'rangga.creates' },
-      { platform: 'tiktok', username: 'ranggacreates' },
+      {
+        platform: 'instagram',
+        username: 'rangga.creates',
+        ...NOT_CONNECTED_ROW,
+      },
+      { platform: 'tiktok', username: 'ranggacreates', ...NOT_CONNECTED_ROW },
     ],
     contracts: [
       {
@@ -66,7 +87,7 @@ type DetailContentRow = {
   type: string;
   deadline: Date;
   status: string;
-  video_link: string | null;
+  content_links: { url: string }[];
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
   _count: { submissions: number };
@@ -117,10 +138,12 @@ function detailRow(): DetailCreatorRow {
       {
         platform: 'instagram',
         username: 'rangga.creates',
+        ...NOT_CONNECTED_ROW,
       },
       {
         platform: 'tiktok',
         username: 'ranggacreates',
+        ...NOT_CONNECTED_ROW,
       },
     ],
     contracts: [
@@ -139,7 +162,7 @@ function detailRow(): DetailCreatorRow {
             type: 'evergreen',
             deadline: day(-30),
             status: 'link_submitted',
-            video_link: 'https://example.com/video-1',
+            content_links: [{ url: 'https://example.com/video-1' }],
             video_submitted_at: day(-31),
             approval_bypassed: false,
             _count: { submissions: 2 },
@@ -156,7 +179,7 @@ function detailRow(): DetailCreatorRow {
             type: 'specific',
             deadline: day(2),
             status: 'draft_review',
-            video_link: null,
+            content_links: [],
             video_submitted_at: null,
             approval_bypassed: false,
             _count: { submissions: 0 },
@@ -177,6 +200,7 @@ describe('CreatorsService', () => {
       count: vi.fn(),
       findUnique: vi.fn(),
     },
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {
@@ -222,6 +246,10 @@ describe('CreatorsService', () => {
           socials: {
             instagram: 'rangga.creates',
             tiktok: 'ranggacreates',
+          },
+          socialConnections: {
+            instagram: NOT_CONNECTED,
+            tiktok: NOT_CONNECTED,
           },
           accessRevokeDate: null,
           contract: {
@@ -301,7 +329,7 @@ describe('CreatorsService', () => {
       type: 'specific',
       deadline: day(10),
       status: 'pending',
-      video_link: null,
+      content_links: [],
       video_submitted_at: null,
       approval_bypassed: false,
       _count: { submissions: 0 },
@@ -323,7 +351,7 @@ describe('CreatorsService', () => {
         type: 'evergreen',
         deadline: day(-10),
         status: 'link_submitted',
-        video_link: 'https://example.com/video-late',
+        content_links: [{ url: 'https://example.com/video-late' }],
         video_submitted_at: day(-8),
         approval_bypassed: true,
         _count: { submissions: 0 },
@@ -335,7 +363,7 @@ describe('CreatorsService', () => {
         type: 'evergreen',
         deadline: day(-5),
         status: 'draft_revision',
-        video_link: null,
+        content_links: [],
         video_submitted_at: null,
         approval_bypassed: false,
         _count: { submissions: 2 },
@@ -370,6 +398,12 @@ describe('CreatorsService', () => {
     expect(contracts.select.contents.select).toMatchObject({
       approval_bypassed: true,
       video_submitted_at: true,
+      // Only the first link: its url is the video the detail shows (PBI-38 AC 7).
+      content_links: {
+        orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+        take: 1,
+        select: { url: true },
+      },
       submissions: {
         orderBy: { created_at: 'desc' },
         take: 1,
@@ -773,7 +807,7 @@ describe('CreatorsService', () => {
           type: 'evergreen',
           deadline: day(-150),
           status: 'link_submitted',
-          video_link: 'https://example.com/video-old',
+          content_links: [{ url: 'https://example.com/video-old' }],
           video_submitted_at: day(-151),
           approval_bypassed: false,
           _count: { submissions: 1 },
@@ -831,11 +865,146 @@ describe('CreatorsService', () => {
     await service.findOne('creator-1', TODAY);
 
     const select = prisma.creators.findUnique.mock.calls[0][0].select;
-    expect(select.social_accounts.select).toEqual({
-      platform: true,
-      username: true,
-    });
+    expect(select.social_accounts.select).toEqual(ACCOUNT_COLUMNS);
     expect(select.users.select).toEqual({ email: true });
+  });
+
+  it('lists the social accounts without their access or refresh tokens', async () => {
+    prisma.creators.findMany.mockResolvedValue([]);
+    prisma.creators.count.mockResolvedValue(0);
+
+    await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    const { select } = prisma.creators.findMany.mock.calls[0][0];
+    expect(select.social_accounts.select).toEqual(ACCOUNT_COLUMNS);
+  });
+
+  // PRD 19 AC 11, 12: Admin's badges. A row typed at Tambah Creator holds no connection, even
+  // when an old flag says otherwise.
+  it('says per platform whether the account is connected, and since when', async () => {
+    const connected = row({
+      social_accounts: [
+        {
+          platform: 'instagram',
+          username: 'rangga.creates',
+          is_connected: true,
+          platform_user_id: '1784',
+          connected_at: new Date('2026-10-29T03:00:00.000Z'),
+        },
+        {
+          platform: 'tiktok',
+          username: 'ranggacreates',
+          is_connected: true,
+          platform_user_id: null,
+          connected_at: null,
+        },
+      ],
+    });
+    prisma.creators.findMany.mockResolvedValue([connected]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].socialConnections).toEqual({
+      instagram: {
+        connected: true,
+        connectedAt: '2026-10-29T03:00:00.000Z',
+        lastSyncAt: null,
+      },
+      tiktok: NOT_CONNECTED,
+    });
+  });
+
+  it('leaves out a platform the creator has no account on', async () => {
+    prisma.creators.findMany.mockResolvedValue([row({ social_accounts: [] })]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].socialConnections).toEqual({});
+  });
+
+  // PRD 19 AC 12: the badge tooltip names the last sync, read for the whole page in one query.
+  it('says when each connected account of the page last synced', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        social_accounts: [
+          {
+            platform: 'instagram',
+            username: 'rangga.creates',
+            is_connected: true,
+            platform_user_id: '1784',
+            connected_at: new Date('2026-10-29T03:00:00.000Z'),
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        creator_id: 'creator-1',
+        platform: 'instagram',
+        last_sync: new Date('2026-11-02T19:00:00.000Z'),
+      },
+    ]);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].socialConnections.instagram?.lastSyncAt).toBe(
+      '2026-11-02T19:00:00.000Z',
+    );
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the last sync only for the creators a filtered page shows', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1' }),
+      row({ id: 'creator-2' }),
+    ]);
+
+    await service.list({ page: 2, pageSize: 1 }, TODAY, {
+      contractStatus: 'active',
+    });
+
+    expect(prisma.$queryRaw.mock.calls[0][0].values).toEqual([['creator-2']]);
+  });
+
+  it('gives Creator Detail the last sync too', async () => {
+    const detail = detailRow();
+    detail.social_accounts = [
+      {
+        platform: 'tiktok',
+        username: 'ranggacreates',
+        is_connected: true,
+        platform_user_id: '1784',
+        connected_at: new Date('2026-10-29T03:00:00.000Z'),
+      },
+    ] as unknown as DetailCreatorRow['social_accounts'];
+    prisma.creators.findUnique.mockResolvedValue(detail);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        creator_id: 'creator-1',
+        platform: 'tiktok',
+        last_sync: new Date('2026-11-02T19:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(result.socialConnections.tiktok?.lastSyncAt).toBe(
+      '2026-11-02T19:00:00.000Z',
+    );
+  });
+
+  it('gives Creator Detail the same connections', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+
+    const detail = await service.findOne('creator-1', TODAY);
+
+    expect(detail.socialConnections).toEqual({
+      instagram: NOT_CONNECTED,
+      tiktok: NOT_CONNECTED,
+    });
   });
 
   it('returns empty current-period details when no contract covers the date', async () => {

@@ -119,6 +119,17 @@ describe("PeriodTabs", () => {
     expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
   });
 
+  it("carries the Creator Database view to return to onto every period's link", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} back="q=nadia" />);
+
+    const [first, second] = tabs();
+    expect(first).toHaveAttribute(
+      "href",
+      `/admin/creators/${CREATOR}?contract=${FIRST}&return=q%3Dnadia`,
+    );
+    expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}?return=q%3Dnadia`);
+  });
+
   // The quota, Evergreen and deadline-gap cards belong to an older layout the B2.6 prototype
   // dropped; whichever period is open, they must not come back.
   it.each([

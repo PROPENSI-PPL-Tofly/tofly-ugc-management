@@ -6,7 +6,8 @@
 import { formatDeduction, formatRupiah } from "./format";
 import type { AdjustmentLine } from "./invoice-adjustment";
 import type { InvoicePayment } from "./invoice-payment-api";
-import { oneOf, pageNumber, single, type SearchParams } from "./search-params";
+import type { PeriodState } from "./deadline-period";
+import { calendarDay, oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** The table shows ten creators a page, as the prototype pages it. */
 export const INVOICE_PAGE_SIZE = 10;
@@ -142,6 +143,11 @@ export interface InvoiceParams {
   q: string;
   contract: ContractStatus | "all";
   status: InvoiceStatus | "all";
+  /** The contract-end period the table narrows by, as the URL names it. */
+  period: PeriodState["period"];
+  /** The two days of a custom period, YYYY-MM-DD; empty for a named one. */
+  from: string;
+  to: string;
   sort: InvoiceSortKey;
   order: InvoiceSortOrder;
   page: number;
@@ -151,6 +157,9 @@ export const DEFAULT_INVOICE_PARAMS: InvoiceParams = {
   q: "",
   contract: "all",
   status: "all",
+  period: "all",
+  from: "",
+  to: "",
   sort: "action",
   order: "asc",
   page: 1,
@@ -166,6 +175,9 @@ export function parseInvoiceParams(params: SearchParams): InvoiceParams {
     q: single(params.q).trim().slice(0, MAX_INVOICE_SEARCH_LENGTH).trim(),
     contract: oneOf(["all", ...CONTRACT_STATUSES], single(params.contract), "all"),
     status: oneOf(["all", ...INVOICE_STATUSES], single(params.status), "all"),
+    period: oneOf(["all", "month", "next30", "last90", "custom"] as const, single(params.period), "all"),
+    from: calendarDay(single(params.from)),
+    to: calendarDay(single(params.to)),
     sort: oneOf(INVOICE_SORT_KEYS, single(params.sort), "action"),
     order: oneOf(["asc", "desc"] as const, single(params.order), "asc"),
     page: pageNumber(params.page),
@@ -181,6 +193,9 @@ export function buildInvoiceQuery(state: InvoiceParams): Record<string, string> 
   if (state.q) query.q = state.q;
   if (state.contract !== "all") query.contract = state.contract;
   if (state.status !== "all") query.status = state.status;
+  if (state.period !== "all") query.period = state.period;
+  if (state.from) query.from = state.from;
+  if (state.to) query.to = state.to;
   if (state.sort !== "action") query.sort = state.sort;
   if (state.order !== "asc") query.order = state.order;
   if (state.page > 1) query.page = String(state.page);

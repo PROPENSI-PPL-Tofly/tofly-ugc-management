@@ -29,6 +29,7 @@ vi.mock("next/navigation", () => ({
 const COUNTS: ContentPlanCounts = { all: 42, action: 3, waiting: 12, done: 27 };
 
 const ROW: ContentPlanRow = {
+  platforms: [],
   contentId: "content-1",
   name: "Video Review Kopi",
   creatorId: "id-1",
@@ -47,6 +48,7 @@ function renderPlan() {
       <ContentPlanTabBar active="all" counts={COUNTS} />
       <ContentPlanFilters
         state={DEFAULT_CONTENT_PLAN_PARAMS}
+        counts={COUNTS}
         creators={[
           { id: "id-1", name: "Salsa" },
           { id: "id-2", name: "Rangga" },

@@ -41,7 +41,8 @@ describe("CreatorProfilePanel", () => {
     render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
 
     const items = within(socials()).getAllByRole("listitem");
-    expect(items.map((item) => item.textContent)).toEqual([
+    // The chip itself; its connection badge sits beside it in the same item.
+    expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([
       "IG@rangga.creates",
       "TIKTOK@ranggacreates",
     ]);
@@ -54,7 +55,7 @@ describe("CreatorProfilePanel", () => {
     render(<CreatorProfilePanel creator={{ ...CREATOR, socials: only }} current={PERIOD} />);
 
     const items = within(socials()).getAllByRole("listitem");
-    expect(items.map((item) => item.textContent)).toEqual([text]);
+    expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([text]);
   });
 
   it("says there is no account rather than leaving a gap", () => {
@@ -115,5 +116,49 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByRole("heading", { name: '<img src=x onerror="alert(1)">' })).toBeInTheDocument();
     expect(screen.getByText("@<script>alert(1)</script>")).toBeInTheDocument();
     expect(container.querySelector("img, script")).toBeNull();
+  });
+
+  // PBI-19, AC 12: the same badge as Creator Database, beside each account's chip.
+  describe("connection badges", () => {
+    const connections = {
+      instagram: { connected: true, connectedAt: "2026-10-29T10:00:00Z", lastSyncAt: null },
+      tiktok: { connected: false, connectedAt: null, lastSyncAt: null },
+    };
+
+    it("puts each account's badge beside its chip, with the connection day and last sync in its tooltip", () => {
+      render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} connections={connections} />);
+
+      const [instagram, tiktok] = within(socials()).getAllByRole("listitem");
+      expect(within(instagram).getByRole("button", { name: "Instagram Terhubung" })).toHaveAccessibleDescription(
+        "Terhubung sejak 29 Okt 2026 · sinkron terakhir —.",
+      );
+      expect(within(tiktok).getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+    });
+
+    it("shows every account as Belum terhubung when no connections are given (19.3 not merged)", () => {
+      render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+      expect(screen.getByRole("button", { name: "Instagram Belum terhubung" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+    });
+
+    it("lets a badge's tooltip open past the card's edge instead of being cut off", () => {
+      const { container } = render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+      expect(container.querySelector("section")).not.toHaveClass("overflow-hidden");
+    });
+
+    it("gives no badge to a platform the creator has no username for", () => {
+      render(
+        <CreatorProfilePanel
+          creator={{ ...CREATOR, socials: { tiktok: "ranggacreates" } }}
+          current={PERIOD}
+          connections={connections}
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: /^Instagram / })).toBeNull();
+      expect(screen.getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+    });
   });
 });

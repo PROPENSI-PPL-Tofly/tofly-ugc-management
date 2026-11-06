@@ -6,6 +6,7 @@ import {
   formatDaysLeft,
   formatDaysRemaining,
   formatDue,
+  formatJakartaDay,
   formatPercent,
   formatRevisions,
   formatDeduction,
@@ -35,6 +36,21 @@ describe("formatDate", () => {
       expect(formatDate(date)).toBe(EMPTY);
     },
   );
+});
+
+// The day a moment fell on in Jakarta, without its time: "Dikunci pada 3 Nov 2026" (PBI-28).
+describe("formatJakartaDay", () => {
+  it.each([
+    ["the last second of 2 Nov in Jakarta", "2026-11-02T16:59:59Z", "2 Nov 2026"],
+    ["midnight in Jakarta, still 2 Nov in UTC", "2026-11-02T17:00:00Z", "3 Nov 2026"],
+    ["a moment given with Jakarta's own offset", "2026-11-03T00:30:00+07:00", "3 Nov 2026"],
+  ])("writes %s as its Jakarta day", (_, moment, day) => {
+    expect(formatJakartaDay(moment)).toBe(day);
+  });
+
+  it.each([["a moment it cannot read", "bukan-waktu"], ["no moment", null]])("writes %s as a dash", (_, moment) => {
+    expect(formatJakartaDay(moment)).toBe(EMPTY);
+  });
 });
 
 describe("formatTimestamp", () => {

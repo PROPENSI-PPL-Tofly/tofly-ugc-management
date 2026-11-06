@@ -9,6 +9,7 @@ import type {
   BonusPlatform,
   BonusTierRule,
   InvoiceBreakdown,
+  PerformanceBonusLine,
 } from "./invoice-breakdown";
 import {
   INVOICE_PAGE_SIZE,
@@ -20,6 +21,8 @@ import {
   type InvoiceStatus,
   type PendingBonus,
 } from "./invoice";
+import { periodRange } from "./deadline-period";
+import { DATA_STATE_LABELS, type DataState } from "./link-performance";
 import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -109,11 +112,16 @@ export interface RawInvoiceDetail extends RawInvoiceRow {
 }
 
 /** The page's state as the query GET /invoices reads: the filters that are applied, the page and its size. */
-export function toInvoiceListQuery(state: InvoiceParams): URLSearchParams {
+export function toInvoiceListQuery(state: InvoiceParams, today: string): URLSearchParams {
   const query = new URLSearchParams();
   if (state.q) query.set("q", state.q);
   if (state.contract !== "all") query.set("contract", state.contract);
   if (state.status !== "all") query.set("status", state.status);
+
+  // The contract-end period, as the two days it stands for (contractEndFrom/To).
+  const [from, to] = periodRange(state, today);
+  if (from) query.set("contractEndFrom", from);
+  if (to) query.set("contractEndTo", to);
   if (state.sort !== "action" || state.order !== "asc") {
     query.set("sort", state.sort);
     query.set("order", state.order);
@@ -198,6 +206,34 @@ function basisText(line: RawInvoiceLine, key: string): string {
   return String(line.basis[key]);
 }
 
+/**
+ * Where a bonus line's number came from (PBI-28 AC 6), as 28.1 and 28.2 put it in the basis.
+ * Only known values pass: an unknown source or a sync time that is not a readable moment is
+ * shown as nothing, never as text the backend did not mean.
+ */
+function lineSource(
+  line: RawInvoiceLine,
+): Pick<PerformanceBonusLine, "source" | "lastSyncedAt" | "manualAt" | "noData" | "waiting" | "state"> {
+  const { source, lastSyncedAt, manualAt, state } = line.basis;
+  return {
+    source: source === "synced" || source === "manual" ? source : null,
+    lastSyncedAt: readableMoment(lastSyncedAt),
+    manualAt: readableMoment(manualAt),
+    noData: line.basis.status === "no_data",
+    waiting: line.basis.status === "waiting",
+    state: isDataState(state) ? state : null,
+  };
+}
+
+function isDataState(value: unknown): value is DataState {
+  return typeof value === "string" && Object.hasOwn(DATA_STATE_LABELS, value);
+}
+
+/** An ISO moment the page can show, or null for anything else: never a broken date on screen. */
+function readableMoment(value: unknown): string | null {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
+}
+
 function tierRules(formula: RawRateFormula | null): BonusTierRule[] {
   if (!formula) return [];
 
@@ -255,9 +291,12 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
         value: basisNumber(line, "value"),
         tier: basisNumber(line, "tier"),
         amount: line.amount,
+        ...lineSource(line),
       })),
       total: performanceBonus.amount ?? 0,
       performance: performanceBonus.status === "waiting_for_data" ? "waiting" : "ready",
+      // Once per invoice, for the admin's Rincian and the creator's alike (PBI-28 28.4).
+      lockedOn: readableMoment(raw.snapshot?.finalizedAt),
       rules: { tiers: tierRules(raw.formula), specificBonus: raw.formula?.specificBonus ?? 0 },
     },
     penalty: {

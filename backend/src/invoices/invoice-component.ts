@@ -7,10 +7,29 @@ import {
   COMMITTED_STATUSES,
   type ContentStatus,
 } from '../contents/content-lifecycle.js';
-import type { RateFormula } from './rate-formula.js';
+import type { link_data_state } from '@prisma/client';
+import type { PerformanceMetric, RateFormula } from './rate-formula.js';
 
 export type SocialPlatform = 'instagram' | 'tiktok';
 export type ContentType = 'evergreen' | 'specific';
+
+/** Who measured a link's numbers: the last sync or an admin's manual entry; null if neither yet. */
+export type LinkSource = 'synced' | 'manual' | null;
+
+/**
+ * One of a content's video links (PBI-38) with its performance numbers (PBI-27). Null is no
+ * data yet, never 0. A content cross-posted on two platforms has one link per platform.
+ */
+export type InvoiceLink = {
+  platform: SocialPlatform;
+  /** Its data state (PBI-27): why a missing number is missing, e.g. sync_failed. */
+  state: link_data_state;
+  source: LinkSource;
+  /** When a sync last brought this link's numbers; null if none ever did. */
+  lastSyncedAt: Date | null;
+  /** When an admin last typed its numbers in; null if none ever did. */
+  manualAt: Date | null;
+} & Record<PerformanceMetric, number | null>;
 
 export interface InvoiceContent {
   id: string;
@@ -19,11 +38,13 @@ export interface InvoiceContent {
   status: ContentStatus;
   /** Postgres `date`, midnight UTC. */
   deadline: Date;
-  /** Postgres `date`, midnight UTC; when the final video link was handed in. */
+  /**
+   * Postgres `date`, midnight UTC: the day the first link was handed in (PBI-38). A later link
+   * never moves it, so lateness is judged on this day.
+   */
   videoSubmittedAt: Date | null;
-  platform: SocialPlatform | null;
-  views: number | null;
-  likes: number | null;
+  /** Its links, first handed in first; only links whose platform is known. */
+  links: readonly InvoiceLink[];
 }
 
 export interface InvoiceContract {
@@ -56,8 +77,8 @@ export interface InvoiceLine {
   contentId: string;
   contentName: string;
   amount: number;
-  /** What the amount was worked out from, e.g. { daysLate: 5, chargedDays: 3 }. */
-  basis: Record<string, number | string>;
+  /** What the amount was worked out from, e.g. { daysLate: 5, chargedDays: 3 }; null when unknown. */
+  basis: Record<string, number | string | null>;
 }
 
 export type ComponentStatus = 'calculated' | 'waiting_for_data';

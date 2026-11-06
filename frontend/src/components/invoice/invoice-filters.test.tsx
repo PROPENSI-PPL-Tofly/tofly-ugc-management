@@ -8,6 +8,8 @@ const hook = vi.hoisted(() => ({
     param: vi.fn<(key: string) => string>(),
     listParam: vi.fn<(key: string) => string>(),
     setParam: vi.fn<(key: string, value: string) => void>(),
+    setParams: vi.fn<(changes: Record<string, string>) => void>(),
+    setPeriod: vi.fn<(period: string) => void>(),
     reset: vi.fn(),
     resetKeeping: vi.fn<(keep: Record<string, string>) => void>(),
     pending: false,
@@ -78,6 +80,49 @@ describe("InvoiceFilters", () => {
     });
 
     expect(hook.current.setParam).toHaveBeenCalledWith("status", "paid");
+  });
+
+  it("offers the contract-end period in its own words, so it cannot be read as a period number", () => {
+    render(<InvoiceFilters />);
+
+    const period = screen.getByRole("combobox", { name: "Periode Berakhir Kontrak" });
+    expect(Array.from(period.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+      "Semua periode",
+      "Bulan ini",
+      "30 hari ke depan",
+      "90 hari terakhir",
+      "Pilih tanggal…",
+    ]);
+  });
+
+  it("sends a contract-end period pick to the address", () => {
+    render(<InvoiceFilters />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Periode Berakhir Kontrak" }), {
+      target: { value: "month" },
+    });
+
+    // The period and its days change together, so a named period takes stale days off with it.
+    expect(hook.current.setPeriod).toHaveBeenCalledWith("month");
+  });
+
+  it("asks for the two days of a custom range and sends them", () => {
+    // The days render only once the address holds a custom period, as the bar reads it.
+    hook.current.param.mockImplementation((key: string) => (key === "period" ? "custom" : "all"));
+    render(<InvoiceFilters />);
+
+    fireEvent.change(screen.getByLabelText("Akhir kontrak mulai"), { target: { value: "2026-06-01" } });
+    fireEvent.change(screen.getByLabelText("Akhir kontrak sampai"), { target: { value: "2026-08-31" } });
+
+    expect(hook.current.setParam).toHaveBeenCalledWith("from", "2026-06-01");
+    expect(hook.current.setParam).toHaveBeenCalledWith("to", "2026-08-31");
+  });
+
+  it("keeps the custom days hidden while a named period is picked", () => {
+    render(<InvoiceFilters />);
+
+    expect(screen.queryByLabelText("Akhir kontrak mulai")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Akhir kontrak sampai")).not.toBeInTheDocument();
   });
 
   it("passes typing on to the search box's owner", () => {

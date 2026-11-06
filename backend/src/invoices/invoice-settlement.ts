@@ -6,6 +6,7 @@
 // waiting for a formula cannot be frozen at all.
 
 import { UnprocessableEntityException } from '@nestjs/common';
+import { frozenWithoutData, type BonusDataGapsDto } from './bonus-data-gaps.js';
 import type { InvoiceBreakdown } from './invoice-calculator.js';
 import type {
   ComponentResult,
@@ -23,6 +24,8 @@ export interface SettledBreakdown {
 export function settleForFinalize(
   breakdown: InvoiceBreakdown,
   acceptPendingBonus: boolean,
+  /** The waiting links (AC 9), carried in the refusal beside "Tetap Finalize". */
+  bonusDataGaps?: BonusDataGapsDto,
 ): SettledBreakdown {
   const { performanceBonus, ...rest } = breakdown.components;
 
@@ -45,11 +48,14 @@ export function settleForFinalize(
     throw new UnprocessableEntityException({
       code: 'INVOICE_BONUS_PENDING',
       message: 'Bonus performa masih menunggu data',
+      ...(bonusDataGaps && { bonusDataGaps }),
     });
   }
 
-  // A waiting component added nothing to rawTotal, so the measured lines are added on top.
-  const measured = performanceBonus.lines.reduce(
+  // A waiting component added nothing to rawTotal, so the measured lines are added on top. Each
+  // link still waiting is kept as an Rp0 no_data line: a frozen invoice no longer waits.
+  const lines = performanceBonus.lines.map(frozenWithoutData);
+  const measured = lines.reduce(
     (sum, line) => sum + line.amount,
     0,
   );
@@ -60,6 +66,7 @@ export function settleForFinalize(
         ...performanceBonus,
         amount: measured,
         status: 'calculated',
+        lines,
       },
     },
     rawTotal: breakdown.rawTotal + measured,

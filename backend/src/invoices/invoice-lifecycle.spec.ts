@@ -33,6 +33,29 @@ describe('RunningInvoiceState', () => {
     expect(() => state.assertCanAdjust()).not.toThrow();
     expect(() => state.assertCanFinalize()).not.toThrow();
   });
+
+  it('lets a video link be submitted, added or replaced (PBI-38 AC 8, 9)', () => {
+    expect(() =>
+      new RunningInvoiceState().assertCanChangeLinks(),
+    ).not.toThrow();
+  });
+});
+
+// PBI-38 AC 8, 9: the links an invoice was calculated from stay as they were once it is frozen.
+describe.each([
+  'finalized',
+  'creator_acked',
+  'payment_uploaded',
+  'paid',
+] as const)('the video links of a contract whose invoice is %s', (status) => {
+  it('can no longer be submitted, added or replaced', () => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanChangeLinks()),
+    ).toEqual({
+      code: 'INVOICE_FINALIZED',
+      message: 'Invoice sudah difinalisasi. Link video tidak bisa diubah lagi',
+    });
+  });
 });
 
 // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): once finalized, an invoice stays

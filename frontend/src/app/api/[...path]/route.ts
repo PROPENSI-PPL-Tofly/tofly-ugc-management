@@ -41,6 +41,11 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   if (path.some((segment) => segment === "." || segment === "..")) {
     return Response.json({ error: "Bad request" }, { status: 400 });
   }
+  // The backend's /internal routes serve Cloud Scheduler alone, behind their own secret; the
+  // public site never forwards to them (OWASP A01).
+  if (path[0]?.toLowerCase() === "internal") {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
   const target = new URL(
     path.map(encodeURIComponent).join("/"),
     `${backendUrl.replace(/\/+$/, "")}/`,

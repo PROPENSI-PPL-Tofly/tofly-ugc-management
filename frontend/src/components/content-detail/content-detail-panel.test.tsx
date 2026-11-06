@@ -28,6 +28,7 @@ function detail(overrides: Partial<ContentDetail> = {}): ContentDetail {
     waitingOn: "admin",
     latestSubmissionId: SUBMISSION,
     creatorActions: [],
+    links: [],
     events: [
       {
         id: "sub-2",
@@ -154,6 +155,46 @@ describe("ContentDetailPanel", () => {
     // The exact name: the asterisk is drawn by CSS, so a screen reader hears "required", not "star".
     expect(screen.getByRole("textbox", { name: "Catatan revisi untuk creator" })).toBeRequired();
     expect(screen.getByText("Catatan revisi untuk creator")).toHaveClass(...REQUIRED_MARK.split(" "));
+  });
+
+  // Client feedback B4: the note is required (the backend refuses an empty or blank one), but
+  // nothing on screen said so, and Kirim Revisi was disabled without a reason.
+  describe("the required revision note", () => {
+    async function openRevisionForm() {
+      open(detail());
+      fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+      return screen.getByRole("textbox", { name: "Catatan revisi untuk creator" });
+    }
+
+    it("says nothing is wrong before the admin has left the field", async () => {
+      const note = await openRevisionForm();
+
+      expect(note).not.toHaveAttribute("aria-invalid", "true");
+      expect(screen.queryByText("Catatan revisi wajib diisi sebelum dikirim.")).toBeNull();
+    });
+
+    it("says why Kirim Revisi is unavailable once the field is left empty or blank", async () => {
+      const note = await openRevisionForm();
+
+      fireEvent.change(note, { target: { value: "   " } });
+      fireEvent.blur(note);
+
+      const message = screen.getByText("Catatan revisi wajib diisi sebelum dikirim.");
+      expect(note).toHaveAttribute("aria-invalid", "true");
+      expect(note.getAttribute("aria-describedby")).toContain(message.id);
+      expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeDisabled();
+    });
+
+    it("clears the message as soon as real text is typed", async () => {
+      const note = await openRevisionForm();
+      fireEvent.blur(note);
+
+      fireEvent.change(note, { target: { value: "Audio terlalu pelan." } });
+
+      expect(screen.queryByText("Catatan revisi wajib diisi sebelum dikirim.")).toBeNull();
+      expect(note).toHaveAttribute("aria-invalid", "false");
+      expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled();
+    });
   });
 
   it("sends the trimmed note and reports the decision upward", async () => {
@@ -589,6 +630,18 @@ describe("ContentDetailPanel", () => {
       );
     });
 
+    it("keeps the optional rejection reason free of a required mark or message", async () => {
+      open(proposal());
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+      const reason = screen.getByRole("textbox", { name: "Alasan penolakan (opsional)" });
+      fireEvent.blur(reason);
+
+      expect(reason).not.toBeRequired();
+      expect(screen.queryByText("*")).toBeNull();
+      expect(reason).not.toHaveAttribute("aria-invalid", "true");
+    });
+
     it("tells the proposing creator it is with the admin, with nothing to press", async () => {
       open(proposal(), { role: "creator" });
 
@@ -727,6 +780,167 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
   const NOW = new Date("2026-10-02T05:00:00Z");
 
   type Loader = NonNullable<Parameters<typeof ContentDetailPanel>[0]["load"]>;
+
+  describe("the submitted links (AC 11)", () => {
+    it("lists one row per link: the mark, the link in a new tab, and its date", async () => {
+      open(
+        detail({
+          links: [
+            {
+              platform: "instagram",
+              url: "https://instagram.com/p/x",
+              submittedAt: "2026-10-18",
+            },
+            {
+              platform: "tiktok",
+              url: "https://tiktok.com/@a/video/1",
+              submittedAt: "2026-10-19",
+            },
+          ],
+        }),
+      );
+
+      const section = await screen.findByRole("region", { name: "Tautan video" });
+      expect(within(section).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+      expect(within(section).getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+      const ig = within(section).getByRole("link", { name: /Instagram/ });
+      expect(ig).toHaveAttribute("target", "_blank");
+      expect(within(section).getByText("18 Okt 2026")).toBeInTheDocument();
+    });
+
+    it("keeps a link from before platforms were recorded: listed unnamed, without a mark", async () => {
+      open(
+        detail({
+          links: [{ platform: null, url: "https://example.com/video/old", submittedAt: "2026-09-15" }],
+        }),
+      );
+
+      const section = await screen.findByRole("region", { name: "Tautan video" });
+      expect(within(section).queryByRole("img")).not.toBeInTheDocument();
+      expect(within(section).getByRole("link", { name: "Link" })).toHaveAttribute(
+        "target",
+        "_blank",
+      );
+      expect(within(section).getByText("15 Sep 2026")).toBeInTheDocument();
+    });
+
+    describe("with each link's performance (PBI-27 27.5)", () => {
+      const measured = {
+        platform: "instagram" as const,
+        url: "https://instagram.com/reel/abc",
+        submittedAt: "2026-10-18",
+        performance: {
+          views: 12400,
+          likes: null,
+          comments: null,
+          shares: null,
+          state: "not_connected" as const,
+          lastSyncedAt: null,
+          manualAt: null,
+        },
+      };
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("shows a card per link with its numbers and state instead of the plain rows", async () => {
+        open(detail({ status: "link_submitted", links: [measured] }));
+
+        const section = await screen.findByRole("region", { name: "Link dan performa" });
+        const card = within(section).getByRole("group", { name: "Performa Instagram" });
+        expect(within(card).getByText("12.400")).toBeInTheDocument();
+        expect(within(card).getByText("Akun belum terhubung")).toBeInTheDocument();
+        expect(screen.queryByRole("region", { name: "Tautan video" })).not.toBeInTheDocument();
+      });
+
+      it("names the creator by first name in the not-connected tip", async () => {
+        open(detail({ status: "link_submitted", links: [measured] }));
+
+        expect(
+          await screen.findByRole("button", { name: "Tentang Akun belum terhubung" }),
+        ).toHaveAccessibleDescription("Rangga belum menghubungkan akun ini.");
+      });
+
+      it("reads the content again once manual numbers are saved, so the card shows them", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+        const { load } = open(detail({ status: "link_submitted", links: [measured] }));
+
+        fireEvent.click(await screen.findByRole("button", { name: "Isi Manual" }));
+        fireEvent.change(screen.getByRole("textbox", { name: "Views" }), { target: { value: "500" } });
+        fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+        fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Simpan" }));
+
+        await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+      });
+
+      it("gives a creator the numbers without Sinkronkan Sekarang or Isi Manual (AC 20)", async () => {
+        open(detail({ status: "link_submitted", links: [measured] }), { role: "creator" });
+
+        const section = await screen.findByRole("region", { name: "Link dan performa" });
+        expect(within(section).getByText("12.400")).toBeInTheDocument();
+        expect(within(section).queryByRole("button", { name: "Sinkronkan Sekarang" })).toBeNull();
+        expect(within(section).queryByRole("button", { name: "Isi Manual" })).toBeNull();
+      });
+    });
+
+    it("shows no link section while nothing has been sent", async () => {
+      open(detail({ links: [] }));
+
+      // The journey is the sign the content has loaded; only then is its absence meaningful.
+      await screen.findByRole("list", { name: "Riwayat konten" });
+
+      expect(screen.queryByRole("region", { name: "Tautan video" })).not.toBeInTheDocument();
+    });
+
+    it("names the timeline event after the platform the link was sent to (AC 12)", async () => {
+      open(
+        detail({
+          status: "link_submitted",
+          links: [
+            {
+              platform: "instagram",
+              url: "https://instagram.com/p/x",
+              submittedAt: "2026-10-18",
+            },
+          ],
+          events: [
+            {
+              id: "ev-1",
+              type: "link_submitted",
+              at: "2026-10-18T03:00:00.000Z",
+              actor: { name: "Rangga Pratama", role: "creator" },
+              payload: { link: "https://instagram.com/p/x", platform: "instagram" },
+            },
+          ],
+        }),
+      );
+
+      expect(await screen.findByText("Link Instagram dikirim")).toBeInTheDocument();
+    });
+
+    it("says a replaced link took the place of another (AC 9)", async () => {
+      open(
+        detail({
+          status: "link_submitted",
+          links: [
+            { platform: "instagram", url: "https://instagram.com/p/new", submittedAt: "2026-10-19" },
+          ],
+          events: [
+            {
+              id: "ev-1",
+              type: "link_submitted",
+              at: "2026-10-19T03:00:00.000Z",
+              actor: { name: "Rangga Pratama", role: "creator" },
+              payload: { link: "https://instagram.com/p/new", platform: "instagram", replaced: true },
+            },
+          ],
+        }),
+      );
+
+      expect(await screen.findByText("Link Instagram diganti")).toBeInTheDocument();
+    });
+  });
 
   function show(overrides: Partial<ContentDetail> = {}, load?: Loader) {
     const loader = load ?? vi.fn<Loader>().mockResolvedValue(detail(overrides));
@@ -1224,5 +1438,48 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(second).not.toHaveBeenCalled();
       expect(screen.getByRole("dialog", { name: "Promo Lebaran" })).toBeInTheDocument();
     });
+  });
+});
+
+describe("the creator's link numbers (PBI-27, 27.6)", () => {
+  /** A link whose platform still reads it fails, where an admin may type the numbers (AC 14). */
+  function link(state: "synced" | "sync_failed") {
+    return {
+      platform: "instagram" as const,
+      url: "https://instagram.com/p/x",
+      submittedAt: "2026-10-18",
+      performance: {
+        views: 12400,
+        likes: 900,
+        comments: null,
+        shares: null,
+        state,
+        lastSyncedAt: state === "synced" ? "2026-11-01T03:00:00.000Z" : null,
+        manualAt: null,
+      },
+    };
+  }
+
+  it("shows a creator their own numbers read-only, with no sync and no manual input (AC 20)", async () => {
+    open(detail({ status: "link_submitted", links: [link("sync_failed")] }), {
+      role: "creator",
+    });
+
+    expect(await screen.findByText("12.400")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sinkronkan/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Isi Manual" })).not.toBeInTheDocument();
+  });
+
+  it("offers an admin the same card's actions, so the withheld ones are real (AC 12, 14)", async () => {
+    open(detail({ status: "link_submitted", links: [link("sync_failed")] }));
+
+    expect(await screen.findByRole("button", { name: "Sinkronkan Sekarang" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Isi Manual" })).toBeInTheDocument();
+  });
+
+  it("reads a 403 as numbers that are not the creator's: the panel's failure, with a retry (AC 21)", async () => {
+    open(Promise.reject(new ContentDetailError(403)), { role: "creator" });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Detail konten gagal dimuat");
   });
 });

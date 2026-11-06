@@ -9,6 +9,9 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.spec.ts'],
+    // A developer's backend/.env turns the dev sign-in on (ConfigModule loads it when a test boots
+    // AppModule), which answers 200 where a test expects 401. Pinned off, as in CI.
+    env: { DEV_AUTH_ENABLED: 'false', DEV_CREATOR_ID: '' },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
@@ -44,6 +47,14 @@ export default defineConfig({
         // The creator's acknowledge and receipt confirmation (13.1) are held to it too, and so are
         // the admin's adjustments and finalizing in InvoiceCommandService.
         'src/storage/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        // A content's video links: which link is stored, who may change it and when the invoice
+        // freezes it decide what a creator is paid for, so no rule there may go untested.
+        'src/contents/{content-links*,link-*,video-submission.service}.ts': {
           lines: 100,
           branches: 100,
           functions: 100,

@@ -2,9 +2,10 @@
 
 import { ContentTags } from "@/components/contents/content-tags";
 import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
-import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
+import { DeadlineSortButton, DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PlatformIcons } from "@/components/ui/platform-icon";
 import { StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
@@ -14,9 +15,15 @@ import {
 import { CONTENT_PLAN_EMPTY, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { formatDate } from "@/lib/format";
+import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 align-top";
+
+// Below lg a row reads as a card, as the roster's and Task Saya's do: cells stack, and a value
+// names its column from data-label since the header row is hidden.
+const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+const LABELLED =
+  "max-lg:flex max-lg:items-start max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-xs max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
 export function CreatorContentTable({
   rows,
@@ -45,40 +52,59 @@ export function CreatorContentTable({
   }
 
   return (
-    <div className="relative overflow-x-auto">
-      <table className="w-full text-[13px]">
-        <thead>
-          <tr className="border-b border-rule text-left text-muted">
-            <th scope="col" className={HEAD}>Konten</th>
-            <DeadlineSortTh sort={sort} onToggle={onSortToggle} />
-            <th scope="col" className={HEAD}>Status</th>
+    // Positioned, so the sr-only heading below is laid out inside the scroll area, not the page.
+    <ScrollFrame>
+      {/* Below lg the header row is hidden, so the deadline sort gets a button of its own. */}
+      <DeadlineSortButton sort={sort} onToggle={onSortToggle} />
+      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers.
+          A <td> keeps none of its own: it is a cell of the explicit row it sits in. */}
+      <table role="table" className="w-full text-[13px] max-lg:block">
+        <thead role="rowgroup" className="max-lg:sr-only">
+          <tr role="row" className="border-b border-rule text-left text-muted">
+            <th role="columnheader" scope="col" className={HEAD}>
+              Konten
+            </th>
+            <DeadlineSortTh sort={sort} onToggle={onSortToggle} stacked />
+            <th role="columnheader" scope="col" className={HEAD}>
+              Status
+            </th>
             {tab === "done" ? null : (
-              <th scope="col" className={HEAD}>
+              <th role="columnheader" scope="col" className={HEAD}>
+                {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
                 <span className="sr-only">Aksi</span>
               </th>
             )}
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup" className="max-lg:block">
           {rows.map((row) => (
+            // A press anywhere on the row opens its panel, as in the prototype. The name is a
+            // real button, the same door for the keyboard and for screen readers.
             <tr
               key={row.contentId}
+              role="row"
               onClick={() => {
+                // Dragging across a name to copy it ends in a click here: copying, not opening.
                 if (window.getSelection()?.toString()) return;
                 onOpen(row.contentId);
               }}
-              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2"
+              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2 max-lg:block max-lg:px-5 max-lg:py-3"
             >
-              <td className={`${CELL} min-w-52`}>
+              <td className={`${CELL} min-w-52 max-lg:min-w-0`}>
                 <p className="font-semibold text-ink wrap-anywhere">
                   <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
                 </p>
+                {row.platforms.length ? (
+                  <div className="mt-1">
+                    <PlatformIcons platforms={row.platforms} />
+                  </div>
+                ) : null}
                 <span className="mt-0.5 block text-xs text-muted">{CONTENT_TYPE_LABELS[row.type]}</span>
               </td>
-              <td className={`${CELL} whitespace-nowrap`}>
+              <td data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
                 {formatDate(row.deadline)}
               </td>
-              <td className={CELL}>
+              <td data-label="Status" className={`${CELL} ${LABELLED}`}>
                 <span className="flex flex-wrap items-center gap-1.5">
                   <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                     {CONTENT_STATUS_LABELS[row.status]}
@@ -87,7 +113,8 @@ export function CreatorContentTable({
                 </span>
               </td>
               {tab === "done" ? null : (
-                <td className={CELL}>
+                // Empty unless the content awaits a decision, so a card shows no bare action line.
+                <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
                   <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
                 </td>
               )}
@@ -95,6 +122,6 @@ export function CreatorContentTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollFrame>
   );
 }

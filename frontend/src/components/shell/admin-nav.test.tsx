@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
 import { AdminNav } from "./admin-nav";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
@@ -33,6 +34,16 @@ describe("AdminNav", () => {
 
     const link = screen.getByRole("link", { name: "Rate & Invoicing" });
     expect(link).toHaveAttribute("href", "/admin/invoicing");
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("lists Performa Konten between the content work and the invoicing, and marks it current on its page", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/performance");
+
+    render(<AdminNav />);
+
+    const link = screen.getByRole("link", { name: "Performa Konten" });
+    expect(link).toHaveAttribute("href", "/admin/performance");
     expect(link).toHaveAttribute("aria-current", "page");
   });
 
@@ -101,5 +112,47 @@ describe("AdminNav", () => {
       "href",
       "/admin/invoicing",
     );
+  });
+
+  // The approved design replaces the phone's sideways-scrolling row (where "Rate & Invoicing"
+  // sat cut off at the edge) with equal tiles at the foot of the screen, one per place, so with
+  // Performa Konten there are four: every place is in sight, nothing to scroll to, no edge to fade.
+  it("lays the places out as four equal tiles on a phone, none of them cut off", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+    const list = screen.getByRole("list");
+
+    expect(list).toHaveClass("grid", "grid-cols-4");
+    expect(list).not.toHaveClass("overflow-x-auto");
+    expect(list).not.toHaveAttribute("data-more");
+  });
+
+  // A tile carries an icon above its words; the icon is decoration, so a place keeps its name.
+  it("gives each place an icon that screen readers skip", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    for (const link of screen.getAllByRole("link")) {
+      const icon = link.querySelector("svg");
+      expect(icon).toHaveAttribute("aria-hidden", "true");
+    }
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Creator Database",
+      "Content Plan",
+      "Performa Konten",
+      "Rate & Invoicing",
+    ]);
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives each place a 44px press on a phone", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    for (const link of screen.getAllByRole("link")) expectPhoneTarget(link);
   });
 });

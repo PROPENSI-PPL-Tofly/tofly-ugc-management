@@ -1,6 +1,11 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
+  CONNECTION_SELECT,
+  LINK_PERFORMANCE_SELECT,
+} from '../performance/performance-links.js';
+import { LINKS_AS_HANDED_IN } from './content-links.js';
+import {
   toContentDetail,
   type ContentDetail,
   type ContentDetailRow,
@@ -17,7 +22,11 @@ const CONTENT_DETAIL_SELECT = {
   brief: true,
   deadline: true,
   status: true,
-  video_link: true,
+  // The links in the order they were handed in: the first is the content's submitted one.
+  content_links: {
+    orderBy: LINKS_AS_HANDED_IN,
+    select: { submitted_at: true, ...LINK_PERFORMANCE_SELECT },
+  },
   video_submitted_at: true,
   approval_bypassed: true,
   created_at: true,
@@ -25,7 +34,13 @@ const CONTENT_DETAIL_SELECT = {
   contracts: {
     select: {
       creators: {
-        select: { first_name: true, middle_name: true, last_name: true },
+        select: {
+          first_name: true,
+          middle_name: true,
+          last_name: true,
+          // Whether each account is connected decides a waiting link's state; no token.
+          social_accounts: CONNECTION_SELECT,
+        },
       },
     },
   },

@@ -3,7 +3,15 @@
 // database, and the service is left with loading rows and paging.
 
 import { Prisma } from '@prisma/client';
+import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { jakartaDay } from '../creators/evergreen.js';
+import { effectiveState } from '../performance/link-performance.js';
+import {
+  CONNECTION_SELECT,
+  isConnected,
+  type AccountConnection,
+} from '../performance/performance-links.js';
+import { isFrozenLink, sourceOf } from './frozen-links.js';
 import {
   contractStatus,
   currentContract,
@@ -17,7 +25,11 @@ import type {
 import { calculateInvoice } from './invoice-calculator.js';
 import { contractLastDay } from './invoice-days.js';
 import type { InvoiceContractStatus } from './invoice-filters.js';
-import type { InvoiceContent, InvoiceContract } from './invoice-component.js';
+import type {
+  InvoiceContent,
+  InvoiceContract,
+  InvoiceLink,
+} from './invoice-component.js';
 import type { RateFormula } from './rate-formula.js';
 
 /**
@@ -50,9 +62,24 @@ export const CONTENT_SELECT = {
   status: true,
   deadline: true,
   video_submitted_at: true,
-  platform: true,
-  views: true,
-  likes: true,
+  // Every link is judged on its own platform's numbers (28.1).
+  content_links: {
+    orderBy: LINKS_AS_HANDED_IN,
+    select: {
+      platform: true,
+      views: true,
+      likes: true,
+      comments: true,
+      shares: true,
+      data_state: true,
+      last_synced_at: true,
+      manual_at: true,
+    },
+  },
+  // Whether each link's account is connected, for the state the link reads as.
+  contracts: {
+    select: { creators: { select: { social_accounts: CONNECTION_SELECT } } },
+  },
 } satisfies Prisma.contentsSelect;
 
 export type InvoiceCreatorRow = Prisma.creatorsGetPayload<{
@@ -78,6 +105,31 @@ export function creatorName(
     .join(' ');
 }
 
+type InvoiceLinkRow = InvoiceContentRow['content_links'][number];
+
+/**
+ * A link whose platform is known, with its numbers, who measured them and the state it reads as
+ * on the Performa page. A link kept from before platforms were recorded has none, so no
+ * platform's tiers can judge it and it is left out.
+ */
+function toInvoiceLink(
+  row: InvoiceLinkRow,
+  accounts: readonly AccountConnection[],
+): InvoiceLink | [] {
+  if (row.platform === null) return [];
+  return {
+    platform: row.platform,
+    views: row.views,
+    likes: row.likes,
+    comments: row.comments,
+    shares: row.shares,
+    state: effectiveState(row.data_state, isConnected(accounts, row.platform)),
+    source: sourceOf(row),
+    lastSyncedAt: row.last_synced_at,
+    manualAt: row.manual_at,
+  };
+}
+
 export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
   return {
     id: row.id,
@@ -86,9 +138,9 @@ export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
     status: row.status,
     deadline: row.deadline,
     videoSubmittedAt: row.video_submitted_at,
-    platform: row.platform,
-    views: row.views,
-    likes: row.likes,
+    links: row.content_links.flatMap((link) =>
+      toInvoiceLink(link, row.contracts.creators.social_accounts),
+    ),
   };
 }
 
@@ -277,7 +329,16 @@ function isSnapshot(value: unknown): value is InvoiceSnapshotDto {
 export function savedSnapshot(
   value: Prisma.JsonValue | null,
 ): InvoiceSnapshotDto | null {
-  return isSnapshot(value) ? value : null;
+  if (!isSnapshot(value)) return null;
+  const snapshot: InvoiceSnapshotDto = value;
+  // Tolerant Reader: the frozen links came later (PBI-28) and are optional. A list that is not
+  // what Finalize writes is left out, never the snapshot: dropping that would recalculate a
+  // finalized invoice live (OWASP A08).
+  const links: unknown = snapshot.performanceLinks;
+  if (links === undefined) return snapshot;
+  if (Array.isArray(links) && links.every(isFrozenLink)) return snapshot;
+  const { performanceLinks: _, ...frozen } = snapshot;
+  return frozen;
 }
 
 /** What the invoices table holds for an invoice besides where it stands in the pipeline. */

@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { FORMULA, TODAY, day } from './invoice-test-data.js';
 import { InvoiceCommandService } from './invoice-command.service.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
+import { LAST_SYNC, type LastSyncResult } from './last-sync.js';
 
 /** The error `promise` rejects with, for checking both its class and its body. */
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
@@ -50,10 +51,13 @@ describe('InvoiceCommandService', () => {
     $transaction: vi.fn(),
   };
   const formulas = { current: vi.fn() };
+  const DONE: LastSyncResult = { status: 'done', notUpdated: [] };
+  const lastSync = { beforeFinalize: vi.fn() };
 
   beforeEach(async () => {
     vi.clearAllMocks();
     formulas.current.mockResolvedValue(FORMULA);
+    lastSync.beforeFinalize.mockResolvedValue(DONE);
     prisma.invoice_adjustments.findMany.mockResolvedValue([]);
     prisma.$queryRaw.mockResolvedValue([]);
     prisma.$transaction.mockImplementation(
@@ -67,6 +71,7 @@ describe('InvoiceCommandService', () => {
         InvoiceCommandService,
         { provide: PrismaService, useValue: prisma },
         { provide: RATE_FORMULA_SOURCE, useValue: formulas },
+        { provide: LAST_SYNC, useValue: lastSync },
       ],
     }).compile();
 
@@ -169,6 +174,17 @@ describe('InvoiceCommandService', () => {
   });
 
   describe('finalize', () => {
+    /** Its Instagram link measured at 0 views: a number, so the bonus does not wait. */
+    const measuredLink = {
+      platform: 'instagram',
+      views: 0,
+      likes: null,
+      comments: null,
+      shares: null,
+      data_state: 'synced',
+      last_synced_at: null,
+      manual_at: null,
+    };
     const measured = {
       id: 'measured',
       contract_id: 'contract-1',
@@ -177,9 +193,18 @@ describe('InvoiceCommandService', () => {
       status: 'link_submitted',
       deadline: day(-2),
       video_submitted_at: day(-2),
-      platform: 'instagram',
-      views: 0,
-      likes: null,
+      content_links: [measuredLink],
+      contracts: {
+        creators: {
+          social_accounts: [
+            {
+              platform: 'instagram',
+              is_connected: true,
+              platform_user_id: 'ig-1',
+            },
+          ],
+        },
+      },
     };
 
     /** An ended contract whose one video was on time and measured, so nothing waits for data. */
@@ -248,6 +273,182 @@ describe('InvoiceCommandService', () => {
           finalized_by: 'admin-9',
         },
       });
+    });
+
+    // OWASP A06:2025 Insecure Design: the platforms are asked before the contract is locked, so a
+    // slow platform never holds the lock every command on the contract queues on (AC 7).
+    it('runs the last sync for the contract once, before its transaction and lock', async () => {
+      let lockedDuringSync = true;
+      lastSync.beforeFinalize.mockImplementation(async () => {
+        lockedDuringSync =
+          prisma.$transaction.mock.calls.length > 0 ||
+          prisma.$queryRaw.mock.calls.length > 0;
+        return DONE;
+      });
+
+      await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(lastSync.beforeFinalize).toHaveBeenCalledTimes(1);
+      expect(lastSync.beforeFinalize).toHaveBeenCalledWith('contract-1');
+      expect(lockedDuringSync).toBe(false);
+    });
+
+    // OWASP A10:2025 Mishandling of Exceptional Conditions: AC 8, a sync that failed or ran out of
+    // time leaves Finalize to freeze the numbers already stored.
+    it.each(['failed', 'timed_out'] as const)(
+      'still finalizes with the stored numbers when the last sync %s',
+      async (status) => {
+        lastSync.beforeFinalize.mockResolvedValue({ status, notUpdated: null });
+
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.invoiceStatus).toBe('finalized');
+        expect(prisma.invoices.updateMany).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    const linkRow = {
+      content_id: 'measured',
+      content_name: 'Evg_1',
+      platform: 'tiktok',
+      views: 12_400,
+      likes: 830,
+      comments: 0,
+      shares: null,
+      data_state: 'sync_failed',
+      last_synced_at: new Date('2026-10-30T19:00:00.000Z'),
+      manual_at: null,
+    };
+    const frozenLink = {
+      contentId: 'measured',
+      contentName: 'Evg_1',
+      platform: 'tiktok',
+      views: 12_400,
+      likes: 830,
+      comments: 0,
+      shares: null,
+      source: 'synced',
+      state: 'sync_failed',
+      lastSyncedAt: '2026-10-30T19:00:00.000Z',
+    };
+
+    /** The lock answers nothing; the share-locked read of the links answers `rows`. */
+    function linksRead(rows: unknown[]) {
+      prisma.$queryRaw.mockImplementation(async (query: Prisma.Sql) =>
+        query.text.includes('FOR SHARE') ? rows : [],
+      );
+    }
+
+    // OWASP A08:2025 Software or Data Integrity Failures: AC 10, every delivered link's numbers are
+    // frozen with the invoice, read under the contract lock in the transaction that saves it.
+    it('freezes each delivered link in the snapshot, read after the contract lock and before the contract', async () => {
+      linksRead([linkRow]);
+
+      const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(result.snapshot.performanceLinks).toEqual([frozenLink]);
+      const [lock, links] = prisma.$queryRaw.mock.calls.map(([query]) => query);
+      expect(lock.text).toContain('FROM contracts');
+      expect(links.text).toContain('FOR SHARE OF l');
+      expect(links.values).toEqual(['contract-1']);
+      expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+        prisma.contracts.findUnique.mock.invocationCallOrder[0],
+      );
+      expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            snapshot: expect.objectContaining({
+              performanceLinks: [frozenLink],
+            }),
+          }),
+        }),
+      );
+    });
+
+    describe('the links the last sync did not update (AC 8)', () => {
+      const instagramRow = {
+        ...linkRow,
+        content_id: 'second',
+        content_name: 'Evg_2',
+        platform: 'instagram',
+        data_state: 'synced',
+      };
+      const tiktokReport = {
+        contentId: 'measured',
+        contentName: 'Evg_1',
+        platform: 'tiktok',
+        state: 'sync_failed',
+      };
+
+      beforeEach(() => linksRead([linkRow, instagramRow]));
+
+      it('names each link the sync left as it was, with its content, platform and state as frozen', async () => {
+        lastSync.beforeFinalize.mockResolvedValue({
+          status: 'done',
+          notUpdated: [{ contentId: 'measured', platform: 'tiktok' }],
+        });
+
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.lastSync).toEqual({
+          status: 'done',
+          notUpdated: [tiktokReport],
+        });
+      });
+
+      // OWASP A01:2025 Broken Access Control: the answer names only this contract's links, even if
+      // the sync's list held a content or platform that is not one of them.
+      it("names only this contract's delivered links, whatever else the sync's list holds", async () => {
+        lastSync.beforeFinalize.mockResolvedValue({
+          status: 'done',
+          notUpdated: [
+            { contentId: 'another-contracts-content', platform: 'tiktok' },
+            { contentId: 'measured', platform: 'instagram' },
+          ],
+        });
+
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.lastSync.notUpdated).toEqual([]);
+      });
+
+      it.each(['failed', 'timed_out'] as const)(
+        'names every delivered link when the sync %s, since none can be vouched for',
+        async (status) => {
+          lastSync.beforeFinalize.mockResolvedValue({
+            status,
+            notUpdated: null,
+          });
+
+          const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+          expect(result.lastSync).toEqual({
+            status,
+            notUpdated: [
+              tiktokReport,
+              {
+                contentId: 'second',
+                contentName: 'Evg_2',
+                platform: 'instagram',
+                state: 'synced',
+              },
+            ],
+          });
+        },
+      );
+
+      it('keeps the outcome out of the frozen snapshot', async () => {
+        const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(result.lastSync).toEqual({ status: 'done', notUpdated: [] });
+        expect(result.snapshot).not.toHaveProperty('lastSync');
+      });
+    });
+
+    it('freezes an empty list for a contract with no delivered link', async () => {
+      const result = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(result.snapshot.performanceLinks).toEqual([]);
     });
 
     // OWASP Top 10:2025 A05 (Injection): the contract id reaches the lock as a bound parameter.
@@ -411,7 +612,13 @@ describe('InvoiceCommandService', () => {
     });
 
     describe('a performance bonus still waiting for data', () => {
-      const unmeasured = { ...measured, id: 'unmeasured', views: null };
+      const unmeasured = {
+        ...measured,
+        id: 'unmeasured',
+        content_links: [
+          { ...measuredLink, views: null, data_state: 'sync_failed' },
+        ],
+      };
 
       beforeEach(() => {
         prisma.contracts.findUnique.mockResolvedValue(
@@ -430,6 +637,41 @@ describe('InvoiceCommandService', () => {
           response: { code: 'INVOICE_BONUS_PENDING' },
         });
         expect(prisma.invoices.updateMany).not.toHaveBeenCalled();
+      });
+
+      // AC 9: both answers list the waiting link, and the frozen invoice keeps it as an Rp0 no_data line.
+      it('lists the waiting links in the refusal and once frozen anyway, and freezes each as no_data', async () => {
+        const refused = await rejection(
+          service.finalize('contract-1', 'admin-9', TODAY),
+        );
+        const frozen = await service.finalize('contract-1', 'admin-9', TODAY, {
+          acceptPendingBonus: true,
+        });
+
+        const waiting = [
+          {
+            contentId: 'unmeasured',
+            contentName: 'Evg_1',
+            platform: 'instagram',
+            metric: 'views',
+            state: 'sync_failed',
+          },
+        ];
+        expect(refused).toMatchObject({
+          response: { bonusDataGaps: { available: true, waiting } },
+        });
+        expect(frozen.bonusDataGaps).toMatchObject({ available: true, waiting });
+        expect(frozen.snapshot).not.toHaveProperty('bonusDataGaps');
+        expect(frozen.snapshot.performanceBonus.lines).toEqual([
+          expect.objectContaining({
+            contentId: 'unmeasured',
+            amount: 0,
+            basis: expect.objectContaining({
+              status: 'no_data',
+              state: 'sync_failed',
+            }),
+          }),
+        ]);
       });
 
       // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot says the bonus

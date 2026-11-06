@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { PHONE_TARGET } from "./touch-target";
 
 export interface MultiSelectOption {
   value: string;
@@ -9,8 +10,8 @@ export interface MultiSelectOption {
 
 // A pill, as the prototype draws every filter: a quiet label, the value in strong type, and a
 // caret that says there is more behind it.
-const TRIGGER =
-  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[12.5px] text-ink hover:border-ink";
+// A pill from sm up; in the open phone filter card, a full-width field like the selects there.
+const TRIGGER = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[12.5px] text-ink hover:border-ink active:bg-surface-2 max-sm:w-full max-sm:rounded-(--radius-control) max-sm:text-sm`;
 
 const CARET = "ml-0.5 size-1.5 -translate-y-px rotate-45 border-b-[1.6px] border-r-[1.6px] border-muted";
 
@@ -25,14 +26,11 @@ const POPUP =
 /** How far a popup stays from the edge of the window, in pixels. */
 const WINDOW_MARGIN = 8;
 
-const CHIP =
-  "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
-
 /**
  * A multi-select whose choices read as chips: the popup holds the checkboxes, and each pick
  * becomes a chip the admin can drop on its own, so narrowing one list never means starting
- * the whole filter over. Shared vocabulary for every filter bar that needs more than one
- * pick (Content Plan, and Task Saya when it wants the same).
+ * the whole filter over. The chips themselves are gathered below the bar by FilterChips, each
+ * named for this filter; this control shows the picks as its summary and does the ticking.
  */
 export function MultiSelect({
   label,
@@ -116,10 +114,11 @@ export function MultiSelect({
   }
 
   return (
-    <div ref={rootRef} className="flex flex-wrap items-center gap-2">
-      {/* The popup hangs from the trigger alone. The chips wrap onto more rows as picks are
-          added, and a popup anchored to the whole box would open under the last of them. */}
-      <span className="relative inline-flex">
+    <div ref={rootRef} className="flex flex-wrap items-center gap-2 max-sm:w-full">
+      {/* The popup hangs from the trigger alone. The summary can widen as picks are added and
+          wrap the trigger onto another row, and a popup anchored to the whole box would open
+          under the last of them. */}
+      <span className="relative inline-flex max-sm:w-full">
         <button
           ref={triggerRef}
           type="button"
@@ -131,7 +130,7 @@ export function MultiSelect({
         >
           <span className="text-muted">{label}:</span>{" "}
           <b className="max-w-48 truncate font-semibold">{summary()}</b>
-          <span aria-hidden="true" className={CARET} />
+          <span aria-hidden="true" className={`${CARET} max-sm:ml-auto`} />
         </button>
 
         {open ? (
@@ -161,19 +160,6 @@ export function MultiSelect({
           </div>
         ) : null}
       </span>
-
-      {selected.map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-label={`Hapus filter ${label}: ${labelFor(value)}`}
-          onClick={() => toggle(value)}
-          className={`${CHIP} cursor-pointer hover:border-ink-2`}
-        >
-          <span className="max-w-40 truncate">{labelFor(value)}</span>
-          <span aria-hidden="true">×</span>
-        </button>
-      ))}
     </div>
   );
 }

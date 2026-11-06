@@ -54,7 +54,8 @@ export function ReviewButton({
         event.stopPropagation();
         onOpen();
       }}
-      className={`${buttonClasses("accent")} px-2 py-1`}
+      // A full-width target where a table row turns into a card, well above WCAG 2.5.8's 24px.
+      className={`${buttonClasses("accent")} px-2 py-1 max-lg:min-h-11 max-lg:w-full`}
     >
       Tinjau
     </button>

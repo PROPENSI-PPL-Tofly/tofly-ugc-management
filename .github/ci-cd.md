@@ -181,11 +181,23 @@ and leaves every other row.
   previous revision and deploys with traffic.)
 - Smoke test the candidate at its tag URL: `GET /health` must return 200 (5 attempts, 5 s apart)
 - Promote: `gcloud run services update-traffic --to-latest` — only reached if the smoke test passed
+- Schedule the daily performance sync: create or update the Cloud Scheduler job
+  `performance-sync-<service>` (`0 2 * * *`, `Asia/Jakarta`, attempt deadline 600 s) that POSTs
+  `<service URL>/internal/performance-sync` with the header `x-sync-secret` read from the
+  environment's `PERFORMANCE_SYNC_SECRET_*` secret (masked in the log). Every deploy re-points
+  the job at the service and the current secret version. The backend deploys with
+  `--timeout 600` to match that deadline, so a long daily run is not cut at Cloud Run's 300 s.
 
 Runtime config on the service: `--add-cloudsql-instances` mounts the instance's unix socket;
 `DATABASE_URL` and `DIRECT_URL` (the same URL, nothing pools in between) and
-`GOOGLE_CLIENT_SECRET` come from **Secret Manager** (`--set-secrets`), never env vars.
-`GOOGLE_CLIENT_ID` and `GOOGLE_REDIRECT_URI` are plain env.
+`GOOGLE_CLIENT_SECRET` come from **Secret Manager** (`--set-secrets`), never env vars, and so does
+`PERFORMANCE_SYNC_SECRET` (from `PERFORMANCE_SYNC_SECRET_STAGING` or `_PROD`, picked by the
+suffix of `DB_SECRET`). With it unset or under 32 characters the sync route refuses everything.
+`SOCIAL_STATE_SECRET`, `SOCIAL_TOKEN_KEY`, `TIKTOK_CLIENT_SECRET` and `INSTAGRAM_APP_SECRET`
+come from Secret Manager the same way, by the same suffix. All four must exist with at least one
+version or the deploy fails. A blank secret trims to empty and switches that platform off.
+`GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `TIKTOK_CLIENT_KEY`, `TIKTOK_REDIRECT_URI`,
+`INSTAGRAM_APP_ID` and `INSTAGRAM_REDIRECT_URI` are plain env, from the GitHub environment.
 
 ### Frontend: `test` → `sonar` → `deploy`
 
@@ -365,7 +377,7 @@ How CI gets permission to deploy without a stored key. Four pieces:
 | --- | --- |
 | Workload identity pool `github` | container for external identities |
 | Provider `github-provider` | trusts `token.actions.githubusercontent.com`; `--attribute-condition` restricts it to the `PROPENSI-PPL-Tofly` org |
-| Service account `github-deployer` | what CI may do: `roles/run.admin`, `roles/artifactregistry.writer`, `roles/cloudsql.client` (the `migrate` proxy), `roles/iam.serviceAccountUser` on the four runtime SAs |
+| Service account `github-deployer` | what CI may do: `roles/run.admin`, `roles/artifactregistry.writer`, `roles/cloudsql.client` (the `migrate` proxy), `roles/iam.serviceAccountUser` on the four runtime SAs, `roles/cloudscheduler.admin` (the performance sync job), `secretAccessor` on both `PERFORMANCE_SYNC_SECRET_*` (to set the job's header) |
 | `roles/iam.workloadIdentityUser` binding | which repo may impersonate the deployer: this repo only |
 
 The deploy jobs need `permissions: id-token: write`; without it, the OIDC token cannot be minted
@@ -394,9 +406,9 @@ make them members of `cloudsqlsuperuser`.
 
 | Service account | Used by | Extra access |
 | --- | --- | --- |
-| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET` |
+| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_STAGING`, and the four social secrets ending `_STAGING` |
 | `run-frontend` | `frontend` (staging) | none |
-| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET` |
+| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_PROD`, and the four social secrets ending `_PROD` |
 | `run-frontend-prod` | `frontend-prod` | none |
 
 ### Secret Manager
@@ -406,6 +418,11 @@ make them members of `cloudsqlsuperuser`.
 | `DB_URL_PROD` | `postgresql://tofly_prod:<pw>@localhost/tofly?host=/cloudsql/<PROJECT_ID>:asia-southeast2:tofly-pg&connection_limit=5` |
 | `DB_URL_STAGING` | the same for `tofly_staging` |
 | `GOOGLE_CLIENT_SECRET` | the Web OAuth client secret |
+| `PERFORMANCE_SYNC_SECRET_STAGING`, `PERFORMANCE_SYNC_SECRET_PROD` | 48 random bytes (base64url) each; the header Cloud Scheduler sends to start that environment's daily performance sync |
+| `SOCIAL_STATE_SECRET_STAGING`, `SOCIAL_STATE_SECRET_PROD` | 48 random bytes (base64) each; signs the OAuth state of the social connect flow |
+| `SOCIAL_TOKEN_KEY_STAGING`, `SOCIAL_TOKEN_KEY_PROD` | exactly 32 random bytes (base64) each; encrypts stored platform tokens. Replacing it makes stored tokens unreadable, so creators must reconnect |
+| `TIKTOK_CLIENT_SECRET_STAGING`, `TIKTOK_CLIENT_SECRET_PROD` | the TikTok app's client secret |
+| `INSTAGRAM_APP_SECRET_STAGING`, `INSTAGRAM_APP_SECRET_PROD` | the Instagram app secret |
 | `CLOUDSQL_POSTGRES_PASSWORD`, `CLOUDSQL_TOFLY_PROD_PASSWORD`, `CLOUDSQL_TOFLY_STAGING_PASSWORD` | the role passwords the URLs above are built from; no runtime account can read them |
 
 `connection_limit=5` keeps 3 instances × 2 environments well under the instance's connection cap.

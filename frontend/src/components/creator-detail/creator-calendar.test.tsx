@@ -19,6 +19,7 @@ const PERIOD: CreatorPeriod = {
 
 function entry(overrides: Partial<CreatorContentRow> = {}): CreatorContentRow {
   return {
+    platforms: [],
     contentId: "c-1",
     name: "Evg_1_RanggaPratama_01102026",
     type: "evergreen",

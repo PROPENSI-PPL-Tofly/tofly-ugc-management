@@ -13,6 +13,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
+    platforms: [],
     ...overrides,
   };
 }
@@ -26,6 +27,43 @@ function rows() {
 }
 
 describe("MyTaskTable", () => {
+  it("shows the marks of the platforms the content was posted to (AC 13)", () => {
+    render(
+      <MyTaskTable
+        tasks={[
+          task({ platforms: ["instagram", "tiktok"] }),
+        ]}
+        onAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
+  it("puts the marks under the content name, above the type label, as the admin's tables do", () => {
+    render(<MyTaskTable tasks={[task({ platforms: ["instagram"] })]} onAction={vi.fn()} />);
+
+    const row = rows()[0];
+    const name = within(row).getByText("Evg_1_RanggaPratama_12102026");
+    const mark = within(row).getByRole("img", { name: "Instagram" });
+    const type = within(row).getByText("Evergreen");
+
+    expect(
+      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      mark.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no marks for a task with no link sent yet", () => {
+    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+
+    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
+  });
+
   it("shows a row's tags beside its status, a finished late one included, as the admin's tables do", () => {
     render(
       <MyTaskTable
@@ -130,6 +168,19 @@ describe("MyTaskTable", () => {
 
       expect(screen.getByText("Tidak ada tugas berstatus Draft Approved.")).toBeInTheDocument();
     });
+
+    it("offers the empty list's action instead of the hint, which the action already explains", () => {
+      render(
+        <MyTaskTable
+          tasks={[]}
+          emptyMessage="Tidak ada tugas yang cocok."
+          emptyAction={<button type="button">Reset filter</button>}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Reset filter" })).toBeInTheDocument();
+      expect(screen.queryByText("Tugas baru muncul di sini begitu admin menjadwalkannya.")).toBeNull();
+    });
   });
 
   // Below the lg breakpoint each row stacks into a card: the header row is visually hidden, so
@@ -153,6 +204,51 @@ describe("MyTaskTable", () => {
       for (const header of screen.getAllByRole("columnheader")) {
         expect(header).toHaveAttribute("role", "columnheader");
       }
+    });
+
+    // Measured on this table's real markup in Edge at true 320–430 px: the rows already stack,
+    // but they read as one continuous panel split by hairlines, and each action is a 33 px button
+    // only as wide as its label. jsdom lays nothing out, so these pin what the layout is built
+    // from; the browser measurement is the evidence for the layout itself.
+    it("sets each task apart as its own card below lg, with room between cards", () => {
+      render(<MyTaskTable tasks={[task(), task({ id: "content-2" })]} onAction={vi.fn()} />);
+
+      const body = screen.getAllByRole("rowgroup")[1];
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      for (const row of rows()) {
+        expect(row).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border", "max-lg:bg-surface");
+        // The table's own hairline between rows stays from lg up.
+        expect(row).toHaveClass("border-b");
+      }
+    });
+
+    it("gives every action a full-width touch target at least 44px tall below lg", () => {
+      render(
+        <MyTaskTable
+          tasks={[
+            task(),
+            task({ id: "content-2", status: "draft_revision", actions: ["resubmit_draft"] }),
+            task({ id: "content-3", status: "draft_approved", actions: ["submit_video"] }),
+          ]}
+          onAction={vi.fn()}
+          now={NOW}
+        />,
+      );
+
+      for (const name of [/^Submit Draft/, /^Resubmit Draft/, /^Submit Link Video/]) {
+        const button = screen.getByRole("button", { name });
+        expect(button).toHaveClass("max-lg:w-full", "max-lg:min-h-11");
+      }
+    });
+
+    // Below lg the board offers its own visible sort button; the header's stayed focusable while
+    // unseen inside the hidden header row, so phones had two sort controls, one invisible.
+    it("removes the header's sort button below lg, keeping the column's name", () => {
+      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onSortToggle={vi.fn()} />);
+
+      const header = screen.getByRole("columnheader", { name: /Deadline/ });
+      expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
     });
 
     it("labels the deadline and status cells with their column", () => {
@@ -506,5 +602,13 @@ describe("MyTaskTable", () => {
         expect(row.className).toContain("lg:h-16");
       }
     });
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as every list table does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });

@@ -25,7 +25,7 @@ export function LoadError({
 
       {retryHref ? (
         // A plain anchor, not next/link: a full reload is the point after a failed request.
-        <a href={retryHref} className={`mt-4 inline-block ${buttonClasses()}`}>
+        <a href={retryHref} className={`mt-4 inline-flex items-center ${buttonClasses()}`}>
           Muat ulang
         </a>
       ) : null}

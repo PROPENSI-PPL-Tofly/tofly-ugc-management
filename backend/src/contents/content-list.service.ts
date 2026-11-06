@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { social_platform } from '@prisma/client';
 import { joinName } from '../creators/evergreen.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -11,6 +12,7 @@ import {
   type ContentListTab,
   type ContentListType,
 } from './content-list.js';
+import { linkPlatforms } from './content-links.js';
 import { contentTags } from './content-tags.js';
 import {
   compareByDeadline,
@@ -34,6 +36,8 @@ const CONTENT_LIST_SELECT = {
   status: true,
   video_submitted_at: true,
   approval_bypassed: true,
+  // Only which platforms have a link, for the row's icons (PBI-38 AC 13), never the links.
+  content_links: { select: { platform: true } },
   contracts: {
     select: {
       creators: {
@@ -67,6 +71,7 @@ export interface ContentListRow {
   status: ContentStatus;
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
+  content_links: { platform: social_platform | null }[];
   contracts: {
     creators: {
       id: string;
@@ -257,6 +262,7 @@ export class ContentListService implements ContentListLister {
         now,
       ),
       revisionCount: row._count.submissions,
+      platforms: linkPlatforms(row.content_links),
     };
   }
 }

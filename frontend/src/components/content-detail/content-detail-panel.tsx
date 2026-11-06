@@ -6,6 +6,9 @@ import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
+import { PlatformIcon } from "@/components/ui/platform-icon";
+import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
+import { LinkPerformanceSection } from "./link-performance-section";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
@@ -102,6 +105,8 @@ interface FormSpec {
   label: string;
   placeholder: string;
   required: boolean;
+  /** What a required field says once it is left empty; why Kirim stays unavailable. */
+  missingMessage?: string;
   max: number;
   decision: Decision;
   opener: PanelActionKind;
@@ -112,6 +117,7 @@ const FORMS: Record<FormKind, FormSpec> = {
     label: "Catatan revisi untuk creator",
     placeholder: "mis. Warna kurang kontras, mohon perbaiki bagian intro...",
     required: true,
+    missingMessage: "Catatan revisi wajib diisi sebelum dikirim.",
     max: MAX_REVISION_NOTE_LENGTH,
     decision: "revise",
     opener: "revise",
@@ -131,6 +137,7 @@ const FORMS: Record<FormKind, FormSpec> = {
 const OPENS_FORM: ReadonlySet<PanelActionKind> = new Set<PanelActionKind>([
   "revise",
   "reject_proposal",
+  "manage_links",
 ]);
 
 /** Where the admin reads the step differently from the creator: their own decision is due. */
@@ -162,6 +169,9 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   proposal_approved: "bg-muted ring-muted",
   auto_scheduled: "bg-muted ring-muted",
   creator_comment: "bg-muted ring-muted",
+  // Numbers typed in move no status either.
+  performance_entered: "bg-muted ring-muted",
+  performance_replaced: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
 };
 
@@ -219,6 +229,30 @@ function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Dat
         </span>
       </span>
     </>
+  );
+}
+
+/** The content's submitted links, one row per platform (AC 11): the mark, the link, the date. */
+function Links({ links }: Readonly<{ links: readonly ContentLink[] }>) {
+  return (
+    <section aria-label="Tautan video">
+      <h3 className={SECTION_LABEL}>Tautan video</h3>
+      <ul className="flex flex-col gap-2">
+        {links.map((link) => (
+          <li key={link.url} className="flex items-center gap-2 text-[13px]">
+            {link.platform ? <PlatformIcon platform={link.platform} /> : null}
+            <CreatorLink
+              link={link.url}
+              label={link.platform ? PLATFORM_LABELS[link.platform] : "Link"}
+              look="chip"
+            />
+            <time dateTime={link.submittedAt} className="text-xs text-muted">
+              {formatDate(link.submittedAt)}
+            </time>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -408,7 +442,11 @@ export function ContentDetailPanel({
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
   const [cancelled, setCancelled] = useState<FormKind | null>(null);
+  // Whether the admin has left the note field, so a required note is not flagged while it is
+  // still being started.
+  const [noteLeft, setNoteLeft] = useState(false);
   const countId = useId();
+  const missingId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
 
@@ -487,6 +525,7 @@ export function ContentDetailPanel({
       ports.openRejectForm?.();
     },
     onCreatorAction: ports.onCreatorAction,
+    onManageLinks: ports.onManageLinks,
   };
 
   const snapshot = () => ({ busy, note });
@@ -531,12 +570,15 @@ export function ContentDetailPanel({
     send = submitRejection({ contentId: loaded.id, state: snapshot, ports: actionPorts });
   }
   const formSpec = form ? FORMS[form] : null;
+  // Blank counts as missing: the backend trims the note before it refuses an empty one.
+  const missingNote = formSpec?.required === true && noteLeft && note.trim() === "";
 
   function cancelForm() {
     setCancelled(form);
     setForm(null);
     setError(null);
     setNote("");
+    setNoteLeft(false);
   }
 
   return (
@@ -588,6 +630,20 @@ export function ContentDetailPanel({
           {/* Evergreen content has no brief. */}
           {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
 
+          {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
+          {/* Each link's numbers and state once the API sends them (PBI-27); the plain rows before. */}
+          {loaded.links?.some((link) => link.performance !== undefined) ? (
+            <LinkPerformanceSection
+              contentId={contentId}
+              links={loaded.links}
+              role={role}
+              creatorFirstName={loaded.creatorName.split(" ")[0]}
+              onChanged={() => void readAgain()}
+            />
+          ) : loaded.links?.length ? (
+            <Links links={loaded.links} />
+          ) : null}
+
           <section>
             <h3 className={SECTION_LABEL}>Timeline</h3>
 
@@ -609,15 +665,22 @@ export function ContentDetailPanel({
                     ref={focusOnMount}
                     required={formSpec.required}
                     maxLength={formSpec.max}
-                    aria-describedby={countId}
+                    aria-describedby={missingNote ? `${missingId} ${countId}` : countId}
+                    aria-invalid={formSpec.required ? missingNote : undefined}
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
+                    onBlur={() => setNoteLeft(true)}
                     placeholder={formSpec.placeholder}
                     rows={3}
                     disabled={busy}
                     className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
                   />
                 </label>
+                {missingNote ? (
+                  <p id={missingId} className="text-xs text-red-ink">
+                    {formSpec.missingMessage}
+                  </p>
+                ) : null}
                 <CharLimit id={countId} length={note.length} max={formSpec.max} />
 
                 <div className="flex justify-end gap-2">

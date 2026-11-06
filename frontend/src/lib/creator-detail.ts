@@ -15,10 +15,22 @@ import {
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
-import type { ContentStatus, ContentTag, ContractPeriod } from "./creators";
+import type { Platform } from "./platform-links";
+import {
+  parseFilters,
+  parsePage,
+  type ContentStatus,
+  type ContentTag,
+  type ContractPeriod,
+  type CreatorFilterState,
+} from "./creators";
 import { formatDate } from "./format";
 import type { InvoiceStatus } from "./invoice";
+import type { SocialConnections } from "./social-connection";
 import { calendarDay, listOf, oneOf, pageNumber, single, type SearchParams } from "./search-params";
+
+/** The Creator Database, where the way back from a creator's page always leads. */
+export const CREATOR_DATABASE_BASE = "/admin/creators";
 
 /** A contract's table shows ten rows a page, as 4.1 serves them. */
 export const CREATOR_DETAIL_PAGE_SIZE = 10;
@@ -51,6 +63,11 @@ export interface CreatorDetailParams {
   overdue: OverdueFilter;
   sort: DeadlineSort;
   page: number;
+  /**
+   * The Creator Database view the admin came from, as its query ("q=nadia&page=2"); absent for
+   * the bare roster. Only what the roster reads is ever kept here.
+   */
+  back?: string;
 }
 
 export const DEFAULT_CREATOR_DETAIL_PARAMS: CreatorDetailParams = {
@@ -190,6 +207,8 @@ export interface CreatorContentRow {
   tags: ContentTag[];
   /** How many times an admin asked for a revision. */
   revisionCount: number;
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: Platform[];
 }
 
 export interface CreatorDetailView {
@@ -208,6 +227,8 @@ export interface CreatorDetailView {
   calendar: CreatorContentRow[];
   /** Null when the invoice endpoint is unavailable. */
   earnings: PeriodEarnings | null;
+  // Whether each account is connected (PBI-19), for the profile's badges.
+  connections?: SocialConnections;
 }
 
 /**
@@ -217,6 +238,7 @@ export interface CreatorDetailView {
  */
 export function parseCreatorDetailParams(params: SearchParams): CreatorDetailParams {
   const contract = single(params.contract);
+  const back = readCreatorDatabaseView(single(params.return));
 
   return {
     contract: isUuid(contract) ? contract : null,
@@ -227,7 +249,48 @@ export function parseCreatorDetailParams(params: SearchParams): CreatorDetailPar
     overdue: oneOf(OVERDUE_FILTERS, single(params.overdue), "all"),
     sort: oneOf(SORT_DIRECTIONS, single(params.sort), CREATOR_DETAIL_DEFAULT_SORT),
     page: pageNumber(params.page),
+    ...(back ? { back } : {}),
   };
+}
+
+/**
+ * A Creator Database view as the query that names it: the search, both filters and the page,
+ * defaults left out. The roster's own links and the way back write it the same way.
+ */
+export function creatorDatabaseQuery(
+  filters: CreatorFilterState,
+  page: number,
+): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (filters.q) query.q = filters.q;
+  if (filters.contractStatus !== "all") query.contractStatus = filters.contractStatus;
+  if (filters.productivity !== "all") query.productivity = filters.productivity;
+  if (page > 1) query.page = String(page);
+  return query;
+}
+
+/**
+ * `return` read the way the roster reads its own address, and written again from what was
+ * read. A key the roster does not know, a value it cannot hold or a whole address typed in its
+ * place is left behind, so the way back can only ever name a roster view (OWASP A01).
+ */
+function readCreatorDatabaseView(raw: string): string {
+  const given = new URLSearchParams(raw);
+  const params = {
+    q: given.get("q") ?? undefined,
+    contractStatus: given.get("contractStatus") ?? undefined,
+    productivity: given.get("productivity") ?? undefined,
+    page: given.get("page") ?? undefined,
+  };
+
+  return new URLSearchParams(
+    creatorDatabaseQuery(parseFilters(params), parsePage(params).page),
+  ).toString();
+}
+
+/** The way back: the roster view the admin came from, or the bare roster. */
+export function creatorDatabaseHref(back: string | undefined): string {
+  return back ? `${CREATOR_DATABASE_BASE}?${back}` : CREATOR_DATABASE_BASE;
 }
 
 /** The creator's own address; the id is encoded so it can never step out of its segment. */
@@ -249,6 +312,7 @@ export function buildCreatorDetailQuery(state: CreatorDetailParams): Record<stri
   if (state.overdue !== "all") query.overdue = state.overdue;
   if (state.sort !== CREATOR_DETAIL_DEFAULT_SORT) query.sort = state.sort;
   if (state.page > 1) query.page = String(state.page);
+  if (state.back) query.return = state.back;
   return query;
 }
 
@@ -285,11 +349,16 @@ export function creatorDetailAfterTabChange(
 
 /**
  * Another contract: its table opens unfiltered on its first page, as the prototype's period
- * tabs do. The filters and the page belonged to the contract that was left behind.
+ * tabs do. The filters and the page belonged to the contract that was left behind; the way
+ * back to the roster did not.
  */
 export function creatorDetailAfterContractChange(
-  _state: CreatorDetailParams,
+  state: CreatorDetailParams,
   contract: string,
 ): CreatorDetailParams {
-  return { ...DEFAULT_CREATOR_DETAIL_PARAMS, contract };
+  return {
+    ...DEFAULT_CREATOR_DETAIL_PARAMS,
+    contract,
+    ...(state.back ? { back: state.back } : {}),
+  };
 }

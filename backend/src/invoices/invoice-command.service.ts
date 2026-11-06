@@ -23,10 +23,19 @@ import {
 import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
+import { lockContractRow } from './contract-lock.js';
 import { contractLastDay } from './invoice-days.js';
 import { settleForFinalize } from './invoice-settlement.js';
 import type { FinalizeRequest } from './finalize-request.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
+import {
+  LAST_SYNC,
+  lastSyncReport,
+  type LastSync,
+  type LastSyncDto,
+} from './last-sync.js';
+import { lockDeliveredLinks, toFrozenLink } from './frozen-links.js';
+import { bonusDataGaps, type BonusDataGapsDto } from './bonus-data-gaps.js';
 
 // The admin's commands on a running invoice (PBI-12): recording a manual adjustment and
 // finalizing the invoice into its frozen snapshot. The reads stay in InvoicesService. This is
@@ -61,6 +70,10 @@ export interface InvoiceCommands {
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto;
+    /** How the last sync before freezing went (AC 8). */
+    lastSync: LastSyncDto;
+    /** The links the bonus still waited on when it was frozen (AC 9). */
+    bonusDataGaps: BonusDataGapsDto;
   }>;
 }
 
@@ -78,6 +91,7 @@ export class InvoiceCommandService implements InvoiceCommands {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoiceCommandClient,
     @Inject(RATE_FORMULA_SOURCE) private readonly formulas: RateFormulaSource,
+    @Inject(LAST_SYNC) private readonly lastSync: LastSync,
   ) {}
 
   async addAdjustment(
@@ -87,7 +101,7 @@ export class InvoiceCommandService implements InvoiceCommands {
   ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }> {
     return this.prisma.$transaction(
       async (tx) => {
-        await this.lockContract(tx, contractId);
+        await lockContractRow(tx, contractId);
         await this.requireContract(tx, contractId);
 
         const invoice = await tx.invoices.upsert({
@@ -126,12 +140,24 @@ export class InvoiceCommandService implements InvoiceCommands {
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto;
+    /** How the last sync before freezing went (AC 8). */
+    lastSync: LastSyncDto;
+    /** The links the bonus still waited on when it was frozen (AC 9). */
+    bonusDataGaps: BonusDataGapsDto;
   }> {
     const formula = await this.formulas.current();
+    // The platforms are asked first, outside the transaction: a sync takes up to 20 s and must
+    // never hold the contract lock every other command on this contract waits for (AC 7).
+    const synced = await this.lastSync.beforeFinalize(contractId);
 
     return this.prisma.$transaction(
       async (tx) => {
-        await this.lockContract(tx, contractId);
+        await lockContractRow(tx, contractId);
+        // Read after the lock, so a manual entry queued on it has committed; share-locked, so no
+        // sync writes a number between here and the commit (AC 10-11).
+        const links = (await lockDeliveredLinks(tx, contractId)).map(
+          toFrozenLink,
+        );
 
         const contract = await tx.contracts.findUnique({
           where: { id: contractId },
@@ -183,9 +209,12 @@ export class InvoiceCommandService implements InvoiceCommands {
           today,
         });
 
+        // The waiting links (AC 9), from the bonus calculated on the contract locked above.
+        const gaps = bonusDataGaps(breakdown.components.performanceBonus);
         const settled = settleForFinalize(
           breakdown,
           request.acceptPendingBonus,
+          gaps,
         );
 
         const adjustmentRows = await tx.invoice_adjustments.findMany({
@@ -205,6 +234,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           finalizedAt: today.toISOString(),
           formula,
           performanceBonusPending: settled.performanceBonusPending,
+          performanceLinks: links,
         };
 
         const updated = await tx.invoices.updateMany({
@@ -221,18 +251,15 @@ export class InvoiceCommandService implements InvoiceCommands {
           throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
         }
 
-        return { invoiceStatus: 'finalized', adjustments, snapshot };
+        return {
+          invoiceStatus: 'finalized',
+          adjustments,
+          snapshot,
+          lastSync: lastSyncReport(synced, links),
+          bonusDataGaps: gaps,
+        };
       },
       { isolationLevel: 'ReadCommitted' },
-    );
-  }
-
-  private async lockContract(
-    tx: Prisma.TransactionClient,
-    contractId: string,
-  ): Promise<void> {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT id FROM contracts WHERE id = ${contractId}::uuid FOR UPDATE`,
     );
   }
 
