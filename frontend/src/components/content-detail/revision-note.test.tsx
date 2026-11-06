@@ -113,6 +113,14 @@ describe("RevisionNote", () => {
     });
   });
 
+  it("leaves out a comment in the note", () => {
+    // Act
+    const { container } = render(<RevisionNote note="Halo" noteHtml="<p>Halo<!-- catatan --></p>" />);
+
+    // Assert
+    expect(container.textContent).toBe("Halo");
+  });
+
   describe("thumbnails (AC 8)", () => {
     it("shows one thumbnail per image, in the order attached", () => {
       // Act
