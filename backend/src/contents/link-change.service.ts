@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { Prisma, type content_status } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
+import {
+  lockContractOfContent,
+  type ContractLockClient,
+} from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { isLinkTaken } from './content-links.js';
 import { COMMITTED_STATUSES } from './content-lifecycle.js';
@@ -91,7 +95,7 @@ export const LINKED_CONTENT_WITH_ACCOUNTS_SELECT = {
 } as const;
 
 /** The slice of Prisma a link change uses, so unit tests stub exactly that. */
-export interface LinkChangeTransaction {
+export interface LinkChangeTransaction extends ContractLockClient {
   contents: {
     findFirst(args: {
       where: {
@@ -195,6 +199,9 @@ export class LinkChangeService implements LinkChanger {
     const clock = { now, today: jakartaDay(now) };
 
     return this.prisma.$transaction(async (transaction) => {
+      // First, as manual input and Finalize do, so a change never lands after the links froze.
+      await lockContractOfContent(transaction, contentId);
+
       // A proposal still pending and another creator's content read as missing (OWASP A01).
       const content = await transaction.contents.findFirst({
         where: {

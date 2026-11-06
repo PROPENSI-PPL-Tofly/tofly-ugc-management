@@ -544,9 +544,9 @@ describe("AddCreatorModal", () => {
       expect(screen.getByText("Tanggal mulai tidak boleh sebelum hari ini")).toBeInTheDocument();
     });
 
-    it("shows the calendar for a contract that ends exactly when the buffer does", () => {
+    it("shows the calendar for a contract whose H-5 line falls exactly when the buffer ends", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
-      fillContract("2026-10-01", "2026-10-06", "1");
+      fillContract("2026-10-01", "2026-10-11", "1");
 
       expect(screen.getByTestId("deadline-2026-10-06")).toBeInTheDocument();
       expect(screen.getByText(/1 \/ 1 teralokasi/i)).toBeInTheDocument();
@@ -570,7 +570,7 @@ describe("AddCreatorModal", () => {
       const onSubmit = vi.fn();
       render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
       fillOthers();
-      fillContract("2026-10-01", "2026-10-20", "3");
+      fillContract("2026-10-01", "2026-10-25", "3");
 
       expect(screen.getByRole("status")).toHaveTextContent(
         "Sisa 1 konten belum punya deadline. Pilih tanggalnya di kalender.",
@@ -587,7 +587,7 @@ describe("AddCreatorModal", () => {
 
     it("lists the manual deadlines and takes one back off", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
-      fillContract("2026-10-01", "2026-10-20", "3");
+      fillContract("2026-10-01", "2026-10-25", "3");
       fireEvent.click(screen.getByRole("button", { name: "13 Okt 2026: tambah deadline manual" }));
 
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -598,9 +598,22 @@ describe("AddCreatorModal", () => {
       expect(screen.queryByRole("button", { name: /hapus deadline manual/i })).not.toBeInTheDocument();
     });
 
+    // PBI-38 AC 14: the calendar never offers a day the API would refuse.
+    it("offers manual days up to the H-5 line and none after it", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-10-01", "2026-10-25", "3");
+
+      expect(
+        screen.getByRole("button", { name: "19 Okt 2026: tambah deadline manual" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "21 Okt 2026: tambah deadline manual" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("counts contents that share a manual day", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
-      fillContract("2026-10-01", "2026-10-06", "3");
+      fillContract("2026-10-01", "2026-10-11", "3");
       fireEvent.click(screen.getByRole("button", { name: "6 Okt 2026: lepas deadline otomatis" }));
 
       for (let pick = 0; pick < 3; pick++) {

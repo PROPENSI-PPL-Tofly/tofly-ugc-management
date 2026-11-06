@@ -156,21 +156,94 @@ describe('InvoiceCommandService', () => {
       expect(prisma.invoices.upsert).not.toHaveBeenCalled();
     });
 
-    // OWASP Top 10:2025 A06 (Insecure Design): the State Pattern blocks writes to a finalized invoice.
-    it('rejects an adjustment on a finalized invoice without saving it', async () => {
-      prisma.invoices.upsert.mockResolvedValue({
+    // PBI-28 AC 11: a finalized invoice can still be corrected until the creator acknowledges.
+    describe('on a finalized invoice', () => {
+      const frozen = {
         id: 'invoice-1',
         status: 'finalized',
+        snapshot: {
+          adjustments: [
+            {
+              id: 'adjustment-0',
+              amount: 500,
+              reason: 'Bonus event',
+              createdAt: '2026-11-01T00:00:00.000Z',
+            },
+          ],
+          rawTotal: 2_500,
+          total: 2_500,
+          floored: false,
+        },
+      };
+
+      it('saves it and moves the snapshot, guarded on the invoice still being finalized', async () => {
+        prisma.invoices.upsert.mockResolvedValue(frozen);
+        prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
+
+        const saved = await service.addAdjustment(
+          'contract-1',
+          input,
+          'admin-1',
+        );
+
+        expect(saved.invoiceStatus).toBe('finalized');
+        expect(prisma.invoice_adjustments.create).toHaveBeenCalledTimes(1);
+        const [update] = prisma.invoices.updateMany.mock.calls[0];
+        expect(update.where).toEqual({ id: 'invoice-1', status: 'finalized' });
+        expect(update.data.snapshot).toMatchObject({
+          rawTotal: 2_500 + saved.amount,
+          total: 2_500 + saved.amount,
+          floored: false,
+        });
+        expect(update.data.snapshot.adjustments).toHaveLength(2);
       });
 
-      const error = await rejection(
-        service.addAdjustment('contract-1', input, 'admin-1'),
-      );
+      it('floors the frozen total at zero, as Finalize does', async () => {
+        prisma.invoices.upsert.mockResolvedValue({
+          ...frozen,
+          snapshot: { ...frozen.snapshot, rawTotal: 1_000, total: 1_000 },
+        });
+        prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
 
-      expect(error).toBeInstanceOf(ConflictException);
-      expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
-      expect(prisma.invoice_adjustments.create).not.toHaveBeenCalled();
+        await service.addAdjustment('contract-1', input, 'admin-1');
+
+        const [update] = prisma.invoices.updateMany.mock.calls[0];
+        expect(update.data.snapshot).toMatchObject({ total: 0, floored: true });
+      });
+
+      it('refuses when the invoice moved on before the snapshot was written', async () => {
+        prisma.invoices.upsert.mockResolvedValue(frozen);
+        prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+        const error = await rejection(
+          service.addAdjustment('contract-1', input, 'admin-1'),
+        );
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect(error).toMatchObject({
+          response: { code: 'INVOICE_FINALIZED' },
+        });
+      });
     });
+
+    // OWASP Top 10:2025 A06 (Insecure Design): the State Pattern blocks writes once the creator
+    // has acknowledged the invoice.
+    it.each(['creator_acked', 'payment_uploaded', 'paid'])(
+      'rejects an adjustment on a %s invoice without saving it',
+      async (status) => {
+        prisma.invoices.upsert.mockResolvedValue({ id: 'invoice-1', status });
+
+        const error = await rejection(
+          service.addAdjustment('contract-1', input, 'admin-1'),
+        );
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect(error).toMatchObject({
+          response: { code: 'INVOICE_FINALIZED' },
+        });
+        expect(prisma.invoice_adjustments.create).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('finalize', () => {
@@ -258,7 +331,7 @@ describe('InvoiceCommandService', () => {
       });
       expect(result.snapshot.adjustments).toEqual(result.adjustments);
       expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-        prisma.contracts.findUnique.mock.invocationCallOrder[0],
+        prisma.contracts.findUnique.mock.invocationCallOrder[1],
       );
       expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { invoice_id: 'invoice-1' } }),
@@ -352,7 +425,7 @@ describe('InvoiceCommandService', () => {
       expect(links.text).toContain('FOR SHARE OF l');
       expect(links.values).toEqual(['contract-1']);
       expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
-        prisma.contracts.findUnique.mock.invocationCallOrder[0],
+        prisma.contracts.findUnique.mock.invocationCallOrder[1],
       );
       expect(prisma.invoices.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -564,6 +637,53 @@ describe('InvoiceCommandService', () => {
     });
 
     // OWASP Top 10:2025 A06 (Insecure Design): an early end waits for the day after the revocation.
+    // A refused Finalize must change nothing: a sync it ran first would move links' states.
+    it('asks no platform for a contract that has not ended', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({ end_date: day(0) }),
+      );
+
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
+
+      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_ENDED' } });
+      expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
+    });
+
+    it('asks no platform for an invoice already finalized', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({ invoice: { status: 'finalized' } }),
+      );
+
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
+
+      expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
+      expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 when the contract goes before the lock is taken', async () => {
+      prisma.contracts.findUnique
+        .mockResolvedValueOnce(endedContract())
+        .mockResolvedValueOnce(null);
+
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
+
+      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_FOUND' } });
+    });
+
+    it('answers 404 for an unknown contract before asking any platform', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(null);
+
+      await rejection(service.finalize('contract-1', 'admin-9', TODAY));
+
+      expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
+    });
+
     it('refuses a contract ended early whose access was revoked today in Jakarta', async () => {
       prisma.contracts.findUnique.mockResolvedValue(
         endedContract({

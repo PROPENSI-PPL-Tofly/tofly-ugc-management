@@ -55,6 +55,28 @@ describe("LinkPerformanceTable", () => {
     },
   );
 
+  // The sr-only action header is absolutely placed: without a positioned wrapper it escapes the
+  // scroll region and widens the page at every width.
+  it("keeps the table's overflow inside its own scroll region", () => {
+    const { container } = render(<LinkPerformanceTable rows={[row()]} />);
+
+    expect(container.querySelector("table")?.parentElement).toHaveClass("relative", "overflow-x-auto");
+  });
+
+  it("keeps Sinkronkan in view while the table scrolls", () => {
+    render(<LinkPerformanceTable rows={[row()]} actions={() => <button type="button">Sinkronkan</button>} />);
+
+    expect(screen.getByRole("button", { name: "Sinkronkan" }).closest("td")).toHaveClass("sticky", "right-0");
+  });
+
+  it("gives the content name room, so words do not break mid-word", () => {
+    render(<LinkPerformanceTable rows={[row()]} />);
+
+    const cell = screen.getAllByRole("cell")[0];
+    expect(cell).toHaveClass("min-w-48");
+    expect(cell).not.toHaveClass("wrap-anywhere");
+  });
+
   it("keeps the creator column to the admin's list; a creator reads their own (AC 20)", () => {
     const { unmount } = render(<LinkPerformanceTable rows={[row()]} />);
 

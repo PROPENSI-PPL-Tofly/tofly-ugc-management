@@ -22,6 +22,13 @@ import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
 export type DetailWaitingOn = 'admin' | 'creator' | null;
 
+/** One number a performance step moved; null is a number that was empty. */
+export interface MetricChange {
+  metric: 'views' | 'likes' | 'comments' | 'shares';
+  before: number | null;
+  after: number | null;
+}
+
 export type DetailEventType =
   | 'scheduled'
   | 'proposal_approved'
@@ -94,6 +101,8 @@ export interface ContentEvent {
     note?: string;
     platform?: social_platform;
     replaced?: true;
+    /** The numbers a performance step moved (PBI-27 AC 16, 17). */
+    changes?: MetricChange[];
   };
 }
 

@@ -35,6 +35,7 @@ import {
 import { AmountInput } from "@/components/ui/amount-input";
 import { getBufferWindow } from "@/lib/deadline-schedule";
 import { formatDate } from "@/lib/format";
+import { latestDeadline } from "@/lib/platform-links";
 import type { NewCreatorRequest } from "@/lib/creators";
 
 const ALERT = "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
@@ -168,7 +169,7 @@ export function AddCreatorModal({
             })
               .firstAllowedDate.toISOString()
               .slice(0, 10),
-            contractEnd: form.contractEnd,
+            contractEnd: latestDeadline(form.contractEnd),
           },
           picks,
         );
@@ -431,6 +432,7 @@ export function AddCreatorModal({
           <DeadlinePreview
             contractStart={form.contractStart}
             contractEnd={form.contractEnd}
+            lastDeadline={latestDeadline(form.contractEnd)}
             today={today}
             bufferDays={BUFFER_DAYS}
             autoDeadlines={allocation.auto}

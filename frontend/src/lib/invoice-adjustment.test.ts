@@ -118,7 +118,12 @@ describe("canAdjust", () => {
     expect(canAdjust("accruing")).toBe(true);
   });
 
-  it.each(["finalized", "creator_acked", "payment_uploaded", "paid"] as const)(
+  // PBI-28 AC 11: Finalize's own copy promises a correction until the creator acknowledges.
+  it("lets an admin correct a finalized invoice", () => {
+    expect(canAdjust("finalized")).toBe(true);
+  });
+
+  it.each(["creator_acked", "payment_uploaded", "paid"] as const)(
     "refuses an adjustment once the invoice is %s",
     (status) => {
       expect(canAdjust(status)).toBe(false);

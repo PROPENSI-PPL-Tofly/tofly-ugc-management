@@ -58,6 +58,22 @@ describe.each([
   });
 });
 
+// PBI-28 AC 11: a correction stays possible until the creator acknowledges, then never again.
+describe('adjusting an invoice', () => {
+  it('is allowed on a finalized invoice', () => {
+    expect(() => invoiceState('finalized').assertCanAdjust()).not.toThrow();
+  });
+
+  it.each(['creator_acked', 'payment_uploaded', 'paid'] as const)(
+    'is refused on a %s invoice',
+    (status) => {
+      expect(refusalOf(() => invoiceState(status).assertCanAdjust())).toEqual(
+        FINALIZED,
+      );
+    },
+  );
+});
+
 // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): once finalized, an invoice stays
 // frozen through every later step.
 describe.each([
@@ -66,11 +82,10 @@ describe.each([
   'payment_uploaded',
   'paid',
 ] as const)('a %s invoice', (status) => {
-  it('refuses an adjustment and a second finalize', () => {
-    const state = invoiceState(status);
-
-    expect(refusalOf(() => state.assertCanAdjust())).toEqual(FINALIZED);
-    expect(refusalOf(() => state.assertCanFinalize())).toEqual(FINALIZED);
+  it('refuses a second finalize', () => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanFinalize()),
+    ).toEqual(FINALIZED);
   });
 
   it('is reported under its own pipeline name', () => {

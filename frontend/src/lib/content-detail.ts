@@ -9,6 +9,7 @@ import { apiFetch } from "./api-client";
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
+import { METRICS, formatMetric, type MetricName } from "./link-performance";
 import type { MyTaskAction } from "./my-tasks";
 import { PLATFORM_LABELS, linkEventTitle, type ContentLink, type Platform } from "./platform-links";
 
@@ -39,6 +40,8 @@ export interface RawContentEvent {
     platform?: Platform;
     /** A link that took the place of another (38.2); the step stays a link step. */
     replaced?: boolean;
+    /** The numbers a performance step moved (PBI-27 AC 16, 17). */
+    changes?: { metric: MetricName; before: number | null; after: number | null }[];
   };
 }
 
@@ -89,6 +92,8 @@ export interface JourneyStep {
   linkLabel: string | null;
   /** Whose note it is, as the line above the note reads; null without a note. */
   noteBy: string | null;
+  /** What a number step moved, one line each; empty on any other step. */
+  changes: string[];
 }
 
 // How each kind of event reads. The number is the draft's version or the revision round;
@@ -148,6 +153,13 @@ function noteSignature(event: RawContentEvent): string | null {
  * API; when it sends none they are counted from the oldest event up, as revision rounds
  * always are, so the numbers stay right whichever way the list is shown.
  */
+function changeLines(event: RawContentEvent): string[] {
+  return (event.payload?.changes ?? []).map(({ metric, before, after }) => {
+    const label = METRICS.find(({ name }) => name === metric)?.label;
+    return `${label}: ${formatMetric(before)} → ${formatMetric(after)}`;
+  });
+}
+
 export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
   const steps: JourneyStep[] = [];
   let drafts = 0;
@@ -173,6 +185,7 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
       title,
       linkLabel: event.payload?.link ? linkLabel : null,
       noteBy: noteSignature(event),
+      changes: changeLines(event),
     });
   }
 

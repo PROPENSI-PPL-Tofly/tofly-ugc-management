@@ -167,19 +167,18 @@ describe("ConnectedAccountsPanel", () => {
     });
   });
 
-  // Sprint 3 prototype: a platform with no account for the creator says so, and offers nothing
-  // to press: only the Admin can add the account.
+  // PBI-19 AC 1: the backend accepts this connect and stores the account, so a creator with one
+  // platform on file can add the other themselves.
   describe("a platform the creator has no account on", () => {
-    it("says Tidak ada akun, asks for the Admin and offers no Hubungkan", () => {
+    it("says Tidak ada akun and offers Hubungkan", () => {
       renderPanel({ accounts: [account({ platform: "instagram", hasAccount: false }), NOT_CONNECTED[1]] });
 
       const instagram = within(row("Instagram"));
       expect(instagram.getByText("Tidak ada akun")).toBeInTheDocument();
       expect(
-        instagram.getByText("Belum ada akun Instagram di data kamu. Minta Admin menambahkannya dulu."),
+        instagram.getByText("Belum ada akun Instagram di data kamu. Hubungkan untuk menambahkannya."),
       ).toBeInTheDocument();
-      expect(instagram.queryByRole("link")).not.toBeInTheDocument();
-      expect(instagram.queryByRole("button")).not.toBeInTheDocument();
+      expect(instagram.getByRole("link", { name: "Hubungkan Instagram" })).toBeInTheDocument();
     });
   });
 

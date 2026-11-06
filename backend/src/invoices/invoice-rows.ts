@@ -268,6 +268,12 @@ export function sumAdjustments(
   );
 }
 
+/** The parts of a frozen snapshot an adjustment moves. */
+export interface AdjustableSnapshot {
+  adjustments: InvoiceAdjustmentDto[];
+  rawTotal: number;
+}
+
 /**
  * The calculated total plus the adjustments' decimal sum, floored at zero. Numbers are
  * returned only for the DTO and snapshot.
@@ -284,6 +290,22 @@ export function adjustedTotals(
     rawTotal: raw.toNumber(),
     total: floored ? 0 : raw.toNumber(),
     floored,
+  };
+}
+
+/** A frozen snapshot with one more adjustment: its list and its totals, nothing else. */
+export function withAdjustment<T extends AdjustableSnapshot>(
+  snapshot: T,
+  adjustment: InvoiceAdjustmentDto,
+): T {
+  const calculated = new Prisma.Decimal(snapshot.rawTotal).minus(
+    sumAdjustments(snapshot.adjustments),
+  );
+  const adjustments = [...snapshot.adjustments, adjustment];
+  return {
+    ...snapshot,
+    adjustments,
+    ...adjustedTotals(calculated.toNumber(), sumAdjustments(adjustments)),
   };
 }
 

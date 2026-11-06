@@ -307,6 +307,16 @@ function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
           {event.actor.name ? `${event.actor.name} · ${role}` : role}
         </p>
 
+        {step.changes.length > 0 ? (
+          <ul aria-label="Perubahan angka" className="mt-1 text-[11.5px] text-muted">
+            {step.changes.map((change) => (
+              <li key={change} className="tabular-nums">
+                {change}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
         {link && step.linkLabel ? (
           <div className="mt-2">
             <CreatorLink link={link} label={step.linkLabel} look="chip" />
