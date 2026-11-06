@@ -1100,14 +1100,20 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
     });
 
     it.each([
-      ["Evergreen content, which has none", { type: "evergreen", brief: "Sisa brief lama." }],
+      ["an Evergreen content with none written", { type: "evergreen", brief: "" }],
       ["a Specific content with none written", { brief: "" }],
     ] as const)("leaves the brief out for %s", async (_label, overrides) => {
       show(overrides);
 
       await journeyItems();
       expect(screen.queryByText("Brief")).not.toBeInTheDocument();
-      expect(screen.queryByText("Sisa brief lama.")).not.toBeInTheDocument();
+    });
+
+    it("shows an Evergreen content's brief once an admin has written one (PBI-25 AC 2)", async () => {
+      show({ type: "evergreen", brief: "Sapa pengikut baru." });
+
+      expect(await screen.findByText("Sapa pengikut baru.")).toBeInTheDocument();
+      expect(screen.getByText("Brief")).toBeInTheDocument();
     });
 
     it("shows a brief of exactly 160 characters whole, with nothing to expand", async () => {

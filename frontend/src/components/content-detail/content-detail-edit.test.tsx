@@ -53,6 +53,7 @@ function open(
     manage?: Partial<ContentManagePorts>;
     then?: ContentDetail;
     onDecided?: (decision: Decision) => void;
+    onEdited?: () => void;
   } = {},
 ) {
   const load = vi.fn().mockResolvedValueOnce(first).mockResolvedValue(options.then ?? first);
@@ -67,6 +68,7 @@ function open(
       onClose={vi.fn()}
       load={load}
       onDecided={onDecided}
+      {...(options.onEdited && { onEdited: options.onEdited })}
       manage={{ update, remove, ...options.manage }}
     />,
   );
@@ -334,6 +336,17 @@ describe("saving an edit (AC 4, 5)", () => {
     expect(screen.queryByRole("form", { name: "Ubah konten" })).toBeNull();
     // The panel stays on the content: an edit is not a decision that closes it.
     expect(onDecided).not.toHaveBeenCalled();
+  });
+
+  it("tells the touchpoint about a saved edit, so a list it holds itself can be read again", async () => {
+    const onEdited = vi.fn();
+    open(scheduled(), { onEdited });
+
+    await editDeadline("2026-11-25");
+    fireEvent.click(within(confirmDialog()).getByRole("button", { name: "Simpan" }));
+
+    await screen.findByRole("status");
+    expect(onEdited).toHaveBeenCalledTimes(1);
   });
 
   it("puts the API's field errors back on their fields", async () => {
