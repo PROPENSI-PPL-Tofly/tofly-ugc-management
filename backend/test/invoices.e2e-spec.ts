@@ -1473,20 +1473,24 @@ describe('Invoices API (e2e)', () => {
       expect((await saved(id)).snapshot).toEqual(finalized.body.snapshot);
     });
 
-    // OWASP Top 10:2025 A06 and A10 — an adjustment that queued behind the finalize is refused by
-    // the finalized state with a reason, and nothing is saved outside the frozen snapshot.
-    it('refuses an adjustment that queued behind the finalize and saves nothing', async () => {
+    // PBI-28 AC 11, OWASP Top 10:2025 A08: an adjustment that queued behind the finalize corrects
+    // the frozen invoice, so nothing is ever saved outside the snapshot.
+    it('moves the snapshot with an adjustment that queued behind the finalize', async () => {
       const id = await endedContract('Finalize Then Adjust');
 
       const [finalized, adjusted] = await queued(id, finalize(id), adjust(id));
 
       expect(finalized.status).toBe(201);
-      expect(adjusted.status).toBe(409);
-      expect(adjusted.body).toMatchObject({ code: 'INVOICE_FINALIZED' });
-      expect(await adjustmentIds(id)).toEqual([]);
+      expect(adjusted.status).toBe(201);
+      expect(adjusted.body).toMatchObject({ invoiceStatus: 'finalized' });
+      expect(await adjustmentIds(id)).toEqual([adjusted.body.id]);
       expect(finalized.body.snapshot).toMatchObject({
         adjustments: [],
         total: 1_000_000,
+      });
+      expect((await saved(id)).snapshot).toMatchObject({
+        adjustments: [{ id: adjusted.body.id, amount: 50_000 }],
+        total: 1_050_000,
       });
     });
   });
