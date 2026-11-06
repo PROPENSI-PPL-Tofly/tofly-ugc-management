@@ -84,6 +84,12 @@ const TOOLS: readonly Tool[] = [
 
 const FRAME = "rounded-(--radius-control) border border-rule bg-surface";
 
+// Tiptap's own base rules for the text (from its style.ts), as classes: spaces and line breaks
+// kept as typed, long words wrapped, no ligatures that would join letters the caret moves between.
+// Its gap-cursor and hidden-selection rules are left out: they serve blocks this editor turns off.
+const EDITOR_TEXT =
+  "relative whitespace-pre-wrap [white-space:break-spaces] break-words [font-variant-ligatures:none] [font-feature-settings:'liga'_0] [&_[contenteditable=false]]:whitespace-normal [&_img.ProseMirror-separator]:!inline [&_img.ProseMirror-separator]:!size-0 [&_img.ProseMirror-separator]:!border-0 [&_img.ProseMirror-separator]:!m-0";
+
 const TOOL_BUTTON =
   "rounded-md px-2.5 py-1 text-[12.5px] text-ink hover:bg-surface-2 aria-pressed:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -132,6 +138,9 @@ export function RichNoteEditor({
 }: Readonly<RichNoteEditorProps>) {
   const countId = useId();
   const editor = useEditor({
+    // The app's CSP refuses a <style> tag without its nonce, so Tiptap injects none; the rules it
+    // would bring are in EDITOR_TEXT, compiled into the app's own stylesheet (OWASP A02).
+    injectCSS: false,
     extensions: [
       FORMATTING,
       CharacterCount.configure({ limit: max }),
@@ -166,8 +175,7 @@ export function RichNoteEditor({
         "aria-describedby": countId,
         // Said by screen readers; data-placeholder on the empty paragraph draws it on the page.
         ...(placeholder ? { "aria-placeholder": placeholder } : {}),
-        class:
-          "min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc [&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:text-muted [&_.is-editor-empty]:before:content-[attr(data-placeholder)]",
+        class: `${EDITOR_TEXT} min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc [&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:text-muted [&_.is-editor-empty]:before:content-[attr(data-placeholder)]`,
       },
     },
     onUpdate: ({ editor: changed }) => onChange?.(noteOf(changed)),
