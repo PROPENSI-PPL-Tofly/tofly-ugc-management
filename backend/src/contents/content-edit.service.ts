@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
 import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
+import { lockContractOfContent } from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   assertChangeable,
@@ -116,8 +117,13 @@ function viewOf(row: EditableRow): EditedContent {
 
 /**
  * PATCH and DELETE /contents/:id (PBI-25, 25.1). Each runs in one transaction that locks the
- * content row first: a draft handed in meanwhile waits for it, then finds the content changed or
- * gone, and an edit or delete that comes after the draft sees it and is refused (AC 9).
+ * contract and then the content row before reading anything (AC 9):
+ * - a Finalize under way holds the contract, so the edit waits and then sees the invoice
+ *   finalized and is refused, and a Finalize that comes after reads the content as changed;
+ * - a draft handed in meanwhile waits for the content row, then finds the content changed or
+ *   gone, and an edit or delete that comes after the draft sees it and is refused.
+ * Finalize locks only the contract and a draft only the content row, so taking the contract
+ * first cannot deadlock with either.
  */
 @Injectable()
 export class ContentEditService implements ContentEditor {
@@ -192,6 +198,7 @@ export class ContentEditService implements ContentEditor {
     transaction: ContentEditTransaction,
     id: string,
   ): Promise<EditableRow> {
+    await lockContractOfContent(transaction, id);
     await transaction.$queryRaw(Prisma.sql`
       SELECT id FROM contents WHERE id = ${id}::uuid FOR UPDATE
     `);
