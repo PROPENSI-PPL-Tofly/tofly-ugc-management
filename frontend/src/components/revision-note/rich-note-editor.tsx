@@ -3,10 +3,11 @@
 // The revision note's editor (PBI-34, subtask 34.2), on Tiptap as the prototype simulates it.
 // Only the formatting AC 1 names is switched on, so the toolbar is the editor's whole vocabulary.
 
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount } from "@tiptap/extensions";
+import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 
 /** What the form reads from the editor on every change. */
@@ -25,8 +26,17 @@ export interface RichNoteEditorProps {
   onChange?: (note: RichNote) => void;
 }
 
+/** The one message a refused link address gets, worded as the prototype does. */
+export const LINK_ADDRESS_INVALID = "Link harus diawali http:// atau https://";
+
+// How long a refusal stays on screen, as the prototype shows it.
+const MESSAGE_MS = 3500;
+
+// http or https and an address after it, with no space: the prototype's own check. Anything
+// else, javascript: above all, would run a script or leave the web on a click (OWASP A05).
+const WEB_ADDRESS = /^https?:\/\/\S+$/i;
+
 // StarterKit's other blocks (headings, quotes, code, rules, strike, underline) stay off.
-// Link is switched on with its own rules in the next step.
 const FORMATTING = StarterKit.configure({
   heading: false,
   blockquote: false,
@@ -35,7 +45,8 @@ const FORMATTING = StarterKit.configure({
   horizontalRule: false,
   strike: false,
   underline: false,
-  link: false,
+  // A link that arrives any other way (in content, on paste, typed) passes the same check.
+  link: { openOnClick: false, isAllowedUri: (url) => WEB_ADDRESS.test(url) },
 });
 
 type Mark = "bold" | "italic" | "bulletList" | "orderedList";
@@ -134,6 +145,41 @@ function ReadyEditor({ editor, disabled, max, countId }: Readonly<ReadyEditorPro
     }),
   });
 
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [address, setAddress] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  // A refusal steps back after a few seconds, as the prototype's does.
+  useEffect(() => {
+    if (!linkError) return;
+    const timer = setTimeout(() => setLinkError(null), MESSAGE_MS);
+    return () => clearTimeout(timer);
+  }, [linkError]);
+
+  function applyLink() {
+    const href = address.trim();
+    if (!WEB_ADDRESS.test(href)) {
+      setLinkError(LINK_ADDRESS_INVALID);
+      return;
+    }
+    const chain = editor.chain().focus();
+    // Selected words become the link's text; with none, the address itself goes in, then a space
+    // so the next words typed are not part of the link.
+    if (editor.state.selection.empty) {
+      chain
+        .insertContent([
+          { type: "text", text: href, marks: [{ type: "link", attrs: { href } }] },
+          { type: "text", text: " " },
+        ])
+        .run();
+    } else {
+      chain.extendMarkRange("link").setLink({ href }).run();
+    }
+    setLinkOpen(false);
+    setAddress("");
+    setLinkError(null);
+  }
+
   return (
     <div className="flex flex-col gap-1">
       <div className={FRAME}>
@@ -158,12 +204,39 @@ function ReadyEditor({ editor, disabled, max, countId }: Readonly<ReadyEditorPro
             type="button"
             aria-label="Tambah link"
             title="Tambah link"
+            aria-expanded={linkOpen}
             disabled={disabled}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setLinkOpen((open) => !open)}
             className={TOOL_BUTTON}
           >
             Link
           </button>
         </div>
+        {linkOpen ? (
+          <div className="flex flex-col gap-1 border-b border-rule p-1.5">
+            <div className="flex gap-1.5">
+              <input
+                type="url"
+                aria-label="URL link"
+                placeholder="https://…"
+                value={address}
+                aria-invalid={linkError !== null}
+                onChange={(event) => {
+                  setAddress(event.target.value);
+                  setLinkError(null);
+                }}
+                className="flex-1 rounded-md border border-rule px-2.5 py-1.5 text-[12.5px] text-ink"
+              />
+              <Button onClick={applyLink}>Terapkan</Button>
+            </div>
+            {linkError ? (
+              <p role="alert" className="text-xs text-red-ink">
+                {linkError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <EditorContent editor={editor} />
       </div>
       <CharLimit id={countId} length={state.length} max={max} />
