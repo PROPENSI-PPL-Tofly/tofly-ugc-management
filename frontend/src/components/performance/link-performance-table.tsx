@@ -15,6 +15,8 @@ import type { PerformanceLinkRow } from "@/lib/performance-links";
 
 const HEAD = "px-5 py-3 font-semibold";
 const CELL = "px-5 py-3 align-top";
+/** Stays at the right edge while the columns scroll under it, so the action is always in reach. */
+const ACTION = "sticky right-0 bg-surface text-right";
 
 /**
  * The one table both link lists are drawn with (PBI-27, 27.6): the admin's "Performa Konten"
@@ -37,7 +39,7 @@ export function LinkPerformanceTable({
   actions?: (row: PerformanceLinkRow) => ReactNode;
 }>) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-rule text-left text-muted">
@@ -64,7 +66,7 @@ export function LinkPerformanceTable({
               Sinkron Terakhir
             </th>
             {actions ? (
-              <th scope="col" className={`${HEAD} text-right`}>
+              <th scope="col" className={`${HEAD} ${ACTION}`}>
                 <span className="sr-only">Aksi</span>
               </th>
             ) : null}
@@ -89,7 +91,7 @@ export function LinkPerformanceTable({
               }`}
             >
               {showCreator ? <td className={CELL}>{row.creatorName}</td> : null}
-              <td className={`${CELL} wrap-anywhere`}>
+              <td className={`${CELL} min-w-48 wrap-break-word`}>
                 {onRowClick ? (
                   <ContentNameButton onOpen={() => onRowClick(row)}>
                     {row.contentName}
@@ -120,7 +122,7 @@ export function LinkPerformanceTable({
                 </span>
               </td>
               <td className={`${CELL} whitespace-nowrap`}>{formatTimestamp(row.lastSyncedAt)}</td>
-              {actions ? <td className={`${CELL} text-right`}>{actions(row)}</td> : null}
+              {actions ? <td className={`${CELL} ${ACTION}`}>{actions(row)}</td> : null}
             </tr>
           ))}
         </tbody>
