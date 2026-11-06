@@ -3,6 +3,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ADMIN_ACTOR_NAME } from './content-event-actors.js';
 import {
   ContentEditService,
@@ -42,8 +43,12 @@ function row(overrides: Partial<EditableRow> = {}): EditableRow {
 function setup(found: EditableRow | null = row()) {
   const calls: string[] = [];
   const transaction = {
-    $queryRaw: vi.fn(async () => {
-      calls.push('lock');
+    $queryRaw: vi.fn(async (query: Prisma.Sql) => {
+      calls.push(
+        /FOR UPDATE OF contracts/.test(query.sql)
+          ? 'lock contract'
+          : 'lock content',
+      );
       return [];
     }),
     contents: {
@@ -74,12 +79,12 @@ function setup(found: EditableRow | null = row()) {
 }
 
 describe('ContentEditService.update', () => {
-  it('locks the content before reading it, so a draft handed in meanwhile waits', async () => {
+  it('locks the contract, then the content, before reading it, so a Finalize or a draft under way finishes first (AC 9)', async () => {
     const { service, calls, transaction } = setup();
 
     await service.update(CONTENT_ID, { brief: 'Brief baru' }, ADMIN_ID);
 
-    expect(calls).toEqual(['lock', 'read']);
+    expect(calls).toEqual(['lock contract', 'lock content', 'read']);
     expect(transaction.contents.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: CONTENT_ID } }),
     );
@@ -183,12 +188,12 @@ describe('ContentEditService.update', () => {
 });
 
 describe('ContentEditService.remove', () => {
-  it('locks, reads and then deletes the content for good (AC 8)', async () => {
+  it('locks the contract and the content, reads and then deletes the content for good (AC 8, 9)', async () => {
     const { service, transaction, calls } = setup();
 
     await expect(service.remove(CONTENT_ID)).resolves.toBeUndefined();
 
-    expect(calls).toEqual(['lock', 'read']);
+    expect(calls).toEqual(['lock contract', 'lock content', 'read']);
     expect(transaction.contents.delete).toHaveBeenCalledWith({
       where: { id: CONTENT_ID },
     });
