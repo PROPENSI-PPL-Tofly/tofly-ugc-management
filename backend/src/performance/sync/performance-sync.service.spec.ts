@@ -41,6 +41,7 @@ interface Stub {
   queryRaw: ReturnType<typeof vi.fn>;
   findContent: ReturnType<typeof vi.fn>;
   release: ReturnType<typeof vi.fn>;
+  createEvents: ReturnType<typeof vi.fn>;
 }
 
 /** Prisma as far as the sync touches it. Every content asked for is claimed unless named. */
@@ -67,9 +68,11 @@ function stub(
         : { status: 'link_submitted', contracts: { invoice: null } },
     );
   const release = vi.fn().mockResolvedValue({ count: 1 });
+  const createEvents = vi.fn().mockResolvedValue({ count: 1 });
   const client = {
     content_links: { findMany, updateMany },
     contents: { findUnique: findContent, updateMany: release },
+    content_events: { createMany: createEvents },
     $queryRaw: queryRaw,
     $transaction: transaction,
   } as unknown as PerformanceSyncClient;
@@ -81,6 +84,7 @@ function stub(
     queryRaw,
     findContent,
     release,
+    createEvents,
   };
 }
 
@@ -131,6 +135,90 @@ function writesOf(s: Stub) {
 }
 
 describe('PerformanceSyncService', () => {
+  // PBI-27 AC 17: the timeline says the platform took over from numbers an admin typed in.
+  describe('recording manual numbers the platform replaced', () => {
+    const typed = { views: 100, likes: 5, comments: 2, shares: 1 };
+    const manualRow = () => ({
+      ...row('a-tt-1', 'content-1', 'tiktok', CREATOR_A, 'manual'),
+      ...typed,
+    });
+
+    it('writes one system event with the old and new values', async () => {
+      const s = stub([manualRow()]);
+      const service = new PerformanceSyncService(
+        s.client,
+        [syncing('tiktok')],
+        log(),
+        clock(),
+      );
+
+      await service.syncAll();
+
+      expect(s.createEvents).toHaveBeenCalledTimes(1);
+      const [{ data }] = s.createEvents.mock.calls[0];
+      expect(data).toEqual([
+        expect.objectContaining({
+          content_id: 'content-1',
+          event_type: 'Performance Replaced',
+          actor_name: 'Sistem',
+          actor_role: 'system',
+          actor_user_id: null,
+          event_data: {
+            platform: 'tiktok',
+            before: { ...typed, state: 'manual' },
+            after: expect.objectContaining({ state: 'synced' }),
+          },
+        }),
+      ]);
+    });
+
+    it('writes nothing when a change landed first and the numbers stayed', async () => {
+      const s = stub([manualRow()]);
+      s.transaction.mockResolvedValue([{ count: 0 }]);
+      const service = new PerformanceSyncService(
+        s.client,
+        [syncing('tiktok')],
+        log(),
+        clock(),
+      );
+
+      await service.syncAll();
+
+      expect(s.createEvents).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing for a link that held no manual numbers', async () => {
+      const s = stub([row('a-tt-1', 'content-1')]);
+      const service = new PerformanceSyncService(
+        s.client,
+        [syncing('tiktok')],
+        log(),
+        clock(),
+      );
+
+      await service.syncAll();
+
+      expect(s.createEvents).not.toHaveBeenCalled();
+    });
+
+    it('keeps the synced numbers and warns when the event cannot be saved', async () => {
+      const s = stub([manualRow()]);
+      s.createEvents.mockRejectedValue(new TypeError('secret detail'));
+      const out = log();
+      const service = new PerformanceSyncService(
+        s.client,
+        [syncing('tiktok')],
+        out,
+        clock(),
+      );
+
+      await expect(service.syncAll()).resolves.toMatchObject({ succeeded: 1 });
+      expect(out.warn).toHaveBeenCalledWith(
+        'performance sync: recording 1 replaced link(s) failed (TypeError)',
+      );
+    });
+  });
+
   describe('syncAll (the 02:00 WIB run)', () => {
     it('reads only syncable links, with no token column, and only once per creator per platform (AC 4, 5)', async () => {
       const s = stub([

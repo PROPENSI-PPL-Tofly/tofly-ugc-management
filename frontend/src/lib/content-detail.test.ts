@@ -204,6 +204,19 @@ describe("describeJourney", () => {
     ]);
   });
 
+  // PBI-27 AC 17: the platform taking over from typed numbers is a step too.
+  it("titles manual numbers the platform replaced by that platform", () => {
+    const steps = describeJourney([
+      event({ id: "tiktok", type: "performance_replaced", payload: { platform: "tiktok" } }),
+      event({ id: "unknown", type: "performance_replaced" }),
+    ]);
+
+    expect(steps.map((step) => step.title)).toEqual([
+      "Angka manual diganti data TikTok",
+      "Angka manual diganti data platform",
+    ]);
+  });
+
   it("keeps every event, in the order it was given, with the event itself", () => {
     const steps = describeJourney(journey);
 

@@ -77,6 +77,49 @@ describe('outcomesFor', () => {
     });
   });
 
+  it('names the old and new numbers when the platform replaces manual ones (AC 17)', () => {
+    const typed = { views: 100, likes: 5, comments: 2, shares: 1 };
+    const manual = group({ id: 'l1', storedState: 'manual' });
+    manual.links[0].storedMetrics = typed;
+
+    const [outcome] = outcomesFor(
+      manual,
+      {
+        outcome: 'read',
+        readings: [{ linkId: 'l1', outcome: 'synced', metrics: METRICS }],
+      },
+      NOW,
+    );
+
+    expect(outcome.replacedManual).toEqual({
+      before: typed,
+      after: { views: 12400, likes: 830, comments: 2, shares: 0 },
+    });
+  });
+
+  it('names no replacement on a link that held no manual numbers', () => {
+    const [outcome] = outcomesFor(
+      group({ id: 'l1', storedState: 'synced' }),
+      {
+        outcome: 'read',
+        readings: [{ linkId: 'l1', outcome: 'synced', metrics: METRICS }],
+      },
+      NOW,
+    );
+
+    expect(outcome.replacedManual).toBeUndefined();
+  });
+
+  it('names no replacement when manual numbers stay', () => {
+    const [outcome] = outcomesFor(
+      group({ id: 'l1', storedState: 'manual' }),
+      { outcome: 'read', readings: [{ linkId: 'l1', outcome: 'not_found' }] },
+      NOW,
+    );
+
+    expect(outcome.replacedManual).toBeUndefined();
+  });
+
   it('marks a deleted, private or foreign video not found and keeps its last numbers (AC 8, 11)', () => {
     const [outcome] = outcomesFor(
       group({ id: 'l1', storedState: 'synced' }),
