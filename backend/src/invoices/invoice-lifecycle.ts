@@ -90,7 +90,7 @@ export class RunningInvoiceState implements InvoiceState {
 abstract class FrozenInvoiceState implements InvoiceState {
   abstract readonly pipelineStatus: InvoiceStatus;
 
-  assertCanAdjust(): never {
+  assertCanAdjust(): void {
     throw this.finalized();
   }
 
@@ -131,6 +131,9 @@ export class FinalizedInvoiceState extends FrozenInvoiceState {
   readonly pipelineStatus = 'finalized';
 
   override assertCanAcknowledge(): void {}
+
+  /** A correction stays possible until the creator acknowledges (PBI-28 AC 11). */
+  override assertCanAdjust(): void {}
 }
 
 /** The creator accepted the amount; the admin's payment proof is what comes next. */

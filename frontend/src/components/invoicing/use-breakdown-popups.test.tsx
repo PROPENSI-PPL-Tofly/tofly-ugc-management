@@ -565,7 +565,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       const rincian = screen.getByRole("dialog", { name: "Rincian Invoice" });
       expect(within(rincian).getByRole("group", { name: "Total invoice" })).toHaveTextContent("Total Final");
       expect(within(rincian).getByText("Menunggu ack creator.")).toBeInTheDocument();
-      expect(within(rincian).queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
+      expect(within(rincian).getByRole("button", { name: "+ Tambah Penyesuaian" })).toBeInTheDocument();
     });
 
     it("opens a content from the panel and comes back to the panel when it closes", async () => {

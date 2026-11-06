@@ -15,6 +15,8 @@ import {
   CONTENT_SELECT,
   INVOICE_ADJUSTMENT_SELECT,
   adjustedTotals,
+  type AdjustableSnapshot,
+  withAdjustment,
   adjustmentDto,
   sumAdjustments,
   toInvoiceContent,
@@ -59,7 +61,7 @@ export interface InvoiceCommands {
     contractId: string,
     input: ManualAdjustmentInput,
     actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }>;
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: AdjustableStatus }>;
 
   finalize(
     contractId: string,
@@ -82,6 +84,9 @@ const NO_PENDING_BONUS_ACCEPTED: Readonly<FinalizeRequest> = Object.freeze({
   acceptPendingBonus: false,
 });
 
+/** What an invoice can be while an adjustment lands on it. */
+type AdjustableStatus = 'accruing' | 'finalized';
+
 function codeError(code: string, message: string): ConflictException {
   return new ConflictException({ code, message });
 }
@@ -98,7 +103,7 @@ export class InvoiceCommandService implements InvoiceCommands {
     contractId: string,
     input: ManualAdjustmentInput,
     actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }> {
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: AdjustableStatus }> {
     return this.prisma.$transaction(
       async (tx) => {
         await lockContractRow(tx, contractId);
@@ -108,7 +113,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           where: { contract_id: contractId },
           create: { contract_id: contractId },
           update: {},
-          select: { id: true, status: true },
+          select: { id: true, status: true, snapshot: true },
         });
 
         invoiceState(invoice.status).assertCanAdjust();
@@ -123,8 +128,26 @@ export class InvoiceCommandService implements InvoiceCommands {
           select: INVOICE_ADJUSTMENT_SELECT,
         });
 
-        // Still running in the database; the API names it as the pipeline does.
-        return { ...adjustmentDto(saved), invoiceStatus: 'accruing' };
+        const adjustment = adjustmentDto(saved);
+        if (invoice.status === 'running') {
+          // Still running in the database; the API names it as the pipeline does.
+          return { ...adjustment, invoiceStatus: 'accruing' };
+        }
+
+        // Frozen numbers move only here, and only while nobody has acknowledged them.
+        const updated = await tx.invoices.updateMany({
+          where: { id: invoice.id, status: 'finalized' },
+          data: {
+            snapshot: withAdjustment(
+              invoice.snapshot as unknown as AdjustableSnapshot,
+              adjustment,
+            ) as unknown as Prisma.InputJsonValue,
+          },
+        });
+        if (updated.count !== 1) {
+          throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
+        }
+        return { ...adjustment, invoiceStatus: 'finalized' };
       },
       { isolationLevel: 'ReadCommitted' },
     );
