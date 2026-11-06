@@ -7,6 +7,8 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount } from "@tiptap/extensions";
+import { Fragment, Slice } from "@tiptap/pm/model";
+import type { EditorView } from "@tiptap/pm/view";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 
@@ -81,6 +83,27 @@ const FRAME = "rounded-(--radius-control) border border-rule bg-surface";
 const TOOL_BUTTON =
   "rounded-md px-2.5 py-1 text-[12.5px] text-ink hover:bg-surface-2 aria-pressed:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40";
 
+// A paste from a web page brings its HTML. Only its plain-text twin goes in, one paragraph a
+// line, so the page's styling, links, images and scripts never reach the note (AC 1, OWASP A05).
+// A plain paste is left to ProseMirror, which already keeps each line and adds no styling.
+function pasteAsPlainText(view: EditorView, event: ClipboardEvent): boolean {
+  const data = event.clipboardData;
+  if (!data?.types.includes("text/html")) return false;
+
+  const { schema } = view.state;
+  const lines = data.getData("text/plain").split(/\r\n?|\n/);
+  const paragraphs = lines.map((line) =>
+    schema.nodes.paragraph.create(null, line ? schema.text(line) : undefined),
+  );
+  // Marked as a paste, so CharacterCount cuts it at the limit instead of refusing it.
+  view.dispatch(
+    view.state.tr
+      .replaceSelection(new Slice(Fragment.from(paragraphs), 1, 1))
+      .setMeta("paste", true),
+  );
+  return true;
+}
+
 function noteOf(editor: Editor): RichNote {
   return {
     html: editor.getHTML(),
@@ -104,6 +127,7 @@ export function RichNoteEditor({
     // Rendered on the client only, so the server's HTML and the browser's never disagree.
     immediatelyRender: false,
     editorProps: {
+      handlePaste: (view, event) => pasteAsPlainText(view, event),
       attributes: {
         role: "textbox",
         "aria-multiline": "true",
