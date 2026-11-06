@@ -637,6 +637,41 @@ describe('InvoiceCommandService', () => {
     });
 
     // OWASP Top 10:2025 A06 (Insecure Design): an early end waits for the day after the revocation.
+    // A refused Finalize must change nothing: a sync it ran first would move links' states.
+    it('asks no platform for a contract that has not ended', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({ end_date: day(0) }),
+      );
+
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
+
+      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_ENDED' } });
+      expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
+    });
+
+    it('asks no platform for an invoice already finalized', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(
+        endedContract({ invoice: { status: 'finalized' } }),
+      );
+
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
+
+      expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
+      expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for an unknown contract before asking any platform', async () => {
+      prisma.contracts.findUnique.mockResolvedValue(null);
+
+      await rejection(service.finalize('contract-1', 'admin-9', TODAY));
+
+      expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
+    });
+
     it('refuses a contract ended early whose access was revoked today in Jakarta', async () => {
       prisma.contracts.findUnique.mockResolvedValue(
         endedContract({
