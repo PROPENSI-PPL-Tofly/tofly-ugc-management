@@ -4,7 +4,7 @@
 // which were taken, each upload's progress, a failure to retry, and why a file was refused. The
 // upload itself is whatever ScreenshotUploader the form passes in, so this never knows the API.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addScreenshots,
   failed,
@@ -58,6 +58,15 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
     return () => clearTimeout(timer);
   }, [refusal]);
 
+  // A form that closes mid-upload cancels what is still running, rather than leave it going.
+  useEffect(() => {
+    const running = controllers.current;
+    return () => running.forEach((controller) => controller.abort());
+  }, []);
+
+  // Stays the same list while the uploads do, so the form is only told when it changes.
+  const ids = useMemo(() => imageIds(uploads), [uploads]);
+
   function apply(change: (list: readonly Upload[]) => Upload[]) {
     current.current = change(current.current);
     setUploads(current.current);
@@ -103,7 +112,7 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
     uploads,
     refusal,
     uploading: isUploading(uploads),
-    imageIds: imageIds(uploads),
+    imageIds: ids,
     add,
     retry,
     remove,
