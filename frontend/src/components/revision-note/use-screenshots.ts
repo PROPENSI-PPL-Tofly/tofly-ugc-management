@@ -17,6 +17,7 @@ import {
   type StoredImage,
   type Upload,
 } from "@/lib/revision-note-uploads";
+import { UploadRefused } from "@/lib/revision-note-images-api";
 
 /** What a failed upload says on its tile, as the prototype words it. */
 export const UPLOAD_FAILED = "Gagal diunggah";
@@ -88,7 +89,16 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
       })
       .then(
         (stored) => apply((list) => uploaded(list, id, stored)),
-        () => apply((list) => failed(list, id, UPLOAD_FAILED)),
+        (error: unknown) => {
+          // Turned down by the server: it leaves the list with its reason on the help line, as
+          // the prototype shows a refusal. Anything else broke on the way and can be retried.
+          if (error instanceof UploadRefused) {
+            apply((list) => removed(list, id));
+            setRefusal(error.message);
+            return;
+          }
+          apply((list) => failed(list, id, UPLOAD_FAILED));
+        },
       )
       .finally(() => controllers.current.delete(id));
   }
