@@ -7,6 +7,18 @@ function renderEditor(props: Partial<Parameters<typeof RichNoteEditor>[0]> = {})
   return { onChange };
 }
 
+// jsdom does no layout, so ProseMirror's scroll after a toolbar click finds no rectangles to
+// read; empty ones stand in for the browser's. Only this file, and put back afterwards.
+beforeAll(() => {
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+});
+
+afterAll(() => {
+  delete (Range.prototype as Partial<Range>).getClientRects;
+  delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+});
+
 describe("RichNoteEditor", () => {
   // AC 1: the prototype's toolbar, in its order.
   it("offers bold, italic, bulleted list, numbered list and link, in the prototype's order", async () => {
