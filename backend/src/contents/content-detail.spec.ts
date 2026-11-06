@@ -101,6 +101,8 @@ function submission(
     created_at: new Date('2026-09-10T10:00:00.000Z'),
     updated_at: new Date('2026-09-11T08:00:00.000Z'),
     revision_notes: null,
+    revision_notes_html: null,
+    revision_note_images: [],
     creator_notes: null,
     ...overrides,
   };
@@ -180,6 +182,148 @@ describe('buildEvents', () => {
       at: '2026-09-11T08:00:00.000Z',
       actor: { role: 'admin' },
       payload: { note: 'Durasi lewat 30 detik, mohon dipangkas.' },
+    });
+  });
+
+  it('carries the note as rich text with its screenshots on the revision step (AC 8)', () => {
+    const events = buildEvents(
+      row({
+        status: 'draft_revision',
+        submissions: [
+          submission({
+            revision_notes: 'Durasi lewat 30 detik.',
+            revision_notes_html: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+            revision_note_images: [
+              {
+                id: '33333333-3333-4333-8333-333333333333',
+                content_type: 'image/png',
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const revision = events.find(
+      (event) => event.type === 'revision_requested',
+    );
+    expect(revision).toMatchObject({
+      payload: {
+        note: 'Durasi lewat 30 detik.',
+        noteHtml: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+        images: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            url: '/api/revision-note-images/33333333-3333-4333-8333-333333333333',
+            contentType: 'image/png',
+          },
+        ],
+      },
+    });
+  });
+
+  it('shows a note written before rich text exactly as before (AC 9)', () => {
+    const events = buildEvents(
+      row({
+        status: 'draft_revision',
+        submissions: [
+          submission({ revision_notes: 'Durasi lewat 30 detik.' }),
+        ],
+      }),
+    );
+
+    const revision = events.find(
+      (event) => event.type === 'revision_requested',
+    );
+    expect(revision?.payload).toEqual({ note: 'Durasi lewat 30 detik.' });
+  });
+
+  it('reads a stored revision step as it was sent, note and screenshots (AC 8)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: {
+              revision_note: 'Durasi lewat 30 detik.',
+              revision_note_html: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+              images: [
+                {
+                  id: '33333333-3333-4333-8333-333333333333',
+                  content_type: 'image/webp',
+                },
+              ],
+            },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toEqual({
+      note: 'Durasi lewat 30 detik.',
+      noteHtml: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+      images: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          url: '/api/revision-note-images/33333333-3333-4333-8333-333333333333',
+          contentType: 'image/webp',
+        },
+      ],
+    });
+  });
+
+  it('reads a stored revision step from before rich text exactly as before (AC 9)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: { revision_note: 'Audio terlalu pelan.' },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toEqual({ note: 'Audio terlalu pelan.' });
+  });
+
+  it('drops a screenshot entry it cannot read rather than making one up (OWASP A05)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: {
+              revision_note: 'Perbaiki intro.',
+              revision_note_html: '<p>Perbaiki intro.</p>',
+              images: [
+                { id: 7, content_type: 'image/png' },
+                'not-an-image',
+                { id: '33333333-3333-4333-8333-333333333333', content_type: 42 },
+                {
+                  id: '44444444-4444-4444-8444-444444444444',
+                  content_type: 'image/jpeg',
+                },
+              ],
+            },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toMatchObject({
+      images: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          contentType: 'image/jpeg',
+        },
+      ],
     });
   });
 
