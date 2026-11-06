@@ -162,6 +162,34 @@ describe("ScreenshotList", () => {
     expect(addButton()).toHaveTextContent("0 sisa");
   });
 
+  // Corner: with five images stored, the help line says how to make room.
+  it("says to remove one once five images are stored", async () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(...Array.from({ length: 5 }, (_, i) => image(`${i}.png`)));
+
+    await act(async () =>
+      calls.forEach((call, i) =>
+        call.resolve({ imageId: `img-${i}`, url: `https://signed/${i}` }),
+      ),
+    );
+
+    expect(
+      screen.getByText("Maksimal 5 gambar per catatan · hapus salah satu untuk menambah"),
+    ).toBeInTheDocument();
+  });
+
+  // Negative: a picker that answers with no file list (cancelled) adds nothing.
+  it("adds nothing when the picker answers with no files", () => {
+    const { uploader, upload } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+
+    fireEvent.change(screen.getByLabelText("Pilih gambar revisi"), { target: { files: null } });
+
+    expect(upload).not.toHaveBeenCalled();
+    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+  });
+
   it("locks every control while the form is sending", async () => {
     const { uploader, calls } = fakeUploader();
     const { rerender } = render(<Harness uploader={uploader} />);
@@ -190,5 +218,16 @@ describe("useScreenshots", () => {
 
     expect(result.current.uploading).toBe(false);
     expect(result.current.imageIds).toEqual(["img-a"]);
+  });
+
+  // Negative: only a failed upload is tried again; one still running is not sent twice.
+  it("does not upload again an image that has not failed", () => {
+    const { uploader, upload } = fakeUploader();
+    const { result } = renderHook(() => useScreenshots(uploader));
+    act(() => result.current.add([image()]));
+
+    act(() => result.current.retry(result.current.uploads[0].id));
+
+    expect(upload).toHaveBeenCalledTimes(1);
   });
 });
