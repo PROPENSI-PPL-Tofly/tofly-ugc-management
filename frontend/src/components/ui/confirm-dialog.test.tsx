@@ -25,6 +25,28 @@ describe("ConfirmDialog", () => {
     expect(dialog).toHaveTextContent("Data yang sudah diisi akan hilang.");
   });
 
+  it("lists the facts it is given under the question, each with its label", () => {
+    render(
+      <ConfirmDialog
+        title="Simpan Perubahan Konten?"
+        message="Rangga langsung melihat perubahan ini di Task Saya."
+        details={[
+          ["Konten", "Promo Lebaran"],
+          ["Deadline", "20 Nov 2026 → 25 Nov 2026"],
+        ]}
+        confirmLabel="Simpan"
+        cancelLabel="Batal"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const terms = screen.getAllByRole("term").map((term) => term.textContent);
+    const values = screen.getAllByRole("definition").map((value) => value.textContent);
+    expect(terms).toEqual(["Konten", "Deadline"]);
+    expect(values).toEqual(["Promo Lebaran", "20 Nov 2026 → 25 Nov 2026"]);
+  });
+
   it("puts focus on the safe choice so Enter never discards by accident", () => {
     renderDialog();
     expect(screen.getByRole("button", { name: "Lanjut mengisi" })).toHaveFocus();
