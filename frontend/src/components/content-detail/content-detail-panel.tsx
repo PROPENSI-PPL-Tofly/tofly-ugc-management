@@ -9,6 +9,15 @@ import { CreatorLink } from "@/components/ui/creator-link";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
+import { EditForm, ManageMenu } from "./content-manage";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
+import {
+  deleteContent,
+  deleteMessage,
+  updateContent,
+  type ContentManagePorts,
+} from "@/lib/content-edit";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
@@ -45,7 +54,12 @@ import type { Role } from "@/lib/session";
 export const MAX_REVISION_NOTE_LENGTH = 1000;
 
 /** A decision the panel can send, named for the touchpoint that confirms it. */
-export type Decision = "approve" | "revise" | "approve_proposal" | "reject_proposal";
+export type Decision =
+  | "approve"
+  | "revise"
+  | "approve_proposal"
+  | "reject_proposal"
+  | "delete_content";
 
 /** How each decision is confirmed once the panel has closed; the touchpoint shows it. */
 export const DECISION_CONFIRMATIONS: Record<Decision, string> = {
@@ -53,6 +67,8 @@ export const DECISION_CONFIRMATIONS: Record<Decision, string> = {
   revise: "Permintaan revisi terkirim ke kreator.",
   approve_proposal: "Pengajuan disetujui. Konten masuk jadwal kreator.",
   reject_proposal: "Pengajuan ditolak dan dihapus.",
+  // PBI-25 AC 6-8: the content is gone, so the panel closes and the table loses the row.
+  delete_content: "Konten dihapus.",
 };
 
 /** The API's limit on a rejection reason (backend proposal-review.ts). */
@@ -172,6 +188,8 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   // Numbers typed in move no status either.
   performance_entered: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
+  // An edit moves no status either.
+  content_updated: "bg-muted ring-muted",
 };
 
 const SECTION_LABEL = "mb-2 text-[11px] font-bold uppercase tracking-wider text-muted";
@@ -312,6 +330,14 @@ function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
           </div>
         ) : null}
 
+        {step.changes?.length ? (
+          <ul data-step-changes="" className="mt-1.5 flex flex-col gap-0.5 text-[12.5px] text-ink-2">
+            {step.changes.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
+
         {step.noteBy ? (
           <blockquote className="mt-2 rounded-r-(--radius-control) border-l-2 border-rule bg-surface-2 px-3 py-2 text-[12.5px] leading-relaxed">
             <span className="mb-0.5 block text-[11px] font-semibold text-muted">{step.noteBy}</span>
@@ -414,6 +440,7 @@ export function ContentDetailPanel({
   showClose = true,
   load = fetchContentDetail,
   ports = {},
+  manage = {},
   now,
 }: Readonly<{
   contentId: string;
@@ -428,6 +455,8 @@ export function ContentDetailPanel({
   /** Where the detail comes from; the API by default, a stub in tests. */
   load?: ContentDetailLoader;
   ports?: PanelActionPorts;
+  /** Where an edit and a delete go (PBI-25); the API by default, stubs in tests. */
+  manage?: Partial<ContentManagePorts>;
   /** The moment "today" is read from; the current one by default, a fixed one in tests. */
   now?: Date;
 }>) {
@@ -448,6 +477,10 @@ export function ContentDetailPanel({
   const missingId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
+  // PBI-25: the inline edit form, and the delete question, each open on its own.
+  const [editing, setEditing] = useState(false);
+  const [askingDelete, setAskingDelete] = useState(false);
+  const { show: confirm, toast } = useToast();
 
   // Read through a ref, so a parent that passes a fresh loader function on every render does
   // not make the effect below fetch again each time.
@@ -544,6 +577,7 @@ export function ContentDetailPanel({
       if (caught instanceof DecisionError && caught.status === 409) {
         setForm(null);
         setNote("");
+        setEditing(false);
         void readAgain();
       }
     } finally {
@@ -572,6 +606,12 @@ export function ContentDetailPanel({
   // Blank counts as missing: the backend trims the note before it refuses an empty one.
   const missingNote = formSpec?.required === true && noteLeft && note.trim() === "";
 
+  // Ubah and Hapus are the admin's, and only while the API sends a window to move the deadline in:
+  // Scheduled, no draft, invoice still running (AC 1, 9). A payload from before 25.2 has none.
+  const editWindow = role === "admin" && loaded?.edit ? loaded.edit : null;
+  const update = manage.update ?? updateContent;
+  const remove = manage.remove ?? deleteContent;
+
   function cancelForm() {
     setCancelled(form);
     setForm(null);
@@ -581,144 +621,205 @@ export function ContentDetailPanel({
   }
 
   return (
-    <Modal
-      title={(loaded && loaded.name) || DEFAULT_TITLE}
-      onClose={onClose}
-      placement="side"
-      eyebrow={(loaded && loaded.creatorName) || undefined}
-      meta={loaded ? <HeaderMeta detail={loaded} now={now} /> : undefined}
-      footer={
-        <>
-          {formOpen ? null : actions}
-
-          {formOpen ? null : commands.map((command) => (
-            <Button
-              key={command.kind}
-              variant={command.variant}
-              onClick={() => {
-                if (OPENS_FORM.has(command.kind)) {
-                  // Opening a form is synchronous, but PanelCommand.run may answer with a
-                  // promise; `void` marks the ignored answer so no lint sees a floating
-                  // promise (Sonar S9383).
-                  void command.run();
-                  return;
-                }
-                // Every command that does not open a form is a decision of the same name.
-                void decide(command.kind as Decision, async () => {
-                  await command.run();
-                });
+    <>
+      <Modal
+        title={(loaded && loaded.name) || DEFAULT_TITLE}
+        onClose={onClose}
+        placement="side"
+        eyebrow={(loaded && loaded.creatorName) || undefined}
+        meta={loaded ? <HeaderMeta detail={loaded} now={now} /> : undefined}
+        tools={
+          editWindow && !editing && !formOpen ? (
+            <ManageMenu
+              onEdit={() => {
+                setError(null);
+                setEditing(true);
               }}
-              disabled={!command.canRun()}
-              aria-busy={busy && pending === command.kind}
-              autoFocus={cancelled !== null && FORMS[cancelled].opener === command.kind}
-            >
-              {command.label}
-            </Button>
-          ))}
-
-          {showClose && !formOpen ? (
-            <Button variant="ghost" onClick={onClose}>
-              Tutup
-            </Button>
-          ) : null}
-        </>
-      }
-    >
-      {loaded ? (
-        <div className="flex flex-col gap-5">
-          {/* Evergreen content has no brief. */}
-          {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
-
-          {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
-          {/* Each link's numbers and state once the API sends them (PBI-27); the plain rows before. */}
-          {loaded.links?.some((link) => link.performance !== undefined) ? (
-            <LinkPerformanceSection
-              contentId={contentId}
-              links={loaded.links}
-              role={role}
-              creatorFirstName={loaded.creatorName.split(" ")[0]}
-              onChanged={() => void readAgain()}
+              onDelete={() => {
+                setError(null);
+                setAskingDelete(true);
+              }}
             />
-          ) : loaded.links?.length ? (
-            <Links links={loaded.links} />
-          ) : null}
+          ) : undefined
+        }
+        footer={
+          <>
+            {formOpen ? null : actions}
 
-          <section>
-            <h3 className={SECTION_LABEL}>Timeline</h3>
+            {formOpen ? null : commands.map((command) => (
+              <Button
+                key={command.kind}
+                variant={command.variant}
+                onClick={() => {
+                  if (OPENS_FORM.has(command.kind)) {
+                    // Opening a form is synchronous, but PanelCommand.run may answer with a
+                    // promise; `void` marks the ignored answer so no lint sees a floating
+                    // promise (Sonar S9383).
+                    void command.run();
+                    return;
+                  }
+                  // Every command that does not open a form is a decision of the same name.
+                  void decide(command.kind as Decision, async () => {
+                    await command.run();
+                  });
+                }}
+                disabled={!command.canRun()}
+                aria-busy={busy && pending === command.kind}
+                autoFocus={cancelled !== null && FORMS[cancelled].opener === command.kind}
+              >
+                {command.label}
+              </Button>
+            ))}
 
-            <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn} role={role}>
-            {send && formSpec ? (
-              <div className="mt-3 flex w-full flex-col gap-2">
-                {error ? (
-                  <p role="alert" className="text-right text-xs text-red-ink">
-                    {error}
-                  </p>
-                ) : null}
-
-                <label className="flex flex-col gap-1 text-[13px]">
-                  {/* A required note is marked as every required field is; the optional reason is not. */}
-                  <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
-                    {formSpec.label}
-                  </span>
-                  <textarea
-                    ref={focusOnMount}
-                    required={formSpec.required}
-                    maxLength={formSpec.max}
-                    aria-describedby={missingNote ? `${missingId} ${countId}` : countId}
-                    aria-invalid={formSpec.required ? missingNote : undefined}
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    onBlur={() => setNoteLeft(true)}
-                    placeholder={formSpec.placeholder}
-                    rows={3}
-                    disabled={busy}
-                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
-                  />
-                </label>
-                {missingNote ? (
-                  <p id={missingId} className="text-xs text-red-ink">
-                    {formSpec.missingMessage}
-                  </p>
-                ) : null}
-                <CharLimit id={countId} length={note.length} max={formSpec.max} />
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" onClick={cancelForm} disabled={busy}>
-                    Batal
-                  </Button>
-                  <Button
-                    variant={send.variant}
-                    onClick={() => {
-                      void decide(formSpec.decision, async () => {
-                        await send.run();
-                      });
-                    }}
-                    disabled={!send.canRun()}
-                    aria-busy={pending === formSpec.decision}
-                  >
-                    {send.label}
-                  </Button>
-                </div>
-              </div>
-            ) : error ? (
-              <p role="alert" className="mt-2 text-xs text-red-ink">
-                {error}
-              </p>
+            {showClose && !formOpen ? (
+              <Button variant="ghost" onClick={onClose}>
+                Tutup
+              </Button>
             ) : null}
-            </CurrentStep>
+          </>
+        }
+      >
+        {loaded ? (
+          <div className="flex flex-col gap-5">
+            {editWindow && editing ? (
+              <EditForm
+                detail={loaded}
+                window={editWindow}
+                creatorFirstName={loaded.creatorName.split(" ")[0]}
+                update={update}
+                onCancel={() => setEditing(false)}
+                onSaved={() => {
+                  // The panel stays on the content (as the prototype keeps it), reads it again for
+                  // the new deadline, name and timeline step, and the lists behind it refresh (AC 5).
+                  setEditing(false);
+                  router.refresh();
+                  void readAgain();
+                  confirm("Konten diperbarui");
+                }}
+                onRefused={(message) => {
+                  // Someone moved the content on (a draft came in, the invoice was finalized): the
+                  // form closes and the content is read again, which hides Ubah and Hapus.
+                  setEditing(false);
+                  setError(message);
+                  void readAgain();
+                }}
+              />
+            ) : null}
 
-            <Journey steps={describeJourney(loaded.events)} />
-          </section>
-        </div>
-      ) : (
-        // This branch only renders while `loaded` is null, so the state is one of the
-        // three that StatusMessage handles; the union cannot narrow itself through the
-        // const above.
-        <StatusMessage
-          state={state as Exclude<LoadState, { kind: "loaded" }>}
-          onRetry={retry}
+            {/* Evergreen content has no brief. */}
+            {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
+
+            {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
+            {/* Each link's numbers and state once the API sends them (PBI-27); the plain rows before. */}
+            {loaded.links?.some((link) => link.performance !== undefined) ? (
+              <LinkPerformanceSection
+                contentId={contentId}
+                links={loaded.links}
+                role={role}
+                creatorFirstName={loaded.creatorName.split(" ")[0]}
+                onChanged={() => void readAgain()}
+              />
+            ) : loaded.links?.length ? (
+              <Links links={loaded.links} />
+            ) : null}
+
+            <section>
+              <h3 className={SECTION_LABEL}>Timeline</h3>
+
+              <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn} role={role}>
+              {send && formSpec ? (
+                <div className="mt-3 flex w-full flex-col gap-2">
+                  {error ? (
+                    <p role="alert" className="text-right text-xs text-red-ink">
+                      {error}
+                    </p>
+                  ) : null}
+
+                  <label className="flex flex-col gap-1 text-[13px]">
+                    {/* A required note is marked as every required field is; the optional reason is not. */}
+                    <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
+                      {formSpec.label}
+                    </span>
+                    <textarea
+                      ref={focusOnMount}
+                      required={formSpec.required}
+                      maxLength={formSpec.max}
+                      aria-describedby={missingNote ? `${missingId} ${countId}` : countId}
+                      aria-invalid={formSpec.required ? missingNote : undefined}
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                      onBlur={() => setNoteLeft(true)}
+                      placeholder={formSpec.placeholder}
+                      rows={3}
+                      disabled={busy}
+                      className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
+                    />
+                  </label>
+                  {missingNote ? (
+                    <p id={missingId} className="text-xs text-red-ink">
+                      {formSpec.missingMessage}
+                    </p>
+                  ) : null}
+                  <CharLimit id={countId} length={note.length} max={formSpec.max} />
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={cancelForm} disabled={busy}>
+                      Batal
+                    </Button>
+                    <Button
+                      variant={send.variant}
+                      onClick={() => {
+                        void decide(formSpec.decision, async () => {
+                          await send.run();
+                        });
+                      }}
+                      disabled={!send.canRun()}
+                      aria-busy={pending === formSpec.decision}
+                    >
+                      {send.label}
+                    </Button>
+                  </div>
+                </div>
+              ) : error ? (
+                <p role="alert" className="mt-2 text-xs text-red-ink">
+                  {error}
+                </p>
+              ) : null}
+              </CurrentStep>
+
+              <Journey steps={describeJourney(loaded.events)} />
+            </section>
+          </div>
+        ) : (
+          // This branch only renders while `loaded` is null, so the state is one of the
+          // three that StatusMessage handles; the union cannot narrow itself through the
+          // const above.
+          <StatusMessage
+            state={state as Exclude<LoadState, { kind: "loaded" }>}
+            onRetry={retry}
+          />
+        )}
+      </Modal>
+
+      {loaded && askingDelete ? (
+        <ConfirmDialog
+          title="Hapus Konten Ini?"
+          message={deleteMessage(loaded.type)}
+          details={[
+            ["Konten", loaded.name],
+            ["Deadline", formatDate(loaded.deadline)],
+          ]}
+          confirmLabel="Hapus"
+          cancelLabel="Batal"
+          onConfirm={() => {
+            setAskingDelete(false);
+            void decide("delete_content", () => remove(loaded.id));
+          }}
+          onCancel={() => setAskingDelete(false)}
         />
-      )}
-    </Modal>
+      ) : null}
+
+      {toast}
+    </>
   );
 }

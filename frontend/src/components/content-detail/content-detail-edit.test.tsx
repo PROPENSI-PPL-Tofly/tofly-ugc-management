@@ -139,6 +139,49 @@ describe("Ubah and Hapus visibility (AC 1, 9)", () => {
   });
 });
 
+describe("the Aksi lain menu", () => {
+  it("closes on a press outside it, and stays open on a press inside it", async () => {
+    open(scheduled());
+
+    const menu = await openMenu();
+    fireEvent.mouseDown(menu);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByText("Promo Lebaran"));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("moves between Ubah and Hapus with the arrow keys, wrapping at either end", async () => {
+    open(scheduled());
+
+    const menu = await openMenu();
+    const [ubah, hapus] = within(menu).getAllByRole("menuitem");
+    expect(ubah).toHaveFocus();
+
+    fireEvent.keyDown(ubah, { key: "ArrowDown" });
+    expect(hapus).toHaveFocus();
+    fireEvent.keyDown(hapus, { key: "ArrowDown" });
+    expect(ubah).toHaveFocus();
+    fireEvent.keyDown(ubah, { key: "ArrowUp" });
+    expect(hapus).toHaveFocus();
+  });
+
+  it("ignores other keys, and every key while it is closed", async () => {
+    open(scheduled());
+
+    const toggle = await screen.findByRole("button", { name: "Aksi lain" });
+    fireEvent.keyDown(toggle, { key: "ArrowDown" });
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    const menu = await openMenu();
+    fireEvent.keyDown(menu, { key: "a" });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
 describe("the inline edit form (AC 2, 3)", () => {
   it("opens inside the panel, not as a dialog over it, filled with the content as it is", async () => {
     open(scheduled());
@@ -208,6 +251,25 @@ describe("the inline edit form (AC 2, 3)", () => {
     fireEvent.blur(name);
 
     expect(within(form).getByText("Nama konten wajib diisi")).toBeInTheDocument();
+  });
+
+  it("names an emptied brief on a Specific item once the field is left", async () => {
+    open(scheduled());
+
+    const form = await startEdit();
+    const brief = within(form).getByLabelText(/Brief/);
+    fireEvent.change(brief, { target: { value: "" } });
+    fireEvent.blur(brief);
+
+    expect(within(form).getByText("Brief wajib diisi")).toBeInTheDocument();
+  });
+
+  it("asks nothing when the form is sent with nothing changed", async () => {
+    open(scheduled());
+
+    fireEvent.submit(await startEdit());
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("goes back to the panel as it was on Batal, sending nothing", async () => {
@@ -290,6 +352,29 @@ describe("saving an edit (AC 4, 5)", () => {
     fireEvent.click(within(confirmDialog()).getByRole("button", { name: "Simpan" }));
 
     expect(await within(form).findByText("Deadline paling cepat 12 Nov 2026")).toBeInTheDocument();
+  });
+
+  it("drops the API's error on a field once that field changes, and only then", async () => {
+    open(scheduled(), {
+      manage: {
+        update: vi.fn().mockResolvedValue({
+          ok: false,
+          status: 422,
+          message: "Data konten tidak valid",
+          errors: { deadline: "Deadline paling cepat 12 Nov 2026" },
+        }),
+      },
+    });
+
+    const form = await editDeadline("2026-11-11");
+    fireEvent.click(within(confirmDialog()).getByRole("button", { name: "Simpan" }));
+    await within(form).findByText("Deadline paling cepat 12 Nov 2026");
+
+    fireEvent.change(within(form).getByLabelText(/Brief/), { target: { value: "Brief baru." } });
+    expect(within(form).getByText("Deadline paling cepat 12 Nov 2026")).toBeInTheDocument();
+
+    fireEvent.change(within(form).getByLabelText(/Deadline/), { target: { value: "2026-11-12" } });
+    expect(within(form).queryByText("Deadline paling cepat 12 Nov 2026")).toBeNull();
   });
 
   it("closes the form and reads the content again after a 409, showing why", async () => {

@@ -206,6 +206,19 @@ describe("updateContent", () => {
     });
   });
 
+  it("reads a 422 whose body is not JSON, or whose errors are not an object, as no field errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("nope", { status: 422 })));
+    await expect(updateContent("x", { brief: "Baru" })).resolves.toEqual({
+      ok: false,
+      status: 422,
+      message: "Konten gagal disimpan. Coba lagi.",
+      errors: {},
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json(422, { message: "Data konten tidak valid", errors: "deadline" })));
+    await expect(updateContent("x", { brief: "Baru" })).resolves.toMatchObject({ errors: {} });
+  });
+
   it("reads a request that never arrived as a failure to retry", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
 
@@ -246,6 +259,20 @@ describe("deleteContent", () => {
     expect(refusal).toMatchObject({
       status: 409,
       message: "Invoice sudah difinalisasi. Konten tidak bisa diubah atau dihapus lagi",
+    });
+  });
+
+  it("never shows a server error's own wording, nor fails on a body that is not JSON", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("boom", { status: 503 })));
+    await expect(deleteContent("x")).rejects.toMatchObject({
+      status: 503,
+      message: "Konten gagal dihapus. Coba lagi.",
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("nope", { status: 404 })));
+    await expect(deleteContent("x")).rejects.toMatchObject({
+      status: 404,
+      message: "Konten gagal dihapus. Coba lagi.",
     });
   });
 });

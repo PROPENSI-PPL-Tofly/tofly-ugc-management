@@ -11,6 +11,8 @@ import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
 import type { MyTaskAction } from "./my-tasks";
 import { PLATFORM_LABELS, linkEventTitle, type ContentLink, type Platform } from "./platform-links";
+import type { EditWindow } from "./content-edit";
+import { formatDate } from "./format";
 
 export type DetailEventType =
   | "scheduled"
@@ -21,7 +23,16 @@ export type DetailEventType =
   | "revision_requested"
   | "draft_approved"
   | "link_submitted"
-  | "performance_entered";
+  | "performance_entered"
+  | "content_updated";
+
+/** One edited field's value before and after (PBI-25 AC 4). */
+export interface FieldChange {
+  from: string;
+  to: string;
+}
+
+export type ContentChanges = Partial<Record<"deadline" | "brief" | "name", FieldChange>>;
 
 /** One step of the journey as the API sends it. */
 export interface RawContentEvent {
@@ -38,6 +49,8 @@ export interface RawContentEvent {
     platform?: Platform;
     /** A link that took the place of another (38.2); the step stays a link step. */
     replaced?: boolean;
+    /** What an admin's edit changed (PBI-25 AC 4). */
+    changes?: ContentChanges;
   };
 }
 
@@ -58,6 +71,11 @@ export interface RawContentDetail {
   events: RawContentEvent[];
   /** The submitted links, one per platform (AC 11); absent in an answer that predates 38.1. */
   links?: ContentLink[];
+  /**
+   * The days an admin may move the deadline to, sent only while Ubah and Hapus apply (PBI-25
+   * AC 1, 3, 9); null otherwise and on a creator's read, absent in an answer from before 25.2.
+   */
+  edit?: EditWindow | null;
 }
 
 export type ContentDetail = RawContentDetail;
@@ -88,6 +106,8 @@ export interface JourneyStep {
   linkLabel: string | null;
   /** Whose note it is, as the line above the note reads; null without a note. */
   noteBy: string | null;
+  /** An edit's changes, one line each ("Deadline 20 Nov 2026 → 25 Nov 2026"); null on other steps. */
+  changes: string[] | null;
 }
 
 // How each kind of event reads. The number is the draft's version or the revision round;
@@ -126,7 +146,20 @@ const STEP_WORDING: Record<
     title: linkEventTitle(event.payload?.platform, event.payload?.replaced === true),
     linkLabel: "Buka video",
   }),
+  // An admin's edit of scheduled content (PBI-25 AC 4); what changed is listed under it.
+  content_updated: () => ({ title: "Konten diubah", linkLabel: null }),
 };
+
+/** The lines under an edit: the old and new deadline and name, and that the brief changed. */
+function changeLines(changes: ContentChanges | undefined): string[] {
+  const lines: string[] = [];
+  if (changes?.deadline) {
+    lines.push(`Deadline ${formatDate(changes.deadline.from)} → ${formatDate(changes.deadline.to)}`);
+  }
+  if (changes?.name) lines.push(`Nama ${changes.name.from} → ${changes.name.to}`);
+  if (changes?.brief) lines.push("Brief diubah");
+  return lines;
+}
 
 function noteSignature(event: RawContentEvent): string | null {
   if (!event.payload?.note?.trim()) {
@@ -161,13 +194,18 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
       ordinal = rounds;
     }
 
-    const { title, linkLabel } = STEP_WORDING[event.type](ordinal, event.actor.role, event);
+    // A kind newer than this build (the backend deploys first) is left out rather than guessed
+    // at, as the backend skips a stored kind it does not know.
+    const wording = STEP_WORDING[event.type] as (typeof STEP_WORDING)[DetailEventType] | undefined;
+    if (!wording) continue;
+    const { title, linkLabel } = wording(ordinal, event.actor.role, event);
 
     steps.unshift({
       event,
       title,
       linkLabel: event.payload?.link ? linkLabel : null,
       noteBy: noteSignature(event),
+      changes: event.type === "content_updated" ? changeLines(event.payload?.changes) : null,
     });
   }
 

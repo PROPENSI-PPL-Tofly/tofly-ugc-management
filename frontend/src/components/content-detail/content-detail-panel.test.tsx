@@ -4,7 +4,7 @@ import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
-import { ContentDetailPanel } from "./content-detail-panel";
+import { ContentDetailPanel, type Decision } from "./content-detail-panel";
 
 const refresh = vi.fn();
 
@@ -54,7 +54,7 @@ function open(
     role: "admin" | "creator";
     ports: PanelActionPorts;
     actions: ReactNode;
-    onDecided: (decision: "approve" | "revise" | "approve_proposal" | "reject_proposal") => void;
+    onDecided: (decision: Decision) => void;
   }> = {},
 ) {
   const load = vi.fn().mockResolvedValue(loaded);
