@@ -896,7 +896,10 @@ describe('toContentDetail with a stored history', () => {
       type: 'performance_entered',
       at: '2026-09-04T03:00:00.000Z',
       actor: { name: null, role: 'admin' },
-      payload: { platform: 'tiktok' },
+      payload: {
+        platform: 'tiktok',
+        changes: [{ metric: 'views', before: null, after: 500 }],
+      },
     });
   });
 
