@@ -186,11 +186,11 @@ export const DISCONNECT_WARNING = "Data performa yang sudah ada tetap disimpan, 
 /**
  * The line under a platform's name, worded as the Sprint 3 prototype: the handle, and once
  * connected the Jakarta day it connected and the last sync ("—" until PBI-27 has synced). A
- * platform with no account asks for the Admin, who alone can add one.
+ * platform with no account on file invites the creator to connect it.
  */
 export function accountDetail(account: ConnectedAccount): string {
   if (!account.hasAccount) {
-    return `Belum ada akun ${SOCIAL_PLATFORM_LABELS[account.platform]} di data kamu. Minta Admin menambahkannya dulu.`;
+    return `Belum ada akun ${SOCIAL_PLATFORM_LABELS[account.platform]} di data kamu. Hubungkan untuk menambahkannya.`;
   }
   const handle = account.username ? `@${account.username}` : null;
   if (!account.connected) return handle ?? "";
