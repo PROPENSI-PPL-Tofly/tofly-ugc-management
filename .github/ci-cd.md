@@ -148,9 +148,31 @@ only accepts deployments from its own branch.
   `postgres`
 - `prisma/ops/seed-admins.sql` with the environment's `ADMIN_EMAILS` — adds or promotes the team's
   admin accounts (skipped if the secret is unset)
+- `prisma/ops/seed-environment.sh` with the environment's `SEED_PROFILE` — see "Seed profiles" below
 - Runs **after** the image is pushed so a broken Dockerfile can never leave an environment
   migrated but not deployed; runs **before** `deploy` because the Prisma client is baked into the
   image at build time and must not reach an environment ahead of its schema
+
+#### Seed profiles
+
+| Where | Profile | Data |
+| --- | --- | --- |
+| local, CI, ZAP | `npm run db:seed` | `admin@tofly.id` + the demo set (`prisma/seeds/`) |
+| `staging` | `demo` | `ADMIN_EMAILS` + the starting rate formula + the demo set |
+| `production` | `baseline` | `ADMIN_EMAILS` + the starting rate formula |
+
+A missing or unknown `SEED_PROFILE` fails `migrate`, so nothing is rolled out. The demo seed loads
+only when the set is absent, so a deploy never resets what testers are doing, and both demo scripts
+refuse a database named `tofly` whatever the profile says.
+
+The starting rate formula (`prisma/ops/seed-rate-formula.sql`) holds placeholder figures for an
+admin to review in Atur Formula Rate. It only fills an environment with no formula, so one saved in
+the app is never replaced. The content fee is not part of it: that stays each contract's
+`fixed_rate`.
+
+Demo dates are offsets from the day they were loaded. To load them again, run the workflow by hand
+on `staging` with `refresh_demo_data`. That removes the twelve demo users and everything they own,
+and leaves every other row.
 
 **`deploy`** (`needs: build, migrate`, environment-scoped)
 
@@ -171,7 +193,11 @@ Runtime config on the service: `--add-cloudsql-instances` mounts the instance's 
 `GOOGLE_CLIENT_SECRET` come from **Secret Manager** (`--set-secrets`), never env vars, and so does
 `PERFORMANCE_SYNC_SECRET` (from `PERFORMANCE_SYNC_SECRET_STAGING` or `_PROD`, picked by the
 suffix of `DB_SECRET`). With it unset or under 32 characters the sync route refuses everything.
-`GOOGLE_CLIENT_ID` and `GOOGLE_REDIRECT_URI` are plain env.
+`SOCIAL_STATE_SECRET`, `SOCIAL_TOKEN_KEY`, `TIKTOK_CLIENT_SECRET` and `INSTAGRAM_APP_SECRET`
+come from Secret Manager the same way, by the same suffix. All four must exist with at least one
+version or the deploy fails. A blank secret trims to empty and switches that platform off.
+`GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `TIKTOK_CLIENT_KEY`, `TIKTOK_REDIRECT_URI`,
+`INSTAGRAM_APP_ID` and `INSTAGRAM_REDIRECT_URI` are plain env, from the GitHub environment.
 
 ### Frontend: `test` → `sonar` → `deploy`
 
@@ -262,6 +288,7 @@ An environment variable overrides a repository variable of the same name.
 | `BACKEND_URL` | the `backend-prod` URL | the `backend` URL |
 | `GOOGLE_REDIRECT_URI` | `<frontend-prod URL>/api/auth/google/callback` | `<frontend URL>/api/auth/google/callback` |
 | `CLOUD_RUN_MIN_INSTANCES` | `0` or `1` | `0` or `1` |
+| `SEED_PROFILE` | `baseline` | `demo` |
 
 | Secret | Value |
 | --- | --- |
@@ -379,9 +406,9 @@ make them members of `cloudsqlsuperuser`.
 
 | Service account | Used by | Extra access |
 | --- | --- | --- |
-| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_STAGING` |
+| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_STAGING`, and the four social secrets ending `_STAGING` |
 | `run-frontend` | `frontend` (staging) | none |
-| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_PROD` |
+| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_PROD`, and the four social secrets ending `_PROD` |
 | `run-frontend-prod` | `frontend-prod` | none |
 
 ### Secret Manager
@@ -392,6 +419,10 @@ make them members of `cloudsqlsuperuser`.
 | `DB_URL_STAGING` | the same for `tofly_staging` |
 | `GOOGLE_CLIENT_SECRET` | the Web OAuth client secret |
 | `PERFORMANCE_SYNC_SECRET_STAGING`, `PERFORMANCE_SYNC_SECRET_PROD` | 48 random bytes (base64url) each; the header Cloud Scheduler sends to start that environment's daily performance sync |
+| `SOCIAL_STATE_SECRET_STAGING`, `SOCIAL_STATE_SECRET_PROD` | 48 random bytes (base64) each; signs the OAuth state of the social connect flow |
+| `SOCIAL_TOKEN_KEY_STAGING`, `SOCIAL_TOKEN_KEY_PROD` | exactly 32 random bytes (base64) each; encrypts stored platform tokens. Replacing it makes stored tokens unreadable, so creators must reconnect |
+| `TIKTOK_CLIENT_SECRET_STAGING`, `TIKTOK_CLIENT_SECRET_PROD` | the TikTok app's client secret |
+| `INSTAGRAM_APP_SECRET_STAGING`, `INSTAGRAM_APP_SECRET_PROD` | the Instagram app secret |
 | `CLOUDSQL_POSTGRES_PASSWORD`, `CLOUDSQL_TOFLY_PROD_PASSWORD`, `CLOUDSQL_TOFLY_STAGING_PASSWORD` | the role passwords the URLs above are built from; no runtime account can read them |
 
 `connection_limit=5` keeps 3 instances × 2 environments well under the instance's connection cap.
