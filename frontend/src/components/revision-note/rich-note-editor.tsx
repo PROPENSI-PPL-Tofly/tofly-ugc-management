@@ -30,6 +30,11 @@ export interface RichNoteEditorProps {
   onFiles?: (files: File[]) => void;
   // The hint on the empty note.
   placeholder?: string;
+  // What else the editor holds, laid out as the prototype: a control at the toolbar's end,
+  // attachments inside the frame under the text, and a line beside the counter.
+  toolbarEnd?: ReactNode;
+  attachments?: ReactNode;
+  footer?: ReactNode;
 }
 
 /** The one message a refused link address gets, worded as the prototype does. */
@@ -135,6 +140,9 @@ export function RichNoteEditor({
   onChange,
   onFiles,
   placeholder,
+  toolbarEnd,
+  attachments,
+  footer,
 }: Readonly<RichNoteEditorProps>) {
   const countId = useId();
   const editor = useEditor({
@@ -190,6 +198,10 @@ export function RichNoteEditor({
       max={max}
       countId={countId}
       acceptsFiles={onFiles !== undefined}
+      label={label}
+      toolbarEnd={toolbarEnd}
+      attachments={attachments}
+      footer={footer}
     />
   );
 }
@@ -200,10 +212,24 @@ interface ReadyEditorProps {
   max: number;
   countId: string;
   acceptsFiles: boolean;
+  label: string;
+  toolbarEnd: ReactNode;
+  attachments: ReactNode;
+  footer: ReactNode;
 }
 
 // The editor once Tiptap has built it, so nothing below has to ask whether it exists yet.
-function ReadyEditor({ editor, disabled, max, countId, acceptsFiles }: Readonly<ReadyEditorProps>) {
+function ReadyEditor({
+  editor,
+  disabled,
+  max,
+  countId,
+  acceptsFiles,
+  label,
+  toolbarEnd,
+  attachments,
+  footer,
+}: Readonly<ReadyEditorProps>) {
   // Locks the text as well as the toolbar while the form is sending.
   useEffect(() => {
     editor.setEditable(!disabled);
@@ -243,7 +269,11 @@ function ReadyEditor({ editor, disabled, max, countId, acceptsFiles }: Readonly<
         }}
         onDrop={() => setDragging(false)}
       >
-        <div className="flex flex-wrap items-center gap-0.5 border-b border-rule px-1.5 py-1">
+        <div
+          role="toolbar"
+          aria-label={`Format ${label.toLowerCase()}`}
+          className="flex flex-wrap items-center gap-0.5 border-b border-rule px-1.5 py-1"
+        >
           {TOOLS.map((tool) => (
             <button
               key={tool.mark}
@@ -272,11 +302,21 @@ function ReadyEditor({ editor, disabled, max, countId, acceptsFiles }: Readonly<
           >
             Link
           </button>
+          {toolbarEnd ? (
+            <>
+              <span aria-hidden="true" className="mx-1 h-4 w-px bg-rule" />
+              {toolbarEnd}
+            </>
+          ) : null}
         </div>
         {linkOpen ? <LinkRow editor={editor} onDone={() => setLinkOpen(false)} /> : null}
         <EditorContent editor={editor} />
+        {attachments}
       </div>
-      <CharLimit id={countId} length={state.length} max={max} />
+      <div data-note-footer className="flex items-center justify-between gap-3 text-xs">
+        {footer}
+        <CharLimit id={countId} length={state.length} max={max} />
+      </div>
     </div>
   );
 }

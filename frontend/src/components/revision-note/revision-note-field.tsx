@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { RichNoteEditor, type RichNote } from "./rich-note-editor";
-import { ScreenshotList } from "./screenshot-list";
+import { ScreenshotButton, ScreenshotHelp, ScreenshotTiles } from "./screenshot-list";
 import { useScreenshots, type ScreenshotUploader } from "./use-screenshots";
 
 export interface RevisionNoteValue extends RichNote {
@@ -59,8 +59,10 @@ export function RevisionNoteField({
         onChange={setNote}
         onFiles={screenshots.add}
         placeholder={PLACEHOLDER}
+        toolbarEnd={<ScreenshotButton screenshots={screenshots} disabled={disabled} />}
+        attachments={<ScreenshotTiles screenshots={screenshots} disabled={disabled} />}
+        footer={<ScreenshotHelp screenshots={screenshots} />}
       />
-      <ScreenshotList screenshots={screenshots} disabled={disabled} />
     </div>
   );
 }

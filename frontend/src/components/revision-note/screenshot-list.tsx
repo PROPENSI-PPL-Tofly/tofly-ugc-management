@@ -71,58 +71,88 @@ function Tile({ upload, disabled, onRetry, onRemove }: Readonly<TileProps>) {
   );
 }
 
-export function ScreenshotList({
-  screenshots,
-  disabled = false,
-}: Readonly<{ screenshots: Screenshots; disabled?: boolean }>) {
+interface PartProps {
+  screenshots: Screenshots;
+  disabled?: boolean;
+}
+
+const leftOf = (screenshots: Screenshots) =>
+  Math.max(SCREENSHOT_MAX_COUNT - screenshots.uploads.length, 0);
+
+// "Tambah Gambar" with how many are left, and the file picker it opens.
+export function ScreenshotButton({ screenshots, disabled = false }: Readonly<PartProps>) {
   const picker = useRef<HTMLInputElement>(null);
-  const { uploads, refusal, uploading } = screenshots;
-  const left = Math.max(SCREENSHOT_MAX_COUNT - uploads.length, 0);
+  const left = leftOf(screenshots);
 
   return (
-    <div className="flex flex-col gap-2">
-      {uploads.length > 0 ? (
-        <ul className="flex flex-wrap gap-2">
-          {uploads.map((upload) => (
-            <Tile
-              key={upload.id}
-              upload={upload}
-              disabled={disabled}
-              onRetry={() => screenshots.retry(upload.id)}
-              onRemove={() => screenshots.remove(upload.id)}
-            />
-          ))}
-        </ul>
-      ) : null}
-      <div className="flex items-center justify-between gap-3 text-xs">
-        {refusal ? (
-          <span role="alert" className="text-red-ink">
-            {refusal}
-          </span>
-        ) : (
-          <span className="text-muted">{helpLine(uploading, left)}</span>
-        )}
-        <button
-          type="button"
-          onClick={() => picker.current?.click()}
-          disabled={disabled || left === 0}
-          className={SMALL_BUTTON}
-        >
-          Tambah Gambar <span className="text-muted">{left} sisa</span>
-        </button>
-        <input
-          ref={picker}
-          type="file"
-          hidden
-          multiple
-          accept={SCREENSHOT_TYPES.join(",")}
-          aria-label="Pilih gambar revisi"
-          onChange={(event) => {
-            screenshots.add([...(event.target.files ?? [])]);
-            // Emptied, so picking the same file again still counts as a change.
-            event.target.value = "";
-          }}
+    <>
+      <button
+        type="button"
+        onClick={() => picker.current?.click()}
+        disabled={disabled || left === 0}
+        className={SMALL_BUTTON}
+      >
+        Tambah Gambar <span className="text-muted">{left} sisa</span>
+      </button>
+      <input
+        ref={picker}
+        type="file"
+        hidden
+        multiple
+        accept={SCREENSHOT_TYPES.join(",")}
+        aria-label="Pilih gambar revisi"
+        onChange={(event) => {
+          screenshots.add([...(event.target.files ?? [])]);
+          // Emptied, so picking the same file again still counts as a change.
+          event.target.value = "";
+        }}
+      />
+    </>
+  );
+}
+
+// Each screenshot's tile, while it uploads, after it fails, and once it is stored.
+export function ScreenshotTiles({ screenshots, disabled = false }: Readonly<PartProps>) {
+  if (screenshots.uploads.length === 0) return null;
+  return (
+    <ul className="flex flex-wrap gap-2 px-3 pb-2.5">
+      {screenshots.uploads.map((upload) => (
+        <Tile
+          key={upload.id}
+          upload={upload}
+          disabled={disabled}
+          onRetry={() => screenshots.retry(upload.id)}
+          onRemove={() => screenshots.remove(upload.id)}
         />
+      ))}
+    </ul>
+  );
+}
+
+// The help line, or the reason the last files were refused while it is shown.
+export function ScreenshotHelp({ screenshots }: Readonly<Pick<PartProps, "screenshots">>) {
+  if (screenshots.refusal) {
+    return (
+      <span role="alert" className="text-xs text-red-ink">
+        {screenshots.refusal}
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs text-muted">
+      {helpLine(screenshots.uploading, leftOf(screenshots))}
+    </span>
+  );
+}
+
+// The three parts on their own, for a form that has no editor to put them in.
+export function ScreenshotList({ screenshots, disabled = false }: Readonly<PartProps>) {
+  return (
+    <div className="flex flex-col gap-2">
+      <ScreenshotTiles screenshots={screenshots} disabled={disabled} />
+      <div className="flex items-center justify-between gap-3">
+        <ScreenshotHelp screenshots={screenshots} />
+        <ScreenshotButton screenshots={screenshots} disabled={disabled} />
       </div>
     </div>
   );
