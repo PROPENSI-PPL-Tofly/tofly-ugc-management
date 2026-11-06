@@ -598,6 +598,19 @@ describe("AddCreatorModal", () => {
       expect(screen.queryByRole("button", { name: /hapus deadline manual/i })).not.toBeInTheDocument();
     });
 
+    // PBI-38 AC 14: the calendar never offers a day the API would refuse.
+    it("offers manual days up to the H-5 line and none after it", () => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      fillContract("2026-10-01", "2026-10-25", "3");
+
+      expect(
+        screen.getByRole("button", { name: "19 Okt 2026: tambah deadline manual" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "21 Okt 2026: tambah deadline manual" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("counts contents that share a manual day", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
       fillContract("2026-10-01", "2026-10-11", "3");
