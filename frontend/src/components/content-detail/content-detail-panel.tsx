@@ -437,6 +437,7 @@ export function ContentDetailPanel({
   onClose,
   actions,
   onDecided,
+  onEdited,
   showClose = true,
   load = fetchContentDetail,
   ports = {},
@@ -450,6 +451,11 @@ export function ContentDetailPanel({
   actions?: ReactNode;
   /** Called after a successful decision, naming it, so the caller can close and confirm. */
   onDecided?: (decision: Decision) => void;
+  /**
+   * Called after a saved edit (PBI-25), with the panel still open, so a touchpoint that keeps
+   * what it read in the browser can read it again; a server-rendered list refreshes on its own.
+   */
+  onEdited?: () => void;
   /** False while the revision form offers its own way back (Batal). */
   showClose?: boolean;
   /** Where the detail comes from; the API by default, a stub in tests. */
@@ -695,6 +701,7 @@ export function ContentDetailPanel({
                   router.refresh();
                   void readAgain();
                   confirm("Konten diperbarui");
+                  onEdited?.();
                 }}
                 onRefused={(message) => {
                   // Someone moved the content on (a draft came in, the invoice was finalized): the
@@ -706,8 +713,8 @@ export function ContentDetailPanel({
               />
             ) : null}
 
-            {/* Evergreen content has no brief. */}
-            {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
+            {/* Any brief that was written, Evergreen's too since an admin can add one (PBI-25 AC 2). */}
+            {loaded.brief ? <Brief brief={loaded.brief} /> : null}
 
             {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
             {/* Each link's numbers and state once the API sends them (PBI-27); the plain rows before. */}

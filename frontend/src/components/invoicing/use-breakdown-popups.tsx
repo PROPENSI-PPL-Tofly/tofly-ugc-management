@@ -145,6 +145,13 @@ export function useBreakdownPopups({
           closeAll();
           onDecided?.(decision);
         }}
+        // An edit keeps the panel open (PBI-25): a moved deadline can change a content's
+        // lateness and penalty, so the breakdown under the panel is read again. The panel's own
+        // refresh already re-reads the table.
+        onEdited={() => {
+          read.current.clear();
+          fetchFor(popup.kind, popup.row);
+        }}
       />
     );
   } else if (popup?.kind === "all") {
