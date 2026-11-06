@@ -534,6 +534,12 @@ describe('InstagramPerformanceSource', () => {
         { status: 503, body: {} },
         'token refresh: Instagram answered 503',
       ],
+      // A rate limit says nothing about the token, so it is an outage, as TikTok's is.
+      [
+        'a rate limit',
+        { status: 429, body: {} },
+        'token refresh: Instagram answered 429',
+      ],
       [
         'an answer with no token',
         { body: { token_type: 'bearer', expires_in: SIXTY_DAYS_S } },

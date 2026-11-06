@@ -59,6 +59,11 @@ const STEP_FOR: Record<
     type: 'performance_entered',
     payload: (data) => details({ platform: data.platform('platform') }),
   },
+  // The platform's numbers took the place of typed ones (PBI-27 AC 17).
+  'Performance Replaced': {
+    type: 'performance_replaced',
+    payload: (data) => details({ platform: data.platform('platform') }),
+  },
   'Creator Comment': {
     type: 'creator_comment',
     payload: (data) => details({ note: data.text('comment') }),

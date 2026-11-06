@@ -8,6 +8,8 @@ import {
 const CREATOR_A = '0f9c2f5e-6b1a-4f3e-9a51-3c1d2e4b5a60';
 const CREATOR_B = '6a1d0c9e-2b3f-4a5d-8e7f-9c0b1a2d3e4f';
 
+const NO_METRICS = { views: null, likes: null, comments: null, shares: null };
+
 function row(overrides: Partial<SyncLinkRow> & { creator?: string } = {}) {
   const { creator = CREATOR_A, ...rest } = overrides;
   return {
@@ -15,6 +17,7 @@ function row(overrides: Partial<SyncLinkRow> & { creator?: string } = {}) {
     url: 'https://www.tiktok.com/@a/video/1',
     platform: 'tiktok',
     data_state: 'waiting',
+    ...NO_METRICS,
     content_id: 'content-1',
     contents: { contracts: { creator_id: creator } },
     ...rest,
@@ -121,6 +124,7 @@ describe('groupLinks', () => {
             contentId: 'c1',
             platform: 'tiktok',
             storedState: 'waiting',
+            storedMetrics: NO_METRICS,
           },
           {
             id: 'a-tt-2',
@@ -128,6 +132,7 @@ describe('groupLinks', () => {
             contentId: 'c2',
             platform: 'tiktok',
             storedState: 'manual',
+            storedMetrics: NO_METRICS,
           },
         ],
       },
@@ -141,6 +146,7 @@ describe('groupLinks', () => {
             contentId: 'c1',
             platform: 'instagram',
             storedState: 'waiting',
+            storedMetrics: NO_METRICS,
           },
         ],
       },
@@ -154,6 +160,7 @@ describe('groupLinks', () => {
             contentId: 'c3',
             platform: 'tiktok',
             storedState: 'waiting',
+            storedMetrics: NO_METRICS,
           },
         ],
       },

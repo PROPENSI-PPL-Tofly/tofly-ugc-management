@@ -200,6 +200,7 @@ describe('CreatorsService', () => {
       count: vi.fn(),
       findUnique: vi.fn(),
     },
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {
@@ -921,6 +922,78 @@ describe('CreatorsService', () => {
     const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
     expect(items[0].socialConnections).toEqual({});
+  });
+
+  // PRD 19 AC 12: the badge tooltip names the last sync, read for the whole page in one query.
+  it('says when each connected account of the page last synced', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        social_accounts: [
+          {
+            platform: 'instagram',
+            username: 'rangga.creates',
+            is_connected: true,
+            platform_user_id: '1784',
+            connected_at: new Date('2026-10-29T03:00:00.000Z'),
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        creator_id: 'creator-1',
+        platform: 'instagram',
+        last_sync: new Date('2026-11-02T19:00:00.000Z'),
+      },
+    ]);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].socialConnections.instagram?.lastSyncAt).toBe(
+      '2026-11-02T19:00:00.000Z',
+    );
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the last sync only for the creators a filtered page shows', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({ id: 'creator-1' }),
+      row({ id: 'creator-2' }),
+    ]);
+
+    await service.list({ page: 2, pageSize: 1 }, TODAY, {
+      contractStatus: 'active',
+    });
+
+    expect(prisma.$queryRaw.mock.calls[0][0].values).toEqual([['creator-2']]);
+  });
+
+  it('gives Creator Detail the last sync too', async () => {
+    const detail = detailRow();
+    detail.social_accounts = [
+      {
+        platform: 'tiktok',
+        username: 'ranggacreates',
+        is_connected: true,
+        platform_user_id: '1784',
+        connected_at: new Date('2026-10-29T03:00:00.000Z'),
+      },
+    ] as unknown as DetailCreatorRow['social_accounts'];
+    prisma.creators.findUnique.mockResolvedValue(detail);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        creator_id: 'creator-1',
+        platform: 'tiktok',
+        last_sync: new Date('2026-11-02T19:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findOne('creator-1', TODAY);
+
+    expect(result.socialConnections.tiktok?.lastSyncAt).toBe(
+      '2026-11-02T19:00:00.000Z',
+    );
   });
 
   it('gives Creator Detail the same connections', async () => {

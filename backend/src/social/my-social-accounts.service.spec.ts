@@ -12,6 +12,7 @@ describe('MySocialAccountsService', () => {
       findMany: ReturnType<typeof vi.fn>;
       updateMany: ReturnType<typeof vi.fn>;
     };
+    $queryRaw: ReturnType<typeof vi.fn>;
   };
   let service: MySocialAccountsService;
 
@@ -21,6 +22,7 @@ describe('MySocialAccountsService', () => {
         findMany: vi.fn().mockResolvedValue([]),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      $queryRaw: vi.fn().mockResolvedValue([]),
     };
     service = new MySocialAccountsService(
       rows as unknown as MySocialAccountRows,
@@ -64,6 +66,29 @@ describe('MySocialAccountsService', () => {
           },
         ],
       });
+    });
+
+    it('says when a connected account last synced', async () => {
+      rows.social_accounts.findMany.mockResolvedValue([
+        {
+          platform: 'tiktok',
+          username: 'rangga.creates',
+          is_connected: true,
+          platform_user_id: '1784',
+          connected_at: CONNECTED_AT,
+        },
+      ]);
+      rows.$queryRaw.mockResolvedValue([
+        {
+          creator_id: CREATOR,
+          platform: 'tiktok',
+          last_sync: new Date('2026-11-02T19:00:00.000Z'),
+        },
+      ]);
+
+      const { accounts } = await service.list(CREATOR);
+
+      expect(accounts[0].lastSyncAt).toBe('2026-11-02T19:00:00.000Z');
     });
 
     it('answers an empty list for a creator with no account', async () => {

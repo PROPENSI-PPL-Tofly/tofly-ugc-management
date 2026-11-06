@@ -25,12 +25,13 @@ function group(
       contentId: `content-${id}`,
       platform: 'tiktok',
       storedState,
+      storedMetrics: { views: null, likes: null, comments: null, shares: null },
     })),
   };
 }
 
 describe('outcomesFor', () => {
-  it("saves a synced link's four numbers, empty ones staying empty, with the sync time (AC 1-3)", () => {
+  it("saves a synced link's numbers with the sync time, leaving out the ones the platform gave none for (AC 1-3)", () => {
     const [outcome] = outcomesFor(
       group({ id: 'l1' }),
       {
@@ -47,13 +48,17 @@ describe('outcomesFor', () => {
       storedState: 'waiting',
       synced: true,
       write: {
-        ...METRICS,
+        views: 12400,
+        likes: 830,
+        shares: 0,
         data_state: 'synced',
         last_synced_at: NOW,
         manual_by: null,
         manual_at: null,
       },
     });
+    // Left out, not null: an empty insight must not erase a number already stored.
+    expect(outcome.write).not.toHaveProperty('comments');
   });
 
   it("lets the platform's numbers replace ones an admin typed in, dropping the manual stamp (AC 17)", () => {
@@ -71,6 +76,49 @@ describe('outcomesFor', () => {
       manual_by: null,
       manual_at: null,
     });
+  });
+
+  it('names the old and new numbers when the platform replaces manual ones (AC 17)', () => {
+    const typed = { views: 100, likes: 5, comments: 2, shares: 1 };
+    const manual = group({ id: 'l1', storedState: 'manual' });
+    manual.links[0].storedMetrics = typed;
+
+    const [outcome] = outcomesFor(
+      manual,
+      {
+        outcome: 'read',
+        readings: [{ linkId: 'l1', outcome: 'synced', metrics: METRICS }],
+      },
+      NOW,
+    );
+
+    expect(outcome.replacedManual).toEqual({
+      before: typed,
+      after: { views: 12400, likes: 830, comments: 2, shares: 0 },
+    });
+  });
+
+  it('names no replacement on a link that held no manual numbers', () => {
+    const [outcome] = outcomesFor(
+      group({ id: 'l1', storedState: 'synced' }),
+      {
+        outcome: 'read',
+        readings: [{ linkId: 'l1', outcome: 'synced', metrics: METRICS }],
+      },
+      NOW,
+    );
+
+    expect(outcome.replacedManual).toBeUndefined();
+  });
+
+  it('names no replacement when manual numbers stay', () => {
+    const [outcome] = outcomesFor(
+      group({ id: 'l1', storedState: 'manual' }),
+      { outcome: 'read', readings: [{ linkId: 'l1', outcome: 'not_found' }] },
+      NOW,
+    );
+
+    expect(outcome.replacedManual).toBeUndefined();
   });
 
   it('marks a deleted, private or foreign video not found and keeps its last numbers (AC 8, 11)', () => {

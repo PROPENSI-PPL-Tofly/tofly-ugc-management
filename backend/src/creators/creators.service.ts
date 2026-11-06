@@ -23,9 +23,11 @@ import type {
   CreatorListResponse,
   CreatorSummary,
 } from './dto/creator-summary.dto.js';
+import { latestSyncs, syncKey } from '../social/latest-syncs.js';
 import {
   CONNECTION_COLUMNS,
   connectionOf,
+  withLastSync,
 } from '../social/social-connection.js';
 import type { Filters } from './filters.js';
 import type { Paging } from './paging.js';
@@ -194,7 +196,7 @@ function toMetricsContract(
 }
 
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
-export type CreatorsClient = Pick<PrismaService, 'creators'>;
+export type CreatorsClient = Pick<PrismaService, 'creators' | '$queryRaw'>;
 
 // contractStatus and productivity are derived from dates and nested content/submission
 // counts, not stored columns — there is no WHERE clause for them. Search could be pushed to
@@ -247,7 +249,9 @@ export class CreatorsService implements CreatorLister {
       ]);
 
       return this.paged(
-        rows.map((row) => this.toSummary(row, today)),
+        await this.withLatestSyncs(
+          rows.map((row) => this.toSummary(row, today)),
+        ),
         page,
         pageSize,
         total,
@@ -267,7 +271,7 @@ export class CreatorsService implements CreatorLister {
     const start = (page - 1) * pageSize;
 
     return this.paged(
-      matched.slice(start, start + pageSize),
+      await this.withLatestSyncs(matched.slice(start, start + pageSize)),
       page,
       pageSize,
       matched.length,
@@ -289,7 +293,9 @@ export class CreatorsService implements CreatorLister {
       });
     }
 
-    const summary = this.toSummary(row, today);
+    const [summary] = await this.withLatestSyncs([
+      this.toSummary(row, today),
+    ]);
 
     const periods = toContractPeriods(row.contracts, today);
     // Both lists keep the database order, so a period's index is its row's index.
@@ -348,6 +354,25 @@ export class CreatorsService implements CreatorLister {
     }
 
     return true;
+  }
+
+  /** Runs after paging, so a filtered list reads only the creators it shows. */
+  private async withLatestSyncs(
+    items: CreatorSummary[],
+  ): Promise<CreatorSummary[]> {
+    const syncs = await latestSyncs(
+      this.prisma,
+      items.map((item) => item.id),
+    );
+    return items.map((item) => ({
+      ...item,
+      socialConnections: Object.fromEntries(
+        Object.entries(item.socialConnections).map(([platform, connection]) => [
+          platform,
+          withLastSync(connection, syncs.get(syncKey(item.id, platform))),
+        ]),
+      ),
+    }));
   }
 
   private toSummary(row: SummaryRow, today: Date): CreatorSummary {

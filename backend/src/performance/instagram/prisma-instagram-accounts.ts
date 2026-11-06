@@ -75,7 +75,13 @@ export class PrismaInstagramAccounts implements InstagramAccounts {
   async disconnect(creatorId: string): Promise<void> {
     await this.rows.social_accounts.updateMany({
       where: { creator_id: creatorId, platform: 'instagram' },
-      data: { is_connected: false, access_token: null, token_expires_at: null },
+      data: {
+        is_connected: false,
+        access_token: null,
+        token_expires_at: null,
+        platform_user_id: null,
+        connected_at: null,
+      },
     });
   }
 }

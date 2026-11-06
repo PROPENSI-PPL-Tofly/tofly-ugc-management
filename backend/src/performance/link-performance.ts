@@ -126,15 +126,19 @@ export function checkManualPerformance(body: unknown): LinkMetrics {
 }
 
 /**
- * The state a link reads as. Until a sync reaches it a link is waiting, but a creator who has
- * not connected that platform's account will never be synced, so it reads as not connected
- * straight away and an admin can fill it in (AC 3, 14).
+ * The state a link reads as, following its account at once rather than at the next daily run.
+ * A creator with no connected account will never be synced, so a waiting or synced link reads as
+ * not connected and an admin can fill it in, and a link left not connected waits again once the
+ * account is back (AC 3, 14). Its numbers stay either way.
  */
 export function effectiveState(
   stored: LinkDataState,
   accountConnected: boolean,
 ): LinkDataState {
-  return stored === 'waiting' && !accountConnected ? 'not_connected' : stored;
+  if (accountConnected) {
+    return stored === 'not_connected' ? 'waiting' : stored;
+  }
+  return stored === 'waiting' || stored === 'synced' ? 'not_connected' : stored;
 }
 
 export function canEnterManually(state: LinkDataState): boolean {

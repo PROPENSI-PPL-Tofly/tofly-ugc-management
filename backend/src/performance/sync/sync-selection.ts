@@ -5,7 +5,7 @@ import type {
   Prisma,
   social_platform,
 } from '@prisma/client';
-import type { SourceLink } from '../ports.js';
+import type { PerformanceMetrics, SourceLink } from '../ports.js';
 
 // Which links a performance sync reads (PBI-27, 27.4), without Prisma or a clock, so the daily
 // run, "Sinkronkan Sekarang" and Finalize's last sync agree on one rule.
@@ -22,11 +22,15 @@ export const SYNC_LINK_SELECT = {
   url: true,
   platform: true,
   data_state: true,
+  views: true,
+  likes: true,
+  comments: true,
+  shares: true,
   content_id: true,
   contents: { select: { contracts: { select: { creator_id: true } } } },
 } as const;
 
-export interface SyncLinkRow {
+export interface SyncLinkRow extends PerformanceMetrics {
   id: string;
   url: string;
   platform: social_platform | null;
@@ -78,6 +82,8 @@ export interface SyncGroupLink extends SourceLink {
   contentId: string;
   platform: social_platform;
   storedState: link_data_state;
+  /** What the link holds now, so a replaced manual entry can be recorded with its old values. */
+  storedMetrics: PerformanceMetrics;
 }
 
 /** Every link one creator has on one platform: one source call reads them all. */
@@ -109,6 +115,12 @@ export function groupLinks(rows: readonly SyncLinkRow[]): SyncGroup[] {
       contentId: row.content_id,
       platform: row.platform,
       storedState: row.data_state,
+      storedMetrics: {
+        views: row.views,
+        likes: row.likes,
+        comments: row.comments,
+        shares: row.shares,
+      },
     });
   }
   return [...groups.values()];

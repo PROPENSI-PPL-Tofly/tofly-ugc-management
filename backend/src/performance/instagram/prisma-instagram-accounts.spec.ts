@@ -126,9 +126,10 @@ describe('PrismaInstagramAccounts', () => {
   });
 
   describe('disconnect', () => {
-    // AC 7: the PBI-19 badge reads "Belum terhubung". The platform account and the username stay,
-    // so reconnecting finds the same row (review note on #136).
-    it('marks the account not connected and drops its dead token', async () => {
+    // AC 7: the PBI-19 badge reads "Belum terhubung". The username stays, and reconnecting finds
+    // the row by creator and platform. The platform account is freed, as TikTok's is, so another
+    // creator can connect it (PBI-19 AC 5).
+    it('marks the account not connected, drops its dead token and frees the platform account', async () => {
       const fake = rowsWith(CONNECTED);
 
       await accountsOver(fake).disconnect(CREATOR);
@@ -139,6 +140,8 @@ describe('PrismaInstagramAccounts', () => {
           is_connected: false,
           access_token: null,
           token_expires_at: null,
+          platform_user_id: null,
+          connected_at: null,
         },
       });
     });

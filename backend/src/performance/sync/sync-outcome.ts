@@ -25,15 +25,24 @@ export interface UnsyncedLink {
 export type GroupResult =
   SourceResult | { outcome: 'error' } | { outcome: 'unavailable' };
 
+/** The numbers a platform gave. One it left empty is absent, so the stored number stays. */
+type ReportedMetrics = Partial<Record<keyof PerformanceMetrics, number>>;
+
 /** The columns a sync writes on one link; numbers only when the platform gave them. */
 export type LinkWrite =
-  | (PerformanceMetrics & {
+  | (ReportedMetrics & {
       data_state: 'synced';
       last_synced_at: Date;
       manual_by: null;
       manual_at: null;
     })
   | { data_state: 'not_found' | 'sync_failed' | 'not_connected' };
+
+/** Numbers an admin typed in and what the platform's took their place with (AC 17). */
+export interface ManualReplacement {
+  before: PerformanceMetrics;
+  after: PerformanceMetrics;
+}
 
 /** One link after a sync: whether it is up to date, and what to write (null: leave it be). */
 export interface LinkOutcome {
@@ -44,6 +53,8 @@ export interface LinkOutcome {
   storedState: link_data_state;
   synced: boolean;
   write: LinkWrite | null;
+  /** Set only when this write replaces manual numbers. */
+  replacedManual?: ManualReplacement;
 }
 
 /** What a run reports: its counts for the log (27.4) and the links it left as they were. */
@@ -54,12 +65,19 @@ export interface SyncSummary {
   notUpdated: UnsyncedLink[];
 }
 
+function reported(metrics: PerformanceMetrics): ReportedMetrics {
+  return Object.fromEntries(
+    Object.entries(metrics).filter(([, value]) => value !== null),
+  );
+}
+
 function writeFor(reading: LinkReading | undefined, now: Date): LinkWrite {
   switch (reading?.outcome) {
     case 'synced':
-      // The platform's numbers replace any an admin typed in (AC 17); empty stays empty (AC 2).
+      // The platform's numbers replace any an admin typed in (AC 17). A number it left empty
+      // keeps what is stored, and one never stored stays empty (AC 2).
       return {
-        ...reading.metrics,
+        ...reported(reading.metrics),
         data_state: 'synced',
         last_synced_at: now,
         manual_by: null,
@@ -90,12 +108,33 @@ function groupWrite(
   }
 }
 
+function replacementOf(
+  link: SyncGroup['links'][number],
+  write: LinkWrite,
+): ManualReplacement {
+  const before = link.storedMetrics;
+  return {
+    before,
+    // A number the platform left empty keeps what is stored, so it is unchanged here too.
+    after: {
+      views: 'views' in write ? (write.views ?? null) : before.views,
+      likes: 'likes' in write ? (write.likes ?? null) : before.likes,
+      comments: 'comments' in write ? (write.comments ?? null) : before.comments,
+      shares: 'shares' in write ? (write.shares ?? null) : before.shares,
+    },
+  };
+}
+
 function outcomeOf(
   link: SyncGroup['links'][number],
   write: LinkWrite | null,
 ): LinkOutcome {
   const synced = write?.data_state === 'synced';
   return {
+    ...(synced &&
+      link.storedState === 'manual' && {
+        replacedManual: replacementOf(link, write),
+      }),
     linkId: link.id,
     contentId: link.contentId,
     platform: link.platform,

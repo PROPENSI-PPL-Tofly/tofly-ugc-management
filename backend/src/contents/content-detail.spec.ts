@@ -634,6 +634,20 @@ describe('toContentDetail link performance (PBI-27)', () => {
             last_synced_at: new Date('2026-09-17T19:00:00.000Z'),
           },
         ],
+        contracts: {
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+            social_accounts: [
+              {
+                platform: 'instagram',
+                is_connected: true,
+                platform_user_id: '1784',
+              },
+            ],
+          },
+        },
       }),
       on('2026-09-18'),
     );

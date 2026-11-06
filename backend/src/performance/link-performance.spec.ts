@@ -119,9 +119,24 @@ describe('effectiveState', () => {
     expect(effectiveState('waiting', true)).toBe('waiting');
   });
 
+  // AC 3, 14: the account's state shows at once, not after the next daily run.
+  it('reads a synced link as not connected once its account is disconnected', () => {
+    expect(effectiveState('synced', false)).toBe('not_connected');
+  });
+
+  it('keeps a synced link synced while its account is connected', () => {
+    expect(effectiveState('synced', true)).toBe('synced');
+  });
+
+  it('reads a link left not connected as waiting once its account reconnects', () => {
+    expect(effectiveState('not_connected', true)).toBe('waiting');
+  });
+
+  it('keeps a link not connected while its account stays disconnected', () => {
+    expect(effectiveState('not_connected', false)).toBe('not_connected');
+  });
+
   it.each<LinkDataState>([
-    'not_connected',
-    'synced',
     'not_found',
     'sync_failed',
     'manual',

@@ -171,6 +171,7 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   creator_comment: "bg-muted ring-muted",
   // Numbers typed in move no status either.
   performance_entered: "bg-muted ring-muted",
+  performance_replaced: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
 };
 
