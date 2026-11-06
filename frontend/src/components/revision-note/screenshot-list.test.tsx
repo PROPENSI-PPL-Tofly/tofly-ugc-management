@@ -1,5 +1,6 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import type { StoredImage } from "@/lib/revision-note-uploads";
+import { UploadRefused } from "@/lib/revision-note-images-api";
 import { expectMinTarget, expectPhoneTarget } from "@/test/touch-target";
 import { ScreenshotList } from "./screenshot-list";
 import { useScreenshots, type ScreenshotUploader } from "./use-screenshots";
@@ -291,5 +292,23 @@ describe("removing a stored screenshot", () => {
 
     expect(screen.getByRole("img", { name: "Lampiran" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Gambar gagal dihapus. Coba lagi.");
+  });
+});
+
+describe("a screenshot 34.1 turns down", () => {
+  // AC 4, as the prototype shows a refusal: the file leaves the list and its reason takes the
+  // help line, as the editor's own refusals do. "Gagal diunggah" and "Coba lagi" stay for an
+  // upload that broke, the only one a retry can fix.
+  it("drops the refused file and shows the server's reason on the help line", async () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(image("ketujuh.png"));
+
+    await act(async () => calls[0].reject(new UploadRefused("Maksimal 5 gambar per catatan")));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Maksimal 5 gambar per catatan");
+    expect(screen.queryByText("ketujuh.png")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+    expect(addButton()).toHaveTextContent("5 sisa");
   });
 });
