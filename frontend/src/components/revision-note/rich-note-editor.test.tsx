@@ -378,6 +378,45 @@ describe("RichNoteEditor screenshots", () => {
     expect(frame).toHaveAttribute("data-dragging", "false");
   });
 
+  // A file over the editor may be dropped there; words dragged over it are left to the text.
+  it("lets a file be dropped on the editor, and leaves dragged words alone", async () => {
+    renderEditor({ onFiles: vi.fn() });
+    const frame = frameOf(await screen.findByRole("textbox", { name: "Catatan revisi" }));
+
+    expect(fireEvent.dragOver(frame, { dataTransfer: withFiles([shot()]) })).toBe(false);
+    expect(fireEvent.dragOver(frame, { dataTransfer: withFiles([], ["text/plain"]) })).toBe(true);
+  });
+
+  // Corner: moving onto the toolbar inside the editor is not leaving it.
+  it("keeps the outline while the file moves onto the toolbar inside the editor", async () => {
+    renderEditor({ onFiles: vi.fn() });
+    const frame = frameOf(await screen.findByRole("textbox", { name: "Catatan revisi" }));
+    fireEvent.dragEnter(frame, { dataTransfer: withFiles([shot()]) });
+
+    // jsdom has no DragEvent, and its plain Event drops relatedTarget; a MouseEvent keeps it.
+    fireEvent(
+      frame,
+      new MouseEvent("dragleave", {
+        bubbles: true,
+        relatedTarget: screen.getByRole("button", { name: "Tebal" }),
+      }),
+    );
+
+    expect(frame).toHaveAttribute("data-dragging", "true");
+  });
+
+  // Negative: a drop or a paste that carries no files hands nothing to the form.
+  it("hands nothing to the form when a drop or a paste carries no files", async () => {
+    const onFiles = vi.fn();
+    renderEditor({ onFiles });
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+
+    fireEvent.drop(box);
+    fireEvent.paste(box);
+
+    expect(onFiles).not.toHaveBeenCalled();
+  });
+
   // Negative: an editor with no place for screenshots takes no files.
   it("takes no pasted file when the form has no place for screenshots", async () => {
     const { onChange } = renderEditor();
