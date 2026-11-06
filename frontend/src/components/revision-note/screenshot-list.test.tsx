@@ -1,0 +1,194 @@
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import type { StoredImage } from "@/lib/revision-note-uploads";
+import { ScreenshotList } from "./screenshot-list";
+import { useScreenshots, type ScreenshotUploader } from "./use-screenshots";
+
+interface UploadCall {
+  file: File;
+  onProgress: (percent: number) => void;
+  signal: AbortSignal;
+  resolve: (stored: StoredImage) => void;
+  reject: (error: unknown) => void;
+}
+
+// A mock uploader: it records each upload and lets the test answer it when it chooses.
+function fakeUploader() {
+  const calls: UploadCall[] = [];
+  const upload = vi.fn<ScreenshotUploader["upload"]>(
+    (file, { onProgress, signal }) =>
+      new Promise((resolve, reject) => calls.push({ file, onProgress, signal, resolve, reject })),
+  );
+  return { uploader: { upload }, upload, calls };
+}
+
+const image = (name = "shot.png", type = "image/png") => new File(["x"], name, { type });
+
+function Harness({
+  uploader,
+  disabled = false,
+}: Readonly<{ uploader: ScreenshotUploader; disabled?: boolean }>) {
+  return <ScreenshotList screenshots={useScreenshots(uploader)} disabled={disabled} />;
+}
+
+function pick(...files: File[]) {
+  fireEvent.change(screen.getByLabelText("Pilih gambar revisi"), { target: { files } });
+}
+
+const addButton = () => screen.getByRole("button", { name: /Tambah Gambar/ });
+
+describe("ScreenshotList", () => {
+  it("offers Tambah Gambar with five left, for JPG, PNG and WebP", () => {
+    render(<Harness uploader={fakeUploader().uploader} />);
+
+    expect(addButton()).toHaveTextContent("5 sisa");
+    expect(
+      screen.getByText("Sisa 5 dari 5 gambar · JPG, PNG, WebP · maks. 5 MB"),
+    ).toBeInTheDocument();
+    const input = screen.getByLabelText("Pilih gambar revisi");
+    expect(input).toHaveAttribute("accept", "image/jpeg,image/png,image/webp");
+    expect(input).toHaveAttribute("multiple");
+  });
+
+  it("opens the file picker from Tambah Gambar", () => {
+    render(<Harness uploader={fakeUploader().uploader} />);
+    const click = vi.spyOn(screen.getByLabelText("Pilih gambar revisi"), "click");
+
+    fireEvent.click(addButton());
+
+    expect(click).toHaveBeenCalled();
+  });
+
+  // Positive (AC 5): a picked image uploads with its progress, then shows as a thumbnail.
+  it("uploads a picked image with its progress, then shows it", async () => {
+    const { uploader, upload, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+
+    pick(image("intro.png"));
+
+    expect(upload).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "intro.png" }),
+      expect.anything(),
+    );
+    expect(screen.getByText("Mengunggah 0%")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mengunggah gambar… tombol kirim aktif lagi setelah selesai."),
+    ).toBeInTheDocument();
+    expect(addButton()).toHaveTextContent("4 sisa");
+
+    act(() => calls[0].onProgress(40));
+    expect(screen.getByRole("progressbar", { name: "intro.png" })).toHaveAttribute(
+      "aria-valuenow",
+      "40",
+    );
+
+    await act(async () => calls[0].resolve({ imageId: "img-1", url: "https://signed/1" }));
+    expect(screen.getByRole("img", { name: "Lampiran" })).toHaveAttribute(
+      "src",
+      "https://signed/1",
+    );
+    expect(
+      screen.getByText("Sisa 4 dari 5 gambar · JPG, PNG, WebP · maks. 5 MB"),
+    ).toBeInTheDocument();
+  });
+
+  // AC 5: a failed upload says so and can be tried again.
+  it("says Gagal diunggah when an upload fails, and Coba lagi uploads it again", async () => {
+    const { uploader, upload, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(image());
+
+    await act(async () => calls[0].reject(new Error("network")));
+    expect(screen.getByText("Gagal diunggah")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
+
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Mengunggah 0%")).toBeInTheDocument();
+  });
+
+  // AC 5 + corner: × removes the image; an upload still running is cancelled, its late answer
+  // ignored.
+  it("removes an image with ×, cancelling its upload", async () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(image("intro.png"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus gambar" }));
+
+    expect(calls[0].signal.aborted).toBe(true);
+    expect(screen.queryByText("intro.png")).not.toBeInTheDocument();
+    await act(async () => calls[0].resolve({ imageId: "late", url: "https://signed/late" }));
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  // Negative (AC 4): a refused file gives its reason and is never uploaded.
+  it("refuses a PDF with its reason and never uploads it", () => {
+    const { uploader, upload } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+
+    pick(image("brief.pdf", "application/pdf"));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Format harus JPG, PNG, atau WebP");
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  // Corner: the reason steps back to the help line after 3.5 seconds, as the prototype's does.
+  it("puts the help line back 3.5 seconds after a refusal", () => {
+    render(<Harness uploader={fakeUploader().uploader} />);
+    const input = screen.getByLabelText("Pilih gambar revisi");
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(input, { target: { files: [image("brief.pdf", "application/pdf")] } });
+      act(() => vi.advanceTimersByTime(3499));
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Sisa 5 dari 5 gambar · JPG, PNG, WebP · maks. 5 MB"),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Corner: with five images, Tambah Gambar has none left.
+  it("closes Tambah Gambar at five images", () => {
+    render(<Harness uploader={fakeUploader().uploader} />);
+
+    pick(...Array.from({ length: 5 }, (_, i) => image(`${i}.png`)));
+
+    expect(addButton()).toBeDisabled();
+    expect(addButton()).toHaveTextContent("0 sisa");
+  });
+
+  it("locks every control while the form is sending", async () => {
+    const { uploader, calls } = fakeUploader();
+    const { rerender } = render(<Harness uploader={uploader} />);
+    pick(image());
+    await act(async () => calls[0].reject(new Error("network")));
+
+    rerender(<Harness uploader={uploader} disabled />);
+
+    for (const button of screen.getAllByRole("button")) expect(button).toBeDisabled();
+  });
+});
+
+describe("useScreenshots", () => {
+  // What the revision form reads (AC 5): still uploading, and which images to send.
+  it("tells the form while an image uploads, then which images to send", async () => {
+    const { uploader, calls } = fakeUploader();
+    const { result } = renderHook(() => useScreenshots(uploader));
+
+    act(() => result.current.add([image("a.png"), image("b.png")]));
+    expect(result.current.uploading).toBe(true);
+
+    await act(async () => {
+      calls[0].resolve({ imageId: "img-a", url: "x" });
+      calls[1].reject(new Error("network"));
+    });
+
+    expect(result.current.uploading).toBe(false);
+    expect(result.current.imageIds).toEqual(["img-a"]);
+  });
+});
