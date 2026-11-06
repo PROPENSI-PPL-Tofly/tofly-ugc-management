@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { StoredImage } from "@/lib/revision-note-uploads";
 import { RevisionNoteField, type RevisionNoteValue } from "./revision-note-field";
 import type { ScreenshotUploader } from "./use-screenshots";
@@ -123,5 +123,44 @@ describe("RevisionNoteField", () => {
     unmount();
 
     expect(calls[0].signal.aborted).toBe(true);
+  });
+});
+
+describe("RevisionNoteField layout, as the prototype draws it", () => {
+  // Tambah Gambar closes the editor's toolbar, after Link.
+  it("puts Tambah Gambar at the end of the editor's toolbar", async () => {
+    renderField(fakeUploader().uploader);
+
+    const toolbar = await screen.findByRole("toolbar", { name: "Format catatan revisi" });
+    const names = within(toolbar)
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label") ?? button.textContent);
+    expect(names).toEqual([
+      "Tebal",
+      "Miring",
+      "Daftar poin",
+      "Daftar nomor",
+      "Tambah link",
+      "Tambah Gambar 5 sisa",
+    ]);
+  });
+
+  // The images sit inside the editor's frame, under the text.
+  it("shows the screenshots inside the editor's frame", async () => {
+    renderField(fakeUploader().uploader);
+    await pasteInto({ files: [shot()], types: ["Files"] });
+
+    const frame = screen
+      .getByRole("textbox", { name: "Catatan revisi" })
+      .closest("[data-dragging]");
+    expect(frame).toContainElement(screen.getByText("Mengunggah 0%"));
+  });
+
+  // The help line and the counter share one row under the editor.
+  it("puts the help line and the counter on one row", async () => {
+    renderField(fakeUploader().uploader);
+
+    const help = await screen.findByText("Sisa 5 dari 5 gambar · JPG, PNG, WebP · maks. 5 MB");
+    expect(help.closest("[data-note-footer]")).toContainElement(screen.getByText("0/1000"));
   });
 });
