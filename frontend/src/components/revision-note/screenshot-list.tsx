@@ -5,12 +5,13 @@
 // draws; useScreenshots holds what happens.
 
 import { useRef } from "react";
+import { MIN_TARGET, PHONE_TARGET } from "@/components/ui/touch-target";
 import { SCREENSHOT_MAX_COUNT, SCREENSHOT_TYPES } from "@/lib/revision-note-images";
 import type { Upload } from "@/lib/revision-note-uploads";
 import type { Screenshots } from "./use-screenshots";
 
-const SMALL_BUTTON =
-  "rounded-md px-2 py-1 text-[12.5px] text-ink hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40";
+// Pressed with a finger on a phone: 24px at every width, 44px tall below sm (WCAG 2.5.8, 2.5.5).
+const SMALL_BUTTON = `rounded-md px-2 py-1 text-[12.5px] text-ink hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40 ${MIN_TARGET} ${PHONE_TARGET}`;
 
 function helpLine(uploading: boolean, left: number): string {
   if (uploading) return "Mengunggah gambar… tombol kirim aktif lagi setelah selesai.";
@@ -63,9 +64,16 @@ function Tile({ upload, disabled, onRetry, onRemove }: Readonly<TileProps>) {
         aria-label="Hapus gambar"
         onClick={onRemove}
         disabled={disabled}
-        className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-xs text-surface disabled:opacity-40"
+        // The press reaches past the small circle, so a finger finds it without it covering more
+        // of the thumbnail.
+        className={`absolute right-0 top-0 flex min-w-6 translate-x-1/2 -translate-y-1/2 items-center justify-center disabled:opacity-40 max-sm:min-w-11 ${MIN_TARGET} ${PHONE_TARGET}`}
       >
-        ×
+        <span
+          aria-hidden="true"
+          className="flex size-5 items-center justify-center rounded-full bg-ink text-xs text-surface"
+        >
+          ×
+        </span>
       </button>
     </li>
   );

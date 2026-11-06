@@ -303,10 +303,11 @@ function ReadyEditor({
             Link
           </button>
           {toolbarEnd ? (
-            <>
-              <span aria-hidden="true" className="mx-1 h-4 w-px bg-rule" />
+            // One group, so a narrow toolbar wraps the divider together with what it sets apart.
+            <span className="inline-flex items-center gap-0.5">
+              <span role="separator" aria-orientation="vertical" className="mx-1 h-4 w-px bg-rule" />
               {toolbarEnd}
-            </>
+            </span>
           ) : null}
         </div>
         {linkOpen ? <LinkRow editor={editor} onDone={() => setLinkOpen(false)} /> : null}
