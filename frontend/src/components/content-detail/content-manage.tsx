@@ -39,7 +39,13 @@ export function ManageMenu({
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const firstItem = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+
+  // Focus moves into the menu as it opens, so arrows and Escape work at once.
+  useEffect(() => {
+    if (open) firstItem.current?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -50,7 +56,8 @@ export function ManageMenu({
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [open]);
 
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  // On the toggle and on the menu itself, both real controls, rather than on a plain wrapper.
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (!open) return;
     if (event.key === "Escape") {
       event.stopPropagation();
@@ -75,7 +82,7 @@ export function ManageMenu({
   }
 
   return (
-    <div ref={wrapper} className="relative" onKeyDown={onKeyDown}>
+    <div ref={wrapper} className="relative">
       <button
         ref={button}
         type="button"
@@ -84,6 +91,7 @@ export function ManageMenu({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen(!open)}
+        onKeyDown={onKeyDown}
         className="grid size-8 cursor-pointer place-items-center rounded-(--radius-control) border-none bg-transparent text-lg leading-none text-muted hover:bg-surface-2 hover:text-ink max-sm:size-11"
       >
         <span aria-hidden="true">⋯</span>
@@ -94,10 +102,16 @@ export function ManageMenu({
           id={menuId}
           role="menu"
           aria-label="Aksi konten"
+          onKeyDown={onKeyDown}
           className="absolute right-0 top-full z-10 mt-1 min-w-36 overflow-hidden rounded-(--radius-control) border border-rule bg-surface py-1 shadow-whisper"
         >
-          {/* Focus moves into the menu as it opens, so arrows and Escape work at once. */}
-          <button type="button" role="menuitem" autoFocus className={MENU_ITEM} onClick={() => choose(onEdit)}>
+          <button
+            ref={firstItem}
+            type="button"
+            role="menuitem"
+            className={MENU_ITEM}
+            onClick={() => choose(onEdit)}
+          >
             Ubah
           </button>
           <button
