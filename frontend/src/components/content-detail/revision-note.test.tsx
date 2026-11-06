@@ -172,19 +172,71 @@ describe("RevisionNote", () => {
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
     });
 
-    it("is gone once closed, and a thumbnail opens it again", () => {
+    it("fills the screen with the image alone, no title and no close button", () => {
+      // Arrange
+      render(<RevisionNote note="Lihat gambar" images={[FIRST]} />);
+
+      // Act
+      fireEvent.click(thumbnail(1));
+
+      // Assert
+      const overlay = screen.getByRole("dialog");
+      expect(overlay).toHaveAttribute("aria-modal", "true");
+      expect(within(overlay).queryByRole("heading")).toBeNull();
+      expect(within(overlay).queryByRole("button")).toBeNull();
+    });
+
+    it("closes on a press anywhere, and a thumbnail opens it again", () => {
       // Arrange
       render(<RevisionNote note="Lihat gambar" images={[FIRST]} />);
       fireEvent.click(thumbnail(1));
 
       // Act
-      fireEvent.click(
-        within(screen.getByRole("dialog")).getByRole("button", { name: "Tutup dialog" }),
-      );
+      fireEvent.click(picture(screen.getByRole("dialog")));
 
       // Assert
       expect(screen.queryByRole("dialog")).toBeNull();
       fireEvent.click(thumbnail(1));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("closes on Escape and hands focus back to the thumbnail", () => {
+      // Arrange
+      render(<RevisionNote note="Lihat gambar" images={[FIRST]} />);
+      thumbnail(1).focus();
+      fireEvent.click(thumbnail(1));
+      expect(screen.getByRole("dialog")).toHaveFocus();
+
+      // Act
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      // Assert
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(thumbnail(1)).toHaveFocus();
+    });
+
+    it("keeps Tab inside it, since nothing behind it can be reached", () => {
+      // Arrange
+      render(<RevisionNote note="Lihat gambar" images={[FIRST]} />);
+      fireEvent.click(thumbnail(1));
+
+      // Act
+      const notPrevented = fireEvent.keyDown(document, { key: "Tab" });
+
+      // Assert
+      expect(notPrevented).toBe(false);
+    });
+
+    it("answers no other key", () => {
+      // Arrange
+      render(<RevisionNote note="Lihat gambar" images={[FIRST]} />);
+      fireEvent.click(thumbnail(1));
+
+      // Act
+      const notPrevented = fireEvent.keyDown(document, { key: "a" });
+
+      // Assert
+      expect(notPrevented).toBe(true);
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 

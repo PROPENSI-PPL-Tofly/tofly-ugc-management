@@ -1547,6 +1547,26 @@ describe("ContentDetailPanel revision notes (PBI-34)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("closes only the overlay on a press, leaving the panel open", async () => {
+    // Arrange
+    const { onClose } = open(
+      revisionStep({
+        note: "Lihat gambar",
+        images: [{ id: "image-1", url: "/api/note-images/image-1", contentType: "image/png" }],
+      }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Buka gambar 1" }));
+    const overlay = screen.getByRole("dialog", { name: "Gambar 1 dari 1" });
+
+    // Act
+    fireEvent.mouseDown(overlay);
+    fireEvent.click(overlay);
+
+    // Assert
+    expect(screen.queryByRole("dialog", { name: "Gambar 1 dari 1" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("shows a note from before formatting exactly as it was (AC 9)", async () => {
     // Arrange
     open(revisionStep({ note: "Audio terlalu pelan.\nTambahkan subtitle." }));
