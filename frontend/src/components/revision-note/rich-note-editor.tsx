@@ -6,7 +6,7 @@
 import { useEffect, useId, useState, type DragEvent, type ReactNode } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { CharacterCount } from "@tiptap/extensions";
+import { CharacterCount, Placeholder } from "@tiptap/extensions";
 import { Fragment, Slice } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ export interface RichNoteEditorProps {
   onChange?: (note: RichNote) => void;
   // Where pasted and dropped files go (the screenshot list); without it the editor takes none.
   onFiles?: (files: File[]) => void;
+  // The hint on the empty note.
+  placeholder?: string;
 }
 
 /** The one message a refused link address gets, worded as the prototype does. */
@@ -126,10 +128,15 @@ export function RichNoteEditor({
   disabled = false,
   onChange,
   onFiles,
+  placeholder,
 }: Readonly<RichNoteEditorProps>) {
   const countId = useId();
   const editor = useEditor({
-    extensions: [FORMATTING, CharacterCount.configure({ limit: max })],
+    extensions: [
+      FORMATTING,
+      CharacterCount.configure({ limit: max }),
+      Placeholder.configure({ placeholder }),
+    ],
     content: initialContent,
     editable: !disabled,
     // Rendered on the client only, so the server's HTML and the browser's never disagree.
@@ -157,8 +164,10 @@ export function RichNoteEditor({
         "aria-multiline": "true",
         "aria-label": label,
         "aria-describedby": countId,
+        // Said by screen readers; data-placeholder on the empty paragraph draws it on the page.
+        ...(placeholder ? { "aria-placeholder": placeholder } : {}),
         class:
-          "min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc",
+          "min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc [&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:text-muted [&_.is-editor-empty]:before:content-[attr(data-placeholder)]",
       },
     },
     onUpdate: ({ editor: changed }) => onChange?.(noteOf(changed)),

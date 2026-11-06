@@ -24,6 +24,10 @@ export interface RevisionNoteFieldProps {
 
 const EMPTY_NOTE: RichNote = { html: "", text: "", length: 0 };
 
+// The PBI-34 prototype's hint, which also tells the Admin a screenshot can be pasted or dragged.
+const PLACEHOLDER =
+  "Jelaskan bagian yang perlu diubah. Paste atau drag screenshot ke sini untuk melampirkan gambar.";
+
 export function RevisionNoteField({
   label,
   max,
@@ -54,6 +58,7 @@ export function RevisionNoteField({
         disabled={disabled}
         onChange={setNote}
         onFiles={screenshots.add}
+        placeholder={PLACEHOLDER}
       />
       <ScreenshotList screenshots={screenshots} disabled={disabled} />
     </div>
