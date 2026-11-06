@@ -664,6 +664,18 @@ describe('InvoiceCommandService', () => {
       expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
     });
 
+    it('answers 404 when the contract goes before the lock is taken', async () => {
+      prisma.contracts.findUnique
+        .mockResolvedValueOnce(endedContract())
+        .mockResolvedValueOnce(null);
+
+      const error = await rejection(
+        service.finalize('contract-1', 'admin-9', TODAY),
+      );
+
+      expect(error).toMatchObject({ response: { code: 'CONTRACT_NOT_FOUND' } });
+    });
+
     it('answers 404 for an unknown contract before asking any platform', async () => {
       prisma.contracts.findUnique.mockResolvedValue(null);
 
