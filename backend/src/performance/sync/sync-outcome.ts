@@ -113,16 +113,9 @@ function replacementOf(
   write: LinkWrite,
 ): ManualReplacement {
   const before = link.storedMetrics;
-  return {
-    before,
-    // A number the platform left empty keeps what is stored, so it is unchanged here too.
-    after: {
-      views: 'views' in write ? (write.views ?? null) : before.views,
-      likes: 'likes' in write ? (write.likes ?? null) : before.likes,
-      comments: 'comments' in write ? (write.comments ?? null) : before.comments,
-      shares: 'shares' in write ? (write.shares ?? null) : before.shares,
-    },
-  };
+  const written = Object.entries(write).filter(([name]) => name in before);
+  // A number the platform left empty keeps what is stored, so it is unchanged here too.
+  return { before, after: { ...before, ...Object.fromEntries(written) } };
 }
 
 function outcomeOf(
