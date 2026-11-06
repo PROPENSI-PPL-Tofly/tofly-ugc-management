@@ -93,6 +93,23 @@ describe("RevisionNoteField", () => {
     );
   });
 
+  // The form always holds the note as it stands now, after several changes in a row.
+  it("tells the form the latest note after several changes in a row", async () => {
+    const { last } = renderField(fakeUploader().uploader);
+
+    await pasteInto({ files: [], types: ["text/plain"], plain: "Hook" });
+    await pasteInto({ files: [], types: ["text/plain"], plain: " lemah" });
+    fireEvent.click(screen.getByRole("button", { name: "Daftar poin" }));
+
+    // Tiptap keeps an empty paragraph after a list and puts a line between blocks in its text.
+    await waitFor(() => {
+      const value = last();
+      expect(value?.html).toContain("<ul><li><p>Hook lemah</p></li></ul>");
+      expect(value?.text.trim()).toBe("Hook lemah");
+      expect(value?.length).toBe(10);
+    });
+  });
+
   it("locks the text and the screenshots while the form is sending", async () => {
     renderField(fakeUploader().uploader, true);
 
