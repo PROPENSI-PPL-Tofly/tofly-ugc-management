@@ -65,6 +65,8 @@ const TOOLS: readonly Tool[] = [
   },
 ];
 
+const FRAME = "rounded-(--radius-control) border border-rule bg-surface";
+
 const TOOL_BUTTON =
   "rounded-md px-2.5 py-1 text-[12.5px] text-ink hover:bg-surface-2 aria-pressed:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -103,26 +105,38 @@ export function RichNoteEditor({
     onUpdate: ({ editor: changed }) => onChange?.(noteOf(changed)),
   });
 
+  // Tiptap builds the editor after the first render; until then the box keeps its place.
+  if (!editor) return <div className={`${FRAME} min-h-[190px]`} aria-hidden="true" />;
+  return <ReadyEditor editor={editor} disabled={disabled} max={max} countId={countId} />;
+}
+
+interface ReadyEditorProps {
+  editor: Editor;
+  disabled: boolean;
+  max: number;
+  countId: string;
+}
+
+// The editor once Tiptap has built it, so nothing below has to ask whether it exists yet.
+function ReadyEditor({ editor, disabled, max, countId }: Readonly<ReadyEditorProps>) {
   // Locks the text as well as the toolbar while the form is sending.
   useEffect(() => {
-    editor?.setEditable(!disabled);
+    editor.setEditable(!disabled);
   }, [editor, disabled]);
 
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
       active: Object.fromEntries(
-        TOOLS.map((tool) => [tool.mark, current?.isActive(tool.mark) ?? false]),
+        TOOLS.map((tool) => [tool.mark, current.isActive(tool.mark)]),
       ) as Record<Mark, boolean>,
-      length: current?.storage.characterCount.characters() ?? 0,
+      length: current.storage.characterCount.characters(),
     }),
   });
 
-  const locked = disabled || !editor;
-
   return (
     <div className="flex flex-col gap-1">
-      <div className="rounded-(--radius-control) border border-rule bg-surface">
+      <div className={FRAME}>
         <div className="flex flex-wrap items-center gap-0.5 border-b border-rule px-1.5 py-1">
           {TOOLS.map((tool) => (
             <button
@@ -130,13 +144,11 @@ export function RichNoteEditor({
               type="button"
               aria-label={tool.label}
               title={tool.label}
-              aria-pressed={state?.active[tool.mark] ?? false}
-              disabled={locked}
+              aria-pressed={state.active[tool.mark]}
+              disabled={disabled}
               // Keeps the selection in the text, so the format lands on what was selected.
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                if (editor) tool.run(editor);
-              }}
+              onClick={() => tool.run(editor)}
               className={TOOL_BUTTON}
             >
               {tool.text}
@@ -146,7 +158,7 @@ export function RichNoteEditor({
             type="button"
             aria-label="Tambah link"
             title="Tambah link"
-            disabled={locked}
+            disabled={disabled}
             className={TOOL_BUTTON}
           >
             Link
@@ -154,7 +166,7 @@ export function RichNoteEditor({
         </div>
         <EditorContent editor={editor} />
       </div>
-      <CharLimit id={countId} length={state?.length ?? 0} max={max} />
+      <CharLimit id={countId} length={state.length} max={max} />
     </div>
   );
 }
