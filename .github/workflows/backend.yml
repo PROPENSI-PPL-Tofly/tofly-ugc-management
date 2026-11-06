@@ -381,6 +381,10 @@ jobs:
           # Each environment has its own performance sync secret (PERFORMANCE_SYNC_SECRET_STAGING or
           # _PROD), named after its DB secret, so staging's scheduler can never start prod's sync.
           SYNC_SECRET="PERFORMANCE_SYNC_SECRET_${DB_SECRET#DB_URL_}"
+          # The social connect secrets follow the same suffix, so staging's Instagram and TikTok
+          # apps and its token key stay apart from production's.
+          ENV_SUFFIX="${DB_SECRET#DB_URL_}"
+          SOCIAL_SECRETS="SOCIAL_STATE_SECRET=SOCIAL_STATE_SECRET_$ENV_SUFFIX:latest,SOCIAL_TOKEN_KEY=SOCIAL_TOKEN_KEY_$ENV_SUFFIX:latest,TIKTOK_CLIENT_SECRET=TIKTOK_CLIENT_SECRET_$ENV_SUFFIX:latest,INSTAGRAM_APP_SECRET=INSTAGRAM_APP_SECRET_$ENV_SUFFIX:latest"
           if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; then
             TRAFFIC="--no-traffic"
           else
@@ -392,8 +396,8 @@ jobs:
             --region "$REGION" \
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
-            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest" \
-            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }}" \
+            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,$SOCIAL_SECRETS" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},TIKTOK_CLIENT_KEY=${{ vars.TIKTOK_CLIENT_KEY }},TIKTOK_REDIRECT_URI=${{ vars.TIKTOK_REDIRECT_URI }},INSTAGRAM_APP_ID=${{ vars.INSTAGRAM_APP_ID }},INSTAGRAM_REDIRECT_URI=${{ vars.INSTAGRAM_REDIRECT_URI }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --timeout 600 \
