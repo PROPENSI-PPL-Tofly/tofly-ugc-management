@@ -5,7 +5,9 @@ import {
 import {
   assertChangeable,
   checkContentEdit,
+  editWindow,
   planContentEdit,
+  type ChangeFacts,
   type EditableContent,
 } from './content-edit.js';
 
@@ -240,6 +242,57 @@ describe('assertChangeable', () => {
       ),
     ).toEqual(NOT_EDITABLE);
   });
+});
+
+describe('editWindow', () => {
+  function facts(overrides: Partial<ChangeFacts> = {}): ChangeFacts {
+    return {
+      status: 'scheduled',
+      drafts: 0,
+      contractStart: '2026-10-01',
+      contractEnd: '2026-12-31',
+      invoiceStatus: 'running',
+      ...overrides,
+    };
+  }
+
+  it('opens the days an edited deadline may take: today plus the buffer up to H-5 (AC 3)', () => {
+    expect(editWindow(facts(), RULES)).toEqual({
+      earliestDeadline: '2026-11-10',
+      latestDeadline: '2026-12-26',
+    });
+  });
+
+  it('counts the buffer from the contract start when the contract has not started yet', () => {
+    expect(
+      editWindow(facts({ contractStart: '2026-11-20' }), RULES),
+    ).toEqual({ earliestDeadline: '2026-11-25', latestDeadline: '2026-12-26' });
+  });
+
+  it('opens before the contract has an invoice at all', () => {
+    expect(editWindow(facts({ invoiceStatus: null }), RULES)).not.toBeNull();
+  });
+
+  it.each([
+    'pending',
+    'draft_review',
+    'draft_revision',
+    'draft_approved',
+    'link_submitted',
+  ] as const)('is closed for a content that is %s (AC 1)', (status) => {
+    expect(editWindow(facts({ status }), RULES)).toBeNull();
+  });
+
+  it('is closed once a draft exists (AC 1, 9)', () => {
+    expect(editWindow(facts({ drafts: 1 }), RULES)).toBeNull();
+  });
+
+  it.each(['finalized', 'creator_acked', 'payment_uploaded', 'paid'] as const)(
+    'is closed once the invoice is %s, as the API refuses then (AC 9)',
+    (invoiceStatus) => {
+      expect(editWindow(facts({ invoiceStatus }), RULES)).toBeNull();
+    },
+  );
 });
 
 describe('planContentEdit', () => {

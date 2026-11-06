@@ -24,6 +24,9 @@ function row() {
     created_at: new Date('2026-09-01T03:00:00.000Z'),
     updated_at: new Date('2026-09-01T03:00:00.000Z'),
     contracts: {
+      start_date: new Date('2026-09-01T00:00:00.000Z'),
+      end_date: new Date('2026-11-30T00:00:00.000Z'),
+      invoice: { status: 'running' as const },
       creators: {
         first_name: 'Rangga',
         middle_name: null,
@@ -75,8 +78,13 @@ describe('ContentDetailService', () => {
           },
         },
         // Whether each account is connected decides a waiting link's state; no token is read.
+        // The contract's dates and invoice decide whether and where an admin may move the
+        // deadline (PBI-25 AC 1, 3, 9).
         contracts: {
           select: {
+            start_date: true,
+            end_date: true,
+            invoice: { select: { status: true } },
             creators: {
               select: {
                 first_name: true,
@@ -117,6 +125,34 @@ describe('ContentDetailService', () => {
       tags: [],
       creatorActions: ['submit_draft'],
     });
+  });
+
+  it('gives an admin read the edit window, from the default buffer (PBI-25 AC 3)', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+
+    const detail = await service(prisma).getDetail(
+      '11111111-1111-1111-1111-111111111111',
+      NOW,
+    );
+
+    expect(detail.edit).toEqual({
+      earliestDeadline: '2026-09-25',
+      latestDeadline: '2026-11-25',
+    });
+  });
+
+  it('gives a creator read no edit window', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+
+    const detail = await service(prisma).getDetail(
+      '11111111-1111-1111-1111-111111111111',
+      NOW,
+      { creatorId: 'creator-1' },
+    );
+
+    expect(detail.edit).toBeNull();
   });
 
   it('judges the tags at the moment of the read', async () => {

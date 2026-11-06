@@ -1,5 +1,9 @@
 import type { social_platform } from '@prisma/client';
-import type { ContentEvent, DetailEventType } from './content-detail.js';
+import type {
+  ContentChanges,
+  ContentEvent,
+  DetailEventType,
+} from './content-detail.js';
 import { isSocialPlatform } from './link-rules.js';
 
 // The stored history (content_events) read back into the steps the Content Detail panel shows.
@@ -63,7 +67,14 @@ const STEP_FOR: Record<
     type: 'creator_comment',
     payload: (data) => details({ note: data.text('comment') }),
   },
+  // An admin's edit of a scheduled content (PBI-25 AC 4): each changed field, old and new.
+  'Content Updated': {
+    type: 'content_updated',
+    payload: (data) => details({ changes: data.changes('changes') }),
+  },
 };
+
+const EDITED_FIELDS = ['deadline', 'brief', 'name'] as const;
 
 /** Typed reads of a stored jsonb object; a field of the wrong type reads as absent. */
 interface Data {
@@ -71,14 +82,34 @@ interface Data {
   text(key: string): string | undefined;
   /** A platform the app knows; any other stored value reads as absent. */
   platform(key: string): social_platform | undefined;
+  /** An edit's changes: only the fields an edit can touch, with text on both sides. */
+  changes(key: string): ContentChanges | undefined;
+}
+
+function objectOf(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function changesOf(value: unknown): ContentChanges | undefined {
+  if (objectOf(value) !== value) {
+    return undefined;
+  }
+  const changes: ContentChanges = {};
+  for (const field of EDITED_FIELDS) {
+    const { from, to } = objectOf(objectOf(value)[field]);
+    if (typeof from === 'string' && typeof to === 'string') {
+      changes[field] = { from, to };
+    }
+  }
+  return changes;
 }
 
 function dataOf(value: unknown): Data {
-  const fields =
-    value !== null && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
+  const fields = objectOf(value);
   return {
+    changes: (key) => changesOf(fields[key]),
     number: (key) =>
       typeof fields[key] === 'number' ? fields[key] : undefined,
     // Blank text says nothing, as blank notes are left out everywhere else.

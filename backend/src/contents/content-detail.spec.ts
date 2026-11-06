@@ -58,6 +58,9 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
     created_at: new Date('2026-09-01T03:00:00.000Z'),
     updated_at: new Date('2026-09-01T03:00:00.000Z'),
     contracts: {
+      start_date: new Date('2026-09-01T00:00:00.000Z'),
+      end_date: new Date('2026-11-30T00:00:00.000Z'),
+      invoice: { status: 'running' },
       creators: {
         first_name: 'Rangga',
         middle_name: null,
@@ -549,6 +552,69 @@ describe('toContentDetail', () => {
   });
 });
 
+describe('toContentDetail edit window (PBI-25)', () => {
+  const ADMIN_VIEW = { bufferDays: 5 };
+
+  it('gives an admin the days the deadline may move to: today plus the buffer up to H-5 (AC 3)', () => {
+    const detail = toContentDetail(row(), on('2026-09-21'), ADMIN_VIEW);
+
+    expect(detail.edit).toEqual({
+      earliestDeadline: '2026-09-26',
+      latestDeadline: '2026-11-25',
+    });
+  });
+
+  it('gives a creator no window, since only an admin edits', () => {
+    expect(toContentDetail(row(), on('2026-09-21')).edit).toBeNull();
+  });
+
+  it('closes the window once a draft exists, so Ubah and Hapus are hidden (AC 1)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_review',
+        submissions: [
+          {
+            id: 'sub-1',
+            link: 'https://drive.google.com/v1',
+            created_at: new Date('2026-09-20T03:00:00.000Z'),
+            updated_at: new Date('2026-09-20T03:00:00.000Z'),
+            revision_notes: null,
+            creator_notes: null,
+          },
+        ],
+      }),
+      on('2026-09-21'),
+      ADMIN_VIEW,
+    );
+
+    expect(detail.edit).toBeNull();
+  });
+
+  it('closes the window once the contract’s invoice is finalized (AC 9)', () => {
+    const base = row();
+    const detail = toContentDetail(
+      row({
+        contracts: { ...base.contracts, invoice: { status: 'finalized' } },
+      }),
+      on('2026-09-21'),
+      ADMIN_VIEW,
+    );
+
+    expect(detail.edit).toBeNull();
+  });
+
+  it('opens the window before the contract has an invoice', () => {
+    const base = row();
+    const detail = toContentDetail(
+      row({ contracts: { ...base.contracts, invoice: null } }),
+      on('2026-09-21'),
+      ADMIN_VIEW,
+    );
+
+    expect(detail.edit).not.toBeNull();
+  });
+});
+
 describe('toContentDetail links (PBI-38)', () => {
   it('lists each link with its platform, url and submitted day, first link first', () => {
     const detail = toContentDetail(
@@ -662,6 +728,7 @@ describe('toContentDetail link performance (PBI-27)', () => {
           ),
         ],
         contracts: {
+          ...row().contracts,
           creators: {
             first_name: 'Rangga',
             middle_name: null,
@@ -906,6 +973,80 @@ describe('toContentDetail with a stored history', () => {
       at: '2026-09-02T03:00:00.000Z',
       actor: { name: null, role: 'system' },
     });
+  });
+
+  it('words an edit as a step by an admin, carrying each changed field’s old and new value (AC 4)', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Content Updated', '2026-09-05T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              changes: {
+                deadline: { from: '2026-09-30', to: '2026-10-02' },
+                brief: { from: 'Lama', to: 'Baru' },
+              },
+            },
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z', ADMIN),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toEqual({
+      id: 'e2',
+      type: 'content_updated',
+      at: '2026-09-05T03:00:00.000Z',
+      actor: { name: null, role: 'admin' },
+      payload: {
+        changes: {
+          deadline: { from: '2026-09-30', to: '2026-10-02' },
+          brief: { from: 'Lama', to: 'Baru' },
+        },
+      },
+    });
+  });
+
+  it('keeps only the edited fields it knows, each with text on both sides', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Content Updated', '2026-09-05T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              changes: {
+                name: { from: 'Lama', to: 'Baru' },
+                deadline: { from: '2026-09-30', to: 7 },
+                status: { from: 'scheduled', to: 'link_submitted' },
+                brief: 'Baru',
+              },
+            },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0].payload).toEqual({
+      changes: { name: { from: 'Lama', to: 'Baru' } },
+    });
+  });
+
+  it('reads an edit whose changes are not an object as a step without details', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Content Updated', '2026-09-05T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: { changes: ['deadline'] },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toMatchObject({ type: 'content_updated', payload: {} });
   });
 
   it('skips a step of a kind this build does not know, and data fields that are not the right type', () => {

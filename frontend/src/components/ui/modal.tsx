@@ -69,6 +69,7 @@ export function Modal({
   meta,
   role = "dialog",
   initialFocus,
+  tools,
 }: {
   title: string;
   onClose: () => void;
@@ -84,6 +85,8 @@ export function Modal({
   role?: "dialog" | "alertdialog";
   /** Where focus lands on open; the dialog container itself when not given. */
   initialFocus?: RefObject<HTMLElement | null>;
+  /** Controls beside the close button, such as a menu of actions on the subject. */
+  tools?: ReactNode;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingId = useId();
@@ -194,6 +197,8 @@ export function Modal({
               </h2>
             </div>
 
+            <div className="flex shrink-0 items-center gap-1">
+            {tools}
             <button
               type="button"
               onClick={onClose}
@@ -203,6 +208,7 @@ export function Modal({
             >
               ✕
             </button>
+            </div>
           </div>
 
           {meta ? (
