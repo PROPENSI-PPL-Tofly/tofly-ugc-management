@@ -234,3 +234,66 @@ describe("RichNoteEditor links", () => {
     expect(box.querySelector("a")).toBeNull();
   });
 });
+
+// The clipboard a copy from a web page leaves: styled HTML beside the same words as plain text.
+// A stub: it only answers what the editor asks for.
+function clipboard(plain: string, html?: string) {
+  const types = html ? ["text/html", "text/plain"] : ["text/plain"];
+  const data: Record<string, string> = { "text/plain": plain, "text/html": html ?? "" };
+  return { types, files: [], items: [], getData: (type: string) => data[type] ?? "" };
+}
+
+async function paste(data: ReturnType<typeof clipboard>) {
+  const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+  act(() => box.focus());
+  fireEvent.paste(box, { clipboardData: data });
+}
+
+describe("RichNoteEditor paste", () => {
+  // AC 1 + OWASP A05: the words come in, the page's styling, links, images and scripts do not.
+  it("keeps the words of a styled paste and drops everything else", async () => {
+    const { onChange } = renderEditor();
+
+    await paste(
+      clipboard(
+        "Judul\nHalo klik\ndunia",
+        '<h1>Judul</h1><p style="color:red"><b>Halo</b> <a href="javascript:alert(1)">klik</a>' +
+          '<img src="x" onerror="alert(1)"></p><p>dunia</p>',
+      ),
+    );
+
+    await waitFor(() =>
+      expect(lastHtml(onChange)).toBe("<p>Judul</p><p>Halo klik</p><p>dunia</p>"),
+    );
+  });
+
+  // AC 1: each line of the paste stays its own line.
+  it("keeps the line breaks of a plain paste", async () => {
+    const { onChange } = renderEditor();
+
+    await paste(clipboard("baris 1\nbaris 2"));
+
+    await waitFor(() => expect(lastHtml(onChange)).toBe("<p>baris 1</p><p>baris 2</p>"));
+  });
+
+  // Corner: a copy from Windows ends its lines with \r\n.
+  it("keeps Windows line breaks of a styled paste as lines too", async () => {
+    const { onChange } = renderEditor();
+
+    await paste(clipboard("baris 1\r\nbaris 2", "<p><b>baris 1</b></p><p>baris 2</p>"));
+
+    await waitFor(() => expect(lastHtml(onChange)).toBe("<p>baris 1</p><p>baris 2</p>"));
+  });
+
+  // Corner (Jira: stops at 1,000): a paste longer than the room left is cut, not refused.
+  it.each([
+    ["a styled paste", clipboard("a".repeat(1200), `<p><b>${"a".repeat(1200)}</b></p>`)],
+    ["a plain paste", clipboard("a".repeat(1200))],
+  ])("cuts %s at 1,000 characters", async (_what, data) => {
+    const { onChange } = renderEditor();
+
+    await paste(data);
+
+    await waitFor(() => expect(onChange.mock.lastCall?.[0].length).toBe(1000));
+  });
+});
