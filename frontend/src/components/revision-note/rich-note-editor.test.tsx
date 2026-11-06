@@ -326,6 +326,10 @@ function withFiles(files: File[], types = ["Files"]): Carried {
 
 const frameOf = (box: HTMLElement) => box.closest("[data-dragging]") as HTMLElement;
 
+// The focus may tidy the empty note into <p></p>; a pasted file itself adds nothing to it.
+const noteStaysEmpty = (onChange: ReturnType<typeof vi.fn>) =>
+  onChange.mock.calls.every(([note]) => note.text === "" && !note.html.includes("<img"));
+
 describe("RichNoteEditor screenshots", () => {
   // AC 3: a pasted screenshot goes to the list under the editor, never into the text.
   it("hands a pasted screenshot to the form, keeping it out of the text", async () => {
@@ -336,7 +340,7 @@ describe("RichNoteEditor screenshots", () => {
     await paste(withFiles([file]));
 
     expect(onFiles).toHaveBeenCalledWith([file]);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(noteStaysEmpty(onChange)).toBe(true);
   });
 
   // AC 3: a dropped screenshot goes the same way.
@@ -380,6 +384,6 @@ describe("RichNoteEditor screenshots", () => {
 
     await paste(withFiles([shot()]));
 
-    expect(onChange).not.toHaveBeenCalled();
+    expect(noteStaysEmpty(onChange)).toBe(true);
   });
 });

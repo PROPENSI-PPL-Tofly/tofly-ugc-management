@@ -3,7 +3,7 @@
 // The revision note's editor (PBI-34, subtask 34.2), on Tiptap as the prototype simulates it.
 // Only the formatting AC 1 names is switched on, so the toolbar is the editor's whole vocabulary.
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type DragEvent, type ReactNode } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount } from "@tiptap/extensions";
@@ -26,6 +26,8 @@ export interface RichNoteEditorProps {
   initialContent?: string;
   disabled?: boolean;
   onChange?: (note: RichNote) => void;
+  // Where pasted and dropped files go (the screenshot list); without it the editor takes none.
+  onFiles?: (files: File[]) => void;
 }
 
 /** The one message a refused link address gets, worded as the prototype does. */
@@ -118,6 +120,7 @@ export function RichNoteEditor({
   initialContent = "",
   disabled = false,
   onChange,
+  onFiles,
 }: Readonly<RichNoteEditorProps>) {
   const countId = useId();
   const editor = useEditor({
@@ -127,7 +130,23 @@ export function RichNoteEditor({
     // Rendered on the client only, so the server's HTML and the browser's never disagree.
     immediatelyRender: false,
     editorProps: {
-      handlePaste: (view, event) => pasteAsPlainText(view, event),
+      handlePaste: (view, event) => {
+        // A pasted file is a screenshot for the list, never part of the text.
+        const files = Array.from(event.clipboardData?.files ?? []);
+        if (files.length === 0) return pasteAsPlainText(view, event);
+        onFiles?.(files);
+        return true;
+      },
+      handleDOMEvents: {
+        // Taken before ProseMirror places the drop, so a dropped file never lands in the text.
+        drop: (_view, event) => {
+          const files = Array.from(event.dataTransfer?.files ?? []);
+          if (files.length === 0) return false;
+          event.preventDefault();
+          onFiles?.(files);
+          return true;
+        },
+      },
       attributes: {
         role: "textbox",
         "aria-multiline": "true",
@@ -142,7 +161,15 @@ export function RichNoteEditor({
 
   // Tiptap builds the editor after the first render; until then the box keeps its place.
   if (!editor) return <div className={`${FRAME} min-h-[190px]`} aria-hidden="true" />;
-  return <ReadyEditor editor={editor} disabled={disabled} max={max} countId={countId} />;
+  return (
+    <ReadyEditor
+      editor={editor}
+      disabled={disabled}
+      max={max}
+      countId={countId}
+      acceptsFiles={onFiles !== undefined}
+    />
+  );
 }
 
 interface ReadyEditorProps {
@@ -150,10 +177,11 @@ interface ReadyEditorProps {
   disabled: boolean;
   max: number;
   countId: string;
+  acceptsFiles: boolean;
 }
 
 // The editor once Tiptap has built it, so nothing below has to ask whether it exists yet.
-function ReadyEditor({ editor, disabled, max, countId }: Readonly<ReadyEditorProps>) {
+function ReadyEditor({ editor, disabled, max, countId, acceptsFiles }: Readonly<ReadyEditorProps>) {
   // Locks the text as well as the toolbar while the form is sending.
   useEffect(() => {
     editor.setEditable(!disabled);
@@ -170,10 +198,29 @@ function ReadyEditor({ editor, disabled, max, countId }: Readonly<ReadyEditorPro
   });
 
   const [linkOpen, setLinkOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+
+  // Only a file is offered somewhere to land; dragged words go on into the text as before.
+  const offersFile = (event: DragEvent<HTMLDivElement>) =>
+    acceptsFiles && event.dataTransfer.types.includes("Files");
 
   return (
     <div className="flex flex-col gap-1">
-      <div className={FRAME}>
+      <div
+        className={`${FRAME} outline-offset-2 data-[dragging=true]:outline-2 data-[dragging=true]:outline-dashed data-[dragging=true]:outline-ink`}
+        data-dragging={dragging}
+        onDragEnter={(event) => {
+          if (offersFile(event)) setDragging(true);
+        }}
+        onDragOver={(event) => {
+          if (offersFile(event)) event.preventDefault();
+        }}
+        // Leaving for the toolbar or the text inside is not leaving the editor.
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+        }}
+        onDrop={() => setDragging(false)}
+      >
         <div className="flex flex-wrap items-center gap-0.5 border-b border-rule px-1.5 py-1">
           {TOOLS.map((tool) => (
             <button
