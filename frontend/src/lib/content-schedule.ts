@@ -4,6 +4,7 @@
 
 import { getBufferWindow } from "./deadline-schedule";
 import { formatDate } from "./format";
+import { latestDeadline } from "./platform-links";
 
 export type ContentType = "evergreen" | "specific";
 
@@ -47,14 +48,14 @@ export function validateEvergreenSlot(input: EvergreenSlotInput): EvergreenSlotE
   }
 
   // Same buffer rule generateDeadlineSchedule uses at onboarding (PRD 3.6): on/after
-  // max(contract start, today) + buffer, and on/before the contract end date.
+  // max(contract start, today) + buffer, and on/before the H-5 line.
   const { firstAllowedDate } = getBufferWindow(input);
-  const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`);
+  const latest = latestDeadline(input.contractEnd);
 
   if (deadline < firstAllowedDate) {
     errors.deadline = `Deadline paling cepat ${formatDate(firstAllowedDate.toISOString().slice(0, 10))}`;
-  } else if (deadline > contractEnd) {
-    errors.deadline = "Deadline tidak boleh setelah akhir kontrak";
+  } else if (deadline > new Date(`${latest}T00:00:00Z`)) {
+    errors.deadline = `Deadline paling lambat ${formatDate(latest)} (H-5 akhir kontrak)`;
   }
 
   return errors;

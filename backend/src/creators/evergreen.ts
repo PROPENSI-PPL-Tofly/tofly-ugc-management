@@ -88,9 +88,23 @@ export function earliestDeadline(
   return date.toISOString().slice(0, 10);
 }
 
-/** Shared with evergreen-slot.ts, so both sides of a deadline's upper bound read identically. */
-export const DEADLINE_AFTER_CONTRACT_END =
-  'Deadline tidak boleh setelah akhir kontrak';
+/** How many days before the contract end the last deadline falls (PBI-38 AC 14). */
+export const H5_BUFFER_DAYS = 5;
+
+/**
+ * The last day a deadline may fall on: the contract end minus the H-5 buffer. The frontend's
+ * date picker holds the same line (platform-links.ts), so it never offers a day refused here.
+ */
+export function latestDeadline(contractEnd: string): string {
+  const date = new Date(`${contractEnd}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - H5_BUFFER_DAYS);
+  return date.toISOString().slice(0, 10);
+}
+
+/** The one refusal of a day past the H-5 line, so every entry point reads the same. */
+export function pastLatestDeadline(contractEnd: string): string {
+  return `Deadline paling lambat ${readableDay(latestDeadline(contractEnd))} (H-5 akhir kontrak)`;
+}
 
 /** Today's calendar day where the admins work (WIB), so "not before today" holds after midnight. */
 export function jakartaDay(now: Date): string {
@@ -124,6 +138,9 @@ function deadlineProblem(schedule: Schedule): string | undefined {
   // ISO days compare correctly as strings; contractStart is already known to be >= today.
   if (deadlines.some((day) => day < contractStart || day > contractEnd)) {
     return 'Deadline harus di dalam periode kontrak';
+  }
+  if (deadlines.some((day) => day > latestDeadline(contractEnd))) {
+    return pastLatestDeadline(contractEnd);
   }
   if (deadlines.length !== quota) {
     return `Jumlah deadline harus sama dengan jumlah konten (${quota})`;

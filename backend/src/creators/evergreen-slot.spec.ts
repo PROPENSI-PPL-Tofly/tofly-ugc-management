@@ -100,14 +100,14 @@ describe('checkEvergreenSlot', () => {
       expect(errors.deadline).toBe('Deadline paling cepat 29 Sep 2026');
     });
 
-    it('rejects a deadline after the contract ends', () => {
-      const errors = checkEvergreenSlot('evergreen', '2027-01-01', CONTEXT, TODAY);
+    it('rejects a deadline past the H-5 line (PBI-38 AC 14)', () => {
+      const errors = checkEvergreenSlot('evergreen', '2026-12-27', CONTEXT, TODAY);
 
-      expect(errors.deadline).toBe('Deadline tidak boleh setelah akhir kontrak');
+      expect(errors.deadline).toBe('Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)');
     });
 
-    it('accepts the contract end date itself', () => {
-      const errors = checkEvergreenSlot('evergreen', '2026-12-31', CONTEXT, TODAY);
+    it('accepts the H-5 line itself', () => {
+      const errors = checkEvergreenSlot('evergreen', '2026-12-26', CONTEXT, TODAY);
 
       expect(errors.deadline).toBeUndefined();
     });
@@ -134,7 +134,7 @@ describe('checkEvergreenSlot', () => {
 
     expect(errors).toEqual({
       contentType: 'Slot Evergreen sudah penuh',
-      deadline: 'Deadline tidak boleh setelah akhir kontrak',
+      deadline: 'Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)',
     });
   });
 });

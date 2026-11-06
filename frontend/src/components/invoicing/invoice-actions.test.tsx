@@ -89,8 +89,16 @@ describe("InvoiceActions", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("offers neither move once the invoice is frozen", () => {
+  // PBI-28 AC 11: a correction is still open until the creator acknowledges.
+  it("offers an adjustment but no second Finalize on a finalized invoice", () => {
     actions({ ...ROW, invoiceStatus: "finalized", frozenAt: "2026-10-18T03:00:00.000Z" });
+
+    expect(screen.getByRole("button", { name: "+ Tambah Penyesuaian" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finalize" })).not.toBeInTheDocument();
+  });
+
+  it("offers neither move once the creator has acknowledged", () => {
+    actions({ ...ROW, invoiceStatus: "creator_acked", frozenAt: "2026-10-18T03:00:00.000Z" });
 
     expect(screen.queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Finalize" })).not.toBeInTheDocument();

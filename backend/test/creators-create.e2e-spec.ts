@@ -178,13 +178,25 @@ describe('POST /creators (e2e)', () => {
     await expect(prisma.users.count({ where: { email } })).resolves.toBe(0);
   });
 
-  it('accepts a contract that ends exactly when the buffer does', async () => {
+  it('accepts a contract whose H-5 line falls exactly when the buffer ends', async () => {
     const email = `${MARKER}-edge@example.com`;
 
     await admin
       .post('/creators')
-      .send(body(email, { contractEnd: iso(6), quota: 1, deadlines: [iso(6)] }))
+      .send(body(email, { contractEnd: iso(11), quota: 1, deadlines: [iso(6)] }))
       .expect(201);
+  });
+
+  it('refuses a contract too short to fit a deadline before its H-5 line', async () => {
+    const email = `${MARKER}-too-short@example.com`;
+
+    const { body: rejected } = await admin
+      .post('/creators')
+      .send(body(email, { contractEnd: iso(6), quota: 1, deadlines: [iso(6)] }))
+      .expect(422);
+
+    expect(rejected.errors.deadlines).toContain('H-5 akhir kontrak');
+    await expect(prisma.users.count({ where: { email } })).resolves.toBe(0);
   });
 
   it('accepts 100 contents and refuses 101', async () => {

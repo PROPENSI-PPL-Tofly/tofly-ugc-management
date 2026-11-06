@@ -88,6 +88,7 @@ async function refusal(
 
 describe('LinkChangeService', () => {
   const transaction = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
     contents: { findFirst: vi.fn(), updateMany: vi.fn() },
     content_links: { createMany: vi.fn(), updateMany: vi.fn() },
     content_events: { createMany: vi.fn() },
@@ -125,6 +126,13 @@ describe('LinkChangeService', () => {
       ]);
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      // PBI-38 AC 8, 9: taken first, so a change never lands after Finalize froze the links.
+      const [lock] = transaction.$queryRaw.mock.calls[0];
+      expect(lock.sql).toContain('FOR UPDATE');
+      expect(lock.values).toEqual([CONTENT_ID]);
+      expect(transaction.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        transaction.contents.findFirst.mock.invocationCallOrder[0],
+      );
       expect(transaction.contents.findFirst).toHaveBeenCalledWith({
         where: {
           id: CONTENT_ID,

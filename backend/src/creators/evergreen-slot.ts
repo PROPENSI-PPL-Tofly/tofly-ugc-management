@@ -2,12 +2,13 @@
 // "Tambah Konten"), re-run on the server since a request can skip the client entirely. Kept
 // apart from evergreen.ts, which validates the whole deadline batch at onboarding — this
 // judges a single new slot against the quota that batch already used up. The buffer formula,
-// the calendar-day check and the "after contract end" message are shared with evergreen.ts
-// rather than re-derived here, so onboarding and Tambah Konten can never quietly disagree.
+// the calendar-day check and the H-5 line are shared with evergreen.ts rather than re-derived
+// here, so onboarding and Tambah Konten can never quietly disagree.
 import {
-  DEADLINE_AFTER_CONTRACT_END,
   earliestDeadline,
   isCalendarDay,
+  latestDeadline,
+  pastLatestDeadline,
   readableDay,
 } from './evergreen.js';
 
@@ -65,8 +66,8 @@ export function checkEvergreenSlot(
 
   if (deadline < earliest) {
     errors.deadline = `Deadline paling cepat ${readableDay(earliest)}`;
-  } else if (deadline > context.contractEnd) {
-    errors.deadline = DEADLINE_AFTER_CONTRACT_END;
+  } else if (deadline > latestDeadline(context.contractEnd)) {
+    errors.deadline = pastLatestDeadline(context.contractEnd);
   }
 
   return errors;
