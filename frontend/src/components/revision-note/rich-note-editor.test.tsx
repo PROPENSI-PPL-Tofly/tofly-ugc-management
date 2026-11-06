@@ -235,15 +235,23 @@ describe("RichNoteEditor links", () => {
   });
 });
 
+// What a clipboard or a drag carries, as far as the editor reads it.
+interface Carried {
+  types: string[];
+  files: File[];
+  items: unknown[];
+  getData: (type: string) => string;
+}
+
 // The clipboard a copy from a web page leaves: styled HTML beside the same words as plain text.
 // A stub: it only answers what the editor asks for.
-function clipboard(plain: string, html?: string) {
+function clipboard(plain: string, html?: string): Carried {
   const types = html ? ["text/html", "text/plain"] : ["text/plain"];
   const data: Record<string, string> = { "text/plain": plain, "text/html": html ?? "" };
   return { types, files: [], items: [], getData: (type: string) => data[type] ?? "" };
 }
 
-async function paste(data: ReturnType<typeof clipboard>) {
+async function paste(data: Carried) {
   const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
   act(() => box.focus());
   fireEvent.paste(box, { clipboardData: data });
@@ -306,5 +314,72 @@ describe("RichNoteEditor paste", () => {
     await paste(data);
 
     await waitFor(() => expect(onChange.mock.lastCall?.[0].length).toBe(1000));
+  });
+});
+
+const shot = () => new File(["x"], "layar.png", { type: "image/png" });
+
+// What a drag, a drop or a pasted screenshot carries: files, and no text. A stub.
+function withFiles(files: File[], types = ["Files"]): Carried {
+  return { files, types, items: [], getData: () => "" };
+}
+
+const frameOf = (box: HTMLElement) => box.closest("[data-dragging]") as HTMLElement;
+
+describe("RichNoteEditor screenshots", () => {
+  // AC 3: a pasted screenshot goes to the list under the editor, never into the text.
+  it("hands a pasted screenshot to the form, keeping it out of the text", async () => {
+    const onFiles = vi.fn();
+    const { onChange } = renderEditor({ onFiles });
+    const file = shot();
+
+    await paste(withFiles([file]));
+
+    expect(onFiles).toHaveBeenCalledWith([file]);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // AC 3: a dropped screenshot goes the same way.
+  it("hands a dropped screenshot to the form", async () => {
+    const onFiles = vi.fn();
+    renderEditor({ onFiles });
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    const file = shot();
+
+    fireEvent.drop(box, { dataTransfer: withFiles([file]) });
+
+    expect(onFiles).toHaveBeenCalledWith([file]);
+  });
+
+  // The prototype's dashed outline while a file is over the editor.
+  it("outlines the editor while a file is dragged over it", async () => {
+    renderEditor({ onFiles: vi.fn() });
+    const frame = frameOf(await screen.findByRole("textbox", { name: "Catatan revisi" }));
+    expect(frame).toHaveAttribute("data-dragging", "false");
+
+    fireEvent.dragEnter(frame, { dataTransfer: withFiles([shot()]) });
+    expect(frame).toHaveAttribute("data-dragging", "true");
+
+    fireEvent.dragLeave(frame, { dataTransfer: withFiles([shot()]) });
+    expect(frame).toHaveAttribute("data-dragging", "false");
+  });
+
+  // Negative: dragging words is not a file, so no outline.
+  it("does not outline the editor for dragged text", async () => {
+    renderEditor({ onFiles: vi.fn() });
+    const frame = frameOf(await screen.findByRole("textbox", { name: "Catatan revisi" }));
+
+    fireEvent.dragEnter(frame, { dataTransfer: withFiles([], ["text/plain"]) });
+
+    expect(frame).toHaveAttribute("data-dragging", "false");
+  });
+
+  // Negative: an editor with no place for screenshots takes no files.
+  it("takes no pasted file when the form has no place for screenshots", async () => {
+    const { onChange } = renderEditor();
+
+    await paste(withFiles([shot()]));
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
