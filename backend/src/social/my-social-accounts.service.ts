@@ -1,14 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { latestSyncs, syncKey } from './latest-syncs.js';
 import type { SocialPlatform } from './oauth-state.js';
 import {
   CONNECTION_COLUMNS,
   connectionOf,
   type SocialConnection,
+  withLastSync,
 } from './social-connection.js';
 
 /** The slice of Prisma the service touches, so tests stub exactly that. */
-export type MySocialAccountRows = Pick<PrismaService, 'social_accounts'>;
+export type MySocialAccountRows = Pick<
+  PrismaService,
+  'social_accounts' | '$queryRaw'
+>;
 
 /** One row of the Akun Terhubung panel. */
 export interface MySocialAccount extends SocialConnection {
@@ -29,16 +34,22 @@ export class MySocialAccountsService {
   ) {}
 
   async list(creatorId: string): Promise<MySocialAccounts> {
-    const rows = await this.rows.social_accounts.findMany({
-      where: { creator_id: creatorId },
-      orderBy: { platform: 'asc' },
-      select: { platform: true, username: true, ...CONNECTION_COLUMNS },
-    });
+    const [rows, syncs] = await Promise.all([
+      this.rows.social_accounts.findMany({
+        where: { creator_id: creatorId },
+        orderBy: { platform: 'asc' },
+        select: { platform: true, username: true, ...CONNECTION_COLUMNS },
+      }),
+      latestSyncs(this.rows, [creatorId]),
+    ]);
     return {
       accounts: rows.map((row) => ({
         platform: row.platform,
         username: row.username,
-        ...connectionOf(row),
+        ...withLastSync(
+          connectionOf(row),
+          syncs.get(syncKey(creatorId, row.platform)),
+        ),
       })),
     };
   }

@@ -979,7 +979,7 @@ describe('CreatorsService', () => {
         platform_user_id: '1784',
         connected_at: new Date('2026-10-29T03:00:00.000Z'),
       },
-    ] as DetailCreatorRow['social_accounts'];
+    ] as unknown as DetailCreatorRow['social_accounts'];
     prisma.creators.findUnique.mockResolvedValue(detail);
     prisma.$queryRaw.mockResolvedValueOnce([
       {

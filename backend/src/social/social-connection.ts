@@ -15,7 +15,7 @@ export interface ConnectionRow {
 export interface SocialConnection {
   connected: boolean;
   connectedAt: string | null;
-  /** Null until PBI-27 syncs. */
+  /** Null until the account's links have synced at least once. */
   lastSyncAt: string | null;
 }
 
@@ -30,4 +30,15 @@ export function connectionOf(row: ConnectionRow): SocialConnection {
     connectedAt: connected ? (row.connected_at?.toISOString() ?? null) : null,
     lastSyncAt: null,
   };
+}
+
+/** A connection with its last sync. An account no longer connected shows none, like its date. */
+export function withLastSync(
+  connection: SocialConnection,
+  lastSync: Date | undefined,
+): SocialConnection {
+  if (!connection.connected || lastSync === undefined) {
+    return connection;
+  }
+  return { ...connection, lastSyncAt: lastSync.toISOString() };
 }
