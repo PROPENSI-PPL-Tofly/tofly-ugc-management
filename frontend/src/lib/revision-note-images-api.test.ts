@@ -191,3 +191,48 @@ describe("screenshotUploader remove", () => {
     );
   });
 });
+
+describe("screenshotUploader edges", () => {
+  // Negative: a 422 that gives no readable reason is a plain failure, not a refusal with none.
+  it.each([
+    ["no JSON", "Unprocessable"],
+    ["no message", JSON.stringify({ code: "IMAGE_TYPE" })],
+  ])("treats a 422 with %s as a plain failure", async (_what, body) => {
+    const { uploader, requests } = setUp();
+    const { result } = start(uploader);
+
+    requests[0].status = 422;
+    requests[0].responseText = body;
+    requests[0].onload?.();
+
+    const error = await result.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(UploadRefused);
+  });
+
+  // The app passes nothing: the browser's own XMLHttpRequest and fetch are used.
+  it("uses the browser's own XMLHttpRequest and fetch when none is given", async () => {
+    const requests: FakeRequest[] = [];
+    vi.stubGlobal(
+      "XMLHttpRequest",
+      class extends FakeRequest {
+        constructor() {
+          super();
+          requests.push(this);
+        }
+      },
+    );
+    const fetchStub = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchStub);
+    try {
+      const uploader = screenshotUploader(SUBMISSION);
+      start(uploader);
+      await uploader.remove("img-1");
+
+      expect(requests).toHaveLength(1);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
