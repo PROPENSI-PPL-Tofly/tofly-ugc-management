@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RichNoteEditor } from "./rich-note-editor";
 
 function renderEditor(props: Partial<Parameters<typeof RichNoteEditor>[0]> = {}) {
@@ -95,5 +95,109 @@ describe("RichNoteEditor", () => {
     const textbox = await screen.findByRole("textbox", { name: "Catatan revisi" });
     expect(textbox).toHaveAttribute("contenteditable", "false");
     for (const button of screen.getAllByRole("button")) expect(button).toBeDisabled();
+  });
+});
+
+// Selects the note's first paragraph as a drag would: through the browser's selection, which
+// ProseMirror reads on selectionchange.
+async function selectFirstParagraph() {
+  const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+  await act(async () => {
+    box.focus();
+    document.getSelection()?.selectAllChildren(box.querySelector("p")!);
+    document.dispatchEvent(new Event("selectionchange"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+async function addLink(address: string) {
+  fireEvent.click(await screen.findByRole("button", { name: "Tambah link" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "URL link" }), {
+    target: { value: address },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Terapkan" }));
+}
+
+const lastHtml = (onChange: ReturnType<typeof vi.fn>): string =>
+  onChange.mock.lastCall?.[0].html ?? "";
+
+describe("RichNoteEditor links", () => {
+  it("opens a row for the address when Link is pressed, and closes it when pressed again", async () => {
+    renderEditor();
+    const link = await screen.findByRole("button", { name: "Tambah link" });
+
+    fireEvent.click(link);
+    expect(screen.getByRole("textbox", { name: "URL link" })).toHaveAttribute(
+      "placeholder",
+      "https://…",
+    );
+    expect(screen.getByRole("button", { name: "Terapkan" })).toBeInTheDocument();
+
+    fireEvent.click(link);
+    expect(screen.queryByRole("textbox", { name: "URL link" })).not.toBeInTheDocument();
+  });
+
+  // Positive: with nothing selected, the address itself goes in as the link.
+  it("adds the address as a link when nothing is selected, then closes the row", async () => {
+    const { onChange } = renderEditor();
+
+    await addLink("https://drive.google.com/file/d/abc");
+
+    await waitFor(() =>
+      expect(lastHtml(onChange)).toContain('href="https://drive.google.com/file/d/abc"'),
+    );
+    expect(onChange.mock.lastCall?.[0].text).toContain("https://drive.google.com/file/d/abc");
+    expect(screen.queryByRole("textbox", { name: "URL link" })).not.toBeInTheDocument();
+  });
+
+  // Positive: selected words become the link's text.
+  it("links the selected words", async () => {
+    const { onChange } = renderEditor({ initialContent: "<p>Intro</p>" });
+    await selectFirstParagraph();
+
+    await addLink("https://drive.google.com/file/d/abc");
+
+    await waitFor(() =>
+      expect(lastHtml(onChange)).toMatch(
+        /href="https:\/\/drive\.google\.com\/file\/d\/abc"[^>]*>Intro<\/a>/,
+      ),
+    );
+  });
+
+  // Negative (OWASP A05): only http and https; a javascript: link would run a script on a click.
+  it.each([
+    ["a javascript: link", "javascript:alert(1)"],
+    ["an ftp: link", "ftp://files.example/x"],
+    ["an address without its scheme", "drive.google.com/x"],
+    ["a scheme with nothing after it", "https://"],
+    ["an address with a space inside", "https://drive google.com"],
+  ])("refuses %s and keeps the row open", async (_what, address) => {
+    const { onChange } = renderEditor();
+
+    await addLink(address);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Link harus diawali http:// atau https://");
+    expect(onChange.mock.calls.some(([note]) => note.html.includes("<a"))).toBe(false);
+    expect(screen.getByRole("textbox", { name: "URL link" })).toBeInTheDocument();
+  });
+
+  // Corner: the scheme in capitals is still http(s), and spaces around the address are dropped.
+  it("takes HTTPS in capitals and trims the spaces around the address", async () => {
+    const { onChange } = renderEditor();
+
+    await addLink("  HTTPS://Drive.Google.com/x  ");
+
+    await waitFor(() =>
+      expect(lastHtml(onChange)).toContain('href="HTTPS://Drive.Google.com/x"'),
+    );
+  });
+
+  // OWASP A05, second layer: a javascript: link that arrives inside content never becomes a link.
+  it("drops a javascript: link that comes in with the content, keeping its words", async () => {
+    renderEditor({ initialContent: '<p><a href="javascript:alert(1)">klik</a></p>' });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box).toHaveTextContent("klik");
+    expect(box.querySelector("a")).toBeNull();
   });
 });
