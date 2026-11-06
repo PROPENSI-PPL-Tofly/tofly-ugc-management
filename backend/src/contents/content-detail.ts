@@ -247,8 +247,8 @@ export function buildEvents(
           note: submission.revision_notes,
           // A note from before rich text carries no HTML and no screenshots, and so reads
           // exactly as it always did (AC 9).
-          ...(said(submission.revision_note_html) && {
-            noteHtml: submission.revision_note_html,
+          ...(said(submission.revision_notes_html) && {
+            noteHtml: submission.revision_notes_html,
           }),
           ...(images.length > 0 && { images }),
         },
