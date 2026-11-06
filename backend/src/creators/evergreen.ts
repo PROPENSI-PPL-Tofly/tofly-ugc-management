@@ -88,6 +88,19 @@ export function earliestDeadline(
   return date.toISOString().slice(0, 10);
 }
 
+/** PBI-38 AC 14: how many days before the contract end the last deadline may fall. */
+export const H5_BUFFER_DAYS = 5;
+
+/**
+ * The last day a deadline may fall on: the contract end minus the H-5 buffer. The frontend's
+ * date picker holds the same line (platform-links.ts), so it never offers a day refused here.
+ */
+export function latestDeadline(contractEnd: string): string {
+  const date = new Date(`${contractEnd}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - H5_BUFFER_DAYS);
+  return date.toISOString().slice(0, 10);
+}
+
 /** Shared with evergreen-slot.ts, so both sides of a deadline's upper bound read identically. */
 export const DEADLINE_AFTER_CONTRACT_END =
   'Deadline tidak boleh setelah akhir kontrak';
