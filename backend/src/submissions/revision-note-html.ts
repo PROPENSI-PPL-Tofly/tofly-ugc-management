@@ -32,9 +32,28 @@ export function sanitizeRevisionNote(input: string): string {
   });
 }
 
+/** The escapes sanitize-html writes for the five characters it never lets through as-is. */
+const ESCAPES: readonly (readonly [string, string])[] = [
+  ['&lt;', '<'],
+  ['&gt;', '>'],
+  ['&quot;', '"'],
+  ['&#39;', "'"],
+  ['&apos;', "'"],
+  ['&amp;', '&'],
+];
+
 /** The note's words without any formatting: what the counter counts (AC 2). */
 export function revisionNoteText(input: string): string {
-  return sanitizeHtml(input, { allowedTags: [], allowedAttributes: {} });
+  const escaped = sanitizeHtml(input, {
+    allowedTags: [],
+    allowedAttributes: {},
+  });
+  // The sanitizer re-escapes the text it keeps; the words are what remain once each escape
+  // is read as the character it stands for, so "&amp;" counts as one character, not five.
+  return ESCAPES.reduce(
+    (text, [from, to]) => text.replaceAll(from, to),
+    escaped,
+  );
 }
 
 /** The note's length in Unicode characters, not UTF-16 units — an emoji is one character. */

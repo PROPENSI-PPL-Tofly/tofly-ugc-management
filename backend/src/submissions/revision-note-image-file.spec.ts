@@ -132,7 +132,10 @@ describe('checkRevisionNoteImage', () => {
       }),
     ).toThrow(
       expect.objectContaining({
-        response: { code: 'IMAGE_TOO_LARGE' },
+        response: {
+          code: 'IMAGE_TOO_LARGE',
+          message: 'Ukuran maksimal 5 MB',
+        },
       }),
     );
   });
@@ -172,7 +175,7 @@ describe('noteImageFileName', () => {
   it('takes no folders and no characters a name may only show with', () => {
     expect(
       noteImageFileName('C:\\Users\\joki\\../"rahasia"\u202Egpj.exe', 'image/jpeg'),
-    ).toBe("'rahasia'gpj.exe.jpg");
+    ).toBe("'rahasia'gpj.jpg");
   });
 
   it('falls back to a name of its own when nothing showable is left', () => {

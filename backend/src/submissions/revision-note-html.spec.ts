@@ -10,7 +10,9 @@ describe('sanitizeRevisionNote', () => {
     const html =
       '<p>Tolong <strong>potong</strong> <em>intro</em></p><ul><li>Audio</li><li>Warna</li></ul><ol><li>Urut</li></ol><br><a href="https://example.com/referensi">referensi</a>';
 
-    expect(sanitizeRevisionNote(html)).toBe(html);
+    expect(sanitizeRevisionNote(html)).toBe(
+      '<p>Tolong <strong>potong</strong> <em>intro</em></p><ul><li>Audio</li><li>Warna</li></ul><ol><li>Urut</li></ol><br /><a href="https://example.com/referensi" rel="noopener noreferrer nofollow">referensi</a>',
+    );
   });
 
   it('drops a script tag and the code inside it, so nothing runs in the creator browser (AC 7)', () => {

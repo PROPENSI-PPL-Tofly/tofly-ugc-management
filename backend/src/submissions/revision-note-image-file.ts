@@ -136,11 +136,13 @@ export function noteImageFileName(
     .trim();
 
   const dot = cleaned.lastIndexOf('.');
-  const typed = dot === -1 ? '' : cleaned.slice(dot + 1);
+  const typed = dot <= 0 ? '' : cleaned.slice(dot + 1);
   const kept = extensions.includes(typed.toLowerCase());
 
+  // A name whose extension disagrees with its bytes loses it: the proven one is the only one
+  // the name may end in ("gambar.jpg" of PNG bytes shows as "gambar.png").
   const extension = kept ? typed : extensions[0];
-  const base = kept ? cleaned.slice(0, dot) : cleaned;
+  const base = dot <= 0 ? cleaned : cleaned.slice(0, dot);
   const room = MAX_NAME_LENGTH - extension.length - 1;
 
   const shown = base.trim() === '' ? FALLBACK_NAME : base;
