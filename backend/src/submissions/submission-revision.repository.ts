@@ -2,6 +2,7 @@ import { REVIEWABLE_STATUSES } from './draft-review.js';
 import { adminActor, type AdminActor } from '../contents/content-event-actors.js';
 import { unauthenticated } from '../auth/creator-request.js';
 import type { RevisedSubmission } from './dto/revised-submission.dto.js';
+import type { RevisionRequest } from './revise-submission.js';
 import type {
   RevisionStore,
   SubmissionUnderRevision,
@@ -46,11 +47,12 @@ interface RevisionTransaction {
   submissions: {
     update(args: {
       where: { id: string };
-      data: { revision_notes: string };
+      data: { revision_notes: string; revision_notes_html: string };
     }): Promise<{
       id: string;
       content_id: string;
       revision_notes: string | null;
+      revision_notes_html: string | null;
     }>;
   };
 
@@ -77,13 +79,25 @@ interface RevisionTransaction {
     }): Promise<{ id: string } | null>;
   };
 
+  revision_note_images?: {
+    findMany(args: {
+      where: { submission_id: string };
+      select: { id: true; content_type: true };
+      orderBy: [{ created_at: 'asc' }];
+    }): Promise<{ id: string; content_type: string }[]>;
+  };
+
   content_events?: {
     create(args: {
       data: AdminActor & {
         content_id: string;
         event_type: 'Revision Requested';
         occurred_at: Date;
-        event_data: { revision_note: string };
+        event_data: {
+          revision_note: string;
+          revision_note_html: string;
+          images: { id: string; content_type: string }[];
+        };
       };
     }): Promise<unknown>;
   };
@@ -138,7 +152,7 @@ export class SubmissionRevisionRepository implements RevisionStore {
   async saveRevision(
     submissionId: string,
     contentId: string,
-    revisionNotes: string,
+    input: RevisionRequest,
     adminUserId?: string,
   ): Promise<RevisedSubmission | null> {
     return this.prisma.$transaction(async (transaction) => {
@@ -163,12 +177,17 @@ export class SubmissionRevisionRepository implements RevisionStore {
           id: submissionId,
         },
         data: {
-          revision_notes: revisionNotes,
+          revision_notes: input.revisionNotes,
+          revision_notes_html: input.revisionNotesHtml,
         },
       });
 
       if (adminUserId !== undefined) {
-        if (!transaction.users || !transaction.content_events) {
+        if (
+          !transaction.users ||
+          !transaction.content_events ||
+          !transaction.revision_note_images
+        ) {
           throw new Error('Revision event recording requires event transaction delegates');
         }
 
@@ -178,13 +197,25 @@ export class SubmissionRevisionRepository implements RevisionStore {
         });
         if (!admin) throw unauthenticated();
 
+        // The event records the note as it was sent, screenshots included (PBI-34): the
+        // history shows what the creator saw even if an image is removed later.
+        const images = await transaction.revision_note_images.findMany({
+          where: { submission_id: submissionId },
+          select: { id: true, content_type: true },
+          orderBy: [{ created_at: 'asc' }],
+        });
+
         await transaction.content_events.create({
           data: {
             content_id: submission.content_id,
             event_type: 'Revision Requested',
             ...adminActor(admin.id),
             occurred_at: new Date(),
-            event_data: { revision_note: revisionNotes },
+            event_data: {
+              revision_note: input.revisionNotes,
+              revision_note_html: input.revisionNotesHtml,
+              images,
+            },
           },
         });
       }
@@ -194,6 +225,7 @@ export class SubmissionRevisionRepository implements RevisionStore {
         contentId: submission.content_id,
         status: 'draft_revision',
         revisionNotes: submission.revision_notes,
+        revisionNotesHtml: submission.revision_notes_html,
       };
     });
   }

@@ -1,21 +1,29 @@
 import { SubmissionRevisionRepository } from './submission-revision.repository.js';
 
 const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
+const NOTE = {
+  revisionNotes: 'Mohon perbaiki bagian pembuka.',
+  revisionNotesHtml: '<p>Mohon <strong>perbaiki</strong> bagian pembuka.</p>',
+};
 
 describe('SubmissionRevisionRepository', () => {
-  it('records Revision Requested in the revision transaction with the Admin identity and note', async () => {
+  it('records Revision Requested in the revision transaction with the Admin identity, the note and its images', async () => {
     const submissionId = '550e8400-e29b-41d4-a716-446655440000';
     const contentId = '550e8400-e29b-41d4-a716-446655440001';
-    const revisionNotes = 'Mohon perbaiki bagian pembuka.';
     const updateManyContent = vi.fn().mockResolvedValue({ count: 1 });
     const updateSubmission = vi.fn().mockResolvedValue({
       id: submissionId,
       content_id: contentId,
-      revision_notes: revisionNotes,
+      revision_notes: NOTE.revisionNotes,
+      revision_notes_html: NOTE.revisionNotesHtml,
     });
+    const findImages = vi.fn().mockResolvedValue([
+      { id: '22222222-2222-4222-8222-222222222222', content_type: 'image/png' },
+    ]);
     const transaction = {
       submissions: { update: updateSubmission },
       contents: { updateMany: updateManyContent },
+      revision_note_images: { findMany: findImages },
       users: {
         findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }),
       },
@@ -35,13 +43,18 @@ describe('SubmissionRevisionRepository', () => {
     await Reflect.apply(repository.saveRevision, repository, [
       submissionId,
       contentId,
-      revisionNotes,
+      NOTE,
       ADMIN_USER_ID,
     ]);
 
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER_ID },
       select: { id: true },
+    });
+    expect(findImages).toHaveBeenCalledExactlyOnceWith({
+      where: { submission_id: submissionId },
+      select: { id: true, content_type: true },
+      orderBy: [{ created_at: 'asc' }],
     });
     expect(transaction.content_events.create).toHaveBeenCalledWith({
       data: {
@@ -51,7 +64,13 @@ describe('SubmissionRevisionRepository', () => {
         actor_role: 'admin',
         actor_user_id: ADMIN_USER_ID,
         occurred_at: expect.any(Date),
-        event_data: { revision_note: revisionNotes },
+        event_data: {
+          revision_note: NOTE.revisionNotes,
+          revision_note_html: NOTE.revisionNotesHtml,
+          images: [
+            { id: '22222222-2222-4222-8222-222222222222', content_type: 'image/png' },
+          ],
+        },
       },
     });
     expect(runTransaction).toHaveBeenCalledOnce();
@@ -63,6 +82,40 @@ describe('SubmissionRevisionRepository', () => {
     );
   });
 
+  it('records an empty image list for a note sent without screenshots', async () => {
+    const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+    const contentId = '550e8400-e29b-41d4-a716-446655440001';
+    const createEvent = vi.fn().mockResolvedValue({ id: 'event-id' });
+    const transaction = {
+      submissions: {
+        update: vi.fn().mockResolvedValue({
+          id: submissionId,
+          content_id: contentId,
+          revision_notes: NOTE.revisionNotes,
+          revision_notes_html: NOTE.revisionNotesHtml,
+        }),
+      },
+      contents: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      revision_note_images: { findMany: vi.fn().mockResolvedValue([]) },
+      users: { findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }) },
+      content_events: { create: createEvent },
+    };
+    const repository = new SubmissionRevisionRepository({
+      submissions: { findUnique: vi.fn() },
+      $transaction: vi.fn(async (callback) => callback(transaction)),
+    });
+
+    await repository.saveRevision(submissionId, contentId, NOTE, ADMIN_USER_ID);
+
+    expect(createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event_data: expect.objectContaining({ images: [] }),
+        }),
+      }),
+    );
+  });
+
   it('stores the revision note and changes the content status to draft_revision', async () => {
   const submissionId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '550e8400-e29b-41d4-a716-446655440001';
@@ -70,7 +123,8 @@ describe('SubmissionRevisionRepository', () => {
   const updateSubmission = vi.fn().mockResolvedValue({
     id: submissionId,
     content_id: contentId,
-    revision_notes: 'Mohon perbaiki bagian pembuka.',
+    revision_notes: NOTE.revisionNotes,
+    revision_notes_html: NOTE.revisionNotesHtml,
   });
 
   const updateManyContent = vi.fn().mockResolvedValue({
@@ -96,7 +150,7 @@ describe('SubmissionRevisionRepository', () => {
   const result = await repository.saveRevision(
     submissionId,
     contentId,
-    'Mohon perbaiki bagian pembuka.',
+    NOTE,
   );
 
   expect(updateManyContent).toHaveBeenCalledExactlyOnceWith({
@@ -116,7 +170,8 @@ describe('SubmissionRevisionRepository', () => {
       id: submissionId,
     },
     data: {
-      revision_notes: 'Mohon perbaiki bagian pembuka.',
+      revision_notes: NOTE.revisionNotes,
+      revision_notes_html: NOTE.revisionNotesHtml,
     },
   });
 
@@ -124,7 +179,8 @@ describe('SubmissionRevisionRepository', () => {
     id: submissionId,
     contentId,
     status: 'draft_revision',
-    revisionNotes: 'Mohon perbaiki bagian pembuka.',
+    revisionNotes: NOTE.revisionNotes,
+    revisionNotesHtml: NOTE.revisionNotesHtml,
   });
 });
 
@@ -142,7 +198,8 @@ describe('SubmissionRevisionRepository', () => {
             update: vi.fn().mockResolvedValue({
               id: '550e8400-e29b-41d4-a716-446655440000',
               content_id: savedContentId,
-              revision_notes: 'Mohon perbaiki bagian pembuka.',
+              revision_notes: NOTE.revisionNotes,
+              revision_notes_html: NOTE.revisionNotesHtml,
             }),
           },
           contents: {
@@ -155,7 +212,7 @@ describe('SubmissionRevisionRepository', () => {
     const result = await repository.saveRevision(
       '550e8400-e29b-41d4-a716-446655440000',
       requestedContentId,
-      'Mohon perbaiki bagian pembuka.',
+      NOTE,
     );
 
     expect(result).toHaveProperty('contentId', savedContentId);
@@ -169,6 +226,7 @@ describe('SubmissionRevisionRepository', () => {
     id: submissionId,
     content_id: contentId,
     revision_notes: 'Mohon perbaiki draft ini.',
+    revision_notes_html: 'Mohon perbaiki draft ini.',
   });
 
   const updateContent = vi.fn().mockResolvedValue({
@@ -200,7 +258,7 @@ describe('SubmissionRevisionRepository', () => {
   const result = await repository.saveRevision(
     submissionId,
     contentId,
-    'Mohon perbaiki draft ini.',
+    { revisionNotes: 'Mohon perbaiki draft ini.', revisionNotesHtml: 'Mohon perbaiki draft ini.' },
   );
 
   expect(updateManyContent).toHaveBeenCalledExactlyOnceWith({

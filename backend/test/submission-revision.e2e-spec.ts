@@ -28,6 +28,9 @@ describe('PATCH /submissions/:id/revise', () => {
         contents: {
           updateMany: contentUpdateMany,
         },
+        revision_note_images: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
         users: {
           findUnique: vi.fn().mockResolvedValue({
             email: 'test-admin@example.test',
@@ -60,6 +63,7 @@ describe('PATCH /submissions/:id/revise', () => {
       id: submissionId,
       content_id: contentId,
       revision_notes: 'Mohon perbaiki bagian pembuka.',
+      revision_notes_html: 'Mohon perbaiki bagian pembuka.',
     });
 
     contentUpdateMany.mockResolvedValue({
@@ -110,6 +114,7 @@ describe('PATCH /submissions/:id/revise', () => {
       contentId,
       status: 'draft_revision',
       revisionNotes: 'Mohon perbaiki bagian pembuka.',
+      revisionNotesHtml: 'Mohon perbaiki bagian pembuka.',
     });
 
     expect(contentUpdateMany).toHaveBeenCalledWith({
@@ -130,6 +135,7 @@ describe('PATCH /submissions/:id/revise', () => {
       },
       data: {
         revision_notes: 'Mohon perbaiki bagian pembuka.',
+        revision_notes_html: 'Mohon perbaiki bagian pembuka.',
       },
     });
   });
@@ -142,7 +148,10 @@ describe('PATCH /submissions/:id/revise', () => {
 
     expect(submissionUpdate).toHaveBeenCalledWith({
       where: { id: submissionId },
-      data: { revision_notes: 'Mohon perbaiki bagian pembuka.' },
+      data: {
+        revision_notes: 'Mohon perbaiki bagian pembuka.',
+        revision_notes_html: 'Mohon perbaiki bagian pembuka.',
+      },
     });
   });
 

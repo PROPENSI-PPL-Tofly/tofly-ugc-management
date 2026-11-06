@@ -5,4 +5,6 @@ export interface RevisedSubmission {
   contentId: string;
   status: 'draft_revision';
   revisionNotes: string | null;
+  /** The note as sanitized rich text; null for one written before rich text existed (AC 9). */
+  revisionNotesHtml: string | null;
 }

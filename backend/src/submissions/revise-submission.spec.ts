@@ -3,11 +3,14 @@ import {
   MAX_REVISION_NOTES_LENGTH,
 } from './revise-submission.js';
 
-describe('checkRevisionRequest', () => { 
+describe('checkRevisionRequest', () => {
   it('accepts the revision note supplied by the admin', () => {
-    expect( 
+    expect(
       checkRevisionRequest({ revisionNotes: 'Please improve the introduction.' }),
-    ).toEqual({ revisionNotes: 'Please improve the introduction.' }); 
+    ).toEqual({
+      revisionNotes: 'Please improve the introduction.',
+      revisionNotesHtml: 'Please improve the introduction.',
+    });
   });
   it('rejects a null request body with a field-specific 422 error', () => {
     expect(() => checkRevisionRequest(null)).toThrow(
@@ -59,7 +62,10 @@ describe('checkRevisionRequest', () => {
         revisionHistory: [],
         createdAt: '2000-01-01',
       }),
-    ).toEqual({ revisionNotes: 'Mohon perbaiki bagian pembuka.' });
+    ).toEqual({
+      revisionNotes: 'Mohon perbaiki bagian pembuka.',
+      revisionNotesHtml: 'Mohon perbaiki bagian pembuka.',
+    });
   });
   it('rejects a blank revision note with a field-specific 422 error', () => {
   expect(() =>
@@ -82,12 +88,16 @@ describe('checkRevisionRequest', () => {
   it('stores the note trimmed', () => {
     expect(checkRevisionRequest({ revisionNotes: '  Perbaiki intro.  ' })).toEqual({
       revisionNotes: 'Perbaiki intro.',
+      revisionNotesHtml: 'Perbaiki intro.',
     });
   });
 
   it('accepts a note of exactly the maximum length', () => {
     const revisionNotes = 'a'.repeat(MAX_REVISION_NOTES_LENGTH);
-    expect(checkRevisionRequest({ revisionNotes })).toEqual({ revisionNotes });
+    expect(checkRevisionRequest({ revisionNotes })).toEqual({
+      revisionNotes,
+      revisionNotesHtml: revisionNotes,
+    });
   });
 
   it('refuses a note longer than the maximum, naming the limit', () => {
@@ -103,6 +113,38 @@ describe('checkRevisionRequest', () => {
         },
       }),
     );
+  });
+
+  it('counts the words of the editor HTML toward the limit, never its tags (AC 2)', () => {
+    const words = 'a'.repeat(MAX_REVISION_NOTES_LENGTH);
+
+    expect(checkRevisionRequest({ revisionNotes: `<strong>${words}</strong>` })).toEqual({
+      revisionNotes: words,
+      revisionNotesHtml: `<strong>${words}</strong>`,
+    });
+
+    expect(() =>
+      checkRevisionRequest({ revisionNotes: `<strong>${words}b</strong>` }),
+    ).toThrow(
+      expect.objectContaining({
+        status: 422,
+        response: {
+          message: 'Data revisi tidak valid',
+          errors: { revisionNotes: 'Catatan revisi maksimal 1000 karakter' },
+        },
+      }),
+    );
+  });
+
+  it('sanitizes the note on the way in, so no script can ride along into storage (AC 7)', () => {
+    expect(
+      checkRevisionRequest({
+        revisionNotes: '<p>Aman</p><script>steal()</script><p onmouseover="x()">Tetap</p>',
+      }),
+    ).toEqual({
+      revisionNotes: 'AmanTetap',
+      revisionNotesHtml: '<p>Aman</p><p>Tetap</p>',
+    });
   });
 
   describe('the limits of a revision note', () => {
@@ -131,6 +173,7 @@ describe('checkRevisionRequest', () => {
     it('accepts the shortest note, a single character', () => {
       expect(checkRevisionRequest({ revisionNotes: 'a' })).toEqual({
         revisionNotes: 'a',
+        revisionNotesHtml: 'a',
       });
     });
 
@@ -139,6 +182,7 @@ describe('checkRevisionRequest', () => {
 
       expect(checkRevisionRequest({ revisionNotes: `  ${note}\n` })).toEqual({
         revisionNotes: note,
+        revisionNotesHtml: note,
       });
     });
 
@@ -153,7 +197,10 @@ describe('checkRevisionRequest', () => {
     it('keeps the line breaks inside a note', () => {
       expect(
         checkRevisionRequest({ revisionNotes: 'Perbaiki intro.\nGanti musik.' }),
-      ).toEqual({ revisionNotes: 'Perbaiki intro.\nGanti musik.' });
+      ).toEqual({
+        revisionNotes: 'Perbaiki intro.\nGanti musik.',
+        revisionNotesHtml: 'Perbaiki intro.\nGanti musik.',
+      });
     });
 
     it.each([
