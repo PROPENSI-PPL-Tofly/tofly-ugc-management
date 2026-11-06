@@ -41,6 +41,24 @@ describe("RichNoteEditor", () => {
     await waitFor(() => expect(bold).toHaveAttribute("aria-pressed", "true"));
   });
 
+  it("turns italic on from the toolbar and says so", async () => {
+    renderEditor();
+    const italic = await screen.findByRole("button", { name: "Miring" });
+
+    fireEvent.click(italic);
+
+    await waitFor(() => expect(italic).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  // Pressing a toolbar button must not take the selection out of the text, or the format would
+  // land nowhere: the press is cancelled, the click still runs.
+  it("keeps the selection in the text when a toolbar button is pressed", async () => {
+    renderEditor();
+    const bold = await screen.findByRole("button", { name: "Tebal" });
+
+    expect(fireEvent.mouseDown(bold)).toBe(false);
+  });
+
   it.each([
     ["Daftar poin", "<ul>"],
     ["Daftar nomor", "<ol>"],
