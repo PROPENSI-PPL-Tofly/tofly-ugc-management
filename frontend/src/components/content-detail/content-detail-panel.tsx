@@ -10,6 +10,7 @@ import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
 import { EditForm, ManageMenu } from "./content-manage";
+import { RevisionNote } from "./revision-note";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -341,7 +342,11 @@ function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
         {step.noteBy ? (
           <blockquote className="mt-2 rounded-r-(--radius-control) border-l-2 border-rule bg-surface-2 px-3 py-2 text-[12.5px] leading-relaxed">
             <span className="mb-0.5 block text-[11px] font-semibold text-muted">{step.noteBy}</span>
-            <p className="whitespace-pre-line">{event.payload?.note}</p>
+            <RevisionNote
+              note={event.payload?.note}
+              noteHtml={event.payload?.noteHtml}
+              images={event.payload?.images}
+            />
           </blockquote>
         ) : null}
       </div>
