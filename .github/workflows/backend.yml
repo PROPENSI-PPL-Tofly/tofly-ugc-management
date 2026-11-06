@@ -19,6 +19,11 @@ on:
       - "compose.yaml"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
+    inputs:
+      refresh_demo_data:
+        description: "Rebuild the demo data (only the demo profile, so only staging, reads this)"
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -319,6 +324,14 @@ jobs:
           fi
           psql "$MIGRATOR_DB_URL" -X -q -v ON_ERROR_STOP=1 -v emails="$ADMIN_EMAILS" \
             -f prisma/ops/seed-admins.sql
+
+      # What else the environment holds comes from its SEED_PROFILE variable: both get a starting
+      # rate formula, and staging also gets the demo set. A missing or unknown profile fails here, before the rollout.
+      - name: Seed environment data
+        env:
+          SEED_PROFILE: ${{ vars.SEED_PROFILE }}
+          REFRESH_DEMO_DATA: ${{ inputs.refresh_demo_data }}
+        run: bash prisma/ops/seed-environment.sh
 
   # Rolls the already-pushed image out to the environment's Cloud Run service.
   # needs migrate, so a failed migration blocks the rollout.

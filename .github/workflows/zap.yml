@@ -18,11 +18,9 @@ on:
 jobs:
   zap:
     name: ZAP baseline scan
-    # "For now, just for me": only my own pushes are scanned. A friend's push to a branch
-    # that carries this workflow is skipped outright (a skipped job marks the run neutral),
-    # so nothing here can slow down, fail or otherwise touch anyone else's work. Widen or
-    # drop this line when the team wants the scan on their pushes too.
-    if: github.actor == 'wilsonsangpedagang'
+    # Runs on every push, whoever pushes it: a FAIL-level finding blocks the check, warnings
+    # only report (their severity is tuned in .zap/rules.tsv). Passive scan only - no attack
+    # payloads reach the app.
     runs-on: ubuntu-latest
     # Only one scan per branch at a time; a newer push cancels the superseded run.
     concurrency:

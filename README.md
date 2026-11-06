@@ -13,7 +13,7 @@ User-generated content management for Tofly. Monorepo with a Next.js frontend an
 frontend/      Next.js (TypeScript, App Router, Tailwind)
 backend/       Nest.js (TypeScript, ESM) — Postgres via Prisma
   prisma/migrations/   the database schema, as SQL migrations (source of truth)
-  prisma/seed.sql      local development data
+  prisma/seeds/        local admin account and demo data
   prisma/ops/          SQL the deploy pipeline runs around migrations
 compose.yaml   local Postgres 17 for development
 ```
@@ -94,7 +94,7 @@ npx prisma generate
 ```
 
 To start over, `npm run db:reset` drops the local database, replays every migration and reloads
-`prisma/seed.sql`. Put anything that should survive a reset into that file.
+`prisma/seeds/demo.sql`. Put anything that should survive a reset into that file.
 
 Run `npm install` in an app folder whenever its `package.json` changed in the diff.
 

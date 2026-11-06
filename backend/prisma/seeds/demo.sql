@@ -1,5 +1,7 @@
--- Local development data. Applied by `npm run db:seed` and `npm run db:reset` only; deployments
--- run `prisma migrate deploy`, which never reads this file.
+-- Demo data for local development, CI and staging. Applied by `npm run db:seed` and
+-- `npm run db:reset` locally, and on staging by prisma/ops/seed-demo.sql, which is the only way a
+-- deployment reaches it and refuses production. Adding a user here means adding them to
+-- prisma/ops/clear-demo.sql too.
 --
 -- Every date is an offset from current_date so the data keeps its meaning whenever it is
 -- replayed: running contracts stay running, past deadlines stay past, and the derived on-time
@@ -13,7 +15,6 @@
 begin;
 
 insert into users (email, is_admin) values
-  ('admin@tofly.id',     true),
   ('rangga@example.com', false),
   ('dimas@example.com',  false),
   ('nabila@example.com', false),
