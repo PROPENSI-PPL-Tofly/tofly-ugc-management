@@ -21,7 +21,8 @@ export type DetailEventType =
   | "revision_requested"
   | "draft_approved"
   | "link_submitted"
-  | "performance_entered";
+  | "performance_entered"
+  | "performance_replaced";
 
 /** One step of the journey as the API sends it. */
 export interface RawContentEvent {
@@ -120,6 +121,10 @@ const STEP_WORDING: Record<
   creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
   performance_entered: (_ordinal, _by, event) => ({
     title: `Angka ${event.payload?.platform ? PLATFORM_LABELS[event.payload.platform] : "performa"} diisi manual`,
+    linkLabel: null,
+  }),
+  performance_replaced: (_ordinal, _by, event) => ({
+    title: `Angka manual diganti data ${event.payload?.platform ? PLATFORM_LABELS[event.payload.platform] : "platform"}`,
     linkLabel: null,
   }),
   link_submitted: (_ordinal, _by, event) => ({

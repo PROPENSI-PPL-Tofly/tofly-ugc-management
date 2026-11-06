@@ -38,6 +38,12 @@ export type LinkWrite =
     })
   | { data_state: 'not_found' | 'sync_failed' | 'not_connected' };
 
+/** Numbers an admin typed in and what the platform's took their place with (AC 17). */
+export interface ManualReplacement {
+  before: PerformanceMetrics;
+  after: PerformanceMetrics;
+}
+
 /** One link after a sync: whether it is up to date, and what to write (null: leave it be). */
 export interface LinkOutcome {
   linkId: string;
@@ -47,6 +53,8 @@ export interface LinkOutcome {
   storedState: link_data_state;
   synced: boolean;
   write: LinkWrite | null;
+  /** Set only when this write replaces manual numbers. */
+  replacedManual?: ManualReplacement;
 }
 
 /** What a run reports: its counts for the log (27.4) and the links it left as they were. */
@@ -100,12 +108,33 @@ function groupWrite(
   }
 }
 
+function replacementOf(
+  link: SyncGroup['links'][number],
+  write: LinkWrite,
+): ManualReplacement {
+  const before = link.storedMetrics;
+  return {
+    before,
+    // A number the platform left empty keeps what is stored, so it is unchanged here too.
+    after: {
+      views: 'views' in write ? (write.views ?? null) : before.views,
+      likes: 'likes' in write ? (write.likes ?? null) : before.likes,
+      comments: 'comments' in write ? (write.comments ?? null) : before.comments,
+      shares: 'shares' in write ? (write.shares ?? null) : before.shares,
+    },
+  };
+}
+
 function outcomeOf(
   link: SyncGroup['links'][number],
   write: LinkWrite | null,
 ): LinkOutcome {
   const synced = write?.data_state === 'synced';
   return {
+    ...(synced &&
+      link.storedState === 'manual' && {
+        replacedManual: replacementOf(link, write),
+      }),
     linkId: link.id,
     contentId: link.contentId,
     platform: link.platform,

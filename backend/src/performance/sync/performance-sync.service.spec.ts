@@ -28,6 +28,10 @@ function row(
     url: `https://example.test/${id}`,
     platform,
     data_state,
+    views: null,
+    likes: null,
+    comments: null,
+    shares: null,
     content_id: contentId,
     contents: { contracts: { creator_id: creator } },
   };

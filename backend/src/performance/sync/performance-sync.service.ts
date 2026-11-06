@@ -11,6 +11,7 @@ import {
   type link_data_state,
   type social_platform,
 } from '@prisma/client';
+import { SYSTEM_ACTOR_NAME } from '../../contents/content-event-actors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { PerformanceSource } from '../ports.js';
 import { mapWithLimit, withDeadline } from './run-limits.js';
@@ -20,6 +21,7 @@ import {
   type GroupResult,
   type LinkOutcome,
   type LinkWrite,
+  type ManualReplacement,
   type UnsyncedLink,
 } from './sync-outcome.js';
 import {
@@ -87,6 +89,11 @@ export interface PerformanceSyncClient {
     updateMany(args: {
       where: { id: { in: string[] }; performance_sync_lease_until: Date };
       data: { performance_sync_lease_until: null };
+    }): Promise<Prisma.BatchPayload>;
+  };
+  content_events: {
+    createMany(args: {
+      data: Prisma.content_eventsCreateManyInput[];
     }): Promise<Prisma.BatchPayload>;
   };
   $queryRaw<T = unknown>(query: Prisma.Sql): Promise<T>;
@@ -341,8 +348,43 @@ export class PerformanceSyncService {
         .filter((_, index) => counts[index].count === 0)
         .map((outcome) => outcome.linkId),
     );
-    return outcomes.map((outcome) =>
+    const landed = outcomes.map((outcome) =>
       unchanged.has(outcome.linkId) ? { ...outcome, synced: false } : outcome,
     );
+    await this.recordReplacements(landed);
+    return landed;
+  }
+
+  // After the numbers landed, so a link another change got to first records nothing. The numbers
+  // are the sync's job and already saved: a lost timeline step is logged, not a failed link.
+  private async recordReplacements(
+    outcomes: readonly LinkOutcome[],
+  ): Promise<void> {
+    const replaced = outcomes.filter(
+      (outcome): outcome is LinkOutcome & { replacedManual: ManualReplacement } =>
+        outcome.synced && outcome.replacedManual !== undefined,
+    );
+    if (replaced.length === 0) return;
+    const occurredAt = this.now();
+    const data = replaced.map(({ replacedManual, contentId, platform }) => ({
+      content_id: contentId,
+      event_type: 'Performance Replaced',
+      actor_name: SYSTEM_ACTOR_NAME,
+      actor_role: 'system',
+      actor_user_id: null,
+      occurred_at: occurredAt,
+      event_data: {
+        platform,
+        before: { ...replacedManual.before, state: 'manual' },
+        after: { ...replacedManual.after, state: 'synced' },
+      },
+    }));
+    try {
+      await this.prisma.content_events.createMany({ data });
+    } catch (error) {
+      this.log.warn(
+        `performance sync: recording ${data.length} replaced link(s) failed (${nameOf(error)})`,
+      );
+    }
   }
 }

@@ -25,6 +25,7 @@ function group(
       contentId: `content-${id}`,
       platform: 'tiktok',
       storedState,
+      storedMetrics: { views: null, likes: null, comments: null, shares: null },
     })),
   };
 }

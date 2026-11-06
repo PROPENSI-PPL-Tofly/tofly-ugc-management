@@ -31,7 +31,8 @@ export type DetailEventType =
   | 'revision_requested'
   | 'draft_approved'
   | 'link_submitted'
-  | 'performance_entered';
+  | 'performance_entered'
+  | 'performance_replaced';
 
 export interface DetailSubmissionRow {
   id: string;
