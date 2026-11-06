@@ -49,7 +49,7 @@ describe("toConnectedAccounts", () => {
   });
 
   // Sprint 3 prototype: a platform the creator has no account for (none typed at Tambah Creator)
-  // is a state of its own, "Tidak ada akun", which nothing can connect.
+  // is a state of its own, "Tidak ada akun", which the creator can still connect.
   it("marks a platform the answer leaves out as having no account", () => {
     expect(
       toConnectedAccounts({
@@ -312,9 +312,9 @@ describe("accountDetail", () => {
     expect(accountDetail({ ...CONNECTED, connected: false, username: null })).toBe("");
   });
 
-  it("asks for the Admin when the creator has no account on the platform", () => {
+  it("invites the creator to connect a platform they have no account on", () => {
     expect(accountDetail({ ...CONNECTED, hasAccount: false, connected: false, username: null })).toBe(
-      "Belum ada akun TikTok di data kamu. Minta Admin menambahkannya dulu.",
+      "Belum ada akun TikTok di data kamu. Hubungkan untuk menambahkannya.",
     );
   });
 });

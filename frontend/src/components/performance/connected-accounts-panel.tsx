@@ -204,8 +204,8 @@ function AccountRow({
   onDisconnect: () => void;
 }>) {
   const detail = accountDetail(account);
-  // A platform with no account offers nothing to press: only the Admin can add the account.
-  const connectable = account.hasAccount && !account.connected;
+  // A platform with no account on file can be connected too: the backend adds the account.
+  const connectable = !account.connected;
 
   return (
     <div role="group" aria-label={name} className="flex min-w-0 flex-col gap-2 rounded-[10px] border border-rule px-3.5 py-3">

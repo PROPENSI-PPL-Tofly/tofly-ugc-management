@@ -204,6 +204,31 @@ describe("describeJourney", () => {
     ]);
   });
 
+  // PBI-27 AC 16, 17: a number step says what moved, an empty number reading as a dash.
+  it("words what moved on a number step", () => {
+    const [step] = describeJourney([
+      event({
+        id: "typed",
+        type: "performance_entered",
+        payload: {
+          platform: "tiktok",
+          changes: [
+            { metric: "views", before: 100, after: 12400 },
+            { metric: "likes", before: null, after: 5 },
+          ],
+        },
+      }),
+    ]);
+
+    expect(step.changes).toEqual(["Views: 100 → 12.400", "Likes: — → 5"]);
+  });
+
+  it("words no change on a step that carries none", () => {
+    const [step] = describeJourney([event({ id: "plain", type: "scheduled" })]);
+
+    expect(step.changes).toEqual([]);
+  });
+
   // PBI-27 AC 17: the platform taking over from typed numbers is a step too.
   it("titles manual numbers the platform replaced by that platform", () => {
     const steps = describeJourney([

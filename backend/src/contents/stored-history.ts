@@ -1,5 +1,9 @@
 import type { social_platform } from '@prisma/client';
-import type { ContentEvent, DetailEventType } from './content-detail.js';
+import type {
+  ContentEvent,
+  DetailEventType,
+  MetricChange,
+} from './content-detail.js';
 import { isSocialPlatform } from './link-rules.js';
 
 // The stored history (content_events) read back into the steps the Content Detail panel shows.
@@ -54,15 +58,23 @@ const STEP_FOR: Record<
         replaced: true,
       }),
   },
-  // Numbers an admin typed in (PBI-27 AC 16); the values stay on the server's record.
+  // Numbers an admin typed in, with what moved (PBI-27 AC 16).
   'Performance Entered': {
     type: 'performance_entered',
-    payload: (data) => details({ platform: data.platform('platform') }),
+    payload: (data) =>
+      details({
+        platform: data.platform('platform'),
+        changes: data.metricChanges(),
+      }),
   },
   // The platform's numbers took the place of typed ones (PBI-27 AC 17).
   'Performance Replaced': {
     type: 'performance_replaced',
-    payload: (data) => details({ platform: data.platform('platform') }),
+    payload: (data) =>
+      details({
+        platform: data.platform('platform'),
+        changes: data.metricChanges(),
+      }),
   },
   'Creator Comment': {
     type: 'creator_comment',
@@ -76,6 +88,24 @@ interface Data {
   text(key: string): string | undefined;
   /** A platform the app knows; any other stored value reads as absent. */
   platform(key: string): social_platform | undefined;
+  /** The numbers that moved between `before` and `after`; absent when no values were stored. */
+  metricChanges(): MetricChange[] | undefined;
+}
+
+const METRIC_NAMES: readonly MetricChange['metric'][] = [
+  'views',
+  'likes',
+  'comments',
+  'shares',
+];
+
+function metricOf(values: unknown, metric: string): number | null {
+  const value = (values as Record<string, unknown>)[metric];
+  return typeof value === 'number' ? value : null;
+}
+
+function isObject(value: unknown): boolean {
+  return value !== null && typeof value === 'object';
 }
 
 function dataOf(value: unknown): Data {
@@ -84,6 +114,17 @@ function dataOf(value: unknown): Data {
       ? (value as Record<string, unknown>)
       : {};
   return {
+    metricChanges: () => {
+      const { before, after } = fields;
+      if (!isObject(before) || !isObject(after)) {
+        return undefined;
+      }
+      return METRIC_NAMES.map((metric) => ({
+        metric,
+        before: metricOf(before, metric),
+        after: metricOf(after, metric),
+      })).filter((change) => change.before !== change.after);
+    },
     number: (key) =>
       typeof fields[key] === 'number' ? fields[key] : undefined,
     // Blank text says nothing, as blank notes are left out everywhere else.
