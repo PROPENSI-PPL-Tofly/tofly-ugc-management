@@ -1,4 +1,7 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 // What a revision note's screenshot may be (PBI-34, 34.1). The browser's declared type and the
 // file's name are the uploader's claims; only the bytes decide what the file is (AC 3), and
@@ -78,6 +81,14 @@ export function imageLimitReached(): UnprocessableEntityException {
   return new UnprocessableEntityException({
     code: 'IMAGE_LIMIT',
     message: 'Maksimal 5 gambar per catatan',
+  });
+}
+
+/** The note has gone out: its images belong to the history now (review). */
+export function noteAlreadySent(): ConflictException {
+  return new ConflictException({
+    code: 'NOTE_SENT',
+    message: 'Catatan revisi sudah dikirim',
   });
 }
 

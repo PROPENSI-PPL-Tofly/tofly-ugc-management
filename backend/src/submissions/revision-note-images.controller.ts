@@ -35,8 +35,22 @@ import { RevisionNoteImagesService } from './revision-note-images.service.js';
 export class RevisionNoteImagesController {
   constructor(
     @Inject(RevisionNoteImagesService)
-    private readonly images: Pick<RevisionNoteImagesService, 'upload' | 'remove'>,
+    private readonly images: Pick<
+      RevisionNoteImagesService,
+      'upload' | 'remove' | 'list'
+    >,
   ) {}
+
+  @Get(':id/revision-note-images')
+  @UseGuards(AdminGuard)
+  list(
+    @Param('id', new ParseUUIDPipe()) submissionId: string,
+    @Req() request: Pick<AdminRequest, 'principal'>,
+  ): Promise<RevisionNoteImageDto[]> {
+    if (request.principal?.role !== 'admin') throw unauthenticated();
+
+    return this.images.list(submissionId);
+  }
 
   @Post(':id/revision-note-images')
   @UseGuards(AdminGuard)
