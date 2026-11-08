@@ -35,10 +35,7 @@ import { RevisionNoteImagesService } from './revision-note-images.service.js';
 export class RevisionNoteImagesController {
   constructor(
     @Inject(RevisionNoteImagesService)
-    private readonly images: Pick<
-      RevisionNoteImagesService,
-      'upload' | 'remove' | 'open'
-    >,
+    private readonly images: Pick<RevisionNoteImagesService, 'upload' | 'remove'>,
   ) {}
 
   @Post(':id/revision-note-images')
@@ -69,11 +66,23 @@ export class RevisionNoteImagesController {
 
     await this.images.remove(submissionId, imageId);
   }
+}
 
-  @Get(':id/revision-note-images/:imageId')
+/**
+ * Opening one screenshot by the URL every read path carries (PBI-34, AC 6): the payload and
+ * the upload answer name this route, so it answers with the short-lived signed link whoever
+ * may see the image — an admin any one, a creator only their own content's.
+ */
+@Controller('revision-note-images')
+export class RevisionNoteImageController {
+  constructor(
+    @Inject(RevisionNoteImagesService)
+    private readonly images: Pick<RevisionNoteImagesService, 'open'>,
+  ) {}
+
+  @Get(':imageId')
   @UseGuards(CreatorOrAdminGuard)
   async open(
-    @Param('id', new ParseUUIDPipe()) submissionId: string,
     @Param('imageId', new ParseUUIDPipe()) imageId: string,
     @Req()
     request: Pick<CreatorRequest, 'creatorId'> & Pick<AdminRequest, 'principal'>,
@@ -83,9 +92,7 @@ export class RevisionNoteImagesController {
     // the service opens any image for them (AC 6).
     sendOpenedFile(
       res,
-      await this.images.open(submissionId, imageId, {
-        creatorId: request.creatorId,
-      }),
+      await this.images.open(imageId, { creatorId: request.creatorId }),
     );
   }
 }

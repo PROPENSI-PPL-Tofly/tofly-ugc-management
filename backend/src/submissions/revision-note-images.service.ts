@@ -80,7 +80,6 @@ export interface NoteImagesClient {
     findFirst(args: {
       where: {
         id: string;
-        submission_id: string;
         submissions?: { contents: { contracts: { creator_id: string } } };
       };
       select: { object_key: true; file_name: true; content_type: true };
@@ -172,16 +171,14 @@ export class RevisionNoteImagesService {
     await this.removeUnrecorded(keyOf(saved.object_key));
   }
 
-  /** Opens a screenshot (AC 6): an admin any note, a creator only their own content's. */
+  /** Opens a screenshot (AC 6): an admin any image, a creator only their own content's. */
   async open(
-    submissionId: string,
     imageId: string,
     { creatorId }: { creatorId?: string },
   ): Promise<OpenedFile> {
     const saved = await this.prisma.revision_note_images.findFirst({
       where: {
         id: imageId,
-        submission_id: submissionId,
         ...(creatorId !== undefined && {
           submissions: { contents: { contracts: { creator_id: creatorId } } },
         }),

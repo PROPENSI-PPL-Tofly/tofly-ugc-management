@@ -8,7 +8,10 @@ import { SubmissionRevisionController } from './submission-revision.controller.j
 import { SubmissionRevisionService } from './submission-revision.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
 import { SubmissionsController } from './submissions.controller.js';
-import { RevisionNoteImagesController } from './revision-note-images.controller.js';
+import {
+  RevisionNoteImageController,
+  RevisionNoteImagesController,
+} from './revision-note-images.controller.js';
 import { RevisionNoteImagesService } from './revision-note-images.service.js';
 import { SubmissionsModule } from './submissions.module.js';
 
@@ -51,6 +54,7 @@ describe('SubmissionsModule', () => {
       .compile();
 
     expect(module.get(RevisionNoteImagesController)).toBeDefined();
+    expect(module.get(RevisionNoteImageController)).toBeDefined();
     expect(module.get(RevisionNoteImagesService)).toBeDefined();
   });
 

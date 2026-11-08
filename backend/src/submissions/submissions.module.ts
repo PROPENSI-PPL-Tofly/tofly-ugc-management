@@ -12,7 +12,10 @@ import { SubmissionRevisionRepository } from './submission-revision.repository.j
 import { SubmissionRevisionService } from './submission-revision.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
 import { SubmissionsController } from './submissions.controller.js';
-import { RevisionNoteImagesController } from './revision-note-images.controller.js';
+import {
+  RevisionNoteImageController,
+  RevisionNoteImagesController,
+} from './revision-note-images.controller.js';
 import { RevisionNoteImagesService } from './revision-note-images.service.js';
 
 @Module({
@@ -22,6 +25,7 @@ import { RevisionNoteImagesService } from './revision-note-images.service.js';
     SubmissionsController,
     SubmissionRevisionController,
     RevisionNoteImagesController,
+    RevisionNoteImageController,
   ],
 
   providers: [
