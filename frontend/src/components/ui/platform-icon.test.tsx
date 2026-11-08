@@ -40,4 +40,14 @@ describe("PlatformIcons", () => {
   it("keeps every platform it draws available to the tables", () => {
     expect(ALL_PLATFORMS).toEqual(["instagram", "tiktok"]);
   });
+
+  it("draws each mark in its platform's own colour, not the muted grey of plain text", () => {
+    render(<PlatformIcons platforms={["instagram", "tiktok"]} />);
+
+    const instagram = screen.getByRole("img", { name: "Instagram" });
+    expect(instagram).not.toHaveClass("text-muted");
+    expect(instagram.querySelector("svg")).toHaveAttribute("stroke", "#E1306C");
+    expect(screen.getByRole("img", { name: "TikTok" }).querySelector('[stroke="#FE2C55"]')).not.toBeNull();
+  });
 });
+

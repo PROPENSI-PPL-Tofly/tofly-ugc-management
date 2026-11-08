@@ -49,15 +49,15 @@ afterEach(() => {
 });
 
 describe("ContentPlanFilters", () => {
-  it("offers the search box, the three multi-selects, and the two single selects", () => {
+  it("offers the search box, the three multi-selects, and Overdue as a pill, with no Periode filter", () => {
     renderFilters();
 
     expect(screen.getByRole("searchbox", { name: "Cari konten atau creator" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Creator:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Tipe:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Status:/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
-    expect(screen.getByLabelText("Periode")).toBeInTheDocument();
+    expect(screen.getByLabelText("Overdue").closest("label")).toHaveClass("rounded-full");
+    expect(screen.queryByLabelText("Periode")).not.toBeInTheDocument();
   });
 
   it("sends the search to the URL once typing pauses, dropping the old page", () => {
@@ -83,50 +83,6 @@ describe("ContentPlanFilters", () => {
     fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "all" } });
     expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan", { scroll: false });
     view.unmount();
-  });
-
-  it("offers the five periods and shows the custom dates only on Pilih tanggal", () => {
-    const view = renderFilters();
-    const options = Array.from((screen.getByLabelText("Periode") as HTMLSelectElement).options).map(
-      (option) => [option.value, option.text],
-    );
-    expect(options).toEqual([
-      ["all", "Semua periode"],
-      ["month", "Bulan ini"],
-      ["next30", "30 hari ke depan"],
-      ["last90", "90 hari terakhir"],
-      ["custom", "Pilih tanggal…"],
-    ]);
-    expect(screen.queryByLabelText("Deadline mulai")).not.toBeInTheDocument();
-
-    view.rerenderWith(new URLSearchParams({ period: "custom" }), { period: "custom" });
-    expect(screen.getByLabelText("Deadline mulai")).toBeInTheDocument();
-    expect(screen.getByLabelText("Deadline sampai")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Deadline mulai"), { target: { value: "2026-10-01" } });
-    expect(mockReplace).toHaveBeenLastCalledWith(
-      "/admin/content-plan?period=custom&from=2026-10-01",
-      { scroll: false },
-    );
-  });
-
-  it("says the period does not reach Perlu Approval while one is set there", () => {
-    searchParams = new URLSearchParams({ tab: "action", period: "month" });
-    renderFilters({ tab: "action", period: "month" });
-    expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
-  });
-
-  // The select shows a pick at once; the notice beside it read the server's state and only
-  // caught up a round trip later, so for a moment the two said different things.
-  it("says so the moment a period is picked there, and stops the moment it is cleared", () => {
-    renderFilters({ tab: "action" });
-    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "month" } });
-    expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "all" } });
-    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
   });
 
   it("scopes the status choices to the tab it is on", () => {
@@ -280,43 +236,6 @@ describe("ContentPlanFilters", () => {
     view.unmount();
   });
 
-  it("turns the period over and dates the far end of a custom range", () => {
-    let view = renderFilters();
-
-    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "month" } });
-    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?period=month", {
-      scroll: false,
-    });
-
-    view = view.rerenderWith(new URLSearchParams({ period: "custom" }), { period: "custom" });
-    fireEvent.change(screen.getByLabelText("Deadline sampai"), { target: { value: "2026-10-31" } });
-    expect(mockReplace).toHaveBeenLastCalledWith(
-      "/admin/content-plan?period=custom&to=2026-10-31",
-      { scroll: false },
-    );
-    view.unmount();
-  });
-
-  // Like the period chip: both days go in one navigation, so no address with one day left on
-  // it is ever opened. The range stays picked, and so do the tab and the other filters.
-  it("clears both custom days in one navigation with Kosongkan tanggal", () => {
-    searchParams = new URLSearchParams({
-      tab: "waiting",
-      creator: "id-1",
-      period: "custom",
-      from: "2026-10-01",
-      to: "2026-10-31",
-    });
-    renderFilters({ tab: "waiting", period: "custom", from: "2026-10-01", to: "2026-10-31" });
-
-    fireEvent.click(screen.getByRole("button", { name: "Kosongkan tanggal" }));
-
-    expect(mockReplace).toHaveBeenCalledExactlyOnceWith(
-      "/admin/content-plan?tab=waiting&creator=id-1&period=custom",
-      { scroll: false },
-    );
-  });
-
   it("offers Reset only while something narrows the view, and keeps the tab on it", () => {
     const view = renderFilters();
     expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
@@ -353,18 +272,6 @@ describe("ContentPlanFilters", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
     expect(mockReplace).toHaveBeenCalledWith("/admin/content-plan", { scroll: false });
-  });
-
-  it("shows the custom dates already sitting in the URL", () => {
-    searchParams = new URLSearchParams({
-      period: "custom",
-      from: "2026-10-01",
-      to: "2026-10-31",
-    });
-    renderFilters({ period: "custom", from: "2026-10-01", to: "2026-10-31" });
-
-    expect(screen.getByLabelText("Deadline mulai")).toHaveValue("2026-10-01");
-    expect(screen.getByLabelText("Deadline sampai")).toHaveValue("2026-10-31");
   });
 
   // The approved design folds the filters behind one Filter button on a phone, with no row of
@@ -411,37 +318,5 @@ describe("ContentPlanFilters", () => {
       expect(mockReplace).toHaveBeenCalledExactlyOnceWith(...pressed);
     });
 
-    // E1: a period is taken off where it is chosen. Picking Semua periode takes the period and
-    // both custom days off in one navigation, so the plan renders once and no address with half
-    // a period on it is ever opened; the tab and every other filter stay.
-    it("takes the deadline range off in one navigation when Semua periode is picked", () => {
-      searchParams = new URLSearchParams({
-        tab: "waiting",
-        creator: "id-1",
-        q: "serum",
-        period: "custom",
-        from: "2026-10-01",
-        to: "2026-10-31",
-      });
-      renderFilters({ tab: "waiting", period: "custom", from: "2026-10-01", to: "2026-10-31" });
-
-      fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), { target: { value: "all" } });
-
-      expect(mockReplace).toHaveBeenCalledExactlyOnceWith(
-        "/admin/content-plan?tab=waiting&creator=id-1&q=serum",
-        { scroll: false },
-      );
-    });
-
-    it("swaps a custom range for a named period in one navigation, the days going with it", () => {
-      searchParams = new URLSearchParams({ type: "specific", period: "custom", from: "2026-10-01" });
-      renderFilters({ period: "custom", from: "2026-10-01" });
-
-      fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), { target: { value: "month" } });
-
-      expect(mockReplace).toHaveBeenCalledExactlyOnceWith("/admin/content-plan?type=specific&period=month", {
-        scroll: false,
-      });
-    });
   });
 });

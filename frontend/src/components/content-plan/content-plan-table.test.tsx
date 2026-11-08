@@ -38,19 +38,24 @@ function renderTable(
 }
 
 describe("ContentPlanTable", () => {
-  it("shows every column of the plan, deadline included", () => {
+  it("shows the columns Creator Detail's table shows, with Kreator, and no Tags column", () => {
     renderTable();
-    for (const heading of [
+    expect(screen.getAllByRole("columnheader").map((heading) => heading.textContent?.replace(/[↑↓]/g, ""))).toEqual([
       "Nama Konten",
-      "Kreator",
       "Tipe",
-      "Deadline",
+      "Kreator",
+      "DeadlineDeadline",
       "Status",
-      "Tags",
+      "Platform",
       "Aksi",
-    ]) {
-      expect(screen.getByRole("columnheader", { name: new RegExp(heading) })).toBeInTheDocument();
-    }
+    ]);
+  });
+
+  it("gives the type a badge column beside the name, as Creator Detail does", () => {
+    renderTable();
+
+    const type = within(screen.getByText("Video Review Kopi").closest("tr") as HTMLElement).getAllByRole("cell")[1];
+    expect(within(type).getByText("Evergreen")).toHaveClass("rounded-full");
   });
 
   it("fills a row with the content, its creator, and its formatted deadline", () => {
@@ -128,21 +133,13 @@ describe("ContentPlanTable", () => {
       const cells = within(rowOf("Video Review Kopi")).getAllByRole("cell");
       expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([
         null,
-        "Kreator",
         "Tipe",
+        "Kreator",
         "Deadline",
         "Status",
-        "Tags",
+        "Platform",
         null,
       ]);
-    });
-
-    it("leaves the Tags line out of a card that has no tag and no revision", () => {
-      renderTable();
-
-      const tags = within(rowOf("Video Review Kopi")).getAllByRole("cell")[5];
-      expect(tags).toBeEmptyDOMElement();
-      expect(tags).toHaveClass("max-lg:empty:hidden");
     });
 
     // The deadline sort lived only in the header row, which is hidden below lg: phones had no
@@ -356,11 +353,12 @@ describe("ContentPlanTable", () => {
     });
   });
 
-  it("offers no Detail button for a row the creator holds; its name opens it", () => {
+  it("offers a quiet Detail button for a row the creator holds, opening it once", () => {
     const { onOpen } = renderTable([{ ...ROW, status: "scheduled" }]);
 
-    expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
+    const detail = screen.getByRole("button", { name: "Detail Video Review Kopi" });
+    expect(detail.className).not.toContain("bg-accent");
+    fireEvent.click(detail);
     expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
   });
 
@@ -370,14 +368,14 @@ describe("ContentPlanTable", () => {
     expect(screen.getByRole("button", { name: "Video Review Kopi" })).toHaveAttribute("type", "button");
   });
 
-  it("shows Overdue and Approval di-bypass in the Tags column", () => {
+  it("reds an overdue deadline instead of a badge, keeping Approval di-bypass beside the status", () => {
     renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
 
-    const tags = screen.getByRole("list", { name: "Tanda konten" });
-    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Overdue",
-      "Approval di-bypass",
-    ]);
+    const cells = within(screen.getByText("Video Review Kopi").closest("tr") as HTMLElement).getAllByRole("cell");
+    expect(cells[3].firstElementChild).toHaveClass("text-red-ink");
+    expect(within(cells[3]).getByText("(Overdue)")).toHaveClass("sr-only");
+    const tags = within(cells[4]).getByRole("list", { name: "Tanda konten" });
+    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Approval di-bypass"]);
   });
 
   it("leaves the revision count to the content's panel", () => {
@@ -385,19 +383,16 @@ describe("ContentPlanTable", () => {
     expect(screen.queryByText(/Revisi ke-/)).toBeNull();
   });
 
-  it("keeps Tags but drops Aksi on Selesai, so a late or bypassed content still shows, with nothing to act on", () => {
+  it("keeps the tags and a Detail button on Selesai, with no Tinjau", () => {
     const { onOpen } = renderTable(
-      [{ ...ROW, status: "link_submitted", tags: ["overdue", "approval_bypassed"] }],
+      [{ ...ROW, status: "link_submitted", tags: ["late_submission", "approval_bypassed"] }],
       { tab: "done" },
     );
 
-    const headings = screen.getAllByRole("columnheader").map((heading) => heading.textContent);
-    expect(headings).toContain("Tags");
-    expect(headings).not.toContain("Aksi");
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("(Late Submission)")).toHaveClass("sr-only");
     expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail)/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
+    expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Detail Video Review Kopi" }));
     expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
   });
 

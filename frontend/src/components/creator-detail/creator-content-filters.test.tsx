@@ -246,4 +246,10 @@ describe("CreatorContentFilters", () => {
     expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toHaveValue("kopi");
     expect(screen.queryByLabelText("Overdue")).toBeNull();
   });
+
+  it("draws Overdue as the same pill as Tipe and Status", () => {
+    renderOn();
+
+    expect(screen.getByLabelText("Overdue").closest("label")).toHaveClass("rounded-full");
+  });
 });

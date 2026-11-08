@@ -13,13 +13,14 @@ vi.mock("next/navigation", () => ({
 describe("AppShell", () => {
   it("names the page and puts the content in main", () => {
     render(
-        <AppShell title="Creator Database" subtitle="Semua creator dalam satu tabel">
+        <AppShell title="Creator Database">
           <p>konten</p>
         </AppShell>,
     );
 
     expect(screen.getByRole("heading", { level: 1, name: "Creator Database" })).toBeInTheDocument();
-    expect(screen.getByText("Semua creator dalam satu tabel")).toBeInTheDocument();
+    // No subtitle under the page title.
+    expect(screen.getByRole("heading", { level: 1 }).nextElementSibling).toBeNull();
     expect(screen.getByRole("main")).toHaveTextContent("konten");
   });
 
@@ -43,7 +44,7 @@ describe("AppShell", () => {
         </AppShell>,
     );
 
-    expect(screen.getByRole("link", { name: "tofly" })).toHaveAttribute("href", "/admin/creators");
+    expect(screen.getByRole("link", { name: "Tofly Creator Management System" })).toHaveAttribute("href", "/admin/creators");
     expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
   });
 
@@ -82,7 +83,7 @@ describe("AppShell", () => {
           </AppShell>,
       );
 
-      expect(screen.getByRole("link", { name: "tofly" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Tofly Creator Management System" })).toHaveAttribute(
         "href",
         "/creator/dashboard",
       );
@@ -94,7 +95,7 @@ describe("AppShell", () => {
   // named beside the wordmark, and the menu is a bar of tiles at the foot of the screen.
   describe("its frame, drawn by the role's theme", () => {
     function rail() {
-      return screen.getByRole("link", { name: "tofly" }).closest("aside") as HTMLElement;
+      return screen.getByRole("link", { name: "Tofly Creator Management System" }).closest("aside") as HTMLElement;
     }
 
     it("names the role in a tag beside the wordmark, outside the wordmark's link", () => {
@@ -105,7 +106,7 @@ describe("AppShell", () => {
       );
 
       const tag = within(rail()).getByText("Creator", { selector: "[data-role-tag]" });
-      expect(screen.getByRole("link", { name: "tofly" })).not.toContainElement(tag);
+      expect(screen.getByRole("link", { name: "Tofly Creator Management System" })).not.toContainElement(tag);
     });
 
     it("draws each role's frame with that role's theme, and only that one", () => {

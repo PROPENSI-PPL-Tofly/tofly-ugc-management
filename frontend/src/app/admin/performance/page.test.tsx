@@ -100,15 +100,15 @@ describe("Performa Konten page", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Memuat data performa");
   });
 
-  it("shows a pagination above and below the rows (AC 23)", async () => {
+  it("shows the pagination once, below the rows", async () => {
     mockedLinks.mockResolvedValue(answered());
 
     await renderPage();
 
-    expect(screen.getAllByText(/Menampilkan 1/)).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: "Berikutnya" })).toHaveLength(2);
+    expect(screen.getAllByText(/Menampilkan 1/)).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "Berikutnya" })).toHaveLength(1);
     // The first page has nowhere to go back to: its Sebelumnya is spent, not a link.
-    expect(screen.getAllByText("Sebelumnya")).toHaveLength(2);
+    expect(screen.getAllByText("Sebelumnya")).toHaveLength(1);
   });
 
   it("keeps the filter's choices empty rather than failing the page when the names fail", async () => {

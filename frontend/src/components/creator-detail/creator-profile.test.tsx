@@ -84,13 +84,26 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByText("Kontrak").nextElementSibling).toHaveTextContent(label);
   });
 
-  it("writes the contract type as text and the contract state as a dot and its words, not pills", () => {
+  it("writes the contract type as text and the contract and access states as badges", () => {
     render(<CreatorProfilePanel creator={CREATOR} current={{ ...PERIOD, type: "regular", status: "active" }} />);
 
     expect(screen.getByText("Regular")).not.toHaveClass("rounded-full");
-    const state = within(screen.getByText("Akses").nextElementSibling as HTMLElement).getByText("Aktif");
-    expect(state).not.toHaveClass("rounded-full");
-    expect(state.querySelector('[aria-hidden="true"]')).toHaveClass("bg-green");
+    const contract = within(screen.getByText("Kontrak").nextElementSibling as HTMLElement).getByText("Aktif");
+    expect(contract).toHaveClass("rounded-full", "bg-green-wash");
+    const access = within(screen.getByText("Akses").nextElementSibling as HTMLElement).getByText("Aktif");
+    expect(access).toHaveClass("rounded-full", "bg-green-wash");
+  });
+
+  it("puts no caption above the contract facts", () => {
+    render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+    expect(screen.queryByText(/Kontrak terbaru/)).toBeNull();
+  });
+
+  it("is tinted apart from the data panels below it, as the page's own header", () => {
+    const { container } = render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+    expect(container.querySelector("section")).toHaveClass("bg-linear-to-r", "from-accent-wash");
   });
 
   it("shows neither the type nor the contract state for a creator without a contract", () => {
@@ -99,6 +112,7 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByRole("heading", { name: "Rangga Pratama" })).toBeInTheDocument();
     expect(screen.queryByText("Tipe")).toBeNull();
     expect(screen.queryByText("Kontrak")).toBeNull();
+    expect(screen.queryByText(/Kontrak terbaru/)).toBeNull();
   });
 
   it("shows markup in a name or a handle as the text it is, never as markup", () => {
