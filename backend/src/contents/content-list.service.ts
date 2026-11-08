@@ -256,7 +256,6 @@ export class ContentListService implements ContentListLister {
           deadline: row.deadline,
           status: row.status,
           videoSubmittedAt: row.video_submitted_at,
-          latestDraftAt: row.submissions[0]?.created_at ?? null,
           approvalBypassed: row.approval_bypassed,
         },
         now,

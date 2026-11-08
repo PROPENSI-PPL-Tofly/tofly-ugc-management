@@ -114,7 +114,6 @@ function tagsOf(row: MyContentRow, now: Date): ContentTag[] {
       deadline: row.deadline,
       status: row.status,
       videoSubmittedAt: row.video_submitted_at,
-      latestDraftAt: row.submissions[0]?.created_at ?? null,
       approvalBypassed: row.approval_bypassed,
     },
     now,
