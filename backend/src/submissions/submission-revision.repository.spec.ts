@@ -1,13 +1,15 @@
 import { SubmissionRevisionRepository } from './submission-revision.repository.js';
 
 const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
+const IMAGE_ID = '22222222-2222-4222-8222-222222222222';
 const NOTE = {
   revisionNotes: 'Mohon perbaiki bagian pembuka.',
   revisionNotesHtml: '<p>Mohon <strong>perbaiki</strong> bagian pembuka.</p>',
+  imageIds: [IMAGE_ID],
 };
 
 describe('SubmissionRevisionRepository', () => {
-  it('records Revision Requested in the revision transaction with the Admin identity, the note and its images', async () => {
+  it('records Revision Requested with the Admin identity, the note and exactly the images the editor sent', async () => {
     const submissionId = '550e8400-e29b-41d4-a716-446655440000';
     const contentId = '550e8400-e29b-41d4-a716-446655440001';
     const updateManyContent = vi.fn().mockResolvedValue({ count: 1 });
@@ -18,12 +20,13 @@ describe('SubmissionRevisionRepository', () => {
       revision_notes_html: NOTE.revisionNotesHtml,
     });
     const findImages = vi.fn().mockResolvedValue([
-      { id: '22222222-2222-4222-8222-222222222222', content_type: 'image/png' },
+      { id: IMAGE_ID, content_type: 'image/png' },
     ]);
+    const markSent = vi.fn().mockResolvedValue({ count: 1 });
     const transaction = {
       submissions: { update: updateSubmission },
       contents: { updateMany: updateManyContent },
-      revision_note_images: { findMany: findImages },
+      revision_note_images: { findMany: findImages, updateMany: markSent },
       users: {
         findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }),
       },
@@ -52,9 +55,16 @@ describe('SubmissionRevisionRepository', () => {
       select: { id: true },
     });
     expect(findImages).toHaveBeenCalledExactlyOnceWith({
-      where: { submission_id: submissionId },
+      where: {
+        id: { in: NOTE.imageIds },
+        submission_id: submissionId,
+        sent_at: null,
+      },
       select: { id: true, content_type: true },
-      orderBy: [{ created_at: 'asc' }],
+    });
+    expect(markSent).toHaveBeenCalledExactlyOnceWith({
+      where: { id: { in: NOTE.imageIds }, submission_id: submissionId },
+      data: { sent_at: expect.any(Date) },
     });
     expect(transaction.content_events.create).toHaveBeenCalledWith({
       data: {
@@ -67,9 +77,7 @@ describe('SubmissionRevisionRepository', () => {
         event_data: {
           revision_note: NOTE.revisionNotes,
           revision_note_html: NOTE.revisionNotesHtml,
-          images: [
-            { id: '22222222-2222-4222-8222-222222222222', content_type: 'image/png' },
-          ],
+          images: [{ id: IMAGE_ID, content_type: 'image/png' }],
         },
       },
     });
@@ -82,9 +90,11 @@ describe('SubmissionRevisionRepository', () => {
     );
   });
 
-  it('records an empty image list for a note sent without screenshots', async () => {
+  it('records the images in the order the editor named them, not the order they were uploaded', async () => {
     const submissionId = '550e8400-e29b-41d4-a716-446655440000';
     const contentId = '550e8400-e29b-41d4-a716-446655440001';
+    const first = '33333333-3333-4333-8333-333333333333';
+    const second = '44444444-4444-4444-8444-444444444444';
     const createEvent = vi.fn().mockResolvedValue({ id: 'event-id' });
     const transaction = {
       submissions: {
@@ -96,7 +106,13 @@ describe('SubmissionRevisionRepository', () => {
         }),
       },
       contents: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-      revision_note_images: { findMany: vi.fn().mockResolvedValue([]) },
+      revision_note_images: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: second, content_type: 'image/webp' },
+          { id: first, content_type: 'image/png' },
+        ]),
+        updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
       users: { findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }) },
       content_events: { create: createEvent },
     };
@@ -105,8 +121,114 @@ describe('SubmissionRevisionRepository', () => {
       $transaction: vi.fn(async (callback) => callback(transaction)),
     });
 
-    await repository.saveRevision(submissionId, contentId, NOTE, ADMIN_USER_ID);
+    await repository.saveRevision(
+      submissionId,
+      contentId,
+      { ...NOTE, imageIds: [first, second] },
+      ADMIN_USER_ID,
+    );
 
+    expect(createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event_data: expect.objectContaining({
+            images: [
+              { id: first, content_type: 'image/png' },
+              { id: second, content_type: 'image/webp' },
+            ],
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('refuses an image id that is not this note to send', async () => {
+    const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+    const contentId = '550e8400-e29b-41d4-a716-446655440001';
+    const markSent = vi.fn();
+    const createEvent = vi.fn();
+    const transaction = {
+      submissions: {
+        update: vi.fn().mockResolvedValue({
+          id: submissionId,
+          content_id: contentId,
+          revision_notes: NOTE.revisionNotes,
+          revision_notes_html: NOTE.revisionNotesHtml,
+        }),
+      },
+      contents: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      revision_note_images: {
+        // The second name is another note's image, so only one of the two comes back.
+        findMany: vi.fn().mockResolvedValue([{ id: IMAGE_ID, content_type: 'image/png' }]),
+        updateMany: markSent,
+      },
+      users: { findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }) },
+      content_events: { create: createEvent },
+    };
+    const repository = new SubmissionRevisionRepository({
+      submissions: { findUnique: vi.fn() },
+      $transaction: vi.fn(async (callback) => callback(transaction)),
+    });
+
+    await expect(
+      repository.saveRevision(
+        submissionId,
+        contentId,
+        {
+          ...NOTE,
+          imageIds: [IMAGE_ID, '55555555-5555-4555-8555-555555555555'],
+        },
+        ADMIN_USER_ID,
+      ),
+    ).rejects.toMatchObject({
+      status: 422,
+      response: {
+        message: 'Data revisi tidak valid',
+        errors: { imageIds: 'Gambar tidak ditemukan pada catatan ini' },
+      },
+    });
+    expect(markSent).not.toHaveBeenCalled();
+    expect(createEvent).not.toHaveBeenCalled();
+  });
+
+  it('records no images in the event for a note sent without screenshots', async () => {
+    const submissionId = '550e8400-e29b-41d4-a716-446655440000';
+    const contentId = '550e8400-e29b-41d4-a716-446655440001';
+    const createEvent = vi.fn().mockResolvedValue({ id: 'event-id' });
+    const findImages = vi.fn();
+    const transaction = {
+      submissions: {
+        update: vi.fn().mockResolvedValue({
+          id: submissionId,
+          content_id: contentId,
+          revision_notes: NOTE.revisionNotes,
+          revision_notes_html: NOTE.revisionNotesHtml,
+        }),
+      },
+      contents: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      revision_note_images: {
+        findMany: findImages,
+        updateMany: vi.fn(),
+      },
+      users: { findUnique: vi.fn().mockResolvedValue({ id: ADMIN_USER_ID }) },
+      content_events: { create: createEvent },
+    };
+    const repository = new SubmissionRevisionRepository({
+      submissions: { findUnique: vi.fn() },
+      $transaction: vi.fn(async (callback) => callback(transaction)),
+    });
+
+    await repository.saveRevision(
+      submissionId,
+      contentId,
+      {
+        revisionNotes: NOTE.revisionNotes,
+        revisionNotesHtml: NOTE.revisionNotesHtml,
+      },
+      ADMIN_USER_ID,
+    );
+
+    expect(findImages).not.toHaveBeenCalled();
     expect(createEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

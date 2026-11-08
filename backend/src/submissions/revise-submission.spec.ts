@@ -240,4 +240,67 @@ describe('checkRevisionRequest', () => {
       expect(() => checkRevisionRequest(body)).toThrow(notText);
     });
   });
+
+  describe('the screenshots the editor sends the note with', () => {
+    const IMAGE_A = '33333333-3333-4333-8333-333333333333';
+    const IMAGE_B = '22222222-2222-4222-8222-222222222222';
+
+    it('takes the image ids the editor named, in the order it named them', () => {
+      expect(
+        checkRevisionRequest({
+          revisionNotes: 'Perbaiki intro.',
+          imageIds: [IMAGE_A, IMAGE_B, IMAGE_A],
+        }),
+      ).toEqual({
+        revisionNotes: 'Perbaiki intro.',
+        revisionNotesHtml: 'Perbaiki intro.',
+        imageIds: [IMAGE_A, IMAGE_B],
+      });
+    });
+
+    it('names no images at all when the editor has none', () => {
+      expect(
+        checkRevisionRequest({ revisionNotes: 'Perbaiki intro.' }),
+      ).not.toHaveProperty('imageIds');
+      expect(
+        checkRevisionRequest({ revisionNotes: 'Perbaiki intro.', imageIds: [] }),
+      ).not.toHaveProperty('imageIds');
+    });
+
+    it.each([
+      ['a bare name', IMAGE_A],
+      ['a list holding something that is not a name', [IMAGE_A, 7]],
+      ['an object where the list belongs', { imageIds: [IMAGE_A] }],
+    ])('refuses %s as not a list of image names', (_label, imageIds) => {
+      expect(() =>
+        checkRevisionRequest({ revisionNotes: 'Perbaiki intro.', imageIds }),
+      ).toThrow(
+        expect.objectContaining({
+          status: 422,
+          response: {
+            message: 'Data revisi tidak valid',
+            errors: { imageIds: 'Gambar tidak valid' },
+          },
+        }),
+      );
+    });
+
+    it('refuses more than five images with the limit wording (AC 4)', () => {
+      const imageIds = Array.from(
+        { length: 6 },
+        (_, index) => `33333333-3333-4333-8333-33333333330${index}`,
+      );
+
+      expect(() =>
+        checkRevisionRequest({ revisionNotes: 'Perbaiki intro.', imageIds }),
+      ).toThrow(
+        expect.objectContaining({
+          response: {
+            message: 'Data revisi tidak valid',
+            errors: { imageIds: 'Maksimal 5 gambar per catatan' },
+          },
+        }),
+      );
+    });
+  });
 });
