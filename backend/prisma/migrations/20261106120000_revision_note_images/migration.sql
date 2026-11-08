@@ -14,6 +14,8 @@ create table revision_note_images (
   size_bytes integer not null,
   uploaded_by uuid not null
     references users(id) on delete no action on update no action,
+  -- Set when the image goes out with the note: the history's image is then kept.
+  sent_at timestamptz(6),
   created_at timestamptz(6) not null default now()
 );
 
