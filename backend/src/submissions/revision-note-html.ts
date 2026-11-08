@@ -42,18 +42,25 @@ const ESCAPES: readonly (readonly [string, string])[] = [
   ['&amp;', '&'],
 ];
 
+/** Block boundaries become line breaks before the tags are dropped, so words stay apart. */
+const BREAKS: readonly RegExp[] = [/<\/p>/gi, /<\/li>/gi, /<br\s*\/?>/gi];
+
 /** The note's words without any formatting: what the counter counts (AC 2). */
 export function revisionNoteText(input: string): string {
-  const escaped = sanitizeHtml(input, {
+  const withBreaks = BREAKS.reduce(
+    (text, pattern) => text.replaceAll(pattern, '\n'),
+    input,
+  );
+  const escaped = sanitizeHtml(withBreaks, {
     allowedTags: [],
     allowedAttributes: {},
   });
-  // The sanitizer re-escapes the text it keeps; the words are what remain once each escape
+  // The sanitizer re-escapes the text it keeps; the words are what remains once each escape
   // is read as the character it stands for, so "&amp;" counts as one character, not five.
   return ESCAPES.reduce(
     (text, [from, to]) => text.replaceAll(from, to),
     escaped,
-  );
+  ).trim();
 }
 
 /** The note's length in Unicode characters, not UTF-16 units — an emoji is one character. */
