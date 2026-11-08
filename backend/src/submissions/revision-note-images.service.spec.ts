@@ -156,6 +156,43 @@ describe('RevisionNoteImagesService.upload', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 
+  it('cleans the bytes up when even the recount collides (review)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const collision = new Prisma.PrismaClientKnownRequestError(
+      'Serialization failure',
+      { code: 'P2034', clientVersion: 'test' },
+    );
+    const files = store();
+    const prisma = client();
+    prisma.revision_note_images.create.mockRejectedValue(collision);
+
+    await expect(
+      service(prisma, files).upload(SUBMISSION_ID, IMAGE, ADMIN_USER_ID),
+    ).rejects.toBe(collision);
+    expect(files.remove).toHaveBeenCalledExactlyOnceWith(
+      `revision-note-images/${OBJECT_KEY}`,
+    );
+  });
+
+  it('refuses a sixth image that arrived while this one was uploading (review)', async () => {
+    const files = store();
+    const prisma = client();
+    // The pre-check sees room; the count inside the transaction does not.
+    prisma.revision_note_images.count
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(5);
+
+    await expect(
+      service(prisma, files).upload(SUBMISSION_ID, IMAGE, ADMIN_USER_ID),
+    ).rejects.toMatchObject({
+      status: 422,
+      response: { code: 'IMAGE_LIMIT', message: 'Maksimal 5 gambar per catatan' },
+    });
+    expect(files.remove).toHaveBeenCalledExactlyOnceWith(
+      `revision-note-images/${OBJECT_KEY}`,
+    );
+  });
+
   it('refuses a sixth screenshot for one note with its own reason (AC 4)', async () => {
     const files = store();
     const prisma = client({

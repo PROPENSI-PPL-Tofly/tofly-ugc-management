@@ -73,7 +73,7 @@ describe('RevisionNoteImagesController', () => {
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
-      controllers: [RevisionNoteImagesController],
+      controllers: [RevisionNoteImagesController, RevisionNoteImageController],
       providers: [
         { provide: RevisionNoteImagesService, useValue: images },
       ],
@@ -265,6 +265,17 @@ describe('RevisionNoteImagesController', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual(listed);
       expect(images.list).toHaveBeenCalledExactlyOnceWith(SUBMISSION_ID);
+    });
+
+    it('refuses a caller no guard signed in', async () => {
+      principal = null;
+
+      const res = await request(app.getHttpServer()).get(
+        `/submissions/${SUBMISSION_ID}/revision-note-images`,
+      );
+
+      expect(res.status).toBe(401);
+      expect(images.list).not.toHaveBeenCalled();
     });
   });
 
