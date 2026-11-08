@@ -142,8 +142,19 @@ describe('checkRevisionRequest', () => {
         revisionNotes: '<p>Aman</p><script>steal()</script><p onmouseover="x()">Tetap</p>',
       }),
     ).toEqual({
-      revisionNotes: 'AmanTetap',
+      revisionNotes: 'Aman\nTetap',
       revisionNotesHtml: '<p>Aman</p><p>Tetap</p>',
+    });
+  });
+
+  it('keeps the words of each paragraph and list item apart (AC 2)', () => {
+    expect(
+      checkRevisionRequest({
+        revisionNotes: '<ul><li>Satu</li><li>Dua</li></ul>',
+      }),
+    ).toEqual({
+      revisionNotes: 'Satu\nDua',
+      revisionNotesHtml: '<ul><li>Satu</li><li>Dua</li></ul>',
     });
   });
 

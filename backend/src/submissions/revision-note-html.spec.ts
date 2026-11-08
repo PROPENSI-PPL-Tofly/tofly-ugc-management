@@ -60,6 +60,18 @@ describe('revisionNoteText', () => {
     ).toBe('Tolong potong intro');
   });
 
+  it('keeps the breaks between paragraphs, list items and lines as line breaks', () => {
+    expect(revisionNoteText('<p>Satu</p><p>Dua</p>')).toBe('Satu\nDua');
+    expect(revisionNoteText('<ul><li>Satu</li><li>Dua</li></ul>')).toBe(
+      'Satu\nDua',
+    );
+    expect(revisionNoteText('Satu<br>Dua<br/>Tiga')).toBe('Satu\nDua\nTiga');
+  });
+
+  it('counts the line breaks it keeps, as the editor counts them', () => {
+    expect(revisionNoteLength('<p>ab</p><p>cd</p>')).toBe(5);
+  });
+
   it('counts an emoji as one character, not two (Unicode characters, not UTF-16 units)', () => {
     expect(revisionNoteLength('😀😀')).toBe(2);
     expect(revisionNoteLength('<strong>😀</strong>')).toBe(1);
