@@ -33,17 +33,26 @@ export const CONTENT_STATUS_TONES: Record<ContentStatus, Tone> = {
   link_submitted: "green",
 };
 
+/** A content type as a badge: Specific in the accent, Evergreen quiet, so the two tell apart. */
+export const CONTENT_TYPE_TONES: Record<ContentType, Tone> = {
+  evergreen: "neutral",
+  specific: "accent",
+};
+
 /** Worded as the prototype words them, on every screen that shows a tag. */
 export const CONTENT_TAG_LABELS: Record<ContentTag, string> = {
   overdue: "Overdue",
+  late_submission: "Late Submission",
   approval_bypassed: "Approval di-bypass",
 };
 
 /**
- * Tags are judgements on top of the status, so they read as pills. Red for a missed deadline,
- * whether the work is still open or came in late; amber for a skipped approval, which is allowed but wants a second look.
+ * Tags are judgements on top of the status, so they read as pills. Red for a video link still
+ * owed past its deadline; the same red, outlined, for one that came in after it, since that work
+ * is done; amber for a skipped approval, which is allowed but wants a second look.
  */
 export const CONTENT_TAG_TONES: Record<ContentTag, Tone> = {
   overdue: "red",
+  late_submission: "redSoft",
   approval_bypassed: "amber",
 };

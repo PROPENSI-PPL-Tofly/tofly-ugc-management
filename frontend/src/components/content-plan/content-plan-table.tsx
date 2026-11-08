@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
+import { ContentNameButton, RowActionButton } from "@/components/contents/content-row-buttons";
 import { ContentTags } from "@/components/contents/content-tags";
+import { DueDate, badgeTags } from "@/components/contents/due-date";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlatformIcons } from "@/components/ui/platform-icon";
-import { StatusDot } from "@/components/ui/pill";
+import { Pill, StatusDot } from "@/components/ui/pill";
 import { MIN_TARGET } from "@/components/ui/touch-target";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
+  CONTENT_TYPE_TONES,
 } from "@/lib/content-labels";
 import {
   CONTENT_PLAN_EMPTY,
@@ -21,19 +23,19 @@ import {
   type DeadlineSort,
 } from "@/lib/content-plan";
 import { creatorDetailBase } from "@/lib/creator-detail";
-import { formatDate } from "@/lib/format";
 import { DeadlineSortButton, DeadlineSortTh } from "./deadline-sort";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 max-lg:block max-lg:px-0 max-lg:py-1";
+// Every cell centred on the row, as Creator Detail's table lays them.
+const CELL = "px-5 py-3 align-middle max-lg:block max-lg:px-0 max-lg:py-1";
 const LABELLED =
   "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-xs max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
 /**
- * The Content Plan's table: one row per piece, its status and tags read the same way every
- * other admin view words them, its name opens its panel, and the row that awaits a decision
- * also gets the review button.
+ * The Content Plan's table, laid out as Creator Detail's: the type and the platforms in columns of
+ * their own, a missed deadline in red, the other tags beside the status, and every row's door into
+ * its panel — Tinjau where a decision waits, Detail everywhere else.
  */
 export function ContentPlanTable({
   items,
@@ -62,10 +64,6 @@ export function ContentPlanTable({
     );
   }
 
-  // On Selesai nothing waits on the admin, so there is no action; the tags stay, saying which
-  // came in late or skipped approval.
-  const settled = tab === "done";
-
   return (
     // Positioned, so the visually hidden headings below lg are laid out inside this area.
     <ScrollFrame>
@@ -77,12 +75,15 @@ export function ContentPlanTable({
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-left text-muted">
             <th role="columnheader" className={HEAD}>Nama Konten</th>
-            <th role="columnheader" className={HEAD}>Kreator</th>
             <th role="columnheader" className={HEAD}>Tipe</th>
+            <th role="columnheader" className={HEAD}>Kreator</th>
             <DeadlineSortTh sort={sort} onToggle={onSortToggle} stacked />
             <th role="columnheader" className={HEAD}>Status</th>
-            <th role="columnheader" className={HEAD}>Tags</th>
-            {settled ? null : <th role="columnheader" className={HEAD}>Aksi</th>}
+            <th role="columnheader" className={HEAD}>Platform</th>
+            <th role="columnheader" className={HEAD}>
+              {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
+              <span className="sr-only">Aksi</span>
+            </th>
           </tr>
         </thead>
         {/* Below lg each piece is a card of its own, 12 px apart on the page colour, as Task
@@ -103,11 +104,9 @@ export function ContentPlanTable({
             >
               <td className={`${CELL} wrap-anywhere max-lg:pb-2 max-lg:text-sm max-lg:font-semibold`}>
                 <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
-                {row.platforms.length ? (
-                  <div className="mt-1">
-                    <PlatformIcons platforms={row.platforms} />
-                  </div>
-                ) : null}
+              </td>
+              <td data-label="Tipe" className={`${CELL} ${LABELLED}`}>
+                <Pill tone={CONTENT_TYPE_TONES[row.type]}>{CONTENT_TYPE_LABELS[row.type]}</Pill>
               </td>
               <td data-label="Kreator" className={`${CELL} ${LABELLED}`}>
                 {/* The way to this creator's detail page, which holds their content plan. It is
@@ -120,27 +119,25 @@ export function ContentPlanTable({
                   {row.creatorName}
                 </Link>
               </td>
-              <td data-label="Tipe" className={`${CELL} ${LABELLED}`}>
-                {CONTENT_TYPE_LABELS[row.type]}
-              </td>
               <td data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
-                {formatDate(row.deadline)}
+                <DueDate deadline={row.deadline} tags={row.tags} />
               </td>
-              <td data-label="Status" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
-                <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
-                  {CONTENT_STATUS_LABELS[row.status]}
-                </StatusDot>
+              <td data-label="Status" className={`${CELL} ${LABELLED}`}>
+                {/* The tags sit beside the status they qualify, as on Creator Detail. */}
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
+                    {CONTENT_STATUS_LABELS[row.status]}
+                  </StatusDot>
+                  <ContentTags tags={badgeTags(row.tags)} />
+                </span>
               </td>
-              {/* Empty when there is nothing to flag, so a card shows no bare Tags line. */}
-              <td data-label="Tags" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
-                <ContentTags tags={row.tags} />
+              <td data-label="Platform" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
+                <PlatformIcons platforms={row.platforms} />
               </td>
-              {settled ? null : (
-                // Empty unless the piece awaits a decision, so a card shows no bare action line.
-                <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
-                  <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
-                </td>
-              )}
+              {/* Every row offers a door into its detail; Tinjau stands out where a decision waits. */}
+              <td className={`${CELL} text-right max-lg:pt-2 max-lg:text-left`}>
+                <RowActionButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
+              </td>
             </tr>
           ))}
         </tbody>

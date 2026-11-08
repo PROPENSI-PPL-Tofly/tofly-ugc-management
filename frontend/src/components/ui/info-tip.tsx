@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 /** How far an open bubble stays from the edge of the area it opens in, and from its icon, in pixels. */
 const EDGE_MARGIN = 8;
@@ -74,7 +74,8 @@ export function InfoTip({
   label,
   align = "start",
 }: {
-  text: string;
+  /** Words, or a short layout of them such as one line per rule. */
+  text: ReactNode;
   label: string;
   align?: "start" | "end";
 }) {

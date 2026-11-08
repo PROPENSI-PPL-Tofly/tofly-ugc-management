@@ -7,10 +7,23 @@ import { PlaceIcon, type PlaceIconName } from "@/components/shell/place-icon";
  * It clips its content to its rounded corners. A panel that holds a popup (a filter's
  * dropdown) passes `clip={false}`, or the popup is cut off wherever the panel ends.
  */
-export function Panel({ children, clip = true }: { children: ReactNode; clip?: boolean }) {
+export function Panel({
+  children,
+  clip = true,
+  tinted = false,
+}: {
+  children: ReactNode;
+  clip?: boolean;
+  /** A soft accent gradient, for the one panel that heads a page rather than holding its data. */
+  tinted?: boolean;
+}) {
+  const surface = tinted
+    ? "border-accent/25 bg-linear-to-r from-accent-wash to-surface"
+    : "border-rule bg-surface";
+
   return (
     <section
-      className={`${clip ? "overflow-hidden " : ""}rounded-(--radius-panel) border border-rule bg-surface shadow-whisper`}
+      className={`${clip ? "overflow-hidden " : ""}rounded-(--radius-panel) border ${surface} shadow-whisper`}
     >
       {children}
     </section>

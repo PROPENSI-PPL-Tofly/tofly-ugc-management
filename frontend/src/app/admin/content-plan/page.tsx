@@ -78,7 +78,6 @@ export default async function ContentPlanPage({
   return (
     <AppShell
       title="Content Plan"
-      subtitle="Semua konten semua creator, menurut deadline dan siapa yang pegang bola"
     >
       {pastEnd !== null ? (
         <p

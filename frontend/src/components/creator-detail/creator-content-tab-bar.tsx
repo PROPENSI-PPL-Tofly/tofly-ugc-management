@@ -11,7 +11,7 @@ import { latestQuery, useUrlQuery } from "@/lib/url-query";
 
 export const CREATOR_CONTENT_LIST_ID = "creator-content-list";
 
-/** Reuses Content Plan's four status tabs and counter behavior for one creator's contract. */
+/** Content Plan's four status tabs for one creator's contract, each with its count. */
 export function CreatorContentTabBar({
   active,
   counts,
@@ -34,6 +34,7 @@ export function CreatorContentTabBar({
       active={active}
       counts={counts}
       onSelect={select}
+      countEvery
     />
   );
 }

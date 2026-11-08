@@ -48,7 +48,6 @@ export default async function RateInvoicingPage({
   return (
     <AppShell
       title="Rate & Invoicing"
-      subtitle="Fixed rate, konten tambahan, bonus, penalti, dan invoice berjalan setiap creator"
     >
       {list ? (
         <>

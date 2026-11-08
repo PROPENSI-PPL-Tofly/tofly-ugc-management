@@ -1,27 +1,30 @@
 "use client";
 
 import { ContentTags } from "@/components/contents/content-tags";
-import { ContentNameButton, ReviewButton } from "@/components/contents/content-row-buttons";
+import { DueDate, badgeTags } from "@/components/contents/due-date";
+import { ContentNameButton, RowActionButton } from "@/components/contents/content-row-buttons";
 import { DeadlineSortButton, DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlatformIcons } from "@/components/ui/platform-icon";
-import { StatusDot } from "@/components/ui/pill";
+import { Pill, StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
+  CONTENT_TYPE_TONES,
 } from "@/lib/content-labels";
 import { CONTENT_PLAN_EMPTY, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
-import { formatDate } from "@/lib/format";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 font-semibold";
 
 // Below lg a row reads as a card, as the roster's and Task Saya's do: cells stack, and a value
 // names its column from data-label since the header row is hidden.
-const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
+// Every cell centred on the row, so the name, its badge, the date, the status and the button
+// line up on one axis however many lines the first cell takes.
+const CELL = "px-5 py-3 align-middle max-lg:block max-lg:px-0 max-lg:py-1";
 const LABELLED =
   "max-lg:flex max-lg:items-start max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-xs max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
@@ -64,16 +67,20 @@ export function CreatorContentTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Konten
             </th>
+            <th role="columnheader" scope="col" className={HEAD}>
+              Tipe
+            </th>
             <DeadlineSortTh sort={sort} onToggle={onSortToggle} stacked />
             <th role="columnheader" scope="col" className={HEAD}>
               Status
             </th>
-            {tab === "done" ? null : (
-              <th role="columnheader" scope="col" className={HEAD}>
-                {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
-                <span className="sr-only">Aksi</span>
-              </th>
-            )}
+            <th role="columnheader" scope="col" className={HEAD}>
+              Platform
+            </th>
+            <th role="columnheader" scope="col" className={HEAD}>
+              {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
+              <span className="sr-only">Aksi</span>
+            </th>
           </tr>
         </thead>
         <tbody role="rowgroup" className="max-lg:block">
@@ -94,30 +101,28 @@ export function CreatorContentTable({
                 <p className="font-semibold text-ink wrap-anywhere">
                   <ContentNameButton onOpen={() => onOpen(row.contentId)}>{row.name}</ContentNameButton>
                 </p>
-                {row.platforms.length ? (
-                  <div className="mt-1">
-                    <PlatformIcons platforms={row.platforms} />
-                  </div>
-                ) : null}
-                <span className="mt-0.5 block text-xs text-muted">{CONTENT_TYPE_LABELS[row.type]}</span>
+              </td>
+              <td data-label="Tipe" className={`${CELL} ${LABELLED}`}>
+                <Pill tone={CONTENT_TYPE_TONES[row.type]}>{CONTENT_TYPE_LABELS[row.type]}</Pill>
               </td>
               <td data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
-                {formatDate(row.deadline)}
+                <DueDate deadline={row.deadline} tags={row.tags} />
               </td>
               <td data-label="Status" className={`${CELL} ${LABELLED}`}>
                 <span className="flex flex-wrap items-center gap-1.5">
                   <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
                     {CONTENT_STATUS_LABELS[row.status]}
                   </StatusDot>
-                  <ContentTags tags={row.tags} />
+                  <ContentTags tags={badgeTags(row.tags)} />
                 </span>
               </td>
-              {tab === "done" ? null : (
-                // Empty unless the content awaits a decision, so a card shows no bare action line.
-                <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
-                  <ReviewButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
-                </td>
-              )}
+              <td data-label="Platform" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
+                <PlatformIcons platforms={row.platforms} />
+              </td>
+              {/* Every row offers a door into its detail; Tinjau stands out where a decision waits. */}
+              <td className={`${CELL} text-right max-lg:pt-2 max-lg:text-left`}>
+                <RowActionButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
+              </td>
             </tr>
           ))}
         </tbody>

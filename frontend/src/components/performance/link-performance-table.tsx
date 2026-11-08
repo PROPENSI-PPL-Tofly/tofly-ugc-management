@@ -1,54 +1,65 @@
-import type { ReactNode } from "react";
+import Link from "next/link";
 
 import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { InfoTip } from "@/components/ui/info-tip";
+import { Pill } from "@/components/ui/pill";
 import { PlatformIcon } from "@/components/ui/platform-icon";
+import { creatorDetailBase } from "@/lib/creator-detail";
 import { formatTimestamp } from "@/lib/format";
 import {
   DATA_STATE_LABELS,
+  DATA_STATE_TONES,
   METRICS,
   formatMetric,
   stateTip,
 } from "@/lib/link-performance";
-import { PLATFORM_LABELS } from "@/lib/platform-links";
 import type { PerformanceLinkRow } from "@/lib/performance-links";
 
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 align-top";
+const CELL = "px-5 py-3 align-middle";
+const LINK = "underline decoration-rule underline-offset-[3px] hover:decoration-ink";
+
+/**
+ * What the ⓘ beside a row's state says: the state's own explanation, then when the link was last
+ * synced where that is not already in it, so the sync time needs no column of its own.
+ */
+function rowTip(row: PerformanceLinkRow): string {
+  const tip = stateTip(row, row.creatorName.split(" ")[0]);
+  if (row.state === "synced" || row.lastSyncedAt === null) return tip;
+  return `${tip} Sinkron terakhir ${formatTimestamp(row.lastSyncedAt)}.`;
+}
 
 /**
  * The one table both link lists are drawn with (PBI-27, 27.6): the admin's "Performa Konten"
  * names whose link each row is, while a creator reads their own numbers with no column for
  * themselves (AC 20). Every row is a submitted link with its four numbers and its data state
- * (AC 19, 22): an empty number reads as a dash, never as 0 (AC 2).
+ * (AC 19, 22): an empty number reads as a dash, never as 0 (AC 2). The state is a coloured badge
+ * whose ⓘ also says when the link was last synced.
  */
 export function LinkPerformanceTable({
   rows,
   showCreator = false,
   onRowClick,
-  actions,
 }: Readonly<{
   rows: readonly PerformanceLinkRow[];
   /** The admin's list names whose link each row is; a creator reads their own. */
   showCreator?: boolean;
   /** The admin's rows open their content's detail (AC 25); a creator's list offers no press. */
   onRowClick?: (row: PerformanceLinkRow) => void;
-  /** What each row can be done with (the admin's "Sinkronkan"); a creator's list offers none. */
-  actions?: (row: PerformanceLinkRow) => ReactNode;
 }>) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-rule text-left text-muted">
+            <th scope="col" className={HEAD}>
+              Konten
+            </th>
             {showCreator ? (
               <th scope="col" className={HEAD}>
                 Kreator
               </th>
             ) : null}
-            <th scope="col" className={HEAD}>
-              Konten
-            </th>
             <th scope="col" className={HEAD}>
               Platform
             </th>
@@ -60,14 +71,6 @@ export function LinkPerformanceTable({
             <th scope="col" className={HEAD}>
               Status Data
             </th>
-            <th scope="col" className={HEAD}>
-              Sinkron Terakhir
-            </th>
-            {actions ? (
-              <th scope="col" className={`${HEAD} text-right`}>
-                <span className="sr-only">Aksi</span>
-              </th>
-            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -88,21 +91,30 @@ export function LinkPerformanceTable({
                 onRowClick ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
               }`}
             >
-              {showCreator ? <td className={CELL}>{row.creatorName}</td> : null}
               <td className={`${CELL} wrap-anywhere`}>
                 {onRowClick ? (
-                  <ContentNameButton onOpen={() => onRowClick(row)}>
+                  <ContentNameButton onOpen={() => onRowClick(row)} underlined>
                     {row.contentName}
                   </ContentNameButton>
                 ) : (
                   row.contentName
                 )}
               </td>
+              {showCreator ? (
+                <td className={CELL}>
+                  {/* The way to the creator's detail page; a link of its own, so the row does
+                      not open the content on the same press. */}
+                  <Link
+                    href={creatorDetailBase(row.creatorId)}
+                    onClick={(event) => event.stopPropagation()}
+                    className={LINK}
+                  >
+                    {row.creatorName}
+                  </Link>
+                </td>
+              ) : null}
               <td className={CELL}>
-                <span className="flex items-center gap-1.5">
-                  {row.platform ? <PlatformIcon platform={row.platform} /> : null}
-                  {row.platform ? PLATFORM_LABELS[row.platform] : "Link"}
-                </span>
+                {row.platform ? <PlatformIcon platform={row.platform} /> : "Link"}
               </td>
               {METRICS.map(({ name }) => (
                 <td key={name} className={`${CELL} tabular-nums`}>
@@ -111,16 +123,10 @@ export function LinkPerformanceTable({
               ))}
               <td className={CELL}>
                 <span className="flex items-center gap-1.5">
-                  {DATA_STATE_LABELS[row.state]}
-                  <InfoTip
-                    text={stateTip(row, row.creatorName.split(" ")[0])}
-                    label={`Tentang ${DATA_STATE_LABELS[row.state]}`}
-                    align="end"
-                  />
+                  <Pill tone={DATA_STATE_TONES[row.state]}>{DATA_STATE_LABELS[row.state]}</Pill>
+                  <InfoTip text={rowTip(row)} label={`Tentang ${DATA_STATE_LABELS[row.state]}`} align="end" />
                 </span>
               </td>
-              <td className={`${CELL} whitespace-nowrap`}>{formatTimestamp(row.lastSyncedAt)}</td>
-              {actions ? <td className={`${CELL} text-right`}>{actions(row)}</td> : null}
             </tr>
           ))}
         </tbody>

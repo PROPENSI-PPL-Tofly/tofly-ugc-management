@@ -12,12 +12,10 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
-import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import {
   CREATOR_DETAIL_PAGE_SIZE,
   DEFAULT_CREATOR_DETAIL_PARAMS,
-  PERIOD_STATUS_LABELS,
   buildCreatorDetailQuery,
   creatorDetailBase,
   isCreatorDetailFiltered,
@@ -30,6 +28,7 @@ import { CreatorContentFilters } from "./creator-content-filters";
 import { CreatorContentTable } from "./creator-content-table";
 import { CREATOR_CONTENT_LIST_ID, CreatorContentTabBar } from "./creator-content-tab-bar";
 import { CreatorCalendar } from "./creator-calendar";
+import { PeriodBadge } from "./period-badge";
 
 /**
  * The open period's Content Plan: its filters, its table and the detail panel a row opens. The
@@ -82,7 +81,7 @@ export function CreatorContentBoard({
     return (
       <Panel>
         <div className="px-5 pb-3 pt-5">
-          <h2 className="text-[15px]">Content Plan</h2>
+          <h2 className="text-[15px]">Jadwal Konten</h2>
         </div>
         <EmptyState title="Creator ini belum memiliki kontrak." />
       </Panel>
@@ -92,23 +91,31 @@ export function CreatorContentBoard({
 
   return (
     <>
-      {/* Unclipped: the filter popups hang below the bar and past the panel's foot. */}
-      <Panel clip={false}>
+      <Panel>
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-5">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[15px]">Content Plan</h2>
-            {/* Which period the table is scoped to, as the prototype's chip says it. */}
-            <Pill tone="accent">
-              Periode {period.periodNumber} · {PERIOD_STATUS_LABELS[period.status]}
-            </Pill>
+            <h2 className="text-[15px]">Jadwal Konten</h2>
+            {/* Which period the calendar is scoped to, worded as on every period panel. */}
+            <PeriodBadge period={period} />
           </div>
 
-          {/* A period that has ended is only to be read. */}
-          {period.status === "expired" ? null : (
-            <Button variant="accent" onClick={() => setAdding(true)}>
-              + Tambah Konten
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Beside Tambah Konten, the action that fills the slots it counts. */}
+            {period.remainingEvergreenQuota > 0 ? (
+              <p
+                role="note"
+                className="rounded-(--radius-control) border border-amber bg-amber-wash px-3 py-1.5 text-xs text-amber-ink"
+              >
+                {period.remainingEvergreenQuota} slot Evergreen belum dialokasikan.
+              </p>
+            ) : null}
+            {/* A period that has ended is only to be read. */}
+            {period.status === "expired" ? null : (
+              <Button variant="accent" onClick={() => setAdding(true)}>
+                + Tambah Konten
+              </Button>
+            )}
+          </div>
         </div>
 
         <CreatorCalendar
@@ -119,7 +126,17 @@ export function CreatorContentBoard({
           today={today ?? jakartaDay()}
           onOpen={setOpenContentId}
         />
+      </Panel>
 
+      {/* The list is a titled panel of its own under the calendar, so the legend, the tabs, the
+          filters and the table header are not four strips stacked on one another. Unclipped: the
+          filter popups hang below the bar and past the panel's foot. */}
+      <Panel clip={false}>
+        {/* Titled as the Jadwal Konten panel above it: the name, then the period badge. */}
+        <div className="flex flex-wrap items-center gap-2 px-5 pb-1 pt-5">
+          <h2 className="text-[15px]">Daftar Konten</h2>
+          <PeriodBadge period={period} />
+        </div>
         <CreatorContentTabBar active={state.tab} counts={view.counts} />
         <CreatorContentFilters tab={state.tab} />
 

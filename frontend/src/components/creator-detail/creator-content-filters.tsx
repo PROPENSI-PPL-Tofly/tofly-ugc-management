@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  FilterSelect,
   OVERDUE_OPTIONS,
+  PillSelect,
   SearchBox,
   offeredPicks,
 } from "@/components/filters/filter-controls";
@@ -67,7 +67,7 @@ export function CreatorContentFilters({ tab = "all" }: Readonly<{ tab?: ContentP
           />
         ) : null}
         {tab === "done" ? null : (
-          <FilterSelect
+          <PillSelect
             label="Overdue"
             value={param("overdue")}
             options={OVERDUE_OPTIONS}

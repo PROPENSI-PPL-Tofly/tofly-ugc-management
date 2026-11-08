@@ -17,7 +17,13 @@ import type { ContentStatus } from "@/lib/creators";
 export function ContentNameButton({
   onOpen,
   children,
-}: Readonly<{ onOpen: () => void; children: ReactNode }>) {
+  underlined = false,
+}: Readonly<{
+  onOpen: () => void;
+  children: ReactNode;
+  /** Underlined at rest, where the row does not otherwise say the name opens something. */
+  underlined?: boolean;
+}>) {
   return (
     <button
       type="button"
@@ -27,7 +33,9 @@ export function ContentNameButton({
         if (window.getSelection()?.toString()) return;
         onOpen();
       }}
-      className="cursor-pointer border-none bg-transparent p-0 text-left font-inherit text-inherit hover:underline"
+      className={`cursor-pointer border-none bg-transparent p-0 text-left font-inherit text-inherit ${
+        underlined ? "underline decoration-rule underline-offset-[3px] hover:decoration-ink" : "hover:underline"
+      }`}
     >
       {children}
     </button>
@@ -35,29 +43,29 @@ export function ContentNameButton({
 }
 
 /**
- * Tinjau, for a content whose next step is the admin's decision. Nothing for any other status:
- * the name already opens those, so a second button would only repeat it.
+ * A content row's action, on Creator Detail and Content Plan alike: Tinjau, filled in the accent, where the admin's decision
+ * is waiting; a quiet Detail for every other status, so each row offers the same door.
  */
-export function ReviewButton({
+export function RowActionButton({
   status,
   name,
   onOpen,
 }: Readonly<{ status: ContentStatus; name: string; onOpen: () => void }>) {
-  if (!needsReview(status)) return null;
+  const review = needsReview(status);
+  const label = review ? "Tinjau" : "Detail";
 
   return (
     <button
       type="button"
-      // The content's name tells one row's Tinjau from another's when heard.
-      aria-label={`Tinjau ${name}`}
+      // The content's name tells one row's button from another's when heard.
+      aria-label={`${label} ${name}`}
       onClick={(event) => {
         event.stopPropagation();
         onOpen();
       }}
-      // A full-width target where a table row turns into a card, well above WCAG 2.5.8's 24px.
-      className={`${buttonClasses("accent")} px-2 py-1 max-lg:min-h-11 max-lg:w-full`}
+      className={`${buttonClasses(review ? "accent" : "default")} px-2 py-1 max-lg:min-h-11 max-lg:w-full`}
     >
-      Tinjau
+      {label}
     </button>
   );
 }

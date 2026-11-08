@@ -69,7 +69,7 @@ export default async function CreatorPerformancePage({
   const [loaded, links] = await Promise.all([accounts, loadLinks(state)]);
 
   return (
-    <AppShell role="creator" title="Performa" subtitle="Data performa konten kamu">
+    <AppShell role="creator" title="Performa">
       {loaded.kind === "ok" ? (
         <ConnectedAccountsPanel accounts={loaded.accounts} outcome={readConnectOutcome(params)} />
       ) : null}

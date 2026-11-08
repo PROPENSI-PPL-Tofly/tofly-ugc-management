@@ -24,12 +24,10 @@ const MENUS: Record<Role, ReactNode> = {
 export function AppShell({
   role = "admin",
   title,
-  subtitle,
   children,
 }: Readonly<{
   role?: Role;
   title: string;
-  subtitle?: string;
   children: ReactNode;
 }>) {
   const theme = FRAME_THEMES[role];
@@ -41,13 +39,13 @@ export function AppShell({
         data-frame={role}
         className={`flex items-center gap-x-3 px-4 py-2 md:sticky md:top-0 md:h-dvh md:flex-col md:items-stretch md:gap-8 md:px-4 md:py-6 ${theme.rail}`}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Link
             href={homeFor(role)}
-            className={`inline-flex items-center gap-2 rounded-(--radius-control) text-base font-bold tracking-tight ${theme.wordmark}`}
+            className={`inline-flex items-center gap-2 rounded-(--radius-control) text-[13.5px] font-bold leading-tight tracking-tight ${theme.wordmark}`}
           >
-            <span aria-hidden="true" className={`size-2 rounded-[3px] ${theme.wordmarkDot}`} />
-            tofly
+            <span aria-hidden="true" className={`size-2 shrink-0 rounded-[3px] ${theme.wordmarkDot}`} />
+            Tofly Creator Management System
           </Link>
           <span
             data-role-tag=""
@@ -78,7 +76,6 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col max-md:pb-28">
         <header className="px-4 pb-4 pt-6 md:px-8 md:pt-8">
           <h1 className="text-[22px]">{title}</h1>
-          {subtitle ? <p className="mt-1 max-w-[60ch] text-[13px] text-muted">{subtitle}</p> : null}
         </header>
         <main className="flex-1 px-4 pb-10 md:px-8">{children}</main>
       </div>
