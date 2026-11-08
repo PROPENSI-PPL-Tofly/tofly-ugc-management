@@ -229,10 +229,8 @@ export class SubmissionRevisionRepository implements RevisionStore {
         }
 
         const byId = new Map(found.map((image) => [image.id, image]));
-        const images = wanted.flatMap((id) => {
-          const image = byId.get(id);
-          return image ? [image] : [];
-        });
+        // The guard above proved every name came back; this only restores the editor's order.
+        const images = wanted.map((id) => byId.get(id)!);
 
         await transaction.content_events.create({
           data: {
