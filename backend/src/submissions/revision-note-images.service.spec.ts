@@ -26,9 +26,12 @@ function store() {
 }
 
 function client(overrides: Record<string, unknown> = {}) {
-  return {
+  const prisma = {
     submissions: {
-      findUnique: vi.fn().mockResolvedValue({ id: SUBMISSION_ID }),
+      findUnique: vi.fn().mockResolvedValue({
+        id: SUBMISSION_ID,
+        revision_notes: null,
+      }),
     },
     revision_note_images: {
       count: vi.fn().mockResolvedValue(0),
@@ -49,11 +52,16 @@ function client(overrides: Record<string, unknown> = {}) {
         object_key: OBJECT_KEY,
         file_name: IMAGE.fileName,
         content_type: IMAGE.contentType,
+        sent_at: null,
       }),
+      findMany: vi.fn().mockResolvedValue([]),
       delete: vi.fn().mockResolvedValue({}),
     },
+    $transaction: vi.fn(),
     ...overrides,
   };
+  prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
+  return prisma;
 }
 
 function service(
@@ -97,7 +105,55 @@ describe('RevisionNoteImagesService.upload', () => {
       contentType: 'image/jpeg',
       sizeBytes: IMAGE.bytes.length,
       createdAt: '2026-11-06T03:00:00.000Z',
+      sent: false,
     });
+    expect(prisma.$transaction).toHaveBeenCalledExactlyOnceWith(
+      expect.any(Function),
+      { isolationLevel: 'Serializable' },
+    );
+  });
+
+  it('refuses an upload once the note has been sent (review)', async () => {
+    const prisma = client({
+      submissions: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: SUBMISSION_ID,
+          revision_notes: 'Mohon perbaiki bagian pembuka.',
+        }),
+      },
+    });
+
+    await expect(
+      service(prisma, store()).upload(SUBMISSION_ID, IMAGE, ADMIN_USER_ID),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        code: 'NOTE_SENT',
+        message: 'Catatan revisi sudah dikirim',
+      },
+    });
+  });
+
+  it('counts again when two uploads collide in the serializable transaction (review)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const collision = new Prisma.PrismaClientKnownRequestError(
+      'Serialization failure',
+      { code: 'P2034', clientVersion: 'test' },
+    );
+    const files = store();
+    const prisma = client();
+    const create = prisma.revision_note_images.create;
+    create.mockRejectedValueOnce(collision);
+
+    const result = await service(prisma, files).upload(
+      SUBMISSION_ID,
+      IMAGE,
+      ADMIN_USER_ID,
+    );
+
+    expect(result.id).toBe(IMAGE_ID);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 
   it('refuses a sixth screenshot for one note with its own reason (AC 4)', async () => {
@@ -180,7 +236,7 @@ describe('RevisionNoteImagesService.remove', () => {
 
     expect(prisma.revision_note_images.findUnique).toHaveBeenCalledExactlyOnceWith({
       where: { id: IMAGE_ID, submission_id: SUBMISSION_ID },
-      select: { object_key: true },
+      select: { object_key: true, sent_at: true },
     });
     expect(prisma.revision_note_images.delete).toHaveBeenCalledExactlyOnceWith({
       where: { id: IMAGE_ID },
@@ -188,6 +244,37 @@ describe('RevisionNoteImagesService.remove', () => {
     expect(files.remove).toHaveBeenCalledExactlyOnceWith(
       `revision-note-images/${OBJECT_KEY}`,
     );
+  });
+
+  it('refuses to take down an image the sent note holds, so its history cannot 404 (review)', async () => {
+    const files = store();
+    const prisma = client({
+      revision_note_images: {
+        count: vi.fn(),
+        create: vi.fn(),
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue({
+          object_key: OBJECT_KEY,
+          file_name: IMAGE.fileName,
+          content_type: IMAGE.contentType,
+          sent_at: new Date('2026-11-06T04:00:00.000Z'),
+        }),
+        delete: vi.fn(),
+      },
+    });
+
+    await expect(
+      service(prisma, files).remove(SUBMISSION_ID, IMAGE_ID),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        code: 'NOTE_SENT',
+        message: 'Catatan revisi sudah dikirim',
+      },
+    });
+    expect(files.remove).not.toHaveBeenCalled();
+    expect(prisma.revision_note_images.delete).not.toHaveBeenCalled();
   });
 
   it('refuses to remove a screenshot of another note (OWASP A01)', async () => {
@@ -279,6 +366,64 @@ describe('RevisionNoteImagesService.open', () => {
       NotFoundException,
     );
     expect(files.open).toHaveBeenCalledOnce();
+  });
+});
+
+describe('RevisionNoteImagesService.list', () => {
+  it("lists a note's images in the order they were uploaded, saying which are already sent (review)", async () => {
+    const prisma = client();
+    prisma.revision_note_images.findMany.mockResolvedValue([
+      {
+        id: IMAGE_ID,
+        content_type: 'image/png',
+        size_bytes: 42,
+        created_at: new Date('2026-11-06T03:00:00.000Z'),
+        sent_at: null,
+      },
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        content_type: 'image/webp',
+        size_bytes: 7,
+        created_at: new Date('2026-11-06T03:05:00.000Z'),
+        sent_at: new Date('2026-11-06T04:00:00.000Z'),
+      },
+    ]);
+
+    await expect(service(prisma, store()).list(SUBMISSION_ID)).resolves.toEqual([
+      {
+        id: IMAGE_ID,
+        url: `/api/revision-note-images/${IMAGE_ID}`,
+        contentType: 'image/png',
+        sizeBytes: 42,
+        createdAt: '2026-11-06T03:00:00.000Z',
+        sent: false,
+      },
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        url: '/api/revision-note-images/44444444-4444-4444-8444-444444444444',
+        contentType: 'image/webp',
+        sizeBytes: 7,
+        createdAt: '2026-11-06T03:05:00.000Z',
+        sent: true,
+      },
+    ]);
+    expect(prisma.revision_note_images.findMany).toHaveBeenCalledExactlyOnceWith({
+      where: { submission_id: SUBMISSION_ID },
+      select: {
+        id: true,
+        content_type: true,
+        size_bytes: true,
+        created_at: true,
+        sent_at: true,
+      },
+      orderBy: [{ created_at: 'asc' }],
+    });
+  });
+
+  it('lists nothing for a note with no images', async () => {
+    await expect(service(client(), store()).list(SUBMISSION_ID)).resolves.toEqual(
+      [],
+    );
   });
 });
 

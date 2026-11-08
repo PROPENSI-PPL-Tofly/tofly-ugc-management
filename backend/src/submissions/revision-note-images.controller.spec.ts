@@ -54,12 +54,18 @@ describe('RevisionNoteImagesController', () => {
     expect(
       Reflect.getMetadata(
         GUARDS_METADATA,
+        RevisionNoteImagesController.prototype.list,
+      ),
+    ).toEqual([AdminGuard]);
+    expect(
+      Reflect.getMetadata(
+        GUARDS_METADATA,
         RevisionNoteImageController.prototype.open,
       ),
     ).toEqual([CreatorOrAdminGuard]);
   });
 
-  const images = { upload: vi.fn(), remove: vi.fn(), open: vi.fn() };
+  const images = { upload: vi.fn(), remove: vi.fn(), open: vi.fn(), list: vi.fn() };
   // Who the guards resolved; null plays a guard that let a request through unsigned.
   let principal: AdminRequest['principal'] | null;
   let creatorId: string | undefined;
@@ -235,6 +241,30 @@ describe('RevisionNoteImagesController', () => {
 
       expect(res.status).toBe(401);
       expect(images.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /submissions/:id/revision-note-images', () => {
+    it('lists the note images for the admin (review)', async () => {
+      const listed = [
+        {
+          id: IMAGE_ID,
+          url: `/api/revision-note-images/${IMAGE_ID}`,
+          contentType: 'image/png',
+          sizeBytes: 42,
+          createdAt: '2026-11-06T03:00:00.000Z',
+          sent: false,
+        },
+      ];
+      images.list.mockResolvedValue(listed);
+
+      const res = await request(app.getHttpServer()).get(
+        `/submissions/${SUBMISSION_ID}/revision-note-images`,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(listed);
+      expect(images.list).toHaveBeenCalledExactlyOnceWith(SUBMISSION_ID);
     });
   });
 
