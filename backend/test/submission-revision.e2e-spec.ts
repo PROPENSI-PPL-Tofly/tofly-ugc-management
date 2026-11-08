@@ -14,6 +14,8 @@ describe('PATCH /submissions/:id/revise', () => {
   const findUnique = vi.fn();
   const submissionUpdate = vi.fn();
   const contentUpdateMany = vi.fn();
+  const findImages = vi.fn().mockResolvedValue([]);
+  const markSent = vi.fn().mockResolvedValue({ count: 1 });
 
   const prisma = {
     submissions: {
@@ -29,7 +31,8 @@ describe('PATCH /submissions/:id/revise', () => {
           updateMany: contentUpdateMany,
         },
         revision_note_images: {
-          findMany: vi.fn().mockResolvedValue([]),
+          findMany: findImages,
+          updateMany: markSent,
         },
         users: {
           findUnique: vi.fn().mockResolvedValue({
@@ -153,6 +156,50 @@ describe('PATCH /submissions/:id/revise', () => {
         revision_notes_html: 'Mohon perbaiki bagian pembuka.',
       },
     });
+  });
+
+  it('sends the note with exactly the images its editor named (review)', async () => {
+    const imageId = '22222222-2222-4222-8222-222222222222';
+    findImages.mockResolvedValue([{ id: imageId, content_type: 'image/png' }]);
+
+    await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({
+        revisionNotes: 'Mohon perbaiki bagian pembuka.',
+        imageIds: [imageId],
+      })
+      .expect(200);
+
+    expect(findImages).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        id: { in: [imageId] },
+        submission_id: submissionId,
+        sent_at: null,
+      },
+      select: { id: true, content_type: true },
+    });
+    expect(markSent).toHaveBeenCalledExactlyOnceWith({
+      where: { id: { in: [imageId] }, submission_id: submissionId },
+      data: { sent_at: expect.any(Date) },
+    });
+  });
+
+  it('refuses an image id that is not this note to send (review)', async () => {
+    findImages.mockResolvedValue([]);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/submissions/${submissionId}/revise`)
+      .send({
+        revisionNotes: 'Mohon perbaiki bagian pembuka.',
+        imageIds: ['55555555-5555-4555-8555-555555555555'],
+      });
+
+    expect(response.status).toBe(422);
+    expect(response.body).toEqual({
+      message: 'Data revisi tidak valid',
+      errors: { imageIds: 'Gambar tidak ditemukan pada catatan ini' },
+    });
+    expect(markSent).not.toHaveBeenCalled();
   });
 
   it('refuses a note over 1000 characters with 422, changing nothing', async () => {
