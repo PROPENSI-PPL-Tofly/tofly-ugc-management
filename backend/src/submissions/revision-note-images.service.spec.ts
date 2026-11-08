@@ -217,15 +217,16 @@ describe('RevisionNoteImagesService.open', () => {
     const files = store();
     const prisma = client();
 
-    await expect(
-      service(prisma, files).open(SUBMISSION_ID, IMAGE_ID, {}),
-    ).resolves.toEqual({ kind: 'redirect', url: 'https://signed.example/layar.jpg' });
+    await expect(service(prisma, files).open(IMAGE_ID, {})).resolves.toEqual({
+      kind: 'redirect',
+      url: 'https://signed.example/layar.jpg',
+    });
     expect(files.open).toHaveBeenCalledExactlyOnceWith(
       `revision-note-images/${OBJECT_KEY}`,
       { fileName: 'layar.jpg', contentType: 'image/jpeg' },
     );
     expect(prisma.revision_note_images.findFirst).toHaveBeenCalledExactlyOnceWith({
-      where: { id: IMAGE_ID, submission_id: SUBMISSION_ID },
+      where: { id: IMAGE_ID },
       select: { object_key: true, file_name: true, content_type: true },
     });
   });
@@ -234,14 +235,13 @@ describe('RevisionNoteImagesService.open', () => {
     const prisma = client();
     const files = store();
 
-    await service(prisma, files).open(SUBMISSION_ID, IMAGE_ID, {
+    await service(prisma, files).open(IMAGE_ID, {
       creatorId: CONTENT_CREATOR_ID,
     });
 
     expect(prisma.revision_note_images.findFirst).toHaveBeenCalledExactlyOnceWith({
       where: {
         id: IMAGE_ID,
-        submission_id: SUBMISSION_ID,
         submissions: {
           contents: { contracts: { creator_id: CONTENT_CREATOR_ID } },
         },
@@ -262,7 +262,7 @@ describe('RevisionNoteImagesService.open', () => {
     });
 
     await expect(
-      service(prisma, store()).open(SUBMISSION_ID, IMAGE_ID, {
+      service(prisma, store()).open(IMAGE_ID, {
         creatorId: CONTENT_CREATOR_ID,
       }),
     ).rejects.toMatchObject({
@@ -275,9 +275,9 @@ describe('RevisionNoteImagesService.open', () => {
     const files = store();
     files.open.mockResolvedValue(null);
 
-    await expect(
-      service(client(), files).open(SUBMISSION_ID, IMAGE_ID, {}),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service(client(), files).open(IMAGE_ID, {})).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(files.open).toHaveBeenCalledOnce();
   });
 });

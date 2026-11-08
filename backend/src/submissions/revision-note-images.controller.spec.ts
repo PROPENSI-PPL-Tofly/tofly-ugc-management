@@ -8,7 +8,10 @@ import request from 'supertest';
 import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
 import { IMAGE_MAX_BYTES } from './revision-note-image-file.js';
-import { RevisionNoteImagesController } from './revision-note-images.controller.js';
+import {
+  RevisionNoteImageController,
+  RevisionNoteImagesController,
+} from './revision-note-images.controller.js';
 import { RevisionNoteImagesService } from './revision-note-images.service.js';
 
 const SUBMISSION_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -51,7 +54,7 @@ describe('RevisionNoteImagesController', () => {
     expect(
       Reflect.getMetadata(
         GUARDS_METADATA,
-        RevisionNoteImagesController.prototype.open,
+        RevisionNoteImageController.prototype.open,
       ),
     ).toEqual([CreatorOrAdminGuard]);
   });
@@ -235,7 +238,7 @@ describe('RevisionNoteImagesController', () => {
     });
   });
 
-  describe('GET /submissions/:id/revision-note-images/:imageId', () => {
+  describe('GET /revision-note-images/:imageId', () => {
     it('answers with the short-lived link behind the open route (AC 6)', async () => {
       images.open.mockResolvedValue({
         kind: 'redirect',
@@ -243,16 +246,12 @@ describe('RevisionNoteImagesController', () => {
       });
 
       const res = await request(app.getHttpServer()).get(
-        `/submissions/${SUBMISSION_ID}/revision-note-images/${IMAGE_ID}`,
+        `/revision-note-images/${IMAGE_ID}`,
       );
 
       expect(res.status).toBe(302);
       expect(res.headers.location).toBe('https://signed.example/layar.png');
-      expect(images.open).toHaveBeenCalledExactlyOnceWith(
-        SUBMISSION_ID,
-        IMAGE_ID,
-        {},
-      );
+      expect(images.open).toHaveBeenCalledExactlyOnceWith(IMAGE_ID, {});
     });
 
     it('passes the creator the guard resolved, so the service narrows them to their content (AC 6)', async () => {
@@ -264,14 +263,12 @@ describe('RevisionNoteImagesController', () => {
       });
 
       await request(app.getHttpServer())
-        .get(`/submissions/${SUBMISSION_ID}/revision-note-images/${IMAGE_ID}`)
+        .get(`/revision-note-images/${IMAGE_ID}`)
         .expect(302);
 
-      expect(images.open).toHaveBeenCalledExactlyOnceWith(
-        SUBMISSION_ID,
-        IMAGE_ID,
-        { creatorId: CREATOR_ID },
-      );
+      expect(images.open).toHaveBeenCalledExactlyOnceWith(IMAGE_ID, {
+        creatorId: CREATOR_ID,
+      });
     });
   });
 });
