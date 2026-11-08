@@ -228,7 +228,7 @@ describe('ContentListService.list', () => {
       expect(answer.items[0].tags).toEqual([]);
     });
 
-    it('is tagged late when its latest draft came in after the deadline day', async () => {
+    it('is overdue when its draft came in after the deadline day, since its video link is still owed', async () => {
       const { service } = stub([
         row({
           status: 'draft_review',
@@ -247,7 +247,7 @@ describe('ContentListService.list', () => {
       expect(answer.items[0].tags).toEqual(['overdue']);
     });
 
-    it('is tagged late and bypassed from its stored link day and bypass flag', async () => {
+    it('is tagged a late submission and bypassed from its stored link day and bypass flag', async () => {
       const { service } = stub([
         row({
           status: 'link_submitted',
@@ -259,7 +259,10 @@ describe('ContentListService.list', () => {
 
       const answer = await service.list(PAGE, NOW, EVERYTHING);
 
-      expect(answer.items[0].tags).toEqual(['overdue', 'approval_bypassed']);
+      expect(answer.items[0].tags).toEqual([
+        'late_submission',
+        'approval_bypassed',
+      ]);
     });
   });
 
@@ -523,7 +526,7 @@ describe('ContentListService.list', () => {
         row({ name: 'Belum lewat', deadline: '2026-10-30' }),
       ];
 
-      it('keeps what is past its deadline and what was finished late for true', async () => {
+      it('keeps only what is past its deadline with no video link for true', async () => {
         const { service } = stub(rows());
 
         const answer = await service.list(PAGE, NOW, {
@@ -533,19 +536,19 @@ describe('ContentListService.list', () => {
 
         expect(answer.items.map((item) => [item.name, item.tags])).toEqual([
           ['Lewat, terjadwal', ['overdue']],
-          ['Selesai terlambat', ['overdue']],
         ]);
         expect(answer.tabCounts).toEqual({
-          all: 2,
+          all: 1,
           needs_approval: 0,
           waiting_creator: 1,
-          done: 1,
+          done: 0,
         });
       });
 
       it('keeps everything else for false', async () => {
         expect(await names(rows(), { overdue: false })).toEqual([
           'Lewat, usulan',
+          'Selesai terlambat',
           'Selesai tepat waktu',
           'Belum lewat',
         ]);

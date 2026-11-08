@@ -341,7 +341,7 @@ describe('CreatorsService', () => {
     expect(result.contractHistory[0]).toMatchObject({ completed: 1, total: 2 });
   });
 
-  it('tags each content in the detail as late, overdue or approval bypassed', async () => {
+  it('tags each content in the detail as a late submission, overdue or approval bypassed', async () => {
     const detail = detailRow();
     detail.contracts[0].contents.push(
       {
@@ -380,7 +380,7 @@ describe('CreatorsService', () => {
     ).toEqual({
       'content-1': [],
       'content-2': [],
-      'content-late-bypassed': ['overdue', 'approval_bypassed'],
+      'content-late-bypassed': ['late_submission', 'approval_bypassed'],
       'content-overdue': ['overdue'],
     });
   });

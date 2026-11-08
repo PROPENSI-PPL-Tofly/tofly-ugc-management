@@ -232,7 +232,10 @@ describe('GET /contents (e2e)', () => {
       )?.tags;
 
     expect(tagsOf('overdue')).toEqual(['overdue']);
-    expect(tagsOf('late link')).toEqual(['overdue', 'approval_bypassed']);
+    expect(tagsOf('late link')).toEqual([
+      'late_submission',
+      'approval_bypassed',
+    ]);
     expect(tagsOf('scheduled')).toEqual([]);
   });
 
@@ -260,8 +263,8 @@ describe('GET /contents (e2e)', () => {
     });
   });
 
-  it('keeps what is past its deadline and what was finished late for overdue=true', async () => {
-    expect(await names('&overdue=true')).toEqual(['late link', 'overdue']);
+  it('keeps only what is past its deadline with no video link for overdue=true', async () => {
+    expect(await names('&overdue=true')).toEqual(['overdue']);
   });
 
   it('keeps everything else for overdue=false', async () => {
@@ -273,6 +276,7 @@ describe('GET /contents (e2e)', () => {
       'approved',
       'revision',
       'scheduled',
+      'late link',
     ]);
   });
 

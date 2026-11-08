@@ -113,7 +113,7 @@ describe('GET /creators/:id content tags (e2e)', () => {
         ]),
       ),
     ).toEqual({
-      'Late link, bypassed': ['overdue', 'approval_bypassed'],
+      'Late link, bypassed': ['late_submission', 'approval_bypassed'],
       Overdue: ['overdue'],
       'Late draft, overdue': ['overdue'],
       Open: [],
