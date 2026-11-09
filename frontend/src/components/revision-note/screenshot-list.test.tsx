@@ -402,3 +402,22 @@ describe("removing a stored screenshot twice", () => {
     expect(screen.getByRole("button", { name: "Hapus gambar" })).toBeEnabled();
   });
 });
+
+describe("useScreenshots remove twice", () => {
+  // A form calling the hook twice in the same moment, before React draws again, still sends one
+  // delete only.
+  it("sends one delete when remove is called twice in a row", async () => {
+    const { uploader, remove, calls } = fakeUploader();
+    const { result } = renderHook(() => useScreenshots(uploader));
+    act(() => result.current.add([image()]));
+    await act(async () => calls[0].resolve({ imageId: "img-1", url: "/api/revision-note-images/img-1" }));
+    const id = result.current.uploads[0].id;
+
+    await act(async () => {
+      result.current.remove(id);
+      result.current.remove(id);
+    });
+
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+});
