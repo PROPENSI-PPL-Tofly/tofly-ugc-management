@@ -44,7 +44,7 @@ describe("Login page", () => {
     await renderLogin();
 
     const google = screen.getByRole("link", { name: "Masuk dengan Google" });
-    const email = screen.getByRole("button", { name: "Masuk dengan Email" });
+    const email = screen.getByRole("button", { name: "Masuk dengan Kode Email" });
     expect(google.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("atau")).toBeInTheDocument();
   });
@@ -52,7 +52,7 @@ describe("Login page", () => {
   it("keeps offering the email code when the last Google attempt came back with an error", async () => {
     await renderLogin({ error: "not_authorized" });
 
-    expect(screen.getByRole("button", { name: "Masuk dengan Email" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Masuk dengan Kode Email" })).toBeInTheDocument();
   });
 
   it("hides the Google mark from assistive technology", async () => {

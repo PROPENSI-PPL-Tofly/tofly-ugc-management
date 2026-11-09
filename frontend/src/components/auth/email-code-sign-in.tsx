@@ -26,8 +26,8 @@ const CODE_FORMAT = new RegExp(`^\\d{${CODE_LENGTH}}$`);
 /** What the screen says about a code that did not sign anyone in; 39.3 leaves the wording here. */
 const VERIFY_PROBLEM: Record<Exclude<CodeVerifyOutcome["kind"], "signed_in" | "wrong">, string> = {
   invalid: INCOMPLETE_CODE,
-  expired: "Kode sudah tidak berlaku. Minta kode baru dengan Kirim Ulang.",
-  denied: "Email ini tidak punya akses ke Tofly. Hubungi Admin untuk meminta akses.",
+  expired: "Kode sudah kedaluwarsa. Kirim ulang kode.",
+  denied: "Akses ditolak. Hubungi Admin untuk meminta akses.",
   failed: "Gagal masuk. Silakan coba lagi.",
 };
 
@@ -66,7 +66,7 @@ export function EmailCodeSignIn() {
   if (step === "choose") {
     return (
       <Button type="button" className={`mt-3 ${WIDE}`} onClick={() => setStep("email")}>
-        Masuk dengan Email
+        Masuk dengan Kode Email
       </Button>
     );
   }
@@ -126,7 +126,7 @@ function EmailStep({
   }
 
   return (
-    <form noValidate onSubmit={submit} className="mt-5 flex flex-col gap-3 border-t border-rule pt-5">
+    <form noValidate onSubmit={submit} className="mt-5 flex flex-col gap-3">
       <label htmlFor="sign-in-email" className="text-[13px] font-semibold text-ink">
         Email
       </label>
@@ -245,7 +245,7 @@ function CodeStep({
   const locked = busy !== null;
 
   return (
-    <form noValidate onSubmit={submit} className="mt-5 flex flex-col gap-3 border-t border-rule pt-5">
+    <form noValidate onSubmit={submit} className="mt-5 flex flex-col gap-3">
       <p role="status" className={NOTICE}>
         {notice}
       </p>

@@ -13,15 +13,19 @@ import { loginCodeSecret } from './login-code-config.js';
 import { loginCodeHasher } from './login-code-hash.js';
 import {
   LOGIN_CODE_STORE,
-  unreadyLoginCodeStore,
   type LoginCodeStore,
 } from './login-code-store.js';
+import { PrismaLoginCodeStore } from './prisma-login-code-store.js';
 
 @Module({
   imports: [PrismaModule, SessionModule],
   controllers: [EmailVerifyController],
   providers: [
-    { provide: LOGIN_CODE_STORE, useValue: unreadyLoginCodeStore },
+    {
+      provide: LOGIN_CODE_STORE,
+      useFactory: (prisma: PrismaService) => new PrismaLoginCodeStore(prisma),
+      inject: [PrismaService],
+    },
     {
       provide: EMAIL_SIGN_IN,
       useFactory: (

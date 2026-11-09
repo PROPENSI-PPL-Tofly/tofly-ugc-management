@@ -6,7 +6,7 @@ import { digitsOnly } from "@/components/ui/form-classes";
 export const CODE_LENGTH = 6;
 
 const BOX =
-  "size-11 rounded-(--radius-control) border border-rule bg-surface text-center text-lg font-semibold text-ink tabular-nums aria-invalid:border-red disabled:opacity-60";
+  "h-11 w-full min-w-0 rounded-(--radius-control) border border-rule bg-surface text-center text-lg font-semibold text-ink tabular-nums aria-invalid:border-red disabled:opacity-60";
 
 interface CodeBoxesProps {
   /** The digits typed so far, a blank where a box is empty; trailing blanks are left off. */
@@ -81,7 +81,7 @@ export function CodeBoxes({ value, onChange, disabled, invalid, describedBy }: C
   }
 
   return (
-    <div className="flex justify-between gap-2">
+    <div className="grid grid-cols-6 gap-1.5 sm:gap-2">
       {chars.map((char, index) => (
         <input
           // The boxes never move or change in number, so their position is their identity.

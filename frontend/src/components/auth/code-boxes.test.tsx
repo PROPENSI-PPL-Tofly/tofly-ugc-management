@@ -51,6 +51,17 @@ describe("CodeBoxes", () => {
     });
   });
 
+  it("shares the row's width between the six boxes, so all six fit a 320 px screen", () => {
+    render(<Harness />);
+
+    const boxes = screen.getAllByRole("textbox");
+    expect(boxes[0].parentElement).toHaveClass("grid", "grid-cols-6");
+    for (const box of boxes) {
+      expect(box).toHaveClass("w-full", "min-w-0");
+      expect(box).not.toHaveClass("size-11");
+    }
+  });
+
   it("offers the phone's one-time-code autofill on the first box only", () => {
     render(<Harness />);
 

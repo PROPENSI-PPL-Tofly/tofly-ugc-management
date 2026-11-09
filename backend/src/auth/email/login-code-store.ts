@@ -1,5 +1,3 @@
-import { PortNotReady } from '../google/unready-ports.js';
-
 /** One issued code, or a decoy row for an address that gets no email. */
 export interface LoginCodeRow {
   id: string;
@@ -23,14 +21,3 @@ export interface LoginCodeStore {
 }
 
 export const LOGIN_CODE_STORE = 'LOGIN_CODE_STORE';
-
-function notReady(): Promise<never> {
-  return Promise.reject(new PortNotReady('login_codes is not available yet'));
-}
-
-/** Bound until the login_codes table exists; every use fails, so nobody can sign in by accident. */
-export const unreadyLoginCodeStore: LoginCodeStore = {
-  latest: notReady,
-  recordWrongAttempt: notReady,
-  claim: notReady,
-};
