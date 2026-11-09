@@ -161,6 +161,30 @@ describe('fromStoredHistory follow-up notes', () => {
     ).toEqual(['fu-a']);
   });
 
+  // Corner (AC 4): two requests saved at the same instant, as the local seed has them. Each
+  // follow-up names its draft, and so does each request, so the tie decides nothing.
+  it('lists a follow-up under the request of its own draft, even when two share a time', () => {
+    const at = '2026-10-09T11:45:57.950Z';
+    const events = fromStoredHistory([
+      followUp('fu-1', '2026-11-09T04:00:00.000Z', 'Intro juga dipotong ya.'),
+      row('rev-old', 'Revision Requested', at, {
+        revision_note: 'Revisi ke-1',
+        submission_id: 'sub-0',
+      }),
+      row('rev-new', 'Revision Requested', at, {
+        revision_note: 'Revisi ke-2',
+        submission_id: 'sub-1',
+      }),
+    ]);
+
+    expect(
+      revisionOf(events, 'rev-new')?.payload?.followUps?.map((item) => item.id),
+    ).toEqual(['fu-1']);
+    expect(revisionOf(events, 'rev-old')?.payload).toEqual({
+      note: 'Revisi ke-1',
+    });
+  });
+
   // Corner: a revision request nothing was added to sends no follow-up list at all.
   it('sends no follow-up list on a revision request without follow-ups', () => {
     const [event] = fromStoredHistory([
