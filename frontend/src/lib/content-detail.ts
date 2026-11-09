@@ -26,7 +26,8 @@ export type DetailEventType =
   | "link_submitted"
   | "performance_entered"
   | "performance_replaced"
-  | "content_updated";
+  | "content_updated"
+  | "revision_followup_added";
 
 /** One number a performance step moved (PBI-27 AC 16, 17). */
 export interface MetricChangeRow {
@@ -48,6 +49,15 @@ export interface NoteImage {
   id: string;
   url: string;
   contentType: string;
+}
+
+/** A note the admin added under a revision note already sent, while that round was open. */
+export interface FollowUp {
+  id: string;
+  note: string;
+  /** ISO instant the follow-up was saved. */
+  at: string;
+  actor: { name: string | null };
 }
 
 /** One step of the journey as the API sends it. */
@@ -74,6 +84,8 @@ export interface RawContentEvent {
      * field an admin's edit changed (PBI-25 AC 4, on content_updated).
      */
     changes?: MetricChangeRow[] | ContentChanges;
+    /** On a revision request: the follow-ups added under its note, oldest first. */
+    followUps?: FollowUp[];
   };
 }
 
@@ -175,6 +187,8 @@ const STEP_WORDING: Record<
   }),
   // An admin's edit of scheduled content (PBI-25 AC 4); what changed is listed under it.
   content_updated: () => ({ title: "Konten diubah", linkLabel: null }),
+  // The follow-up itself reads under the note it adds to; this step only marks when.
+  revision_followup_added: () => ({ title: "Catatan susulan ditambahkan", linkLabel: null }),
 };
 
 /** The lines under an edit: the old and new deadline and name, and that the brief changed. */
@@ -249,6 +263,14 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
   }
 
   return steps;
+}
+
+/**
+ * The revision request whose note follow-ups go under: the newest one, which in the
+ * endpoint's newest-first order is the first. Null when no revision was ever asked for.
+ */
+export function latestRevisionEventId(events: readonly RawContentEvent[]): string | null {
+  return events.find((event) => event.type === "revision_requested")?.id ?? null;
 }
 
 /**

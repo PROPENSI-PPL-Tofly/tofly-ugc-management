@@ -1,5 +1,8 @@
 import { REVIEWABLE_STATUSES } from './draft-review.js';
-import { adminActor, type AdminActor } from '../contents/content-event-actors.js';
+import {
+  adminActor,
+  type AdminActor,
+} from '../contents/content-event-actors.js';
 import { unauthenticated } from '../auth/creator-request.js';
 import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import { invalidRevisionImages, type RevisionRequest } from './revise-submission.js';
@@ -104,6 +107,7 @@ interface RevisionTransaction {
           revision_note: string;
           revision_note_html: string;
           images: { id: string; content_type: string }[];
+          submission_id: string;
         };
       };
     }): Promise<unknown>;
@@ -242,6 +246,8 @@ export class SubmissionRevisionRepository implements RevisionStore {
               revision_note: input.revisionNotes,
               revision_note_html: input.revisionNotesHtml,
               images,
+              // PBI-33: the draft it was asked on, so a follow-up finds its note by id.
+              submission_id: submission.id,
             },
           },
         });

@@ -4,7 +4,6 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { useRouter } from "next/navigation";
 import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
-import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
@@ -24,6 +23,8 @@ import {
   type ContentManagePorts,
 } from "@/lib/content-edit";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
+import { FollowUpForm } from "./follow-up-form";
+import { FollowUpList } from "./follow-up-list";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
@@ -36,6 +37,7 @@ import {
   ContentDetailError,
   describeJourney,
   fetchContentDetail,
+  latestRevisionEventId,
   type ContentDetail,
   type ContentDetailLoader,
   type DetailEventType,
@@ -43,6 +45,7 @@ import {
 } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
+import { addFollowUp, withFollowUp } from "@/lib/follow-ups";
 import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
@@ -185,6 +188,8 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   scheduled: "bg-muted ring-muted",
   draft_submitted: "bg-accent ring-accent",
   revision_requested: "bg-amber ring-amber",
+  // Still the same round sent back to the creator.
+  revision_followup_added: "bg-amber ring-amber",
   draft_approved: "bg-green ring-green",
   // An approved proposal lands in Scheduled; a comment changes no status at all.
   proposal_approved: "bg-muted ring-muted",
@@ -207,15 +212,6 @@ const TIMELINE_ROW =
 
 // A filled disc with a gap and a ring of its own colour, so it reads as a marker on the line.
 const DOT = "mt-[3px] size-[13px] rounded-full border-2 border-surface ring-[1.5px]";
-
-/**
- * The note form opens from a click on Minta Revisi, so focus follows the admin into it.
- * Module-level so its identity is stable: React calls it once when the field mounts
- * rather than on every render, which would pull focus back from the form's own buttons.
- */
-function focusOnMount(element: HTMLTextAreaElement | null) {
-  element?.focus();
-}
 
 /**
  * Red once the deadline has passed, amber from the day before it, green when finished. A
@@ -309,7 +305,7 @@ function Brief({ brief }: Readonly<{ brief: string }>) {
   );
 }
 
-function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
+function JourneyItem({ step, children }: Readonly<{ step: JourneyStep; children?: ReactNode }>) {
   const { event } = step;
   const role = ROLE_LABELS[event.actor.role];
   const link = event.payload?.link;
@@ -360,12 +356,21 @@ function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
             />
           </blockquote>
         ) : null}
+
+        {children}
       </div>
     </li>
   );
 }
 
-function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
+function Journey({
+  steps,
+  under,
+}: Readonly<{
+  steps: JourneyStep[];
+  /** What a step shows under its note, e.g. the latest revision's follow-ups. */
+  under?: (step: JourneyStep) => ReactNode;
+}>) {
   if (steps.length === 0) {
     return <p className="text-xs text-muted">Belum ada riwayat.</p>;
   }
@@ -373,7 +378,9 @@ function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
   return (
     <ol aria-label="Riwayat konten">
       {steps.map((step) => (
-        <JourneyItem key={step.event.id} step={step} />
+        <JourneyItem key={step.event.id} step={step}>
+          {under?.(step)}
+        </JourneyItem>
       ))}
     </ol>
   );
@@ -504,11 +511,6 @@ export function ContentDetailPanel({
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
   const [cancelled, setCancelled] = useState<FormKind | null>(null);
-  // Whether the admin has left the note field, so a required note is not flagged while it is
-  // still being started.
-  const [noteLeft, setNoteLeft] = useState(false);
-  const countId = useId();
-  const missingId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
   // PBI-25: the inline edit form, and the delete question, each open on its own.
@@ -646,8 +648,42 @@ export function ContentDetailPanel({
     send = submitRejection({ contentId: loaded.id, state: snapshot, ports: actionPorts });
   }
   const formSpec = form ? FORMS[form] : null;
-  // Blank counts as missing: the backend trims the note before it refuses an empty one.
-  const missingNote = formSpec?.required === true && noteLeft && note.trim() === "";
+
+  // Each revision note carries its own follow-ups, which admin and creator both read under it
+  // (AC 4). Only the newest note takes more, and only from the admin while that round is still
+  // open (Draft Perlu Revisi).
+  const followUpTarget = loaded ? latestRevisionEventId(loaded.events) : null;
+  const followUpRound =
+    loaded?.status === "draft_revision" ? loaded.latestSubmissionId : null;
+
+  function followUpsUnder(step: JourneyStep): ReactNode {
+    const list = <FollowUpList followUps={step.event.payload?.followUps ?? []} />;
+    if (role !== "admin" || step.event.id !== followUpTarget) return list;
+
+    return (
+      <>
+        {list}
+        {followUpRound ? (
+          <FollowUpForm
+            submissionId={followUpRound}
+            add={ports.addFollowUp ?? addFollowUp}
+            onAdded={(followUp) =>
+              setState((current) =>
+                current.kind === "loaded"
+                  ? { kind: "loaded", detail: withFollowUp(current.detail, followUp) }
+                  : current,
+              )
+            }
+            onRoundClosed={(message) => {
+              // The creator already sent a new draft: say so where the step is, and show it.
+              setError(message);
+              void readAgain();
+            }}
+          />
+        ) : null}
+      </>
+    );
+  }
 
   // Ubah and Hapus are the admin's, and only while the API sends a window to move the deadline in:
   // Scheduled, no draft, invoice still running (AC 1, 9). A payload from before 25.2 has none.
@@ -872,7 +908,7 @@ export function ContentDetailPanel({
               ) : null}
               </CurrentStep>
 
-              <Journey steps={describeJourney(loaded.events)} />
+              <Journey steps={describeJourney(loaded.events)} under={followUpsUnder} />
             </section>
           </div>
         ) : (

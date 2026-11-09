@@ -10,7 +10,7 @@
 
 import type { Variant } from "@/components/ui/button-classes";
 import { daysUntil } from "./format";
-import type { ContentDetail } from "./content-detail";
+import type { ContentDetail, FollowUp } from "./content-detail";
 import type { MyTaskAction } from "./my-tasks";
 import type { Role } from "./session";
 
@@ -51,6 +51,8 @@ export interface PanelActionState {
 export interface PanelActionPorts {
   approve?: (submissionId: string) => Promise<void>;
   revise?: (submissionId: string, note: string) => Promise<void>;
+  /** Adds a follow-up under the open round's revision note; answers with the saved entry. */
+  addFollowUp?: (submissionId: string, note: string) => Promise<FollowUp>;
   /** Opens the revision note form; revising starts with a form, not a request. */
   openRevisionForm?: () => void;
   /** A creator's proposal becomes scheduled work (PRD 3.10). */

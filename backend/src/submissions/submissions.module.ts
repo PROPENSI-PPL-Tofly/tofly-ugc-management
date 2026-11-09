@@ -5,6 +5,8 @@ import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageModule } from '../storage/storage.module.js';
+import { FollowUpController } from './follow-up.controller.js';
+import { FollowUpService } from './follow-up.service.js';
 import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionRevisionController } from './submission-revision.controller.js';
@@ -26,6 +28,7 @@ import { RevisionNoteImagesService } from './revision-note-images.service.js';
     SubmissionRevisionController,
     RevisionNoteImagesController,
     RevisionNoteImageController,
+    FollowUpController,
   ],
 
   providers: [
@@ -54,6 +57,17 @@ import { RevisionNoteImagesService } from './revision-note-images.service.js';
     {
       provide: 'SubmissionRevisionService',
       useExisting: SubmissionRevisionService,
+    },
+
+    {
+      provide: FollowUpService,
+      useFactory: (prisma: PrismaService) => new FollowUpService(prisma),
+      inject: [PrismaService],
+    },
+
+    {
+      provide: 'FollowUpService',
+      useExisting: FollowUpService,
     },
   ],
 })

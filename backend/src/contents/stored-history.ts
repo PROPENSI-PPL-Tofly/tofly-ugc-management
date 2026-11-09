@@ -1,8 +1,10 @@
 import type { social_platform } from '@prisma/client';
+import { ADMIN_ACTOR_NAME } from './content-event-actors.js';
 import type {
   ContentChanges,
   ContentEvent,
   DetailEventType,
+  DetailFollowUp,
   MetricChange,
 } from './content-detail.js';
 import { isSocialPlatform } from './link-rules.js';
@@ -94,6 +96,11 @@ const STEP_FOR: Record<
   'Content Updated': {
     type: 'content_updated',
     payload: (data) => details({ changes: data.changes('changes') }),
+  },
+  // PBI-33 AC 6: the step only marks when; the follow-up itself is listed under its note.
+  'Revision Followup Added': {
+    type: 'revision_followup_added',
+    payload: () => undefined,
   },
 };
 
@@ -208,6 +215,10 @@ function details(
  * sent as "an admin": whatever name an admin event stored stays on the server (OWASP A01).
  */
 export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
+  return withFollowUps(rows, toSteps(rows));
+}
+
+function toSteps(rows: StoredEventRow[]): ContentEvent[] {
   return rows.flatMap((row) => {
     const step = STEP_FOR[row.event_type];
     if (!step) {
@@ -227,5 +238,55 @@ export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
         ...(payload && { payload }),
       },
     ];
+  });
+}
+
+// The follow-up a stored row holds, or null when its note or id cannot be read.
+function followUpOf(row: StoredEventRow): DetailFollowUp | null {
+  const data = dataOf(row.event_data);
+  const id = data.text('follow_up_id');
+  const note = data.text('note');
+  if (id === undefined || note === undefined) {
+    return null;
+  }
+  return {
+    id,
+    note,
+    at: row.occurred_at.toISOString(),
+    actor: { name: ADMIN_ACTOR_NAME },
+  };
+}
+
+// PBI-33 AC 4: each follow-up goes under the revision request of its own draft: both store
+// the draft's submission_id, so two requests saved at the same instant cannot swap them. A
+// request stored before it carried that id falls back to the latest request before the
+// follow-up, which is the one it adds to, since a follow-up is only kept while that round is
+// open. One with neither is listed nowhere rather than under a guess. Rows come newest first,
+// so they are walked from the oldest.
+function withFollowUps(
+  rows: StoredEventRow[],
+  steps: ContentEvent[],
+): ContentEvent[] {
+  const listed = new Map<string, DetailFollowUp[]>();
+  const requestOfDraft = new Map<string, string>();
+  let latestRequest: string | null = null;
+  for (const row of [...rows].reverse()) {
+    const draft = dataOf(row.event_data).text('submission_id');
+    if (row.event_type === 'Revision Requested') {
+      latestRequest = row.id;
+      if (draft) requestOfDraft.set(draft, row.id);
+    } else if (row.event_type === 'Revision Followup Added') {
+      const request = (draft && requestOfDraft.get(draft)) ?? latestRequest;
+      const followUp = followUpOf(row);
+      if (request && followUp) {
+        listed.set(request, [...(listed.get(request) ?? []), followUp]);
+      }
+    }
+  }
+  return steps.map((step) => {
+    const followUps = listed.get(step.id);
+    return followUps
+      ? { ...step, payload: { ...step.payload, followUps } }
+      : step;
   });
 }

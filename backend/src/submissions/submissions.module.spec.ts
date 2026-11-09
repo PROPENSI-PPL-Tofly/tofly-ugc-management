@@ -2,6 +2,8 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FollowUpController } from './follow-up.controller.js';
+import { FollowUpService } from './follow-up.service.js';
 import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionRevisionController } from './submission-revision.controller.js';
@@ -45,7 +47,7 @@ describe('SubmissionsModule', () => {
     expect(module.get(SubmissionRevisionService)).toBeDefined();
   });
 
-  it('provides the revision note images controller and service, behind the file store', async () => {
+  it('provides the revision note images (PBI-34) and follow-up (PBI-33) controllers and services, behind the file store', async () => {
     const module = await Test.createTestingModule({
       imports: [SubmissionsModule],
     })
@@ -56,6 +58,8 @@ describe('SubmissionsModule', () => {
     expect(module.get(RevisionNoteImagesController)).toBeDefined();
     expect(module.get(RevisionNoteImageController)).toBeDefined();
     expect(module.get(RevisionNoteImagesService)).toBeDefined();
+    expect(module.get(FollowUpController)).toBeDefined();
+    expect(module.get(FollowUpService)).toBeDefined();
   });
 
   it('is part of the application', () => {

@@ -2,6 +2,7 @@ import {
   ContentDetailError,
   describeJourney,
   fetchContentDetail,
+  latestRevisionEventId,
   toContentDetail,
   type RawContentDetail,
   type RawContentEvent,
@@ -373,5 +374,35 @@ describe("describeJourney", () => {
     describeJourney(journey);
 
     expect(journey.map((item) => item.id)).toEqual(before);
+  });
+
+  it("titles a follow-up step as added, with no note of its own to sign", () => {
+    const [step] = describeJourney([
+      event({ id: "fu-1", type: "revision_followup_added", actor: { name: "Bastian", role: "admin" } }),
+    ]);
+
+    expect(step.title).toBe("Catatan susulan ditambahkan");
+    expect(step.linkLabel).toBeNull();
+    expect(step.noteBy).toBeNull();
+  });
+});
+
+describe("latestRevisionEventId", () => {
+  function event(overrides: Pick<RawContentEvent, "id" | "type" | "payload">): RawContentEvent {
+    return { at: "2026-11-01T04:00:00.000Z", actor: { name: null, role: "admin" }, ...overrides };
+  }
+
+  it("names the newest revision request, the first one in the newest-first journey", () => {
+    const events: RawContentEvent[] = [
+      event({ id: "sub-3", type: "draft_submitted", payload: { version: 3 } }),
+      event({ id: "rev-2", type: "revision_requested", payload: { note: "Perbaiki intro." } }),
+      event({ id: "rev-1", type: "revision_requested", payload: { note: "Warna kurang kontras." } }),
+    ];
+
+    expect(latestRevisionEventId(events)).toBe("rev-2");
+  });
+
+  it("names nothing when no revision was ever asked for", () => {
+    expect(latestRevisionEventId(raw().events)).toBeNull();
   });
 });
