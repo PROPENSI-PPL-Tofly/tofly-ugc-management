@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
+import { ContentDetailError, type ContentDetail, type FollowUp } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
@@ -1481,5 +1481,165 @@ describe("the creator's link numbers (PBI-27, 27.6)", () => {
     open(Promise.reject(new ContentDetailError(403)), { role: "creator" });
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Detail konten gagal dimuat");
+  });
+});
+
+describe("ContentDetailPanel follow-up notes", () => {
+  const EARLIER: FollowUp = {
+    id: "f1",
+    note: "Tambahan: logo di detik 3.",
+    at: "2026-09-22T03:00:00.000Z",
+    actor: { name: "Bastian" },
+  };
+  const SAVED: FollowUp = {
+    id: "f2",
+    note: "Ralat: pakai musik versi kedua.",
+    at: "2026-09-22T05:00:00.000Z",
+    actor: { name: "Bastian" },
+  };
+
+  // Round 2 is open: the admin sent it back and the creator has not answered yet.
+  function round(overrides: Partial<ContentDetail> = {}): ContentDetail {
+    return detail({
+      status: "draft_revision",
+      waitingOn: "creator",
+      events: [
+        {
+          id: "fu-step",
+          type: "revision_followup_added",
+          at: EARLIER.at,
+          actor: { name: "Bastian", role: "admin" },
+        },
+        {
+          id: "rev-2",
+          type: "revision_requested",
+          at: "2026-09-21T10:00:00.000Z",
+          actor: { name: "Bastian", role: "admin" },
+          payload: { note: "Subtitle belum ada.", followUps: [EARLIER] },
+        },
+        {
+          id: "sub-1",
+          type: "draft_submitted",
+          at: "2026-09-20T10:00:00.000Z",
+          actor: { name: "Rangga Pratama", role: "creator" },
+          payload: { version: 1, link: "https://drive.google.com/draft-v1" },
+        },
+        {
+          id: "rev-1",
+          type: "revision_requested",
+          at: "2026-09-19T10:00:00.000Z",
+          actor: { name: "Bastian", role: "admin" },
+          payload: { note: "Audio terlalu pelan." },
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  async function latestRevisionItem() {
+    const title = await screen.findByText("Revisi ke-2 diminta");
+    return title.closest("li") as HTMLElement;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("offers Tambah Catatan Susulan under the latest revision note only, on Draft Perlu Revisi (AC 1)", async () => {
+    open(round());
+
+    const latest = await latestRevisionItem();
+    expect(within(latest).getByRole("button", { name: "Tambah Catatan Susulan" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Tambah Catatan Susulan" })).toHaveLength(1);
+  });
+
+  it.each(["draft_review", "draft_approved", "link_submitted"] as const)(
+    "offers no follow-up once the content is %s (AC 1, 3)",
+    async (status) => {
+      open(round({ status, waitingOn: status === "draft_review" ? "admin" : null }));
+
+      await latestRevisionItem();
+      expect(screen.queryByRole("button", { name: "Tambah Catatan Susulan" })).toBeNull();
+    },
+  );
+
+  it("offers no follow-up when there is no hand-in to add it to", async () => {
+    open(round({ latestSubmissionId: null }));
+
+    await latestRevisionItem();
+    expect(screen.queryByRole("button", { name: "Tambah Catatan Susulan" })).toBeNull();
+  });
+
+  it("lists the round's earlier follow-ups under its note for the admin (AC 4)", async () => {
+    open(round());
+
+    const latest = await latestRevisionItem();
+    const list = within(latest).getByRole("list", { name: "Catatan susulan" });
+    expect(list).toHaveTextContent(EARLIER.note);
+    expect(within(latest).getByText("Subtitle belum ada.")).toBeInTheDocument();
+  });
+
+  it("leaves the creator's view to the creator side: no follow-up list and no form", async () => {
+    open(round(), { role: "creator" });
+
+    await latestRevisionItem();
+    expect(screen.queryByRole("list", { name: "Catatan susulan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tambah Catatan Susulan" })).toBeNull();
+  });
+
+  it("saves through the port, lists the new follow-up after the earlier one and keeps the panel open (AC 4)", async () => {
+    const addFollowUp = vi.fn().mockResolvedValue(SAVED);
+    const onDecided = vi.fn();
+    open(round(), { ports: { addFollowUp }, onDecided });
+
+    const latest = await latestRevisionItem();
+    fireEvent.click(within(latest).getByRole("button", { name: "Tambah Catatan Susulan" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Catatan susulan" }), {
+      target: { value: SAVED.note },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Catatan Susulan" }));
+
+    await waitFor(() =>
+      expect(
+        within(within(latest).getByRole("list", { name: "Catatan susulan" })).getAllByRole(
+          "listitem",
+        ),
+      ).toHaveLength(2),
+    );
+    expect(addFollowUp).toHaveBeenCalledWith(SUBMISSION, SAVED.note);
+    const items = within(within(latest).getByRole("list", { name: "Catatan susulan" })).getAllByRole(
+      "listitem",
+    );
+    expect(items[1]).toHaveTextContent(SAVED.note);
+    expect(screen.getByRole("status")).toHaveTextContent("Catatan susulan terkirim ke kreator.");
+    expect(onDecided).not.toHaveBeenCalled();
+  });
+
+  it("shows why and reads the content again when the creator already sent a new draft (AC 3)", async () => {
+    const addFollowUp = vi
+      .fn()
+      .mockRejectedValue(new DecisionError(409, "Creator sudah mengirim draft baru"));
+    const { load } = open(round(), { ports: { addFollowUp } });
+    // The first read already happened on open; the re-read finds the new draft.
+    load.mockResolvedValueOnce(round({ status: "draft_review", waitingOn: "admin" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah Catatan Susulan" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Catatan susulan" }), {
+      target: { value: "Logo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim Catatan Susulan" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Creator sudah mengirim draft baru");
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Tambah Catatan Susulan" })).toBeNull(),
+    );
+  });
+
+  it("words the follow-up step in the timeline with the round's amber dot (AC 6)", async () => {
+    open(round());
+
+    const step = (await screen.findByText("Catatan susulan ditambahkan")).closest("li") as HTMLElement;
+    expect(step.querySelector("[data-timeline-dot]")?.className).toContain("bg-amber ring-amber");
   });
 });
