@@ -311,6 +311,18 @@ describe("several files refused at once", () => {
     expect(alert).toHaveTextContent("besar.png: Ukuran maksimal 5 MB");
   });
 
+  it("says a reason already shown only once", async () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+
+    pick(image("palsu.png"));
+    await act(async () => calls[0].reject(new UploadRefused("Format harus JPG, PNG, atau WebP")));
+    pick(image("palsu.png"));
+    await act(async () => calls[1].reject(new UploadRefused("Format harus JPG, PNG, atau WebP")));
+
+    expect(screen.getByRole("alert").textContent).toBe("palsu.png: Format harus JPG, PNG, atau WebP");
+  });
+
   it("keeps the editor's refusals when the server turns one more file down", async () => {
     const { uploader, calls } = fakeUploader();
     render(<Harness uploader={uploader} />);

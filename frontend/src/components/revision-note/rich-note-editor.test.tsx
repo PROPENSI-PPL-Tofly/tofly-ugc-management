@@ -157,6 +157,15 @@ describe("RichNoteEditor links", () => {
     expect(screen.queryByRole("textbox", { name: "URL link" })).not.toBeInTheDocument();
   });
 
+  it("lets other keys type into the address box", async () => {
+    renderEditor();
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah link" }));
+    const box = screen.getByRole("textbox", { name: "URL link" });
+
+    expect(fireEvent.keyDown(box, { key: "h" })).toBe(true);
+    expect(box).toBeInTheDocument();
+  });
+
   it("closes only the row on Escape, keeping the panel around it open", async () => {
     const outside = vi.fn();
     document.addEventListener("keydown", outside);
