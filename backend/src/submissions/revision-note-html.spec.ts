@@ -68,8 +68,20 @@ describe('revisionNoteText', () => {
     expect(revisionNoteText('Satu<br>Dua<br/>Tiga')).toBe('Satu\nDua\nTiga');
   });
 
-  it('counts the line breaks it keeps, as the editor counts them', () => {
-    expect(revisionNoteLength('<p>ab</p><p>cd</p>')).toBe(5);
+  // Review on #188: the editor's counter (34.2) counts the characters only, never the breaks
+  // between paragraphs, list items or lines, so 990/1000 there is never refused here.
+  it('counts the characters, not the line breaks between them, as the editor counts them', () => {
+    expect(revisionNoteLength('<p>ab</p><p>cd</p>')).toBe(4);
+    expect(revisionNoteLength('Satu<br>Dua')).toBe(6);
+  });
+
+  it('counts a note with a list as the editor does', () => {
+    // The HTML exactly as the editor sends it, the empty paragraph after a list included.
+    expect(
+      revisionNoteLength(
+        '<p>Tolong ganti:</p><ul><li><p>audio</p></li><li><p>caption</p></li></ul><p></p>',
+      ),
+    ).toBe(25);
   });
 
   it('counts an emoji as one character, not two (Unicode characters, not UTF-16 units)', () => {
