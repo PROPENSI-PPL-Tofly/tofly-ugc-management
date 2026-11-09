@@ -273,3 +273,64 @@ describe("screenshotUploader answers it cannot read", () => {
     await expect(result).rejects.toBeInstanceOf(Error);
   });
 });
+
+describe("screenshotUploader list", () => {
+  const listed = (images: unknown[]) =>
+    new Response(JSON.stringify(images), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  // Review on #188: the images a closed form left on the server come back when it opens again,
+  // so the five on screen are the five the server counts.
+  it("reads the note's images 34.1 still holds, through /api", async () => {
+    const { uploader, fetchStub } = setUp();
+    fetchStub.mockResolvedValueOnce(
+      listed([
+        { id: "img-1", url: "/api/revision-note-images/img-1", sent: false },
+        { id: "img-2", url: "/api/revision-note-images/img-2", sent: false },
+      ]),
+    );
+
+    await expect(uploader.list()).resolves.toEqual([
+      { imageId: "img-1", url: "/api/revision-note-images/img-1" },
+      { imageId: "img-2", url: "/api/revision-note-images/img-2" },
+    ]);
+    expect(fetchStub).toHaveBeenCalledWith(`/api/submissions/${SUBMISSION}/revision-note-images`);
+  });
+
+  // Negative: an image already sent with an earlier note is history, not part of this note.
+  it("leaves out the images already sent", async () => {
+    const { uploader, fetchStub } = setUp();
+    fetchStub.mockResolvedValueOnce(
+      listed([
+        { id: "old", url: "/api/revision-note-images/old", sent: true },
+        { id: "new", url: "/api/revision-note-images/new", sent: false },
+      ]),
+    );
+
+    await expect(uploader.list()).resolves.toEqual([
+      { imageId: "new", url: "/api/revision-note-images/new" },
+    ]);
+  });
+
+  // Negative: a list the server refuses is a failure, not an empty note.
+  it("fails when the server does not give the list", async () => {
+    const { uploader, fetchStub } = setUp();
+    fetchStub.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+    await expect(uploader.list()).rejects.toBeInstanceOf(Error);
+  });
+
+  // Corner: an entry without an id or a link is skipped rather than shown as a broken tile.
+  it("skips an entry it cannot read", async () => {
+    const { uploader, fetchStub } = setUp();
+    fetchStub.mockResolvedValueOnce(
+      listed([{ sent: false }, { id: "img-1", url: "/api/revision-note-images/img-1", sent: false }]),
+    );
+
+    await expect(uploader.list()).resolves.toEqual([
+      { imageId: "img-1", url: "/api/revision-note-images/img-1" },
+    ]);
+  });
+});
