@@ -4,6 +4,7 @@
 // the browser and the session cookie goes along.
 
 import type { ScreenshotUploader } from "@/components/revision-note/use-screenshots";
+import type { StoredImage } from "./revision-note-uploads";
 
 /** A file 34.1 turned down, with the reason it gives (AC 4). */
 export class UploadRefused extends Error {
@@ -22,6 +23,22 @@ export interface UploaderIo {
 // The ids are encoded, so a crafted value cannot climb out of /submissions/ (OWASP A01).
 function imagesOf(submissionId: string): string {
   return `/api/submissions/${encodeURIComponent(submissionId)}/revision-note-images`;
+}
+
+// Long enough for 5 MB on a slow line; a request that hangs past it fails and can be retried.
+const UPLOAD_TIMEOUT_MS = 60_000;
+
+// The stored image in a 201, or null when the answer cannot be read as one (a proxy's error
+// page, say), so the upload fails instead of waiting for good.
+function storedImageIn(responseText: string): StoredImage | null {
+  try {
+    const body = JSON.parse(responseText) as { id?: unknown; url?: unknown };
+    return typeof body.id === "string" && typeof body.url === "string"
+      ? { imageId: body.id, url: body.url }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function reasonIn(responseText: string): string | null {
@@ -43,13 +60,15 @@ export function screenshotUploader(submissionId: string, io: UploaderIo = {}): S
       return new Promise((resolve, reject) => {
         const request = newRequest();
         request.open("POST", imagesOf(submissionId));
+        request.timeout = UPLOAD_TIMEOUT_MS;
         request.upload.onprogress = (event) => {
           if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
         };
         request.onload = () => {
           if (request.status === 201) {
-            const stored = JSON.parse(request.responseText) as { id: string; url: string };
-            resolve({ imageId: stored.id, url: stored.url });
+            const stored = storedImageIn(request.responseText);
+            if (stored) resolve(stored);
+            else reject(new Error("upload failed (unreadable answer)"));
             return;
           }
           const reason = request.status === 422 ? reasonIn(request.responseText) : null;
@@ -57,7 +76,8 @@ export function screenshotUploader(submissionId: string, io: UploaderIo = {}): S
         };
         request.onerror = () => reject(new Error("upload failed (network)"));
         request.onabort = () => reject(new Error("upload cancelled"));
-        signal.addEventListener("abort", () => request.abort());
+        request.ontimeout = () => reject(new Error("upload failed (timeout)"));
+        signal.addEventListener("abort", () => request.abort(), { once: true });
 
         const form = new FormData();
         form.append("file", file);
