@@ -26,6 +26,32 @@ function rows() {
   return screen.getAllByRole("row").slice(1);
 }
 
+describe("MyTaskTable follow-up notes (PBI-33)", () => {
+  const AT = "2026-11-09T07:00:00.000Z";
+
+  it("says when the admin last added a follow-up note, under the content type (AC 5)", () => {
+    render(
+      <MyTaskTable
+        tasks={[task({ status: "draft_revision", revisionNotes: "Hook kurang kuat.", lastFollowUpAt: AT })]}
+        onAction={vi.fn()}
+      />,
+    );
+
+    const line = screen.getByText(/^Catatan diperbarui/);
+    expect(line).toHaveTextContent("Catatan diperbarui 9 Nov 2026, 14.00 WIB");
+    expect(within(line).getByText("9 Nov 2026, 14.00 WIB").closest("time")).toHaveAttribute("dateTime", AT);
+    expect(line).toHaveClass("text-xs", "text-muted");
+    const type = screen.getByText("Evergreen");
+    expect(type.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says nothing about follow-ups on a row without one", () => {
+    render(<MyTaskTable tasks={[task({ status: "draft_revision", lastFollowUpAt: null })]} onAction={vi.fn()} />);
+
+    expect(screen.queryByText(/Catatan diperbarui/)).toBeNull();
+  });
+});
+
 describe("MyTaskTable", () => {
   it("shows the marks of the platforms the content was posted to (AC 13)", () => {
     render(

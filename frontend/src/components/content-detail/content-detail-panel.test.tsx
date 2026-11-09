@@ -1579,12 +1579,35 @@ describe("ContentDetailPanel follow-up notes", () => {
     expect(within(latest).getByText("Subtitle belum ada.")).toBeInTheDocument();
   });
 
-  it("leaves the creator's view to the creator side: no follow-up list and no form", async () => {
+  it("shows the creator the follow-ups under the original note, with no form to add one (AC 4)", async () => {
     open(round(), { role: "creator" });
 
-    await latestRevisionItem();
-    expect(screen.queryByRole("list", { name: "Catatan susulan" })).toBeNull();
+    const latest = await latestRevisionItem();
+    const list = within(latest).getByRole("list", { name: "Catatan susulan" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(list).toHaveTextContent(EARLIER.note);
+    expect(within(latest).getByText("Subtitle belum ada.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tambah Catatan Susulan" })).toBeNull();
+  });
+
+  it("keeps an older round's follow-ups under that round's note, for admin and creator", async () => {
+    const older: FollowUp = { ...EARLIER, id: "f0", note: "Tambahan ronde pertama." };
+    for (const role of ["admin", "creator"] as const) {
+      open(
+        round({
+          events: round().events.map((event) =>
+            event.id === "rev-1" ? { ...event, payload: { ...event.payload, followUps: [older] } } : event,
+          ),
+        }),
+        { role },
+      );
+
+      const first = (await screen.findByText("Revisi ke-1 diminta")).closest("li") as HTMLElement;
+      expect(within(first).getByRole("list", { name: "Catatan susulan" })).toHaveTextContent(older.note);
+      // The form stays with the open round only.
+      expect(within(first).queryByRole("button", { name: "Tambah Catatan Susulan" })).toBeNull();
+      cleanup();
+    }
   });
 
   it("saves through the port, lists the new follow-up after the earlier one and keeps the panel open (AC 4)", async () => {
