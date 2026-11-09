@@ -60,6 +60,12 @@ const CONTENT_DETAIL_SELECT = {
       created_at: true,
       updated_at: true,
       revision_notes: true,
+      revision_notes_html: true,
+      // The note's screenshots (PBI-34 AC 8), first attached first.
+      revision_note_images: {
+        select: { id: true, content_type: true },
+        orderBy: [{ created_at: 'asc' }],
+      },
       creator_notes: true,
     },
   },
