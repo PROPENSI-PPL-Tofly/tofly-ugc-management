@@ -6,6 +6,7 @@ import {
   isUploading,
   progressed,
   removed,
+  restored,
   retried,
   uploaded,
   type Upload,
@@ -131,5 +132,45 @@ describe("what the form reads", () => {
     uploads = failed(uploads, "u2", "Gagal diunggah");
 
     expect(imageIds(uploads)).toEqual(["img-1", "img-3"]);
+  });
+});
+
+describe("restored", () => {
+  const kept = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ imageId: `img-${i}`, url: `/api/revision-note-images/img-${i}` }));
+
+  // Review on #188: what a closed form left on the server comes back as stored images, older
+  // than anything added now.
+  it("brings the server's images back as stored, before the new ones", () => {
+    const uploads = restored(startWith(1), kept(2), ids());
+
+    expect(uploads.map((u) => [u.status, u.status === "done" ? u.imageId : u.file?.name])).toEqual([
+      ["done", "img-0"],
+      ["done", "img-1"],
+      ["uploading", "0.png"],
+    ]);
+  });
+
+  // AC 3: they count toward the five, as the server counts them.
+  it("counts them toward the five", () => {
+    const three = restored([], kept(3), ids());
+
+    const { uploads, refusals } = addScreenshots(three, [png("a.png"), png("b.png"), png("c.png")], ids());
+
+    expect(uploads).toHaveLength(5);
+    expect(refusals).toEqual([SCREENSHOT_TOO_MANY]);
+  });
+
+  it("sends them with the note", () => {
+    expect(imageIds(restored([], kept(2), ids()))).toEqual(["img-0", "img-1"]);
+  });
+
+  // Corner: an image uploaded while the list was on its way is in both; it shows once.
+  it("never shows an image twice", () => {
+    const one = uploaded(startWith(1), "u1", { imageId: "img-0", url: "x" });
+
+    const uploads = restored(one, kept(2), ids());
+
+    expect(imageIds(uploads)).toEqual(["img-1", "img-0"]);
   });
 });
