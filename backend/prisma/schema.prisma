@@ -159,8 +159,24 @@ model submissions {
   updated_at     DateTime @default(now()) @db.Timestamptz(6)
   contents       contents @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   creators       creators @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  revision_followups revision_followups[]
 
   @@index([content_id, created_at], map: "submissions_content_created_at_idx")
+}
+
+/// A follow-up an admin adds under a revision note already sent (PBI-33); the note itself is
+/// never changed.
+model revision_followups {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id  String      @db.Uuid
+  body           String
+  author_user_id String      @db.Uuid
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+  submissions    submissions @relation(fields: [submission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users       @relation(fields: [author_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([submission_id, created_at], map: "revision_followups_submission_created_at_idx")
+  @@index([author_user_id], map: "revision_followups_author_user_id_idx")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -198,6 +214,7 @@ model users {
   invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
   invoices_paid          invoices[]               @relation("invoices_paid_by")
   rate_formula           rate_formula[]
+  revision_followups     revision_followups[]
 }
 
 enum invoice_status {
