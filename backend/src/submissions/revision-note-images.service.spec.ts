@@ -156,6 +156,33 @@ describe('RevisionNoteImagesService.upload', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 
+  // PBI-34 AC 3: "Tambah Gambar" takes several files at once, and up to five uploads may count
+  // at the same moment. Each recount can lose to another upload once, so one retry is not enough.
+  it('keeps counting again while uploads picked together still collide', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const collision = new Prisma.PrismaClientKnownRequestError(
+      'Serialization failure',
+      { code: 'P2034', clientVersion: 'test' },
+    );
+    const files = store();
+    const prisma = client();
+    const create = prisma.revision_note_images.create;
+    create
+      .mockRejectedValueOnce(collision)
+      .mockRejectedValueOnce(collision)
+      .mockRejectedValueOnce(collision);
+
+    const result = await service(prisma, files).upload(
+      SUBMISSION_ID,
+      IMAGE,
+      ADMIN_USER_ID,
+    );
+
+    expect(result.id).toBe(IMAGE_ID);
+    expect(create).toHaveBeenCalledTimes(4);
+    expect(files.remove).not.toHaveBeenCalled();
+  });
+
   it('cleans the bytes up when even the recount collides (review)', async () => {
     const { Prisma } = await import('@prisma/client');
     const collision = new Prisma.PrismaClientKnownRequestError(
