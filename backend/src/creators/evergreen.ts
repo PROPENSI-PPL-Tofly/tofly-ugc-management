@@ -108,10 +108,13 @@ export function pastLatestDeadline(contractEnd: string): string {
 
 /** Today's calendar day where the admins work (WIB), so "not before today" holds after midnight. */
 export function jakartaDay(now: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(
-    now,
-  );
+  return JAKARTA_DAY.format(now);
 }
+
+// Hoisted with the other formatters: jakartaDay is called per row while tags are judged, and a
+// DateTimeFormat constructed per call showed as 89.6% of the day-formatting workload's CPU in
+// scripts/bench/profile-workload.mjs (see docs/perf/profiling-notes.md).
+const JAKARTA_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' });
 
 const READABLE_DAY = new Intl.DateTimeFormat('id-ID', {
   day: 'numeric',
