@@ -314,3 +314,56 @@ describe("a screenshot 34.1 turns down", () => {
     expect(addButton()).toHaveTextContent("5 sisa");
   });
 });
+
+describe("images a closed form left behind", () => {
+  const kept = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      imageId: `img-${i}`,
+      url: `/api/revision-note-images/img-${i}`,
+    }));
+
+  // Review on #188: the images still on the server come back when the field opens, so the
+  // five on screen are the five the server counts (AC 3).
+  it("shows them again when the field opens, counted toward the five", async () => {
+    const { uploader, list } = fakeUploader();
+    list.mockResolvedValueOnce(kept(3));
+    render(<Harness uploader={uploader} />);
+
+    expect(await screen.findAllByRole("img", { name: "Lampiran" })).toHaveLength(3);
+    expect(screen.getByText("Sisa 2 dari 5 gambar · JPG, PNG, WebP · maks. 5 MB")).toBeInTheDocument();
+    expect(addButton()).toHaveTextContent("2 sisa");
+  });
+
+  // Corner: five left behind close Tambah Gambar until one is removed.
+  it("closes Tambah Gambar when five are left behind", async () => {
+    const { uploader, list } = fakeUploader();
+    list.mockResolvedValueOnce(kept(5));
+    render(<Harness uploader={uploader} />);
+
+    await screen.findAllByRole("img", { name: "Lampiran" });
+    expect(addButton()).toBeDisabled();
+  });
+
+  // AC 5: one left behind is removed from the server like any stored image.
+  it("removes one left behind from the server with ×", async () => {
+    const { uploader, list, remove } = fakeUploader();
+    list.mockResolvedValueOnce(kept(1));
+    render(<Harness uploader={uploader} />);
+    await screen.findByRole("img", { name: "Lampiran" });
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Hapus gambar" })));
+
+    expect(remove).toHaveBeenCalledWith("img-0");
+  });
+
+  // Negative: when the list cannot be read, the field still works from an empty list.
+  it("starts empty and quiet when the server's list cannot be read", async () => {
+    const { uploader, list } = fakeUploader();
+    list.mockRejectedValueOnce(new Error("network"));
+    render(<Harness uploader={uploader} />);
+
+    await act(async () => {});
+    expect(screen.getByText("Sisa 5 dari 5 gambar · JPG, PNG, WebP · maks. 5 MB")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
