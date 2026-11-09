@@ -23,7 +23,17 @@ export type DetailEventType =
   | "draft_approved"
   | "link_submitted"
   | "performance_entered"
-  | "performance_replaced";
+  | "performance_replaced"
+  | "revision_followup_added";
+
+/** A note the admin added under a revision note already sent, while that round was open. */
+export interface FollowUp {
+  id: string;
+  note: string;
+  /** ISO instant the follow-up was saved. */
+  at: string;
+  actor: { name: string | null };
+}
 
 /** One step of the journey as the API sends it. */
 export interface RawContentEvent {
@@ -42,6 +52,8 @@ export interface RawContentEvent {
     replaced?: boolean;
     /** The numbers a performance step moved (PBI-27 AC 16, 17). */
     changes?: { metric: MetricName; before: number | null; after: number | null }[];
+    /** On a revision request: the follow-ups added under its note, oldest first. */
+    followUps?: FollowUp[];
   };
 }
 
@@ -136,6 +148,8 @@ const STEP_WORDING: Record<
     title: linkEventTitle(event.payload?.platform, event.payload?.replaced === true),
     linkLabel: "Buka video",
   }),
+  // The follow-up itself reads under the note it adds to; this step only marks when.
+  revision_followup_added: () => ({ title: "Catatan susulan ditambahkan", linkLabel: null }),
 };
 
 function noteSignature(event: RawContentEvent): string | null {
@@ -190,6 +204,14 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
   }
 
   return steps;
+}
+
+/**
+ * The revision request whose note follow-ups go under: the newest one, which in the
+ * endpoint's newest-first order is the first. Null when no revision was ever asked for.
+ */
+export function latestRevisionEventId(events: readonly RawContentEvent[]): string | null {
+  return events.find((event) => event.type === "revision_requested")?.id ?? null;
 }
 
 /**

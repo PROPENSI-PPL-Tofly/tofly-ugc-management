@@ -163,6 +163,8 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   scheduled: "bg-muted ring-muted",
   draft_submitted: "bg-accent ring-accent",
   revision_requested: "bg-amber ring-amber",
+  // Still the same round sent back to the creator.
+  revision_followup_added: "bg-amber ring-amber",
   draft_approved: "bg-green ring-green",
   // An approved proposal lands in Scheduled; a comment changes no status at all.
   proposal_approved: "bg-muted ring-muted",
