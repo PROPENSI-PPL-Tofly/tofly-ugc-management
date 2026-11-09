@@ -517,6 +517,8 @@ export function ContentDetailPanel({
   const [uploading, setUploading] = useState(false);
   // Screenshots taken or on their way: an unsent note is more than its words.
   const [attached, setAttached] = useState(false);
+  // The ids of the screenshots uploaded so far, which Kirim Revisi sends with the note (AC 3, 8).
+  const [imageIds, setImageIds] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
@@ -618,7 +620,7 @@ export function ContentDetailPanel({
     onManageLinks: ports.onManageLinks,
   };
 
-  const snapshot = () => ({ busy, note, noteHtml, uploading });
+  const snapshot = () => ({ busy, note, noteHtml, uploading, imageIds });
 
   async function decide(kind: Decision, run: () => Promise<void>) {
     setError(null);
@@ -726,6 +728,7 @@ export function ContentDetailPanel({
     setNoteHtml(undefined);
     setUploading(false);
     setAttached(false);
+    setImageIds([]);
     setNoteLeft(false);
   }
 
@@ -865,6 +868,7 @@ export function ContentDetailPanel({
                           setNoteHtml(value.html);
                           setUploading(value.uploading);
                           setAttached(value.uploading || value.imageIds.length > 0);
+                          setImageIds(value.imageIds);
                         }}
                       />
                     </div>

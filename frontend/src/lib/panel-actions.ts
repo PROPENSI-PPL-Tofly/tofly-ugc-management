@@ -45,12 +45,14 @@ export interface PanelActionState {
   // back (AC 5), and the note goes out with its formatting, which 34.1 sanitizes.
   uploading?: boolean;
   noteHtml?: string;
+  // The screenshots uploaded for the note, sent with it so the API attaches them (AC 3, 8).
+  imageIds?: readonly string[];
 }
 
 /** What a command may ask the outside world to do; every port is optional. */
 export interface PanelActionPorts {
   approve?: (submissionId: string) => Promise<void>;
-  revise?: (submissionId: string, note: string) => Promise<void>;
+  revise?: (submissionId: string, note: string, imageIds?: readonly string[]) => Promise<void>;
   /** Adds a follow-up under the open round's revision note; answers with the saved entry. */
   addFollowUp?: (submissionId: string, note: string) => Promise<FollowUp>;
   /** Opens the revision note form; revising starts with a form, not a request. */
@@ -249,8 +251,15 @@ export function submitRevision(input: {
     label: "Kirim Revisi",
     variant: "accent",
     canRun: () => !state().busy && !state().uploading && state().note.trim() !== "",
-    run: () =>
-      ports.revise?.(submissionId, state().noteHtml ?? state().note.trim()) ?? Promise.resolve(),
+    run: () => {
+      const { noteHtml, note, imageIds = [] } = state();
+      const text = noteHtml ?? note.trim();
+      return (
+        (imageIds.length > 0
+          ? ports.revise?.(submissionId, text, imageIds)
+          : ports.revise?.(submissionId, text)) ?? Promise.resolve()
+      );
+    },
   };
 }
 
