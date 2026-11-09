@@ -36,7 +36,7 @@ describe("addScreenshots", () => {
   it("starts each taken file uploading at 0%, in order", () => {
     const { uploads, refusals } = addScreenshots([], [png("a.png"), png("b.png")], ids());
 
-    expect(uploads.map((u) => [u.id, u.file.name, u.status])).toEqual([
+    expect(uploads.map((u) => [u.id, u.file?.name, u.status])).toEqual([
       ["u1", "a.png", "uploading"],
       ["u2", "b.png", "uploading"],
     ]);
@@ -48,7 +48,7 @@ describe("addScreenshots", () => {
   it("refuses a wrong file with its reason and still takes the rest", () => {
     const { uploads, refusals } = addScreenshots([], [png("a.png"), pdf, png("c.png")], ids());
 
-    expect(uploads.map((u) => u.file.name)).toEqual(["a.png", "c.png"]);
+    expect(uploads.map((u) => u.file?.name)).toEqual(["a.png", "c.png"]);
     expect(refusals).toEqual([SCREENSHOT_TYPE_INVALID]);
   });
 

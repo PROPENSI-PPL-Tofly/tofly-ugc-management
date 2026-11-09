@@ -112,7 +112,11 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
     apply(() => taken.uploads);
     // Each refused file's own reason (AC 4), each said once.
     if (taken.refusals.length > 0) setRefusal([...new Set(taken.refusals)].join(" · "));
-    for (const upload of taken.uploads.slice(before.length)) start(upload.id, upload.file);
+    // The files just taken, each one uploading; each starts here.
+    const added = taken.uploads
+      .slice(before.length)
+      .filter((upload): upload is Extract<Upload, { status: "uploading" }> => upload.status === "uploading");
+    for (const upload of added) start(upload.id, upload.file);
   }
 
   function retry(id: string) {

@@ -8,7 +8,8 @@ import { screenshotRefusal, type ScreenshotFile } from "./revision-note-images";
 export type Upload<F extends ScreenshotFile = File> =
   | { id: string; file: F; status: "uploading"; progress: number }
   | { id: string; file: F; status: "failed"; reason: string }
-  | { id: string; file: F; status: "done"; imageId: string; url: string };
+  // A stored image the server held from before this form opened has no file here.
+  | { id: string; file: F | null; status: "done"; imageId: string; url: string };
 
 /** What storage answers for an image it kept: its id and a short-lived link to show it. */
 export interface StoredImage {
@@ -46,6 +47,20 @@ export function addScreenshots<F extends ScreenshotFile>(
     else next.push({ id: nextId(), file, status: "uploading", progress: 0 });
   }
   return { uploads: next, refusals };
+}
+
+// The images the server still holds for this note, as stored ones and older than anything added
+// now. One already in the list (uploaded while the list was on its way) is not added again.
+export function restored<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  images: readonly StoredImage[],
+  nextId: () => string,
+): Upload<F>[] {
+  const held = new Set(imageIds(uploads));
+  const back: Upload<F>[] = images
+    .filter((image) => !held.has(image.imageId))
+    .map((image) => ({ id: nextId(), file: null, status: "done", ...image }));
+  return [...back, ...uploads];
 }
 
 export function progressed<F extends ScreenshotFile>(
