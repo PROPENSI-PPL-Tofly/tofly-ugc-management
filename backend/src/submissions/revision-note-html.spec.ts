@@ -68,8 +68,21 @@ describe('revisionNoteText', () => {
     expect(revisionNoteText('Satu<br>Dua<br/>Tiga')).toBe('Satu\nDua\nTiga');
   });
 
-  it('counts the line breaks it keeps, as the editor counts them', () => {
-    expect(revisionNoteLength('<p>ab</p><p>cd</p>')).toBe(5);
+  // Review on #188: the line breaks between blocks are not counted, so 990/1000 in the editor
+  // (34.2) is never refused here. The editor counts a Shift+Enter line as one; here it counts as
+  // none, the safe way round.
+  it('counts the characters, not the line breaks between them', () => {
+    expect(revisionNoteLength('<p>ab</p><p>cd</p>')).toBe(4);
+    expect(revisionNoteLength('Satu<br>Dua')).toBe(7);
+  });
+
+  it('counts a note with a list as the editor does', () => {
+    // The HTML exactly as the editor sends it, the empty paragraph after a list included.
+    expect(
+      revisionNoteLength(
+        '<p>Tolong ganti:</p><ul><li><p>audio</p></li><li><p>caption</p></li></ul><p></p>',
+      ),
+    ).toBe(25);
   });
 
   it('counts an emoji as one character, not two (Unicode characters, not UTF-16 units)', () => {
