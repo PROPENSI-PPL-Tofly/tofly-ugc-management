@@ -41,6 +41,10 @@ export interface PanelCommand {
 export interface PanelActionState {
   busy: boolean;
   note: string;
+  // The revision note's editor (PBI-34, 34.2): a screenshot still uploading holds Kirim Revisi
+  // back (AC 5), and the note goes out with its formatting, which 34.1 sanitizes.
+  uploading?: boolean;
+  noteHtml?: string;
 }
 
 /** What a command may ask the outside world to do; every port is optional. */
@@ -242,8 +246,9 @@ export function submitRevision(input: {
     kind: "revise",
     label: "Kirim Revisi",
     variant: "accent",
-    canRun: () => !state().busy && state().note.trim() !== "",
-    run: () => ports.revise?.(submissionId, state().note.trim()) ?? Promise.resolve(),
+    canRun: () => !state().busy && !state().uploading && state().note.trim() !== "",
+    run: () =>
+      ports.revise?.(submissionId, state().noteHtml ?? state().note.trim()) ?? Promise.resolve(),
   };
 }
 
