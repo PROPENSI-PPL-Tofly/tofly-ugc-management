@@ -501,3 +501,18 @@ describe("RichNoteEditor in a form", () => {
     await waitFor(() => expect(onBlur).toHaveBeenCalled());
   });
 });
+
+describe("RichNoteEditor invalid later", () => {
+  // The form flags an empty note only once the Admin has left it, so invalid turns on while the
+  // editor is already open.
+  it("says it is invalid once the form says so, after it opened", async () => {
+    const props = { label: "Catatan revisi", max: 1000 };
+    const { rerender } = render(<RichNoteEditor {...props} />);
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box).not.toHaveAttribute("aria-invalid");
+
+    rerender(<RichNoteEditor {...props} invalid />);
+
+    await waitFor(() => expect(box).toHaveAttribute("aria-invalid", "true"));
+  });
+});
