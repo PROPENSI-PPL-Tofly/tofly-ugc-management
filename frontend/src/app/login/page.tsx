@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { EmailCodeSignIn } from "@/components/auth/email-code-sign-in";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { ALERT } from "@/components/ui/form-classes";
 import { Panel } from "@/components/ui/panel";
 import { MIN_TARGET } from "@/components/ui/touch-target";
 import { loginErrorMessage } from "@/lib/login-errors";
@@ -22,9 +24,6 @@ async function signedInRole(): Promise<Role | null> {
     return null;
   }
 }
-
-const ALERT =
-  "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
 
 /** Google's "G", in Google's own colours as its sign-in branding requires. */
 function GoogleMark() {
@@ -51,10 +50,11 @@ function GoogleMark() {
 }
 
 /**
- * The one way into Tofly (PRD 3.1): Google identifies the person, then the admin's whitelist
- * decides whether and as whom they get in. The backend owns the whole OAuth flow, so this page
- * is a link plus the reason the last attempt came back here. Someone already signed in has
- * nothing to do here and goes straight to their own page.
+ * The way into Tofly: Google (PRD 3.1) or a code sent by email (PBI-39) identifies the person,
+ * then the admin's whitelist decides whether and as whom they get in. The backend owns both
+ * flows, so this page is the Google link, the email code form and the reason the last attempt
+ * came back here. Someone already signed in has nothing to do here and goes straight to their
+ * own page.
  */
 export default async function LoginPage({
   searchParams,
@@ -75,7 +75,7 @@ export default async function LoginPage({
             <p className="text-[12.5px] font-semibold text-accent">{APP_NAME}</p>
             <h1 className="mt-1 text-[20px]">Masuk</h1>
             <p className="mt-2 text-[13px] text-muted">
-              Gunakan akun Google yang sudah didaftarkan oleh Admin.
+              Gunakan akun Google atau email yang sudah didaftarkan oleh Admin.
             </p>
             {error ? (
               <p role="alert" className={`mt-4 ${ALERT}`}>
@@ -93,6 +93,10 @@ export default async function LoginPage({
               <GoogleMark />
               Masuk dengan Google
             </a>
+            <p className="mt-3 flex items-center gap-3 text-[12px] text-muted before:h-px before:flex-1 before:bg-rule after:h-px after:flex-1 after:bg-rule">
+              atau
+            </p>
+            <EmailCodeSignIn />
           </div>
         </Panel>
         <p className="mt-4 text-center text-[12.5px]">

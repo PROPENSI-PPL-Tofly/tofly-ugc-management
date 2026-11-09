@@ -198,6 +198,12 @@ come from Secret Manager the same way, by the same suffix. All four must exist w
 version or the deploy fails. A blank secret trims to empty and switches that platform off.
 `GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `TIKTOK_CLIENT_KEY`, `TIKTOK_REDIRECT_URI`,
 `INSTAGRAM_APP_ID` and `INSTAGRAM_REDIRECT_URI` are plain env, from the GitHub environment.
+`LOGIN_CODE_SECRET` (from `LOGIN_CODE_SECRET_STAGING` or `_PROD`, by the same suffix) is the
+HMAC key for stored login codes; the backend refuses to boot without it. The SMTP account for
+email sign-in (PBI-39) is shared by both environments: `SMTP_USER` and `SMTP_PASS` from Secret
+Manager, `SMTP_HOST`, `SMTP_PORT` and `EMAIL_FROM` as plain env from the GitHub environment. The
+deploy passes the two SMTP secrets only while the environment's `SMTP_HOST` var is set, so until
+the account exists the deploy still succeeds and every code send fails closed.
 
 ### Frontend: `test` → `sonar` → `deploy`
 
@@ -406,9 +412,9 @@ make them members of `cloudsqlsuperuser`.
 
 | Service account | Used by | Extra access |
 | --- | --- | --- |
-| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_STAGING`, and the four social secrets ending `_STAGING` |
+| `run-backend` | `backend` (staging) | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_STAGING`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_STAGING`, and the four social secrets ending `_STAGING`, `LOGIN_CODE_SECRET_STAGING` (and `SMTP_USER`, `SMTP_PASS` once created) |
 | `run-frontend` | `frontend` (staging) | none |
-| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_PROD`, and the four social secrets ending `_PROD` |
+| `run-backend-prod` | `backend-prod` | `roles/cloudsql.client`; `secretAccessor` on `DB_URL_PROD`, `GOOGLE_CLIENT_SECRET`, `PERFORMANCE_SYNC_SECRET_PROD`, and the four social secrets ending `_PROD`, `LOGIN_CODE_SECRET_PROD` (and `SMTP_USER`, `SMTP_PASS` once created) |
 | `run-frontend-prod` | `frontend-prod` | none |
 
 ### Secret Manager
@@ -423,6 +429,8 @@ make them members of `cloudsqlsuperuser`.
 | `SOCIAL_TOKEN_KEY_STAGING`, `SOCIAL_TOKEN_KEY_PROD` | exactly 32 random bytes (base64) each; encrypts stored platform tokens. Replacing it makes stored tokens unreadable, so creators must reconnect |
 | `TIKTOK_CLIENT_SECRET_STAGING`, `TIKTOK_CLIENT_SECRET_PROD` | the TikTok app's client secret |
 | `INSTAGRAM_APP_SECRET_STAGING`, `INSTAGRAM_APP_SECRET_PROD` | the Instagram app secret |
+| `LOGIN_CODE_SECRET_STAGING`, `LOGIN_CODE_SECRET_PROD` | 48 random bytes (base64url) each; the HMAC key for that environment's stored login codes |
+| `SMTP_USER`, `SMTP_PASS` | the outgoing-mail account for sign-in codes (e.g. a Gmail address and its app password); not created yet |
 | `CLOUDSQL_POSTGRES_PASSWORD`, `CLOUDSQL_TOFLY_PROD_PASSWORD`, `CLOUDSQL_TOFLY_STAGING_PASSWORD` | the role passwords the URLs above are built from; no runtime account can read them |
 
 `connection_limit=5` keeps 3 instances × 2 environments well under the instance's connection cap.

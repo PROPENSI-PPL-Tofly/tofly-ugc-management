@@ -3,11 +3,15 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { EmailVerifyModule } from './auth/email/email-verify.module.js';
+import { requireLoginCodeSecretInProduction } from './auth/email/login-code-config.js';
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
 import { GoogleAuthModule } from './auth/google/google-auth.module.js';
 import { SessionModule } from './auth/session/session.module.js';
+import { EmailRequestModule } from './auth/email/email-request.module.js';
 import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
+import { EmailModule } from './email/email.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
 import { MeModule } from './me/me.module.js';
@@ -31,6 +35,9 @@ export function validate(
   }
   requireGoogleConfigInProduction(config as Record<string, string | undefined>);
   requireStorageInProduction(config as Record<string, string | undefined>);
+  requireLoginCodeSecretInProduction(
+    config as Record<string, string | undefined>,
+  );
 
   return config;
 }
@@ -51,8 +58,11 @@ export function validate(
     MeModule,
     SessionModule,
     GoogleAuthModule,
+    EmailVerifyModule,
     SocialModule,
     PerformanceModule,
+    EmailModule,
+    EmailRequestModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
