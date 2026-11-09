@@ -4,6 +4,7 @@
 // the browser and the session cookie goes along.
 
 import type { ScreenshotUploader, StoredImage } from "./revision-note-uploads";
+import { isSameSitePath } from "./safe-href";
 
 /** A file 34.1 turned down, with the reason it gives (AC 4). */
 export class UploadRefused extends Error {
@@ -27,14 +28,19 @@ function imagesOf(submissionId: string): string {
 // Long enough for 5 MB on a slow line; a request that hangs past it fails and can be retried.
 const UPLOAD_TIMEOUT_MS = 60_000;
 
+// An image as the page may show it: an id, and a link that is a path on this app, since it goes
+// straight into <img src> (as creator-invoice-api.ts reads its proof links).
+function storedImageOf(image: { id?: unknown; url?: unknown }): StoredImage | null {
+  return typeof image.id === "string" && typeof image.url === "string" && isSameSitePath(image.url)
+    ? { imageId: image.id, url: image.url }
+    : null;
+}
+
 // The stored image in a 201, or null when the answer cannot be read as one (a proxy's error
 // page, say), so the upload fails instead of waiting for good.
 function storedImageIn(responseText: string): StoredImage | null {
   try {
-    const body = JSON.parse(responseText) as { id?: unknown; url?: unknown };
-    return typeof body.id === "string" && typeof body.url === "string"
-      ? { imageId: body.id, url: body.url }
-      : null;
+    return storedImageOf(JSON.parse(responseText) as { id?: unknown; url?: unknown });
   } catch {
     return null;
   }
@@ -88,13 +94,12 @@ export function screenshotUploader(submissionId: string, io: UploaderIo = {}): S
       const response = await send(imagesOf(submissionId));
       if (!response.ok) throw new Error(`list failed (${response.status})`);
       const images = (await response.json()) as { id?: unknown; url?: unknown; sent?: unknown }[];
-      // Sent images belong to an earlier note's history; an entry without an id or a link is
-      // skipped rather than drawn as a broken tile.
-      return images.flatMap((image) =>
-        image.sent === false && typeof image.id === "string" && typeof image.url === "string"
-          ? [{ imageId: image.id, url: image.url }]
-          : [],
-      );
+      // Sent images belong to an earlier note's history; an entry it cannot show is skipped
+      // rather than drawn as a broken tile.
+      return images.flatMap((image) => {
+        const stored = image.sent === false ? storedImageOf(image) : null;
+        return stored ? [stored] : [];
+      });
     },
 
     async remove(imageId) {
