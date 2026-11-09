@@ -4,7 +4,7 @@ import {
   PATH_METADATA,
 } from '@nestjs/common/constants';
 import { RequestMethod, UnauthorizedException } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
+import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { FollowUpController } from './follow-up.controller.js';
 
 const SUBMISSION = '550e8400-e29b-41d4-a716-446655440000';
@@ -21,7 +21,9 @@ function controllerWith() {
   return { controller: new FollowUpController({ add }), add };
 }
 
-const asAdmin = { principal: { userId: ADMIN, role: 'admin' } };
+const asAdmin = {
+  principal: { userId: ADMIN, role: 'admin' },
+} as unknown as AdminRequest;
 
 describe('FollowUpController', () => {
   // OWASP A01: only a signed-in admin adds a follow-up (Done when 1).
@@ -91,7 +93,7 @@ describe('FollowUpController', () => {
     const { controller, add } = controllerWith();
 
     const error = await controller
-      .add(SUBMISSION, { note: 'Catatan' }, request as typeof asAdmin)
+      .add(SUBMISSION, { note: 'Catatan' }, request as unknown as AdminRequest)
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(UnauthorizedException);
