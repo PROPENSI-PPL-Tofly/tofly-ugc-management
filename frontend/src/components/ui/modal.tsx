@@ -121,7 +121,9 @@ export function Modal({
       if (!isTopDialog(dialog)) return;
 
       if (event.key === "Escape") {
-        close.current();
+        // A control inside (a menu, the link row) already used this Escape. React listens on the
+        // document in the app, beside this listener, so stopPropagation alone cannot keep it out.
+        if (!event.defaultPrevented) close.current();
         return;
       }
 
