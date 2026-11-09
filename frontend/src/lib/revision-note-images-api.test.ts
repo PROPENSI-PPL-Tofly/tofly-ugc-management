@@ -10,10 +10,12 @@ class FakeRequest {
   status = 0;
   responseText = "";
   aborted = false;
+  timeout = 0;
   upload: { onprogress: ((event: Partial<ProgressEvent>) => void) | null } = { onprogress: null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   onabort: (() => void) | null = null;
+  ontimeout: (() => void) | null = null;
 
   open(method: string, url: string) {
     this.method = method;
@@ -34,8 +36,13 @@ class FakeRequest {
   }
 
   answer(status: number, body: unknown) {
+    this.answerText(status, JSON.stringify(body));
+  }
+
+  // An answer as the wire carries it, which need not be JSON at all.
+  answerText(status: number, text: string) {
     this.status = status;
-    this.responseText = JSON.stringify(body);
+    this.responseText = text;
     this.onload?.();
   }
 }
@@ -234,5 +241,35 @@ describe("screenshotUploader edges", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("screenshotUploader answers it cannot read", () => {
+  // AC 5 (review on #188): an upload must end, failed and retryable, rather than stay
+  // "Mengunggah" and hold Kirim Revisi back for good.
+  it.each([
+    ["a page that is not JSON", "<html>Bad gateway</html>"],
+    ["JSON without the image's id and link", JSON.stringify({ ok: true })],
+  ])("fails on a 201 that is %s", async (_what, text) => {
+    const { uploader, requests } = setUp();
+    const { result } = start(uploader);
+
+    expect(() => requests[0].answerText(201, text)).not.toThrow();
+
+    const error = await result.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(UploadRefused);
+  });
+
+  // Corner: a connection that hangs without an error ends after a minute, enough for 5 MB on a
+  // slow line.
+  it("gives up on a request that hangs, after 60 seconds", async () => {
+    const { uploader, requests } = setUp();
+    const { result } = start(uploader);
+
+    expect(requests[0].timeout).toBe(60_000);
+    requests[0].ontimeout?.();
+
+    await expect(result).rejects.toBeInstanceOf(Error);
   });
 });
