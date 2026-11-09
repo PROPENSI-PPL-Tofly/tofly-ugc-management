@@ -34,6 +34,13 @@ export interface FieldChange {
 
 export type ContentChanges = Partial<Record<"deadline" | "brief" | "name", FieldChange>>;
 
+/** A screenshot attached to a revision note (PBI-34); `url` is what the browser opens it through. */
+export interface NoteImage {
+  id: string;
+  url: string;
+  contentType: string;
+}
+
 /** One step of the journey as the API sends it. */
 export interface RawContentEvent {
   id: string;
@@ -46,6 +53,10 @@ export interface RawContentEvent {
     version?: number;
     link?: string;
     note?: string;
+    /** The note as sanitized rich text (PBI-34 AC 8); absent for a note from before it (AC 9). */
+    noteHtml?: string;
+    /** The note's screenshots (PBI-34 AC 8); absent when it has none. */
+    images?: NoteImage[];
     platform?: Platform;
     /** A link that took the place of another (38.2); the step stays a link step. */
     replaced?: boolean;
