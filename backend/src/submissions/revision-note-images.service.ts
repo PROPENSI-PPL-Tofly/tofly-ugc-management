@@ -171,21 +171,17 @@ export class RevisionNoteImagesService {
       });
     }
 
-    try {
-      return await this.record(submissionId, objectKey, image, uploadedBy);
-    } catch (error) {
-      // Two uploads counting at once can collide inside the serializable transaction
-      // (Prisma P2034); one recount answers with the first one's row already counted in.
-      if (isSerializationCollision(error)) {
-        try {
-          return await this.record(submissionId, objectKey, image, uploadedBy);
-        } catch (retry) {
-          await this.removeUnrecorded(key);
-          throw retry;
-        }
+    // Uploads counting at once can collide inside the serializable transaction (Prisma P2034).
+    // Each recount sees the winner's row; with up to five screenshots picked together (AC 3) a
+    // recount can lose to another upload, so it is tried once per image a note can hold.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.record(submissionId, objectKey, image, uploadedBy);
+      } catch (error) {
+        if (isSerializationCollision(error) && attempt < MAX_NOTE_IMAGES) continue;
+        await this.removeUnrecorded(key);
+        throw error;
       }
-      await this.removeUnrecorded(key);
-      throw error;
     }
   }
 
