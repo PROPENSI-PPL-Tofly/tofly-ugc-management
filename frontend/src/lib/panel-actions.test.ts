@@ -539,3 +539,45 @@ describe("optional ports", () => {
     await expect(command.run()).resolves.toBeUndefined();
   });
 });
+
+// PBI-34, subtask 34.2: the revision note is the rich text editor, with its screenshots.
+describe("submitRevision with the rich text note (34.2)", () => {
+  // AC 5: Kirim Revisi waits while a screenshot is still uploading.
+  it("keeps Kirim Revisi disabled while a screenshot uploads", () => {
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({ busy: false, note: "Perbaiki intro", uploading: true }),
+      ports: adminPorts(),
+    });
+
+    expect(command.canRun()).toBe(false);
+  });
+
+  it("opens Kirim Revisi once the uploads are done", () => {
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({ busy: false, note: "Perbaiki intro", uploading: false }),
+      ports: adminPorts(),
+    });
+
+    expect(command.canRun()).toBe(true);
+  });
+
+  // 34.1 takes the editor's HTML and sanitizes it on the server.
+  it("sends the note's formatting when the editor gives it", async () => {
+    const revise = vi.fn().mockResolvedValue(undefined);
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({
+        busy: false,
+        note: "Perbaiki intro",
+        noteHtml: "<p><strong>Perbaiki</strong> intro</p>",
+      }),
+      ports: adminPorts({ revise }),
+    });
+
+    await command.run();
+
+    expect(revise).toHaveBeenCalledWith(SUBMISSION, "<p><strong>Perbaiki</strong> intro</p>");
+  });
+});

@@ -4,6 +4,11 @@ import { SubmissionRevisionService } from './submission-revision.service.js';
 const SUBMISSION_ID = '550e8400-e29b-41d4-a716-446655440000';
 const CONTENT_ID = '550e8400-e29b-41d4-a716-446655440001';
 const REVISION_NOTES = 'Mohon perbaiki bagian pembuka.';
+const REVISION_NOTES_HTML = '<p>Mohon <strong>perbaiki</strong> bagian pembuka.</p>';
+const NOTE = {
+  revisionNotes: REVISION_NOTES,
+  revisionNotesHtml: REVISION_NOTES_HTML,
+};
 const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('SubmissionRevisionService', () => {
@@ -20,6 +25,7 @@ describe('SubmissionRevisionService', () => {
       id: submission.id,
       status: 'draft_revision',
       revisionNotes: REVISION_NOTES,
+      revisionNotesHtml: REVISION_NOTES_HTML,
     });
 
     const service = new SubmissionRevisionService({
@@ -27,20 +33,19 @@ describe('SubmissionRevisionService', () => {
       saveRevision,
     });
 
-    const result = await service.revise(submission.id, {
-      revisionNotes: REVISION_NOTES,
-    });
+    const result = await service.revise(submission.id, NOTE);
 
     expect(findById).toHaveBeenCalledExactlyOnceWith(submission.id);
     expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
       submission.id,
       submission.content_id,
-      REVISION_NOTES,
+      NOTE,
     );
     expect(result).toEqual({
       id: submission.id,
       status: 'draft_revision',
       revisionNotes: REVISION_NOTES,
+      revisionNotesHtml: REVISION_NOTES_HTML,
     });
   });
 
@@ -53,7 +58,7 @@ describe('SubmissionRevisionService', () => {
       });
 
       const error: unknown = await service
-        .revise(SUBMISSION_ID, { revisionNotes: REVISION_NOTES })
+        .revise(SUBMISSION_ID, NOTE)
         .catch((caught: unknown) => caught);
 
       return { error, saveRevision };
@@ -97,6 +102,7 @@ describe('SubmissionRevisionService', () => {
       contentId: CONTENT_ID,
       status: 'draft_revision',
       revisionNotes: REVISION_NOTES,
+      revisionNotesHtml: REVISION_NOTES_HTML,
     };
 
     const service = new SubmissionRevisionService({
@@ -109,9 +115,7 @@ describe('SubmissionRevisionService', () => {
       saveRevision: vi.fn().mockResolvedValue(saved),
     });
 
-    await expect(
-      service.revise(saved.id, { revisionNotes: saved.revisionNotes }),
-    ).resolves.toEqual(saved);
+    await expect(service.revise(saved.id, NOTE)).resolves.toEqual(saved);
   });
 
   describe('a status that does not allow a revision request', () => {
@@ -138,6 +142,7 @@ describe('SubmissionRevisionService', () => {
       const error: unknown = await service
         .revise(SUBMISSION_ID, {
           revisionNotes: 'Mohon perbaiki draft ini.',
+          revisionNotesHtml: 'Mohon perbaiki draft ini.',
         })
         .catch((caught: unknown) => caught);
 
@@ -200,6 +205,7 @@ describe('SubmissionRevisionService', () => {
       id: submission.id,
       status: 'draft_revision',
       revisionNotes: REVISION_NOTES,
+      revisionNotesHtml: REVISION_NOTES_HTML,
     });
 
     const service = new SubmissionRevisionService({
@@ -207,14 +213,12 @@ describe('SubmissionRevisionService', () => {
       saveRevision,
     });
 
-    await service.revise(submission.id, {
-      revisionNotes: REVISION_NOTES,
-    });
+    await service.revise(submission.id, NOTE);
 
     expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
       submission.id,
       submission.content_id,
-      REVISION_NOTES,
+      NOTE,
     );
   });
 
@@ -225,12 +229,16 @@ describe('SubmissionRevisionService', () => {
       status: 'draft_review',
       isLatest: true,
     };
+    const note = {
+      revisionNotes: 'Mohon perbaiki bagian akhir.',
+      revisionNotesHtml: 'Mohon perbaiki bagian akhir.',
+    };
 
     const findById = vi.fn().mockResolvedValue(submission);
     const saveRevision = vi.fn().mockResolvedValue({
       id: submission.id,
       status: 'draft_revision',
-      revisionNotes: 'Mohon perbaiki bagian akhir.',
+      ...note,
     });
 
     const service = new SubmissionRevisionService({
@@ -238,14 +246,12 @@ describe('SubmissionRevisionService', () => {
       saveRevision,
     });
 
-    await service.revise(submission.id, {
-      revisionNotes: 'Mohon perbaiki bagian akhir.',
-    });
+    await service.revise(submission.id, note);
 
     expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
       submission.id,
       submission.content_id,
-      'Mohon perbaiki bagian akhir.',
+      note,
     );
   });
 
@@ -267,6 +273,7 @@ describe('SubmissionRevisionService', () => {
     await expect(
       service.revise(submission.id, {
         revisionNotes: 'Mohon perbaiki draft ini.',
+        revisionNotesHtml: 'Mohon perbaiki draft ini.',
       }),
     ).rejects.toMatchObject({
       status: 409,
@@ -286,6 +293,10 @@ describe('SubmissionRevisionService', () => {
       status: 'draft_review',
       isLatest: true,
     };
+    const note = {
+      revisionNotes: 'Mohon perbaiki draft ini.',
+      revisionNotesHtml: 'Mohon perbaiki draft ini.',
+    };
 
     const findById = vi.fn().mockResolvedValue(submission);
     const saveRevision = vi.fn().mockResolvedValue(null);
@@ -294,11 +305,7 @@ describe('SubmissionRevisionService', () => {
       saveRevision,
     });
 
-    await expect(
-      service.revise(submission.id, {
-        revisionNotes: 'Mohon perbaiki draft ini.',
-      }),
-    ).rejects.toMatchObject({
+    await expect(service.revise(submission.id, note)).rejects.toMatchObject({
       status: 409,
       response: {
         code: 'DRAFT_NOT_REVIEWABLE',
@@ -309,7 +316,7 @@ describe('SubmissionRevisionService', () => {
     expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
       submission.id,
       submission.content_id,
-      'Mohon perbaiki draft ini.',
+      note,
     );
   });
 
@@ -326,6 +333,7 @@ describe('SubmissionRevisionService', () => {
       contentId: submission.content_id,
       status: 'draft_revision' as const,
       revisionNotes: REVISION_NOTES,
+      revisionNotesHtml: REVISION_NOTES_HTML,
     };
 
     const findById = vi.fn().mockResolvedValue(submission);
@@ -336,17 +344,13 @@ describe('SubmissionRevisionService', () => {
     });
 
     await expect(
-      service.revise(
-        submission.id,
-        { revisionNotes: REVISION_NOTES },
-        ADMIN_USER_ID,
-      ),
+      service.revise(submission.id, NOTE, ADMIN_USER_ID),
     ).resolves.toEqual(saved);
 
     expect(saveRevision).toHaveBeenCalledExactlyOnceWith(
       submission.id,
       submission.content_id,
-      REVISION_NOTES,
+      NOTE,
       ADMIN_USER_ID,
     );
   });

@@ -60,6 +60,7 @@ export function ManageMenu({
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (!open) return;
     if (event.key === "Escape") {
+      event.preventDefault();
       event.stopPropagation();
       setOpen(false);
       button.current?.focus();
