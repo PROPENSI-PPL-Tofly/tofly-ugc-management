@@ -2,6 +2,8 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FollowUpController } from './follow-up.controller.js';
+import { FollowUpService } from './follow-up.service.js';
 import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionRevisionController } from './submission-revision.controller.js';
@@ -38,6 +40,19 @@ describe('SubmissionsModule', () => {
 
     expect(module.get(SubmissionRevisionController)).toBeDefined();
     expect(module.get(SubmissionRevisionService)).toBeDefined();
+  });
+
+  // PBI-33, 33.1: the follow-up endpoint and the service behind it.
+  it('provides the follow-up controller and service', async () => {
+    const module = await Test.createTestingModule({
+      imports: [SubmissionsModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
+
+    expect(module.get(FollowUpController)).toBeDefined();
+    expect(module.get(FollowUpService)).toBeDefined();
   });
 
   it('is part of the application', () => {

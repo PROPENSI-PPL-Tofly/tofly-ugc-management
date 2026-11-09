@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FollowUpController } from './follow-up.controller.js';
+import { FollowUpService } from './follow-up.service.js';
 import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionRevisionController } from './submission-revision.controller.js';
@@ -12,7 +14,11 @@ import { SubmissionsController } from './submissions.controller.js';
 @Module({
   imports: [PrismaModule],
 
-  controllers: [SubmissionsController, SubmissionRevisionController],
+  controllers: [
+    SubmissionsController,
+    SubmissionRevisionController,
+    FollowUpController,
+  ],
 
   providers: [
     SubmissionReviewService,
@@ -36,6 +42,17 @@ import { SubmissionsController } from './submissions.controller.js';
     {
       provide: 'SubmissionRevisionService',
       useExisting: SubmissionRevisionService,
+    },
+
+    {
+      provide: FollowUpService,
+      useFactory: (prisma: PrismaService) => new FollowUpService(prisma),
+      inject: [PrismaService],
+    },
+
+    {
+      provide: 'FollowUpService',
+      useExisting: FollowUpService,
     },
   ],
 })
