@@ -174,3 +174,19 @@ describe("restored", () => {
     expect(imageIds(uploads)).toEqual(["img-1", "img-0"]);
   });
 });
+
+describe("progressed without a change", () => {
+  // Review on #188: XHR reports progress about every 50 ms, far more often than the whole percent
+  // changes. The same list back lets React skip drawing the editor again for nothing.
+  it("leaves the list as it is when the percent does not change", () => {
+    const at40 = progressed(startWith(1), "u1", 40);
+
+    expect(progressed(at40, "u1", 40)).toBe(at40);
+  });
+
+  it("gives a new list when the percent does change", () => {
+    const at40 = progressed(startWith(1), "u1", 40);
+
+    expect(progressed(at40, "u1", 41)).not.toBe(at40);
+  });
+});

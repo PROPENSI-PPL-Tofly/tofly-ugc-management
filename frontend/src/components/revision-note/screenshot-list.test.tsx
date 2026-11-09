@@ -421,3 +421,16 @@ describe("useScreenshots remove twice", () => {
     expect(remove).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("a progress that repeats itself", () => {
+  it("keeps showing the same percent when the same progress comes twice", () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    pick(image());
+
+    act(() => calls[0].onProgress(40));
+    act(() => calls[0].onProgress(40));
+
+    expect(screen.getByText("Mengunggah 40%")).toBeInTheDocument();
+  });
+});
