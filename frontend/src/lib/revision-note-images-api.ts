@@ -3,8 +3,7 @@
 // ScreenshotUploader (Adapter). Sent through this app's /api proxy, so BACKEND_URL never reaches
 // the browser and the session cookie goes along.
 
-import type { ScreenshotUploader } from "@/components/revision-note/use-screenshots";
-import type { StoredImage } from "./revision-note-uploads";
+import type { ScreenshotUploader, StoredImage } from "./revision-note-uploads";
 
 /** A file 34.1 turned down, with the reason it gives (AC 4). */
 export class UploadRefused extends Error {

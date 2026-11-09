@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { StoredImage } from "@/lib/revision-note-uploads";
+import type { ScreenshotUploader, StoredImage } from "@/lib/revision-note-uploads";
 import { RevisionNoteField, type RevisionNoteValue } from "./revision-note-field";
-import type { ScreenshotUploader } from "./use-screenshots";
 
 // jsdom does no layout; empty rects stand in for ProseMirror's scroll, as in rich-note-editor.test.
 beforeAll(() => {

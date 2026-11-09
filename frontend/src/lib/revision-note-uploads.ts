@@ -17,6 +17,20 @@ export interface StoredImage {
   url: string;
 }
 
+/** Sends one screenshot to storage, telling its progress; aborting the signal cancels it. */
+export interface ScreenshotUploader {
+  upload(
+    file: File,
+    options: { onProgress: (percent: number) => void; signal: AbortSignal },
+  ): Promise<StoredImage>;
+  // Deletes a stored image, which would otherwise go out with the note (34.1 ties each image to
+  // the submission).
+  remove(imageId: string): Promise<void>;
+  // The images the server still holds for this unsent note, oldest first, so a form opened again
+  // shows what a closed one left behind.
+  list(): Promise<StoredImage[]>;
+}
+
 type Status = Upload["status"];
 type In<F extends ScreenshotFile, S extends Status> = Extract<Upload<F>, { status: S }>;
 

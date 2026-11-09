@@ -7,7 +7,8 @@
 import { useEffect, useRef, useState } from "react";
 import { RichNoteEditor, type RichNote } from "./rich-note-editor";
 import { ScreenshotButton, ScreenshotHelp, ScreenshotTiles } from "./screenshot-list";
-import { useScreenshots, type ScreenshotUploader } from "./use-screenshots";
+import type { ScreenshotUploader } from "@/lib/revision-note-uploads";
+import { useScreenshots } from "./use-screenshots";
 
 export interface RevisionNoteValue extends RichNote {
   uploading: boolean;

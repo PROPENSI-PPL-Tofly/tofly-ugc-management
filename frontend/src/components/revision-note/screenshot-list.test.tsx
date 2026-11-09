@@ -1,9 +1,9 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
-import type { StoredImage } from "@/lib/revision-note-uploads";
+import type { ScreenshotUploader, StoredImage } from "@/lib/revision-note-uploads";
 import { UploadRefused } from "@/lib/revision-note-images-api";
 import { expectMinTarget, expectPhoneTarget } from "@/test/touch-target";
 import { ScreenshotList } from "./screenshot-list";
-import { useScreenshots, type ScreenshotUploader } from "./use-screenshots";
+import { useScreenshots } from "./use-screenshots";
 
 interface UploadCall {
   file: File;

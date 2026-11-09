@@ -15,7 +15,7 @@ import {
   restored,
   retried,
   uploaded,
-  type StoredImage,
+  type ScreenshotUploader,
   type Upload,
 } from "@/lib/revision-note-uploads";
 import { UploadRefused } from "@/lib/revision-note-images-api";
@@ -28,20 +28,6 @@ export const REMOVE_FAILED = "Gambar gagal dihapus. Coba lagi.";
 
 // How long a refusal stays on screen, as the prototype shows it.
 const MESSAGE_MS = 3500;
-
-/** Sends one screenshot to storage, telling its progress; aborting the signal cancels it. */
-export interface ScreenshotUploader {
-  upload(
-    file: File,
-    options: { onProgress: (percent: number) => void; signal: AbortSignal },
-  ): Promise<StoredImage>;
-  // Deletes a stored image, which would otherwise go out with the note (34.1 ties each image to
-  // the submission).
-  remove(imageId: string): Promise<void>;
-  // The images the server still holds for this unsent note, oldest first, so a form opened again
-  // shows what a closed one left behind.
-  list(): Promise<StoredImage[]>;
-}
 
 export interface Screenshots {
   uploads: readonly Upload[];
