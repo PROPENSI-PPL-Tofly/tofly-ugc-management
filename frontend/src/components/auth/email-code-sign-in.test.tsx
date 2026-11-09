@@ -30,7 +30,7 @@ function boxes(): HTMLInputElement[] {
 }
 
 function openEmailStep() {
-  fireEvent.click(screen.getByRole("button", { name: "Masuk dengan Email" }));
+  fireEvent.click(screen.getByRole("button", { name: "Masuk dengan Kode Email" }));
 }
 
 async function reachCodeStep(email = EMAIL) {
@@ -67,7 +67,7 @@ describe("EmailCodeSignIn: choosing email", () => {
   it("offers signing in with an email code, and shows no form until it is chosen", () => {
     render(<EmailCodeSignIn />);
 
-    expect(screen.getByRole("button", { name: "Masuk dengan Email" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Masuk dengan Kode Email" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
   });
 
@@ -88,7 +88,7 @@ describe("EmailCodeSignIn: choosing email", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Batal" }));
 
-    expect(screen.getByRole("button", { name: "Masuk dengan Email" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Masuk dengan Kode Email" })).toBeInTheDocument();
   });
 });
 
@@ -272,8 +272,8 @@ describe("EmailCodeSignIn: entering the code", () => {
     [{ kind: "wrong", attemptsLeft: 3 }, "Kode salah. Sisa 3 percobaan."],
     [{ kind: "wrong" }, "Kode salah."],
     [{ kind: "invalid" }, "Masukkan 6 digit kode."],
-    [{ kind: "expired" }, "Kode sudah tidak berlaku. Minta kode baru dengan Kirim Ulang."],
-    [{ kind: "denied" }, "Email ini tidak punya akses ke Tofly. Hubungi Admin untuk meminta akses."],
+    [{ kind: "expired" }, "Kode sudah kedaluwarsa. Kirim ulang kode."],
+    [{ kind: "denied" }, "Akses ditolak. Hubungi Admin untuk meminta akses."],
     [{ kind: "failed" }, "Gagal masuk. Silakan coba lagi."],
   ] as const)("announces %o and clears the boxes for another try", async (outcome, message) => {
     vi.mocked(verifyCode).mockResolvedValueOnce(outcome);
