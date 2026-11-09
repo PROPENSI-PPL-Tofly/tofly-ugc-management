@@ -3,7 +3,7 @@
 // The revision note's editor (PBI-34, subtask 34.2), on Tiptap as the prototype simulates it.
 // Only the formatting AC 1 names is switched on, so the toolbar is the editor's whole vocabulary.
 
-import { useEffect, useId, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount, Placeholder } from "@tiptap/extensions";
@@ -278,6 +278,7 @@ function ReadyEditor({
   });
 
   const [linkOpen, setLinkOpen] = useState(false);
+  const linkButton = useRef<HTMLButtonElement>(null);
   const [dragging, setDragging] = useState(false);
 
   // Only a file is offered somewhere to land; dragged words go on into the text as before.
@@ -327,6 +328,7 @@ function ReadyEditor({
             aria-label="Tambah link"
             title="Tambah link"
             aria-expanded={linkOpen}
+            ref={linkButton}
             disabled={disabled}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setLinkOpen((open) => !open)}
@@ -342,7 +344,16 @@ function ReadyEditor({
             </span>
           ) : null}
         </div>
-        {linkOpen ? <LinkRow editor={editor} onDone={() => setLinkOpen(false)} /> : null}
+        {linkOpen ? (
+          <LinkRow
+            editor={editor}
+            onDone={() => setLinkOpen(false)}
+            onCancel={() => {
+              setLinkOpen(false);
+              linkButton.current?.focus();
+            }}
+          />
+        ) : null}
         <EditorContent editor={editor} />
         {attachments}
       </div>
@@ -357,11 +368,13 @@ function ReadyEditor({
 interface LinkRowProps {
   editor: Editor;
   onDone: () => void;
+  /** Escape: the row closes without a link and focus goes back to the Link button. */
+  onCancel: () => void;
 }
 
 // The address row under the toolbar. It is unmounted when it closes, so a new link always starts
 // from an empty address and no refusal left over.
-function LinkRow({ editor, onDone }: Readonly<LinkRowProps>) {
+function LinkRow({ editor, onDone, onCancel }: Readonly<LinkRowProps>) {
   const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -400,6 +413,19 @@ function LinkRow({ editor, onDone }: Readonly<LinkRowProps>) {
         <input
           type="url"
           aria-label="URL link"
+          // The row opens to be typed in; the Link button that opened it keeps no other job.
+          autoFocus
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              apply();
+            } else if (event.key === "Escape") {
+              // Kept from the panel, which would otherwise close and lose the note.
+              event.preventDefault();
+              event.stopPropagation();
+              onCancel();
+            }
+          }}
           placeholder="https://…"
           value={address}
           aria-invalid={error !== null}
@@ -407,7 +433,7 @@ function LinkRow({ editor, onDone }: Readonly<LinkRowProps>) {
             setAddress(event.target.value);
             setError(null);
           }}
-          className="flex-1 rounded-md border border-rule px-2.5 py-1.5 text-[12.5px] text-ink"
+          className="min-w-0 flex-1 rounded-(--radius-control) border border-rule bg-surface px-2.5 py-1.5 text-sm text-ink aria-invalid:border-red"
         />
         <Button onClick={apply}>Terapkan</Button>
       </div>

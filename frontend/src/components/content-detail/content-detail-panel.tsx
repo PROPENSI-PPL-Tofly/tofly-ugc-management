@@ -14,6 +14,7 @@ import { screenshotUploader } from "@/lib/revision-note-images-api";
 import type { ScreenshotUploader } from "@/lib/revision-note-uploads";
 import { EditForm, ManageMenu } from "./content-manage";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import { useToast } from "@/components/ui/toast";
 import {
   deleteContent,
@@ -485,6 +486,8 @@ export function ContentDetailPanel({
   // still uploading, which holds Kirim Revisi back (AC 5).
   const [noteHtml, setNoteHtml] = useState<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
+  // Screenshots taken or on their way: an unsent note is more than its words.
+  const [attached, setAttached] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
@@ -640,6 +643,16 @@ export function ContentDetailPanel({
   const update = manage.update ?? updateContent;
   const remove = manage.remove ?? deleteContent;
 
+
+  // Every way out of the panel (✕, Escape, a press outside) asks first while a note is unsent,
+  // so a stray Escape cannot throw away what the admin wrote.
+  const { requestClose, confirmDialog } = useDiscardGuard({
+    isDirty: formOpen && (note.trim() !== "" || attached),
+    onDiscard: onClose,
+    title: "Buang catatan revisi?",
+    message: "Catatan dan gambar yang belum terkirim akan hilang.",
+  });
+
   function cancelForm() {
     setCancelled(form);
     setForm(null);
@@ -647,6 +660,7 @@ export function ContentDetailPanel({
     setNote("");
     setNoteHtml(undefined);
     setUploading(false);
+    setAttached(false);
     setNoteLeft(false);
   }
 
@@ -654,7 +668,7 @@ export function ContentDetailPanel({
     <>
       <Modal
         title={(loaded && loaded.name) || DEFAULT_TITLE}
-        onClose={onClose}
+        onClose={requestClose}
         placement="side"
         eyebrow={(loaded && loaded.creatorName) || undefined}
         meta={loaded ? <HeaderMeta detail={loaded} now={now} /> : undefined}
@@ -785,6 +799,7 @@ export function ContentDetailPanel({
                           setNote(value.text);
                           setNoteHtml(value.html);
                           setUploading(value.uploading);
+                          setAttached(value.uploading || value.imageIds.length > 0);
                         }}
                       />
                     </div>
@@ -858,6 +873,8 @@ export function ContentDetailPanel({
           />
         )}
       </Modal>
+
+      {confirmDialog}
 
       {loaded && askingDelete ? (
         <ConfirmDialog

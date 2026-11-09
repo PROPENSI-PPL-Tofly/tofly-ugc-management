@@ -29,6 +29,8 @@ export const REMOVE_FAILED = "Gambar gagal dihapus. Coba lagi.";
 // How long a refusal stays on screen, as the prototype shows it.
 const MESSAGE_MS = 3500;
 
+const SEPARATOR = " · ";
+
 export interface Screenshots {
   uploads: readonly Upload[];
   // Why the last files were refused, until it steps back after a few seconds.
@@ -86,6 +88,14 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
   // Stays the same list while the uploads do, so the form is only told when it changes.
   const ids = useMemo(() => imageIds(uploads), [uploads]);
 
+  // Adds a refusal to the ones still shown, so a server refusal never hides the editor's own.
+  function say(reason: string) {
+    setRefusal((shown) => {
+      if (!shown) return reason;
+      return shown.split(SEPARATOR).includes(reason) ? shown : `${shown}${SEPARATOR}${reason}`;
+    });
+  }
+
   function apply(change: (list: readonly Upload[]) => readonly Upload[]) {
     const next = change(current.current);
     // Nothing moved, so nothing is drawn again.
@@ -109,7 +119,7 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
           // the prototype shows a refusal. Anything else broke on the way and can be retried.
           if (error instanceof UploadRefused) {
             apply((list) => removed(list, id));
-            setRefusal(error.message);
+            say(`${file.name}: ${error.message}`);
             return;
           }
           apply((list) => failed(list, id, UPLOAD_FAILED));
@@ -122,8 +132,8 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
     const before = current.current;
     const taken = addScreenshots(before, files, () => `shot-${++lastId.current}`);
     apply(() => taken.uploads);
-    // Each refused file's own reason (AC 4), each said once.
-    if (taken.refusals.length > 0) setRefusal([...new Set(taken.refusals)].join(" · "));
+    // Each refused file's own reason (AC 4), named.
+    for (const reason of taken.refusals) say(reason);
     // The files just taken, each one uploading; each starts here.
     const added = taken.uploads
       .slice(before.length)
