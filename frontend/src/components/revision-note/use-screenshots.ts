@@ -37,6 +37,9 @@ export interface ScreenshotUploader {
   // Deletes a stored image, which would otherwise go out with the note (34.1 ties each image to
   // the submission).
   remove(imageId: string): Promise<void>;
+  // The images the server still holds for this unsent note, oldest first, so a form opened again
+  // shows what a closed one left behind.
+  list(): Promise<StoredImage[]>;
 }
 
 export interface Screenshots {

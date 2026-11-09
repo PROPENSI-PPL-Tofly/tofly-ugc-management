@@ -22,7 +22,9 @@ function fakeUploader() {
   );
   // Deleting a stored image on the server; a mock, so a test checks which image it was asked for.
   const remove = vi.fn<ScreenshotUploader["remove"]>().mockResolvedValue(undefined);
-  return { uploader: { upload, remove }, upload, remove, calls };
+  // Nothing left on the server from an earlier form, unless a test says otherwise.
+  const list = vi.fn<ScreenshotUploader["list"]>().mockResolvedValue([]);
+  return { uploader: { upload, remove, list }, upload, remove, list, calls };
 }
 
 const image = (name = "shot.png", type = "image/png") => new File(["x"], name, { type });

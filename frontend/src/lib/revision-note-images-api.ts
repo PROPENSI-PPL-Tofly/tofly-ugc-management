@@ -85,6 +85,19 @@ export function screenshotUploader(submissionId: string, io: UploaderIo = {}): S
       });
     },
 
+    async list() {
+      const response = await send(imagesOf(submissionId));
+      if (!response.ok) throw new Error(`list failed (${response.status})`);
+      const images = (await response.json()) as { id?: unknown; url?: unknown; sent?: unknown }[];
+      // Sent images belong to an earlier note's history; an entry without an id or a link is
+      // skipped rather than drawn as a broken tile.
+      return images.flatMap((image) =>
+        image.sent === false && typeof image.id === "string" && typeof image.url === "string"
+          ? [{ imageId: image.id, url: image.url }]
+          : [],
+      );
+    },
+
     async remove(imageId) {
       const response = await send(`${imagesOf(submissionId)}/${encodeURIComponent(imageId)}`, {
         method: "DELETE",

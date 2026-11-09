@@ -21,7 +21,8 @@ function fakeUploader() {
     (_file, { signal }) => new Promise((resolve) => calls.push({ signal, resolve })),
   );
   const remove = vi.fn<ScreenshotUploader["remove"]>().mockResolvedValue(undefined);
-  return { uploader: { upload, remove }, upload, calls };
+  const list = vi.fn<ScreenshotUploader["list"]>().mockResolvedValue([]);
+  return { uploader: { upload, remove, list }, upload, calls };
 }
 
 function renderField(uploader: ScreenshotUploader, disabled = false) {
