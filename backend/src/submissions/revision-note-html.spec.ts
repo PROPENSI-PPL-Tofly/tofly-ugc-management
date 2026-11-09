@@ -68,9 +68,10 @@ describe('revisionNoteText', () => {
     expect(revisionNoteText('Satu<br>Dua<br/>Tiga')).toBe('Satu\nDua\nTiga');
   });
 
-  // Review on #188: the editor's counter (34.2) counts the characters only, never the breaks
-  // between paragraphs, list items or lines, so 990/1000 there is never refused here.
-  it('counts the characters, not the line breaks between them, as the editor counts them', () => {
+  // Review on #188: the line breaks between blocks are not counted, so 990/1000 in the editor
+  // (34.2) is never refused here. The editor counts a Shift+Enter line as one; here it counts as
+  // none, the safe way round.
+  it('counts the characters, not the line breaks between them', () => {
     expect(revisionNoteLength('<p>ab</p><p>cd</p>')).toBe(4);
     expect(revisionNoteLength('Satu<br>Dua')).toBe(7);
   });

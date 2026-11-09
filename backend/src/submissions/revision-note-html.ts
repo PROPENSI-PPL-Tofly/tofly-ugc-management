@@ -65,8 +65,10 @@ export function revisionNoteText(input: string): string {
 
 /**
  * The note's length in Unicode characters, not UTF-16 units — an emoji is one character. The
- * line breaks kept between paragraphs, list items and lines are not counted, as the editor's
- * counter (34.2) does not count them, so a note it shows within 1,000 is never refused here.
+ * line breaks kept between paragraphs, list items and lines are not counted. Paragraphs and list
+ * items are then counted as the editor's counter (34.2) counts them; where the two still differ
+ * (a Shift+Enter line or an emoji, which the editor counts as one more), the editor is the
+ * stricter, so a note it shows within 1,000 is never refused here.
  */
 export function revisionNoteLength(input: string): number {
   return [...revisionNoteText(input).replaceAll('\n', '')].length;
