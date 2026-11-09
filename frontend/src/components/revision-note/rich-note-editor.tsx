@@ -156,7 +156,7 @@ export function RichNoteEditor({
   footer,
   autoFocus = false,
   required = false,
-  invalid = false,
+  invalid,
   describedBy,
   onBlur,
 }: Readonly<RichNoteEditorProps>) {
@@ -169,7 +169,8 @@ export function RichNoteEditor({
     "aria-label": label,
     "aria-describedby": describedBy ? `${describedBy} ${countId}` : countId,
     ...(required ? { "aria-required": "true" } : {}),
-    ...(invalid ? { "aria-invalid": "true" } : {}),
+    // Said only when the form says it, either way, as the form's textarea did.
+    ...(invalid === undefined ? {} : { "aria-invalid": String(invalid) }),
     // Said by screen readers; data-placeholder on the empty paragraph draws it on the page.
     ...(placeholder ? { "aria-placeholder": placeholder } : {}),
     class: EDITOR_CLASS,
