@@ -34,7 +34,7 @@ vi.mock("@/components/revision-note/rich-note-editor", async () => {
             props.onChange?.({ html: `<p>${text.trim()}</p>`, text, length: text.length });
           }}
         />
-        <CharLimit length={length} max={props.max} />
+        <CharLimit id="follow-up-count" length={length} max={props.max} />
       </>
     );
   }
