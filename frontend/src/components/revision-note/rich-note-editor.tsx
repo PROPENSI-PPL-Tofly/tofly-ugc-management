@@ -30,6 +30,14 @@ export interface RichNoteEditorProps {
   onFiles?: (files: File[]) => void;
   // The hint on the empty note.
   placeholder?: string;
+  // What the form's textarea did, kept when the editor takes its place: the focus on opening,
+  // required and invalid for screen readers, the form's message read with the counter, and
+  // knowing when the Admin leaves the note.
+  autoFocus?: boolean;
+  required?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  onBlur?: () => void;
   // What else the editor holds, laid out as the prototype: a control at the toolbar's end,
   // attachments inside the frame under the text, and a line beside the counter.
   toolbarEnd?: ReactNode;
@@ -124,6 +132,9 @@ function pasteAsPlainText(view: EditorView, event: ClipboardEvent): boolean {
   return true;
 }
 
+// The text area's look: Tiptap's base rules, the lists, and the placeholder on an empty note.
+const EDITOR_CLASS = `${EDITOR_TEXT} min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc [&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:text-muted [&_.is-editor-empty]:before:content-[attr(data-placeholder)]`;
+
 function noteOf(editor: Editor): RichNote {
   return {
     html: editor.getHTML(),
@@ -143,8 +154,26 @@ export function RichNoteEditor({
   toolbarEnd,
   attachments,
   footer,
+  autoFocus = false,
+  required = false,
+  invalid = false,
+  describedBy,
+  onBlur,
 }: Readonly<RichNoteEditorProps>) {
   const countId = useId();
+  // The field's own attributes; kept in step with the form below, since invalid changes once the
+  // Admin has left an empty note.
+  const fieldAttributes = {
+    role: "textbox",
+    "aria-multiline": "true",
+    "aria-label": label,
+    "aria-describedby": describedBy ? `${describedBy} ${countId}` : countId,
+    ...(required ? { "aria-required": "true" } : {}),
+    ...(invalid ? { "aria-invalid": "true" } : {}),
+    // Said by screen readers; data-placeholder on the empty paragraph draws it on the page.
+    ...(placeholder ? { "aria-placeholder": placeholder } : {}),
+    class: EDITOR_CLASS,
+  };
   const editor = useEditor({
     // The app's CSP refuses a <style> tag without its nonce, so Tiptap injects none; the rules it
     // would bring are in EDITOR_TEXT, compiled into the app's own stylesheet (OWASP A02).
@@ -176,18 +205,20 @@ export function RichNoteEditor({
           return true;
         },
       },
-      attributes: {
-        role: "textbox",
-        "aria-multiline": "true",
-        "aria-label": label,
-        "aria-describedby": countId,
-        // Said by screen readers; data-placeholder on the empty paragraph draws it on the page.
-        ...(placeholder ? { "aria-placeholder": placeholder } : {}),
-        class: `${EDITOR_TEXT} min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc [&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:text-muted [&_.is-editor-empty]:before:content-[attr(data-placeholder)]`,
-      },
+      attributes: fieldAttributes,
     },
+    autofocus: autoFocus ? "end" : false,
+    onBlur: () => onBlur?.(),
     onUpdate: ({ editor: changed }) => onChange?.(noteOf(changed)),
   });
+
+  const attributesKey = JSON.stringify(fieldAttributes);
+  useEffect(() => {
+    if (!editor) return;
+    editor.setOptions({
+      editorProps: { ...editor.options.editorProps, attributes: JSON.parse(attributesKey) },
+    });
+  }, [editor, attributesKey]);
 
   // Tiptap builds the editor after the first render; until then the box keeps its place.
   if (!editor) return <div className={`${FRAME} min-h-[190px]`} aria-hidden="true" />;

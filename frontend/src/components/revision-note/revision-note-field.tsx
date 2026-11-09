@@ -21,6 +21,12 @@ export interface RevisionNoteFieldProps {
   uploader: ScreenshotUploader;
   disabled?: boolean;
   onChange?: (value: RevisionNoteValue) => void;
+  // The form's own settings for its note, handed to the editor (see RichNoteEditorProps).
+  autoFocus?: boolean;
+  required?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  onBlur?: () => void;
 }
 
 const EMPTY_NOTE: RichNote = { html: "", text: "", length: 0 };
@@ -35,6 +41,7 @@ export function RevisionNoteField({
   uploader,
   disabled = false,
   onChange,
+  ...form
 }: Readonly<RevisionNoteFieldProps>) {
   const screenshots = useScreenshots(uploader);
   const [note, setNote] = useState<RichNote>(EMPTY_NOTE);
@@ -60,6 +67,7 @@ export function RevisionNoteField({
         onChange={setNote}
         onFiles={screenshots.add}
         placeholder={PLACEHOLDER}
+        {...form}
         toolbarEnd={<ScreenshotButton screenshots={screenshots} disabled={disabled} />}
         attachments={<ScreenshotTiles screenshots={screenshots} disabled={disabled} />}
         footer={<ScreenshotHelp screenshots={screenshots} />}
