@@ -72,7 +72,7 @@ describe('revisionNoteText', () => {
   // between paragraphs, list items or lines, so 990/1000 there is never refused here.
   it('counts the characters, not the line breaks between them, as the editor counts them', () => {
     expect(revisionNoteLength('<p>ab</p><p>cd</p>')).toBe(4);
-    expect(revisionNoteLength('Satu<br>Dua')).toBe(6);
+    expect(revisionNoteLength('Satu<br>Dua')).toBe(7);
   });
 
   it('counts a note with a list as the editor does', () => {
