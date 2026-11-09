@@ -86,9 +86,12 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
   // Stays the same list while the uploads do, so the form is only told when it changes.
   const ids = useMemo(() => imageIds(uploads), [uploads]);
 
-  function apply(change: (list: readonly Upload[]) => Upload[]) {
-    current.current = change(current.current);
-    setUploads(current.current);
+  function apply(change: (list: readonly Upload[]) => readonly Upload[]) {
+    const next = change(current.current);
+    // Nothing moved, so nothing is drawn again.
+    if (next === current.current) return;
+    current.current = next;
+    setUploads(next);
   }
 
   function start(id: string, file: File) {

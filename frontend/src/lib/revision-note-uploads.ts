@@ -81,11 +81,15 @@ export function progressed<F extends ScreenshotFile>(
   uploads: readonly Upload<F>[],
   id: string,
   percent: number,
-): Upload<F>[] {
-  return step(uploads, id, "uploading", (upload) => ({
-    ...upload,
-    progress: Math.min(100, Math.max(0, percent)),
-  }));
+): readonly Upload<F>[] {
+  const progress = Math.min(100, Math.max(0, percent));
+  // The same list when the percent has not moved, so the editor is not drawn again for nothing
+  // (XHR reports far more often than the whole percent changes).
+  const unchanged = uploads.some(
+    (upload) => upload.id === id && upload.status === "uploading" && upload.progress === progress,
+  );
+  if (unchanged) return uploads;
+  return step(uploads, id, "uploading", (upload) => ({ ...upload, progress }));
 }
 
 export function uploaded<F extends ScreenshotFile>(
