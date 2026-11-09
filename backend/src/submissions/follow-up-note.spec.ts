@@ -54,6 +54,32 @@ describe('checkFollowUp', () => {
     ).toThrow(refusedWith('Catatan susulan maksimal 1000 karakter'));
   });
 
+  // AC 2 with PBI-34: a follow-up is written in the revision note's editor, so it arrives as
+  // that editor's HTML. Its words are the note; the formatting is kept, sanitized on the server.
+  it('takes a formatted follow-up, keeping its words and its sanitized formatting', () => {
+    const request = checkFollowUp({
+      note: '<p><strong>Ralat</strong>: musik versi <em>kedua</em></p><script>alert(1)</script>',
+    });
+
+    expect(request.note).toBe('Ralat: musik versi kedua');
+    expect(request.noteHtml).toBe('<p><strong>Ralat</strong>: musik versi <em>kedua</em></p>');
+  });
+
+  it('counts a formatted follow-up on its words, not its tags', () => {
+    const words = 'a'.repeat(MAX_FOLLOW_UP_LENGTH);
+
+    expect(checkFollowUp({ note: `<p><strong>${words}</strong></p>` }).note).toBe(words);
+    expect(() =>
+      checkFollowUp({ note: `<p><strong>${words}a</strong></p>` }),
+    ).toThrow(refusedWith('Catatan susulan maksimal 1000 karakter'));
+  });
+
+  it('refuses a formatted follow-up with no words', () => {
+    expect(() => checkFollowUp({ note: '<p><strong> </strong></p>' })).toThrow(
+      refusedWith('Catatan susulan tidak boleh kosong'),
+    );
+  });
+
   it('allows the same room as the revision note it adds to', () => {
     expect(MAX_FOLLOW_UP_LENGTH).toBe(1000);
   });

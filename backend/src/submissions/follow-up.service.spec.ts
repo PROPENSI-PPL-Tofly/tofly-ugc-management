@@ -105,6 +105,23 @@ describe('FollowUpService.add', () => {
     expect(inTransaction).toEqual(['revision_followups', 'content_events']);
   });
 
+  // AC 2 with PBI-34: a formatted follow-up keeps its formatting for the timeline and the answer.
+  it("keeps a formatted follow-up's HTML with its event and answers with it", async () => {
+    const { service, eventCreate } = fakeClient(openRound());
+
+    await expect(
+      service.add(SUBMISSION, 'Ralat: musik', ADMIN, '<p><strong>Ralat</strong>: musik</p>'),
+    ).resolves.toMatchObject({ noteHtml: '<p><strong>Ralat</strong>: musik</p>' });
+    expect(eventCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        event_data: expect.objectContaining({
+          note: 'Ralat: musik',
+          note_html: '<p><strong>Ralat</strong>: musik</p>',
+        }),
+      }),
+    });
+  });
+
   // AC 4: the revision note the creator already read is never written to.
   it('never changes the original revision note', async () => {
     const { service, client } = fakeClient(openRound());
