@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
-import { CharLimit } from "@/components/ui/char-limit";
 import { CreatorLink } from "@/components/ui/creator-link";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
-import { REQUIRED_MARK } from "@/components/ui/form-classes";
+import { NoteField } from "./note-field";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
@@ -184,15 +183,6 @@ const TIMELINE_ROW =
 
 // A filled disc with a gap and a ring of its own colour, so it reads as a marker on the line.
 const DOT = "mt-[3px] size-[13px] rounded-full border-2 border-surface ring-[1.5px]";
-
-/**
- * The note form opens from a click on Minta Revisi, so focus follows the admin into it.
- * Module-level so its identity is stable: React calls it once when the field mounts
- * rather than on every render, which would pull focus back from the form's own buttons.
- */
-function focusOnMount(element: HTMLTextAreaElement | null) {
-  element?.focus();
-}
 
 /**
  * Red once the deadline has passed, amber from the day before it, green when finished. A
@@ -452,11 +442,6 @@ export function ContentDetailPanel({
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
   const [cancelled, setCancelled] = useState<FormKind | null>(null);
-  // Whether the admin has left the note field, so a required note is not flagged while it is
-  // still being started.
-  const [noteLeft, setNoteLeft] = useState(false);
-  const countId = useId();
-  const missingId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
 
@@ -580,15 +565,12 @@ export function ContentDetailPanel({
     send = submitRejection({ contentId: loaded.id, state: snapshot, ports: actionPorts });
   }
   const formSpec = form ? FORMS[form] : null;
-  // Blank counts as missing: the backend trims the note before it refuses an empty one.
-  const missingNote = formSpec?.required === true && noteLeft && note.trim() === "";
 
   function cancelForm() {
     setCancelled(form);
     setForm(null);
     setError(null);
     setNote("");
-    setNoteLeft(false);
   }
 
   return (
@@ -666,32 +648,17 @@ export function ContentDetailPanel({
                   </p>
                 ) : null}
 
-                <label className="flex flex-col gap-1 text-[13px]">
-                  {/* A required note is marked as every required field is; the optional reason is not. */}
-                  <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
-                    {formSpec.label}
-                  </span>
-                  <textarea
-                    ref={focusOnMount}
-                    required={formSpec.required}
-                    maxLength={formSpec.max}
-                    aria-describedby={missingNote ? `${missingId} ${countId}` : countId}
-                    aria-invalid={formSpec.required ? missingNote : undefined}
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    onBlur={() => setNoteLeft(true)}
-                    placeholder={formSpec.placeholder}
-                    rows={3}
-                    disabled={busy}
-                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
-                  />
-                </label>
-                {missingNote ? (
-                  <p id={missingId} className="text-xs text-red-ink">
-                    {formSpec.missingMessage}
-                  </p>
-                ) : null}
-                <CharLimit id={countId} length={note.length} max={formSpec.max} />
+                <NoteField
+                  key={form}
+                  label={formSpec.label}
+                  placeholder={formSpec.placeholder}
+                  required={formSpec.required}
+                  missingMessage={formSpec.missingMessage}
+                  max={formSpec.max}
+                  value={note}
+                  onChange={setNote}
+                  disabled={busy}
+                />
 
                 <div className="flex justify-end gap-2">
                   <Button variant="ghost" onClick={cancelForm} disabled={busy}>
