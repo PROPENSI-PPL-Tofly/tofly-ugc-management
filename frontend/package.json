@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:cov": "vitest run --coverage"
+    "test:cov": "vitest run --coverage",
+    "bench": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bench/format.bench.ts"
   },
   "dependencies": {
     "next": "^16.4.3",

@@ -157,6 +157,9 @@ export function formatRevisions(value: number): string {
 
 /** Rupiah, as the prototype writes it: "Rp500.000", with a plain minus for what is taken off. */
 export function formatRupiah(amount: number): string {
+  // Number#toLocaleString is deliberately kept: a hoisted Intl.NumberFormat was measured
+  // ~20% slower on V8, which memoizes the locale formatter across toLocaleString calls
+  // (bench case below, and docs/perf/profiling-notes.md). Measure before optimizing.
   return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
 }
 
