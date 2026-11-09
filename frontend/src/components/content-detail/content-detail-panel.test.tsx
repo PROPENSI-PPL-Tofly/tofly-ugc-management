@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
+import type { ScreenshotUploader, StoredImage } from "@/lib/revision-note-uploads";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { ContentDetailPanel, type Decision } from "./content-detail-panel";
 
@@ -55,6 +56,7 @@ function open(
     ports: PanelActionPorts;
     actions: ReactNode;
     onDecided: (decision: Decision) => void;
+    uploader: ScreenshotUploader;
   }> = {},
 ) {
   const load = vi.fn().mockResolvedValue(loaded);
@@ -69,10 +71,51 @@ function open(
       {...(props.ports && { ports: props.ports })}
       {...(props.actions && { actions: props.actions })}
       {...(props.onDecided && { onDecided: props.onDecided })}
+      uploader={props.uploader ?? quietUploader()}
     />,
   );
 
   return { load, onClose };
+}
+
+// PBI-34, 34.2: the revision note is a rich text editor (ProseMirror). jsdom does no layout, so
+// empty rects stand in for the browser's when it scrolls the caret into view.
+beforeAll(() => {
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+});
+
+afterAll(() => {
+  delete (Range.prototype as Partial<Range>).getClientRects;
+  delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+});
+
+// An uploader with nothing on the server and nothing ever uploaded: the panel's own tests need no
+// screenshots.
+function quietUploader(): ScreenshotUploader {
+  return {
+    upload: () => new Promise<StoredImage>(() => undefined),
+    remove: () => Promise.resolve(),
+    list: () => Promise.resolve([]),
+  };
+}
+
+const NOTE = "Catatan revisi untuk creator";
+
+// Writes the revision note as the Admin would paste it: the editor is not a textarea, so
+// fireEvent.change has nothing to set.
+async function typeNote(text: string) {
+  const box = await screen.findByRole("textbox", { name: NOTE });
+  act(() => box.focus());
+  fireEvent.paste(box, {
+    clipboardData: {
+      types: ["text/plain"],
+      files: [],
+      items: [],
+      getData: (type: string) => (type === "text/plain" ? text : ""),
+    },
+  });
+  return box;
 }
 
 describe("ContentDetailPanel", () => {
@@ -135,15 +178,14 @@ describe("ContentDetailPanel", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
     const kirim = screen.getByRole("button", { name: "Kirim Revisi" });
-    const note = screen.getByRole("textbox");
 
     expect(kirim).toBeDisabled();
 
-    fireEvent.change(note, { target: { value: "   " } });
+    await typeNote("   ");
     expect(kirim).toBeDisabled();
 
-    fireEvent.change(note, { target: { value: "Audio terlalu pelan." } });
-    expect(kirim).toBeEnabled();
+    await typeNote("Audio terlalu pelan.");
+    await waitFor(() => expect(kirim).toBeEnabled());
   });
 
   // B2.4: the note is required, yet its label carried no asterisk as every other required field does.
@@ -153,7 +195,7 @@ describe("ContentDetailPanel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
 
     // The exact name: the asterisk is drawn by CSS, so a screen reader hears "required", not "star".
-    expect(screen.getByRole("textbox", { name: "Catatan revisi untuk creator" })).toBeRequired();
+    expect(await screen.findByRole("textbox", { name: "Catatan revisi untuk creator" })).toBeRequired();
     expect(screen.getByText("Catatan revisi untuk creator")).toHaveClass(...REQUIRED_MARK.split(" "));
   });
 
@@ -163,7 +205,7 @@ describe("ContentDetailPanel", () => {
     async function openRevisionForm() {
       open(detail());
       fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
-      return screen.getByRole("textbox", { name: "Catatan revisi untuk creator" });
+      return screen.findByRole("textbox", { name: "Catatan revisi untuk creator" });
     }
 
     it("says nothing is wrong before the admin has left the field", async () => {
@@ -176,11 +218,11 @@ describe("ContentDetailPanel", () => {
     it("says why Kirim Revisi is unavailable once the field is left empty or blank", async () => {
       const note = await openRevisionForm();
 
-      fireEvent.change(note, { target: { value: "   " } });
+      await typeNote("   ");
       fireEvent.blur(note);
 
-      const message = screen.getByText("Catatan revisi wajib diisi sebelum dikirim.");
-      expect(note).toHaveAttribute("aria-invalid", "true");
+      const message = await screen.findByText("Catatan revisi wajib diisi sebelum dikirim.");
+      await waitFor(() => expect(note).toHaveAttribute("aria-invalid", "true"));
       expect(note.getAttribute("aria-describedby")).toContain(message.id);
       expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeDisabled();
     });
@@ -189,27 +231,29 @@ describe("ContentDetailPanel", () => {
       const note = await openRevisionForm();
       fireEvent.blur(note);
 
-      fireEvent.change(note, { target: { value: "Audio terlalu pelan." } });
+      await typeNote("Audio terlalu pelan.");
 
-      expect(screen.queryByText("Catatan revisi wajib diisi sebelum dikirim.")).toBeNull();
-      expect(note).toHaveAttribute("aria-invalid", "false");
+      await waitFor(() =>
+        expect(screen.queryByText("Catatan revisi wajib diisi sebelum dikirim.")).toBeNull(),
+      );
+      await waitFor(() => expect(note).toHaveAttribute("aria-invalid", "false"));
       expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled();
     });
   });
 
-  it("sends the trimmed note and reports the decision upward", async () => {
+  // PBI-34: the note goes out as the editor's HTML, which 34.1 sanitizes and counts.
+  it("sends the note with its formatting and reports the decision upward", async () => {
     const revise = vi.fn().mockResolvedValue(undefined);
     const onDecided = vi.fn();
     open(detail(), { ports: { revise }, onDecided });
 
     fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "  Audio terlalu pelan.  " },
-    });
+    await typeNote("Audio terlalu pelan.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
 
     await waitFor(() => {
-      expect(revise).toHaveBeenCalledWith(SUBMISSION, "Audio terlalu pelan.");
+      expect(revise).toHaveBeenCalledWith(SUBMISSION, "<p>Audio terlalu pelan.</p>");
       expect(onDecided).toHaveBeenCalled();
     });
   });
@@ -222,17 +266,44 @@ describe("ContentDetailPanel", () => {
     open(detail(), { ports: { revise }, onDecided });
 
     fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "Audio terlalu pelan." },
-    });
+    await typeNote("Audio terlalu pelan.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
 
     expect(
       await screen.findByText("Draft ini sudah tidak menunggu keputusan"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("textbox")).toHaveValue("Audio terlalu pelan.");
+    expect(screen.getByRole("textbox", { name: NOTE })).toHaveTextContent("Audio terlalu pelan.");
     expect(onDecided).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  // PBI-34, 34.2 (AC 5): Kirim Revisi waits while a screenshot is still uploading.
+  it("keeps Kirim Revisi disabled while a screenshot uploads, and opens it once the upload is done", async () => {
+    let finish: (stored: StoredImage) => void = () => undefined;
+    const uploader: ScreenshotUploader = {
+      upload: () => new Promise<StoredImage>((resolve) => (finish = resolve)),
+      remove: () => Promise.resolve(),
+      list: () => Promise.resolve([]),
+    };
+    open(detail(), { uploader });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    const box = await typeNote("Audio terlalu pelan.");
+    fireEvent.paste(box, {
+      clipboardData: {
+        types: ["Files"],
+        files: [new File(["x"], "layar.png", { type: "image/png" })],
+        items: [],
+        getData: () => "",
+      },
+    });
+
+    expect(await screen.findByText("Mengunggah 0%")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeDisabled();
+
+    await act(async () => finish({ imageId: "img-1", url: "/api/revision-note-images/img-1" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled());
   });
 
   it("approves the latest hand-in through its command", async () => {
@@ -488,7 +559,8 @@ describe("ContentDetailPanel", () => {
     load.mockResolvedValueOnce(detail({ status: "draft_approved", waitingOn: "creator" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Audio pelan." } });
+    await typeNote("Audio pelan.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
 
     expect(
@@ -596,7 +668,8 @@ describe("ContentDetailPanel", () => {
     open(detail(), { ports: { revise }, onDecided });
 
     fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Audio pelan." } });
+    await typeNote("Audio pelan.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Kirim Revisi" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Kirim Revisi" }));
 
     await waitFor(() => {
