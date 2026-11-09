@@ -1562,3 +1562,75 @@ describe("the creator's link numbers (PBI-27, 27.6)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Detail konten gagal dimuat");
   });
 });
+
+describe("ContentDetailPanel unsent notes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("asks before Escape throws away a typed revision note, and keeps it on Lanjut mengisi", async () => {
+    const { onClose } = open(detail());
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    const box = await typeNote("Audio terlalu pelan.");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    const ask = await screen.findByRole("alertdialog", { name: "Buang catatan revisi?" });
+    expect(ask).toHaveTextContent("Catatan dan gambar yang belum terkirim akan hilang.");
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Lanjut mengisi" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(box).toHaveTextContent("Audio terlalu pelan.");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes the panel once the admin chooses Buang", async () => {
+    const { onClose } = open(detail());
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    await typeNote("Audio terlalu pelan.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup dialog" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Buang" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes at once when the open note is still empty", async () => {
+    const { onClose } = open(detail());
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+    await typeNote("   ");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("asks before throwing away a typed rejection reason too", async () => {
+    const { onClose } = open(
+      detail({
+        status: "pending",
+        waitingOn: "admin",
+        latestSubmissionId: null,
+        events: [
+          {
+            id: `${CONTENT}:scheduled`,
+            type: "scheduled",
+            at: "2026-09-01T03:00:00.000Z",
+            actor: { name: "Rangga Pratama", role: "creator" },
+          },
+        ],
+      }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Tolak" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Alasan penolakan (opsional)" }), {
+      target: { value: "Di luar brief." },
+    });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(await screen.findByRole("alertdialog", { name: "Buang catatan revisi?" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
