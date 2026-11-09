@@ -55,6 +55,8 @@ export interface NoteImage {
 export interface FollowUp {
   id: string;
   note: string;
+  /** The follow-up's sanitized formatting (PBI-34's editor); absent for a plain one. */
+  noteHtml?: string;
   /** ISO instant the follow-up was saved. */
   at: string;
   actor: { name: string | null };

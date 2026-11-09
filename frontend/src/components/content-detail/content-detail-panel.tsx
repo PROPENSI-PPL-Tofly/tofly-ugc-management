@@ -686,13 +686,15 @@ export function ContentDetailPanel({
           <FollowUpForm
             submissionId={followUpRound}
             add={ports.addFollowUp ?? addFollowUp}
-            onAdded={(followUp) =>
+            onAdded={(followUp) => {
               setState((current) =>
                 current.kind === "loaded"
                   ? { kind: "loaded", detail: withFollowUp(current.detail, followUp) }
                   : current,
-              )
-            }
+              );
+              // The timeline's "Catatan susulan ditambahkan" step (AC 6) comes with the next read.
+              void readAgain();
+            }}
             onRoundClosed={(message) => {
               // The creator already sent a new draft: say so where the step is, and show it.
               setError(message);

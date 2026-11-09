@@ -249,9 +249,11 @@ function followUpOf(row: StoredEventRow): DetailFollowUp | null {
   if (id === undefined || note === undefined) {
     return null;
   }
+  const noteHtml = data.text('note_html');
   return {
     id,
     note,
+    ...(noteHtml !== undefined && { noteHtml }),
     at: row.occurred_at.toISOString(),
     actor: { name: ADMIN_ACTOR_NAME },
   };

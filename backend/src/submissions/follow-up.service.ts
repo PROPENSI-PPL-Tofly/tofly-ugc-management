@@ -16,6 +16,8 @@ import { submissionNotFound } from './review-errors.js';
 export interface FollowUpDto {
   id: string;
   note: string;
+  /** The follow-up's sanitized formatting, when it was written with any (PBI-34's editor). */
+  noteHtml?: string;
   /** ISO instant the follow-up was saved. */
   at: string;
   actor: { name: string };
@@ -48,6 +50,7 @@ interface FollowUpTransaction {
         occurred_at: Date;
         event_data: {
           note: string;
+          note_html?: string;
           submission_id: string;
           follow_up_id: string;
         };
@@ -108,6 +111,7 @@ export class FollowUpService {
     submissionId: string,
     note: string,
     adminUserId: string,
+    noteHtml?: string,
   ): Promise<FollowUpDto> {
     const round = await this.prisma.submissions.findUnique({
       where: { id: submissionId },
@@ -152,6 +156,7 @@ export class FollowUpService {
           occurred_at: saved.created_at,
           event_data: {
             note: saved.body,
+            ...(noteHtml !== undefined && { note_html: noteHtml }),
             submission_id: submissionId,
             follow_up_id: saved.id,
           },
@@ -161,6 +166,7 @@ export class FollowUpService {
       return {
         id: saved.id,
         note: saved.body,
+        ...(noteHtml !== undefined && { noteHtml }),
         at: saved.created_at.toISOString(),
         actor: { name: ADMIN_ACTOR_NAME },
       };
