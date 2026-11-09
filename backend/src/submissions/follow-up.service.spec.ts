@@ -24,7 +24,10 @@ function openRound(overrides: Partial<RoundRow> = {}): RoundRow {
 }
 
 // A fake database: it records what the service writes, inside the transaction or outside it.
-function fakeClient(round: RoundRow | null, admin: { id: string } | null = { id: ADMIN }) {
+function fakeClient(
+  round: RoundRow | null,
+  admin: { id: string } | null = { id: ADMIN },
+) {
   const inTransaction: string[] = [];
   const followUpCreate = vi.fn((args: { data: Record<string, unknown> }) => {
     inTransaction.push('revision_followups');
@@ -60,7 +63,9 @@ describe('FollowUpService.add', () => {
   it('keeps the follow-up and answers with it', async () => {
     const { service, followUpCreate } = fakeClient(openRound());
 
-    await expect(service.add(SUBMISSION, 'Intro juga dipotong ya.', ADMIN)).resolves.toEqual({
+    await expect(
+      service.add(SUBMISSION, 'Intro juga dipotong ya.', ADMIN),
+    ).resolves.toEqual({
       id: 'fu-1',
       note: 'Intro juga dipotong ya.',
       at: SAVED_AT.toISOString(),
@@ -113,7 +118,9 @@ describe('FollowUpService.add', () => {
   it('answers 404 when there is no such submission', async () => {
     const { service, followUpCreate } = fakeClient(null);
 
-    await expect(service.add(SUBMISSION, 'Catatan', ADMIN)).rejects.toMatchObject({
+    await expect(
+      service.add(SUBMISSION, 'Catatan', ADMIN),
+    ).rejects.toMatchObject({
       status: 404,
       response: { code: 'SUBMISSION_NOT_FOUND' },
     });
@@ -124,21 +131,32 @@ describe('FollowUpService.add', () => {
   it.each([
     [
       'the creator already sent a new draft',
-      openRound({ contents: { status: 'draft_review', submissions: [{ id: 'newer' }] } }),
+      openRound({
+        contents: { status: 'draft_review', submissions: [{ id: 'newer' }] },
+      }),
     ],
     [
       'a newer draft exists, even while the content still reads Draft Perlu Revisi',
-      openRound({ contents: { status: 'draft_revision', submissions: [{ id: 'newer' }] } }),
+      openRound({
+        contents: { status: 'draft_revision', submissions: [{ id: 'newer' }] },
+      }),
     ],
     [
       'the draft was approved',
-      openRound({ contents: { status: 'draft_approved', submissions: [{ id: SUBMISSION }] } }),
+      openRound({
+        contents: {
+          status: 'draft_approved',
+          submissions: [{ id: SUBMISSION }],
+        },
+      }),
     ],
     ['no revision was ever asked on it', openRound({ revision_notes: null })],
   ])('answers 409 when %s', async (_what, round) => {
     const { service, followUpCreate, eventCreate } = fakeClient(round);
 
-    await expect(service.add(SUBMISSION, 'Catatan', ADMIN)).rejects.toMatchObject({
+    await expect(
+      service.add(SUBMISSION, 'Catatan', ADMIN),
+    ).rejects.toMatchObject({
       status: 409,
       response: {
         code: 'FOLLOWUP_ROUND_CLOSED',
@@ -153,7 +171,9 @@ describe('FollowUpService.add', () => {
   it('answers 401 when the admin account no longer exists, keeping nothing', async () => {
     const { service, followUpCreate } = fakeClient(openRound(), null);
 
-    await expect(service.add(SUBMISSION, 'Catatan', ADMIN)).rejects.toMatchObject({
+    await expect(
+      service.add(SUBMISSION, 'Catatan', ADMIN),
+    ).rejects.toMatchObject({
       status: 401,
     });
     expect(followUpCreate).not.toHaveBeenCalled();
