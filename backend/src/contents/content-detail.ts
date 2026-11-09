@@ -10,6 +10,8 @@ import {
   type StoredLinkPerformance,
 } from '../performance/performance-links.js';
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
+import { editWindow, type EditWindow } from './content-edit.js';
+import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
 // step is waiting on and the journey so far. The tags the prototype draws beside the status
@@ -39,7 +41,8 @@ export type DetailEventType =
   | 'draft_approved'
   | 'link_submitted'
   | 'performance_entered'
-  | 'performance_replaced';
+  | 'performance_replaced'
+  | 'content_updated';
 
 export interface DetailSubmissionRow {
   id: string;
@@ -69,6 +72,9 @@ export interface ContentDetailRow {
   created_at: Date;
   updated_at: Date;
   contracts: {
+    start_date: Date;
+    end_date: Date;
+    invoice: { status: InvoiceLifecycleStatus } | null;
     creators: {
       first_name: string;
       middle_name: string | null;
@@ -101,10 +107,23 @@ export interface ContentEvent {
     note?: string;
     platform?: social_platform;
     replaced?: true;
-    /** The numbers a performance step moved (PBI-27 AC 16, 17). */
-    changes?: MetricChange[];
+    /**
+     * What the step changed: the numbers a performance step moved (PBI-27 AC 16, 17), or each
+     * field an admin's edit changed, old and new (PBI-25 AC 4, on content_updated).
+     */
+    changes?: MetricChange[] | ContentChanges;
   };
 }
+
+/** One edited field's value before and after. */
+export interface FieldChange {
+  from: string;
+  to: string;
+}
+
+export type ContentChanges = Partial<
+  Record<'deadline' | 'brief' | 'name', FieldChange>
+>;
 
 /** One of the content's video links, as the panel lists them (PBI-38 AC 11). */
 export interface ContentLink {
@@ -133,6 +152,16 @@ export interface ContentDetail {
   /** Every link handed in, first first; empty before the first. */
   links: ContentLink[];
   events: ContentEvent[];
+  /**
+   * The days an admin may move the deadline to while Ubah and Hapus are offered (PBI-25 AC 1,
+   * 3, 9); null when the content may no longer change, and always null on a creator's read.
+   */
+  edit: EditWindow | null;
+}
+
+/** An admin's read: the global buffer the earliest-deadline rule counts with. */
+export interface AdminView {
+  bufferDays: number;
 }
 
 // One entry per status, so a status added to the lifecycle cannot be left without an answer.
@@ -267,6 +296,7 @@ function measuredOf(
 export function toContentDetail(
   row: ContentDetailRow,
   now: Date,
+  admin?: AdminView,
 ): ContentDetail {
   const today = jakartaDay(now);
   const deadlineDay = row.deadline.toISOString().slice(0, 10);
@@ -308,5 +338,17 @@ export function toContentDetail(
       row.content_events.length > 0
         ? fromStoredHistory(row.content_events)
         : buildEvents(row),
+    edit: admin
+      ? editWindow(
+          {
+            status: row.status,
+            drafts: row.submissions.length,
+            contractStart: row.contracts.start_date.toISOString().slice(0, 10),
+            contractEnd: row.contracts.end_date.toISOString().slice(0, 10),
+            invoiceStatus: row.contracts.invoice?.status ?? null,
+          },
+          { today, bufferDays: admin.bufferDays },
+        )
+      : null,
   };
 }

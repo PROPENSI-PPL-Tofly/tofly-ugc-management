@@ -4,7 +4,7 @@ import { ContentDetailError, type ContentDetail } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
-import { ContentDetailPanel } from "./content-detail-panel";
+import { ContentDetailPanel, type Decision } from "./content-detail-panel";
 
 const refresh = vi.fn();
 
@@ -54,7 +54,7 @@ function open(
     role: "admin" | "creator";
     ports: PanelActionPorts;
     actions: ReactNode;
-    onDecided: (decision: "approve" | "revise" | "approve_proposal" | "reject_proposal") => void;
+    onDecided: (decision: Decision) => void;
   }> = {},
 ) {
   const load = vi.fn().mockResolvedValue(loaded);
@@ -1100,14 +1100,20 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
     });
 
     it.each([
-      ["Evergreen content, which has none", { type: "evergreen", brief: "Sisa brief lama." }],
+      ["an Evergreen content with none written", { type: "evergreen", brief: "" }],
       ["a Specific content with none written", { brief: "" }],
     ] as const)("leaves the brief out for %s", async (_label, overrides) => {
       show(overrides);
 
       await journeyItems();
       expect(screen.queryByText("Brief")).not.toBeInTheDocument();
-      expect(screen.queryByText("Sisa brief lama.")).not.toBeInTheDocument();
+    });
+
+    it("shows an Evergreen content's brief once an admin has written one (PBI-25 AC 2)", async () => {
+      show({ type: "evergreen", brief: "Sapa pengikut baru." });
+
+      expect(await screen.findByText("Sapa pengikut baru.")).toBeInTheDocument();
+      expect(screen.getByText("Brief")).toBeInTheDocument();
     });
 
     it("shows a brief of exactly 160 characters whole, with nothing to expand", async () => {

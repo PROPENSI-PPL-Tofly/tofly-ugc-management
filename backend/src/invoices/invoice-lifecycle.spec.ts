@@ -39,6 +39,12 @@ describe('RunningInvoiceState', () => {
       new RunningInvoiceState().assertCanChangeLinks(),
     ).not.toThrow();
   });
+
+  it('lets a scheduled content be edited or deleted (PBI-25 AC 9)', () => {
+    expect(() =>
+      new RunningInvoiceState().assertCanChangeSchedule(),
+    ).not.toThrow();
+  });
 });
 
 // PBI-38 AC 8, 9: the links an invoice was calculated from stay as they were once it is frozen.
@@ -73,6 +79,26 @@ describe('adjusting an invoice', () => {
     },
   );
 });
+// PBI-25 AC 9: the contents an invoice was calculated from stay as they were once it is frozen.
+describe.each([
+  'finalized',
+  'creator_acked',
+  'payment_uploaded',
+  'paid',
+] as const)(
+  'the scheduled contents of a contract whose invoice is %s',
+  (status) => {
+    it('can no longer be edited or deleted', () => {
+      expect(
+        refusalOf(() => invoiceState(status).assertCanChangeSchedule()),
+      ).toEqual({
+        code: 'INVOICE_FINALIZED',
+        message:
+          'Invoice sudah difinalisasi. Konten tidak bisa diubah atau dihapus lagi',
+      });
+    });
+  },
+);
 
 // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): once finalized, an invoice stays
 // frozen through every later step.

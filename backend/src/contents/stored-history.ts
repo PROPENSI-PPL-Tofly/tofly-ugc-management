@@ -1,5 +1,6 @@
 import type { social_platform } from '@prisma/client';
 import type {
+  ContentChanges,
   ContentEvent,
   DetailEventType,
   MetricChange,
@@ -80,7 +81,14 @@ const STEP_FOR: Record<
     type: 'creator_comment',
     payload: (data) => details({ note: data.text('comment') }),
   },
+  // An admin's edit of a scheduled content (PBI-25 AC 4): each changed field, old and new.
+  'Content Updated': {
+    type: 'content_updated',
+    payload: (data) => details({ changes: data.changes('changes') }),
+  },
 };
+
+const EDITED_FIELDS = ['deadline', 'brief', 'name'] as const;
 
 /** Typed reads of a stored jsonb object; a field of the wrong type reads as absent. */
 interface Data {
@@ -90,6 +98,8 @@ interface Data {
   platform(key: string): social_platform | undefined;
   /** The numbers that moved between `before` and `after`; absent when no values were stored. */
   metricChanges(): MetricChange[] | undefined;
+  /** An edit's changes: only the fields an edit can touch, with text on both sides. */
+  changes(key: string): ContentChanges | undefined;
 }
 
 const METRIC_NAMES: readonly MetricChange['metric'][] = [
@@ -108,11 +118,28 @@ function isObject(value: unknown): boolean {
   return value !== null && typeof value === 'object';
 }
 
+function objectOf(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function changesOf(value: unknown): ContentChanges | undefined {
+  if (objectOf(value) !== value) {
+    return undefined;
+  }
+  const changes: ContentChanges = {};
+  for (const field of EDITED_FIELDS) {
+    const { from, to } = objectOf(objectOf(value)[field]);
+    if (typeof from === 'string' && typeof to === 'string') {
+      changes[field] = { from, to };
+    }
+  }
+  return changes;
+}
+
 function dataOf(value: unknown): Data {
-  const fields =
-    value !== null && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
+  const fields = objectOf(value);
   return {
     metricChanges: () => {
       const { before, after } = fields;
@@ -125,6 +152,7 @@ function dataOf(value: unknown): Data {
         after: metricOf(after, metric),
       })).filter((change) => change.before !== change.after);
     },
+    changes: (key) => changesOf(fields[key]),
     number: (key) =>
       typeof fields[key] === 'number' ? fields[key] : undefined,
     // Blank text says nothing, as blank notes are left out everywhere else.
