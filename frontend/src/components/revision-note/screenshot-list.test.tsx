@@ -367,3 +367,38 @@ describe("images a closed form left behind", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
+
+describe("removing a stored screenshot twice", () => {
+  // Review on #188: a second press while the first delete runs would send another DELETE, which
+  // 34.1 answers 404, and say "Gambar gagal dihapus" for an image that is gone.
+  it("sends one delete only, and holds × until the server answers", async () => {
+    const { uploader, remove, calls } = fakeUploader();
+    let answer: () => void = () => undefined;
+    remove.mockImplementationOnce(() => new Promise<void>((resolve) => (answer = resolve)));
+    render(<Harness uploader={uploader} />);
+    pick(image());
+    await act(async () => calls[0].resolve({ imageId: "img-1", url: "/api/revision-note-images/img-1" }));
+    const cross = screen.getByRole("button", { name: "Hapus gambar" });
+
+    fireEvent.click(cross);
+    fireEvent.click(cross);
+
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(cross).toBeDisabled();
+    await act(async () => answer());
+    expect(screen.queryByRole("img", { name: "Lampiran" })).not.toBeInTheDocument();
+  });
+
+  // Negative: when the server keeps it, × can be pressed again.
+  it("lets × be pressed again once the server keeps the image", async () => {
+    const { uploader, remove, calls } = fakeUploader();
+    remove.mockRejectedValueOnce(new Error("network"));
+    render(<Harness uploader={uploader} />);
+    pick(image());
+    await act(async () => calls[0].resolve({ imageId: "img-1", url: "/api/revision-note-images/img-1" }));
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Hapus gambar" })));
+
+    expect(screen.getByRole("button", { name: "Hapus gambar" })).toBeEnabled();
+  });
+});
