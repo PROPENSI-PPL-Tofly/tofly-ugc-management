@@ -297,6 +297,45 @@ describe("removing a stored screenshot", () => {
   });
 });
 
+describe("several files refused at once", () => {
+  // AC 4: each refused file shows its own reason, so the admin can tell which one to fix.
+  it("names each refused file with its own reason when several are picked together", () => {
+    const { uploader } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "besar.png", { type: "image/png" });
+
+    pick(image("brief.pdf", "application/pdf"), big, image("ok.png"));
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("brief.pdf: Format harus JPG, PNG, atau WebP");
+    expect(alert).toHaveTextContent("besar.png: Ukuran maksimal 5 MB");
+  });
+
+  it("says a reason already shown only once", async () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+
+    pick(image("palsu.png"));
+    await act(async () => calls[0].reject(new UploadRefused("Format harus JPG, PNG, atau WebP")));
+    pick(image("palsu.png"));
+    await act(async () => calls[1].reject(new UploadRefused("Format harus JPG, PNG, atau WebP")));
+
+    expect(screen.getByRole("alert").textContent).toBe("palsu.png: Format harus JPG, PNG, atau WebP");
+  });
+
+  it("keeps the editor's refusals when the server turns one more file down", async () => {
+    const { uploader, calls } = fakeUploader();
+    render(<Harness uploader={uploader} />);
+
+    pick(image("brief.pdf", "application/pdf"), image("palsu.png"));
+    await act(async () => calls[0].reject(new UploadRefused("Format harus JPG, PNG, atau WebP")));
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("brief.pdf: Format harus JPG, PNG, atau WebP");
+    expect(alert).toHaveTextContent("palsu.png: Format harus JPG, PNG, atau WebP");
+  });
+});
+
 describe("a screenshot 34.1 turns down", () => {
   // AC 4, as the prototype shows a refusal: the file leaves the list and its reason takes the
   // help line, as the editor's own refusals do. "Gagal diunggah" and "Coba lagi" stay for an

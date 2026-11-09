@@ -45,11 +45,11 @@ describe("addScreenshots", () => {
   });
 
   // Negative: a refused file gives its own reason and does not stop the others.
-  it("refuses a wrong file with its reason and still takes the rest", () => {
+  it("refuses a wrong file with its reason, named, and still takes the rest", () => {
     const { uploads, refusals } = addScreenshots([], [png("a.png"), pdf, png("c.png")], ids());
 
     expect(uploads.map((u) => u.file?.name)).toEqual(["a.png", "c.png"]);
-    expect(refusals).toEqual([SCREENSHOT_TYPE_INVALID]);
+    expect(refusals).toEqual([`${pdf.name}: ${SCREENSHOT_TYPE_INVALID}`]);
   });
 
   // Corner: uploading and failed images count toward the 5 too.
@@ -59,7 +59,7 @@ describe("addScreenshots", () => {
     const { uploads, refusals } = addScreenshots(four, [png("e.png"), png("f.png")], ids());
 
     expect(uploads).toHaveLength(5);
-    expect(refusals).toEqual([SCREENSHOT_TOO_MANY]);
+    expect(refusals).toEqual([`f.png: ${SCREENSHOT_TOO_MANY}`]);
   });
 
   // Corner: removing one frees its place.
@@ -158,7 +158,7 @@ describe("restored", () => {
     const { uploads, refusals } = addScreenshots(three, [png("a.png"), png("b.png"), png("c.png")], ids());
 
     expect(uploads).toHaveLength(5);
-    expect(refusals).toEqual([SCREENSHOT_TOO_MANY]);
+    expect(refusals).toEqual([`c.png: ${SCREENSHOT_TOO_MANY}`]);
   });
 
   it("sends them with the note", () => {

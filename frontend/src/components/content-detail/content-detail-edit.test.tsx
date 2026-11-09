@@ -139,6 +139,16 @@ describe("Ubah and Hapus visibility (AC 1, 9)", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     expect(screen.getByText("Promo Lebaran")).toBeInTheDocument();
   });
+
+  // In the app React listens on the document, beside the panel's own Escape listener, so the
+  // menu marks the key handled rather than relying on stopPropagation alone.
+  it("marks the Escape it used as handled, so the panel leaves it", async () => {
+    open(scheduled());
+
+    const menu = await openMenu();
+
+    expect(fireEvent.keyDown(menu, { key: "Escape" })).toBe(false);
+  });
 });
 
 describe("the Aksi lain menu", () => {

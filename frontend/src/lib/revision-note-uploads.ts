@@ -57,7 +57,8 @@ export function addScreenshots<F extends ScreenshotFile>(
   const refusals: string[] = [];
   for (const file of files) {
     const refusal = screenshotRefusal(file, next.length);
-    if (refusal) refusals.push(refusal);
+    // Named, so a batch with several refused files says which reason belongs to which (AC 4).
+    if (refusal) refusals.push(`${file.name}: ${refusal}`);
     else next.push({ id: nextId(), file, status: "uploading", progress: 0 });
   }
   return { uploads: next, refusals };

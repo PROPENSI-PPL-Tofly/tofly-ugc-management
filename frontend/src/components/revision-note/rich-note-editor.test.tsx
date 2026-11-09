@@ -137,6 +137,62 @@ describe("RichNoteEditor links", () => {
     expect(screen.queryByRole("textbox", { name: "URL link" })).not.toBeInTheDocument();
   });
 
+  it("puts the caret in the address box as the row opens", async () => {
+    renderEditor();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah link" }));
+
+    expect(screen.getByRole("textbox", { name: "URL link" })).toHaveFocus();
+  });
+
+  it("applies the address on Enter, as Terapkan does", async () => {
+    const { onChange } = renderEditor();
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah link" }));
+    const box = screen.getByRole("textbox", { name: "URL link" });
+    fireEvent.change(box, { target: { value: "https://tofly.id/panduan" } });
+
+    fireEvent.keyDown(box, { key: "Enter" });
+
+    await waitFor(() => expect(lastHtml(onChange)).toContain('href="https://tofly.id/panduan"'));
+    expect(screen.queryByRole("textbox", { name: "URL link" })).not.toBeInTheDocument();
+  });
+
+  it("lets other keys type into the address box", async () => {
+    renderEditor();
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah link" }));
+    const box = screen.getByRole("textbox", { name: "URL link" });
+
+    expect(fireEvent.keyDown(box, { key: "h" })).toBe(true);
+    expect(box).toBeInTheDocument();
+  });
+
+  it("closes only the row on Escape, keeping the panel around it open", async () => {
+    const outside = vi.fn();
+    document.addEventListener("keydown", outside);
+    try {
+      renderEditor();
+      fireEvent.click(await screen.findByRole("button", { name: "Tambah link" }));
+
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "URL link" }), { key: "Escape" });
+
+      expect(screen.queryByRole("textbox", { name: "URL link" })).not.toBeInTheDocument();
+      expect(outside).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Tambah link" })).toHaveFocus();
+    } finally {
+      document.removeEventListener("keydown", outside);
+    }
+  });
+
+  it("draws the address box with the shared field tokens", async () => {
+    renderEditor();
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah link" }));
+
+    const box = screen.getByRole("textbox", { name: "URL link" });
+    expect(box).toHaveClass("rounded-(--radius-control)");
+    expect(box).not.toHaveClass("rounded-md");
+    expect(box.className).not.toMatch(/\[\d/);
+  });
+
   // Positive: with nothing selected, the address itself goes in as the link.
   it("adds the address as a link when nothing is selected, then closes the row", async () => {
     const { onChange } = renderEditor();
