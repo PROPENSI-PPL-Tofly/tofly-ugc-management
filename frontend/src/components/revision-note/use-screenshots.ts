@@ -39,11 +39,16 @@ export interface Screenshots {
   add: (files: readonly File[]) => void;
   retry: (id: string) => void;
   remove: (id: string) => void;
+  // The stored images whose delete is on its way; their × waits for the server's answer.
+  removing: ReadonlySet<string>;
 }
 
 export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
   const [uploads, setUploads] = useState<readonly Upload[]>([]);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
+  // Read before React renders again, so a second press in the same moment is seen too.
+  const deleting = useRef(new Set<string>());
   // The list as it stands right now, so a step reads it without waiting for a render.
   const current = useRef<readonly Upload[]>([]);
   const controllers = useRef(new Map<string, AbortController>());
@@ -135,10 +140,20 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
     // Stored on the server: it leaves the list once the server has deleted it, so the five the
     // list counts stay the five the server counts.
     if (upload?.status === "done") {
-      uploader.remove(upload.imageId).then(
-        () => apply((list) => removed(list, id)),
-        () => setRefusal(REMOVE_FAILED),
-      );
+      // One delete at a time: a second one would be answered 404 for an image already gone.
+      if (deleting.current.has(id)) return;
+      deleting.current.add(id);
+      setRemoving(new Set(deleting.current));
+      uploader
+        .remove(upload.imageId)
+        .then(
+          () => apply((list) => removed(list, id)),
+          () => setRefusal(REMOVE_FAILED),
+        )
+        .finally(() => {
+          deleting.current.delete(id);
+          setRemoving(new Set(deleting.current));
+        });
       return;
     }
     // Still uploading, or failed: nothing is stored yet, so it is only stopped here.
@@ -154,5 +169,6 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
     add,
     retry,
     remove,
+    removing,
   };
 }

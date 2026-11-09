@@ -22,11 +22,13 @@ function helpLine(uploading: boolean, left: number): string {
 interface TileProps {
   upload: Upload;
   disabled: boolean;
+  // Its delete is on its way, so × waits.
+  removing: boolean;
   onRetry: () => void;
   onRemove: () => void;
 }
 
-function Tile({ upload, disabled, onRetry, onRemove }: Readonly<TileProps>) {
+function Tile({ upload, disabled, removing, onRetry, onRemove }: Readonly<TileProps>) {
   return (
     <li className="relative flex w-36 flex-col gap-1 rounded-md border border-rule bg-surface p-1.5 text-xs">
       {upload.status === "done" ? (
@@ -63,7 +65,7 @@ function Tile({ upload, disabled, onRetry, onRemove }: Readonly<TileProps>) {
         type="button"
         aria-label="Hapus gambar"
         onClick={onRemove}
-        disabled={disabled}
+        disabled={disabled || removing}
         // The press reaches past the small circle, so a finger finds it without it covering more
         // of the thumbnail.
         className={`absolute right-0 top-0 flex min-w-6 translate-x-1/2 -translate-y-1/2 items-center justify-center disabled:opacity-40 max-sm:min-w-11 ${MIN_TARGET} ${PHONE_TARGET}`}
@@ -129,6 +131,7 @@ export function ScreenshotTiles({ screenshots, disabled = false }: Readonly<Part
           key={upload.id}
           upload={upload}
           disabled={disabled}
+          removing={screenshots.removing.has(upload.id)}
           onRetry={() => screenshots.retry(upload.id)}
           onRemove={() => screenshots.remove(upload.id)}
         />
