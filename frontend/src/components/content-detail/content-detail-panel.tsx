@@ -8,6 +8,8 @@ import { CreatorLink } from "@/components/ui/creator-link";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
+import { FollowUpForm } from "./follow-up-form";
+import { FollowUpList } from "./follow-up-list";
 import { NoteField } from "./note-field";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
@@ -21,6 +23,7 @@ import {
   ContentDetailError,
   describeJourney,
   fetchContentDetail,
+  latestRevisionEventId,
   type ContentDetail,
   type ContentDetailLoader,
   type DetailEventType,
@@ -28,6 +31,7 @@ import {
 } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
+import { addFollowUp, withFollowUp } from "@/lib/follow-ups";
 import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
@@ -278,7 +282,7 @@ function Brief({ brief }: Readonly<{ brief: string }>) {
   );
 }
 
-function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
+function JourneyItem({ step, children }: Readonly<{ step: JourneyStep; children?: ReactNode }>) {
   const { event } = step;
   const role = ROLE_LABELS[event.actor.role];
   const link = event.payload?.link;
@@ -321,12 +325,21 @@ function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
             <p className="whitespace-pre-line">{event.payload?.note}</p>
           </blockquote>
         ) : null}
+
+        {children}
       </div>
     </li>
   );
 }
 
-function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
+function Journey({
+  steps,
+  under,
+}: Readonly<{
+  steps: JourneyStep[];
+  /** What a step shows under its note, e.g. the latest revision's follow-ups. */
+  under?: (step: JourneyStep) => ReactNode;
+}>) {
   if (steps.length === 0) {
     return <p className="text-xs text-muted">Belum ada riwayat.</p>;
   }
@@ -334,7 +347,9 @@ function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
   return (
     <ol aria-label="Riwayat konten">
       {steps.map((step) => (
-        <JourneyItem key={step.event.id} step={step} />
+        <JourneyItem key={step.event.id} step={step}>
+          {under?.(step)}
+        </JourneyItem>
       ))}
     </ol>
   );
@@ -568,6 +583,41 @@ export function ContentDetailPanel({
   }
   const formSpec = form ? FORMS[form] : null;
 
+  // Follow-ups belong under the newest revision note. The admin reads them here and, while
+  // that round is still open (Draft Perlu Revisi), adds to them; the creator's view of them
+  // is the creator side's to draw.
+  const followUpTarget = loaded ? latestRevisionEventId(loaded.events) : null;
+  const followUpRound =
+    loaded?.status === "draft_revision" ? loaded.latestSubmissionId : null;
+
+  function followUpsUnder(step: JourneyStep): ReactNode {
+    if (role !== "admin" || step.event.id !== followUpTarget) return null;
+
+    return (
+      <>
+        <FollowUpList followUps={step.event.payload?.followUps ?? []} />
+        {followUpRound ? (
+          <FollowUpForm
+            submissionId={followUpRound}
+            add={ports.addFollowUp ?? addFollowUp}
+            onAdded={(followUp) =>
+              setState((current) =>
+                current.kind === "loaded"
+                  ? { kind: "loaded", detail: withFollowUp(current.detail, followUp) }
+                  : current,
+              )
+            }
+            onRoundClosed={(message) => {
+              // The creator already sent a new draft: say so where the step is, and show it.
+              setError(message);
+              void readAgain();
+            }}
+          />
+        ) : null}
+      </>
+    );
+  }
+
   function cancelForm() {
     setCancelled(form);
     setForm(null);
@@ -687,7 +737,7 @@ export function ContentDetailPanel({
             ) : null}
             </CurrentStep>
 
-            <Journey steps={describeJourney(loaded.events)} />
+            <Journey steps={describeJourney(loaded.events)} under={followUpsUnder} />
           </section>
         </div>
       ) : (

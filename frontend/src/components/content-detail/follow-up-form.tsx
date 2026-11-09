@@ -1,0 +1,123 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
+import type { FollowUp } from "@/lib/content-detail";
+import { DecisionError } from "@/lib/decisions";
+import { MAX_FOLLOW_UP_LENGTH } from "@/lib/follow-ups";
+import { NoteField } from "./note-field";
+
+/** Saves one follow-up for a round; the API by default, a stub in tests (Dependency Inversion). */
+export type AddFollowUp = (submissionId: string, note: string) => Promise<FollowUp>;
+
+export const FOLLOW_UP_SAVED = "Catatan susulan terkirim ke kreator.";
+
+/**
+ * "Tambah Catatan Susulan": a closed button under the latest revision note that opens into the
+ * same note field the revision was written in. Saving keeps the panel open, so the admin sees
+ * the new entry join the list (`onAdded`) and a toast confirms it. A 409 means the creator
+ * already answered with a new draft: the round is closed, and the panel takes over
+ * (`onRoundClosed`) to say why and read the content again.
+ */
+export function FollowUpForm({
+  submissionId,
+  add,
+  onAdded,
+  onRoundClosed,
+}: Readonly<{
+  submissionId: string;
+  add: AddFollowUp;
+  onAdded: (followUp: FollowUp) => void;
+  onRoundClosed: (message: string) => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The field that held focus unmounts when the form closes; the opener takes focus back so a
+  // keyboard user stays where they were.
+  const [returnFocus, setReturnFocus] = useState(false);
+  const { show, toast } = useToast();
+
+  function close() {
+    setOpen(false);
+    setNote("");
+    setError(null);
+    setReturnFocus(true);
+  }
+
+  async function submit() {
+    setSending(true);
+    setError(null);
+    try {
+      const saved = await add(submissionId, note.trim());
+      onAdded(saved);
+      close();
+      show(FOLLOW_UP_SAVED);
+    } catch (caught) {
+      if (caught instanceof DecisionError && caught.status === 409) {
+        close();
+        onRoundClosed(caught.message);
+      } else {
+        // Anything else keeps the note, so the admin can retry without typing it again.
+        setError(caught instanceof Error ? caught.message : "Terjadi kesalahan. Coba lagi.");
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <>
+      {open ? (
+        <div className="mt-3 flex w-full flex-col gap-2">
+          {error ? (
+            <p role="alert" className="text-xs text-red-ink">
+              {error}
+            </p>
+          ) : null}
+
+          <NoteField
+            label="Catatan susulan"
+            placeholder="mis. Tambahan: logo muncul di detik 3."
+            required
+            missingMessage="Catatan susulan wajib diisi sebelum dikirim."
+            max={MAX_FOLLOW_UP_LENGTH}
+            value={note}
+            onChange={setNote}
+            disabled={sending}
+          />
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={close} disabled={sending}>
+              Batal
+            </Button>
+            <Button
+              variant="accent"
+              onClick={() => void submit()}
+              disabled={sending || note.trim() === ""}
+              aria-busy={sending}
+            >
+              Kirim Catatan Susulan
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          aria-expanded={false}
+          autoFocus={returnFocus}
+          onClick={() => {
+            setReturnFocus(false);
+            setOpen(true);
+          }}
+          className="mt-2"
+        >
+          Tambah Catatan Susulan
+        </Button>
+      )}
+      {toast}
+    </>
+  );
+}

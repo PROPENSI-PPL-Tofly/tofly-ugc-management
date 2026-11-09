@@ -2,7 +2,7 @@
 // creator has not handed in the next draft yet. The original note is never changed; each
 // follow-up is its own entry under it.
 
-import type { FollowUp } from "./content-detail";
+import { latestRevisionEventId, type ContentDetail, type FollowUp } from "./content-detail";
 import { sendAndRead } from "./decisions";
 
 /** The API's limit on a follow-up note, the same as on the revision note it adds to. */
@@ -21,4 +21,29 @@ export async function addFollowUp(submissionId: string, note: string): Promise<F
     "Catatan susulan gagal dikirim. Coba lagi.",
     { note },
   );
+}
+
+/**
+ * The detail with a just-saved follow-up added under the newest revision note, after the ones
+ * already there: what the panel shows until it next reads the content. A new detail, so the
+ * one it was given stays as it was; unchanged when no revision was ever asked for.
+ */
+export function withFollowUp(detail: ContentDetail, followUp: FollowUp): ContentDetail {
+  const target = latestRevisionEventId(detail.events);
+  if (target === null) return detail;
+
+  return {
+    ...detail,
+    events: detail.events.map((event) =>
+      event.id === target
+        ? {
+            ...event,
+            payload: {
+              ...event.payload,
+              followUps: [...(event.payload?.followUps ?? []), followUp],
+            },
+          }
+        : event,
+    ),
+  };
 }
