@@ -1,7 +1,9 @@
 import type { social_platform } from '@prisma/client';
+import { ADMIN_ACTOR_NAME } from './content-event-actors.js';
 import type {
   ContentEvent,
   DetailEventType,
+  DetailFollowUp,
   MetricChange,
 } from './content-detail.js';
 import { isSocialPlatform } from './link-rules.js';
@@ -80,6 +82,11 @@ const STEP_FOR: Record<
     type: 'creator_comment',
     payload: (data) => details({ note: data.text('comment') }),
   },
+  // PBI-33 AC 6: the step only marks when; the follow-up itself is listed under its note.
+  'Revision Followup Added': {
+    type: 'revision_followup_added',
+    payload: () => undefined,
+  },
 };
 
 /** Typed reads of a stored jsonb object; a field of the wrong type reads as absent. */
@@ -153,6 +160,10 @@ function details(
  * sent as "an admin": whatever name an admin event stored stays on the server (OWASP A01).
  */
 export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
+  return withFollowUps(rows, toSteps(rows));
+}
+
+function toSteps(rows: StoredEventRow[]): ContentEvent[] {
   return rows.flatMap((row) => {
     const step = STEP_FOR[row.event_type];
     if (!step) {
@@ -172,5 +183,49 @@ export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
         ...(payload && { payload }),
       },
     ];
+  });
+}
+
+// The follow-up a stored row holds, or null when its note or id cannot be read.
+function followUpOf(row: StoredEventRow): DetailFollowUp | null {
+  const data = dataOf(row.event_data);
+  const id = data.text('follow_up_id');
+  const note = data.text('note');
+  if (id === undefined || note === undefined) {
+    return null;
+  }
+  return {
+    id,
+    note,
+    at: row.occurred_at.toISOString(),
+    actor: { name: ADMIN_ACTOR_NAME },
+  };
+}
+
+// PBI-33 AC 4: each follow-up goes under the latest revision request before it. A follow-up is
+// only kept while that round is open, so it is the request it adds to; one with no request
+// before it is listed nowhere rather than under a guess. Rows come newest first, so they are
+// walked from the oldest.
+function withFollowUps(
+  rows: StoredEventRow[],
+  steps: ContentEvent[],
+): ContentEvent[] {
+  const listed = new Map<string, DetailFollowUp[]>();
+  let request: string | null = null;
+  for (const row of [...rows].reverse()) {
+    if (row.event_type === 'Revision Requested') {
+      request = row.id;
+    } else if (row.event_type === 'Revision Followup Added' && request) {
+      const followUp = followUpOf(row);
+      if (followUp) {
+        listed.set(request, [...(listed.get(request) ?? []), followUp]);
+      }
+    }
+  }
+  return steps.map((step) => {
+    const followUps = listed.get(step.id);
+    return followUps
+      ? { ...step, payload: { ...step.payload, followUps } }
+      : step;
   });
 }

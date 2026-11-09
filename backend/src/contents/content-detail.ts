@@ -39,7 +39,17 @@ export type DetailEventType =
   | 'draft_approved'
   | 'link_submitted'
   | 'performance_entered'
-  | 'performance_replaced';
+  | 'performance_replaced'
+  | 'revision_followup_added';
+
+// A follow-up an admin added under a revision note already sent (PBI-33), named by role only.
+export interface DetailFollowUp {
+  id: string;
+  note: string;
+  // ISO instant the follow-up was saved.
+  at: string;
+  actor: { name: string };
+}
 
 export interface DetailSubmissionRow {
   id: string;
@@ -103,6 +113,8 @@ export interface ContentEvent {
     replaced?: true;
     /** The numbers a performance step moved (PBI-27 AC 16, 17). */
     changes?: MetricChange[];
+    // On a revision request: the follow-ups added under its note, oldest first (PBI-33 AC 4).
+    followUps?: DetailFollowUp[];
   };
 }
 
