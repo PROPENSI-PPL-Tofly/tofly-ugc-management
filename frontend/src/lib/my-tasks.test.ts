@@ -27,6 +27,7 @@ const response: RawMyContents = {
       tags: [],
       actions: ["submit_draft"],
       revisionNotes: null,
+      lastFollowUpAt: null,
     },
   ],
   page: 2,

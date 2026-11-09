@@ -41,6 +41,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     platforms: [],
     actions: ["submit_draft"],
     revisionNotes: null,
+    lastFollowUpAt: null,
     ...overrides,
   };
 }

@@ -583,19 +583,20 @@ export function ContentDetailPanel({
   }
   const formSpec = form ? FORMS[form] : null;
 
-  // Follow-ups belong under the newest revision note. The admin reads them here and, while
-  // that round is still open (Draft Perlu Revisi), adds to them; the creator's view of them
-  // is the creator side's to draw.
+  // Each revision note carries its own follow-ups, which admin and creator both read under it
+  // (AC 4). Only the newest note takes more, and only from the admin while that round is still
+  // open (Draft Perlu Revisi).
   const followUpTarget = loaded ? latestRevisionEventId(loaded.events) : null;
   const followUpRound =
     loaded?.status === "draft_revision" ? loaded.latestSubmissionId : null;
 
   function followUpsUnder(step: JourneyStep): ReactNode {
-    if (role !== "admin" || step.event.id !== followUpTarget) return null;
+    const list = <FollowUpList followUps={step.event.payload?.followUps ?? []} />;
+    if (role !== "admin" || step.event.id !== followUpTarget) return list;
 
     return (
       <>
-        <FollowUpList followUps={step.event.payload?.followUps ?? []} />
+        {list}
         {followUpRound ? (
           <FollowUpForm
             submissionId={followUpRound}

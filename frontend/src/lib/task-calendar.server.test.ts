@@ -29,6 +29,7 @@ function task(id: string): MyTask {
     tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
+    lastFollowUpAt: null,
   };
 }
 
