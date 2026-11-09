@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { CreatorLink } from "@/components/ui/creator-link";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
+import { RevisionNoteField } from "@/components/revision-note/revision-note-field";
+import { screenshotUploader } from "@/lib/revision-note-images-api";
+import type { ScreenshotUploader } from "@/lib/revision-note-uploads";
 import { EditForm, ManageMenu } from "./content-manage";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
@@ -443,6 +446,7 @@ export function ContentDetailPanel({
   ports = {},
   manage = {},
   now,
+  uploader,
 }: Readonly<{
   contentId: string;
   role: Role;
@@ -465,6 +469,11 @@ export function ContentDetailPanel({
   manage?: Partial<ContentManagePorts>;
   /** The moment "today" is read from; the current one by default, a fixed one in tests. */
   now?: Date;
+  /**
+   * Where the revision note's screenshots go (PBI-34, 34.2); 34.1's routes for the draft under
+   * review by default, a stub in tests.
+   */
+  uploader?: ScreenshotUploader;
 }>) {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
@@ -472,6 +481,10 @@ export function ContentDetailPanel({
   const [form, setForm] = useState<FormKind | null>(null);
   const formOpen = form !== null;
   const [note, setNote] = useState("");
+  // PBI-34, 34.2: the revision note's formatting as 34.1 takes it, and whether a screenshot is
+  // still uploading, which holds Kirim Revisi back (AC 5).
+  const [noteHtml, setNoteHtml] = useState<string | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
@@ -547,6 +560,13 @@ export function ContentDetailPanel({
 
   const loaded = state.kind === "loaded" ? state.detail : null;
 
+  // One uploader per draft under review, so the field reads what 34.1 holds for it once.
+  const submissionId = loaded?.latestSubmissionId ?? null;
+  const revisionUploader = useMemo(
+    () => uploader ?? (submissionId ? screenshotUploader(submissionId) : null),
+    [uploader, submissionId],
+  );
+
   const actionPorts: PanelActionPorts = {
     approve: ports.approve ?? approveSubmission,
     revise: ports.revise ?? reviseSubmission,
@@ -566,7 +586,7 @@ export function ContentDetailPanel({
     onManageLinks: ports.onManageLinks,
   };
 
-  const snapshot = () => ({ busy, note });
+  const snapshot = () => ({ busy, note, noteHtml, uploading });
 
   async function decide(kind: Decision, run: () => Promise<void>) {
     setError(null);
@@ -583,6 +603,8 @@ export function ContentDetailPanel({
       if (caught instanceof DecisionError && caught.status === 409) {
         setForm(null);
         setNote("");
+        setNoteHtml(undefined);
+        setUploading(false);
         setEditing(false);
         void readAgain();
       }
@@ -623,6 +645,8 @@ export function ContentDetailPanel({
     setForm(null);
     setError(null);
     setNote("");
+    setNoteHtml(undefined);
+    setUploading(false);
     setNoteLeft(false);
   }
 
@@ -742,6 +766,29 @@ export function ContentDetailPanel({
                     </p>
                   ) : null}
 
+                  {form === "revise" && revisionUploader ? (
+                    // PBI-34, 34.2: the revision note is the rich text editor with its screenshots;
+                    // it keeps the textarea's label, required mark, message and focus.
+                    <div className="flex flex-col gap-1 text-[13px]">
+                      <span className={`font-semibold text-ink ${REQUIRED_MARK}`}>{formSpec.label}</span>
+                      <RevisionNoteField
+                        label={formSpec.label}
+                        max={formSpec.max}
+                        uploader={revisionUploader}
+                        disabled={busy}
+                        autoFocus
+                        required
+                        invalid={missingNote}
+                        describedBy={missingNote ? missingId : undefined}
+                        onBlur={() => setNoteLeft(true)}
+                        onChange={(value) => {
+                          setNote(value.text);
+                          setNoteHtml(value.html);
+                          setUploading(value.uploading);
+                        }}
+                      />
+                    </div>
+                  ) : (
                   <label className="flex flex-col gap-1 text-[13px]">
                     {/* A required note is marked as every required field is; the optional reason is not. */}
                     <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
@@ -762,12 +809,16 @@ export function ContentDetailPanel({
                       className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
                     />
                   </label>
+                  )}
                   {missingNote ? (
                     <p id={missingId} className="text-xs text-red-ink">
                       {formSpec.missingMessage}
                     </p>
                   ) : null}
-                  <CharLimit id={countId} length={note.length} max={formSpec.max} />
+                  {/* The editor has its own counter, beside its help line. */}
+                  {form === "revise" ? null : (
+                    <CharLimit id={countId} length={note.length} max={formSpec.max} />
+                  )}
 
                   <div className="flex justify-end gap-2">
                     <Button variant="ghost" onClick={cancelForm} disabled={busy}>
