@@ -516,3 +516,16 @@ describe("RichNoteEditor invalid later", () => {
     await waitFor(() => expect(box).toHaveAttribute("aria-invalid", "true"));
   });
 });
+
+describe("RichNoteEditor counts as 34.1 does", () => {
+  // Review on #188: the same example as 34.1's revision-note-html.spec.ts, so the editor's
+  // counter and the server's limit cannot drift apart again.
+  it("counts a note with a list as 25, as the server does", async () => {
+    renderEditor({
+      initialContent:
+        "<p>Tolong ganti:</p><ul><li><p>audio</p></li><li><p>caption</p></li></ul><p></p>",
+    });
+
+    expect(await screen.findByText("25/1000")).toBeInTheDocument();
+  });
+});
