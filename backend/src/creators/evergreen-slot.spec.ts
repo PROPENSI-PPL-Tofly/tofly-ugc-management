@@ -1,4 +1,7 @@
-import { checkEvergreenSlot, type EvergreenSlotContext } from './evergreen-slot.js';
+import {
+  checkEvergreenSlot,
+  type EvergreenSlotContext,
+} from './evergreen-slot.js';
 
 // Contract 1 Okt – 31 Des, today 24 Sep — same shape as the frontend's content-schedule.test.ts,
 // so this rule reads the same on both sides of the stack.
@@ -13,7 +16,12 @@ const CONTEXT: EvergreenSlotContext = {
 
 describe('checkEvergreenSlot', () => {
   it('accepts Evergreen when the quota still has room', () => {
-    const errors = checkEvergreenSlot('evergreen', '2026-10-10', CONTEXT, TODAY);
+    const errors = checkEvergreenSlot(
+      'evergreen',
+      '2026-10-10',
+      CONTEXT,
+      TODAY,
+    );
 
     expect(errors.contentType).toBeUndefined();
   });
@@ -47,12 +55,14 @@ describe('checkEvergreenSlot', () => {
   it('rejects a content type outside evergreen/specific', () => {
     const errors = checkEvergreenSlot('banana', '2026-10-10', CONTEXT, TODAY);
 
-    expect(errors.contentType).toBe('Tipe konten harus evergreen atau specific');
+    expect(errors.contentType).toBe(
+      'Tipe konten harus evergreen atau specific',
+    );
   });
 
   // PRD 3.4/3.6: deadline must be on/after max(contract start, today) + buffer, and
-  // on/before the contract end date — same rule the frontend's content-schedule.ts applies,
-  // re-run here since a request can skip the client entirely.
+  // PBI-38 AC 14: on/before the contract end minus the H-5 buffer — the line the frontend's
+  // date picker holds, re-run here since a request can skip the client entirely.
   describe('deadline', () => {
     it.each([
       ['missing', undefined],
@@ -65,7 +75,12 @@ describe('checkEvergreenSlot', () => {
     });
 
     it('rejects a deadline that is not a real calendar day', () => {
-      const errors = checkEvergreenSlot('evergreen', '2026-13-01', CONTEXT, TODAY);
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        '2026-13-01',
+        CONTEXT,
+        TODAY,
+      );
 
       expect(errors.deadline).toBe('Format tanggal deadline tidak valid');
     });
@@ -73,20 +88,35 @@ describe('checkEvergreenSlot', () => {
     // Distinct from the case above: this string is not even shaped like YYYY-MM-DD, so it
     // never reaches the round-trip check at all.
     it('rejects a deadline that is not shaped like a date at all', () => {
-      const errors = checkEvergreenSlot('evergreen', 'not-a-date', CONTEXT, TODAY);
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        'not-a-date',
+        CONTEXT,
+        TODAY,
+      );
 
       expect(errors.deadline).toBe('Format tanggal deadline tidak valid');
     });
 
     it('rejects a deadline before the buffer window', () => {
       // First allowed day is 2026-10-06 (contract starts 1 Okt, 5-day buffer).
-      const errors = checkEvergreenSlot('evergreen', '2026-10-05', CONTEXT, TODAY);
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        '2026-10-05',
+        CONTEXT,
+        TODAY,
+      );
 
       expect(errors.deadline).toBe('Deadline paling cepat 6 Okt 2026');
     });
 
     it('accepts the first day the buffer allows', () => {
-      const errors = checkEvergreenSlot('evergreen', '2026-10-06', CONTEXT, TODAY);
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        '2026-10-06',
+        CONTEXT,
+        TODAY,
+      );
 
       expect(errors.deadline).toBeUndefined();
     });
@@ -95,19 +125,52 @@ describe('checkEvergreenSlot', () => {
       // Contract started in the past (1 Agu); the buffer must count from today (24 Sep).
       const context = { ...CONTEXT, contractStart: '2026-08-01' };
 
-      const errors = checkEvergreenSlot('evergreen', '2026-09-28', context, TODAY);
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        '2026-09-28',
+        context,
+        TODAY,
+      );
 
       expect(errors.deadline).toBe('Deadline paling cepat 29 Sep 2026');
     });
 
-    it('rejects a deadline past the H-5 line (PBI-38 AC 14)', () => {
-      const errors = checkEvergreenSlot('evergreen', '2026-12-27', CONTEXT, TODAY);
+    it('rejects a deadline after the contract ends, naming the H-5 line', () => {
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        '2027-01-01',
+        CONTEXT,
+        TODAY,
+      );
 
-      expect(errors.deadline).toBe('Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)');
+      expect(errors.deadline).toBe(
+        'Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)',
+      );
     });
 
-    it('accepts the H-5 line itself', () => {
-      const errors = checkEvergreenSlot('evergreen', '2026-12-26', CONTEXT, TODAY);
+    it.each(['2026-12-27', '2026-12-31'])(
+      'rejects %s, inside the last five days of the contract (PBI-38 AC 14)',
+      (deadline) => {
+        const errors = checkEvergreenSlot(
+          'evergreen',
+          deadline,
+          CONTEXT,
+          TODAY,
+        );
+
+        expect(errors.deadline).toBe(
+          'Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)',
+        );
+      },
+    );
+
+    it('accepts the H-5 day itself', () => {
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        '2026-12-26',
+        CONTEXT,
+        TODAY,
+      );
 
       expect(errors.deadline).toBeUndefined();
     });
@@ -118,7 +181,12 @@ describe('checkEvergreenSlot', () => {
     it('uses the buffer days from the context, not a hardcoded default', () => {
       const context = { ...CONTEXT, bufferDays: 10 };
 
-      const errors = checkEvergreenSlot('evergreen', '2026-10-10', context, TODAY);
+      const errors = checkEvergreenSlot(
+        'evergreen',
+        '2026-10-10',
+        context,
+        TODAY,
+      );
 
       expect(errors.deadline).toBe('Deadline paling cepat 11 Okt 2026');
     });

@@ -22,6 +22,8 @@ export interface InvoiceState {
   assertCanConfirmReceipt(): void;
   /** A video link is submitted, added for another platform or replaced (PBI-38 AC 8, 9). */
   assertCanChangeLinks(): void;
+  /** A scheduled content is edited or deleted (PBI-25 AC 9). */
+  assertCanChangeSchedule(): void;
 }
 
 /** Why a proof is refused: the invoice is not waiting for one. */
@@ -80,6 +82,8 @@ export class RunningInvoiceState implements InvoiceState {
   }
 
   assertCanChangeLinks(): void {}
+
+  assertCanChangeSchedule(): void {}
 }
 
 /**
@@ -115,6 +119,14 @@ abstract class FrozenInvoiceState implements InvoiceState {
     throw refused(
       'INVOICE_FINALIZED',
       'Invoice sudah difinalisasi. Link video tidak bisa diubah lagi',
+    );
+  }
+
+  /** The penalties were counted from these contents: moving or removing one now changes nothing paid. */
+  assertCanChangeSchedule(): never {
+    throw refused(
+      'INVOICE_FINALIZED',
+      'Invoice sudah difinalisasi. Konten tidak bisa diubah atau dihapus lagi',
     );
   }
 

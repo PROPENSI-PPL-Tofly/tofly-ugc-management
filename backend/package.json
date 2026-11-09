@@ -25,7 +25,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:seed:files": "prisma db execute --file prisma/seeds/local-admin.sql --schema prisma/schema.prisma && prisma db execute --file prisma/seeds/demo.sql --schema prisma/schema.prisma",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "email:test": "npm run build && node dist/email/send-test-email-cli.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.22.0",
@@ -37,8 +38,10 @@
     "cookie-parser": "^1.4.7",
     "helmet": "^8.3.0",
     "jose": "^6.2.12",
+    "nodemailer": "^10.3.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "sanitize-html": "^2.18.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
@@ -51,6 +54,8 @@
     "@types/express": "^5.0.0",
     "@types/multer": "^2.3.0",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/sanitize-html": "^2.16.2",
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",
     "oxlint": "^1.58.0",

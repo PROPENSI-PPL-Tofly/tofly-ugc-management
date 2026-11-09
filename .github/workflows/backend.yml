@@ -385,6 +385,17 @@ jobs:
           # apps and its token key stay apart from production's.
           ENV_SUFFIX="${DB_SECRET#DB_URL_}"
           SOCIAL_SECRETS="SOCIAL_STATE_SECRET=SOCIAL_STATE_SECRET_$ENV_SUFFIX:latest,SOCIAL_TOKEN_KEY=SOCIAL_TOKEN_KEY_$ENV_SUFFIX:latest,TIKTOK_CLIENT_SECRET=TIKTOK_CLIENT_SECRET_$ENV_SUFFIX:latest,INSTAGRAM_APP_SECRET=INSTAGRAM_APP_SECRET_$ENV_SUFFIX:latest"
+          # Login codes are hashed under a key of their own per environment, for the same reason.
+          LOGIN_SECRET="LOGIN_CODE_SECRET_$ENV_SUFFIX"
+          # The SMTP account is passed only once the environment's SMTP_HOST var is set: naming a
+          # secret that does not exist yet would fail the whole deploy, and without it every
+          # sign-in code send fails closed instead.
+          SMTP_SECRETS=""
+          if [ -n "${{ vars.SMTP_HOST }}" ]; then
+            SMTP_SECRETS=",SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest"
+          else
+            echo "::warning::SMTP_HOST is not set for this environment: email sign-in codes cannot be sent"
+          fi
           if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; then
             TRAFFIC="--no-traffic"
           else
@@ -396,8 +407,8 @@ jobs:
             --region "$REGION" \
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
-            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,$SOCIAL_SECRETS" \
-            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},TIKTOK_CLIENT_KEY=${{ vars.TIKTOK_CLIENT_KEY }},TIKTOK_REDIRECT_URI=${{ vars.TIKTOK_REDIRECT_URI }},INSTAGRAM_APP_ID=${{ vars.INSTAGRAM_APP_ID }},INSTAGRAM_REDIRECT_URI=${{ vars.INSTAGRAM_REDIRECT_URI }}" \
+            --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,$SOCIAL_SECRETS,LOGIN_CODE_SECRET=$LOGIN_SECRET:latest$SMTP_SECRETS" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},TIKTOK_CLIENT_KEY=${{ vars.TIKTOK_CLIENT_KEY }},TIKTOK_REDIRECT_URI=${{ vars.TIKTOK_REDIRECT_URI }},INSTAGRAM_APP_ID=${{ vars.INSTAGRAM_APP_ID }},INSTAGRAM_REDIRECT_URI=${{ vars.INSTAGRAM_REDIRECT_URI }},SMTP_HOST=${{ vars.SMTP_HOST }},SMTP_PORT=${{ vars.SMTP_PORT }},EMAIL_FROM=${{ vars.EMAIL_FROM }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --timeout 600 \

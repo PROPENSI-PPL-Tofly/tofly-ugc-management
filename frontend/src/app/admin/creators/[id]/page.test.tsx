@@ -118,12 +118,6 @@ describe("Creator Detail page", () => {
     expect(metadata.title).toBe("Detail Creator — Tofly");
   });
 
-  it("is subtitled as the prototype subtitles it", async () => {
-    await renderPage();
-
-    expect(screen.getByText("Data, jadwal, dan content plan satu creator")).toBeInTheDocument();
-  });
-
   it("offers the way back to the Creator Database", async () => {
     await renderPage();
 
@@ -191,13 +185,17 @@ describe("Creator Detail page", () => {
   });
 
   // PBI-4: creator → contract history per period → content per contract, on one page.
-  it("shows the creator, then the contract periods, then the open period's content", async () => {
+  it("shows the creator, then the contract periods, then the open period's summary and content", async () => {
     await renderPage();
 
-    const [profile, periods, plan] = screen.getAllByRole("heading", { level: 2 });
+    const [profile, periods, summary, schedule, list] = screen.getAllByRole("heading", { level: 2 });
     expect(profile).toHaveTextContent("Rangga Pratama");
     expect(periods).toHaveTextContent("Periode Kontrak");
-    expect(plan).toHaveTextContent("Content Plan");
+    expect(summary).toHaveTextContent(/^Ringkasan$/);
+    expect(schedule).toHaveTextContent("Jadwal Konten");
+    expect(list).toHaveTextContent("Daftar Konten");
+    // The page title says enough; no subtitle under it.
+    expect(screen.queryByText("Data, jadwal, dan content plan satu creator")).toBeNull();
 
     expect(screen.getByText("rangga@example.com")).toBeInTheDocument();
     expect(
@@ -249,10 +247,11 @@ describe("Creator Detail page", () => {
 
     await renderPage({ contract: FIRST });
 
-    expect(screen.getByText("Tipe").nextElementSibling).toHaveTextContent("Regular");
+    // The profile's own Tipe, not the content table's Tipe column.
+    expect(screen.getByText("Tipe", { selector: "dt" }).nextElementSibling).toHaveTextContent("Regular");
     expect(screen.getByText("Kontrak").nextElementSibling).toHaveTextContent("Aktif");
-    // The open period is still the older one, down in the Content Plan.
-    expect(screen.getByText("Periode 1 · Berakhir")).toBeInTheDocument();
+    // The open period is still the older one, on the panels below.
+    expect(screen.getAllByText("Periode 1 · Berakhir").length).toBeGreaterThan(0);
   });
 
   it("still shows the profile of a creator without any contract", async () => {

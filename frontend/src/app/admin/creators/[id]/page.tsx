@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreatorContentBoard } from "@/components/creator-detail/creator-content-board";
 import { CreatorProfilePanel } from "@/components/creator-detail/creator-profile";
-import { PeriodTabs } from "@/components/creator-detail/period-tabs";
+import { PeriodSummary, PeriodTabs } from "@/components/creator-detail/period-tabs";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Panel } from "@/components/ui/panel";
@@ -57,7 +57,6 @@ export default async function CreatorDetailPage({
   return (
     <AppShell
       title="Detail Creator"
-      subtitle="Data, jadwal, dan content plan satu creator"
     >
       <Link
         href={creatorDatabaseHref(state.back)}
@@ -70,14 +69,10 @@ export default async function CreatorDetailPage({
         <div className="flex flex-col gap-4">
           {/* The profile describes the creator's latest contract, whichever period is open. */}
           <CreatorProfilePanel creator={view.creator} current={view.periods[0] ?? null} today={today} connections={view.connections} />
-          <PeriodTabs
-            creatorId={id}
-            creatorName={view.creator.name}
-            periods={view.periods}
-            selected={view.selected}
-            earnings={view.earnings}
-            back={state.back}
-          />
+          <PeriodTabs creatorId={id} periods={view.periods} selected={view.selected} back={state.back} />
+          {view.selected ? (
+            <PeriodSummary period={view.selected} earnings={view.earnings} creatorName={view.creator.name} />
+          ) : null}
           <CreatorContentBoard creatorId={id} view={view} state={state} today={today} />
         </div>
       ) : (

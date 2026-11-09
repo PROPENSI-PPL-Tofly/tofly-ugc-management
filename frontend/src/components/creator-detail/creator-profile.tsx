@@ -1,6 +1,6 @@
 import { ConnectionBadge } from "@/components/ui/connection-badge";
 import { Panel } from "@/components/ui/panel";
-import { StatusDot } from "@/components/ui/pill";
+import { Pill } from "@/components/ui/pill";
 import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
 import { ACCESS_STATE_LABELS, ACCESS_STATE_TONES, creatorAccess } from "@/lib/creator-detail";
 import {
@@ -47,8 +47,9 @@ export function CreatorProfilePanel({
   const access = creatorAccess(creator.accessRevokeDate, current?.endDate ?? null, today);
 
   return (
-    // Unclipped, so a badge's tooltip opens past the card's edge instead of being cut off.
-    <Panel clip={false}>
+    // Unclipped, so a badge's tooltip opens past the card's edge instead of being cut off. Tinted:
+    // it is who the page is about, set apart from the panels of data under it.
+    <Panel clip={false} tinted>
       <div className="flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0">
           <h2 className="text-lg wrap-anywhere">{creator.name}</h2>
@@ -77,29 +78,27 @@ export function CreatorProfilePanel({
           )}
         </div>
 
-        <dl className="grid shrink-0 grid-cols-[auto_auto] items-center gap-x-4 gap-y-2">
-          {current ? (
-            <>
-              <dt className={CAPTION}>Tipe</dt>
-              <dd className="text-[13px] font-semibold">{CONTRACT_TYPE_LABELS[current.type]}</dd>
+        <div className="shrink-0">
+          <dl className="grid grid-cols-[auto_auto] items-center gap-x-4 gap-y-2">
+            {current ? (
+              <>
+                <dt className={CAPTION}>Tipe</dt>
+                <dd className="text-[13px] font-semibold">{CONTRACT_TYPE_LABELS[current.type]}</dd>
 
-              <dt className={CAPTION}>Kontrak</dt>
-              <dd>
-                <StatusDot tone={PERIOD_STATUS_TONES[current.status]}>
-                  {PERIOD_STATUS_LABELS[current.status]}
-                </StatusDot>
-              </dd>
-            </>
-          ) : null}
+                <dt className={CAPTION}>Kontrak</dt>
+                <dd>
+                  <Pill tone={PERIOD_STATUS_TONES[current.status]}>{PERIOD_STATUS_LABELS[current.status]}</Pill>
+                </dd>
+              </>
+            ) : null}
 
-          <dt className={CAPTION}>Akses</dt>
-          <dd>
-            <StatusDot tone={ACCESS_STATE_TONES[access.state]}>
-              {ACCESS_STATE_LABELS[access.state]}
-            </StatusDot>
-            {access.note ? <p className="mt-1 max-w-64 text-xs text-muted">{access.note}</p> : null}
-          </dd>
-        </dl>
+            <dt className={CAPTION}>Akses</dt>
+            <dd>
+              <Pill tone={ACCESS_STATE_TONES[access.state]}>{ACCESS_STATE_LABELS[access.state]}</Pill>
+              {access.note ? <p className="mt-1 max-w-64 text-xs text-muted">{access.note}</p> : null}
+            </dd>
+          </dl>
+        </div>
       </div>
     </Panel>
   );

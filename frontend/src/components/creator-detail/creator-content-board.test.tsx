@@ -181,11 +181,26 @@ describe("CreatorContentBoard", () => {
     expect(screen.queryByRole("dialog", { name: "Detail konten" })).toBeNull();
   });
 
-  it("is headed Content Plan and says which period it shows", () => {
+  it("titles the calendar Jadwal Konten, saying which period it shows", () => {
     renderBoard();
 
-    expect(screen.getByRole("heading", { level: 2, name: "Content Plan" })).toBeInTheDocument();
-    expect(screen.getByText("Periode 2 · Aktif")).toBeInTheDocument();
+    const calendar = screen.getByRole("heading", { level: 2, name: "Jadwal Konten" });
+    expect(calendar).not.toHaveClass("sr-only");
+    expect(calendar.parentElement).toHaveTextContent("Periode 2 · Aktif");
+  });
+
+  it("titles the table Daftar Konten, in a panel of its own under the calendar", () => {
+    renderBoard();
+
+    const list = screen.getByRole("heading", { level: 2, name: "Daftar Konten" });
+    // The same plain title as Jadwal Konten, with the same period badge beside it.
+    expect(list).toHaveClass("text-[15px]");
+    expect(list.parentElement).toHaveTextContent("Periode 2 · Aktif");
+    expect(list.closest("section")).toContainElement(screen.getByRole("tabpanel"));
+    expect(list.closest("section")).not.toContainElement(
+      screen.getByRole("heading", { level: 2, name: "Jadwal Konten" }),
+    );
+    expect(screen.queryByRole("heading", { name: "Content Plan" })).toBeNull();
   });
 
   it("offers the type and status filters over the table", () => {
@@ -385,18 +400,27 @@ describe("CreatorContentBoard", () => {
       renderBoard(viewOf(3, 1, { ...PERIOD, status: "expired" }));
 
       expect(screen.queryByRole("button", { name: "+ Tambah Konten" })).toBeNull();
-      expect(screen.getByText("Periode 2 · Berakhir")).toBeInTheDocument();
+      // The same badge heads the calendar and the list, in the period's own colour.
+      for (const badge of screen.getAllByText("Periode 2 · Berakhir")) expect(badge).toHaveClass("bg-red-wash");
     });
   });
 
   it("says a creator has no contract, with no table and nothing to page through", () => {
     renderBoard(viewOf(0, 1, null));
 
-    expect(screen.getByRole("heading", { level: 2, name: "Content Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Jadwal Konten" })).toBeInTheDocument();
     expect(screen.getByText("Creator ini belum memiliki kontrak.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.queryByRole("button", { name: "+ Tambah Konten" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Tipe:/ })).toBeNull();
+  });
+
+  it("says how many Evergreen slots are left beside Tambah Konten, not inside the calendar", () => {
+    renderBoard();
+
+    const note = screen.getByRole("note");
+    expect(note).toHaveTextContent("1 slot Evergreen belum dialokasikan.");
+    expect(note.parentElement).toContainElement(screen.getByRole("button", { name: "+ Tambah Konten" }));
   });
 });

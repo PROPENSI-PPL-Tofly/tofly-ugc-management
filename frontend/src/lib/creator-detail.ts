@@ -183,8 +183,17 @@ export interface PeriodEarnings {
   status: InvoiceStatus;
 }
 
-export const PRODUCTIVITY_TIP =
-  "Baik: tepat waktu 80% ke atas dan revisi maksimal 1x. Berisiko: tepat waktu di bawah 40% atau revisi di atas 2x. Selain itu Perlu Perhatian. Belum Dinilai: kontrak belum dimulai. Belum Ada Data: kontrak sudah berjalan, belum ada konten selesai.";
+/** Each productivity band and the rule that earns it, in the order the ⓘ explains them. */
+export const PRODUCTIVITY_BANDS: readonly { label: string; rule: string }[] = [
+  { label: "Baik", rule: "Tepat waktu ≥ 80% dan revisi ≤ 1×." },
+  { label: "Perlu Perhatian", rule: "Di antara Baik dan Berisiko." },
+  { label: "Berisiko", rule: "Tepat waktu < 40% atau revisi > 2×." },
+  { label: "Belum Dinilai", rule: "Kontrak belum dimulai." },
+  { label: "Belum Ada Data", rule: "Kontrak berjalan, belum ada konten selesai." },
+];
+
+/** The same explanation as one line of text, as a screen reader hears the ⓘ. */
+export const PRODUCTIVITY_TIP = PRODUCTIVITY_BANDS.map(({ label, rule }) => `${label}: ${rule}`).join(" ");
 
 /** Uses the API's classification; the client never recalculates productivity thresholds. */
 export function periodProductivity(

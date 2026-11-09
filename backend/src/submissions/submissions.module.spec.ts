@@ -2,12 +2,19 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FollowUpController } from './follow-up.controller.js';
+import { FollowUpService } from './follow-up.service.js';
 import { ReviewQueueService } from './review-queue.service.js';
 import { SubmissionDetailService } from './submission-detail.service.js';
 import { SubmissionRevisionController } from './submission-revision.controller.js';
 import { SubmissionRevisionService } from './submission-revision.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
 import { SubmissionsController } from './submissions.controller.js';
+import {
+  RevisionNoteImageController,
+  RevisionNoteImagesController,
+} from './revision-note-images.controller.js';
+import { RevisionNoteImagesService } from './revision-note-images.service.js';
 import { SubmissionsModule } from './submissions.module.js';
 
 describe('SubmissionsModule', () => {
@@ -38,6 +45,21 @@ describe('SubmissionsModule', () => {
 
     expect(module.get(SubmissionRevisionController)).toBeDefined();
     expect(module.get(SubmissionRevisionService)).toBeDefined();
+  });
+
+  it('provides the revision note images (PBI-34) and follow-up (PBI-33) controllers and services, behind the file store', async () => {
+    const module = await Test.createTestingModule({
+      imports: [SubmissionsModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
+
+    expect(module.get(RevisionNoteImagesController)).toBeDefined();
+    expect(module.get(RevisionNoteImageController)).toBeDefined();
+    expect(module.get(RevisionNoteImagesService)).toBeDefined();
+    expect(module.get(FollowUpController)).toBeDefined();
+    expect(module.get(FollowUpService)).toBeDefined();
   });
 
   it('is part of the application', () => {

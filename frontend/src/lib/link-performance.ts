@@ -5,6 +5,7 @@
  * the backend's link-performance.ts, so the form refuses what the API would.
  */
 
+import type { Tone } from "@/components/ui/pill";
 import { EMPTY, formatTimestamp } from "./format";
 
 /** One state per link (AC 3), as the API names it. */
@@ -38,6 +39,20 @@ export const DATA_STATE_LABELS: Record<DataState, string> = {
   not_found: "Link tidak ditemukan",
   sync_failed: "Gagal sinkron",
   manual: "Diisi manual",
+};
+
+/**
+ * Each state as a badge colour: green when the numbers came in, blue when an admin typed them,
+ * amber when the creator has a step to take, red when the platform could not answer, and quiet
+ * while it simply has not yet.
+ */
+export const DATA_STATE_TONES: Record<DataState, Tone> = {
+  not_connected: "amber",
+  waiting: "neutral",
+  synced: "green",
+  not_found: "red",
+  sync_failed: "red",
+  manual: "accent",
 };
 
 /**

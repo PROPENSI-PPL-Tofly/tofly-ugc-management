@@ -415,7 +415,8 @@ describe('ContentCreationService', () => {
       deadline: '2026-10-15',
     },
     {
-      label: 'the H-5 line',
+      // PBI-38 AC 14: the contract ends on 31 Oct, so the H-5 day is the last one allowed.
+      label: 'the H-5 day before the contract end',
       deadline: '2026-10-26',
     },
   ])('accepts $label', async ({ deadline }) => {

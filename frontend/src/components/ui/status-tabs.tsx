@@ -41,6 +41,7 @@ export function StatusTabs<K extends string>({
   active,
   counts,
   onSelect,
+  countEvery = false,
 }: Readonly<{
   /** The tab list's accessible name. */
   label: string;
@@ -50,6 +51,11 @@ export function StatusTabs<K extends string>({
   active: K;
   counts: Readonly<Record<K, number>>;
   onSelect: (tab: K) => void;
+  /**
+   * Count every tab, zero included, as one creator's Content Plan does: the urgent counter is
+   * red only past zero, so an empty queue reads as a calm grey 0.
+   */
+  countEvery?: boolean;
 }>) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   // On a phone the row scrolls sideways: its edge fades where more tabs sit off-screen, and
@@ -84,7 +90,8 @@ export function StatusTabs<K extends string>({
         const count = counts[def.key];
         const selected = active === def.key;
         // The urgent tab shows its count only when there is one; a counting tab always does.
-        const showCount = def.urgent ? count > 0 : def.counter;
+        const showCount = countEvery || (def.urgent ? count > 0 : def.counter);
+        const red = def.urgent && count > 0;
 
         return (
           <button
@@ -105,7 +112,7 @@ export function StatusTabs<K extends string>({
             {showCount ? (
               <span
                 data-testid={`count-${def.key}`}
-                className={def.urgent ? COUNT_RED : COUNT_GREY}
+                className={red ? COUNT_RED : COUNT_GREY}
               >
                 {count}
               </span>

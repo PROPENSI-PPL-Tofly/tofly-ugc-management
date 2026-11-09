@@ -2,13 +2,11 @@
 
 import {
   FilterBar,
-  FilterSelect,
   OVERDUE_OPTIONS,
-  PeriodFilter,
+  PillSelect,
   SearchBox,
   offeredPicks,
   overdueFilter,
-  periodFilter,
   pickFilters,
 } from "@/components/filters/filter-controls";
 import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
@@ -42,7 +40,7 @@ export function ContentPlanFilters({
   /** Each tab's size, named in the phone's Tampilkan choice. */
   counts: ContentPlanCounts;
 }>) {
-  const { search, setSearch, param, listParam, setParam, setParams, setPeriod, resetKeeping, pending } =
+  const { search, setSearch, param, listParam, setParam, resetKeeping, pending } =
     useUrlFilters();
   const selectTab = useContentPlanTabSelect();
 
@@ -74,7 +72,8 @@ export function ContentPlanFilters({
     resetKeeping(state.tab === "all" ? {} : { tab: state.tab });
   }
 
-  // Read from what the address holds, offered or not, so Reset is there to clear it all.
+  // Read from what the address holds, offered or not, so Reset is there to clear it all: an old
+  // link may still carry a period, which no control offers any more.
   const isFilteredNow =
     search !== "" ||
     param("creator") !== "all" ||
@@ -83,12 +82,9 @@ export function ContentPlanFilters({
     param("overdue") !== "all" ||
     param("period") !== "all";
 
-  const from = param("from") === "all" ? "" : param("from");
-  const to = param("to") === "all" ? "" : param("to");
   const creatorPicks = pickedCreators();
   const types = offeredPicks(listParam("type"), typeOptions);
   const statuses = offeredPicks(listParam("status"), statusOptions);
-  const periodIgnored = state.tab === "action" && param("period") !== "all";
 
   // What the folded phone bar names, in the order of the controls.
   const active = [
@@ -101,7 +97,6 @@ export function ContentPlanFilters({
       ? pickFilters("Status", statuses, statusOptions)
       : []),
     ...(state.tab === "done" ? [] : overdueFilter(param("overdue"))),
-    ...periodFilter(param("period"), from, to, periodIgnored),
   ];
 
   return (
@@ -137,25 +132,15 @@ export function ContentPlanFilters({
           />
         ) : null}
 
+        {/* The same pill as Tipe and Status, as on Creator Detail. */}
         {state.tab === "done" ? null : (
-          <FilterSelect
+          <PillSelect
             label="Overdue"
             value={param("overdue")}
             options={OVERDUE_OPTIONS}
             onChange={(value) => setParam("overdue", value)}
           />
         )}
-
-        {/* The period from the bar's own state, like the select beside it, so the two agree. */}
-        <PeriodFilter
-          period={param("period")}
-          from={from}
-          to={to}
-          ignored={periodIgnored}
-          onPeriod={setPeriod}
-          onChange={setParam}
-          onClear={() => setParams({ from: "", to: "" })}
-        />
       </FilterBar>
 
       {/* Every pick named after its filter, gathered below the bar as the benchmark lays them. */}

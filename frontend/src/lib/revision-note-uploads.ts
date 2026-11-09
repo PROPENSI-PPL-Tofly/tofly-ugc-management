@@ -1,0 +1,150 @@
+// Each screenshot of a revision note on its way to storage (PBI-34, subtask 34.2): uploading with
+// its progress, failed with a reason, or done with the stored image. A step only moves an upload
+// out of the state it fits (Coba lagi only after a failure), so a late answer from the upload can
+// never undo what the Admin did last. Pure module: a list goes in, a new list comes out.
+
+import { screenshotRefusal, type ScreenshotFile } from "./revision-note-images";
+
+export type Upload<F extends ScreenshotFile = File> =
+  | { id: string; file: F; status: "uploading"; progress: number }
+  | { id: string; file: F; status: "failed"; reason: string }
+  // A stored image the server held from before this form opened has no file here.
+  | { id: string; file: F | null; status: "done"; imageId: string; url: string };
+
+/** What storage answers for an image it kept: its id and a short-lived link to show it. */
+export interface StoredImage {
+  imageId: string;
+  url: string;
+}
+
+/** Sends one screenshot to storage, telling its progress; aborting the signal cancels it. */
+export interface ScreenshotUploader {
+  upload(
+    file: File,
+    options: { onProgress: (percent: number) => void; signal: AbortSignal },
+  ): Promise<StoredImage>;
+  // Deletes a stored image, which would otherwise go out with the note (34.1 ties each image to
+  // the submission).
+  remove(imageId: string): Promise<void>;
+  // The images the server still holds for this unsent note, oldest first, so a form opened again
+  // shows what a closed one left behind.
+  list(): Promise<StoredImage[]>;
+}
+
+type Status = Upload["status"];
+type In<F extends ScreenshotFile, S extends Status> = Extract<Upload<F>, { status: S }>;
+
+// Moves the upload with this id only when it is in the state the step starts from.
+function step<F extends ScreenshotFile, S extends Status>(
+  uploads: readonly Upload<F>[],
+  id: string,
+  from: S,
+  to: (upload: In<F, S>) => Upload<F>,
+): Upload<F>[] {
+  return uploads.map((upload) =>
+    upload.id === id && upload.status === from ? to(upload as In<F, S>) : upload,
+  );
+}
+
+// Takes each file the rules allow, in order. Every upload in the list counts toward the five,
+// the uploading and failed ones too, as the prototype counts them.
+export function addScreenshots<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  files: readonly F[],
+  nextId: () => string,
+): { uploads: Upload<F>[]; refusals: string[] } {
+  const next = [...uploads];
+  const refusals: string[] = [];
+  for (const file of files) {
+    const refusal = screenshotRefusal(file, next.length);
+    // Named, so a batch with several refused files says which reason belongs to which (AC 4).
+    if (refusal) refusals.push(`${file.name}: ${refusal}`);
+    else next.push({ id: nextId(), file, status: "uploading", progress: 0 });
+  }
+  return { uploads: next, refusals };
+}
+
+// The images the server still holds for this note, as stored ones and older than anything added
+// now. One already in the list (uploaded while the list was on its way) is not added again.
+export function restored<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  images: readonly StoredImage[],
+  nextId: () => string,
+): Upload<F>[] {
+  const held = new Set(imageIds(uploads));
+  const back: Upload<F>[] = images
+    .filter((image) => !held.has(image.imageId))
+    .map((image) => ({ id: nextId(), file: null, status: "done", ...image }));
+  return [...back, ...uploads];
+}
+
+export function progressed<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  id: string,
+  percent: number,
+): readonly Upload<F>[] {
+  const progress = Math.min(100, Math.max(0, percent));
+  // The same list when the percent has not moved, so the editor is not drawn again for nothing
+  // (XHR reports far more often than the whole percent changes).
+  const unchanged = uploads.some(
+    (upload) => upload.id === id && upload.status === "uploading" && upload.progress === progress,
+  );
+  if (unchanged) return uploads;
+  return step(uploads, id, "uploading", (upload) => ({ ...upload, progress }));
+}
+
+export function uploaded<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  id: string,
+  stored: StoredImage,
+): Upload<F>[] {
+  return step(uploads, id, "uploading", (upload) => ({
+    id: upload.id,
+    file: upload.file,
+    status: "done",
+    ...stored,
+  }));
+}
+
+export function failed<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  id: string,
+  reason: string,
+): Upload<F>[] {
+  return step(uploads, id, "uploading", (upload) => ({
+    id: upload.id,
+    file: upload.file,
+    status: "failed",
+    reason,
+  }));
+}
+
+// Coba lagi: only a failed upload starts again, from 0%.
+export function retried<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  id: string,
+): Upload<F>[] {
+  return step(uploads, id, "failed", (upload) => ({
+    id: upload.id,
+    file: upload.file,
+    status: "uploading",
+    progress: 0,
+  }));
+}
+
+export function removed<F extends ScreenshotFile>(
+  uploads: readonly Upload<F>[],
+  id: string,
+): Upload<F>[] {
+  return uploads.filter((upload) => upload.id !== id);
+}
+
+/** AC 5: Kirim Revisi waits while this is true. */
+export function isUploading(uploads: readonly Upload<ScreenshotFile>[]): boolean {
+  return uploads.some((upload) => upload.status === "uploading");
+}
+
+/** The stored images the note is sent with, in the order the Admin added them. */
+export function imageIds(uploads: readonly Upload<ScreenshotFile>[]): string[] {
+  return uploads.flatMap((upload) => (upload.status === "done" ? [upload.imageId] : []));
+}

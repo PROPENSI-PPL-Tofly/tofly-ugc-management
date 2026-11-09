@@ -36,18 +36,20 @@ describe("CONTENT_STATUS_TONES", () => {
 });
 
 describe("CONTENT_TAG_LABELS", () => {
-  it("names the two tags the API sends, in its order", () => {
+  it("names the three tags the API sends, in its order", () => {
     expect(Object.entries(CONTENT_TAG_LABELS)).toEqual([
       ["overdue", "Overdue"],
+      ["late_submission", "Late Submission"],
       ["approval_bypassed", "Approval di-bypass"],
     ]);
   });
 });
 
 describe("CONTENT_TAG_TONES", () => {
-  it("marks a missed deadline red and a skipped approval amber", () => {
+  it("marks a link still owed red, a link that came late a softer red, and a skipped approval amber", () => {
     expect(CONTENT_TAG_TONES).toEqual({
       overdue: "red",
+      late_submission: "redSoft",
       approval_bypassed: "amber",
     });
   });

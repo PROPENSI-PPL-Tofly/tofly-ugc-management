@@ -328,6 +328,8 @@ describe('GET /me/contents (e2e)', () => {
       'name',
       'platforms',
       'revisionNotes',
+      // PBI-33 AC 5: when the admin last added a follow-up under the note.
+      'revisionNotesUpdatedAt',
       'status',
       'tags',
       'type',

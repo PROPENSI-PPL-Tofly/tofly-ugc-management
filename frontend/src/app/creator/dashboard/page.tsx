@@ -67,7 +67,7 @@ export default async function CreatorDashboardPage() {
   const now = new Date();
 
   return (
-    <AppShell role="creator" title="Dashboard" subtitle="Berikut ringkasan task yang perlu kamu kerjakan.">
+    <AppShell role="creator" title="Dashboard">
       {loaded.kind === "ok" ? (
         <>
           <StatCards

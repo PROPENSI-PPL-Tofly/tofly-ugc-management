@@ -22,6 +22,9 @@ export interface MyContentItem {
   actions: TaskAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */
   revisionNotes: string | null;
+  // ISO instant the admin last added a follow-up under that note (PBI-33 AC 5); null when none
+  // was, or once the row no longer awaits a resubmit.
+  revisionNotesUpdatedAt: string | null;
   /** The platforms the content has a link for, Instagram first; empty before the first link. */
   platforms: social_platform[];
 }

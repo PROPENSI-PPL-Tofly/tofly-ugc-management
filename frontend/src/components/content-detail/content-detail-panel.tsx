@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ContentTags } from "@/components/contents/content-tags";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,23 @@ import { CreatorLink } from "@/components/ui/creator-link";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PLATFORM_LABELS, type ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
+import { RevisionNoteField } from "@/components/revision-note/revision-note-field";
+import { screenshotUploader } from "@/lib/revision-note-images-api";
+import type { ScreenshotUploader } from "@/lib/revision-note-uploads";
+import { EditForm, ManageMenu } from "./content-manage";
+import { RevisionNote } from "./revision-note";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useDiscardGuard } from "@/components/ui/use-discard-guard";
+import { useToast } from "@/components/ui/toast";
+import {
+  deleteContent,
+  deleteMessage,
+  updateContent,
+  type ContentManagePorts,
+} from "@/lib/content-edit";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
+import { FollowUpForm } from "./follow-up-form";
+import { FollowUpList } from "./follow-up-list";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { StatusDot } from "@/components/ui/pill";
@@ -22,6 +38,7 @@ import {
   ContentDetailError,
   describeJourney,
   fetchContentDetail,
+  latestRevisionEventId,
   type ContentDetail,
   type ContentDetailLoader,
   type DetailEventType,
@@ -29,6 +46,7 @@ import {
 } from "@/lib/content-detail";
 import { DecisionError } from "@/lib/decisions";
 import { approveSubmission, reviseSubmission } from "@/lib/draft-review-actions";
+import { addFollowUp, withFollowUp } from "@/lib/follow-ups";
 import { daysUntil, formatDate, formatDaysLeft, formatTimestamp } from "@/lib/format";
 import {
   actionsFor,
@@ -45,7 +63,12 @@ import type { Role } from "@/lib/session";
 export const MAX_REVISION_NOTE_LENGTH = 1000;
 
 /** A decision the panel can send, named for the touchpoint that confirms it. */
-export type Decision = "approve" | "revise" | "approve_proposal" | "reject_proposal";
+export type Decision =
+  | "approve"
+  | "revise"
+  | "approve_proposal"
+  | "reject_proposal"
+  | "delete_content";
 
 /** How each decision is confirmed once the panel has closed; the touchpoint shows it. */
 export const DECISION_CONFIRMATIONS: Record<Decision, string> = {
@@ -53,6 +76,8 @@ export const DECISION_CONFIRMATIONS: Record<Decision, string> = {
   revise: "Permintaan revisi terkirim ke kreator.",
   approve_proposal: "Pengajuan disetujui. Konten masuk jadwal kreator.",
   reject_proposal: "Pengajuan ditolak dan dihapus.",
+  // PBI-25 AC 6-8: the content is gone, so the panel closes and the table loses the row.
+  delete_content: "Konten dihapus.",
 };
 
 /** The API's limit on a rejection reason (backend proposal-review.ts). */
@@ -164,6 +189,8 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   scheduled: "bg-muted ring-muted",
   draft_submitted: "bg-accent ring-accent",
   revision_requested: "bg-amber ring-amber",
+  // Still the same round sent back to the creator.
+  revision_followup_added: "bg-amber ring-amber",
   draft_approved: "bg-green ring-green",
   // An approved proposal lands in Scheduled; a comment changes no status at all.
   proposal_approved: "bg-muted ring-muted",
@@ -173,6 +200,8 @@ const EVENT_DOTS: Record<DetailEventType, string> = {
   performance_entered: "bg-muted ring-muted",
   performance_replaced: "bg-muted ring-muted",
   link_submitted: "bg-green ring-green",
+  // An edit moves no status either.
+  content_updated: "bg-muted ring-muted",
 };
 
 const SECTION_LABEL = "mb-2 text-[11px] font-bold uppercase tracking-wider text-muted";
@@ -286,7 +315,7 @@ function Brief({ brief }: Readonly<{ brief: string }>) {
   );
 }
 
-function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
+function JourneyItem({ step, children }: Readonly<{ step: JourneyStep; children?: ReactNode }>) {
   const { event } = step;
   const role = ROLE_LABELS[event.actor.role];
   const link = event.payload?.link;
@@ -308,7 +337,11 @@ function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
         </p>
 
         {step.changes.length > 0 ? (
-          <ul aria-label="Perubahan angka" className="mt-1 text-[11.5px] text-muted">
+          <ul
+            data-step-changes=""
+            aria-label={event.type === "content_updated" ? "Perubahan konten" : "Perubahan angka"}
+            className="mt-1 text-[11.5px] text-muted"
+          >
             {step.changes.map((change) => (
               <li key={change} className="tabular-nums">
                 {change}
@@ -326,15 +359,28 @@ function JourneyItem({ step }: Readonly<{ step: JourneyStep }>) {
         {step.noteBy ? (
           <blockquote className="mt-2 rounded-r-(--radius-control) border-l-2 border-rule bg-surface-2 px-3 py-2 text-[12.5px] leading-relaxed">
             <span className="mb-0.5 block text-[11px] font-semibold text-muted">{step.noteBy}</span>
-            <p className="whitespace-pre-line">{event.payload?.note}</p>
+            <RevisionNote
+              note={event.payload?.note}
+              noteHtml={event.payload?.noteHtml}
+              images={event.payload?.images}
+            />
           </blockquote>
         ) : null}
+
+        {children}
       </div>
     </li>
   );
 }
 
-function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
+function Journey({
+  steps,
+  under,
+}: Readonly<{
+  steps: JourneyStep[];
+  /** What a step shows under its note, e.g. the latest revision's follow-ups. */
+  under?: (step: JourneyStep) => ReactNode;
+}>) {
   if (steps.length === 0) {
     return <p className="text-xs text-muted">Belum ada riwayat.</p>;
   }
@@ -342,7 +388,9 @@ function Journey({ steps }: Readonly<{ steps: JourneyStep[] }>) {
   return (
     <ol aria-label="Riwayat konten">
       {steps.map((step) => (
-        <JourneyItem key={step.event.id} step={step} />
+        <JourneyItem key={step.event.id} step={step}>
+          {under?.(step)}
+        </JourneyItem>
       ))}
     </ol>
   );
@@ -422,10 +470,13 @@ export function ContentDetailPanel({
   onClose,
   actions,
   onDecided,
+  onEdited,
   showClose = true,
   load = fetchContentDetail,
   ports = {},
+  manage = {},
   now,
+  uploader,
 }: Readonly<{
   contentId: string;
   role: Role;
@@ -434,13 +485,25 @@ export function ContentDetailPanel({
   actions?: ReactNode;
   /** Called after a successful decision, naming it, so the caller can close and confirm. */
   onDecided?: (decision: Decision) => void;
+  /**
+   * Called after a saved edit (PBI-25), with the panel still open, so a touchpoint that keeps
+   * what it read in the browser can read it again; a server-rendered list refreshes on its own.
+   */
+  onEdited?: () => void;
   /** False while the revision form offers its own way back (Batal). */
   showClose?: boolean;
   /** Where the detail comes from; the API by default, a stub in tests. */
   load?: ContentDetailLoader;
   ports?: PanelActionPorts;
+  /** Where an edit and a delete go (PBI-25); the API by default, stubs in tests. */
+  manage?: Partial<ContentManagePorts>;
   /** The moment "today" is read from; the current one by default, a fixed one in tests. */
   now?: Date;
+  /**
+   * Where the revision note's screenshots go (PBI-34, 34.2); 34.1's routes for the draft under
+   * review by default, a stub in tests.
+   */
+  uploader?: ScreenshotUploader;
 }>) {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
@@ -448,6 +511,12 @@ export function ContentDetailPanel({
   const [form, setForm] = useState<FormKind | null>(null);
   const formOpen = form !== null;
   const [note, setNote] = useState("");
+  // PBI-34, 34.2: the revision note's formatting as 34.1 takes it, and whether a screenshot is
+  // still uploading, which holds Kirim Revisi back (AC 5).
+  const [noteHtml, setNoteHtml] = useState<string | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  // Screenshots taken or on their way: an unsent note is more than its words.
+  const [attached, setAttached] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Batal unmounts the textarea that held focus; the button that opened the form takes it back
   // when it remounts, so a keyboard user is not dropped to the top of the page.
@@ -459,6 +528,10 @@ export function ContentDetailPanel({
   const missingId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
+  // PBI-25: the inline edit form, and the delete question, each open on its own.
+  const [editing, setEditing] = useState(false);
+  const [askingDelete, setAskingDelete] = useState(false);
+  const { show: confirm, toast } = useToast();
 
   // Read through a ref, so a parent that passes a fresh loader function on every render does
   // not make the effect below fetch again each time.
@@ -519,6 +592,13 @@ export function ContentDetailPanel({
 
   const loaded = state.kind === "loaded" ? state.detail : null;
 
+  // One uploader per draft under review, so the field reads what 34.1 holds for it once.
+  const submissionId = loaded?.latestSubmissionId ?? null;
+  const revisionUploader = useMemo(
+    () => uploader ?? (submissionId ? screenshotUploader(submissionId) : null),
+    [uploader, submissionId],
+  );
+
   const actionPorts: PanelActionPorts = {
     approve: ports.approve ?? approveSubmission,
     revise: ports.revise ?? reviseSubmission,
@@ -538,7 +618,7 @@ export function ContentDetailPanel({
     onManageLinks: ports.onManageLinks,
   };
 
-  const snapshot = () => ({ busy, note });
+  const snapshot = () => ({ busy, note, noteHtml, uploading });
 
   async function decide(kind: Decision, run: () => Promise<void>) {
     setError(null);
@@ -555,6 +635,9 @@ export function ContentDetailPanel({
       if (caught instanceof DecisionError && caught.status === 409) {
         setForm(null);
         setNote("");
+        setNoteHtml(undefined);
+        setUploading(false);
+        setEditing(false);
         void readAgain();
       }
     } finally {
@@ -583,153 +666,300 @@ export function ContentDetailPanel({
   // Blank counts as missing: the backend trims the note before it refuses an empty one.
   const missingNote = formSpec?.required === true && noteLeft && note.trim() === "";
 
+  // Each revision note carries its own follow-ups, which admin and creator both read under it
+  // (AC 4). Only the newest note takes more, and only from the admin while that round is still
+  // open (Draft Perlu Revisi).
+  const followUpTarget = loaded ? latestRevisionEventId(loaded.events) : null;
+  const followUpRound =
+    loaded?.status === "draft_revision" ? loaded.latestSubmissionId : null;
+
+  function followUpsUnder(step: JourneyStep): ReactNode {
+    const list = <FollowUpList followUps={step.event.payload?.followUps ?? []} />;
+    if (role !== "admin" || step.event.id !== followUpTarget) return list;
+
+    return (
+      <>
+        {list}
+        {followUpRound ? (
+          <FollowUpForm
+            submissionId={followUpRound}
+            add={ports.addFollowUp ?? addFollowUp}
+            onAdded={(followUp) =>
+              setState((current) =>
+                current.kind === "loaded"
+                  ? { kind: "loaded", detail: withFollowUp(current.detail, followUp) }
+                  : current,
+              )
+            }
+            onRoundClosed={(message) => {
+              // The creator already sent a new draft: say so where the step is, and show it.
+              setError(message);
+              void readAgain();
+            }}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  // Ubah and Hapus are the admin's, and only while the API sends a window to move the deadline in:
+  // Scheduled, no draft, invoice still running (AC 1, 9). A payload from before 25.2 has none.
+  const editWindow = role === "admin" && loaded?.edit ? loaded.edit : null;
+  const update = manage.update ?? updateContent;
+  const remove = manage.remove ?? deleteContent;
+
+
+  // Every way out of the panel (✕, Escape, a press outside) asks first while a note is unsent,
+  // so a stray Escape cannot throw away what the admin wrote.
+  const { requestClose, confirmDialog } = useDiscardGuard({
+    isDirty: formOpen && (note.trim() !== "" || attached),
+    onDiscard: onClose,
+    title: "Buang catatan revisi?",
+    message: "Catatan dan gambar yang belum terkirim akan hilang.",
+  });
+
   function cancelForm() {
     setCancelled(form);
     setForm(null);
     setError(null);
     setNote("");
+    setNoteHtml(undefined);
+    setUploading(false);
+    setAttached(false);
     setNoteLeft(false);
   }
 
   return (
-    <Modal
-      title={(loaded && loaded.name) || DEFAULT_TITLE}
-      onClose={onClose}
-      placement="side"
-      eyebrow={(loaded && loaded.creatorName) || undefined}
-      meta={loaded ? <HeaderMeta detail={loaded} now={now} /> : undefined}
-      footer={
-        <>
-          {formOpen ? null : actions}
-
-          {formOpen ? null : commands.map((command) => (
-            <Button
-              key={command.kind}
-              variant={command.variant}
-              onClick={() => {
-                if (OPENS_FORM.has(command.kind)) {
-                  // Opening a form is synchronous, but PanelCommand.run may answer with a
-                  // promise; `void` marks the ignored answer so no lint sees a floating
-                  // promise (Sonar S9383).
-                  void command.run();
-                  return;
-                }
-                // Every command that does not open a form is a decision of the same name.
-                void decide(command.kind as Decision, async () => {
-                  await command.run();
-                });
+    <>
+      <Modal
+        title={(loaded && loaded.name) || DEFAULT_TITLE}
+        onClose={requestClose}
+        placement="side"
+        eyebrow={(loaded && loaded.creatorName) || undefined}
+        meta={loaded ? <HeaderMeta detail={loaded} now={now} /> : undefined}
+        tools={
+          editWindow && !editing && !formOpen ? (
+            <ManageMenu
+              onEdit={() => {
+                setError(null);
+                setEditing(true);
               }}
-              disabled={!command.canRun()}
-              aria-busy={busy && pending === command.kind}
-              autoFocus={cancelled !== null && FORMS[cancelled].opener === command.kind}
-            >
-              {command.label}
-            </Button>
-          ))}
-
-          {showClose && !formOpen ? (
-            <Button variant="ghost" onClick={onClose}>
-              Tutup
-            </Button>
-          ) : null}
-        </>
-      }
-    >
-      {loaded ? (
-        <div className="flex flex-col gap-5">
-          {/* Evergreen content has no brief. */}
-          {loaded.type === "specific" && loaded.brief ? <Brief brief={loaded.brief} /> : null}
-
-          {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
-          {/* Each link's numbers and state once the API sends them (PBI-27); the plain rows before. */}
-          {loaded.links?.some((link) => link.performance !== undefined) ? (
-            <LinkPerformanceSection
-              contentId={contentId}
-              links={loaded.links}
-              role={role}
-              creatorFirstName={loaded.creatorName.split(" ")[0]}
-              onChanged={() => void readAgain()}
+              onDelete={() => {
+                setError(null);
+                setAskingDelete(true);
+              }}
             />
-          ) : loaded.links?.length ? (
-            <Links links={loaded.links} />
-          ) : null}
+          ) : undefined
+        }
+        footer={
+          <>
+            {formOpen ? null : actions}
 
-          <section>
-            <h3 className={SECTION_LABEL}>Timeline</h3>
+            {formOpen ? null : commands.map((command) => (
+              <Button
+                key={command.kind}
+                variant={command.variant}
+                onClick={() => {
+                  if (OPENS_FORM.has(command.kind)) {
+                    // Opening a form is synchronous, but PanelCommand.run may answer with a
+                    // promise; `void` marks the ignored answer so no lint sees a floating
+                    // promise (Sonar S9383).
+                    void command.run();
+                    return;
+                  }
+                  // Every command that does not open a form is a decision of the same name.
+                  void decide(command.kind as Decision, async () => {
+                    await command.run();
+                  });
+                }}
+                disabled={!command.canRun()}
+                aria-busy={busy && pending === command.kind}
+                autoFocus={cancelled !== null && FORMS[cancelled].opener === command.kind}
+              >
+                {command.label}
+              </Button>
+            ))}
 
-            <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn} role={role}>
-            {send && formSpec ? (
-              <div className="mt-3 flex w-full flex-col gap-2">
-                {error ? (
-                  <p role="alert" className="text-right text-xs text-red-ink">
-                    {error}
-                  </p>
-                ) : null}
-
-                <label className="flex flex-col gap-1 text-[13px]">
-                  {/* A required note is marked as every required field is; the optional reason is not. */}
-                  <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
-                    {formSpec.label}
-                  </span>
-                  <textarea
-                    ref={focusOnMount}
-                    required={formSpec.required}
-                    maxLength={formSpec.max}
-                    aria-describedby={missingNote ? `${missingId} ${countId}` : countId}
-                    aria-invalid={formSpec.required ? missingNote : undefined}
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    onBlur={() => setNoteLeft(true)}
-                    placeholder={formSpec.placeholder}
-                    rows={3}
-                    disabled={busy}
-                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
-                  />
-                </label>
-                {missingNote ? (
-                  <p id={missingId} className="text-xs text-red-ink">
-                    {formSpec.missingMessage}
-                  </p>
-                ) : null}
-                <CharLimit id={countId} length={note.length} max={formSpec.max} />
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" onClick={cancelForm} disabled={busy}>
-                    Batal
-                  </Button>
-                  <Button
-                    variant={send.variant}
-                    onClick={() => {
-                      void decide(formSpec.decision, async () => {
-                        await send.run();
-                      });
-                    }}
-                    disabled={!send.canRun()}
-                    aria-busy={pending === formSpec.decision}
-                  >
-                    {send.label}
-                  </Button>
-                </div>
-              </div>
-            ) : error ? (
-              <p role="alert" className="mt-2 text-xs text-red-ink">
-                {error}
-              </p>
+            {showClose && !formOpen ? (
+              <Button variant="ghost" onClick={onClose}>
+                Tutup
+              </Button>
             ) : null}
-            </CurrentStep>
+          </>
+        }
+      >
+        {loaded ? (
+          <div className="flex flex-col gap-5">
+            {editWindow && editing ? (
+              <EditForm
+                detail={loaded}
+                bounds={editWindow}
+                creatorFirstName={loaded.creatorName.split(" ")[0]}
+                update={update}
+                onCancel={() => setEditing(false)}
+                onSaved={() => {
+                  // The panel stays on the content (as the prototype keeps it), reads it again for
+                  // the new deadline, name and timeline step, and the lists behind it refresh (AC 5).
+                  setEditing(false);
+                  router.refresh();
+                  void readAgain();
+                  confirm("Konten diperbarui");
+                  onEdited?.();
+                }}
+                onRefused={(message) => {
+                  // Someone moved the content on (a draft came in, the invoice was finalized): the
+                  // form closes and the content is read again, which hides Ubah and Hapus.
+                  setEditing(false);
+                  setError(message);
+                  void readAgain();
+                }}
+              />
+            ) : null}
 
-            <Journey steps={describeJourney(loaded.events)} />
-          </section>
-        </div>
-      ) : (
-        // This branch only renders while `loaded` is null, so the state is one of the
-        // three that StatusMessage handles; the union cannot narrow itself through the
-        // const above.
-        <StatusMessage
-          state={state as Exclude<LoadState, { kind: "loaded" }>}
-          onRetry={retry}
+            {/* Any brief that was written, Evergreen's too since an admin can add one (PBI-25 AC 2). */}
+            {loaded.brief ? <Brief brief={loaded.brief} /> : null}
+
+            {/* The submitted links, one row per platform (AC 11): the mark, the link, the date. */}
+            {/* Each link's numbers and state once the API sends them (PBI-27); the plain rows before. */}
+            {loaded.links?.some((link) => link.performance !== undefined) ? (
+              <LinkPerformanceSection
+                contentId={contentId}
+                links={loaded.links}
+                role={role}
+                creatorFirstName={loaded.creatorName.split(" ")[0]}
+                onChanged={() => void readAgain()}
+              />
+            ) : loaded.links?.length ? (
+              <Links links={loaded.links} />
+            ) : null}
+
+            <section>
+              <h3 className={SECTION_LABEL}>Timeline</h3>
+
+              <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn} role={role}>
+              {send && formSpec ? (
+                <div className="mt-3 flex w-full flex-col gap-2">
+                  {error ? (
+                    <p role="alert" className="text-right text-xs text-red-ink">
+                      {error}
+                    </p>
+                  ) : null}
+
+                  {form === "revise" && revisionUploader ? (
+                    // PBI-34, 34.2: the revision note is the rich text editor with its screenshots;
+                    // it keeps the textarea's label, required mark, message and focus.
+                    <div className="flex flex-col gap-1 text-[13px]">
+                      <span className={`font-semibold text-ink ${REQUIRED_MARK}`}>{formSpec.label}</span>
+                      <RevisionNoteField
+                        label={formSpec.label}
+                        max={formSpec.max}
+                        uploader={revisionUploader}
+                        disabled={busy}
+                        autoFocus
+                        required
+                        invalid={missingNote}
+                        describedBy={missingNote ? missingId : undefined}
+                        onBlur={() => setNoteLeft(true)}
+                        onChange={(value) => {
+                          setNote(value.text);
+                          setNoteHtml(value.html);
+                          setUploading(value.uploading);
+                          setAttached(value.uploading || value.imageIds.length > 0);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                  <label className="flex flex-col gap-1 text-[13px]">
+                    {/* A required note is marked as every required field is; the optional reason is not. */}
+                    <span className={`font-semibold text-ink ${formSpec.required ? REQUIRED_MARK : ""}`}>
+                      {formSpec.label}
+                    </span>
+                    <textarea
+                      ref={focusOnMount}
+                      required={formSpec.required}
+                      maxLength={formSpec.max}
+                      aria-describedby={missingNote ? `${missingId} ${countId}` : countId}
+                      aria-invalid={formSpec.required ? missingNote : undefined}
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                      onBlur={() => setNoteLeft(true)}
+                      placeholder={formSpec.placeholder}
+                      rows={3}
+                      disabled={busy}
+                      className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink"
+                    />
+                  </label>
+                  )}
+                  {missingNote ? (
+                    <p id={missingId} className="text-xs text-red-ink">
+                      {formSpec.missingMessage}
+                    </p>
+                  ) : null}
+                  {/* The editor has its own counter, beside its help line. */}
+                  {form === "revise" ? null : (
+                    <CharLimit id={countId} length={note.length} max={formSpec.max} />
+                  )}
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={cancelForm} disabled={busy}>
+                      Batal
+                    </Button>
+                    <Button
+                      variant={send.variant}
+                      onClick={() => {
+                        void decide(formSpec.decision, async () => {
+                          await send.run();
+                        });
+                      }}
+                      disabled={!send.canRun()}
+                      aria-busy={pending === formSpec.decision}
+                    >
+                      {send.label}
+                    </Button>
+                  </div>
+                </div>
+              ) : error ? (
+                <p role="alert" className="mt-2 text-xs text-red-ink">
+                  {error}
+                </p>
+              ) : null}
+              </CurrentStep>
+
+              <Journey steps={describeJourney(loaded.events)} under={followUpsUnder} />
+            </section>
+          </div>
+        ) : (
+          // This branch only renders while `loaded` is null, so the state is one of the
+          // three that StatusMessage handles; the union cannot narrow itself through the
+          // const above.
+          <StatusMessage
+            state={state as Exclude<LoadState, { kind: "loaded" }>}
+            onRetry={retry}
+          />
+        )}
+      </Modal>
+
+      {confirmDialog}
+
+      {loaded && askingDelete ? (
+        <ConfirmDialog
+          title="Hapus Konten Ini?"
+          message={deleteMessage(loaded.type)}
+          details={[
+            ["Konten", loaded.name],
+            ["Deadline", formatDate(loaded.deadline)],
+          ]}
+          confirmLabel="Hapus"
+          cancelLabel="Batal"
+          onConfirm={() => {
+            setAskingDelete(false);
+            void decide("delete_content", () => remove(loaded.id));
+          }}
+          onCancel={() => setAskingDelete(false)}
         />
-      )}
-    </Modal>
+      ) : null}
+
+      {toast}
+    </>
   );
 }

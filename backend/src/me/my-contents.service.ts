@@ -49,7 +49,16 @@ const MY_CONTENT_SELECT = {
   // Only the latest hand-in: its revision_notes are what the admin asked to change, and its time
   // decides a late draft.
   submissions: {
-    select: { revision_notes: true, created_at: true },
+    select: {
+      revision_notes: true,
+      created_at: true,
+      // PBI-33 AC 5: only when its note was last added to, never the follow-ups.
+      revision_followups: {
+        select: { created_at: true },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: 1,
+      },
+    },
     orderBy: { created_at: 'desc' },
     take: 1,
   },
@@ -65,7 +74,11 @@ export interface MyContentRow {
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
   content_links: { platform: social_platform | null }[];
-  submissions: { revision_notes: string | null; created_at: Date }[];
+  submissions: {
+    revision_notes: string | null;
+    created_at: Date;
+    revision_followups: { created_at: Date }[];
+  }[];
 }
 
 interface DeadlineRange {
@@ -114,7 +127,6 @@ function tagsOf(row: MyContentRow, now: Date): ContentTag[] {
       deadline: row.deadline,
       status: row.status,
       videoSubmittedAt: row.video_submitted_at,
-      latestDraftAt: row.submissions[0]?.created_at ?? null,
       approvalBypassed: row.approval_bypassed,
     },
     now,
@@ -283,6 +295,12 @@ export class MyContentsService implements MyContentsLister {
       revisionNotes:
         row.status === 'draft_revision'
           ? (row.submissions[0]?.revision_notes ?? null)
+          : null,
+      // PBI-33 AC 5: "Catatan diperbarui" while the round is open, from its latest follow-up.
+      revisionNotesUpdatedAt:
+        row.status === 'draft_revision'
+          ? (row.submissions[0]?.revision_followups[0]?.created_at.toISOString() ??
+            null)
           : null,
       platforms: linkPlatforms(row.content_links),
     };

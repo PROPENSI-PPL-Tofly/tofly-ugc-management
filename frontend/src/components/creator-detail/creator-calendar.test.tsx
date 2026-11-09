@@ -61,19 +61,19 @@ describe("CreatorCalendar", () => {
 
   it("navigates only through months touched by this contract and returns to Hari Ini", () => {
     renderCalendar("2026-09-20");
-    expect(screen.getByRole("heading", { level: 3, name: "September 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bulan Sebelumnya" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
     fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
-    expect(screen.getByRole("heading", { level: 3, name: "November 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "November 2026" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bulan Berikutnya" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Hari Ini" }));
-    expect(screen.getByRole("heading", { level: 3, name: "September 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();
   });
 
   it("marks outside-period days and explains why Hari Ini is unavailable after the contract", () => {
     renderCalendar("2027-01-10");
-    expect(screen.getByRole("heading", { level: 3, name: "September 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hari Ini" })).toBeDisabled();
     expect(screen.getByText("Hari ini di luar periode ini.")).toBeInTheDocument();
     expect(cell("2026-09-14")).toHaveAttribute("data-outside", "true");

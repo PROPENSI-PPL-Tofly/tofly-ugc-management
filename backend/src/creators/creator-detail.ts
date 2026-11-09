@@ -141,7 +141,6 @@ export function toContentEntries(
         deadline: content.deadline,
         status: content.status,
         videoSubmittedAt: content.video_submitted_at,
-        latestDraftAt: content.submissions[0]?.created_at ?? null,
         approvalBypassed: content.approval_bypassed,
       },
       today,

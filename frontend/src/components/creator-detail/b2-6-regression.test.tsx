@@ -10,7 +10,7 @@ import type {
 } from "@/lib/creator-detail";
 import { CreatorContentBoard } from "./creator-content-board";
 import { CreatorProfilePanel } from "./creator-profile";
-import { PeriodTabs } from "./period-tabs";
+import { PeriodSummary, PeriodTabs } from "./period-tabs";
 
 const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CONTRACT = "22222222-2222-4222-8222-222222222222";
@@ -61,7 +61,15 @@ type PeriodTabsProps = {
   selected: PerformancePeriod | null;
   earnings: Earnings | null;
 };
-const PerformancePeriodTabs = PeriodTabs as unknown as ComponentType<PeriodTabsProps>;
+// The page lays the period picker and the open period's summary one under the other.
+function PerformancePeriodTabs({ creatorId, creatorName, periods, selected, earnings }: PeriodTabsProps) {
+  return (
+    <>
+      <PeriodTabs creatorId={creatorId} periods={periods} selected={selected} />
+      {selected ? <PeriodSummary period={selected} earnings={earnings} creatorName={creatorName} /> : null}
+    </>
+  );
+}
 
 function performanceTabs({
   period = { ...PERIOD_BASE, ...PERFORMANCE },
@@ -169,24 +177,24 @@ describe("B2.6 creator access display", () => {
     return screen.getByText("Akses").nextElementSibling as HTMLElement;
   }
 
-  it("says active access in words and with a status marker", () => {
+  it("says active access in words, as a badge", () => {
     const access = renderAccess(null);
     expect(access).toHaveTextContent("Aktif");
-    expect(access.querySelector('[aria-hidden="true"]')).toHaveClass("bg-green");
+    expect(access.firstElementChild).toHaveClass("rounded-full", "bg-green-wash");
   });
 
   it("explains a future revocation date without claiming access has ended", () => {
     const access = renderAccess("2026-11-15");
     expect(access).toHaveTextContent("Aktif");
     expect(access).toHaveTextContent("Dicabut mulai 15 Nov 2026");
-    expect(access.querySelector('[aria-hidden="true"]')).toHaveClass("bg-amber");
+    expect(access.firstElementChild).toHaveClass("rounded-full", "bg-amber-wash");
   });
 
   it("treats the revoke date itself as revoked and explains early cutoff", () => {
     const access = renderAccess("2026-10-21");
     expect(access).toHaveTextContent("Dicabut");
     expect(access).toHaveTextContent("Sejak 21 Okt 2026, sebelum kontrak berakhir (31 Des 2026)");
-    expect(access.querySelector('[aria-hidden="true"]')).toHaveClass("bg-red");
+    expect(access.firstElementChild).toHaveClass("rounded-full", "bg-red-wash");
   });
 
   it("shows revoked access even without contract details", () => {
@@ -209,7 +217,7 @@ const LATE_DONE: CreatorContentRow = {
   type: "specific",
   deadline: "2026-10-01",
   status: "link_submitted",
-  tags: ["overdue"],
+  tags: ["late_submission"],
   revisionCount: 0,
 };
 
@@ -245,17 +253,20 @@ describe("B2.6 content calendar and table conventions", () => {
     const table = within(screen.getByRole("tabpanel")).getByRole("table");
     expect(calendar.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(tabs.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Selesai" })).toBeInTheDocument();
-    expect(screen.queryByTestId("count-action")).toBeNull();
+    expect(screen.getByRole("tab", { name: /^Selesai/ })).toBeInTheDocument();
+    // Every tab is counted on Creator Detail, an empty Perlu Approval included.
+    expect(screen.getByTestId("count-action")).toHaveTextContent("0");
     expect(screen.getByTestId("count-waiting")).toHaveTextContent("0");
+    expect(screen.getByTestId("count-all")).toBeInTheDocument();
+    expect(screen.getByTestId("count-done")).toBeInTheDocument();
   });
 
   it("keeps late submitted content in Selesai and omits actions that no longer apply", () => {
     render(<CreatorContentBoard creatorId={CREATOR} view={EXTRA_VIEW} state={{ ...EXTRA_STATE, tab: "done" } as CreatorDetailParams} />);
     expect(screen.getAllByText("Late hand-in").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Overdue").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("(Late Submission)").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Tinjau/ })).toBeNull();
-    expect(screen.getByRole("tab", { name: "Selesai" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Selesai/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("sorts the selected period's deadlines from the table header", () => {

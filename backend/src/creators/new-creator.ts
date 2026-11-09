@@ -92,7 +92,7 @@ function checkName(value: unknown, errors: NewCreatorErrors): NameParts {
   };
 }
 
-function checkEmail(value: unknown, errors: NewCreatorErrors): string {
+export function checkEmail(value: unknown, errors: NewCreatorErrors): string {
   const email = trimmed(value);
 
   if (email === '') {
@@ -319,7 +319,11 @@ function checkDeadlines(
     return deadlines;
   }
 
-  const earliest = earliestDeadline(isoDay(contractStart), isoDay(startOfDay(now)), DEFAULT_BUFFER_DAYS);
+  const earliest = earliestDeadline(
+    isoDay(contractStart),
+    isoDay(startOfDay(now)),
+    DEFAULT_BUFFER_DAYS,
+  );
 
   if (deadlines.length !== quota) {
     errors.deadlines = `Jumlah deadline harus sama dengan jumlah konten (${quota})`;

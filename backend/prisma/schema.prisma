@@ -154,13 +154,54 @@ model submissions {
   creator_id     String   @db.Uuid
   link           String
   revision_notes String?
+  /// The same note as sanitized rich text (PBI-34, 34.1); null for a note written before it,
+  /// which stays plain text and reads as it always did (AC 9).
+  revision_notes_html String?
   creator_notes  String?
   created_at     DateTime @default(now()) @db.Timestamptz(6)
   updated_at     DateTime @default(now()) @db.Timestamptz(6)
   contents       contents @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   creators       creators @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  revision_note_images revision_note_images[]
+  revision_followups revision_followups[]
 
   @@index([content_id, created_at], map: "submissions_content_created_at_idx")
+}
+
+/// A screenshot an admin attached to a revision note (PBI-34, 34.1). The bytes live in the
+/// private bucket under object_key; only Admins and the content's creator may open them (AC 6).
+model revision_note_images {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id String   @db.Uuid
+  object_key    String   @unique @db.Uuid
+  file_name     String   @db.VarChar(255)
+  content_type  String
+  size_bytes    Int
+  uploaded_by   String   @db.Uuid
+  /// Set when the image goes out with the note (PBI-34): the history's image can then no
+  /// longer be taken down under it (review).
+  sent_at       DateTime? @db.Timestamptz(6)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  submissions   submissions @relation(fields: [submission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users    @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([submission_id], map: "revision_note_images_submission_id_idx")
+  @@index([uploaded_by], map: "revision_note_images_uploaded_by_idx")
+}
+
+/// A follow-up an admin adds under a revision note already sent (PBI-33); the note itself is
+/// never changed.
+model revision_followups {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id  String      @db.Uuid
+  body           String
+  author_user_id String      @db.Uuid
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+  submissions    submissions @relation(fields: [submission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users       @relation(fields: [author_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([submission_id, created_at], map: "revision_followups_submission_created_at_idx")
+  @@index([author_user_id], map: "revision_followups_author_user_id_idx")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -188,6 +229,7 @@ model users {
   updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
   creators               creators?
   app_sessions           app_sessions[]
+  revision_note_images   revision_note_images[]
   content_events         content_events[]
   content_links          content_links[]
   content_links_manual   content_links[]          @relation("content_links_manual_by")
@@ -198,6 +240,7 @@ model users {
   invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
   invoices_paid          invoices[]               @relation("invoices_paid_by")
   rate_formula           rate_formula[]
+  revision_followups     revision_followups[]
 }
 
 enum invoice_status {
@@ -335,6 +378,32 @@ model app_sessions {
 
   @@index([idleExpiresAt], map: "app_sessions_idle_expires_at_idx")
   @@index([absoluteExpiresAt], map: "app_sessions_absolute_expires_at_idx")
+}
+
+/// Codes for signing in with an email (PBI-39). Only an HMAC of the code is stored; an address the
+/// whitelist refuses gets a decoy row. The newest row per email is the live one.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model login_codes {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String
+  code_hash  String    @db.Char(64)
+  expires_at DateTime  @db.Timestamptz(6)
+  attempts   Int       @default(0)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([email, created_at(sort: Desc)], map: "login_codes_email_created_at_idx")
+}
+
+/// Every code request let through by the hourly limit (PBI-39 AC 5), sent or not; about an hour of rows.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model login_code_requests {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String
+  requested_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([email, requested_at(sort: Desc)], map: "login_code_requests_email_requested_at_idx")
+  @@index([requested_at], map: "login_code_requests_requested_at_idx")
 }
 
 enum content_status {

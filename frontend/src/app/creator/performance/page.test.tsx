@@ -90,7 +90,8 @@ describe("Creator Performa page", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Performa" })).toBeInTheDocument();
-    expect(screen.getByText("Data performa konten kamu")).toBeInTheDocument();
+    // No subtitle under the page title.
+    expect(screen.queryByText("Data performa konten kamu")).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 

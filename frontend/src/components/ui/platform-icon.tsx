@@ -3,20 +3,32 @@ import type { Platform } from "@/lib/platform-links";
 import { PLATFORM_LABELS, PLATFORMS } from "@/lib/platform-links";
 
 // The two platform marks, drawn as simple inline SVGs so no icon font or image ships with the
-// app. Each carries its platform's name for screen readers; the drawing itself says nothing.
+// app, each in its platform's own colours so it is told apart at a glance. Each carries its
+// platform's name for screen readers; the drawing itself says nothing.
 
 const SHAPES: Record<Platform, ReactNode> = {
   instagram: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#E1306C" strokeWidth="1.9" aria-hidden="true">
       <rect x="3" y="3" width="18" height="18" rx="5" />
       <circle cx="12" cy="12" r="4.2" />
-      <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="17.2" cy="6.8" r="1.1" fill="#E1306C" stroke="none" />
     </svg>
   ),
   tiktok: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M14 4v9.2a3.8 3.8 0 1 1-3.2-3.75" strokeLinecap="round" />
-      <path d="M14 4c.6 2.3 2.2 3.6 4.5 3.85" strokeLinecap="round" />
+    // The mark in ink over its cyan and red echoes, as TikTok draws it.
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+      <g stroke="#25F4EE" transform="translate(-0.7 -0.7)">
+        <path d="M14 4v9.2a3.8 3.8 0 1 1-3.2-3.75" />
+        <path d="M14 4c.6 2.3 2.2 3.6 4.5 3.85" />
+      </g>
+      <g stroke="#FE2C55" transform="translate(0.7 0.7)">
+        <path d="M14 4v9.2a3.8 3.8 0 1 1-3.2-3.75" />
+        <path d="M14 4c.6 2.3 2.2 3.6 4.5 3.85" />
+      </g>
+      <g stroke="#111111">
+        <path d="M14 4v9.2a3.8 3.8 0 1 1-3.2-3.75" />
+        <path d="M14 4c.6 2.3 2.2 3.6 4.5 3.85" />
+      </g>
     </svg>
   ),
 };
@@ -24,7 +36,7 @@ const SHAPES: Record<Platform, ReactNode> = {
 /** One platform's mark, named for what it is. */
 export function PlatformIcon({ platform }: Readonly<{ platform: Platform }>) {
   return (
-    <span role="img" aria-label={PLATFORM_LABELS[platform]} className="inline-flex size-4 text-muted">
+    <span role="img" aria-label={PLATFORM_LABELS[platform]} className="inline-flex size-4">
       {SHAPES[platform]}
     </span>
   );

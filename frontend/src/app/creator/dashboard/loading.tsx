@@ -6,7 +6,7 @@ import { AppShell } from "@/components/shell/app-shell";
  */
 export default function CreatorDashboardLoading() {
   return (
-    <AppShell role="creator" title="Dashboard" subtitle="Berikut ringkasan task yang perlu kamu kerjakan.">
+    <AppShell role="creator" title="Dashboard">
       <p role="status" className="py-14 text-center text-[13px] text-muted">
         Memuat ringkasan task…
       </p>
