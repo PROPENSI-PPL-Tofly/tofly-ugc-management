@@ -1,5 +1,8 @@
 import { REVIEWABLE_STATUSES } from './draft-review.js';
-import { adminActor, type AdminActor } from '../contents/content-event-actors.js';
+import {
+  adminActor,
+  type AdminActor,
+} from '../contents/content-event-actors.js';
 import { unauthenticated } from '../auth/creator-request.js';
 import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import type {
@@ -83,7 +86,7 @@ interface RevisionTransaction {
         content_id: string;
         event_type: 'Revision Requested';
         occurred_at: Date;
-        event_data: { revision_note: string };
+        event_data: { revision_note: string; submission_id: string };
       };
     }): Promise<unknown>;
   };
@@ -169,7 +172,9 @@ export class SubmissionRevisionRepository implements RevisionStore {
 
       if (adminUserId !== undefined) {
         if (!transaction.users || !transaction.content_events) {
-          throw new Error('Revision event recording requires event transaction delegates');
+          throw new Error(
+            'Revision event recording requires event transaction delegates',
+          );
         }
 
         const admin = await transaction.users.findUnique({
@@ -184,7 +189,11 @@ export class SubmissionRevisionRepository implements RevisionStore {
             event_type: 'Revision Requested',
             ...adminActor(admin.id),
             occurred_at: new Date(),
-            event_data: { revision_note: revisionNotes },
+            // PBI-33: the draft it was asked on, so a follow-up finds its note by id.
+            event_data: {
+              revision_note: revisionNotes,
+              submission_id: submission.id,
+            },
           },
         });
       }

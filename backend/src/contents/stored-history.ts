@@ -202,22 +202,28 @@ function followUpOf(row: StoredEventRow): DetailFollowUp | null {
   };
 }
 
-// PBI-33 AC 4: each follow-up goes under the latest revision request before it. A follow-up is
-// only kept while that round is open, so it is the request it adds to; one with no request
-// before it is listed nowhere rather than under a guess. Rows come newest first, so they are
-// walked from the oldest.
+// PBI-33 AC 4: each follow-up goes under the revision request of its own draft: both store
+// the draft's submission_id, so two requests saved at the same instant cannot swap them. A
+// request stored before it carried that id falls back to the latest request before the
+// follow-up, which is the one it adds to, since a follow-up is only kept while that round is
+// open. One with neither is listed nowhere rather than under a guess. Rows come newest first,
+// so they are walked from the oldest.
 function withFollowUps(
   rows: StoredEventRow[],
   steps: ContentEvent[],
 ): ContentEvent[] {
   const listed = new Map<string, DetailFollowUp[]>();
-  let request: string | null = null;
+  const requestOfDraft = new Map<string, string>();
+  let latestRequest: string | null = null;
   for (const row of [...rows].reverse()) {
+    const draft = dataOf(row.event_data).text('submission_id');
     if (row.event_type === 'Revision Requested') {
-      request = row.id;
-    } else if (row.event_type === 'Revision Followup Added' && request) {
+      latestRequest = row.id;
+      if (draft) requestOfDraft.set(draft, row.id);
+    } else if (row.event_type === 'Revision Followup Added') {
+      const request = (draft && requestOfDraft.get(draft)) ?? latestRequest;
       const followUp = followUpOf(row);
-      if (followUp) {
+      if (request && followUp) {
         listed.set(request, [...(listed.get(request) ?? []), followUp]);
       }
     }
