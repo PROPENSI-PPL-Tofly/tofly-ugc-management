@@ -12,6 +12,7 @@ import {
   isUploading,
   progressed,
   removed,
+  restored,
   retried,
   uploaded,
   type StoredImage,
@@ -67,6 +68,23 @@ export function useScreenshots(uploader: ScreenshotUploader): Screenshots {
     const timer = setTimeout(() => setRefusal(null), MESSAGE_MS);
     return () => clearTimeout(timer);
   }, [refusal]);
+
+  // The uploader the field opened with; reading it from here keeps the list below to one read
+  // per opening, even when the form passes a new uploader on each render.
+  const opening = useRef(uploader);
+
+  // Review on #188: what a closed form left on the server comes back, so the five on screen are
+  // the five the server counts. A list that cannot be read leaves the field empty; the server
+  // still refuses a sixth image with its own reason.
+  useEffect(() => {
+    opening.current.list().then(
+      (images) => {
+        current.current = restored(current.current, images, () => `shot-${++lastId.current}`);
+        setUploads(current.current);
+      },
+      () => undefined,
+    );
+  }, []);
 
   // A form that closes mid-upload cancels what is still running, rather than leave it going.
   useEffect(() => {
