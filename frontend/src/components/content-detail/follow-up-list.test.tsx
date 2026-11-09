@@ -46,4 +46,17 @@ describe("FollowUpList", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  // PBI-33 AC 2 with PBI-34: a formatted follow-up reads with its formatting, like the note above it.
+  it("shows a formatted follow-up with its formatting", () => {
+    render(
+      <FollowUpList
+        followUps={[
+          { ...FIRST, note: "Ralat: musik", noteHtml: "<p><strong>Ralat</strong>: musik</p>" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Ralat").tagName).toBe("STRONG");
+  });
 });

@@ -4,6 +4,43 @@ import { DecisionError } from "@/lib/decisions";
 import { MAX_FOLLOW_UP_LENGTH } from "@/lib/follow-ups";
 import { FollowUpForm } from "./follow-up-form";
 
+// The form's own behaviour, with the rich text editor (PBI-34, tested on its own) stood in for
+// by a textarea that reports a note the way the editor does: its HTML, its words and their count.
+vi.mock("@/components/revision-note/rich-note-editor", async () => {
+  const { useState } = await import("react");
+  const { CharLimit } = await import("@/components/ui/char-limit");
+  function RichNoteEditor(props: {
+    label: string;
+    max: number;
+    disabled?: boolean;
+    required?: boolean;
+    autoFocus?: boolean;
+    onBlur?: () => void;
+    onChange?: (note: { html: string; text: string; length: number }) => void;
+  }) {
+    const [length, setLength] = useState(0);
+    return (
+      <>
+        <textarea
+          aria-label={props.label}
+          required={props.required}
+          maxLength={props.max}
+          autoFocus={props.autoFocus}
+          disabled={props.disabled}
+          onBlur={props.onBlur}
+          onChange={(event) => {
+            const text = event.target.value;
+            setLength(text.length);
+            props.onChange?.({ html: `<p>${text.trim()}</p>`, text, length: text.length });
+          }}
+        />
+        <CharLimit id="follow-up-count" length={length} max={props.max} />
+      </>
+    );
+  }
+  return { RichNoteEditor };
+});
+
 const SUBMISSION = "22222222-2222-2222-2222-222222222222";
 const SAVED: FollowUp = {
   id: "f1",
@@ -78,7 +115,7 @@ describe("FollowUpForm", () => {
     fireEvent.click(send());
 
     await waitFor(() => expect(onAdded).toHaveBeenCalledWith(SAVED));
-    expect(add).toHaveBeenCalledWith(SUBMISSION, "Logo di detik 3.");
+    expect(add).toHaveBeenCalledWith(SUBMISSION, "<p>Logo di detik 3.</p>");
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("Catatan susulan terkirim ke kreator.");
     expect(opener()).toHaveFocus();

@@ -50,6 +50,8 @@ export type DetailEventType =
 export interface DetailFollowUp {
   id: string;
   note: string;
+  /** The follow-up's sanitized formatting, when it was written with any. */
+  noteHtml?: string;
   // ISO instant the follow-up was saved.
   at: string;
   actor: { name: string };

@@ -5,6 +5,7 @@ import { DecisionError } from "@/lib/decisions";
 import type { PanelActionPorts } from "@/lib/panel-actions";
 import type { ScreenshotUploader, StoredImage } from "@/lib/revision-note-uploads";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
+import { withFollowUp } from "@/lib/follow-ups";
 import { ContentDetailPanel, type Decision } from "./content-detail-panel";
 
 const refresh = vi.fn();
@@ -104,8 +105,8 @@ const NOTE = "Catatan revisi untuk creator";
 
 // Writes the revision note as the Admin would paste it: the editor is not a textarea, so
 // fireEvent.change has nothing to set.
-async function typeNote(text: string) {
-  const box = await screen.findByRole("textbox", { name: NOTE });
+async function typeNote(text: string, name = NOTE) {
+  const box = await screen.findByRole("textbox", { name });
   act(() => box.focus());
   fireEvent.paste(box, {
     clipboardData: {
@@ -1855,13 +1856,13 @@ describe("ContentDetailPanel follow-up notes", () => {
   it("saves through the port, lists the new follow-up after the earlier one and keeps the panel open (AC 4)", async () => {
     const addFollowUp = vi.fn().mockResolvedValue(SAVED);
     const onDecided = vi.fn();
-    open(round(), { ports: { addFollowUp }, onDecided });
+    const { load } = open(round(), { ports: { addFollowUp }, onDecided });
+    // After saving, the panel reads the content again for the timeline step (AC 6).
+    load.mockResolvedValueOnce(withFollowUp(round(), SAVED));
 
     const latest = await latestRevisionItem();
     fireEvent.click(within(latest).getByRole("button", { name: "Tambah Catatan Susulan" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Catatan susulan" }), {
-      target: { value: SAVED.note },
-    });
+    await typeNote(SAVED.note, "Catatan susulan");
     fireEvent.click(screen.getByRole("button", { name: "Kirim Catatan Susulan" }));
 
     await waitFor(() =>
@@ -1871,7 +1872,8 @@ describe("ContentDetailPanel follow-up notes", () => {
         ),
       ).toHaveLength(2),
     );
-    expect(addFollowUp).toHaveBeenCalledWith(SUBMISSION, SAVED.note);
+    expect(addFollowUp).toHaveBeenCalledWith(SUBMISSION, `<p>${SAVED.note}</p>`);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     const items = within(within(latest).getByRole("list", { name: "Catatan susulan" })).getAllByRole(
       "listitem",
     );
@@ -1889,9 +1891,7 @@ describe("ContentDetailPanel follow-up notes", () => {
     load.mockResolvedValueOnce(round({ status: "draft_review", waitingOn: "admin" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Tambah Catatan Susulan" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Catatan susulan" }), {
-      target: { value: "Logo" },
-    });
+    await typeNote("Logo", "Catatan susulan");
     fireEvent.click(screen.getByRole("button", { name: "Kirim Catatan Susulan" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Creator sudah mengirim draft baru");

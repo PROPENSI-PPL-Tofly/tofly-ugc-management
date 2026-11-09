@@ -19,6 +19,7 @@ export interface FollowUpAdder {
     submissionId: string,
     note: string,
     adminUserId: string,
+    noteHtml?: string,
   ): Promise<FollowUpDto>;
 }
 
@@ -38,10 +39,13 @@ export class FollowUpController {
     @Body() body: unknown,
     @Req() request: AdminRequest,
   ): Promise<FollowUpDto> {
-    const { note } = checkFollowUp(body);
+    const { note, noteHtml } = checkFollowUp(body);
     // OWASP A01: the follow-up records its author, so only a signed-in admin gets through.
     if (request.principal?.role !== 'admin') throw unauthenticated();
 
-    return this.followUps.add(submissionId, note, request.principal.userId);
+    const adminUserId = request.principal.userId;
+    return noteHtml === undefined
+      ? this.followUps.add(submissionId, note, adminUserId)
+      : this.followUps.add(submissionId, note, adminUserId, noteHtml);
   }
 }

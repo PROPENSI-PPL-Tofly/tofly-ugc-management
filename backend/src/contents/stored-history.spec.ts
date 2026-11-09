@@ -105,6 +105,32 @@ describe('fromStoredHistory follow-up notes', () => {
     });
   });
 
+  // AC 2 with PBI-34: a formatted follow-up reaches the reader with its formatting.
+  it("carries a formatted follow-up's HTML under its revision request", () => {
+    const events = fromStoredHistory([
+      row('event-fu-1', 'Revision Followup Added', '2026-11-09T04:00:00.000Z', {
+        note: 'Ralat: musik',
+        note_html: '<p><strong>Ralat</strong>: musik</p>',
+        submission_id: 'sub-1',
+        follow_up_id: 'fu-1',
+      }),
+      row('rev-1', 'Revision Requested', '2026-11-09T03:00:00.000Z', {
+        revision_note: 'Tolong perbaiki intro.',
+        submission_id: 'sub-1',
+      }),
+    ]);
+
+    expect(revisionOf(events, 'rev-1')?.payload?.followUps).toEqual([
+      {
+        id: 'fu-1',
+        note: 'Ralat: musik',
+        noteHtml: '<p><strong>Ralat</strong>: musik</p>',
+        at: '2026-11-09T04:00:00.000Z',
+        actor: { name: 'Admin' },
+      },
+    ]);
+  });
+
   // AC 4: the note the creator read stays as it was, with the follow-ups under it, oldest first.
   it('lists the follow-ups under the revision request they add to, oldest first', () => {
     const events = fromStoredHistory([

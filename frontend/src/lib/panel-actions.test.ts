@@ -513,6 +513,25 @@ describe("submitRevision", () => {
 
     expect(revise).toHaveBeenCalledWith(SUBMISSION, "Perbaiki intro");
   });
+
+  // PBI-34 AC 3, 8: the screenshots uploaded with the note go out with it, so the creator sees them.
+  it("sends the uploaded screenshots' ids with the note", async () => {
+    const revise = vi.fn().mockResolvedValue(undefined);
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({
+        busy: false,
+        note: "Perbaiki intro",
+        noteHtml: "<p>Perbaiki intro</p>",
+        imageIds: ["img-1", "img-2"],
+      }),
+      ports: adminPorts({ revise }),
+    });
+
+    await command.run();
+
+    expect(revise).toHaveBeenCalledWith(SUBMISSION, "<p>Perbaiki intro</p>", ["img-1", "img-2"]);
+  });
 });
 
 describe("optional ports", () => {
