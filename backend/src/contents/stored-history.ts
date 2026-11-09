@@ -5,6 +5,10 @@ import type {
   DetailEventType,
 } from './content-detail.js';
 import { isSocialPlatform } from './link-rules.js';
+import {
+  noteImageOf,
+  type NoteImage,
+} from '../submissions/note-image.js';
 
 // The stored history (content_events) read back into the steps the Content Detail panel shows.
 // The table speaks the writers' vocabulary ("Draft Submitted", revision_note); the panel's
@@ -41,7 +45,12 @@ const STEP_FOR: Record<
   },
   'Revision Requested': {
     type: 'revision_requested',
-    payload: (data) => details({ note: data.text('revision_note') }),
+    payload: (data) =>
+      details({
+        note: data.text('revision_note'),
+        noteHtml: data.text('revision_note_html'),
+        images: data.images('images'),
+      }),
   },
   'Link Submitted': {
     type: 'link_submitted',
@@ -84,6 +93,8 @@ interface Data {
   platform(key: string): social_platform | undefined;
   /** An edit's changes: only the fields an edit can touch, with text on both sides. */
   changes(key: string): ContentChanges | undefined;
+  /** The note's screenshots (PBI-34): an entry of the wrong shape is dropped, not guessed at. */
+  images(key: string): NoteImage[] | undefined;
 }
 
 function objectOf(value: unknown): Record<string, unknown> {
@@ -106,10 +117,26 @@ function changesOf(value: unknown): ContentChanges | undefined {
   return changes;
 }
 
+/** The stored screenshots, entries first-attached first; one of the wrong shape is left out. */
+function imagesOf(value: unknown): NoteImage[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const images = value.flatMap((entry) => {
+    const fields = objectOf(entry);
+    return typeof fields.id === 'string' &&
+      typeof fields.content_type === 'string'
+      ? [noteImageOf({ id: fields.id, content_type: fields.content_type })]
+      : [];
+  });
+  return images.length > 0 ? images : undefined;
+}
+
 function dataOf(value: unknown): Data {
   const fields = objectOf(value);
   return {
     changes: (key) => changesOf(fields[key]),
+    images: (key) => imagesOf(fields[key]),
     number: (key) =>
       typeof fields[key] === 'number' ? fields[key] : undefined,
     // Blank text says nothing, as blank notes are left out everywhere else.

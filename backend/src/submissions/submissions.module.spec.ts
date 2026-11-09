@@ -8,6 +8,11 @@ import { SubmissionRevisionController } from './submission-revision.controller.j
 import { SubmissionRevisionService } from './submission-revision.service.js';
 import { SubmissionReviewService } from './submission-review.service.js';
 import { SubmissionsController } from './submissions.controller.js';
+import {
+  RevisionNoteImageController,
+  RevisionNoteImagesController,
+} from './revision-note-images.controller.js';
+import { RevisionNoteImagesService } from './revision-note-images.service.js';
 import { SubmissionsModule } from './submissions.module.js';
 
 describe('SubmissionsModule', () => {
@@ -38,6 +43,19 @@ describe('SubmissionsModule', () => {
 
     expect(module.get(SubmissionRevisionController)).toBeDefined();
     expect(module.get(SubmissionRevisionService)).toBeDefined();
+  });
+
+  it('provides the revision note images controller and service, behind the file store', async () => {
+    const module = await Test.createTestingModule({
+      imports: [SubmissionsModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
+
+    expect(module.get(RevisionNoteImagesController)).toBeDefined();
+    expect(module.get(RevisionNoteImageController)).toBeDefined();
+    expect(module.get(RevisionNoteImagesService)).toBeDefined();
   });
 
   it('is part of the application', () => {
