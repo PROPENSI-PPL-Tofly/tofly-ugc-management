@@ -28,6 +28,8 @@ function row(
     revisionNotes?: string | null;
     /** When the latest draft was handed in, if any. */
     draftAt?: string;
+    /** When the admin last added a follow-up under its revision note, if ever (PBI-33). */
+    followUpAt?: string;
     /** The day the link went in, if it did. */
     linkDay?: string;
   },
@@ -54,6 +56,9 @@ function row(
               created_at: new Date(
                 overrides.draftAt ?? '2026-10-01T03:00:00.000Z',
               ),
+              revision_followups: overrides.followUpAt
+                ? [{ created_at: new Date(overrides.followUpAt) }]
+                : [],
             },
           ],
   };
@@ -112,7 +117,16 @@ describe('MyContentsService.list', () => {
         // Only which platforms have a link, for the row's icons (PBI-38 AC 13), never the links.
         content_links: { select: { platform: true } },
         submissions: {
-          select: { revision_notes: true, created_at: true },
+          select: {
+            revision_notes: true,
+            created_at: true,
+            // PBI-33 AC 5: only when its note was last added to, never the follow-ups.
+            revision_followups: {
+              select: { created_at: true },
+              orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+              take: 1,
+            },
+          },
           orderBy: { created_at: 'desc' },
           take: 1,
         },
@@ -120,7 +134,7 @@ describe('MyContentsService.list', () => {
     });
   });
 
-  it('names the platforms a content has a link for, Instagram first, for the row\'s icons (PBI-38 AC 13)', async () => {
+  it("names the platforms a content has a link for, Instagram first, for the row's icons (PBI-38 AC 13)", async () => {
     const { service } = stub([
       row({
         id: 'cross-posted',
@@ -140,7 +154,9 @@ describe('MyContentsService.list', () => {
     const response = await service.list(CREATOR_ID, query(), NOW);
 
     expect(
-      Object.fromEntries(response.items.map((item) => [item.id, item.platforms])),
+      Object.fromEntries(
+        response.items.map((item) => [item.id, item.platforms]),
+      ),
     ).toEqual({
       'cross-posted': ['instagram', 'tiktok'],
       'kept-from-before': [],
@@ -597,6 +613,7 @@ describe('MyContentsService.list', () => {
         tags: [],
         actions: ['submit_video'],
         revisionNotes: null,
+        revisionNotesUpdatedAt: null,
         platforms: [],
       },
     ]);
@@ -671,6 +688,48 @@ describe('MyContentsService.list', () => {
     const { items } = await service.list(CREATOR_ID, query(), NOW);
 
     expect(items.map((item) => item.revisionNotes)).toEqual([null, null]);
+  });
+
+  // PBI-33, 33.1 (AC 5): Task Saya says "Catatan diperbarui" with the time of the latest follow-up.
+  it('carries when the revision note was last added to on a row waiting for a resubmit', async () => {
+    const { service } = stub([
+      row({
+        id: 'c1',
+        status: 'draft_revision',
+        revisionNotes: 'Perjelas intro',
+        followUpAt: '2026-10-09T05:00:00.000Z',
+      }),
+    ]);
+
+    const [item] = (await service.list(CREATOR_ID, query(), NOW)).items;
+
+    expect(item.revisionNotesUpdatedAt).toBe('2026-10-09T05:00:00.000Z');
+  });
+
+  // Corner: a note nothing was added to is not "updated", and a handed-in round is stale.
+  it('answers no update time without a follow-up, or once the revision is handed in', async () => {
+    const { service } = stub([
+      row({
+        id: 'c1',
+        status: 'draft_revision',
+        revisionNotes: 'Perjelas intro',
+      }),
+      row({
+        id: 'c2',
+        status: 'draft_review',
+        revisionNotes: 'Perjelas intro',
+        followUpAt: '2026-10-09T05:00:00.000Z',
+      }),
+      row({ id: 'c3', status: 'scheduled' }),
+    ]);
+
+    const { items } = await service.list(CREATOR_ID, query(), NOW);
+
+    expect(items.map((item) => item.revisionNotesUpdatedAt)).toEqual([
+      null,
+      null,
+      null,
+    ]);
   });
 
   it('gives a submitted link no actions', async () => {
