@@ -334,3 +334,37 @@ describe("screenshotUploader list", () => {
     ]);
   });
 });
+
+describe("image links from 34.1", () => {
+  // Review on #188: a link goes into <img src> only when it is a path on this app, as
+  // creator-invoice-api.ts reads its proof links.
+  it.each([
+    ["another site", "https://evil.example/shot.png"],
+    ["a protocol-relative link", "//evil.example/shot.png"],
+    ["a backslash link browsers read as another site", "/\\evil.example/shot.png"],
+  ])("fails an upload whose link is %s", async (_what, url) => {
+    const { uploader, requests } = setUp();
+    const { result } = start(uploader);
+
+    requests[0].answer(201, { id: "img-1", url });
+
+    await expect(result).rejects.toBeInstanceOf(Error);
+  });
+
+  it("skips a listed image whose link is another site", async () => {
+    const { uploader, fetchStub } = setUp();
+    fetchStub.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          { id: "far", url: "https://evil.example/far.png", sent: false },
+          { id: "near", url: "/api/revision-note-images/near", sent: false },
+        ]),
+        { status: 200 },
+      ),
+    );
+
+    await expect(uploader.list()).resolves.toEqual([
+      { imageId: "near", url: "/api/revision-note-images/near" },
+    ]);
+  });
+});
