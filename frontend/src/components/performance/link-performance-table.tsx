@@ -91,7 +91,7 @@ export function LinkPerformanceTable({
                 onRowClick ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
               }`}
             >
-              <td className={`${CELL} wrap-anywhere`}>
+              <td className={`${CELL} min-w-48 wrap-break-word`}>
                 {onRowClick ? (
                   <ContentNameButton onOpen={() => onRowClick(row)} underlined>
                     {row.contentName}

@@ -747,6 +747,8 @@ describe('toContentDetail edit window (PBI-25)', () => {
             created_at: new Date('2026-09-20T03:00:00.000Z'),
             updated_at: new Date('2026-09-20T03:00:00.000Z'),
             revision_notes: null,
+            revision_notes_html: null,
+            revision_note_images: [],
             creator_notes: null,
           },
         ],
@@ -869,6 +871,7 @@ describe('toContentDetail link performance (PBI-27)', () => {
           },
         ],
         contracts: {
+          ...row().contracts,
           creators: {
             first_name: 'Rangga',
             middle_name: null,
