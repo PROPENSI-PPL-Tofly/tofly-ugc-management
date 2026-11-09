@@ -452,3 +452,52 @@ describe("RichNoteEditor placeholder", () => {
     expect(box.querySelector("[data-placeholder]")).toBeNull();
   });
 });
+
+// What the form's textarea does today, so the editor can take its place in the Minta Revisi form
+// without the form losing any of it.
+describe("RichNoteEditor in a form", () => {
+  it("takes the focus when it opens, as the form's note does", async () => {
+    renderEditor({ autoFocus: true });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    await waitFor(() => expect(box).toHaveFocus());
+  });
+
+  it("says it is required and, when told, that it is invalid", async () => {
+    renderEditor({ required: true, invalid: true });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box).toHaveAttribute("aria-required", "true");
+    expect(box).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // Negative: a field that is neither says neither.
+  it("says nothing of being required or invalid when it is not", async () => {
+    renderEditor();
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box).not.toHaveAttribute("aria-required");
+    expect(box).not.toHaveAttribute("aria-invalid");
+  });
+
+  // The form's "wajib diisi" message is read with the counter.
+  it("names the form's message beside its counter", async () => {
+    renderEditor({ describedBy: "pesan-wajib" });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    const ids = box.getAttribute("aria-describedby")?.split(" ") ?? [];
+    expect(ids).toContain("pesan-wajib");
+    expect(ids).toHaveLength(2);
+  });
+
+  it("tells the form when the Admin leaves the note", async () => {
+    const onBlur = vi.fn();
+    renderEditor({ onBlur });
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+
+    act(() => box.focus());
+    fireEvent.blur(box);
+
+    await waitFor(() => expect(onBlur).toHaveBeenCalled());
+  });
+});

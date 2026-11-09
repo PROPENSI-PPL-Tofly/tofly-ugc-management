@@ -194,3 +194,31 @@ describe("RevisionNoteField layout, as the prototype draws it", () => {
     expect(help.closest("[data-note-footer]")).toContainElement(screen.getByText("0/1000"));
   });
 });
+
+describe("RevisionNoteField in the Minta Revisi form", () => {
+  // The form's required note keeps what its textarea did: the focus, required, invalid, its
+  // message and knowing when it is left.
+  it("hands the form's settings to the editor", async () => {
+    const onBlur = vi.fn();
+    render(
+      <RevisionNoteField
+        label="Catatan revisi"
+        max={1000}
+        uploader={fakeUploader().uploader}
+        autoFocus
+        required
+        invalid
+        describedBy="pesan-wajib"
+        onBlur={onBlur}
+      />,
+    );
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    await waitFor(() => expect(box).toHaveFocus());
+    expect(box).toHaveAttribute("aria-required", "true");
+    expect(box).toHaveAttribute("aria-invalid", "true");
+    expect(box.getAttribute("aria-describedby")).toContain("pesan-wajib");
+    fireEvent.blur(box);
+    await waitFor(() => expect(onBlur).toHaveBeenCalled());
+  });
+});
