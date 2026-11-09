@@ -1,9 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
-import {
-  EMAIL_SENDER,
-  unreadyEmailSender,
-  type EmailSender,
-} from '../../email/email-sender.js';
+import { EMAIL_SENDER, type EmailSender } from '../../email/email-sender.js';
+import { EmailModule } from '../../email/email.module.js';
 import { PrismaModule } from '../../prisma/prisma.module.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PrismaWhitelistResolver } from '../google/prisma-whitelist-resolver.js';
@@ -21,11 +18,9 @@ import {
 import { PrismaLoginCodeIssuer } from './prisma-login-code-issuer.js';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, EmailModule],
   controllers: [EmailRequestController],
   providers: [
-    // 39.1 replaces this binding with its SMTP adapter; until then every code fails to send.
-    { provide: EMAIL_SENDER, useValue: unreadyEmailSender },
     {
       provide: LOGIN_CODE_ISSUER,
       useFactory: (prisma: PrismaService) => new PrismaLoginCodeIssuer(prisma),
