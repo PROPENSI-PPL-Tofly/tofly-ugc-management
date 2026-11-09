@@ -15,8 +15,10 @@ export const SCREENSHOT_TYPE_INVALID = "Format harus JPG, PNG, atau WebP";
 export const SCREENSHOT_TOO_LARGE = "Ukuran maksimal 5 MB";
 export const SCREENSHOT_TOO_MANY = "Maksimal 5 gambar per catatan";
 
-/** What the rules read from a picked, pasted or dropped file; the browser's File has both. */
+/** What the rules read from a picked, pasted or dropped file; the browser's File has all three. */
 export interface ScreenshotFile {
+  /** Named in a refusal, so a batch says which file each reason belongs to. */
+  name: string;
   type: string;
   size: number;
 }
