@@ -225,10 +225,10 @@ export function MyTaskTable({
                 {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
                 <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
                 {/* PBI-33 AC 5: words, not a colour, say the admin added to the revision note. */}
-                {task.lastFollowUpAt ? (
+                {task.revisionNotesUpdatedAt ? (
                   <span className="block text-xs font-normal text-muted">
                     Catatan diperbarui{" "}
-                    <time dateTime={task.lastFollowUpAt}>{formatTimestamp(task.lastFollowUpAt)}</time>
+                    <time dateTime={task.revisionNotesUpdatedAt}>{formatTimestamp(task.revisionNotesUpdatedAt)}</time>
                   </span>
                 ) : null}
               </td>

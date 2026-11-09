@@ -242,7 +242,7 @@ export interface MyTask {
   /** What the admin asked to change; set only while the row awaits a resubmit. */
   revisionNotes: string | null;
   /** When the admin last added a follow-up note to the open round (ISO instant), else null (PBI-33). */
-  lastFollowUpAt: string | null;
+  revisionNotesUpdatedAt: string | null;
   /** The platforms the content has a link for, Instagram first; empty before the first link. */
   platforms: Platform[];
 }

@@ -13,7 +13,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
-    lastFollowUpAt: null,
+    revisionNotesUpdatedAt: null,
     platforms: [],
     ...overrides,
   };
@@ -33,7 +33,7 @@ describe("MyTaskTable follow-up notes (PBI-33)", () => {
   it("says when the admin last added a follow-up note, under the content type (AC 5)", () => {
     render(
       <MyTaskTable
-        tasks={[task({ status: "draft_revision", revisionNotes: "Hook kurang kuat.", lastFollowUpAt: AT })]}
+        tasks={[task({ status: "draft_revision", revisionNotes: "Hook kurang kuat.", revisionNotesUpdatedAt: AT })]}
         onAction={vi.fn()}
       />,
     );
@@ -47,7 +47,7 @@ describe("MyTaskTable follow-up notes (PBI-33)", () => {
   });
 
   it("says nothing about follow-ups on a row without one", () => {
-    render(<MyTaskTable tasks={[task({ status: "draft_revision", lastFollowUpAt: null })]} onAction={vi.fn()} />);
+    render(<MyTaskTable tasks={[task({ status: "draft_revision", revisionNotesUpdatedAt: null })]} onAction={vi.fn()} />);
 
     expect(screen.queryByText(/Catatan diperbarui/)).toBeNull();
   });

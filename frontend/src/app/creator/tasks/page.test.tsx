@@ -49,7 +49,7 @@ function answer(overrides: Partial<MyTasksResponse> = {}): MyTasksResponse {
         tags: [],
         actions: ["submit_draft"],
         revisionNotes: null,
-        lastFollowUpAt: null,
+        revisionNotesUpdatedAt: null,
       },
     ],
     page: 1,

@@ -84,7 +84,7 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
     tags: [],
     actions: ["submit_draft"],
     revisionNotes: null,
-    lastFollowUpAt: null,
+    revisionNotesUpdatedAt: null,
     ...overrides,
   };
 }
