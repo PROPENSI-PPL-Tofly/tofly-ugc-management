@@ -90,6 +90,46 @@ describe("StatusTabs", () => {
     expect(screen.queryByTestId("count-todo")).not.toBeInTheDocument();
   });
 
+  describe("counting every tab", () => {
+    function renderEvery(counts = COUNTS) {
+      render(
+        <StatusTabs
+          label="Tab konten"
+          panelId="list"
+          tabs={TABS}
+          active="all"
+          counts={counts}
+          onSelect={vi.fn()}
+          countEvery
+        />,
+      );
+    }
+
+    it("gives every tab its count, the ones that do not count otherwise included", () => {
+      renderEvery();
+
+      expect(screen.getByTestId("count-all")).toHaveTextContent("9");
+      expect(screen.getByTestId("count-done")).toHaveTextContent("3");
+    });
+
+    it("keeps the urgent counter red past zero and every other one grey", () => {
+      renderEvery();
+
+      expect(screen.getByTestId("count-todo").className).toContain("bg-red");
+      for (const key of ["all", "wait", "done"]) {
+        expect(screen.getByTestId(`count-${key}`).className).toContain("bg-surface-2");
+      }
+    });
+
+    it("shows an empty urgent queue as a grey zero, not a red badge", () => {
+      renderEvery({ ...COUNTS, todo: 0 });
+
+      const badge = screen.getByTestId("count-todo");
+      expect(badge).toHaveTextContent("0");
+      expect(badge.className).toContain("bg-surface-2");
+    });
+  });
+
   it("keeps a counting tab grey with zero included", () => {
     renderTabs("all", { ...COUNTS, wait: 0 });
     const badge = screen.getByTestId("count-wait");

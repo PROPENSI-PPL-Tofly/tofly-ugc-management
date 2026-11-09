@@ -349,7 +349,6 @@ export function toContentDetail(
         deadline: row.deadline,
         status: row.status,
         videoSubmittedAt: row.video_submitted_at,
-        latestDraftAt: latest?.created_at ?? null,
         approvalBypassed: row.approval_bypassed,
       },
       now,

@@ -32,7 +32,7 @@ describe("CreatorContentTable", () => {
 
     expect(
       screen.getAllByRole("columnheader").map((heading) => heading.textContent),
-    ).toEqual(["Konten", "Deadline↑Deadline", "Status", "Aksi"]);
+    ).toEqual(["Konten", "Tipe", "Deadline↑Deadline", "Status", "Platform", "Aksi"]);
   });
 
   it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {
@@ -84,7 +84,7 @@ describe("CreatorContentTable", () => {
       expect(screen.getByRole("table")).toHaveClass("max-lg:block");
       expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
       expect(rowOf("Evg_7_RanggaPratama_26092026")).toHaveClass("max-lg:block");
-      expect(cells()).toHaveLength(4);
+      expect(cells()).toHaveLength(6);
     });
 
     it("names the deadline and the status by their columns, since the headers are hidden", () => {
@@ -92,8 +92,10 @@ describe("CreatorContentTable", () => {
 
       expect(cells().map((cell) => cell.dataset.label ?? null)).toEqual([
         null,
+        "Tipe",
         "Deadline",
         "Status",
+        "Platform",
         null,
       ]);
     });
@@ -171,14 +173,12 @@ describe("CreatorContentTable", () => {
   });
 
   it.each([
-    ["evergreen", "Evergreen"],
-    ["specific", "Specific"],
-  ] as const)("writes a %s content's type as quiet text, not a coloured pill", (type, label) => {
+    ["evergreen", "Evergreen", "bg-surface-2"],
+    ["specific", "Specific", "bg-accent-wash"],
+  ] as const)("draws a %s content's type as a badge of its own colour", (type, label, colour) => {
     renderTable([{ ...ROW, type }]);
 
-    const typeLabel = screen.getByText(label);
-    expect(typeLabel).not.toHaveClass("rounded-full");
-    expect(typeLabel).toHaveClass("text-muted");
+    expect(screen.getByText(label)).toHaveClass("rounded-full", colour);
   });
 
   it("shows the marks of the platforms the content was posted to (AC 13)", () => {
@@ -200,20 +200,13 @@ describe("CreatorContentTable", () => {
     expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
   });
 
-  it("puts the marks under the content name, above the type label", () => {
+  it("gives the type a column beside the content, and the platforms one right of the status", () => {
     renderTable([{ ...ROW, platforms: ["instagram"] }]);
 
-    const row = rowOf("Evg_7_RanggaPratama_26092026");
-    const name = within(row).getByRole("button", { name: "Evg_7_RanggaPratama_26092026" });
-    const mark = within(row).getByRole("img", { name: "Instagram" });
-    const type = within(row).getByText("Evergreen");
-
-    expect(
-      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      mark.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const [, type, , status, platform] = within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell");
+    expect(within(type).getByText("Evergreen")).toHaveClass("rounded-full");
+    expect(within(platform).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(status.compareDocumentPosition(platform) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows no marks for a content with no link sent yet", () => {
@@ -225,11 +218,27 @@ describe("CreatorContentTable", () => {
     expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
   });
 
-  it("shows Overdue and Approval di-bypass beside the status", () => {
-    renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
+  it.each([
+    ["overdue", "Overdue"],
+    ["late_submission", "Late Submission"],
+  ] as const)("reds the deadline of a %s content instead of a badge, still naming it for a screen reader", (tag, label) => {
+    renderTable([{ ...ROW, tags: [tag, "approval_bypassed"] }]);
 
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+    const deadline = within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell")[2];
+    expect(deadline.firstElementChild).toHaveClass("text-red-ink");
+    expect(within(deadline).getByText(`(${label})`)).toHaveClass("sr-only");
+    expect(screen.queryByRole("listitem", { name: label })).toBeNull();
+    expect(within(screen.getByRole("list", { name: "Tanda konten" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Approval di-bypass",
+    ]);
+  });
+
+  it("leaves an on-time deadline in ink", () => {
+    renderTable();
+
+    expect(within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell")[2].firstElementChild).not.toHaveClass(
+      "text-red-ink",
+    );
   });
 
   it("leaves the revision count to the content's panel", () => {
@@ -282,15 +291,27 @@ describe("CreatorContentTable", () => {
     });
 
     it.each(["scheduled", "draft_revision", "draft_approved", "link_submitted"] as const)(
-      "offers no Detail button for a %s content; its name opens it",
+      "offers a quiet Detail button for a %s content that opens it once",
       (status) => {
         const { onOpen } = renderTable([{ ...ROW, status }]);
 
-        expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
-        fireEvent.click(screen.getByRole("button", { name: "Evg_7_RanggaPratama_26092026" }));
+        const detail = screen.getByRole("button", { name: "Detail Evg_7_RanggaPratama_26092026" });
+        expect(detail).toHaveTextContent("Detail");
+        expect(detail.className).not.toContain("bg-accent");
+        expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
+        fireEvent.click(detail);
         expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
       },
     );
+
+    it("makes Tinjau the prominent one, in the accent fill, where a decision is waiting", () => {
+      renderTable([{ ...ROW, status: "draft_review" }]);
+
+      expect(screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }).className).toContain(
+        "bg-accent",
+      );
+      expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
+    });
 
     it("opens the content that was pressed, among several", () => {
       const { onOpen } = renderTable([ROW, { ...ROW, contentId: "c-2", name: "Konten Kedua" }]);
@@ -393,7 +414,7 @@ describe("CreatorContentTable", () => {
     expect(container.querySelector("img, script")).toBeNull();
   });
 
-  it("follows Content Plan's Selesai convention and omits the action column for finished content", () => {
+  it("keeps the action column in Selesai too, offering Detail for finished content", () => {
     const TabbedTable = CreatorContentTable as unknown as ComponentType<{
       rows: readonly CreatorContentRow[];
       filtered: boolean;
@@ -405,7 +426,7 @@ describe("CreatorContentTable", () => {
     }>;
     render(
       <TabbedTable
-        rows={[{ ...ROW, status: "link_submitted", tags: ["overdue"] }]}
+        rows={[{ ...ROW, status: "link_submitted", tags: ["late_submission"] }]}
         filtered={false}
         tab="done"
         sort="asc"
@@ -416,9 +437,10 @@ describe("CreatorContentTable", () => {
     );
 
     expect(screen.getByText("Evg_7_RanggaPratama_26092026")).toBeInTheDocument();
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText("(Late Submission)")).toHaveClass("sr-only");
     expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
-    expect(screen.queryByRole("columnheader", { name: "Aksi" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Detail Evg_7_RanggaPratama_26092026" })).toBeInTheDocument();
   });
 
   // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
@@ -427,5 +449,13 @@ describe("CreatorContentTable", () => {
     renderTable();
 
     expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
+  });
+
+  it("centres every cell of a row on one line, the action button included", () => {
+    renderTable();
+
+    for (const cell of within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell")) {
+      expect(cell).toHaveClass("align-middle");
+    }
   });
 });

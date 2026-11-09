@@ -69,7 +69,8 @@ describe("Creator dashboard page", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeInTheDocument();
     // The cards count every open task, whatever month it is due in.
-    expect(screen.getByText("Berikut ringkasan task yang perlu kamu kerjakan.")).toBeInTheDocument();
+    // No subtitle under the page title.
+    expect(screen.queryByText("Berikut ringkasan task yang perlu kamu kerjakan.")).not.toBeInTheDocument();
     expect(screen.queryByText(/bulan ini/)).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });

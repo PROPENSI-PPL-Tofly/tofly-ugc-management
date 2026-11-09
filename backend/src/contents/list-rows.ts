@@ -36,7 +36,7 @@ export function compareByDeadline(sort: DeadlineSort) {
     compareText(a.id, b.id);
 }
 
-/** Past its deadline with no link yet, or finished after it: both read as overdue. */
+/** Past its deadline with no video link yet; a link that came in late is a late submission. */
 export function isOverdue(tags: readonly ContentTag[]): boolean {
   return tags.includes('overdue');
 }

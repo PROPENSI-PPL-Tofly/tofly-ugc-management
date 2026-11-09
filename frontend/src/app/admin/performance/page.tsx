@@ -3,6 +3,7 @@ import { PerformanceFilters } from "@/components/performance/performance-filters
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
+import { Panel, PanelBand } from "@/components/ui/panel";
 import {
   PERFORMANCE_LINKS_BASE,
   buildPerformanceLinksQuery,
@@ -43,30 +44,25 @@ export default async function PerformancePage({
   const query = buildPerformanceLinksQuery(state);
 
   return (
-    <AppShell role="admin" title="Performa Konten" subtitle="Angka performa setiap link">
-      <PerformanceFilters creators={creators} />
-
+    <AppShell role="admin" title="Performa Konten">
       {result === null ? (
-        <LoadError
-          title="Performa Konten tidak bisa dimuat."
-          retryHref={
-            new URLSearchParams(query).toString()
-              ? `${PERFORMANCE_LINKS_BASE}?${new URLSearchParams(query)}`
-              : PERFORMANCE_LINKS_BASE
-          }
-        />
-      ) : (
         <>
-          {/* The same page of rows bracketed by its pagination, top and bottom (AC 23). */}
-          <Pagination
-            basePath={PERFORMANCE_LINKS_BASE}
-            noun="link"
-            query={query}
-            page={result.page}
-            pageSize={result.pageSize}
-            total={result.total}
-            totalPages={result.totalPages}
+          <PerformanceFilters creators={creators} />
+          <LoadError
+            title="Performa Konten tidak bisa dimuat."
+            retryHref={
+              new URLSearchParams(query).toString()
+                ? `${PERFORMANCE_LINKS_BASE}?${new URLSearchParams(query)}`
+                : PERFORMANCE_LINKS_BASE
+            }
           />
+        </>
+      ) : (
+        // One panel, banded like the admin's other lists; unclipped, so the filter popups and the
+        // state tips hang past its edge. The pagination sits once, below the rows.
+        <Panel clip={false}>
+          <PanelBand title="Link Konten" tone="ink" icon="chart" count={result.total} noun="link" />
+          <PerformanceFilters creators={creators} />
           {result.items.length === 0 ? (
             <p className="px-5 py-14 text-center text-[13px] text-muted">
               Belum ada link yang dikirim
@@ -83,7 +79,7 @@ export default async function PerformancePage({
             total={result.total}
             totalPages={result.totalPages}
           />
-        </>
+        </Panel>
       )}
     </AppShell>
   );

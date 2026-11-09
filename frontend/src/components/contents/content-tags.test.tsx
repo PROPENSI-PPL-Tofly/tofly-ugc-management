@@ -26,6 +26,13 @@ describe("ContentTags", () => {
     expect(screen.getByText("Approval di-bypass")).toHaveClass("text-amber-ink");
   });
 
+  it("tells a late submission from an overdue one by an outlined, softer red badge", () => {
+    render(<ContentTags tags={["overdue", "late_submission"]} />);
+
+    expect(screen.getByText("Overdue")).toHaveClass("bg-red-wash");
+    expect(screen.getByText("Late Submission")).toHaveClass("border", "bg-surface", "text-red-ink");
+  });
+
   it("wraps onto further lines instead of widening a narrow cell", () => {
     render(<ContentTags tags={["overdue", "approval_bypassed"]} />);
 

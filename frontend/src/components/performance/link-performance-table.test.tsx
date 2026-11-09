@@ -25,15 +25,43 @@ function row(overrides: Partial<PerformanceLinkRow> = {}): PerformanceLinkRow {
 }
 
 describe("LinkPerformanceTable", () => {
-  it("lists each row with its creator, content, platform and last sync (AC 22)", () => {
+  it("lists each row with its creator, content, platform logo and state, the sync time in the state's tip (AC 22)", () => {
     render(<LinkPerformanceTable rows={[row()]} showCreator />);
 
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    // The logo alone names the platform; no word beside it.
+    expect(screen.queryByText("Instagram")).not.toBeInTheDocument();
     expect(screen.getByText("Tersinkron")).toBeInTheDocument();
-    // The tip repeats the moment; the column cell is the one that lists it.
-    expect(screen.getByText(/1 Nov 2026/, { selector: "td" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Sinkron Terakhir" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/1 Nov 2026/);
+  });
+
+  it("says when a link that did not sync this time last synced, in its tip", () => {
+    render(<LinkPerformanceTable rows={[row({ state: "sync_failed" })]} />);
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/Sinkron terakhir 1 Nov 2026/);
+  });
+
+  it.each([
+    ["synced", "bg-green-wash"],
+    ["manual", "bg-accent-wash"],
+    ["not_connected", "bg-amber-wash"],
+    ["sync_failed", "bg-red-wash"],
+  ] as const)("draws the %s state as a badge in its colour", (state, colour) => {
+    render(<LinkPerformanceTable rows={[row({ state })]} />);
+
+    expect(screen.getByText(DATA_STATE_LABELS[state])).toHaveClass("rounded-full", colour);
+  });
+
+  it("underlines the content and the creator, and links the creator to their detail page", () => {
+    render(<LinkPerformanceTable rows={[row()]} showCreator onRowClick={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).toHaveClass("underline");
+    const creator = screen.getByRole("link", { name: "Rangga Pratama" });
+    expect(creator).toHaveClass("underline");
+    expect(creator).toHaveAttribute("href", "/admin/creators/11111111-1111-4111-8111-111111111111");
   });
 
   it("writes the four numbers in Indonesian format, and an empty one as a dash, never 0 (AC 2, 19)", () => {
@@ -123,18 +151,9 @@ describe("LinkPerformanceTable", () => {
     expect(screen.queryByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).not.toBeInTheDocument();
   });
 
-  it("carries the action the list gives each row, and none on a creator's list", () => {
-    const { unmount } = render(
-      <LinkPerformanceTable
-        rows={[row()]}
-        actions={() => <button type="button">Sinkronkan</button>}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "Sinkronkan" })).toBeInTheDocument();
-    unmount();
-
+  it("offers no per-row action", () => {
     render(<LinkPerformanceTable rows={[row()]} />);
+
     expect(screen.queryByRole("button", { name: "Sinkronkan" })).not.toBeInTheDocument();
   });
 });

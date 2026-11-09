@@ -470,8 +470,8 @@ describe('MyContentsService.list', () => {
   });
 
   it.each([
-    [true, ['overdue', 'late']],
-    [false, ['open', 'on-time']],
+    [true, ['overdue']],
+    [false, ['open', 'late', 'on-time']],
   ])(
     'keeps overdue=%s rows by the same tags the row shows',
     async (overdue, expected) => {
@@ -499,7 +499,7 @@ describe('MyContentsService.list', () => {
       const response = await service.list(CREATOR_ID, query({ overdue }), NOW);
 
       expect(ids(response)).toEqual(expected);
-      expect(response.tabCounts.all).toBe(2);
+      expect(response.tabCounts.all).toBe(expected.length);
     },
   );
 
@@ -641,7 +641,7 @@ describe('MyContentsService.list', () => {
 
     expect(items.map((item) => [item.id, item.tags])).toEqual([
       ['overdue', ['overdue']],
-      ['late-bypassed', ['overdue', 'approval_bypassed']],
+      ['late-bypassed', ['late_submission', 'approval_bypassed']],
       ['on-time', []],
     ]);
   });

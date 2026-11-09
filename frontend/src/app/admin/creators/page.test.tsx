@@ -209,7 +209,7 @@ describe("Creator Database's list band", () => {
   it("titles the roster in the ink band with the creators that match", async () => {
     await renderPage();
 
-    const band = screen.getByRole("heading", { level: 2, name: "Semua creator" }).closest("[data-tone]") as HTMLElement;
+    const band = screen.getByRole("heading", { level: 2, name: "Kreator" }).closest("[data-tone]") as HTMLElement;
     expect(band).toHaveAttribute("data-tone", "ink");
     expect(band.querySelector("[data-count]")).toHaveTextContent("12 creator");
     expect(within(band).getByRole("button", { name: /tambah creator/i })).toBeInTheDocument();

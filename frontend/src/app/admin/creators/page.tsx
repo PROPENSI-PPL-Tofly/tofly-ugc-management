@@ -51,7 +51,6 @@ export default async function CreatorsPage({
   return (
     <AppShell
       title="Creator Database"
-      subtitle="Semua creator yang bekerja sama dengan Tofly, dalam satu tabel"
     >
       {invalid !== null ? (
         // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
@@ -65,7 +64,7 @@ export default async function CreatorsPage({
 
       <Panel>
         <PanelBand
-          title={filtered ? "Hasil pencarian" : "Semua creator"}
+          title={filtered ? "Hasil pencarian" : "Kreator"}
           tone="ink"
           icon="people"
           count={result?.total}

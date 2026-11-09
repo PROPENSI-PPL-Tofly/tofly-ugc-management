@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
 import { contractTypePrefix } from "@/lib/creator-form";
@@ -18,7 +19,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
 import { useUrlQuery } from "@/lib/url-query";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
-import { DEFAULT_CREATOR_DETAIL_PARAMS, PRODUCTIVITY_TIP, creatorDetailHref } from "@/lib/creator-detail";
+import { DEFAULT_CREATOR_DETAIL_PARAMS, creatorDetailHref } from "@/lib/creator-detail";
+import { ProductivityTip } from "./productivity-tip";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
@@ -45,13 +47,13 @@ const CONTRACT_TONES: Record<ContractStatus, Tone> = {
 };
 
 /** `tip` is the ⓘ beside a heading, in the same words Creator Detail explains it with. */
-const COLUMNS: { label: string; numeric?: boolean; tip?: string }[] = [
+const COLUMNS: { label: string; numeric?: boolean; tip?: ReactNode }[] = [
   { label: "Creator" },
   { label: "Kontrak" },
   { label: "Progres konten" },
   { label: "Tepat waktu", numeric: true },
   { label: "Rata-rata revisi", numeric: true },
-  { label: "Produktivitas", tip: PRODUCTIVITY_TIP },
+  { label: "Produktivitas", tip: <ProductivityTip /> },
 ];
 
 const HEAD = "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";

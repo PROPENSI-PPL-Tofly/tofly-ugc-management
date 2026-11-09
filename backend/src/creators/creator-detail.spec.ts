@@ -266,7 +266,7 @@ describe('toContentEntries', () => {
     ).toMatchObject({
       videoLink: 'https://www.tiktok.com/@ayu/video/1',
       outcome: 'submitted_late',
-      tags: ['overdue'],
+      tags: ['late_submission'],
     });
   });
 

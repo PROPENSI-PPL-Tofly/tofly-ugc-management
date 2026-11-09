@@ -32,7 +32,7 @@ export default async function CreatorPaymentsPage() {
   const loaded = await load();
 
   return (
-    <AppShell role="creator" title="Pembayaran" subtitle="Invoice kamu per periode kontrak">
+    <AppShell role="creator" title="Pembayaran">
       {loaded.kind === "ok" ? <CreatorInvoices invoices={loaded.invoices} /> : null}
 
       {loaded.kind === "failed" ? (

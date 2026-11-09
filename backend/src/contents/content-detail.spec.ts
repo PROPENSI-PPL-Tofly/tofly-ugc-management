@@ -677,7 +677,7 @@ describe('toContentDetail', () => {
       on('2026-10-03'),
     );
 
-    expect(detail.tags).toEqual(['overdue']);
+    expect(detail.tags).toEqual(['late_submission']);
   });
 
   it('tags a link handed in without an approval from the flag stored at hand-in', () => {

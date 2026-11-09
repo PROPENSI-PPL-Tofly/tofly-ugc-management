@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import type { CreatorPeriod } from "@/lib/creator-detail";
-import { PeriodTabs } from "./period-tabs";
+import { PeriodSummary, PeriodTabs } from "./period-tabs";
 
 const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const FIRST = "11111111-1111-4111-8111-111111111111";
@@ -84,14 +84,26 @@ describe("PeriodTabs", () => {
   });
 
   it.each([
-    [0, "Berakhir", "bg-red"],
-    [1, "Aktif", "bg-green"],
-  ])("draws tab %i's state as a dot and its words, as Creator Database draws a contract", (index, label, colour) => {
+    [0, "Berakhir", "bg-red-wash"],
+    [1, "Aktif", "bg-green-wash"],
+  ])("draws tab %i's state as a badge tinted by the state, never as plain text", (index, label, colour) => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
-    const state = within(tabs()[index]).getByText(label);
-    expect(state).not.toHaveClass("rounded-full");
-    expect(state.querySelector('[aria-hidden="true"]')).toHaveClass(colour);
+    expect(within(tabs()[index]).getByText(label)).toHaveClass("rounded-full", colour);
+  });
+
+  it("names the open period in blue, and the others in ink", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={OLDEST} />);
+
+    const [first, second] = tabs();
+    expect(within(first).getByText("Periode 1 · Probation")).toHaveClass("text-accent-deep");
+    expect(within(second).getByText("Periode 2 · Regular")).not.toHaveClass("text-accent-deep");
+  });
+
+  it("only picks the period: its numbers sit in a section of their own", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    expect(screen.queryByRole("term")).toBeNull();
   });
 
   it("words a period that has not started yet", () => {
@@ -136,15 +148,15 @@ describe("PeriodTabs", () => {
     ["newest", NEWEST],
     ["oldest", OLDEST],
   ])("shows no quota, Evergreen or deadline-gap card for the %s period", (_, open) => {
-    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={open} />);
+    render(<PeriodSummary period={open} />);
 
     for (const label of OBSOLETE_CARDS) expect(screen.queryByText(label)).toBeNull();
     expect(screen.queryByText(/\d+ (konten|hari)$/)).toBeNull();
   });
 
   // The creator detail endpoint (4.1) sends no fixed rate, so the cards do not offer one.
-  it("shows only the five performance cards under the tabs, and no fixed rate", () => {
-    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+  it("shows only the five performance cards, and no fixed rate", () => {
+    render(<PeriodSummary period={NEWEST} />);
 
     expect(screen.getAllByRole("term").map((label) => label.textContent)).toEqual(PERFORMANCE_CARDS);
     expect(screen.getByTestId("info-tip")).toHaveAttribute("data-label", "Tentang Produktivitas");
@@ -154,9 +166,9 @@ describe("PeriodTabs", () => {
   // The ⓘ beside Produktivitas opens its bubble below the card. A panel that clips its content
   // cut the bubble off at the panel's bottom border, halfway through the explanation.
   it("lets the Produktivitas explanation hang past the panel's edge", () => {
-    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+    render(<PeriodSummary period={NEWEST} />);
 
-    const panel = screen.getByRole("heading", { level: 2, name: "Periode Kontrak" }).closest("section");
+    const panel = screen.getByRole("heading", { level: 2, name: "Ringkasan" }).closest("section");
     expect(panel).not.toHaveClass("overflow-hidden");
     expect(within(panel as HTMLElement).getByTestId("info-tip")).toBeInTheDocument();
   });
@@ -178,3 +190,20 @@ describe("PeriodTabs", () => {
     expect(screen.queryByRole("term")).toBeNull();
   });
 });
+
+describe("PeriodSummary", () => {
+  it("is headed Ringkasan, with the period it sums up as its badge", () => {
+    render(<PeriodSummary period={OLDEST} />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Ringkasan" })).toBeInTheDocument();
+  });
+
+  it("says which period the numbers come from by its badge alone", () => {
+    render(<PeriodSummary period={OLDEST} />);
+
+    const facts = screen.getByTestId("period-facts");
+    expect(facts).toHaveTextContent(/^Periode 1 · Berakhir$/);
+    expect(within(facts).getByText("Periode 1 · Berakhir")).toHaveClass("rounded-full", "bg-red-wash");
+  });
+});
+

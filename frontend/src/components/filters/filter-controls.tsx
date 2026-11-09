@@ -122,6 +122,47 @@ export function FilterSelect({
   );
 }
 
+const PILL_SELECT = `relative inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface pl-3 pr-7 text-[12.5px] text-ink hover:border-ink focus-within:border-ink max-sm:w-full max-sm:rounded-(--radius-control) max-sm:text-sm`;
+const PILL_CARET =
+  "pointer-events-none absolute right-3 top-1/2 size-1.5 -translate-y-2/3 rotate-45 border-b-[1.6px] border-r-[1.6px] border-muted";
+
+/**
+ * One choice out of a few, drawn as the same pill as the multi-selects beside it ("Tipe: Semua"):
+ * a quiet label, the value in strong type, a caret. Underneath it is a native select, so the
+ * keyboard and screen readers get the platform's own control.
+ */
+export function PillSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: Readonly<{
+  label: string;
+  value: string;
+  options: readonly FilterOption[];
+  onChange: (value: string) => void;
+}>) {
+  return (
+    <label className={PILL_SELECT}>
+      <span className="text-muted">{label}:</span>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        // As wide as the picked value, not the longest option, like the pills beside it.
+        className="field-sizing-content cursor-pointer appearance-none border-none bg-transparent p-0 font-semibold text-ink outline-none"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <span aria-hidden="true" className={PILL_CARET} />
+    </label>
+  );
+}
+
 const CHOICE = `inline-flex h-7 ${PHONE_TARGET} cursor-pointer items-center rounded-full px-3 text-[12.5px] font-semibold text-ink-2 transition-colors hover:text-ink has-checked:bg-accent-wash has-checked:text-accent-deep has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-accent`;
 
 /**

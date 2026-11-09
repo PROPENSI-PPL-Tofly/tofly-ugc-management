@@ -143,7 +143,6 @@ export default async function TaskSayaPage({
       <AppShell
           role="creator"
           title="Task Saya"
-          subtitle="Semua konten yang ditugaskan ke kamu"
       >
         {invalid === null ? null : (
             <p role="status" className={NOTICE}>
