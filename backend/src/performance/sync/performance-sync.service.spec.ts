@@ -826,9 +826,11 @@ describe('PerformanceSyncService', () => {
         clock(),
       );
 
-      expect(
-        await service.syncLinks(['a-tt-1', 'a-tt-2', 'b-ig-1']),
-      ).toEqual({ updated: 3, notUpdated: 0, busy: 0 });
+      expect(await service.syncLinks(['a-tt-1', 'a-tt-2', 'b-ig-1'])).toEqual({
+        updated: 3,
+        notUpdated: 0,
+        busy: 0,
+      });
       expect(s.findMany.mock.calls[0][0].where.id).toEqual({
         in: ['a-tt-1', 'a-tt-2', 'b-ig-1'],
       });
@@ -880,9 +882,11 @@ describe('PerformanceSyncService', () => {
         clock(),
       );
 
-      expect(
-        await service.syncLinks(['a-tt-1', 'a-ig-1', 'b-tt-9']),
-      ).toEqual({ updated: 1, notUpdated: 2, busy: 0 });
+      expect(await service.syncLinks(['a-tt-1', 'a-ig-1', 'b-tt-9'])).toEqual({
+        updated: 1,
+        notUpdated: 2,
+        busy: 0,
+      });
     });
   });
 

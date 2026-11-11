@@ -22,7 +22,7 @@ function refusalOf(body: unknown): unknown {
 }
 
 describe('checkLinkIds (the links one page of "Performa Konten" shows, SCRUM-285)', () => {
-  it('takes the page\'s link ids', () => {
+  it("takes the page's link ids", () => {
     expect(checkLinkIds({ linkIds: [LINK_A, LINK_B] })).toEqual([
       LINK_A,
       LINK_B,
