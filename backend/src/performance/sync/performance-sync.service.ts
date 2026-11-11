@@ -61,6 +61,7 @@ const OLDEST_LINK_FIRST: [{ created_at: 'asc' }, { id: 'asc' }] = [
 export const SYNC_CONTENT_SELECT = {
   status: true,
   contracts: { select: { invoice: { select: { status: true } } } },
+  content_links: { select: { platform: true } },
 } as const;
 
 export interface SyncLog {
@@ -85,7 +86,10 @@ export interface PerformanceSyncClient {
     findUnique(args: {
       where: { id: string };
       select: typeof SYNC_CONTENT_SELECT;
-    }): Promise<SyncableContent | null>;
+    }): Promise<
+      | (SyncableContent & { content_links: { platform: social_platform }[] })
+      | null
+    >;
     updateMany(args: {
       where: { id: { in: string[] }; performance_sync_lease_until: Date };
       data: { performance_sync_lease_until: null };
@@ -171,6 +175,16 @@ export class PerformanceSyncService {
       throw new ConflictException({
         code: 'SYNC_NOT_ALLOWED',
         message: 'Konten ini tidak disinkronkan lagi',
+      });
+    }
+    // A card's Refresh for a platform with no link is not a success: 404, as manual entry answers.
+    if (
+      platform &&
+      !content.content_links.some((link) => link.platform === platform)
+    ) {
+      throw new NotFoundException({
+        code: 'LINK_NOT_FOUND',
+        message: 'Link tidak ditemukan',
       });
     }
     const result = await this.run(
