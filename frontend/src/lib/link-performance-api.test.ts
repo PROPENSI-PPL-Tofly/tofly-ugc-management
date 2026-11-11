@@ -1,4 +1,4 @@
-import { saveManualPerformance, syncContentPerformance } from "./link-performance-api";
+import { saveManualPerformance, syncContentPerformance, syncPagePerformance } from "./link-performance-api";
 
 const CONTENT_ID = "11111111-1111-4111-8111-111111111111";
 const VALUES = { views: 12400, likes: null, comments: 41, shares: null };
@@ -173,6 +173,64 @@ describe("syncContentPerformance (PBI-27 AC 12-13)", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
     await expect(syncContentPerformance(CONTENT_ID)).resolves.toEqual({
+      ok: false,
+      message: "Sinkronisasi gagal. Coba lagi.",
+    });
+  });
+});
+
+describe("syncPagePerformance (the page's Sinkronkan Sekarang on Performa Konten, SCRUM-285)", () => {
+  const LINKS = ["33333333-3333-4333-8333-333333333333", "55555555-5555-4555-8555-555555555555"];
+
+  it("posts the page's link ids and says every one was updated", async () => {
+    const fetchSpy = respond(answer(200, { updated: 2, notUpdated: 0, busy: 0 }));
+
+    await expect(syncPagePerformance(LINKS)).resolves.toEqual({
+      ok: true,
+      toast: "Data performa 2 link diperbarui",
+    });
+    expect(fetchSpy).toHaveBeenCalledWith("/api/performance/links/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ linkIds: LINKS }),
+    });
+  });
+
+  it("says how many of the page's links were updated when some were not", async () => {
+    respond(answer(200, { updated: 1, notUpdated: 1, busy: 0 }));
+
+    await expect(syncPagePerformance(LINKS)).resolves.toEqual({
+      ok: true,
+      toast: "1 dari 2 link diperbarui",
+    });
+  });
+
+  it("says how many links another sync is still holding (AC 13)", async () => {
+    respond(answer(200, { updated: 1, notUpdated: 0, busy: 1 }));
+
+    await expect(syncPagePerformance(LINKS)).resolves.toEqual({
+      ok: true,
+      toast: "1 dari 2 link diperbarui, 1 masih disinkronkan",
+    });
+  });
+
+  it.each([
+    ["a refused request", answer(400, { code: "INVALID_LINK_IDS" })],
+    ["a server error", answer(500)],
+    ["an answer it cannot read", answer(200, "not json")],
+  ])("words %s as a plain retry", async (_, response) => {
+    respond(response);
+
+    await expect(syncPagePerformance(LINKS)).resolves.toEqual({
+      ok: false,
+      message: "Sinkronisasi gagal. Coba lagi.",
+    });
+  });
+
+  it("words a dropped connection as a plain retry", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(syncPagePerformance(LINKS)).resolves.toEqual({
       ok: false,
       message: "Sinkronisasi gagal. Coba lagi.",
     });

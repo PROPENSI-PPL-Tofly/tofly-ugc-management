@@ -75,6 +75,23 @@ describe("Performa Konten page", () => {
     expect(screen.getByRole("navigation", { name: "Menu admin" })).toBeInTheDocument();
   });
 
+  it("offers Sinkronkan Sekarang for the page's links in the list's band (SCRUM-285)", async () => {
+    mockedLinks.mockResolvedValue(answered());
+
+    await renderPage();
+
+    const band = screen.getByRole("heading", { level: 2, name: "Link Konten" }).parentElement as HTMLElement;
+    expect(within(band).getByRole("button", { name: "Sinkronkan Sekarang" })).toBeInTheDocument();
+  });
+
+  it("offers no sync when the page shows no link", async () => {
+    mockedLinks.mockResolvedValue(EMPTY);
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "Sinkronkan Sekarang" })).toBeNull();
+  });
+
   it("says no link has been sent when the list holds nothing (AC 23)", async () => {
     mockedLinks.mockResolvedValue(EMPTY);
 
