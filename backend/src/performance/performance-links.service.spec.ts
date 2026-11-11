@@ -76,6 +76,21 @@ describe('PerformanceLinksService', () => {
     });
   });
 
+  it('narrows to the chosen data states beside the other filters, without clashing with them', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { creators: [CREATOR_A], states: ['manual'] },
+    );
+
+    expect(content_links.count).toHaveBeenCalledWith({
+      where: {
+        platform: { not: null },
+        contents: { contracts: { creator_id: { in: [CREATOR_A] } } },
+        AND: [{ OR: [{ data_state: 'manual' }] }],
+      },
+    });
+  });
+
   it('answers the page with its total and page count', async () => {
     const page = await service.list({ page: 1, pageSize: 10 }, {});
 

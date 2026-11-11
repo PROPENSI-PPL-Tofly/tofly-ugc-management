@@ -352,17 +352,25 @@ describe('content links API (e2e)', () => {
       ]);
     });
 
-    it('lets an admin swap a link, recorded as the admin, and frees the old video for another content', async () => {
+    // Only the creator adds or changes their links; an admin request is not a creator's.
+    it('refuses a replacement from anyone but the creator, changing nothing', async () => {
       const linked = await linkedContent('admin replace', reel('old-2'));
 
       const response = await replace(linked.id, 'instagram', reel('new-2'));
 
-      expect(response.status).toBe(200);
-      expect((await stateOf(linked.id)).content_events[0].actor_role).toBe(
-        'admin',
-      );
+      expect(response.status).toBe(401);
+      expect((await stateOf(linked.id)).content_links).toEqual([
+        expect.objectContaining({ url: reel('old-2') }),
+      ]);
+    });
+
+    it('frees the old video for another content once the creator swaps it', async () => {
+      const linked = await linkedContent('creator replace', reel('old-4'));
+
+      await replace(linked.id, 'instagram', reel('new-4'), owner.creatorId).expect(200);
+
       const other = await content(owner.contractId, 'reuses old video');
-      await submit(other.id, { instagram: reel('old-2') }).expect(201);
+      await submit(other.id, { instagram: reel('old-4') }).expect(201);
     });
 
     it('shows the replaced link on Content Detail as a link step naming its platform', async () => {
@@ -434,7 +442,7 @@ describe('content links API (e2e)', () => {
   });
 
   describe('once the invoice is finalized (AC 8, 9)', () => {
-    it('refuses a later link and a replacement, by creator and admin alike, and changes nothing', async () => {
+    it('refuses a later link and a replacement, and changes nothing', async () => {
       const frozen = await creator('frozen', ['instagram', 'tiktok']);
       const linked = await prisma.contents.create({
         data: {
@@ -471,7 +479,6 @@ describe('content links API (e2e)', () => {
           reel('frozen-new'),
           frozen.creatorId,
         ),
-        await replace(linked.id, 'instagram', reel('frozen-new')),
       ];
 
       for (const answer of answers) {

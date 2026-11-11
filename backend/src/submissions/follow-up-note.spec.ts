@@ -83,4 +83,61 @@ describe('checkFollowUp', () => {
   it('allows the same room as the revision note it adds to', () => {
     expect(MAX_FOLLOW_UP_LENGTH).toBe(1000);
   });
+
+  // PBI-34 with PBI-33: a follow-up goes out with the screenshots the editor holds, by id.
+  describe('screenshots', () => {
+    const IMAGE = '3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f';
+    const OTHER = '4d3c2b1a-9f8e-4e7d-8c6b-5f4e3d2c1b0a';
+
+    it('takes the image ids, each once, beside the note', () => {
+      expect(
+        checkFollowUp({
+          note: `<p>Lihat</p><img data-image-id="${IMAGE}">`,
+          imageIds: [IMAGE, OTHER, IMAGE],
+        }),
+      ).toEqual({
+        note: 'Lihat',
+        noteHtml: `<p>Lihat</p><img data-image-id="${IMAGE}" />`,
+        imageIds: [IMAGE, OTHER],
+      });
+    });
+
+    it('names no ids when there are none', () => {
+      expect(checkFollowUp({ note: 'Catatan', imageIds: [] })).toEqual({
+        note: 'Catatan',
+      });
+    });
+
+    it.each([
+      ['not a list', 'x'],
+      ['a list of non-text', [1]],
+    ])('refuses image ids that are %s, under imageIds', (_what, imageIds) => {
+      expect(() => checkFollowUp({ note: 'Catatan', imageIds })).toThrow(
+        expect.objectContaining({
+          status: 422,
+          response: {
+            message: 'Data catatan susulan tidak valid',
+            errors: { imageIds: 'Gambar tidak valid' },
+          },
+        }),
+      );
+    });
+
+    it('refuses more images than a note may hold', () => {
+      const imageIds = Array.from(
+        { length: 6 },
+        (_, index) => `4d3c2b1a-9f8e-4e7d-8c6b-5f4e3d2c1b0${index}`,
+      );
+
+      expect(() => checkFollowUp({ note: 'Catatan', imageIds })).toThrow(
+        expect.objectContaining({
+          status: 422,
+          response: {
+            message: 'Data catatan susulan tidak valid',
+            errors: { imageIds: 'Maksimal 5 gambar per catatan' },
+          },
+        }),
+      );
+    });
+  });
 });

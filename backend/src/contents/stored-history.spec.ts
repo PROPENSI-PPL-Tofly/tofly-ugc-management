@@ -131,6 +131,29 @@ describe('fromStoredHistory follow-up notes', () => {
     ]);
   });
 
+  // PBI-34 with PBI-33: the screenshots a follow-up went out with are listed under it.
+  it("carries a follow-up's screenshots, opened through the app route", () => {
+    const events = fromStoredHistory([
+      row('event-fu-1', 'Revision Followup Added', '2026-11-09T04:00:00.000Z', {
+        note: 'Lihat',
+        note_html: '<p>Lihat</p>',
+        images: [{ id: 'img-1', content_type: 'image/png' }],
+        submission_id: 'sub-1',
+        follow_up_id: 'fu-1',
+      }),
+      row('rev-1', 'Revision Requested', '2026-11-09T03:00:00.000Z', {
+        revision_note: 'Tolong perbaiki intro.',
+        submission_id: 'sub-1',
+      }),
+    ]);
+
+    expect(revisionOf(events, 'rev-1')?.payload?.followUps?.[0]).toMatchObject({
+      images: [
+        { id: 'img-1', url: '/api/revision-note-images/img-1', contentType: 'image/png' },
+      ],
+    });
+  });
+
   // AC 4: the note the creator read stays as it was, with the follow-ups under it, oldest first.
   it('lists the follow-ups under the revision request they add to, oldest first', () => {
     const events = fromStoredHistory([

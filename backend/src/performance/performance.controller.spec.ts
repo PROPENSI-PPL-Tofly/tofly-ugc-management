@@ -169,7 +169,16 @@ describe('Performance routes', () => {
       );
     });
 
-    it.each(['?page=0', '?page=x', '?platform=youtube', '?creator=rani'])(
+    it('passes the checked data states on', async () => {
+      await get('?state=waiting');
+
+      expect(links.list).toHaveBeenCalledWith(
+        { page: 1, pageSize: 10 },
+        { states: ['waiting'] },
+      );
+    });
+
+    it.each(['?page=0', '?page=x', '?platform=youtube', '?creator=rani', '?state=done'])(
       'answers 400 for %s',
       async (query) => {
         expect((await get(query)).status).toBe(400);

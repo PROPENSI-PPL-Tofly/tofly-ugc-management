@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   checkPerformanceLinksQuery,
+  stateFilter,
   linkPerformanceOf,
   toPerformanceLinkItem,
   type PerformanceLinkRow,
@@ -60,6 +61,15 @@ describe('checkPerformanceLinksQuery', () => {
     ).toEqual({ creators: [CREATOR_A, CREATOR_B], platforms: ['tiktok'] });
   });
 
+  it('narrows by one or more data states, each kept once', () => {
+    expect(
+      checkPerformanceLinksQuery({ state: ['synced', 'manual', 'synced'] }),
+    ).toEqual({ states: ['synced', 'manual'] });
+    expect(checkPerformanceLinksQuery({ state: 'not_found' })).toEqual({
+      states: ['not_found'],
+    });
+  });
+
   it.each([
     [
       'a creator that is not an id',
@@ -75,6 +85,16 @@ describe('checkPerformanceLinksQuery', () => {
       'a platform given as an object',
       { platform: { a: 1 } },
       'platform must be instagram or tiktok',
+    ],
+    [
+      'a state the list does not know',
+      { state: 'done' },
+      'state must be one of waiting, not_connected, synced, not_found, sync_failed, manual',
+    ],
+    [
+      'more states than any filter needs',
+      { state: Array.from({ length: 51 }, () => 'synced') },
+      'state takes at most 50 values',
     ],
     [
       'more creators than any filter needs',
@@ -149,6 +169,83 @@ describe('toPerformanceLinkItem', () => {
       creatorId: CREATOR_A,
       creatorName: 'Rani Putri',
       ...linkPerformanceOf(row()),
+    });
+  });
+});
+
+// The state a row shows is derived (effectiveState): a stored waiting or synced reads as not
+// connected while its creator's account on that platform is not, and a stored not connected
+// reads as waiting once it is. The filter has to match what the row shows, so it holds the same
+// rule as a query: the stored states that can show the picked one, and the account behind it.
+describe('stateFilter', () => {
+  const connected = (platform: string) => ({
+    platform,
+    contents: {
+      contracts: {
+        creators: {
+          social_accounts: {
+            some: { platform, is_connected: true, platform_user_id: { not: null } },
+          },
+        },
+      },
+    },
+  });
+  const notConnected = (platform: string) => ({
+    platform,
+    contents: {
+      contracts: {
+        creators: {
+          social_accounts: {
+            none: { platform, is_connected: true, platform_user_id: { not: null } },
+          },
+        },
+      },
+    },
+  });
+
+  it.each(['not_found', 'sync_failed', 'manual'] as const)(
+    'matches a stored %s as it is, whether or not the account is connected',
+    (state) => {
+      expect(stateFilter([state])).toEqual({ OR: [{ data_state: state }] });
+    },
+  );
+
+  it('matches Tersinkron only on a connected account, which is where a synced link stays synced', () => {
+    expect(stateFilter(['synced'])).toEqual({
+      OR: [
+        {
+          data_state: 'synced',
+          OR: [connected('instagram'), connected('tiktok')],
+        },
+      ],
+    });
+  });
+
+  it('matches Menunggu on a connected account, whether stored waiting or still not connected', () => {
+    expect(stateFilter(['waiting'])).toEqual({
+      OR: [
+        {
+          data_state: { in: ['waiting', 'not_connected'] },
+          OR: [connected('instagram'), connected('tiktok')],
+        },
+      ],
+    });
+  });
+
+  it('matches Belum Terhubung on an account that is not connected, stored waiting, synced or not connected', () => {
+    expect(stateFilter(['not_connected'])).toEqual({
+      OR: [
+        {
+          data_state: { in: ['waiting', 'synced', 'not_connected'] },
+          OR: [notConnected('instagram'), notConnected('tiktok')],
+        },
+      ],
+    });
+  });
+
+  it('matches any of several picked states', () => {
+    expect(stateFilter(['manual', 'sync_failed'])).toEqual({
+      OR: [{ data_state: 'manual' }, { data_state: 'sync_failed' }],
     });
   });
 });

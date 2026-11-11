@@ -226,10 +226,17 @@ describe('ManualPerformanceService', () => {
     ).resolves.toMatchObject({ state: 'manual' });
   });
 
-  it.each([
-    ['waiting for a sync of a connected account', 'waiting'],
-    ['synced and working', 'synced'],
-  ] as const)(
+  it('accepts a link still waiting for the sync of a connected account', async () => {
+    transaction.content_links.findFirst.mockResolvedValue(
+      row({ data_state: 'waiting', contents: connected() }),
+    );
+
+    await expect(
+      service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
+    ).resolves.toMatchObject({ state: 'manual' });
+  });
+
+  it.each([['synced and working', 'synced']] as const)(
     'refuses a link %s with 409, writing nothing (AC 14)',
     async (_label, state) => {
       transaction.content_links.findFirst.mockResolvedValue(
@@ -245,7 +252,7 @@ describe('ManualPerformanceService', () => {
         body: {
           code: 'MANUAL_NOT_ALLOWED',
           message:
-            'Angka hanya bisa diisi manual saat akun belum terhubung, link tidak ditemukan, atau gagal sinkron',
+            'Angka yang sudah tersinkron tidak bisa diisi manual',
         },
       });
       expect(transaction.content_links.updateMany).not.toHaveBeenCalled();
