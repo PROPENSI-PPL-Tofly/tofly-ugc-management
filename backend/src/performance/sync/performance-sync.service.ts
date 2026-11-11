@@ -152,8 +152,10 @@ export class PerformanceSyncService {
   }
 
   /** Every link of one content (AC 12), refused while another sync holds it (AC 13). */
+  // With a platform, only that link: a link card's Refresh button (SCRUM-282).
   async syncContent(
     contentId: string,
+    platform?: social_platform,
   ): Promise<{ notUpdated: { platform: social_platform }[] }> {
     const content = await this.prisma.contents.findUnique({
       where: { id: contentId },
@@ -172,7 +174,7 @@ export class PerformanceSyncService {
       });
     }
     const result = await this.run(
-      { kind: 'content', contentId },
+      { kind: 'content', contentId, platform },
       GROUP_DEADLINE_MS,
     );
     if (result.skipped > 0) {
