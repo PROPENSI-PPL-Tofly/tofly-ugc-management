@@ -4,19 +4,19 @@ import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import type { ContentPlanCreatorOption } from "@/lib/content-plan";
 import { PLATFORM_LABELS, PLATFORMS } from "@/lib/platform-links";
-import { offeredPicks } from "@/components/filters/filter-controls";
+import { offeredPicks, SearchBox } from "@/components/filters/filter-controls";
 import { useUrlFilters } from "@/lib/use-url-filters";
 
 /**
- * The "Performa Konten" filter bar: whose link and which platform (AC 23). Every control reads
- * the live address through the shared hook, so a pick is one replace away, the page it was on
- * is dropped, and Reset clears the two filters at once. The creator filter reuses the creator
- * list's options.
+ * The "Performa Konten" filter bar: a search over content and creator names (I3.2), then whose
+ * link and which platform (AC 23). Every control reads the live address through the shared
+ * hook, so a pick is one replace away, the page it was on is dropped, and Reset clears the search
+ * and both filters at once. The creator filter reuses the creator list's options.
  */
 export function PerformanceFilters({
   creators,
 }: Readonly<{ creators: readonly ContentPlanCreatorOption[] }>) {
-  const { param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
+  const { search, setSearch, param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
 
   const creatorOptions: MultiSelectOption[] = creators.map((c) => ({
     value: c.id,
@@ -41,11 +41,14 @@ export function PerformanceFilters({
   }
 
   const pickedPlatforms = offeredPicks(listParam("platform"), platformOptions);
-  const isFilteredNow = param("creator") !== "all" || param("platform") !== "all";
+  const isFilteredNow =
+    search !== "" || param("creator") !== "all" || param("platform") !== "all";
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
+        {/* Worded as Content Plan's, the other list of contents by creator. */}
+        <SearchBox label="Cari konten atau creator" value={search} onChange={setSearch} />
         <MultiSelect
           label="Creator"
           options={creatorOptions}

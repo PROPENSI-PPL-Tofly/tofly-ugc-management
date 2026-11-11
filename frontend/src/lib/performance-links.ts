@@ -5,9 +5,9 @@
 // toPerformanceLinkItem, so a change on either side is a change here first.
 
 import { DATA_STATE_LABELS, type DataState, type LinkPerformance } from "./link-performance";
-import { MAX_FILTER_VALUES } from "./content-list-api";
+import { MAX_FILTER_VALUES, MAX_SEARCH_LENGTH } from "./content-list-api";
 import { PLATFORMS, type Platform } from "./platform-links";
-import { list, listOf, pageNumber, type SearchParams } from "./search-params";
+import { list, listOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** The admin page's address and the rows each page holds (AC 23: ten per page). */
 export const PERFORMANCE_LINKS_BASE = "/admin/performance";
@@ -50,11 +50,13 @@ export interface PerformanceLinksPage {
   totalPages: number;
 }
 
-/** The list's state as it lives in the URL: the page and the two filters. */
+/** The list's state as it lives in the URL: the page, the two filters and the search. */
 export interface PerformanceLinksState {
   page: number;
   creator: string[];
   platform: Platform[];
+  /** Performa Konten's search box (I3.2): words to find in a content's or creator's name. */
+  q: string;
 }
 
 /** The URL's values as the list's state, every one checked. Anything the list cannot hold — a
@@ -65,6 +67,7 @@ export function parsePerformanceLinksParams(params: SearchParams): PerformanceLi
     page: pageNumber(params.page),
     creator: list(params.creator),
     platform: listOf(PLATFORMS, params.platform),
+    q: single(params.q).trim(),
   };
 }
 
@@ -75,6 +78,8 @@ export function buildPerformanceLinksQuery(state: PerformanceLinksState): Record
   const query: Record<string, string> = {};
   if (state.creator.length > 0) query.creator = state.creator.join(",");
   if (state.platform.length > 0) query.platform = state.platform.join(",");
+  // Kept, so the pagination's links page through what was searched.
+  if (state.q) query.q = state.q;
   if (state.page > 1) query.page = String(state.page);
   return query;
 }
@@ -101,6 +106,8 @@ export function toPerformanceLinksQuery(state: PerformanceLinksState): URLSearch
 
   for (const creator of picks(state.creator)) query.append("creator", creator);
   for (const platform of picks(state.platform)) query.append("platform", platform);
+  // The API answers 400 past this; the box already stops there, an edited address does not.
+  if (state.q) query.set("q", state.q.slice(0, MAX_SEARCH_LENGTH));
   query.set("page", String(state.page));
 
   return query;
