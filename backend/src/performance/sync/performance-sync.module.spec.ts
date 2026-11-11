@@ -1,4 +1,5 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
+import { PerformanceLinksSyncController } from './performance-links-sync.controller.js';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PerformanceModule } from '../performance.module.js';
@@ -36,6 +37,12 @@ describe('PerformanceSyncModule', () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.EXPORTS, PerformanceSyncModule),
     ).toEqual([PerformanceSyncService]);
+  });
+
+  it('serves the page\'s "Sinkronkan Sekarang" on Performa Konten (SCRUM-285)', () => {
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, PerformanceSyncModule),
+    ).toContain(PerformanceLinksSyncController);
   });
 
   it('reads the scheduler secret from PERFORMANCE_SYNC_SECRET', async () => {

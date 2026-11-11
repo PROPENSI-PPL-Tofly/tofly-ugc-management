@@ -53,6 +53,16 @@ describe('syncableLinks', () => {
     });
   });
 
+  it('narrows to the links one page of "Performa Konten" shows, still only syncable ones (SCRUM-285)', () => {
+    expect(
+      syncableLinks({ kind: 'links', linkIds: ['link-1', 'link-2'] }),
+    ).toStrictEqual({
+      id: { in: ['link-1', 'link-2'] },
+      platform: { not: null },
+      contents: ELIGIBLE,
+    });
+  });
+
   it('narrows to one contract for the last sync before Finalize', () => {
     expect(
       syncableLinks({ kind: 'contract', contractId: 'contract-9' }),
