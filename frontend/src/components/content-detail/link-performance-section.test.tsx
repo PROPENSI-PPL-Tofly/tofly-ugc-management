@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import type { LinkPerformance } from "@/lib/link-performance";
 import type { ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
@@ -202,6 +203,13 @@ describe("LinkPerformanceSection: Refresh on each link card (SCRUM-282)", () => 
     show([SYNCED, NOT_CONNECTED], { role: "creator" });
 
     expect(screen.queryByRole("button", { name: /^Sinkronkan (Instagram|TikTok)$/ })).toBeNull();
+  });
+
+  // Button already makes it 44px tall on a phone; the icon alone leaves it narrow, so it widens too.
+  it("is at least 44px wide on a phone, as Button makes it tall", () => {
+    show([SYNCED]);
+
+    expect(screen.getByRole("button", { name: "Sinkronkan Instagram" })).toHaveClass("max-sm:min-w-11", PHONE_TARGET);
   });
 });
 
