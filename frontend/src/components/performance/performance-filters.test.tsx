@@ -111,6 +111,17 @@ describe("PerformanceFilters", () => {
     });
   });
 
+  it("drops one platform from its chip, keeping the other", () => {
+    searchParams = new URLSearchParams({ platform: "instagram,tiktok" });
+    renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Platform: Instagram" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance?platform=tiktok", {
+      scroll: false,
+    });
+  });
+
   it("shows no chip for a platform the address names but the filter does not offer", () => {
     searchParams = new URLSearchParams({ platform: "youtube" });
     renderFilters();
