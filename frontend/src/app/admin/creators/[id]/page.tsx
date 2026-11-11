@@ -62,7 +62,7 @@ export default async function CreatorDetailPage({
         href={creatorDatabaseHref(state.back)}
         className={`mb-4 inline-flex items-center text-[13px] font-semibold text-muted hover:text-ink ${MIN_TARGET} ${PHONE_TARGET}`}
       >
-        ← Kembali ke Creator Database
+        ← Kembali ke Kreator
       </Link>
 
       {view ? (

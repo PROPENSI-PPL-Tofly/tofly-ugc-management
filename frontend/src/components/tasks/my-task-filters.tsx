@@ -5,6 +5,7 @@ import {
   FilterRadio,
   FilterSelect,
   OVERDUE_OPTIONS,
+  PERIOD_OPTIONS,
   PeriodFilter,
   SearchBox,
   offeredPicks,
@@ -12,7 +13,7 @@ import {
   periodFilter,
   pickFilters,
 } from "@/components/filters/filter-controls";
-import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
+import { FilterChips, choiceChip, pickedChips } from "@/components/ui/filter-chips";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { TabChoice } from "@/components/ui/tab-choice";
 import { CONTENT_TYPE_LABELS } from "@/lib/content-labels";
@@ -153,10 +154,11 @@ export function MyTaskFilters({
         ) : null}
       </FilterBar>
 
-      {/* Every status pick named after its filter, gathered below the bar as the benchmark lays
-          them. Tipe is one choice, marked on its own radios, so it needs no chip. */}
+      {/* Every pick named after its filter, gathered below the bar as the benchmark lays them:
+          the one-choice filters' too. */}
       <FilterChips
         chips={[
+          ...choiceChip("Tipe", type, TYPE_CHOICES, () => setParam("type", "all")),
           ...(statusOptions.length > 1
             ? pickedChips("Status", statusPicks, statusOptions, (value) =>
                 setParam(
@@ -164,6 +166,12 @@ export function MyTaskFilters({
                   statusPicks.filter((pick) => pick !== value).join(","),
                 ),
               )
+            : []),
+          ...(state.tab === "done"
+            ? []
+            : choiceChip("Overdue", param("overdue"), OVERDUE_OPTIONS, () => setParam("overdue", "all"))),
+          ...(withPeriod
+            ? choiceChip("Periode", param("period"), PERIOD_OPTIONS, () => setPeriod("all"))
             : []),
         ]}
         canReset={isFilteredNow}

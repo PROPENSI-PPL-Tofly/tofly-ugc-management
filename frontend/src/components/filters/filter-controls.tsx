@@ -3,6 +3,7 @@
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SingleSelect } from "@/components/ui/multi-select";
 import { PHONE_TARGET } from "@/components/ui/touch-target";
 import { formatContractWindow, formatDate } from "@/lib/format";
 import { list } from "@/lib/search-params";
@@ -24,7 +25,7 @@ export const OVERDUE_OPTIONS: readonly FilterOption[] = [
   { value: "no", label: "Tidak overdue" },
 ];
 
-const PERIOD_OPTIONS: readonly FilterOption[] = [
+export const PERIOD_OPTIONS: readonly FilterOption[] = [
   { value: "all", label: "Semua periode" },
   { value: "month", label: "Bulan ini" },
   { value: "next30", label: "30 hari ke depan" },
@@ -74,13 +75,10 @@ export function SearchBox({
   );
 }
 
-// A select whose choice is not its first (the "all" one) is a filter in use: it stands out.
-const FIELD_ACTIVE = "data-active:border-accent data-active:bg-accent-wash data-active:font-semibold data-active:text-accent-deep";
-
 /**
- * A native select with its visible name beside it. A choice other than the first is a filter in
- * use: the select stands out and, on a phone, the name carries an "Aktif" tag (the folded bar
- * draws no chips, so the control says it itself). The tag sits outside the select's own name.
+ * One choice out of a few, as every filter in the app is drawn: the same pill and popup as the
+ * multi-selects ("Overdue: Semua"), the first option the "all" one. FilterSelect, PillSelect and
+ * FilterRadio are the same control under the names the bars already use.
  */
 export function FilterSelect({
   label,
@@ -93,117 +91,11 @@ export function FilterSelect({
   options: readonly FilterOption[];
   onChange: (value: string) => void;
 }>) {
-  const active = options.length > 0 && value !== options[0].value;
-
-  return (
-    <label className={LABEL}>
-      <span className="flex items-center gap-1.5 text-muted max-sm:font-bold max-sm:text-ink-2">
-        {label}
-        {active ? (
-          <span className="rounded-full bg-accent px-1.5 py-px text-[10.5px] font-bold uppercase tracking-wide text-accent-ink sm:hidden">
-            Aktif
-          </span>
-        ) : null}
-      </span>
-      <select
-        aria-label={label}
-        value={value}
-        data-active={active ? "true" : undefined}
-        onChange={(event) => onChange(event.target.value)}
-        className={`${FILTER_FIELD} ${FIELD_ACTIVE}`}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  return <SingleSelect label={label} value={value} options={options} onChange={onChange} />;
 }
 
-const PILL_SELECT = `relative inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface pl-3 pr-7 text-[12.5px] text-ink hover:border-ink focus-within:border-ink max-sm:w-full max-sm:rounded-(--radius-control) max-sm:text-sm`;
-const PILL_CARET =
-  "pointer-events-none absolute right-3 top-1/2 size-1.5 -translate-y-2/3 rotate-45 border-b-[1.6px] border-r-[1.6px] border-muted";
-
-/**
- * One choice out of a few, drawn as the same pill as the multi-selects beside it ("Tipe: Semua"):
- * a quiet label, the value in strong type, a caret. Underneath it is a native select, so the
- * keyboard and screen readers get the platform's own control.
- */
-export function PillSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: Readonly<{
-  label: string;
-  value: string;
-  options: readonly FilterOption[];
-  onChange: (value: string) => void;
-}>) {
-  return (
-    <label className={PILL_SELECT}>
-      <span className="text-muted">{label}:</span>
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        // As wide as the picked value, not the longest option, like the pills beside it.
-        className="field-sizing-content cursor-pointer appearance-none border-none bg-transparent p-0 font-semibold text-ink outline-none"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <span aria-hidden="true" className={PILL_CARET} />
-    </label>
-  );
-}
-
-const CHOICE = `inline-flex h-7 ${PHONE_TARGET} cursor-pointer items-center rounded-full px-3 text-[12.5px] font-semibold text-ink-2 transition-colors hover:text-ink has-checked:bg-accent-wash has-checked:text-accent-deep has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-accent`;
-
-/**
- * One choice out of a few, as native radios in a named group: Tab reaches the group once, the
- * arrow keys move the choice, and the chosen one reads as picked. Drawn as one segmented pill,
- * so it sits in the bar like the multi-select pills beside it and fits a phone's row.
- */
-export function FilterRadio({
-  label,
-  value,
-  options,
-  onChange,
-}: Readonly<{
-  label: string;
-  value: string;
-  options: readonly FilterOption[];
-  onChange: (value: string) => void;
-}>) {
-  const name = useId();
-
-  return (
-    <fieldset className="flex items-center gap-2 border-0 p-0">
-      <legend className="float-left text-[13px] text-muted">{label}</legend>
-      <div className="inline-flex rounded-full border border-rule bg-surface p-0.5">
-        {options.map((option) => (
-          <label key={option.value} className={CHOICE}>
-            <input
-              type="radio"
-              name={name}
-              value={option.value}
-              checked={value === option.value}
-              onChange={() => onChange(option.value)}
-              className="sr-only"
-            />
-            {option.label}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
+export const PillSelect = FilterSelect;
+export const FilterRadio = FilterSelect;
 
 function DayField({
   label,

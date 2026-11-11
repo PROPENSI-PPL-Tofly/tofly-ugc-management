@@ -17,7 +17,7 @@ import { fetchCreators } from "@/lib/creators.server";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Creator Database — Tofly",
+  title: "Kreator — Tofly",
 };
 
 // Fetched on the server so the first paint already has the rows and the backend address
@@ -49,7 +49,7 @@ export default async function CreatorsPage({
   const existingEmails = result ? result.items.map((c) => c.email) : [];
 
   return (
-    <AppShell title="Creator Database" action={<AddCreatorTrigger existingEmails={existingEmails} />}>
+    <AppShell title="Kreator" action={<AddCreatorTrigger existingEmails={existingEmails} />}>
       {invalid !== null ? (
         // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
         <p

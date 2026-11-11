@@ -9,6 +9,8 @@ import { MAX_FILTER_VALUES } from "./content-list-api";
 import { PLATFORMS, type Platform } from "./platform-links";
 import { list, listOf, pageNumber, type SearchParams } from "./search-params";
 
+const DATA_STATES = Object.keys(DATA_STATE_LABELS) as DataState[];
+
 /** The admin page's address and the rows each page holds (AC 23: ten per page). */
 export const PERFORMANCE_LINKS_BASE = "/admin/performance";
 export const PERFORMANCE_PAGE_SIZE = 10;
@@ -50,11 +52,13 @@ export interface PerformanceLinksPage {
   totalPages: number;
 }
 
-/** The list's state as it lives in the URL: the page and the two filters. */
+/** The list's state as it lives in the URL: the page and the three filters. */
 export interface PerformanceLinksState {
   page: number;
   creator: string[];
   platform: Platform[];
+  /** Status Data: the states a row shows, `?state=` in the address. */
+  dataState: DataState[];
 }
 
 /** The URL's values as the list's state, every one checked. Anything the list cannot hold — a
@@ -65,6 +69,7 @@ export function parsePerformanceLinksParams(params: SearchParams): PerformanceLi
     page: pageNumber(params.page),
     creator: list(params.creator),
     platform: listOf(PLATFORMS, params.platform),
+    dataState: listOf(DATA_STATES, params.state),
   };
 }
 
@@ -75,6 +80,7 @@ export function buildPerformanceLinksQuery(state: PerformanceLinksState): Record
   const query: Record<string, string> = {};
   if (state.creator.length > 0) query.creator = state.creator.join(",");
   if (state.platform.length > 0) query.platform = state.platform.join(",");
+  if (state.dataState.length > 0) query.state = state.dataState.join(",");
   if (state.page > 1) query.page = String(state.page);
   return query;
 }
@@ -101,6 +107,7 @@ export function toPerformanceLinksQuery(state: PerformanceLinksState): URLSearch
 
   for (const creator of picks(state.creator)) query.append("creator", creator);
   for (const platform of picks(state.platform)) query.append("platform", platform);
+  for (const dataState of picks(state.dataState)) query.append("state", dataState);
   query.set("page", String(state.page));
 
   return query;
@@ -110,7 +117,6 @@ export function toPerformanceLinksQuery(state: PerformanceLinksState): URLSearch
  * list that silently dropped a malformed row would show a short page and hide the drift. */
 const UNUSABLE_ANSWER = 502;
 
-const DATA_STATES = Object.keys(DATA_STATE_LABELS) as DataState[];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

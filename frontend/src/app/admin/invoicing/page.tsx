@@ -1,5 +1,6 @@
 import { InvoiceFilters } from "@/components/invoice/invoice-filters";
 import { InvoiceBoard } from "@/components/invoicing/invoice-board";
+import { InfoTip } from "@/components/ui/info-tip";
 import { RateFormulaTrigger } from "@/components/rate-formula/rate-formula-trigger";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
@@ -19,7 +20,7 @@ import { fetchRateInvoices } from "@/lib/invoice.server";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Rate & Invoicing — Tofly",
+  title: "Pembayaran — Tofly",
 };
 
 /**
@@ -47,8 +48,32 @@ export default async function RateInvoicingPage({
 
   return (
     <AppShell
-      title="Rate & Invoicing"
-      action={list ? <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} /> : undefined}
+      title="Pembayaran"
+      action={
+        list ? (
+          <span className="flex flex-wrap items-center gap-2">
+            {/* Until a formula is saved only the fixed rate is counted: said beside the button that
+                sets it, with what that means behind its ⓘ. */}
+            {list.summary.formulaSet ? null : (
+              <span className="inline-flex items-center gap-1">
+                <span
+                  role="status"
+                  aria-label="Formula rate belum diatur"
+                  className="rounded-full bg-amber-wash px-2.5 py-1 text-xs font-semibold text-amber-ink"
+                >
+                  Formula rate belum diatur
+                </span>
+                <InfoTip
+                  label="Tentang formula rate"
+                  text="Fee konten tambahan dan penalti belum dihitung sampai formula disimpan lewat Atur Formula Rate."
+                  align="end"
+                />
+              </span>
+            )}
+            <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} />
+          </span>
+        ) : undefined
+      }
     >
       {list ? (
         <>
@@ -67,19 +92,8 @@ export default async function RateInvoicingPage({
         </section>
 
         <Panel>
-          {/* No title band: the page's title already names its one list, and the formula
-              button sits beside that title. */}
-
-          {list.summary.formulaSet ? null : (
-            <p
-              role="status"
-              aria-label="Formula rate belum diatur"
-              className="mx-5 mt-3 mb-3 rounded-(--radius-control) border border-amber bg-amber-wash px-3 py-2 text-[13px] text-amber-ink"
-            >
-              Formula rate belum diatur. Fee konten tambahan dan penalti belum dihitung sampai formula
-              disimpan lewat Atur Formula Rate.
-            </p>
-          )}
+          {/* No title band: the page's title already names its one list, and the formula button
+              and its notice sit beside that title. */}
 
           <InvoiceFilters />
           {/* The table, with each money cell opening its breakdown (8.5). */}
@@ -103,7 +117,7 @@ export default async function RateInvoicingPage({
         </>
       ) : (
         <Panel>
-          <LoadError title="Rate & Invoicing tidak bisa dimuat." retryHref={invoiceHref(state)} />
+          <LoadError title="Pembayaran tidak bisa dimuat." retryHref={invoiceHref(state)} />
         </Panel>
       )}
     </AppShell>

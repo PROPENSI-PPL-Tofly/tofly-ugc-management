@@ -27,7 +27,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Task Saya — Tofly",
+  title: "Tugas Saya — Tofly",
 };
 
 const NOTICE =
@@ -137,7 +137,7 @@ export default async function TaskSayaPage({
   return (
       <AppShell
           role="creator"
-          title="Task Saya"
+          title="Tugas Saya"
           action={<TaskViewToggle view={view} state={state} />}
       >
         {invalid === null ? null : (

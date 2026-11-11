@@ -11,7 +11,7 @@ export default function NotFound() {
       title="Halaman tidak ditemukan"
       reason="Alamat ini tidak ada atau sudah dipindahkan. Periksa lagi tautannya."
       home="/admin/creators"
-      homeLabel="Kembali ke Creator Database"
+      homeLabel="Kembali ke Kreator"
     />
   );
 }

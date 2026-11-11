@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteImage } from "@/lib/content-detail";
 
 // A revision note's screenshots (PBI-34, 34.3): thumbnails, and one full-size overlay.
@@ -123,29 +123,79 @@ function ImageOverlay({
   );
 }
 
-export function NoteImages({ images }: Readonly<{ images: readonly NoteImage[] }>) {
-  // One index, not a flag per thumbnail: only one overlay can ever be open (AC 8).
+interface Viewer {
+  images: readonly NoteImage[];
+  open: (index: number) => void;
+}
+
+const ViewerContext = createContext<Viewer | null>(null);
+
+/**
+ * The note's images and the one full-size overlay they all open, wherever they sit: the ones the
+ * writer placed in the text and the ones left under it. One index, not a flag per thumbnail, since
+ * only one overlay can ever be open (AC 8); it counts every image of the note.
+ */
+export function NoteImageViewer({
+  images,
+  children,
+}: Readonly<{ images: readonly NoteImage[]; children: ReactNode }>) {
   const [opened, setOpened] = useState<number | null>(null);
   const close = useCallback(() => setOpened(null), []);
 
   return (
-    <>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {images.map((image, index) => (
-          <Thumbnail
-            key={image.id}
-            image={image}
-            position={index + 1}
-            onOpen={() => setOpened(index)}
-          />
-        ))}
-      </div>
-
+    <ViewerContext.Provider value={{ images, open: setOpened }}>
+      {children}
       {opened === null ? null : (
         <ImageOverlay label={`Gambar ${opened + 1} dari ${images.length}`} onClose={close}>
           <FullImage image={images[opened]} position={opened + 1} />
         </ImageOverlay>
       )}
-    </>
+    </ViewerContext.Provider>
   );
+}
+
+/**
+ * An image the writer placed in the text, drawn where they placed it. It is found among the note's
+ * own images by id and draws nothing for one the note does not hold, whatever the text names.
+ */
+export function PlacedImage({ imageId }: Readonly<{ imageId: string }>) {
+  const viewer = useContext(ViewerContext);
+  const index = viewer?.images.findIndex((image) => image.id === imageId) ?? -1;
+  if (!viewer || index < 0) return null;
+
+  return (
+    <div className="my-1">
+      <Thumbnail image={viewer.images[index]} position={index + 1} onOpen={() => viewer.open(index)} />
+    </div>
+  );
+}
+
+function ImageRow({ images, placed }: Readonly<{ images: readonly NoteImage[]; placed: ReadonlySet<string> }>) {
+  const viewer = useContext(ViewerContext);
+  const left = images.map((image, index) => ({ image, index })).filter(({ image }) => !placed.has(image.id));
+  if (!viewer || left.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {left.map(({ image, index }) => (
+        <Thumbnail key={image.id} image={image} position={index + 1} onOpen={() => viewer.open(index)} />
+      ))}
+    </div>
+  );
+}
+
+const NONE_PLACED: ReadonlySet<string> = new Set();
+
+/**
+ * The thumbnails of a note's screenshots under it, except the ones placed in its text. On its own
+ * it brings its own overlay; inside a NoteImageViewer it shares that one.
+ */
+export function NoteImages({
+  images,
+  placed = NONE_PLACED,
+}: Readonly<{ images: readonly NoteImage[]; placed?: ReadonlySet<string> }>) {
+  const inside = useContext(ViewerContext) !== null;
+  const row = <ImageRow images={images} placed={placed} />;
+
+  return inside ? row : <NoteImageViewer images={images}>{row}</NoteImageViewer>;
 }

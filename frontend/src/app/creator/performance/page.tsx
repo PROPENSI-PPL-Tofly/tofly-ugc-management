@@ -1,7 +1,7 @@
 import { ConnectedAccountsPanel } from "@/components/performance/connected-accounts-panel";
 import { ConnectPrompt } from "@/components/performance/connect-prompt";
 import { LinkPerformanceTable } from "@/components/performance/link-performance-table";
-import { PerformanceLockReminder } from "@/components/performance/performance-lock-reminder";
+import { PerformanceFilters } from "@/components/performance/performance-filters";
 import { AppShell } from "@/components/shell/app-shell";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { LoadError } from "@/components/ui/load-error";
@@ -25,8 +25,10 @@ import { fetchMyPerformanceLinks } from "@/lib/performance-links.server";
 
 export const dynamic = "force-dynamic";
 
+const LINKS_TITLE_ID = "performance-links-title";
+
 export const metadata = {
-  title: "Performa — Tofly",
+  title: "Performa Konten — Tofly",
 };
 
 type Loaded = { kind: "ok"; accounts: ConnectedAccount[] } | { kind: "signed_out" } | { kind: "failed" };
@@ -69,9 +71,10 @@ export default async function CreatorPerformancePage({
   const params = await searchParams;
   const state = parsePerformanceLinksParams(params);
   const [loaded, links] = await Promise.all([accounts, loadLinks(state)]);
+  const isFiltered = state.platform.length > 0 || state.dataState.length > 0;
 
   return (
-    <AppShell role="creator" title="Performa">
+    <AppShell role="creator" title="Performa Konten">
       {loaded.kind === "ok" ? (
         <ConnectedAccountsPanel accounts={loaded.accounts} outcome={readConnectOutcome(params)} />
       ) : null}
@@ -93,18 +96,24 @@ export default async function CreatorPerformancePage({
       {/* The creator's own links under the panel (AC 20): read-only rows, ten a page, each
           content opening in Task Saya's Detail Konten, where its steps are. */}
       {loaded.kind !== "signed_out" ? (
-        <section aria-label="Link yang dikirim" className="mt-4">
-          <Panel>
-            {/* PBI-28 AC 13: the numbers below count for the bonus only until Finalize. */}
-            <PerformanceLockReminder className="mx-5 mt-3" />
+        <section aria-labelledby={LINKS_TITLE_ID} className="mt-4">
+          {/* The page holds two things, the accounts above and the links below, so the links say which. */}
+          <h2 id={LINKS_TITLE_ID} className="mb-2 text-base font-extrabold">
+            Performa Konten
+          </h2>
+          <Panel clip={false}>
 
             {loaded.kind === "ok" ? <ConnectPrompt accounts={loaded.accounts} /> : null}
+
+            <PerformanceFilters />
 
             {links.kind === "failed" ? (
               <LoadError title="Daftar link tidak bisa dimuat." retryHref={PERFORMANCE_PATH} />
             ) : links.page.items.length === 0 ? (
               <p className="px-5 py-14 text-center text-[13px] text-muted">
-                Belum ada konten yang dikirim
+                {isFiltered
+                  ? "Tidak ada link yang cocok dengan filter"
+                  : "Belum ada konten yang dikirim"}
               </p>
             ) : (
               <>

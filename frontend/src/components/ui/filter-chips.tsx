@@ -41,6 +41,23 @@ export function pickedChips(
   }));
 }
 
+/**
+ * A one-choice filter in use as its chip: none while its first, all-inclusive choice holds (or for
+ * a value it does not offer), so it reads like a multi-select's picks under the bar.
+ */
+export function choiceChip(
+  filterLabel: string,
+  value: string,
+  options: readonly { value: string; label: string }[],
+  onClear: () => void,
+): FilterChip[] {
+  if (options.length === 0 || value === options[0].value) return [];
+  const option = options.find((candidate) => candidate.value === value);
+  return option
+    ? [{ id: `${filterLabel}:${value}`, filterLabel, valueLabel: option.label, onRemove: onClear }]
+    : [];
+}
+
 const CHIP = `inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2 ${PHONE_TARGET}`;
 
 export function FilterChips({

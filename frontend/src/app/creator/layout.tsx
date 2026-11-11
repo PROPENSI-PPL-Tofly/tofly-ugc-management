@@ -26,7 +26,7 @@ export default async function CreatorLayout({ children }: LayoutProps<"/creator"
       <AccessDenied
         reason="Halaman ini hanya untuk creator."
         home={homeFor("admin")}
-        homeLabel="Kembali ke Creator Database"
+        homeLabel="Kembali ke Kreator"
       />
     );
   }

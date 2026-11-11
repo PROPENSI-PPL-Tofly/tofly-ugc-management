@@ -1,6 +1,7 @@
 import { ConnectionBadge } from "@/components/ui/connection-badge";
 import { Panel } from "@/components/ui/panel";
 import { Pill } from "@/components/ui/pill";
+import { PlatformIcon } from "@/components/ui/platform-icon";
 import { CONTRACT_TYPE_LABELS } from "@/lib/creator-form";
 import { ACCESS_STATE_LABELS, ACCESS_STATE_TONES, creatorAccess } from "@/lib/creator-detail";
 import {
@@ -16,11 +17,8 @@ import {
   type SocialConnections,
 } from "@/lib/social-connection";
 
-/** How each platform is captioned on its chip, in the order the chips are laid out. */
-const PLATFORMS = [
-  { key: "instagram", caption: "IG" },
-  { key: "tiktok", caption: "TIKTOK" },
-] as const;
+/** The platforms in the order the chips are laid out; each chip leads with its coloured logo. */
+const PLATFORMS = [{ key: "instagram" }, { key: "tiktok" }] as const;
 
 const CAPTION = "text-xs text-muted";
 
@@ -57,12 +55,10 @@ export function CreatorProfilePanel({
 
           {accounts.length > 0 ? (
             <ul aria-label="Akun media sosial" className="mt-3 flex flex-wrap gap-2">
-              {accounts.map(({ key, caption }) => (
+              {accounts.map(({ key }) => (
                 <li key={key} className="inline-flex items-center gap-1.5">
                   <span className="inline-flex items-center gap-2 rounded-full border border-rule px-3 py-1 text-xs">
-                    <span className="text-[10.5px] font-semibold tracking-wide text-muted">
-                      {caption}
-                    </span>
+                    <PlatformIcon platform={key} />
                     <span>@{creator.socials[key]}</span>
                   </span>
                   {/* Beside the chip, as the prototype has it (PBI-19, AC 12). */}

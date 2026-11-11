@@ -57,6 +57,8 @@ export interface FollowUp {
   note: string;
   /** The follow-up's sanitized formatting (PBI-34's editor); absent for a plain one. */
   noteHtml?: string;
+  /** The screenshots it went out with (PBI-34); absent when it has none. */
+  images?: NoteImage[];
   /** ISO instant the follow-up was saved. */
   at: string;
   actor: { name: string | null };
@@ -239,6 +241,8 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
   // The endpoint sends newest first, so the count walks the list backwards.
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
+    // A follow-up reads under the revision note it adds to (PBI-33 AC 4), so it takes no step.
+    if (event.type === "revision_followup_added") continue;
     let ordinal = 0;
 
     if (event.type === "draft_submitted") {
