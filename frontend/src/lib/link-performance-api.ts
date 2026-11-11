@@ -1,6 +1,7 @@
 // The calls behind a link's performance card (PBI-27, 27.5), kept out of the component. 27.1's
 // PUT /contents/:id/links/:platform/performance saves an admin's numbers; 27.4's
-// POST /contents/:id/performance-sync serves "Sinkronkan Sekarang".
+// POST /contents/:id/performance-sync serves "Sinkronkan Sekarang", and SCRUM-285's
+// POST /performance/links/sync the same button for one page of "Performa Konten".
 
 import { apiFetch } from "./api-client";
 import type { ManualErrors, ManualValues, MetricName } from "./link-performance";
@@ -21,6 +22,7 @@ export type ManualPerformanceSaver = (
   values: ManualValues,
 ) => Promise<ManualSaveResult>;
 export type ContentPerformanceSyncer = (contentId: string) => Promise<SyncResult>;
+export type PagePerformanceSyncer = (linkIds: readonly string[]) => Promise<SyncResult>;
 
 interface ErrorBody {
   message?: unknown;
@@ -101,4 +103,43 @@ export const syncContentPerformance: ContentPerformanceSyncer = async (contentId
   // Until 27.4 lands the route is not there, which says nothing about the content itself.
   if (response.status === 404) return { ok: false, message: "Sinkronisasi otomatis belum tersedia." };
   return { ok: false, message: SYNC_FAILED };
+};
+
+interface PageSyncReport {
+  updated: number;
+  notUpdated: number;
+  busy: number;
+}
+
+function isPageSyncReport(body: unknown): body is PageSyncReport {
+  const report = body as Partial<PageSyncReport> | null;
+  return (
+    typeof report?.updated === "number" &&
+    typeof report.notUpdated === "number" &&
+    typeof report.busy === "number"
+  );
+}
+
+/** How a page's sync went, in one line: all of it, or how much and what is still syncing. */
+function pageToast({ updated, notUpdated, busy }: PageSyncReport): string {
+  const total = updated + notUpdated + busy;
+  if (updated === total) return `Data performa ${updated} link diperbarui`;
+  const done = `${updated} dari ${total} link diperbarui`;
+  return busy > 0 ? `${done}, ${busy} masih disinkronkan` : done;
+}
+
+export const syncPagePerformance: PagePerformanceSyncer = async (linkIds) => {
+  let response: Response;
+  try {
+    response = await apiFetch("/api/performance/links/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ linkIds }),
+    });
+  } catch {
+    return { ok: false, message: SYNC_FAILED };
+  }
+  // A refused page is the page's own ids gone wrong, nothing an admin can act on but a retry.
+  const body: unknown = response.ok ? await bodyOf(response) : null;
+  return isPageSyncReport(body) ? { ok: true, toast: pageToast(body) } : { ok: false, message: SYNC_FAILED };
 };
