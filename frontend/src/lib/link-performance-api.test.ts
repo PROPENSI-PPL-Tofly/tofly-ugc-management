@@ -151,12 +151,31 @@ describe("syncContentPerformance (PBI-27 AC 12-13)", () => {
     });
   });
 
-  it("says the sync is not there yet while the backend has no such route", async () => {
+  // SCRUM-282 review: 27.4's route is live, so a 404 is the backend's answer, not a missing route.
+  it("says the invoice is finalized when the content may no longer sync", async () => {
+    respond(answer(409, { code: "SYNC_NOT_ALLOWED", message: "Konten ini tidak disinkronkan lagi" }));
+
+    await expect(syncContentPerformance(CONTENT_ID)).resolves.toEqual({
+      ok: false,
+      message: "Invoice sudah difinalisasi, jadi angka konten ini tidak disinkronkan lagi.",
+    });
+  });
+
+  it("passes a coded 404 on in the API's own words", async () => {
+    respond(answer(404, { code: "CONTENT_NOT_FOUND", message: "Konten tidak ditemukan" }));
+
+    await expect(syncContentPerformance(CONTENT_ID)).resolves.toEqual({
+      ok: false,
+      message: "Konten tidak ditemukan",
+    });
+  });
+
+  it("words a 404 without a code as a plain retry", async () => {
     respond(answer(404, { message: "Cannot POST" }));
 
     await expect(syncContentPerformance(CONTENT_ID)).resolves.toEqual({
       ok: false,
-      message: "Sinkronisasi otomatis belum tersedia.",
+      message: "Sinkronisasi gagal. Coba lagi.",
     });
   });
 
@@ -214,7 +233,17 @@ describe("syncLinkPerformance (SCRUM-282)", () => {
 
   it.each([
     ["a sync already running on a 409", answer(409, { code: "SYNC_RUNNING" }), "Konten ini sedang disinkronkan. Tunggu sebentar."],
-    ["a backend without the route yet", answer(404, { message: "Cannot POST" }), "Sinkronisasi otomatis belum tersedia."],
+    [
+      "a content whose invoice is finalized",
+      answer(409, { code: "SYNC_NOT_ALLOWED", message: "Konten ini tidak disinkronkan lagi" }),
+      "Invoice sudah difinalisasi, jadi angka konten ini tidak disinkronkan lagi.",
+    ],
+    [
+      "a platform with no link on the content",
+      answer(404, { code: "LINK_NOT_FOUND", message: "Link tidak ditemukan" }),
+      "Link tidak ditemukan",
+    ],
+    ["a 404 without a code", answer(404, { message: "Cannot POST" }), "Sinkronisasi gagal. Coba lagi."],
     ["a server error", answer(500, { message: "Internal server error" }), "Sinkronisasi gagal. Coba lagi."],
   ])("words %s as Sinkronkan Sekarang does", async (_what, response, message) => {
     respond(response);
