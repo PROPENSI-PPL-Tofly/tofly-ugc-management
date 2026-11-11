@@ -64,13 +64,15 @@ function stub(
     const ids = query.values[1] as string[];
     return ids.filter((id) => !leased.has(id)).map((id) => ({ id }));
   });
-  const findContent = vi
-    .fn()
-    .mockResolvedValue(
-      'content' in options
-        ? options.content
-        : { status: 'link_submitted', contracts: { invoice: null } },
-    );
+  const findContent = vi.fn().mockResolvedValue(
+    'content' in options
+      ? options.content
+      : {
+          status: 'link_submitted',
+          contracts: { invoice: null },
+          content_links: [{ platform: 'tiktok' }, { platform: 'instagram' }],
+        },
+  );
   const release = vi.fn().mockResolvedValue({ count: 1 });
   const createEvents = vi.fn().mockResolvedValue({ count: 1 });
   const client = {
@@ -737,6 +739,7 @@ describe('PerformanceSyncService', () => {
         select: {
           status: true,
           contracts: { select: { invoice: { select: { status: true } } } },
+          content_links: { select: { platform: true } },
         },
       });
       expect(s.findMany.mock.calls[0][0].where.contents.id).toBe('c1');
@@ -801,6 +804,36 @@ describe('PerformanceSyncService', () => {
         code: 'CONTENT_NOT_FOUND',
         message: 'Konten tidak ditemukan',
       });
+      expect(s.findMany).not.toHaveBeenCalled();
+    });
+
+    // SCRUM-282 review: a card's Refresh for a platform the content has no link on is not a
+    // success; it answers 404 like the manual-entry route does.
+    it('answers 404 LINK_NOT_FOUND for a platform that content has no link on, claiming and reading nothing', async () => {
+      const s = stub([], {
+        content: {
+          status: 'link_submitted',
+          contracts: { invoice: null },
+          content_links: [{ platform: 'tiktok' }],
+        },
+      });
+      const service = new PerformanceSyncService(
+        s.client,
+        [syncing('instagram')],
+        log(),
+        clock(),
+      );
+
+      const refusal = await service
+        .syncContent('c1', 'instagram')
+        .catch((error) => error);
+
+      expect(refusal).toBeInstanceOf(NotFoundException);
+      expect((refusal as NotFoundException).getResponse()).toEqual({
+        code: 'LINK_NOT_FOUND',
+        message: 'Link tidak ditemukan',
+      });
+      expect(s.queryRaw).not.toHaveBeenCalled();
       expect(s.findMany).not.toHaveBeenCalled();
     });
 

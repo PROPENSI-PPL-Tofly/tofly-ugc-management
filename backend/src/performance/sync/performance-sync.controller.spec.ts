@@ -1,4 +1,8 @@
-import { ConflictException, type INestApplication } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  type INestApplication,
+} from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -148,6 +152,25 @@ describe('Performance sync routes', () => {
 
       expect(response.status).toBe(409);
       expect(response.body.code).toBe('SYNC_RUNNING');
+    });
+
+    it('passes the 404 on when that content has no link on that platform', async () => {
+      sync.syncContent.mockRejectedValue(
+        new NotFoundException({
+          code: 'LINK_NOT_FOUND',
+          message: 'Link tidak ditemukan',
+        }),
+      );
+
+      const response = await request(app.getHttpServer()).post(
+        `/contents/${CONTENT_ID}/links/instagram/performance-sync`,
+      );
+
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual({
+        code: 'LINK_NOT_FOUND',
+        message: 'Link tidak ditemukan',
+      });
     });
 
     // Negative, as the manual-entry route answers it: no read for a platform Tofly does not know.
