@@ -190,7 +190,7 @@ describe("LinkPerformanceSection: Refresh on each link card (SCRUM-282)", () => 
   });
 
   it("keeps every card's Refresh disabled while Sinkronkan Sekarang runs", () => {
-    show([SYNCED, NOT_CONNECTED], { sync: vi.fn(() => new Promise(() => undefined)) });
+    show([SYNCED, NOT_CONNECTED], { sync: vi.fn(() => new Promise<{ ok: true; toast: string }>(() => undefined)) });
 
     fireEvent.click(screen.getByRole("button", { name: "Sinkronkan Sekarang" }));
 
