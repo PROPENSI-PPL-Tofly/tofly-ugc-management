@@ -59,7 +59,17 @@ describe("parsePerformanceLinksParams", () => {
       page: 2,
       creator: [CREATOR_A, CREATOR_B],
       platform: ["instagram", "tiktok"],
+      q: "",
     });
+  });
+
+  // I3.2 (SCRUM-279): the search box's text, as Content Plan reads its own.
+  it.each([
+    ["trimmed", "  rani kopi  ", "rani kopi"],
+    ["the first of a repeated one", ["rani", "kopi"], "rani"],
+    ["none when only spaces", "   ", ""],
+  ])("reads the search, %s", (_label, q, searched) => {
+    expect(parsePerformanceLinksParams({ q }).q).toBe(searched);
   });
 
   it("keeps only the platforms the app lists, and falls back to the first page", () => {
@@ -67,6 +77,7 @@ describe("parsePerformanceLinksParams", () => {
       page: 1,
       creator: [],
       platform: ["instagram"],
+      q: "",
     });
   });
 
@@ -103,6 +114,14 @@ describe("buildPerformanceLinksQuery", () => {
     );
   });
 
+  // The pagination's links keep the search, so page 2 is page 2 of what was searched.
+  it("keeps the search in the page's own address", () => {
+    const state = parsePerformanceLinksParams({ q: "rani", page: "2" });
+
+    expect(buildPerformanceLinksQuery(state)).toEqual({ q: "rani", page: "2" });
+    expect(performanceLinksHref(state)).toBe(`${PERFORMANCE_LINKS_BASE}?q=rani&page=2`);
+  });
+
   it("does not change the state it was given", () => {
     const given = parsePerformanceLinksParams({ creator: CREATOR_A, page: "2" });
     const before = structuredClone(given);
@@ -127,6 +146,20 @@ describe("toPerformanceLinksQuery", () => {
     expect(query.getAll("creator")).toEqual([CREATOR_A, CREATOR_B]);
     expect(query.getAll("platform")).toEqual(["instagram", "tiktok"]);
     expect(query.get("page")).toBe("2");
+  });
+
+  it("sends the search for the API to find, and none while the box is empty", () => {
+    expect(toPerformanceLinksQuery(parsePerformanceLinksParams({ q: "rani kopi" })).get("q")).toBe(
+      "rani kopi",
+    );
+    expect(toPerformanceLinksQuery(parsePerformanceLinksParams({})).has("q")).toBe(false);
+  });
+
+  // The API answers 400 past 100 characters (OWASP A05: only what the page parsed is sent).
+  it("sends at most the 100 characters the API takes for a search", () => {
+    const query = toPerformanceLinksQuery(parsePerformanceLinksParams({ q: "a".repeat(150) }));
+
+    expect(query.get("q")).toBe("a".repeat(100));
   });
 
   it("sends a pick named twice only once, and always names the page", () => {
