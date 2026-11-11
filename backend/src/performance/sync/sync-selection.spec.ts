@@ -53,6 +53,20 @@ describe('syncableLinks', () => {
     });
   });
 
+  // SCRUM-282: the Refresh button on one link card reads only that card's link.
+  it('narrows a content sync to one platform for a single link card', () => {
+    expect(
+      syncableLinks({
+        kind: 'content',
+        contentId: 'content-9',
+        platform: 'instagram',
+      }),
+    ).toStrictEqual({
+      platform: 'instagram',
+      contents: { ...ELIGIBLE, id: 'content-9' },
+    });
+  });
+
   it('narrows to one contract for the last sync before Finalize', () => {
     expect(
       syncableLinks({ kind: 'contract', contractId: 'contract-9' }),
