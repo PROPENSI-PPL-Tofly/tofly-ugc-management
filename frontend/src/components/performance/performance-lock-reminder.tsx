@@ -9,7 +9,7 @@ export function PerformanceLockReminder({ className = "" }: Readonly<{ className
   return (
     <p
       role="note"
-      className={`rounded-(--radius-control) border border-rule bg-paper px-2.5 py-2 text-xs text-ink ${className}`}
+      className={`rounded-(--radius-control) border border-amber/40 bg-amber-wash px-2.5 py-2 text-xs text-amber-ink ${className}`}
     >
       {PERFORMANCE_LOCK_REMINDER}
     </p>

@@ -6,6 +6,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
+import { Panel } from "@/components/ui/panel";
 import {
   ConnectedAccountsError,
   PERFORMANCE_PATH,
@@ -19,6 +20,7 @@ import {
   type PerformanceLinksPage,
   type PerformanceLinksState,
 } from "@/lib/performance-links";
+import { MY_TASKS_BASE } from "@/lib/my-tasks";
 import { fetchMyPerformanceLinks } from "@/lib/performance-links.server";
 
 export const dynamic = "force-dynamic";
@@ -88,35 +90,40 @@ export default async function CreatorPerformancePage({
         </div>
       ) : null}
 
-      {/* The creator's own links under the panel (AC 20): read-only rows, ten a page. */}
+      {/* The creator's own links under the panel (AC 20): read-only rows, ten a page, each
+          content opening in Task Saya's Detail Konten, where its steps are. */}
       {loaded.kind !== "signed_out" ? (
-        <section aria-label="Link yang dikirim">
-          <h2 className="px-5 pt-5 text-[13px] font-semibold">Link yang dikirim</h2>
-          {/* PBI-28 AC 13: the numbers below count for the bonus only until Finalize. */}
-          <PerformanceLockReminder className="mx-5 mt-2" />
+        <section aria-label="Link yang dikirim" className="mt-4">
+          <Panel>
+            {/* PBI-28 AC 13: the numbers below count for the bonus only until Finalize. */}
+            <PerformanceLockReminder className="mx-5 mt-3" />
 
-          {loaded.kind === "ok" ? <ConnectPrompt accounts={loaded.accounts} /> : null}
+            {loaded.kind === "ok" ? <ConnectPrompt accounts={loaded.accounts} /> : null}
 
-          {links.kind === "failed" ? (
-            <LoadError title="Daftar link tidak bisa dimuat." retryHref={PERFORMANCE_PATH} />
-          ) : links.page.items.length === 0 ? (
-            <p className="px-5 py-14 text-center text-[13px] text-muted">
-              Belum ada konten yang dikirim
-            </p>
-          ) : (
-            <>
-              <LinkPerformanceTable rows={links.page.items} />
-              <Pagination
-                basePath={PERFORMANCE_PATH}
-                noun="link"
-                query={buildPerformanceLinksQuery(state)}
-                page={links.page.page}
-                pageSize={links.page.pageSize}
-                total={links.page.total}
-                totalPages={links.page.totalPages}
-              />
-            </>
-          )}
+            {links.kind === "failed" ? (
+              <LoadError title="Daftar link tidak bisa dimuat." retryHref={PERFORMANCE_PATH} />
+            ) : links.page.items.length === 0 ? (
+              <p className="px-5 py-14 text-center text-[13px] text-muted">
+                Belum ada konten yang dikirim
+              </p>
+            ) : (
+              <>
+                <LinkPerformanceTable
+                  rows={links.page.items}
+                  contentHref={(row) => `${MY_TASKS_BASE}?${new URLSearchParams({ content: row.contentId })}`}
+                />
+                <Pagination
+                  basePath={PERFORMANCE_PATH}
+                  noun="link"
+                  query={buildPerformanceLinksQuery(state)}
+                  page={links.page.page}
+                  pageSize={links.page.pageSize}
+                  total={links.page.total}
+                  totalPages={links.page.totalPages}
+                />
+              </>
+            )}
+          </Panel>
         </section>
       ) : null}
     </AppShell>

@@ -4,7 +4,7 @@ import { RateFormulaTrigger } from "@/components/rate-formula/rate-formula-trigg
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
-import { Panel, PanelBand } from "@/components/ui/panel";
+import { Panel } from "@/components/ui/panel";
 import { formatRupiah } from "@/lib/format";
 import {
   buildInvoiceQuery,
@@ -48,6 +48,7 @@ export default async function RateInvoicingPage({
   return (
     <AppShell
       title="Rate & Invoicing"
+      action={list ? <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} /> : undefined}
     >
       {list ? (
         <>
@@ -66,16 +67,8 @@ export default async function RateInvoicingPage({
         </section>
 
         <Panel>
-          {/* The ⓘ that explains Total sits on the Total header; the formula button stays in the
-              panel head, where subtask 8.2 puts it. */}
-          <PanelBand
-            title="Invoice"
-            tone="ink"
-            icon="receipt"
-            count={list.total}
-            noun="invoice"
-            action={<RateFormulaTrigger runningInvoices={list.summary.runningInvoices} />}
-          />
+          {/* No title band: the page's title already names its one list, and the formula
+              button sits beside that title. */}
 
           {list.summary.formulaSet ? null : (
             <p

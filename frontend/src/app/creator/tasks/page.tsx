@@ -5,14 +5,13 @@ import { MyTaskTabBar } from "@/components/tasks/my-task-tab-bar";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Pagination } from "@/components/ui/pagination";
-import { Panel, PanelBand } from "@/components/ui/panel";
+import { Panel } from "@/components/ui/panel";
 import { parsePage } from "@/lib/creators";
 import { jakartaDay } from "@/lib/format";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
 import { fetchAllMyTasks } from "@/lib/task-calendar.server";
 import { calendarParams, parseTaskView, taskViewParams, type TaskView } from "@/lib/task-view";
 import {
-  MY_TASK_TABS,
   MY_TASKS_BASE,
   MyTasksError,
   buildMyTasksQuery,
@@ -130,10 +129,6 @@ export default async function TaskSayaPage({
   const invalidStatuses = unknownStatuses(params);
   const loaded = await load(state, view);
   const firstPage = buildMyTasksQuery({ ...state, page: 1 });
-  // How many the tab and filters hold: the API's total for a page, every task for the calendar.
-  const listCount =
-    loaded.kind === "ok" ? loaded.result.total : loaded.kind === "calendar" ? loaded.tasks.length : undefined;
-  const tabLabel = MY_TASK_TABS.find((def) => def.key === state.tab)?.label;
   const retrySearch = new URLSearchParams({
     ...buildMyTasksQuery(state),
     ...taskViewParams(view),
@@ -143,6 +138,7 @@ export default async function TaskSayaPage({
       <AppShell
           role="creator"
           title="Task Saya"
+          action={<TaskViewToggle view={view} state={state} />}
       >
         {invalid === null ? null : (
             <p role="status" className={NOTICE}>
@@ -166,16 +162,6 @@ export default async function TaskSayaPage({
 
         {/* Unclipped: the filter popups hang below the bar and past the panel's foot. */}
         <Panel clip={false}>
-          <PanelBand
-              title="Daftar Tugas Saya"
-              tone="accent"
-              icon="tasks"
-              count={listCount}
-              noun="task"
-              aside={tabLabel}
-              action={<TaskViewToggle view={view} state={state} />}
-            />
-
           {loaded.kind === "calendar" ? (
               <>
                 <MyTaskTabBar active={state.tab} counts={loaded.counts} />

@@ -4,7 +4,7 @@ import { CreatorFilters } from "@/components/creators/creator-filters";
 import { CreatorTable } from "@/components/creators/creator-table";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
-import { Panel, PanelBand } from "@/components/ui/panel";
+import { Panel } from "@/components/ui/panel";
 import { creatorDatabaseQuery } from "@/lib/creator-detail";
 import {
   hasActiveFilters,
@@ -49,9 +49,7 @@ export default async function CreatorsPage({
   const existingEmails = result ? result.items.map((c) => c.email) : [];
 
   return (
-    <AppShell
-      title="Creator Database"
-    >
+    <AppShell title="Creator Database" action={<AddCreatorTrigger existingEmails={existingEmails} />}>
       {invalid !== null ? (
         // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
         <p
@@ -63,15 +61,6 @@ export default async function CreatorsPage({
       ) : null}
 
       <Panel>
-        <PanelBand
-          title={filtered ? "Hasil pencarian" : "Kreator"}
-          tone="ink"
-          icon="people"
-          count={result?.total}
-          noun="creator"
-          hint="Kontrak, progres konten, dan produktivitas setiap creator. Pakai ini saat memutuskan perpanjangan kontrak atau alokasi konten baru."
-          action={<AddCreatorTrigger existingEmails={existingEmails} />}
-        />
         <CreatorFilters />
         {result ? (
           <>

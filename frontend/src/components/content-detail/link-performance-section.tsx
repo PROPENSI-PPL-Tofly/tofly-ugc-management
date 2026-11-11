@@ -51,8 +51,6 @@ interface SaveProblem {
   errors?: ManualErrors;
 }
 
-const HELP = 'Angka bulat 0–999.999.999. Isi minimal satu. Kolom kosong tetap "belum ada data", bukan 0.';
-
 /** The link as the card shows it: without the scheme and www, the whole address in the href. */
 function shortUrl(url: string): string {
   return url.replace(/^https?:\/\/(www\.)?/, "");
@@ -136,7 +134,8 @@ function ManualForm({
                   {...NUMERIC_INPUT}
                   className={FIELD}
                   value={fields[name]}
-                  placeholder="Kosongkan kalau belum ada"
+                  // An empty field is saved as no data, never as 0.
+                  placeholder="Belum ada angka"
                   maxLength={11}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? `${id}-${name}` : undefined}
@@ -153,7 +152,6 @@ function ManualForm({
           );
         })}
       </div>
-      <p className="text-xs text-muted">{HELP}</p>
       {errors.metrics ? <p className={FIELD_ERROR}>{errors.metrics}</p> : null}
       {refusal ? (
         <p role="alert" className={FIELD_ERROR}>
@@ -214,9 +212,15 @@ function LinkCard({
         aria-label={`Performa ${PLATFORM_LABELS[platform]}`}
         className="rounded-(--radius-panel) border border-rule bg-surface p-3"
       >
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
+        {/* The link fills its own line, so every card's link is one length whatever its
+            address; the hand-in day and the state share the line under it. */}
+        <div data-link-row="" className="flex items-center gap-2 text-[13px]">
           <PlatformIcon platform={platform} />
-          <CreatorLink link={link.url} label={shortUrl(link.url)} look="chip" />
+          <div className="min-w-0 flex-1">
+            <CreatorLink link={link.url} label={shortUrl(link.url)} look="field" />
+          </div>
+        </div>
+        <div className="mb-3 mt-2 flex items-center gap-2">
           <time dateTime={link.submittedAt} className="text-xs text-muted">
             Dikirim {formatDate(link.submittedAt)}
           </time>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ContentNameButton, RowActionButton } from "@/components/contents/content-row-buttons";
+import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { ContentTags } from "@/components/contents/content-tags";
 import { DueDate, badgeTags } from "@/components/contents/due-date";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
@@ -34,8 +34,8 @@ const LABELLED =
 
 /**
  * The Content Plan's table, laid out as Creator Detail's: the type and the platforms in columns of
- * their own, a missed deadline in red, the other tags beside the status, and every row's door into
- * its panel — Tinjau where a decision waits, Detail everywhere else.
+ * their own, a missed deadline in red and the other tags beside the status. The row itself is the
+ * door into its panel, with the name as the same door for the keyboard; no Tinjau or Detail.
  */
 export function ContentPlanTable({
   items,
@@ -80,10 +80,6 @@ export function ContentPlanTable({
             <DeadlineSortTh sort={sort} onToggle={onSortToggle} stacked />
             <th role="columnheader" className={HEAD}>Status</th>
             <th role="columnheader" className={HEAD}>Platform</th>
-            <th role="columnheader" className={HEAD}>
-              {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
-              <span className="sr-only">Aksi</span>
-            </th>
           </tr>
         </thead>
         {/* Below lg each piece is a card of its own, 12 px apart on the page colour, as Task
@@ -133,10 +129,6 @@ export function ContentPlanTable({
               </td>
               <td data-label="Platform" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
                 <PlatformIcons platforms={row.platforms} />
-              </td>
-              {/* Every row offers a door into its detail; Tinjau stands out where a decision waits. */}
-              <td className={`${CELL} text-right max-lg:pt-2 max-lg:text-left`}>
-                <RowActionButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
               </td>
             </tr>
           ))}

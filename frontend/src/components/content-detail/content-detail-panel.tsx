@@ -28,11 +28,12 @@ import { FollowUpForm } from "./follow-up-form";
 import { FollowUpList } from "./follow-up-list";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
-import { StatusDot } from "@/components/ui/pill";
+import { Pill, StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
+  CONTENT_TYPE_TONES,
 } from "@/lib/content-labels";
 import {
   ContentDetailError,
@@ -224,12 +225,11 @@ function focusOnMount(element: HTMLTextAreaElement | null) {
 }
 
 /**
- * Red once the deadline has passed, amber from the day before it, green when finished. A
+ * Red once the deadline has passed, amber from the day before it. A
  * pending proposal is not assigned work yet, so its deadline warns about nothing, the same
  * way it never carries the Overdue tag.
  */
 function dueTone(status: ContentDetail["status"], days: number | null): string {
-  if (status === "link_submitted") return "text-green-ink";
   if (status === "pending" || days === null) return "";
   if (days < 0) return "text-red-ink";
   return days <= DUE_SOON_DAYS ? "text-amber-ink" : "";
@@ -243,20 +243,27 @@ function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Dat
   // The API can name a status newer than this build: its raw name then, never a blank.
   const statusLabel: string = CONTENT_STATUS_LABELS[detail.status] ?? detail.status;
 
+  // Two lines rather than one long row: what the content is, then when it is due.
   return (
     <>
-      <StatusDot tone="accent">{CONTENT_TYPE_LABELS[detail.type]}</StatusDot>
+      <div data-meta-row className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1.5">
+        <Pill tone={CONTENT_TYPE_TONES[detail.type]}>{CONTENT_TYPE_LABELS[detail.type]}</Pill>
+        <StatusDot tone={CONTENT_STATUS_TONES[detail.status] ?? "neutral"}>{statusLabel}</StatusDot>
+        <ContentTags tags={detail.tags} />
+      </div>
 
-      <StatusDot tone={CONTENT_STATUS_TONES[detail.status] ?? "neutral"}>{statusLabel}</StatusDot>
-
-      <ContentTags tags={detail.tags} />
-
-      <span>
-        Deadline <b className="font-semibold text-ink">{formatDate(detail.deadline)}</b> ·{" "}
-        <span data-testid="deadline-due" className={`font-semibold ${dueTone(detail.status, days)}`}>
-          {finished ? "Selesai" : formatDaysLeft(days)}
-        </span>
-      </span>
+      <p data-meta-row className="basis-full">
+        Deadline <b className="font-semibold text-ink">{formatDate(detail.deadline)}</b>
+        {finished ? null : (
+          <>
+            {" "}(
+            <span data-testid="deadline-due" className={`font-semibold ${dueTone(detail.status, days)}`}>
+              {formatDaysLeft(days)}
+            </span>
+            )
+          </>
+        )}
+      </p>
     </>
   );
 }
