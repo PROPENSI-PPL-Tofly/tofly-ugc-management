@@ -5,7 +5,7 @@
 import { apiFetch } from "./api-client";
 import type { ManualErrors, ManualValues, MetricName } from "./link-performance";
 import { METRICS } from "./link-performance";
-import type { Platform } from "./platform-links";
+import { PLATFORM_LABELS, type Platform } from "./platform-links";
 
 const SAVE_FAILED = "Angka performa gagal disimpan. Coba lagi.";
 const SYNC_FAILED = "Sinkronisasi gagal. Coba lagi.";
@@ -21,6 +21,7 @@ export type ManualPerformanceSaver = (
   values: ManualValues,
 ) => Promise<ManualSaveResult>;
 export type ContentPerformanceSyncer = (contentId: string) => Promise<SyncResult>;
+export type LinkPerformanceSyncer = (contentId: string, platform: Platform) => Promise<SyncResult>;
 
 interface ErrorBody {
   message?: unknown;
@@ -82,10 +83,15 @@ export const saveManualPerformance: ManualPerformanceSaver = async (contentId, p
   return failure;
 };
 
-export const syncContentPerformance: ContentPerformanceSyncer = async (contentId) => {
+// One way to read a sync's answer, for the whole content and for one link card alike: the
+// toasts differ by what was synced, the busy and failure messages do not.
+async function runSync(
+  path: string,
+  toasts: Readonly<{ updated: string; notUpdated: string }>,
+): Promise<SyncResult> {
   let response: Response;
   try {
-    response = await apiFetch(`${contentPath(contentId)}/performance-sync`, { method: "POST" });
+    response = await apiFetch(path, { method: "POST" });
   } catch {
     return { ok: false, message: SYNC_FAILED };
   }
@@ -93,7 +99,7 @@ export const syncContentPerformance: ContentPerformanceSyncer = async (contentId
   if (response.ok) {
     const body = await bodyOf(response);
     const partial = Array.isArray(body?.notUpdated) && body.notUpdated.length > 0;
-    return { ok: true, toast: partial ? "Sebagian link gagal disinkronkan" : "Data performa diperbarui" };
+    return { ok: true, toast: partial ? toasts.notUpdated : toasts.updated };
   }
   if (response.status === 409) {
     return { ok: false, message: "Konten ini sedang disinkronkan. Tunggu sebentar." };
@@ -101,4 +107,17 @@ export const syncContentPerformance: ContentPerformanceSyncer = async (contentId
   // Until 27.4 lands the route is not there, which says nothing about the content itself.
   if (response.status === 404) return { ok: false, message: "Sinkronisasi otomatis belum tersedia." };
   return { ok: false, message: SYNC_FAILED };
-};
+}
+
+export const syncContentPerformance: ContentPerformanceSyncer = (contentId) =>
+  runSync(`${contentPath(contentId)}/performance-sync`, {
+    updated: "Data performa diperbarui",
+    notUpdated: "Sebagian link gagal disinkronkan",
+  });
+
+// SCRUM-282: the Refresh button on one link card, so its toast names that card's platform.
+export const syncLinkPerformance: LinkPerformanceSyncer = (contentId, platform) =>
+  runSync(`${contentPath(contentId)}/links/${platform}/performance-sync`, {
+    updated: `Data performa ${PLATFORM_LABELS[platform]} diperbarui`,
+    notUpdated: `Link ${PLATFORM_LABELS[platform]} gagal disinkronkan`,
+  });
