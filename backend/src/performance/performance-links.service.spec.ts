@@ -76,6 +76,50 @@ describe('PerformanceLinksService', () => {
     });
   });
 
+  // I3.2 (SCRUM-279): each word must be in the content's name or in any part of the creator's,
+  // so "rani kopi" finds Rani's "Review Kopi", and the count pages the search, not every link.
+  it('searches each word in the content name or any part of the creator name', async () => {
+    await service.list({ page: 1, pageSize: 10 }, { q: 'Rani  kopi' });
+
+    const matches = (word: string) => ({
+      OR: [
+        { contents: { name: { contains: word, mode: 'insensitive' } } },
+        ...(['first_name', 'middle_name', 'last_name'] as const).map(
+          (part) => ({
+            contents: {
+              contracts: {
+                creators: { [part]: { contains: word, mode: 'insensitive' } },
+              },
+            },
+          }),
+        ),
+      ],
+    });
+    const where = {
+      platform: { not: null },
+      AND: [matches('Rani'), matches('kopi')],
+    };
+    expect(content_links.count).toHaveBeenCalledWith({ where });
+    expect(content_links.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where }),
+    );
+  });
+
+  it('searches alongside the creator and platform filters', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { creators: [CREATOR_A], platforms: ['tiktok'], q: 'kopi' },
+    );
+
+    expect(content_links.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        platform: { in: ['tiktok'] },
+        contents: { contracts: { creator_id: { in: [CREATOR_A] } } },
+        AND: [expect.objectContaining({ OR: expect.any(Array) })],
+      }),
+    });
+  });
+
   it('answers the page with its total and page count', async () => {
     const page = await service.list({ page: 1, pageSize: 10 }, {});
 

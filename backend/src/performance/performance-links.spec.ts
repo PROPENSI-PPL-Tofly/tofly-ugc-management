@@ -60,7 +60,30 @@ describe('checkPerformanceLinksQuery', () => {
     ).toEqual({ creators: [CREATOR_A, CREATOR_B], platforms: ['tiktok'] });
   });
 
+  // I3.2: the search box of Performa Konten, read as every other list's search (SCRUM-279).
   it.each([
+    ['trimmed', '  rani kopi  ', 'rani kopi'],
+    ['exactly 100 characters', 'a'.repeat(100), 'a'.repeat(100)],
+    ['with % and _ kept as plain text', '50%_off', '50%_off'],
+  ])('searches by the text it is given, %s', (_label, q, searched) => {
+    expect(checkPerformanceLinksQuery({ q })).toEqual({ q: searched });
+  });
+
+  it('does not search for spaces alone', () => {
+    expect(checkPerformanceLinksQuery({ q: '   ' })).toEqual({});
+  });
+
+  it.each([
+    [
+      'a search longer than 100 characters',
+      { q: 'a'.repeat(101) },
+      'q must be 100 characters or fewer',
+    ],
+    [
+      'a search given twice',
+      { q: ['rani', 'kopi'] },
+      'q must be a single text value',
+    ],
     [
       'a creator that is not an id',
       { creator: 'rani' },

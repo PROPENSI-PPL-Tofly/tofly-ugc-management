@@ -169,12 +169,26 @@ describe('Performance routes', () => {
       );
     });
 
-    it.each(['?page=0', '?page=x', '?platform=youtube', '?creator=rani'])(
-      'answers 400 for %s',
-      async (query) => {
-        expect((await get(query)).status).toBe(400);
-        expect(links.list).not.toHaveBeenCalled();
-      },
-    );
+    // I3.2 (SCRUM-279).
+    it('passes the checked search on, trimmed', async () => {
+      await get(`?q=${encodeURIComponent('  rani kopi ')}`);
+
+      expect(links.list).toHaveBeenCalledWith(
+        { page: 1, pageSize: 10 },
+        { q: 'rani kopi' },
+      );
+    });
+
+    it.each([
+      '?page=0',
+      '?page=x',
+      '?platform=youtube',
+      '?creator=rani',
+      `?q=${'a'.repeat(101)}`,
+      '?q=rani&q=kopi',
+    ])('answers 400 for %s', async (query) => {
+      expect((await get(query)).status).toBe(400);
+      expect(links.list).not.toHaveBeenCalled();
+    });
   });
 });
