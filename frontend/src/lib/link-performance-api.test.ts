@@ -1,4 +1,4 @@
-import { saveManualPerformance, syncContentPerformance } from "./link-performance-api";
+import { saveManualPerformance, syncContentPerformance, syncLinkPerformance } from "./link-performance-api";
 
 const CONTENT_ID = "11111111-1111-4111-8111-111111111111";
 const VALUES = { views: 12400, likes: null, comments: 41, shares: null };
@@ -173,6 +173,59 @@ describe("syncContentPerformance (PBI-27 AC 12-13)", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
     await expect(syncContentPerformance(CONTENT_ID)).resolves.toEqual({
+      ok: false,
+      message: "Sinkronisasi gagal. Coba lagi.",
+    });
+  });
+});
+
+// SCRUM-282: the Refresh button on one link card syncs only that card's link.
+describe("syncLinkPerformance (SCRUM-282)", () => {
+  it("posts to that link's own sync and names its platform when updated", async () => {
+    const fetchSpy = respond(answer(200, { notUpdated: [] }));
+
+    await expect(syncLinkPerformance(CONTENT_ID, "instagram")).resolves.toEqual({
+      ok: true,
+      toast: "Data performa Instagram diperbarui",
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(`/api/contents/${CONTENT_ID}/links/instagram/performance-sync`, {
+      method: "POST",
+    });
+  });
+
+  it("says that link could not be updated when the sync names it", async () => {
+    respond(answer(200, { notUpdated: [{ platform: "tiktok" }] }));
+
+    await expect(syncLinkPerformance(CONTENT_ID, "tiktok")).resolves.toEqual({
+      ok: true,
+      toast: "Link TikTok gagal disinkronkan",
+    });
+  });
+
+  it("encodes the content id, so a crafted one cannot reach another route", async () => {
+    const fetchSpy = respond(answer(200, { notUpdated: [] }));
+
+    await syncLinkPerformance("../users", "tiktok");
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/contents/..%2Fusers/links/tiktok/performance-sync", {
+      method: "POST",
+    });
+  });
+
+  it.each([
+    ["a sync already running on a 409", answer(409, { code: "SYNC_RUNNING" }), "Konten ini sedang disinkronkan. Tunggu sebentar."],
+    ["a backend without the route yet", answer(404, { message: "Cannot POST" }), "Sinkronisasi otomatis belum tersedia."],
+    ["a server error", answer(500, { message: "Internal server error" }), "Sinkronisasi gagal. Coba lagi."],
+  ])("words %s as Sinkronkan Sekarang does", async (_what, response, message) => {
+    respond(response);
+
+    await expect(syncLinkPerformance(CONTENT_ID, "tiktok")).resolves.toEqual({ ok: false, message });
+  });
+
+  it("words a dropped connection as a plain retry", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(syncLinkPerformance(CONTENT_ID, "instagram")).resolves.toEqual({
       ok: false,
       message: "Sinkronisasi gagal. Coba lagi.",
     });
