@@ -76,14 +76,8 @@ function open(
   return { load, update, remove, onDecided };
 }
 
-async function openMenu() {
-  fireEvent.click(await screen.findByRole("button", { name: "Aksi lain" }));
-  return screen.getByRole("menu");
-}
-
 async function startEdit() {
-  const menu = await openMenu();
-  fireEvent.click(within(menu).getByRole("menuitem", { name: "Ubah" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Ubah konten" }));
   return screen.getByRole("form", { name: "Ubah konten" });
 }
 
@@ -95,30 +89,35 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// Ubah and Hapus sit in the panel's header as a pencil and a bin, one press each, rather than
+// behind a "⋯" menu.
 describe("Ubah and Hapus visibility (AC 1, 9)", () => {
-  it("offers Ubah and Hapus for Scheduled content with no draft", async () => {
+  it("offers Ubah and Hapus as icons in the header for Scheduled content with no draft", async () => {
     open(scheduled());
 
-    const menu = await openMenu();
-
-    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
-      "Ubah",
-      "Hapus",
-    ]);
+    const ubah = await screen.findByRole("button", { name: "Ubah konten" });
+    const hapus = screen.getByRole("button", { name: "Hapus konten" });
+    expect(ubah.querySelector("svg")).not.toBeNull();
+    expect(hapus.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Aksi lain" })).toBeNull();
+    // In the header, beside the title, not with the step's buttons in the foot.
+    const header = screen.getByRole("heading", { name: "Promo Lebaran" }).closest("header, div") as HTMLElement;
+    expect(header.parentElement).toContainElement(ubah);
   });
 
   it("offers neither once the API closed the edit window: a draft, another status or a finalized invoice", async () => {
     open(scheduled({ edit: null }));
 
     await screen.findByText("Promo Lebaran");
-    expect(screen.queryByRole("button", { name: "Aksi lain" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ubah konten" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hapus konten" })).toBeNull();
   });
 
   it("offers neither to a creator, whatever the payload says", async () => {
     open(scheduled(), { role: "creator" });
 
     await screen.findByText("Promo Lebaran");
-    expect(screen.queryByRole("button", { name: "Aksi lain" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ubah konten" })).toBeNull();
   });
 
   it("offers neither on a payload from before 25.2, which has no edit window", async () => {
@@ -127,70 +126,7 @@ describe("Ubah and Hapus visibility (AC 1, 9)", () => {
     open(old);
 
     await screen.findByText("Promo Lebaran");
-    expect(screen.queryByRole("button", { name: "Aksi lain" })).toBeNull();
-  });
-
-  it("closes the menu on Escape without closing the panel", async () => {
-    open(scheduled());
-
-    const menu = await openMenu();
-    fireEvent.keyDown(menu, { key: "Escape" });
-
-    expect(screen.queryByRole("menu")).toBeNull();
-    expect(screen.getByText("Promo Lebaran")).toBeInTheDocument();
-  });
-
-  // In the app React listens on the document, beside the panel's own Escape listener, so the
-  // menu marks the key handled rather than relying on stopPropagation alone.
-  it("marks the Escape it used as handled, so the panel leaves it", async () => {
-    open(scheduled());
-
-    const menu = await openMenu();
-
-    expect(fireEvent.keyDown(menu, { key: "Escape" })).toBe(false);
-  });
-});
-
-describe("the Aksi lain menu", () => {
-  it("closes on a press outside it, and stays open on a press inside it", async () => {
-    open(scheduled());
-
-    const menu = await openMenu();
-    fireEvent.mouseDown(menu);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.mouseDown(screen.getByText("Promo Lebaran"));
-    expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("moves between Ubah and Hapus with the arrow keys, wrapping at either end", async () => {
-    open(scheduled());
-
-    const menu = await openMenu();
-    const [ubah, hapus] = within(menu).getAllByRole("menuitem");
-    expect(ubah).toHaveFocus();
-
-    fireEvent.keyDown(ubah, { key: "ArrowDown" });
-    expect(hapus).toHaveFocus();
-    fireEvent.keyDown(hapus, { key: "ArrowDown" });
-    expect(ubah).toHaveFocus();
-    fireEvent.keyDown(ubah, { key: "ArrowUp" });
-    expect(hapus).toHaveFocus();
-  });
-
-  it("ignores other keys, and every key while it is closed", async () => {
-    open(scheduled());
-
-    const toggle = await screen.findByRole("button", { name: "Aksi lain" });
-    fireEvent.keyDown(toggle, { key: "ArrowDown" });
-    expect(screen.queryByRole("menu")).toBeNull();
-
-    const menu = await openMenu();
-    fireEvent.keyDown(menu, { key: "a" });
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.click(toggle);
-    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hapus konten" })).toBeNull();
   });
 });
 
@@ -311,7 +247,7 @@ describe("saving an edit (AC 4, 5)", () => {
 
     const dialog = confirmDialog();
     expect(within(dialog).getByText("Simpan Perubahan Konten?")).toBeInTheDocument();
-    expect(within(dialog).getByText("Rangga langsung melihat perubahan ini di Task Saya.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Rangga langsung melihat perubahan ini di Tugas Saya.")).toBeInTheDocument();
     expect(within(dialog).getByText("20 Nov 2026 → 25 Nov 2026")).toBeInTheDocument();
     expect(update).not.toHaveBeenCalled();
   });
@@ -423,7 +359,7 @@ describe("saving an edit (AC 4, 5)", () => {
     ).toBeInTheDocument();
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole("form", { name: "Ubah konten" })).toBeNull();
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Aksi lain" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Ubah konten" })).toBeNull());
   });
 
   it("keeps the form open with the reason when the save fails for another reason", async () => {
@@ -447,8 +383,7 @@ describe("saving an edit (AC 4, 5)", () => {
 
 describe("deleting (AC 6, 7, 8)", () => {
   async function askDelete() {
-    const menu = await openMenu();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "Hapus" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hapus konten" }));
     return confirmDialog();
   }
 

@@ -19,6 +19,10 @@ function renderFilters() {
   return render(<PerformanceFilters creators={CREATORS} />);
 }
 
+function renderCreatorFilters() {
+  return render(<PerformanceFilters />);
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   mockReplace.mockClear();
@@ -35,6 +39,57 @@ describe("PerformanceFilters", () => {
 
     expect(screen.getByRole("button", { name: /^Creator:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Platform:/ })).toBeInTheDocument();
+  });
+
+  it("offers the Status Data multi-select, named as the table's column is", () => {
+    renderFilters();
+
+    expect(screen.getByRole("button", { name: /^Status Data:/ })).toBeInTheDocument();
+  });
+
+  it("lists every state by the badge's own words and picks one into the address", () => {
+    searchParams = new URLSearchParams({ page: "2" });
+    renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Status Data:/ }));
+    for (const label of [
+      "Tersinkron",
+      "Menunggu data",
+      "Akun belum terhubung",
+      "Link tidak ditemukan",
+      "Gagal sinkron",
+      "Diisi manual",
+    ]) {
+      expect(screen.getByRole("checkbox", { name: label })).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("checkbox", { name: "Tersinkron" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance?state=synced", {
+      scroll: false,
+    });
+  });
+
+  it("drops a state from its chip, and Reset clears it with the rest", () => {
+    searchParams = new URLSearchParams({ state: "synced,manual" });
+    const first = renderFilters();
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Status Data: Tersinkron" }));
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance?state=manual", {
+      scroll: false,
+    });
+    first.unmount();
+
+    searchParams = new URLSearchParams({ state: "synced" });
+    renderFilters();
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance", { scroll: false });
+  });
+
+  it("leaves the Creator filter out where no creators are given, as a creator reads only their own", () => {
+    renderCreatorFilters();
+
+    expect(screen.queryByRole("button", { name: /^Creator:/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Platform:/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Status Data:/ })).toBeInTheDocument();
   });
 
   it("picks a platform into the address, dropping the old page", () => {

@@ -374,15 +374,15 @@ describe("AddCreatorModal", () => {
     });
 
     it.each([
-      ["-1000", "Fixed rate harus berupa angka bulat"],
-      ["1.5", "Fixed rate harus berupa angka bulat"],
-      ["Rp 7a5", "Fixed rate harus berupa angka bulat"],
-      ["0", "Fixed rate harus lebih dari 0"],
-      ["20000000", "Fixed rate maksimal Rp10.000.000"],
-      ["12345678901", "Fixed rate maksimal Rp10.000.000"],
+      ["-1000", "-1000", "Fixed rate harus berupa angka bulat"],
+      ["1,5", "1,5", "Fixed rate harus berupa angka bulat"],
+      ["Rp 7a5", "Rp 7a5", "Fixed rate harus berupa angka bulat"],
+      ["0", "0", "Fixed rate harus lebih dari 0"],
+      ["20000000", "20.000.000", "Fixed rate maksimal Rp10.000.000"],
+      ["12345678901", "12.345.678.901", "Fixed rate maksimal Rp10.000.000"],
     ])(
-      "keeps %j as typed and says what is wrong with it, rather than changing it",
-      (typed, message) => {
+      "shows %j as %j and says what is wrong with it, grouping digits but never changing them",
+      (typed, shown, message) => {
         render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
         fillValidForm();
@@ -390,11 +390,24 @@ describe("AddCreatorModal", () => {
         fireEvent.change(fixedRate, { target: { value: typed } });
         fireEvent.blur(fixedRate);
 
-        expect(fixedRate).toHaveValue(typed);
+        expect(fixedRate).toHaveValue(shown);
         expect(screen.getByText(message)).toBeInTheDocument();
         expect(simpanButton()).toBeDisabled();
       },
     );
+
+    it("groups the fixed rate by thousands as it is typed, and saves the number it means", () => {
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
+
+      fillValidForm();
+      const fixedRate = screen.getByLabelText(/fixed rate/i);
+      fireEvent.change(fixedRate, { target: { value: "1500000" } });
+      fireEvent.click(simpanButton());
+
+      expect(fixedRate).toHaveValue("1.500.000");
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fixedRate: 1_500_000 }));
+    });
 
     it("saves the highest fixed rate the server takes", () => {
       const onSubmit = vi.fn();

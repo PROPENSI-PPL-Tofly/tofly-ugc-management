@@ -54,12 +54,18 @@ describe("parsePerformanceLinksParams", () => {
         page: "2",
         creator: `${CREATOR_A},${CREATOR_B}`,
         platform: "instagram,tiktok",
+        state: "synced,manual",
       }),
     ).toEqual({
       page: 2,
       creator: [CREATOR_A, CREATOR_B],
       platform: ["instagram", "tiktok"],
+      dataState: ["synced", "manual"],
     });
+  });
+
+  it("keeps only the data states the list knows", () => {
+    expect(parsePerformanceLinksParams({ state: "done,waiting" }).dataState).toEqual(["waiting"]);
   });
 
   it("keeps only the platforms the app lists, and falls back to the first page", () => {
@@ -67,6 +73,7 @@ describe("parsePerformanceLinksParams", () => {
       page: 1,
       creator: [],
       platform: ["instagram"],
+      dataState: [],
     });
   });
 
@@ -90,16 +97,18 @@ describe("buildPerformanceLinksQuery", () => {
     const state = parsePerformanceLinksParams({
       creator: `${CREATOR_A},${CREATOR_B}`,
       platform: "instagram,tiktok",
+      state: "synced,manual",
       page: "3",
     });
 
     expect(buildPerformanceLinksQuery(state)).toEqual({
       creator: `${CREATOR_A},${CREATOR_B}`,
       platform: "instagram,tiktok",
+      state: "synced,manual",
       page: "3",
     });
     expect(performanceLinksHref(state)).toBe(
-      `${PERFORMANCE_LINKS_BASE}?creator=${CREATOR_A}%2C${CREATOR_B}&platform=instagram%2Ctiktok&page=3`,
+      `${PERFORMANCE_LINKS_BASE}?creator=${CREATOR_A}%2C${CREATOR_B}&platform=instagram%2Ctiktok&state=synced%2Cmanual&page=3`,
     );
   });
 
@@ -120,12 +129,14 @@ describe("toPerformanceLinksQuery", () => {
       parsePerformanceLinksParams({
         creator: `${CREATOR_A},${CREATOR_B}`,
         platform: "instagram,tiktok",
+        state: "synced,manual",
         page: "2",
       }),
     );
 
     expect(query.getAll("creator")).toEqual([CREATOR_A, CREATOR_B]);
     expect(query.getAll("platform")).toEqual(["instagram", "tiktok"]);
+    expect(query.getAll("state")).toEqual(["synced", "manual"]);
     expect(query.get("page")).toBe("2");
   });
 

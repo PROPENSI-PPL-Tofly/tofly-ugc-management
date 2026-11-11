@@ -76,7 +76,7 @@ describe("Content Plan page", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Content Plan" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Semua" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Semua/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("count-action")).toHaveTextContent("3");
     expect(screen.getByTestId("count-waiting")).toHaveTextContent("12");
   });
@@ -144,7 +144,7 @@ describe("Content Plan page", () => {
     await renderPage();
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Semua" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^Semua/ })).toBeInTheDocument();
     expect(screen.getByText("Evg_1_Salsa_15Sep2026")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveTextContent(
       "Creator: Semua",

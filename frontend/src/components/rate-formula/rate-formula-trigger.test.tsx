@@ -49,7 +49,7 @@ describe("RateFormulaTrigger", () => {
 
     expect(fetchRateFormula).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("dialog", { name: "Atur Formula Rate" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("100000");
+    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("100.000");
   });
 
   it("opens a blank form when no formula has been saved yet", async () => {

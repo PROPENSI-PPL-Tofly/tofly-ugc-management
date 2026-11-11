@@ -37,6 +37,18 @@ describe("addFollowUp", () => {
     );
   });
 
+  it("names the screenshots the follow-up goes out with, when it has any", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify(SAVED), { status: 201 }),
+    );
+
+    await addFollowUp(SUBMISSION, "<p>Lihat</p>", ["img-1", "img-2"]);
+
+    expect(vi.mocked(globalThis.fetch).mock.calls[0][1]?.body).toBe(
+      JSON.stringify({ note: "<p>Lihat</p>", imageIds: ["img-1", "img-2"] }),
+    );
+  });
+
   it("encodes a crafted id so it cannot climb out of the submissions path (OWASP A01)", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify(SAVED), { status: 201 }),

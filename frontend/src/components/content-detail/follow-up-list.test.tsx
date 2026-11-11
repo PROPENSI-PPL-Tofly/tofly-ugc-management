@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { FollowUp } from "@/lib/content-detail";
 import { formatTimestamp } from "@/lib/format";
 import { FollowUpList } from "./follow-up-list";
@@ -58,5 +58,40 @@ describe("FollowUpList", () => {
     );
 
     expect(screen.getByText("Ralat").tagName).toBe("STRONG");
+  });
+
+  describe("screenshots", () => {
+    const IMAGE = { id: "image-1", url: "/api/revision-note-images/image-1", contentType: "image/png" };
+    const OTHER = { id: "image-2", url: "/api/revision-note-images/image-2", contentType: "image/png" };
+
+    it("draws a screenshot where the admin placed it, and the rest under the note", () => {
+      render(
+        <FollowUpList
+          followUps={[
+            {
+              ...FIRST,
+              noteHtml: '<p>Lihat</p><img data-image-id="image-1">',
+              images: [IMAGE, OTHER],
+            },
+          ]}
+        />,
+      );
+
+      const item = screen.getAllByRole("listitem")[0];
+      expect(within(item).getAllByRole("button", { name: /^Buka gambar/ })).toHaveLength(2);
+      expect(item.querySelector('img[src="/api/revision-note-images/image-1"]')).not.toBeNull();
+    });
+
+    it("opens a follow-up's image in the overlay, counted among that follow-up's own", () => {
+      render(
+        <FollowUpList
+          followUps={[{ ...FIRST, noteHtml: "<p>Lihat</p>", images: [IMAGE, OTHER] }]}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Buka gambar 2" }));
+
+      expect(screen.getByRole("dialog", { name: "Gambar 2 dari 2" })).toBeInTheDocument();
+    });
   });
 });

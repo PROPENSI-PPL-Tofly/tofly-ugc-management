@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { pickFilter } from "@/test/filters";
 import {
   DEFAULT_MY_TASKS_PARAMS,
   MY_TASKS_EMPTY,
@@ -70,18 +71,18 @@ async function renderPage(searchParams: Record<string, string> = {}) {
   return render(<>{page}</>);
 }
 
-describe("Task Saya page", () => {
+describe("Tugas Saya page", () => {
   beforeEach(() => {
     mockedFetch.mockReset();
     window.history.pushState({}, "", "/creator/tasks");
   });
 
-  it("opens in the creator frame under the Task Saya title", async () => {
+  it("opens in the creator frame under the Tugas Saya title", async () => {
     mockedFetch.mockResolvedValue(answer());
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Task Saya" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Tugas Saya" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
@@ -110,12 +111,12 @@ describe("Task Saya page", () => {
     await renderPage({ tab: "waiting" });
 
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Semua",
+      "Semua11",
       "Perlu Dikerjakan6",
       "Menunggu Admin2",
-      "Selesai",
+      "Selesai3",
     ]);
-    expect(screen.getByRole("tab", { name: "Menunggu Admin2" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Menunggu\ Admin2/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("lists the tasks with their actions and pages through them ten at a time, keeping the view", async () => {
@@ -141,13 +142,13 @@ describe("Task Saya page", () => {
     expect(screen.getByRole("columnheader", { name: /Deadline/ })).toHaveAttribute("aria-sort", "ascending");
   });
 
-  it("opens the Submit Draft modal from a task's button", async () => {
+  it("has no Submit Draft button on a task's row, since the draft is handed in from its Detail Konten", async () => {
     mockedFetch.mockResolvedValue(answer());
 
     await renderPage();
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
 
-    expect(screen.getByRole("dialog", { name: "Submit Draft" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Submit Draft/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("falls back to the first page, and says so, for a page that is not a number", async () => {
@@ -266,7 +267,7 @@ describe("Task Saya page", () => {
   });
 });
 
-describe("Task Saya page views", () => {
+describe("Tugas Saya page views", () => {
   const mockedFetchAll = vi.mocked(fetchAllMyTasks);
 
   beforeEach(() => {
@@ -376,7 +377,7 @@ describe("Task Saya page views", () => {
   it("keeps the tabs and their counters above the calendar", async () => {
     await renderPage({ view: "calendar", tab: "waiting" });
 
-    const tabs = screen.getByRole("tablist", { name: "Tab Task Saya" });
+    const tabs = screen.getByRole("tablist", { name: "Tab Tugas Saya" });
     expect(within(tabs).getByRole("tab", { name: /Menunggu Admin/ })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -415,9 +416,7 @@ describe("Task Saya page views", () => {
   it("stays on the calendar when a filter is changed there", async () => {
     await renderAt({ view: "calendar" });
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Overdue" }), {
-      target: { value: "yes" },
-    });
+    pickFilter("Overdue", "Overdue");
 
     expect(replace).toHaveBeenCalledExactlyOnceWith(
       "/creator/tasks?view=calendar&overdue=yes",
@@ -500,7 +499,7 @@ describe("Task Saya page views", () => {
 
 // The page's title already names its one list, so the list has no title band of its own; the
 // list/calendar switch sits beside the page title instead.
-describe("Task Saya's list head", () => {
+describe("Tugas Saya's list head", () => {
   beforeEach(() => {
     mockedFetch.mockReset();
     window.history.pushState({}, "", "/creator/tasks");
@@ -520,7 +519,7 @@ describe("Task Saya's list head", () => {
 
     await renderPage();
 
-    const header = screen.getByRole("heading", { level: 1, name: "Task Saya" }).parentElement as HTMLElement;
+    const header = screen.getByRole("heading", { level: 1, name: "Tugas Saya" }).parentElement as HTMLElement;
     expect(within(header).getByRole("group", { name: "Tampilan tugas" })).toBeInTheDocument();
   });
 });

@@ -15,6 +15,7 @@ vi.mock("@/lib/performance-links.server", () => ({ fetchMyPerformanceLinks: vi.f
 vi.mock("next/navigation", () => ({
   usePathname: () => "/creator/performance",
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/link", async (importOriginal) => {
@@ -89,7 +90,7 @@ describe("Creator Performa page", () => {
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Performa" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Performa Konten" })).toBeInTheDocument();
     // No subtitle under the page title.
     expect(screen.queryByText("Data performa konten kamu")).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
@@ -138,47 +139,17 @@ describe("Creator Performa page", () => {
   });
 });
 
-// PBI-28 AC 13: under the creator's own links, as the prototype puts it under Performa Konten.
+// The note that the numbers lock at Finalize is gone from the page: it is not said anywhere.
 describe("the lock reminder", () => {
-  const REMINDER =
-    "Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.";
-
-  beforeEach(() => {
+  it("is not on the page", async () => {
     mockedFetch.mockReset();
     mockedLinks.mockReset();
-    mockedLinks.mockResolvedValue(EMPTY_LINKS);
-  });
-
-  it("tells the creator, with their links, that the numbers lock at Finalize", async () => {
     mockedFetch.mockResolvedValue(ACCOUNTS);
+    mockedLinks.mockResolvedValue(EMPTY_LINKS);
 
     await renderPage();
 
-    const links = screen.getByRole("region", { name: "Link yang dikirim" });
-    expect(within(links).getByRole("note")).toHaveTextContent(REMINDER);
-  });
-
-  // The reminder does not depend on the accounts, so their failure does not take it away.
-  it.each([
-    ["the accounts could not be loaded", () => mockedFetch.mockRejectedValue(new ConnectedAccountsError(500))],
-    ["the link list could not be loaded", () => {
-      mockedFetch.mockResolvedValue(ACCOUNTS);
-      mockedLinks.mockRejectedValue(new PerformanceLinksError(500));
-    }],
-  ])("still reminds the creator when %s", async (_, fail) => {
-    fail();
-
-    await renderPage();
-
-    expect(screen.getByRole("note")).toHaveTextContent(REMINDER);
-  });
-
-  it("says nothing of it to a creator whose session ended", async () => {
-    mockedFetch.mockRejectedValue(new ConnectedAccountsError(401));
-
-    await renderPage();
-
-    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    expect(screen.queryByText(/dikunci saat invoice difinalisasi/)).toBeNull();
   });
 });
 
@@ -202,7 +173,7 @@ describe("the creator's link list (PBI-27, 27.6)", () => {
     expect(within(table).queryByRole("button", { name: /Sinkronkan/ })).not.toBeInTheDocument();
   });
 
-  it("opens a link's content in Task Saya's Detail Konten from its name", async () => {
+  it("opens a link's content in Tugas Saya's Detail Konten from its name", async () => {
     mockedFetch.mockResolvedValue(ACCOUNTS);
     mockedLinks.mockResolvedValue(answered());
 
@@ -213,15 +184,53 @@ describe("the creator's link list (PBI-27, 27.6)", () => {
     expect(name).not.toHaveClass("underline");
   });
 
-  it("frames the list in a panel with no title band, as the admin's list is", async () => {
+  // The page holds two things, the accounts and the links, so the links say which they are.
+  it("titles the links Performa Konten above their panel, with no title band in it", async () => {
     mockedFetch.mockResolvedValue(ACCOUNTS);
     mockedLinks.mockResolvedValue(answered());
 
     await renderPage();
 
-    const links = screen.getByRole("region", { name: "Link yang dikirim" });
-    expect(within(links).queryByRole("heading", { level: 2 })).toBeNull();
+    const links = screen.getByRole("region", { name: "Performa Konten" });
+    const title = within(links).getByRole("heading", { level: 2, name: "Performa Konten" });
     expect(links.querySelector("[data-tone]")).toBeNull();
+    // Above the panel the table sits in, so it names the whole section.
+    expect(title.compareDocumentPosition(within(links).getByRole("table"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("filters the links by platform and Status Data, with no Creator filter of its own", async () => {
+    mockedFetch.mockResolvedValue(ACCOUNTS);
+    mockedLinks.mockResolvedValue(answered());
+
+    await renderPage();
+
+    const links = screen.getByRole("region", { name: "Performa Konten" });
+    expect(within(links).getByRole("button", { name: /^Status Data:/ })).toBeInTheDocument();
+    expect(within(links).getByRole("button", { name: /^Platform:/ })).toBeInTheDocument();
+    expect(within(links).queryByRole("button", { name: /^Creator:/ })).toBeNull();
+  });
+
+  it("asks for the page, the platforms and the states the address names", async () => {
+    mockedFetch.mockResolvedValue(ACCOUNTS);
+    mockedLinks.mockResolvedValue(answered());
+
+    await renderPage({ state: "synced,manual", platform: "tiktok", page: "2" });
+
+    expect(mockedLinks).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2, platform: ["tiktok"], dataState: ["synced", "manual"] }),
+    );
+  });
+
+  it("says no link matches when a filter empties the list, rather than that nothing was sent", async () => {
+    mockedFetch.mockResolvedValue(ACCOUNTS);
+    mockedLinks.mockResolvedValue(EMPTY_LINKS);
+
+    await renderPage({ state: "manual" });
+
+    expect(screen.getByText("Tidak ada link yang cocok dengan filter")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada konten yang dikirim")).toBeNull();
   });
 
   it("shows ten rows a page with a pagination", async () => {

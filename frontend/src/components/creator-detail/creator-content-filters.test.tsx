@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { filterPill, pickFilter } from "@/test/filters";
 import type { ComponentType } from "react";
 import { CreatorContentFilters } from "./creator-content-filters";
 
@@ -36,8 +37,8 @@ describe("CreatorContentFilters", () => {
     expect(screen.getByRole("button", { name: /^Tipe:/ })).toHaveTextContent("Semua");
     expect(screen.getByRole("button", { name: /^Status:/ })).toHaveTextContent("Semua");
     expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Periode")).toBeNull();
+    expect(filterPill("Overdue")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Periode:/ })).toBeNull();
   });
 
   it("offers both content types", () => {
@@ -180,7 +181,7 @@ describe("CreatorContentFilters", () => {
     expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?tab=action`, { scroll: false });
   });
 
-  it("resets the filters and keeps the Creator Database view to return to", () => {
+  it("resets the filters and keeps the Kreator view to return to", () => {
     renderOn({ contract: CONTRACT, type: "specific", return: "q=nadia&page=2" });
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
@@ -229,9 +230,9 @@ describe("CreatorContentFilters", () => {
     renderOn({ contract: CONTRACT, page: "3" });
 
     expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
+    expect(filterPill("Overdue")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "yes" } });
+    pickFilter("Overdue", "Overdue");
 
     expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?contract=${CONTRACT}&overdue=yes`, {
       scroll: false,
@@ -244,12 +245,20 @@ describe("CreatorContentFilters", () => {
     render(<FiltersForTab tab="done" />);
 
     expect(screen.getByRole("searchbox", { name: "Cari judul konten" })).toHaveValue("kopi");
-    expect(screen.queryByLabelText("Overdue")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Overdue:/ })).toBeNull();
+  });
+
+  it("shows Overdue in use as a chip that clears it, keeping the contract", () => {
+    renderOn({ contract: CONTRACT, overdue: "yes" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Overdue: Overdue" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith(`${PAGE}?contract=${CONTRACT}`, { scroll: false });
   });
 
   it("draws Overdue as the same pill as Tipe and Status", () => {
     renderOn();
 
-    expect(screen.getByLabelText("Overdue").closest("label")).toHaveClass("rounded-full");
+    expect(filterPill("Overdue")).toHaveClass("rounded-full");
   });
 });

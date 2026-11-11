@@ -381,7 +381,7 @@ describe("useBreakdownPopups", () => {
 });
 
 describe("useBreakdownPopups without a loader", () => {
-  it("asks the Rate & Invoicing server action by default", async () => {
+  it("asks the Pembayaran server action by default", async () => {
     const { loadInvoiceBreakdown } = await import("@/lib/invoice-breakdown.server");
     vi.mocked(loadInvoiceBreakdown).mockResolvedValue(RANGGA);
 

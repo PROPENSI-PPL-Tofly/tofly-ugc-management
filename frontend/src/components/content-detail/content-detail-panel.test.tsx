@@ -174,6 +174,19 @@ describe("ContentDetailPanel", () => {
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   });
 
+  // The form's own buttons take the panel's foot, so the foot is never an empty bar and Kirim
+  // Revisi stays in view however long the note grows.
+  it("puts Batal and Kirim Revisi in the panel's foot while the note is open", async () => {
+    open(detail());
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+
+    const foot = screen.getByRole("dialog").querySelector("[data-modal-footer]") as HTMLElement;
+    expect(within(foot).getByRole("button", { name: "Kirim Revisi" })).toBeInTheDocument();
+    expect(within(foot).getByRole("button", { name: "Batal" })).toBeInTheDocument();
+    expect(within(foot).queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
   it("keeps Kirim disabled while the note is empty or only spaces, and opens it after real text", async () => {
     open(detail());
 
@@ -1410,6 +1423,16 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(items[3]).toHaveTextContent("Dewi Lestari · Admin");
     });
 
+    // The revision's time sits in its grey note box, beside who wrote it, not on the title line.
+    it("puts a revision request's time inside its note box, not beside its title", async () => {
+      show({ events: FULL });
+
+      const revision = (await journeyItems())[3];
+      const time = within(revision).getByText("21 Sep 2026, 10.00 WIB");
+      expect(time.closest("blockquote")).not.toBeNull();
+      expect(revision.querySelector("[data-step-title]")?.parentElement).not.toContainElement(time);
+    });
+
     it("shows an event the API dates by day alone without a time", async () => {
       show({
         status: "link_submitted",
@@ -1917,10 +1940,11 @@ describe("ContentDetailPanel follow-up notes", () => {
     );
   });
 
-  it("words the follow-up step in the timeline with the round's amber dot (AC 6)", async () => {
+  // The follow-up reads under the revision note it adds to, so it takes no step of its own.
+  it("gives a follow-up no step of its own in the timeline", async () => {
     open(round());
 
-    const step = (await screen.findByText("Catatan susulan ditambahkan")).closest("li") as HTMLElement;
-    expect(step.querySelector("[data-timeline-dot]")?.className).toContain("bg-amber ring-amber");
+    await screen.findByLabelText("Riwayat konten");
+    expect(screen.queryByText("Catatan susulan ditambahkan")).toBeNull();
   });
 });
