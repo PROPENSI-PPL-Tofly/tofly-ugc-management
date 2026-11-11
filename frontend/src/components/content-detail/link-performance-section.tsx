@@ -256,7 +256,7 @@ function LinkCard({
               <Button
                 type="button"
                 variant="ghost"
-                className="px-1.5"
+                className="px-1.5 max-sm:min-w-11"
                 aria-label={syncName}
                 title={syncName}
                 onClick={onSync}
