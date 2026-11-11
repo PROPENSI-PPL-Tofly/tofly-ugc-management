@@ -101,11 +101,18 @@ async function runSync(
     const partial = Array.isArray(body?.notUpdated) && body.notUpdated.length > 0;
     return { ok: true, toast: partial ? toasts.notUpdated : toasts.updated };
   }
+  const body = await bodyOf(response);
   if (response.status === 409) {
+    // A finalized invoice freezes the content's numbers; any other 409 is a sync already running.
+    if (body?.code === "SYNC_NOT_ALLOWED") {
+      return { ok: false, message: "Invoice sudah difinalisasi, jadi angka konten ini tidak disinkronkan lagi." };
+    }
     return { ok: false, message: "Konten ini sedang disinkronkan. Tunggu sebentar." };
   }
-  // Until 27.4 lands the route is not there, which says nothing about the content itself.
-  if (response.status === 404) return { ok: false, message: "Sinkronisasi otomatis belum tersedia." };
+  // A coded 404 is the API naming what is missing; one without a code is no route at all.
+  if (response.status === 404 && typeof body?.code === "string" && typeof body.message === "string") {
+    return { ok: false, message: body.message };
+  }
   return { ok: false, message: SYNC_FAILED };
 }
 
