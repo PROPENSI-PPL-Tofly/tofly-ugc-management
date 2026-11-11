@@ -41,14 +41,24 @@ describe('POST /performance/links/sync (the page\'s "Sinkronkan Sekarang", SCRUM
   });
 
   it("syncs the page's links and answers how many were updated with 200", async () => {
-    sync.syncLinks.mockResolvedValue({ updated: 1, notUpdated: 0, busy: 1 });
+    sync.syncLinks.mockResolvedValue({
+      updated: 1,
+      notUpdated: 0,
+      busy: 1,
+      locked: 2,
+    });
 
     const response = await request(app.getHttpServer())
       .post('/performance/links/sync')
       .send({ linkIds: [LINK_A, LINK_B] });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ updated: 1, notUpdated: 0, busy: 1 });
+    expect(response.body).toEqual({
+      updated: 1,
+      notUpdated: 0,
+      busy: 1,
+      locked: 2,
+    });
     expect(sync.syncLinks).toHaveBeenCalledWith([LINK_A, LINK_B]);
   });
 

@@ -830,6 +830,7 @@ describe('PerformanceSyncService', () => {
         updated: 3,
         notUpdated: 0,
         busy: 0,
+        locked: 0,
       });
       expect(s.findMany.mock.calls[0][0].where.id).toEqual({
         in: ['a-tt-1', 'a-tt-2', 'b-ig-1'],
@@ -858,15 +859,16 @@ describe('PerformanceSyncService', () => {
         updated: 1,
         notUpdated: 0,
         busy: 1,
+        locked: 0,
       });
       expect(tiktok.read.mock.calls[0][1]).toEqual([
         expect.objectContaining({ id: 'a-tt-1' }),
       ]);
     });
 
-    it('counts as not updated a link the platform could not read, and one that is no longer synced (AC 4, 5)', async () => {
-      // b-tt-9 is on the page but its content left "Link Dikirim" or its invoice froze, so the
-      // read leaves it out; it is reported, never synced.
+    it('counts a link the platform could not read as not updated, and one whose numbers are locked apart (AC 4, 5)', async () => {
+      // b-tt-9 is on the page but its invoice is finalized, so the read leaves it out: its
+      // numbers are locked, which is no failure, so it is counted apart and never synced.
       const s = stub([row('a-tt-1', 'c1'), row('a-ig-1', 'c1', 'instagram')]);
       const instagram = source('instagram', async (_, links) => ({
         outcome: 'read',
@@ -884,8 +886,9 @@ describe('PerformanceSyncService', () => {
 
       expect(await service.syncLinks(['a-tt-1', 'a-ig-1', 'b-tt-9'])).toEqual({
         updated: 1,
-        notUpdated: 2,
+        notUpdated: 1,
         busy: 0,
+        locked: 1,
       });
     });
   });

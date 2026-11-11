@@ -183,7 +183,7 @@ describe("syncPagePerformance (the page's Sinkronkan Sekarang on Performa Konten
   const LINKS = ["33333333-3333-4333-8333-333333333333", "55555555-5555-4555-8555-555555555555"];
 
   it("posts the page's link ids and says every one was updated", async () => {
-    const fetchSpy = respond(answer(200, { updated: 2, notUpdated: 0, busy: 0 }));
+    const fetchSpy = respond(answer(200, { updated: 2, notUpdated: 0, busy: 0, locked: 0 }));
 
     await expect(syncPagePerformance(LINKS)).resolves.toEqual({
       ok: true,
@@ -197,7 +197,7 @@ describe("syncPagePerformance (the page's Sinkronkan Sekarang on Performa Konten
   });
 
   it("says how many of the page's links were updated when some were not", async () => {
-    respond(answer(200, { updated: 1, notUpdated: 1, busy: 0 }));
+    respond(answer(200, { updated: 1, notUpdated: 1, busy: 0, locked: 0 }));
 
     await expect(syncPagePerformance(LINKS)).resolves.toEqual({
       ok: true,
@@ -206,11 +206,29 @@ describe("syncPagePerformance (the page's Sinkronkan Sekarang on Performa Konten
   });
 
   it("says how many links another sync is still holding (AC 13)", async () => {
-    respond(answer(200, { updated: 1, notUpdated: 0, busy: 1 }));
+    respond(answer(200, { updated: 1, notUpdated: 0, busy: 1, locked: 0 }));
 
     await expect(syncPagePerformance(LINKS)).resolves.toEqual({
       ok: true,
       toast: "1 dari 2 link diperbarui, 1 masih disinkronkan",
+    });
+  });
+
+  it("names links whose numbers are locked apart, as no failure (PBI-28 AC 13)", async () => {
+    respond(answer(200, { updated: 8, notUpdated: 0, busy: 0, locked: 2 }));
+
+    await expect(syncPagePerformance(LINKS)).resolves.toEqual({
+      ok: true,
+      toast: "Data performa 8 link diperbarui, 2 sudah terkunci",
+    });
+  });
+
+  it("says so when every link on the page is locked", async () => {
+    respond(answer(200, { updated: 0, notUpdated: 0, busy: 0, locked: 3 }));
+
+    await expect(syncPagePerformance(LINKS)).resolves.toEqual({
+      ok: true,
+      toast: "Semua link di halaman ini sudah terkunci",
     });
   });
 

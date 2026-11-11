@@ -256,7 +256,7 @@ describe('performance sync (e2e)', () => {
   });
 
   describe('POST /performance/links/sync (the page\'s "Sinkronkan Sekarang", SCRUM-285)', () => {
-    it('syncs only the links asked for, and counts one no longer synced as not updated (AC 4)', async () => {
+    it('syncs only the links asked for, and counts one that is no longer synced as locked (AC 4)', async () => {
       const shown = await content(ada);
       const elsewhere = await content(ada);
       const notDelivered = await content(budi, 'draft_review');
@@ -264,11 +264,19 @@ describe('performance sync (e2e)', () => {
       const response = await as(app, admin)
         .post('/performance/links/sync')
         .send({
-          linkIds: [shown.content_links[0].id, notDelivered.content_links[0].id],
+          linkIds: [
+            shown.content_links[0].id,
+            notDelivered.content_links[0].id,
+          ],
         });
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ updated: 1, notUpdated: 1, busy: 0 });
+      expect(response.body).toEqual({
+        updated: 1,
+        notUpdated: 0,
+        busy: 0,
+        locked: 1,
+      });
       expect(await linkOf(shown.id)).toMatchObject({
         ...METRICS,
         data_state: 'synced',
