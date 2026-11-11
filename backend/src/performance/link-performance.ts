@@ -36,10 +36,12 @@ export interface LinkPerformance extends LinkMetrics {
 }
 
 /**
- * States in which the platform cannot give the numbers, so an admin may type them (AC 14). A
- * link already filled by hand stays open, so a typo can be corrected.
+ * States in which the platform has not given the numbers, so an admin may type them (AC 14): a
+ * link still waiting for its first sync included, rather than wait for the next run. A link
+ * already filled by hand stays open, so a typo can be corrected; only a synced one is closed.
  */
 const MANUAL_STATES: ReadonlySet<LinkDataState> = new Set([
+  'waiting',
   'not_connected',
   'not_found',
   'sync_failed',

@@ -7,6 +7,7 @@ import {
   toPerformanceLinkItem,
   type PerformanceLinkItem,
   type PerformanceLinkRow,
+  stateFilter,
   type PerformanceLinksFilters,
 } from './performance-links.js';
 
@@ -52,6 +53,8 @@ export class PerformanceLinksService {
       ...(filters.creators && {
         contents: { contracts: { creator_id: { in: filters.creators } } },
       }),
+      // Its own key apart from the creator's `contents`, which a state's account check also uses.
+      ...(filters.states && { AND: [stateFilter(filters.states)] }),
     };
     const [total, rows] = await Promise.all([
       this.prisma.content_links.count({ where }),

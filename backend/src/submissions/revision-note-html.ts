@@ -1,15 +1,20 @@
 import sanitizeHtml from 'sanitize-html';
+import { isUuid } from '../uuid.js';
 
 // The revision note as rich text (PBI-34, AC 7): what arrives from the admin's editor is
 // sanitized here, on the server, before anything is stored — the allowlist is the whole
 // language the note may speak, so a script or an unknown tag can never reach the creator's
 // browser however the request was made.
 
-/** Everything the toolbar of the revision editor can make (AC 1), and nothing else. */
-const ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a'];
+/**
+ * Everything the toolbar of the revision editor can make (AC 1), and nothing else. An image is a
+ * screenshot placed in the text: it names a stored image by id (below) and has no address.
+ */
+const ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'img'];
 
 const ALLOWED_ATTRIBUTES: { [index: string]: string[] } = {
   a: ['href', 'rel'],
+  img: ['data-image-id'],
 };
 
 /** A link may leave the site, but only over http or https. */
@@ -24,6 +29,9 @@ export function sanitizeRevisionNote(input: string): string {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRIBUTES,
     allowedSchemes: ALLOWED_SCHEMES,
+    // An image without a valid id points at nothing the app serves, so it goes (OWASP A05).
+    exclusiveFilter: (frame) =>
+      frame.tag === 'img' && !isUuid(frame.attribs['data-image-id']),
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', {
         rel: 'noopener noreferrer nofollow',

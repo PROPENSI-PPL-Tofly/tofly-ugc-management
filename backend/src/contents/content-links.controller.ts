@@ -6,31 +6,13 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import type { AdminRequest } from '../auth/admin.guard.js';
-import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
 import { CurrentCreator } from '../auth/current-creator.decorator.js';
-import type { CreatorRequest } from '../auth/creator-request.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
-import {
-  AdminLinkActor,
-  CreatorLinkActor,
-  type ContentLinksResult,
-  type LinkActor,
-} from './link-change.js';
+import { CreatorLinkActor, type ContentLinksResult } from './link-change.js';
 import { LinkChangeService, type LinkChanger } from './link-change.service.js';
 import { checkLinkReplacement, checkLinkSubmission } from './link-request.js';
-
-/** Who the guard let in: a creator's request carries their creator id, an admin's only a principal. */
-function actorOf(
-  request: Pick<CreatorRequest, 'creatorId'> & Pick<AdminRequest, 'principal'>,
-): LinkActor {
-  return request.creatorId
-    ? new CreatorLinkActor(request.creatorId)
-    : new AdminLinkActor(request.principal?.userId ?? null);
-}
 
 /** A content's video links, one per platform (PBI-38 38.2). */
 @Controller('contents')
@@ -58,18 +40,21 @@ export class ContentLinksController {
     );
   }
 
-  /** The creator or an admin puts another link in place of one platform's link (AC 9). */
+  /**
+   * The creator puts another link in place of one platform's link (AC 9). Only the creator adds
+   * or changes their links; an admin reads them and fills the numbers in, never the link.
+   */
   @Put(':id/links/:platform')
-  @UseGuards(CreatorOrAdminGuard)
+  @UseGuards(DevCreatorGuard)
   replace(
     @Param('id', new ParseUUIDPipe()) contentId: string,
     @Param('platform') platform: string,
+    @CurrentCreator() creatorId: string,
     @Body() body: unknown,
-    @Req() request: CreatorRequest & AdminRequest,
   ): Promise<ContentLinksResult> {
     return this.links.replace(
       contentId,
-      actorOf(request),
+      new CreatorLinkActor(creatorId),
       checkLinkReplacement(platform, body),
     );
   }
