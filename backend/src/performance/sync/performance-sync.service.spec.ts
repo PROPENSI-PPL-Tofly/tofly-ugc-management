@@ -746,6 +746,29 @@ describe('PerformanceSyncService', () => {
       );
     });
 
+    // SCRUM-282: a link card's Refresh reads only its own link, under the same claim on the
+    // content, so it and "Sinkronkan Sekarang" never sync that content at the same time.
+    it("syncs only one platform's link when a single link card asks for it", async () => {
+      const s = stub([row('a-ig-1', 'c1', 'instagram')]);
+      const service = new PerformanceSyncService(
+        s.client,
+        [syncing('tiktok'), syncing('instagram')],
+        log(),
+        clock(),
+      );
+
+      expect(await service.syncContent('c1', 'instagram')).toEqual({
+        notUpdated: [],
+      });
+      const { where } = s.findMany.mock.calls[0][0];
+      expect(where.platform).toBe('instagram');
+      expect(where.contents.id).toBe('c1');
+      const [query] = s.queryRaw.mock.calls[0] as [Prisma.Sql];
+      expect(query.values[0]).toEqual(
+        new Date(STARTED.getTime() + LEASE_MS.content),
+      );
+    });
+
     it('answers 409 while that content is already syncing, reading and writing nothing (AC 13)', async () => {
       const s = stub([row('a-tt-1', 'c1')], { leasedElsewhere: ['c1'] });
       const tiktok = syncing('tiktok');
