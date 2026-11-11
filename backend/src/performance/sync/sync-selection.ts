@@ -13,7 +13,8 @@ import type { PerformanceMetrics, SourceLink } from '../ports.js';
 /** Every link, one content's ("Sinkronkan", AC 12) or one contract's (the last sync before Finalize). */
 export type SyncScope =
   | { kind: 'all' }
-  | { kind: 'content'; contentId: string }
+  // platform: the Refresh button on one link card syncs only that link (SCRUM-282).
+  | { kind: 'content'; contentId: string; platform?: social_platform }
   | { kind: 'contract'; contractId: string };
 
 /** The columns a sync reads per link. No token: the sources open their own accounts. */
@@ -49,8 +50,9 @@ const RUNNING_INVOICE = {
 export function syncableLinks(
   scope: SyncScope,
 ): Prisma.content_linksWhereInput {
+  const onePlatform = scope.kind === 'content' ? scope.platform : undefined;
   return {
-    platform: { not: null },
+    platform: onePlatform ?? { not: null },
     contents: {
       status: 'link_submitted',
       ...(scope.kind === 'content' && { id: scope.contentId }),
