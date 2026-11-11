@@ -110,8 +110,8 @@ describe("CreatorTable", () => {
 
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveClass("group-hover:block");
-    // Its right edge meets the icon's, so it hangs back over the table, not past its scroll edge.
-    expect(tooltip).toHaveClass("right-0");
+    // On the screen layer, so the table's scroll edge cannot cut it off.
+    expect(tooltip).toHaveClass("fixed");
 
     // The heading is not a row: pressing the ⓘ opens no creator's page.
     fireEvent.click(info);

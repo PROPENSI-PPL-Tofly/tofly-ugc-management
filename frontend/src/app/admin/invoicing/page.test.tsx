@@ -248,13 +248,13 @@ describe("Rate & Invoicing page", () => {
       expect(tile).toHaveTextContent("Total = Fixed Rate + Konten Tambahan + Bonus − Penalti");
     });
 
-    it("titles the list in the ink band with its count and the formula button", async () => {
+    it("gives the list no title band and puts the formula button beside the page title", async () => {
       await renderPage();
 
-      const band = screen.getByRole("heading", { level: 2, name: "Invoice" }).closest("[data-tone]") as HTMLElement;
-      expect(band).toHaveAttribute("data-tone", "ink");
-      expect(band.querySelector("[data-count]")).toHaveTextContent("24 invoice");
-      expect(within(band).getByRole("button", { name: /atur formula rate/i })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { level: 2, name: "Invoice" })).toBeNull();
+      expect(document.querySelector("[data-tone]")).toBeNull();
+      const header = screen.getByRole("heading", { level: 1, name: "Rate & Invoicing" }).parentElement as HTMLElement;
+      expect(within(header).getByRole("button", { name: /atur formula rate/i })).toBeInTheDocument();
     });
 
     it("asks the list for the order in the URL", async () => {

@@ -498,34 +498,29 @@ describe("Task Saya page views", () => {
   });
 });
 
-// Approved design: the list is titled in the creator's accent band, with how many tasks the
-// tab and filters hold, and on a phone, where the tabs fold into Filter, the open tab's name.
-describe("Task Saya's list band", () => {
+// The page's title already names its one list, so the list has no title band of its own; the
+// list/calendar switch sits beside the page title instead.
+describe("Task Saya's list head", () => {
   beforeEach(() => {
     mockedFetch.mockReset();
     window.history.pushState({}, "", "/creator/tasks");
   });
 
-  function band() {
-    return screen.getByRole("heading", { name: "Daftar Tugas Saya" }).closest("[data-tone]") as HTMLElement;
-  }
-
-  it("titles the list in the accent band with the tasks it holds", async () => {
+  it("gives the list no title band of its own", async () => {
     mockedFetch.mockResolvedValue(answer());
 
     await renderPage();
 
-    expect(band()).toHaveAttribute("data-tone", "accent");
-    expect(band().querySelector("[data-count]")).toHaveTextContent("11 task");
-    expect(within(band()).getByText("Semua")).toHaveClass("sm:hidden");
+    expect(screen.queryByRole("heading", { level: 2, name: "Daftar Tugas Saya" })).toBeNull();
+    expect(document.querySelector("[data-tone]")).toBeNull();
   });
 
-  it("names the open tab in the band", async () => {
-    mockedFetch.mockResolvedValue(answer({ total: 2 }));
+  it("puts the list/calendar switch beside the page title", async () => {
+    mockedFetch.mockResolvedValue(answer());
 
-    await renderPage({ tab: "waiting" });
+    await renderPage();
 
-    expect(band().querySelector("[data-count]")).toHaveTextContent("2 task");
-    expect(within(band()).getByText("Menunggu Admin")).toBeInTheDocument();
+    const header = screen.getByRole("heading", { level: 1, name: "Task Saya" }).parentElement as HTMLElement;
+    expect(within(header).getByRole("group", { name: "Tampilan tugas" })).toBeInTheDocument();
   });
 });

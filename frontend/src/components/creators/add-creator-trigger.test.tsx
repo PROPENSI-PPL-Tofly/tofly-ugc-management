@@ -29,9 +29,8 @@ describe("AddCreatorTrigger", () => {
     fireEvent.click(screen.getByRole("button", { name: /tambah creator/i }));
     fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
     fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "bagas@example.com" } });
-    fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
     fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "bagas" } });
+    fireEvent.change(screen.getByLabelText(/username instagram/i), { target: { value: "bagas" } });
     fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2026-10-01" } });
     fireEvent.change(screen.getByLabelText(/akhir kontrak/i), { target: { value: "2026-12-31" } });
     fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
@@ -59,8 +58,8 @@ describe("AddCreatorTrigger", () => {
       interval: 14,
       quota: 2,
       fixedRate: 500000,
-      socialPlatform: "instagram",
-      socialUsername: "bagas",
+      instagramUsername: "bagas",
+      tiktokUsername: "",
       contractType: "probation",
       deadlines: ["2026-10-06", "2026-10-20"],
     });

@@ -112,7 +112,7 @@ describe("ContentPlanBoard", () => {
     });
     renderBoard();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Ganti Link" }));
 
     expect(await screen.findByRole("dialog", { name: "Kirim Link Video" })).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe("ContentPlanBoard", () => {
     fetchContentDetail.mockResolvedValue(detailOf());
     renderBoard();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
@@ -162,7 +162,7 @@ describe("ContentPlanBoard", () => {
   it("puts the content back in the address when a navigation lands without it", async () => {
     fetchContentDetail.mockResolvedValue(detailOf());
     const view = render(<ContentPlanBoard items={[ROW]} filtered={false} tab="all" sort="desc" />);
-    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     // Next shows the board the address it has just written.
     searchParams = new URLSearchParams({ content: "content-1" });
@@ -193,7 +193,7 @@ describe("ContentPlanBoard", () => {
     approveSubmission.mockResolvedValue(undefined);
     renderBoard();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

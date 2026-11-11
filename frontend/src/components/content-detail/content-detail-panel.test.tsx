@@ -1052,13 +1052,13 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(screen.queryByTestId("modal-eyebrow")).not.toBeInTheDocument();
     });
 
-    it("keeps type and status as dots, so the tag pills beside them stand out", async () => {
+    it("draws the type as a badge, as the tables do, and keeps the status a dot", async () => {
       show({ tags: ["overdue", "approval_bypassed"] });
 
       const meta = await screen.findByTestId("modal-meta");
       const status = within(meta).getByText("Draft Menunggu Review");
 
-      expect(within(meta).getByText("Specific")).not.toHaveClass("rounded-full");
+      expect(within(meta).getByText("Specific")).toHaveClass("rounded-full", "bg-accent-wash");
       expect(status).not.toHaveClass("rounded-full");
       expect(status.querySelector(".bg-accent")).not.toBeNull();
       expect(within(meta).getByText("Overdue")).toHaveClass("rounded-full", "bg-red-wash");
@@ -1084,12 +1084,26 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(within(meta).queryByRole("list")).not.toBeInTheDocument();
     });
 
-    it("shows the deadline as a date with its countdown", async () => {
+    it("shows the deadline as a date with its countdown in brackets beside it", async () => {
       show();
 
       const meta = await screen.findByTestId("modal-meta");
-      expect(meta).toHaveTextContent("Deadline 5 Okt 2026");
+      expect(meta).toHaveTextContent("Deadline 5 Okt 2026 (H-3)");
       expect(within(meta).getByTestId("deadline-due")).toHaveTextContent("H-3");
+    });
+
+    it("puts the deadline on a line of its own under the badges, not on one long row", async () => {
+      show({ tags: ["overdue"] });
+
+      const meta = await screen.findByTestId("modal-meta");
+      const rows = meta.querySelectorAll("[data-meta-row]");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveClass("basis-full");
+      expect(rows[0]).toHaveTextContent("Specific");
+      expect(rows[0]).toHaveTextContent("Overdue");
+      expect(rows[0]).not.toHaveTextContent("Deadline");
+      expect(rows[1]).toHaveClass("basis-full");
+      expect(rows[1]).toHaveTextContent("Deadline 5 Okt 2026");
     });
 
     it.each([
@@ -1124,12 +1138,14 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(due.className).not.toMatch(/text-(red|amber|green)-ink/);
     });
 
-    it("reads Selesai in green once the video link is in, however late the deadline", async () => {
+    it("shows only the date once the video link is in, with no countdown and no Selesai", async () => {
       show({ status: "link_submitted", waitingOn: null, deadline: "2026-09-01" });
 
-      const due = await screen.findByTestId("deadline-due");
-      expect(due).toHaveTextContent("Selesai");
-      expect(due).toHaveClass("text-green-ink");
+      const meta = await screen.findByTestId("modal-meta");
+      expect(meta).toHaveTextContent("Deadline 1 Sep 2026");
+      expect(within(meta).queryByTestId("deadline-due")).toBeNull();
+      expect(within(meta).queryByText(/Selesai/)).toBeNull();
+      expect(meta).not.toHaveTextContent("(");
     });
 
     it("counts the deadline from the current day when no day is pinned", async () => {

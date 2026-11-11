@@ -24,6 +24,19 @@ describe("AppShell", () => {
     expect(screen.getByRole("main")).toHaveTextContent("konten");
   });
 
+  it("puts a page's action beside its title, in the page header", () => {
+    render(
+        <AppShell title="Creator Database" action={<button type="button">Tambah Creator</button>}>
+          <p>konten</p>
+        </AppShell>,
+    );
+
+    const header = screen.getByRole("heading", { level: 1 }).parentElement as HTMLElement;
+    expect(header.tagName).toBe("HEADER");
+    expect(within(header).getByRole("button", { name: "Tambah Creator" })).toBeInTheDocument();
+    expect(within(screen.getByRole("main")).queryByRole("button")).toBeNull();
+  });
+
   it("marks the creator database as the current place in the navigation", () => {
     render(
         <AppShell title="Creator Database">

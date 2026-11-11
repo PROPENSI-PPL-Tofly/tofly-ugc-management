@@ -153,6 +153,32 @@ describe("ConnectedAccountsPanel", () => {
       expect(within(row("TikTok")).getByRole("button", { name: "Menghubungkan…" })).toHaveClass("bg-accent");
     });
 
+    it("opens the platform's login in a new tab, leaving this page where it is", () => {
+      renderPanel();
+
+      const connect = within(row("Instagram")).getByRole("link", { name: "Hubungkan Instagram" });
+      expect(connect).toHaveAttribute("target", "_blank");
+      expect(connect).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("reads the accounts again when the creator comes back to this tab", () => {
+      renderPanel();
+      fireEvent.click(within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" }));
+
+      fireEvent.focus(window);
+
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(within(row("TikTok")).getByRole("link", { name: "Hubungkan TikTok" })).toBeInTheDocument();
+    });
+
+    it("reads nothing again on a return when no connect was started", () => {
+      renderPanel();
+
+      fireEvent.focus(window);
+
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
     // PRD 19.4: a loading state while the browser is on its way to the platform.
     it("shows it is on its way once pressed, and cannot be pressed twice", () => {
       renderPanel();

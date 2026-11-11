@@ -172,7 +172,17 @@ describe("LinkPerformanceSection: manual input (AC 14-18)", () => {
     const form = within(card("TikTok"));
     expect(form.getByRole("textbox", { name: "Views" })).toHaveValue("900");
     expect(form.getByRole("textbox", { name: "Likes" })).toHaveValue("");
-    expect(form.getByText(/Kolom kosong tetap "belum ada data", bukan 0/)).toBeInTheDocument();
+  });
+
+  it("hints an empty field with Belum ada angka, and puts no help line under the form", () => {
+    show([link("tiktok", measured({ state: "sync_failed", views: 900 }))]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Isi Manual" }));
+
+    const form = within(card("TikTok"));
+    expect(form.getByRole("textbox", { name: "Likes" })).toHaveAttribute("placeholder", "Belum ada angka");
+    expect(form.queryByText(/Kosongkan/)).toBeNull();
+    expect(form.queryByText(/Angka bulat 0/)).toBeNull();
   });
 
   it("puts each refused field's message under it, and asks nothing yet", () => {
@@ -283,4 +293,15 @@ describe("LinkPerformanceSection: manual input (AC 14-18)", () => {
     expect(screen.queryByRole("textbox", { name: "Views" })).toBeNull();
     expect(props.save).not.toHaveBeenCalled();
   });
+
+  it("gives every card's link one width, the state and the hand-in day on the line under it", () => {
+    show([link("instagram", measured({ state: "synced" })), link("tiktok", measured({ state: "sync_failed" }))]);
+
+    for (const platform of ["Instagram", "TikTok"] as const) {
+      const chip = within(card(platform)).getAllByRole("link")[0];
+      expect(chip).toHaveClass("w-full");
+      expect(chip.closest("[data-link-row]")).not.toContainElement(within(card(platform)).getByText(/^Dikirim/));
+    }
+  });
 });
+

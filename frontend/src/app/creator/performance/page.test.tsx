@@ -202,6 +202,28 @@ describe("the creator's link list (PBI-27, 27.6)", () => {
     expect(within(table).queryByRole("button", { name: /Sinkronkan/ })).not.toBeInTheDocument();
   });
 
+  it("opens a link's content in Task Saya's Detail Konten from its name", async () => {
+    mockedFetch.mockResolvedValue(ACCOUNTS);
+    mockedLinks.mockResolvedValue(answered());
+
+    await renderPage();
+
+    const name = screen.getByRole("link", { name: "Evg_1_RanggaPratama_12102026" });
+    expect(name).toHaveAttribute("href", "/creator/tasks?content=44444444-4444-4444-8444-444444444444");
+    expect(name).not.toHaveClass("underline");
+  });
+
+  it("frames the list in a panel with no title band, as the admin's list is", async () => {
+    mockedFetch.mockResolvedValue(ACCOUNTS);
+    mockedLinks.mockResolvedValue(answered());
+
+    await renderPage();
+
+    const links = screen.getByRole("region", { name: "Link yang dikirim" });
+    expect(within(links).queryByRole("heading", { level: 2 })).toBeNull();
+    expect(links.querySelector("[data-tone]")).toBeNull();
+  });
+
   it("shows ten rows a page with a pagination", async () => {
     mockedFetch.mockResolvedValue(ACCOUNTS);
     mockedLinks.mockResolvedValue(answered());
