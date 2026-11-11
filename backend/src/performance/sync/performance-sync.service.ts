@@ -113,11 +113,15 @@ export interface SyncRunReport {
   durationMs: number;
 }
 
-/** What the page's "Sinkronkan Sekarang" answers (SCRUM-285): links updated, not, and held elsewhere. */
+/**
+ * What the page's "Sinkronkan Sekarang" answers (SCRUM-285): links updated, not updated, held by
+ * another sync, and locked (their invoice is finalized, so their numbers no longer change).
+ */
 export interface PageSyncReport {
   updated: number;
   notUpdated: number;
   busy: number;
+  locked: number;
 }
 
 interface RunResult extends SyncRunReport {
@@ -197,8 +201,8 @@ export class PerformanceSyncService {
 
   /**
    * The links one page of "Performa Konten" shows (SCRUM-285). A link whose content another sync
-   * holds is counted busy rather than refusing the page, and one that is no longer synced (its
-   * content left "Link Dikirim" or its invoice froze) is counted not updated (AC 4, 5, 13).
+   * holds is counted busy rather than refusing the page, and one the read leaves out (its invoice
+   * is finalized) is counted locked, which is no failure (AC 4, 5, 13).
    */
   async syncLinks(linkIds: readonly string[]): Promise<PageSyncReport> {
     const result = await this.run(
@@ -208,8 +212,9 @@ export class PerformanceSyncService {
     const read = result.processed + result.skipped;
     return {
       updated: result.succeeded,
-      notUpdated: result.failed + (linkIds.length - read),
+      notUpdated: result.failed,
       busy: result.skipped,
+      locked: linkIds.length - read,
     };
   }
 

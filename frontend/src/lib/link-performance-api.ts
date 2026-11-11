@@ -109,6 +109,8 @@ interface PageSyncReport {
   updated: number;
   notUpdated: number;
   busy: number;
+  /** Links whose invoice is finalized: their numbers are locked, which is no failure. */
+  locked: number;
 }
 
 function isPageSyncReport(body: unknown): body is PageSyncReport {
@@ -116,16 +118,24 @@ function isPageSyncReport(body: unknown): body is PageSyncReport {
   return (
     typeof report?.updated === "number" &&
     typeof report.notUpdated === "number" &&
-    typeof report.busy === "number"
+    typeof report.busy === "number" &&
+    typeof report.locked === "number"
   );
 }
 
-/** How a page's sync went, in one line: all of it, or how much and what is still syncing. */
-function pageToast({ updated, notUpdated, busy }: PageSyncReport): string {
+/**
+ * How a page's sync went, in one line: all of it, or how much and what is still syncing. Locked
+ * links are named apart, so a page of finalized invoices never reads as a failed sync.
+ */
+function pageToast({ updated, notUpdated, busy, locked }: PageSyncReport): string {
   const total = updated + notUpdated + busy;
-  if (updated === total) return `Data performa ${updated} link diperbarui`;
-  const done = `${updated} dari ${total} link diperbarui`;
-  return busy > 0 ? `${done}, ${busy} masih disinkronkan` : done;
+  if (total === 0) return "Semua link di halaman ini sudah terkunci";
+  const parts = [
+    updated === total ? `Data performa ${updated} link diperbarui` : `${updated} dari ${total} link diperbarui`,
+  ];
+  if (busy > 0) parts.push(`${busy} masih disinkronkan`);
+  if (locked > 0) parts.push(`${locked} sudah terkunci`);
+  return parts.join(", ");
 }
 
 export const syncPagePerformance: PagePerformanceSyncer = async (linkIds) => {
