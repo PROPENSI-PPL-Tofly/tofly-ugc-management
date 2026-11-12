@@ -6,6 +6,7 @@ import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { PeriodFilter } from "./deadline-period";
 import type { Platform } from "./platform-links";
+import type { CalendarMonth } from "./task-calendar";
 import {
   calendarDay,
   list,
@@ -64,6 +65,20 @@ export const CONTENT_PLAN_TAB_KEYS: readonly ContentPlanTab[] = [
 ];
 
 export type OverdueFilter = "all" | "yes" | "no";
+
+/** Which way the plan is shown (I3.6): the paged table, or every content of one month. */
+export type ContentPlanView = "table" | "calendar";
+
+/** The two views in the order the switch offers them. */
+export const CONTENT_PLAN_VIEWS: readonly { key: ContentPlanView; label: string }[] = [
+  { key: "table", label: "Tabel" },
+  { key: "calendar", label: "Kalender" },
+];
+
+const CONTENT_PLAN_VIEW_KEYS: readonly ContentPlanView[] = ["table", "calendar"];
+
+/** "YYYY-MM", month 01 to 12. */
+const CALENDAR_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 export type DeadlineSort = "asc" | "desc";
 
 /** Farthest deadline first, the way every tab opens in the prototype. */
@@ -103,6 +118,9 @@ export interface ContentPlanParams {
   from: string;
   to: string;
   sort: DeadlineSort;
+  view: ContentPlanView;
+  /** The calendar's month, "YYYY-MM"; empty for today's month, and always on the table. */
+  month: string;
 }
 
 export const DEFAULT_CONTENT_PLAN_PARAMS: ContentPlanParams = {
@@ -117,6 +135,8 @@ export const DEFAULT_CONTENT_PLAN_PARAMS: ContentPlanParams = {
   from: "",
   to: "",
   sort: DEFAULT_SORT,
+  view: "table",
+  month: "",
 };
 
 /** What each tab says when it holds nothing. */
@@ -158,7 +178,8 @@ export function statusOptionsFor(tab: ContentPlanTab): readonly ContentStatus[] 
 export function parseContentPlanParams(
   params: SearchParams,
 ): ContentPlanParams {
-  return {
+  const view = oneOf(CONTENT_PLAN_VIEW_KEYS, single(params.view), "table");
+  const parsed: ContentPlanParams = {
     tab: oneOf(CONTENT_PLAN_TAB_KEYS, single(params.tab), "all"),
     page: pageNumber(params.page),
     q: single(params.q).trim(),
@@ -170,6 +191,23 @@ export function parseContentPlanParams(
     from: calendarDay(single(params.from)),
     to: calendarDay(single(params.to)),
     sort: oneOf(SORT_DIRECTIONS, single(params.sort), DEFAULT_SORT),
+    view,
+    month: "",
+  };
+
+  if (view === "table") return parsed;
+
+  // The calendar's month is its range and it has no pages: a period or page left in its address
+  // would quietly empty months, a filter nobody could see or clear (OWASP A06). A month that is
+  // not a month falls back to today's rather than reaching the API (OWASP A10).
+  const month = single(params.month);
+  return {
+    ...parsed,
+    page: 1,
+    period: "all",
+    from: "",
+    to: "",
+    month: CALENDAR_MONTH.test(month) ? month : "",
   };
 }
 
@@ -190,6 +228,10 @@ export function buildContentPlanQuery(state: ContentPlanParams): Record<string, 
   if (state.to) query.to = state.to;
   if (state.sort !== DEFAULT_SORT) query.sort = state.sort;
   if (state.page > 1) query.page = String(state.page);
+  if (state.view === "calendar") {
+    query.view = state.view;
+    if (state.month) query.month = state.month;
+  }
   return query;
 }
 
@@ -197,6 +239,42 @@ export function buildContentPlanQuery(state: ContentPlanParams): Record<string, 
 export function contentPlanHref(state: ContentPlanParams): string {
   const search = new URLSearchParams(buildContentPlanQuery(state)).toString();
   return search ? `${CONTENT_PLAN_BASE}?${search}` : CONTENT_PLAN_BASE;
+}
+
+/**
+ * Where a view's button leads. The tab, the search and the filters come along; the page does
+ * not, and neither does the period on the way to the calendar, whose month is its range. The
+ * calendar opens on today's month.
+ */
+export function contentPlanViewHref(view: ContentPlanView, state: ContentPlanParams): string {
+  const shown: ContentPlanParams =
+    view === "calendar"
+      ? { ...state, view, page: 1, period: "all", from: "", to: "", month: "" }
+      : { ...state, view, page: 1, month: "" };
+  return contentPlanHref(shown);
+}
+
+/** "YYYY-MM" for a month. */
+export function monthParam({ year, month }: CalendarMonth): string {
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+}
+
+/** The calendar turned to a month, every filter kept; null is today's month, the bare calendar. */
+export function contentPlanMonthHref(
+  state: ContentPlanParams,
+  month: CalendarMonth | null,
+): string {
+  return contentPlanHref({ ...state, view: "calendar", month: month ? monthParam(month) : "" });
+}
+
+/** What a filter reset leaves in the address: the tab, and the view and month being shown. */
+export function keptOnReset(query: URLSearchParams): Record<string, string> {
+  const kept: Record<string, string> = {};
+  for (const key of ["tab", "view", "month"]) {
+    const value = query.get(key);
+    if (value) kept[key] = value;
+  }
+  return kept;
 }
 
 /** Whether a search or filter narrowed the view, which changes what an empty list means. */
