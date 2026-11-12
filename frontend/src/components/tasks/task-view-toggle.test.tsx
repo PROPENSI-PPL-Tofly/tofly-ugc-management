@@ -48,7 +48,7 @@ describe("TaskViewToggle", () => {
     expect(off).not.toHaveClass("bg-accent");
   });
 
-  it("leads each link to its view of Task Saya", () => {
+  it("leads each link to its view of Tugas Saya", () => {
     render(<TaskViewToggle view="table" state={BARE} />);
 
     expect(screen.getByRole("link", { name: "Tabel" })).toHaveAttribute("href", "/creator/tasks");

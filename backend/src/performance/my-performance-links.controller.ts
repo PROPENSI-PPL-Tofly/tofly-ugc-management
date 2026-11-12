@@ -35,12 +35,14 @@ export class MyPerformanceLinksController {
     @CurrentCreator() creatorId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('platform') platform?: unknown,
+    @Query('state') state?: unknown,
   ): Promise<PerformanceLinksPage> {
-    const { platforms } = checkPerformanceLinksQuery({ platform });
+    const { platforms, states } = checkPerformanceLinksQuery({ platform, state });
     // Performa always shows 10 rows, so the address cannot ask for more.
     return this.links.list(checkPaging(page, DEFAULT_PAGE_SIZE), {
       creators: [creatorId],
       ...(platforms && { platforms }),
+      ...(states && { states }),
     });
   }
 }

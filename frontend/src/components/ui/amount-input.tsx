@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type InputHTMLAttributes } from "react";
-import { NUMERIC_INPUT } from "@/components/ui/form-classes";
 import { amountText, parseAmount } from "@/lib/amount";
+import { GroupedNumberInput } from "./grouped-number-input";
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> & {
   value: number | null;
@@ -11,9 +11,9 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | 
 };
 
 /**
- * A rupiah amount input that shows exactly what was typed. The form receives the number it
- * means, or NaN for text that is not digits, and says what is wrong; nothing typed is dropped or
- * cut without a word, so "1.5" can never quietly become 15.
+ * A rupiah amount input that shows what was typed, its digits grouped by thousands (1.500.000).
+ * The form receives the number it means, or NaN for text that is not digits, and says what is
+ * wrong; no digit is dropped or cut without a word, and anything but digits stays as typed.
  */
 export function AmountInput({ value, onChange, ...rest }: Props) {
   const [text, setText] = useState(() => amountText(value));
@@ -27,14 +27,12 @@ export function AmountInput({ value, onChange, ...rest }: Props) {
   }
 
   return (
-    <input
-      {...NUMERIC_INPUT}
+    <GroupedNumberInput
       {...rest}
       value={text}
-      onChange={(event) => {
-        const typed = event.target.value;
-        setText(typed);
-        onChange(parseAmount(typed));
+      onChange={(shown) => {
+        setText(shown);
+        onChange(parseAmount(shown));
       }}
     />
   );

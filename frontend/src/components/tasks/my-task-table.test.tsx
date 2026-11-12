@@ -19,138 +19,49 @@ function task(overrides: Partial<MyTask> = {}): MyTask {
   };
 }
 
-// 11 Oct 2026, 12.00 WIB: the default deadline (12 Oct) is tomorrow, inside the H-1 window.
-const NOW = new Date("2026-10-11T05:00:00.000Z");
-
 function rows() {
   // The first row is the header.
   return screen.getAllByRole("row").slice(1);
 }
 
-describe("MyTaskTable follow-up notes (PBI-33)", () => {
-  const AT = "2026-11-09T07:00:00.000Z";
+function renderTable(tasks: MyTask[] = [task()], extra: Partial<Parameters<typeof MyTaskTable>[0]> = {}) {
+  const onDetail = vi.fn();
+  render(<MyTaskTable tasks={tasks} onDetail={onDetail} {...extra} />);
+  return { onDetail };
+}
 
-  it("says when the admin last added a follow-up note, under the content type (AC 5)", () => {
-    render(
-      <MyTaskTable
-        tasks={[task({ status: "draft_revision", revisionNotes: "Hook kurang kuat.", revisionNotesUpdatedAt: AT })]}
-        onAction={vi.fn()}
-      />,
-    );
-
-    const line = screen.getByText(/^Catatan diperbarui/);
-    expect(line).toHaveTextContent("Catatan diperbarui 9 Nov 2026, 14.00 WIB");
-    expect(within(line).getByText("9 Nov 2026, 14.00 WIB").closest("time")).toHaveAttribute("dateTime", AT);
-    expect(line).toHaveClass("text-xs", "text-muted");
-    const type = screen.getByText("Evergreen");
-    expect(type.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("says nothing about follow-ups on a row without one", () => {
-    render(<MyTaskTable tasks={[task({ status: "draft_revision", revisionNotesUpdatedAt: null })]} onAction={vi.fn()} />);
-
-    expect(screen.queryByText(/Catatan diperbarui/)).toBeNull();
-  });
-});
-
+// Task Saya's table is laid out as the admin's Content Plan: the same columns minus the creator,
+// the same red deadline and badges, and no buttons on the rows. A row opens Detail Konten, where
+// the creator's hand-ins are.
 describe("MyTaskTable", () => {
-  it("shows the marks of the platforms the content was posted to (AC 13)", () => {
-    render(
-      <MyTaskTable
-        tasks={[
-          task({ platforms: ["instagram", "tiktok"] }),
-        ]}
-        onAction={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
-  });
-
-  it("puts the marks under the content name, above the type label, as the admin's tables do", () => {
-    render(<MyTaskTable tasks={[task({ platforms: ["instagram"] })]} onAction={vi.fn()} />);
-
-    const row = rows()[0];
-    const name = within(row).getByText("Evg_1_RanggaPratama_12102026");
-    const mark = within(row).getByRole("img", { name: "Instagram" });
-    const type = within(row).getByText("Evergreen");
-
-    expect(
-      name.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      mark.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("shows no marks for a task with no link sent yet", () => {
-    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
-
-    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
-  });
-
-  it("shows a row's tags beside its status, a finished late one included, as the admin's tables do", () => {
-    render(
-      <MyTaskTable
-        tasks={[
-          task({ id: "late", status: "link_submitted", tags: ["overdue", "approval_bypassed"], actions: [] }),
-          task({ id: "clean" }),
-        ]}
-        onAction={vi.fn()}
-        onDetail={vi.fn()}
-      />,
-    );
-
-    const [late, clean] = rows();
-    const tags = within(late).getByRole("list", { name: "Tanda konten" });
-    expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Overdue",
-      "Approval di-bypass",
-    ]);
-    expect(within(late).getByText("Content Link Submitted")).toBeInTheDocument();
-    expect(within(clean).queryByRole("list", { name: "Tanda konten" })).toBeNull();
-  });
-
   describe("columns", () => {
     it("names the table for screen readers", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+      renderTable();
 
       expect(screen.getByRole("table", { name: "Daftar Tugas Saya" })).toBeInTheDocument();
     });
 
-    it("heads the columns Nama Konten, Deadline, Status, and Aksi", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+    it("heads the columns as the Content Plan does, without the creator and with no Aksi", () => {
+      renderTable();
 
       expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
         "Nama Konten",
+        "Tipe",
         "Deadline",
         "Status",
-        "Aksi",
+        "Platform",
       ]);
     });
 
-    it("makes the Deadline header a sort button once the page can sort, keeping its place", () => {
-      const onSortToggle = vi.fn();
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} sort="asc" onSortToggle={onSortToggle} />);
+    it("gives the type a badge column beside the name", () => {
+      renderTable([task({ type: "specific" })]);
 
-      const header = screen.getAllByRole("columnheader")[1];
-      expect(header).toHaveAttribute("aria-sort", "ascending");
-      expect(header).toHaveAttribute("role", "columnheader");
-      fireEvent.click(within(header).getByRole("button", { name: /Deadline/ }));
-
-      expect(onSortToggle).toHaveBeenCalledTimes(1);
-    });
-
-    it("says which way the deadline runs when it runs furthest first", () => {
-      render(<MyTaskTable tasks={[task()]} sort="desc" onSortToggle={vi.fn()} />);
-
-      expect(screen.getAllByRole("columnheader")[1]).toHaveAttribute("aria-sort", "descending");
+      const type = within(rows()[0]).getAllByRole("cell")[1];
+      expect(within(type).getByText("Specific")).toHaveClass("rounded-full", "bg-accent-wash");
     });
 
     it("shows each task's name, deadline the Indonesian way, and status label", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+      renderTable();
 
       const [row] = rows();
       expect(within(row).getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
@@ -159,54 +70,170 @@ describe("MyTaskTable", () => {
     });
 
     it("keeps the order the API sent, which is already nearest deadline first", () => {
-      render(
-        <MyTaskTable
-          tasks={[
-            task({ id: "a", name: "Paling dekat", deadline: "2026-10-01" }),
-            task({ id: "b", name: "Berikutnya", deadline: "2026-10-08" }),
-            task({ id: "c", name: "Sudah dikirim", deadline: "2026-09-20", status: "link_submitted", actions: [] }),
-          ]}
-          onAction={vi.fn()}
-        />,
-      );
+      renderTable([
+        task({ id: "a", name: "Paling dekat", deadline: "2026-10-01" }),
+        task({ id: "b", name: "Berikutnya", deadline: "2026-10-08" }),
+        task({ id: "c", name: "Sudah dikirim", deadline: "2026-09-20", status: "link_submitted", actions: [] }),
+      ]);
 
-      expect(rows().map((row) => within(row).getAllByRole("cell")[0].firstChild?.textContent)).toEqual([
+      expect(rows().map((row) => within(row).getAllByRole("cell")[0].textContent)).toEqual([
         "Paling dekat",
         "Berikutnya",
         "Sudah dikirim",
       ]);
     });
+
+    it("makes the Deadline header a sort button once the page can sort, keeping its place", () => {
+      const onSortToggle = vi.fn();
+      renderTable([task()], { sort: "asc", onSortToggle });
+
+      const header = screen.getAllByRole("columnheader")[2];
+      expect(header).toHaveAttribute("aria-sort", "ascending");
+      fireEvent.click(within(header).getByRole("button", { name: /Deadline/ }));
+
+      expect(onSortToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it("says which way the deadline runs when it runs furthest first", () => {
+      renderTable([task()], { sort: "desc", onSortToggle: vi.fn() });
+
+      expect(screen.getAllByRole("columnheader")[2]).toHaveAttribute("aria-sort", "descending");
+    });
   });
 
-  describe("creator wording", () => {
+  describe("what a row shows", () => {
+    it("shows the marks of the platforms the content was posted to in a column of their own (AC 13)", () => {
+      renderTable([task({ platforms: ["instagram", "tiktok"] })]);
+
+      const cell = within(rows()[0]).getAllByRole("cell")[4];
+      expect(within(cell).getByLabelText(/instagram/i)).toBeInTheDocument();
+      expect(within(cell).getByLabelText(/tiktok/i)).toBeInTheDocument();
+    });
+
+    it("shows no marks for a task with no link sent yet", () => {
+      renderTable();
+
+      expect(within(rows()[0]).getAllByRole("cell")[4]).toBeEmptyDOMElement();
+    });
+
+    it("reds a missed deadline instead of a badge, keeping the other tags beside the status", () => {
+      renderTable([
+        task({ id: "late", status: "link_submitted", tags: ["overdue", "approval_bypassed"], actions: [] }),
+        task({ id: "clean" }),
+      ]);
+
+      const [late, clean] = rows();
+      expect(within(late).getByText("12 Okt 2026")).toHaveClass("text-red-ink");
+      const tags = within(late).getByRole("list", { name: "Tanda konten" });
+      expect(within(tags).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Approval di-bypass"]);
+      expect(within(late).getByText("Content Link Submitted")).toBeInTheDocument();
+      expect(within(clean).queryByRole("list", { name: "Tanda konten" })).toBeNull();
+      expect(within(clean).getByText("12 Okt 2026")).not.toHaveClass("text-red-ink");
+    });
+
     it("shows a draft handed in again as waiting for review, like a first one", () => {
-      render(
-        <MyTaskTable tasks={[task({ status: "draft_review", actions: [] })]} onAction={vi.fn()} />,
-      );
+      renderTable([task({ status: "draft_review", actions: [] })]);
 
       expect(within(rows()[0]).getByText("Draft Menunggu Review")).toBeInTheDocument();
-      expect(screen.queryByText("Draft Revised")).not.toBeInTheDocument();
+    });
+
+    it("says when the admin last added a follow-up note, under the name (PBI-33 AC 5)", () => {
+      const AT = "2026-11-09T07:00:00.000Z";
+      renderTable([task({ status: "draft_revision", revisionNotes: "Hook kurang kuat.", revisionNotesUpdatedAt: AT })]);
+
+      const line = screen.getByText(/^Catatan diperbarui/);
+      expect(line).toHaveTextContent("Catatan diperbarui 9 Nov 2026, 14.00 WIB");
+      expect(within(line).getByText("9 Nov 2026, 14.00 WIB").closest("time")).toHaveAttribute("dateTime", AT);
+      expect(line).toHaveClass("text-xs", "text-muted");
+    });
+
+    it("says nothing about follow-ups on a row without one", () => {
+      renderTable([task({ status: "draft_revision", revisionNotesUpdatedAt: null })]);
+
+      expect(screen.queryByText(/Catatan diperbarui/)).toBeNull();
+    });
+
+    it("has no buttons but the name, whatever the status asks of the creator", () => {
+      renderTable([
+        task({ id: "a" }),
+        task({ id: "b", status: "draft_revision", actions: ["resubmit_draft"] }),
+        task({ id: "c", status: "draft_approved", actions: ["submit_video"] }),
+      ]);
+
+      expect(screen.queryByRole("button", { name: /^(Submit|Resubmit|Detail)/ })).toBeNull();
+      expect(screen.getAllByRole("button")).toHaveLength(3);
+    });
+  });
+
+  describe("empty list", () => {
+    it("says so when the creator has no tasks", () => {
+      renderTable([]);
+
+      expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
     });
 
     it("says what the empty list means when it is given a message", () => {
-      render(
-        <MyTaskTable tasks={[]} emptyMessage="Tidak ada tugas berstatus Draft Approved." />,
-      );
+      renderTable([], { emptyMessage: "Tidak ada tugas berstatus Draft Approved." });
 
       expect(screen.getByText("Tidak ada tugas berstatus Draft Approved.")).toBeInTheDocument();
     });
 
     it("offers the empty list's action instead of the hint, which the action already explains", () => {
-      render(
-        <MyTaskTable
-          tasks={[]}
-          emptyMessage="Tidak ada tugas yang cocok."
-          emptyAction={<button type="button">Reset filter</button>}
-        />,
-      );
+      renderTable([], {
+        emptyMessage: "Tidak ada tugas yang cocok.",
+        emptyAction: <button type="button">Reset filter</button>,
+      });
 
       expect(screen.getByRole("button", { name: "Reset filter" })).toBeInTheDocument();
       expect(screen.queryByText("Tugas baru muncul di sini begitu admin menjadwalkannya.")).toBeNull();
+    });
+  });
+
+  describe("opening a task", () => {
+    it("opens the detail from the content name, a real button for the keyboard", () => {
+      const target = task();
+      const { onDetail } = renderTable([target]);
+
+      const name = within(rows()[0]).getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
+      expect(name).toHaveAttribute("aria-haspopup", "dialog");
+      fireEvent.click(name);
+
+      expect(onDetail).toHaveBeenCalledExactlyOnceWith(target);
+    });
+
+    it("opens the detail from a press anywhere on the row, once", () => {
+      const target = task();
+      const { onDetail } = renderTable([target]);
+
+      fireEvent.click(within(rows()[0]).getByText("12 Okt 2026"));
+
+      expect(onDetail).toHaveBeenCalledExactlyOnceWith(target);
+    });
+
+    it("opens the row that was pressed, among several", () => {
+      const second = task({ id: "content-2", name: "Unboxing Paket" });
+      const { onDetail } = renderTable([task(), second]);
+
+      fireEvent.click(screen.getByText("Unboxing Paket"));
+
+      expect(onDetail).toHaveBeenCalledExactlyOnceWith(second);
+    });
+
+    it("does not open when the press ends a text selection", () => {
+      vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "Evg_1" } as Selection);
+      const { onDetail } = renderTable();
+
+      fireEvent.click(rows()[0]);
+
+      expect(onDetail).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+    });
+
+    it("marks the row as pressable", () => {
+      renderTable();
+
+      expect(rows()[0]).toHaveClass("cursor-pointer", "hover:bg-surface-2");
     });
   });
 
@@ -215,426 +242,60 @@ describe("MyTaskTable", () => {
   // browsers drop once a table's display changes.
   describe("narrow screens", () => {
     it("keeps table semantics explicit on every part of the table", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+      renderTable();
 
       expect(screen.getByRole("table")).toHaveAttribute("role", "table");
       for (const row of screen.getAllByRole("row")) {
         expect(row).toHaveAttribute("role", "row");
       }
-      const [name, deadline, status, actions] = screen.getAllByRole("cell");
-      for (const cell of [name, deadline, status]) {
-        expect(cell).toHaveAttribute("role", "cell");
+      for (const group of screen.getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
       }
-      // The action cell names no role: its buttons already say which task they act on, and an
-      // explicit role on a td reads as an interactive element given a non-interactive role.
-      expect(actions).not.toHaveAttribute("role");
       for (const header of screen.getAllByRole("columnheader")) {
         expect(header).toHaveAttribute("role", "columnheader");
       }
+      expect(within(rows()[0]).getAllByRole("cell")).toHaveLength(5);
     });
 
-    // Measured on this table's real markup in Edge at true 320–430 px: the rows already stack,
-    // but they read as one continuous panel split by hairlines, and each action is a 33 px button
-    // only as wide as its label. jsdom lays nothing out, so these pin what the layout is built
-    // from; the browser measurement is the evidence for the layout itself.
     it("sets each task apart as its own card below lg, with room between cards", () => {
-      render(<MyTaskTable tasks={[task(), task({ id: "content-2" })]} onAction={vi.fn()} />);
+      renderTable([task(), task({ id: "content-2" })]);
 
       const body = screen.getAllByRole("rowgroup")[1];
       expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
       for (const row of rows()) {
         expect(row).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border", "max-lg:bg-surface");
-        // The table's own hairline between rows stays from lg up.
         expect(row).toHaveClass("border-b");
-      }
-    });
-
-    it("gives every action a full-width touch target at least 44px tall below lg", () => {
-      render(
-        <MyTaskTable
-          tasks={[
-            task(),
-            task({ id: "content-2", status: "draft_revision", actions: ["resubmit_draft"] }),
-            task({ id: "content-3", status: "draft_approved", actions: ["submit_video"] }),
-          ]}
-          onAction={vi.fn()}
-          now={NOW}
-        />,
-      );
-
-      for (const name of [/^Submit Draft/, /^Resubmit Draft/, /^Submit Link Video/]) {
-        const button = screen.getByRole("button", { name });
-        expect(button).toHaveClass("max-lg:w-full", "max-lg:min-h-11");
       }
     });
 
     // Below lg the board offers its own visible sort button; the header's stayed focusable while
     // unseen inside the hidden header row, so phones had two sort controls, one invisible.
     it("removes the header's sort button below lg, keeping the column's name", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onSortToggle={vi.fn()} />);
+      renderTable([task()], { onSortToggle: vi.fn() });
 
       const header = screen.getByRole("columnheader", { name: /Deadline/ });
       expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
       expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
     });
 
-    it("labels the deadline and status cells with their column", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
+    it("labels every cell but the name with its column", () => {
+      renderTable();
 
       const cells = within(rows()[0]).getAllByRole("cell");
       expect(cells.map((cell) => cell.dataset.label)).toEqual([
         undefined,
+        "Tipe",
         "Deadline",
         "Status",
-        undefined,
+        "Platform",
       ]);
-    });
-  });
-
-  // One button set per status (Sprint PRD PBI-20 AC); which ones is the API's call.
-  describe("action per status", () => {
-    it.each([
-      ["scheduled", ["submit_draft"], ["Submit Draft"]],
-      ["draft_revision", ["resubmit_draft"], ["Resubmit Draft"]],
-      ["draft_approved", ["submit_video"], ["Submit Link Video"]],
-      ["draft_review", ["submit_video"], ["Submit Link (H-1)"]],
-    ] as const)("offers %s with %j as %j", (status, actions, labels) => {
-      render(
-        <MyTaskTable
-          tasks={[task({ status, actions: [...actions] })]}
-          onAction={vi.fn()}
-          now={NOW}
-        />,
-      );
-
-      const [row] = rows();
-      expect(within(row).getAllByRole("button").map((button) => button.textContent)).toEqual(
-        labels,
-      );
-    });
-
-    // The same wording as the detail panel's button for the same action, so a creator who
-    // opens the row is not offered a differently named step.
-    it.each([
-      ["the day before the deadline", "2026-10-12", "Submit Link (H-1)"],
-      ["on the deadline", "2026-10-11", "Submit Link (H-1)"],
-      ["past the deadline", "2026-10-10", "Submit Link (Terlambat)"],
-    ])("names the link of a draft still in review %s (due %s) as %s", (_label, deadline, label) => {
-      render(
-        <MyTaskTable
-          tasks={[task({ status: "draft_review", actions: ["submit_video"], deadline })]}
-          onAction={vi.fn()}
-          now={NOW}
-        />,
-      );
-
-      expect(
-        screen.getByRole("button", { name: `${label}: Evg_1_RanggaPratama_12102026` }),
-      ).toHaveTextContent(label);
-    });
-
-    it("keeps an approved draft's link named as the planned step, however late", () => {
-      render(
-        <MyTaskTable
-          tasks={[
-            task({ status: "draft_approved", actions: ["submit_video"], deadline: "2026-09-01" }),
-          ]}
-          onAction={vi.fn()}
-          now={NOW}
-        />,
-      );
-
-      expect(screen.getByRole("button", { name: /^Submit Link Video:/ })).toBeInTheDocument();
-    });
-
-    it("names each button after its task, since every row has the same labels", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
-
-      expect(
-        screen.getByRole("button", { name: "Submit Draft: Evg_1_RanggaPratama_12102026" }),
-      ).toBeInTheDocument();
-    });
-
-    // UAT B2.3: the prototype ends a row with nothing to do on a Detail button, so the creator
-    // sees where each content's detail opens; it is bordered like the Creator Database's.
-    it.each(["draft_review", "link_submitted"] as const)(
-      "offers a Detail button for a %s task, which has nothing to do, as the prototype does",
-      (status) => {
-        render(
-          <MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} onDetail={vi.fn()} />,
-        );
-
-        const [row] = rows();
-        const detail = within(within(row).getAllByRole("cell")[3]).getByRole("button", {
-          name: "Detail: Evg_1_RanggaPratama_12102026",
-        });
-        expect(detail).toHaveTextContent("Detail");
-        expect(detail.className).toContain("border-rule");
-        expect(detail.className).toContain("bg-surface");
-        expect(within(row).queryByText("Menunggu review admin")).not.toBeInTheDocument();
-      },
-    );
-
-    // UAT: every status and every button looked the same. Each action now takes the tone of
-    // the state it answers, so a revision request stands out from a fresh draft.
-    it("marks Submit Link Video green, as the step after an approval", () => {
-      render(
-        <MyTaskTable
-          tasks={[task({ status: "draft_approved", actions: ["submit_video"] })]}
-          onAction={vi.fn()}
-        />,
-      );
-
-      expect(screen.getByRole("button", { name: /Submit Link Video/ })).toHaveClass("bg-green-wash");
-    });
-
-    it("marks Resubmit Draft amber, as work that came back", () => {
-      render(
-        <MyTaskTable
-          tasks={[task({ status: "draft_revision", actions: ["resubmit_draft"] })]}
-          onAction={vi.fn()}
-        />,
-      );
-
-      expect(screen.getByRole("button", { name: /Resubmit Draft/ })).toHaveClass("bg-amber-wash");
-    });
-
-    it.each([
-      ["scheduled", "bg-rule"],
-      ["draft_review", "bg-accent"],
-      ["draft_revision", "bg-amber"],
-      ["draft_approved", "bg-green"],
-      ["link_submitted", "bg-green"],
-    ] as const)("colours the %s status dot %s, beside its label", (status, dot) => {
-      render(<MyTaskTable tasks={[task({ status, actions: [] })]} onAction={vi.fn()} />);
-
-      const cell = within(rows()[0]).getAllByRole("cell")[2];
-      expect(cell.querySelector(`.${dot}`)).not.toBeNull();
-      expect(cell.textContent).not.toBe("");
-    });
-
-    // Inside H-1 without an approved draft the link skips the approval: allowed, but not the
-    // path the creator should take by default, so it does not look like the main action.
-    it("keeps the H-1 link secondary while its draft is still in review", () => {
-      render(
-        <MyTaskTable
-          tasks={[task({ status: "draft_review", actions: ["submit_video"] })]}
-          onAction={vi.fn()}
-          now={NOW}
-        />,
-      );
-
-      expect(screen.getByRole("button", { name: /Submit Link \(H-1\)/ })).not.toHaveClass(
-        "bg-accent",
-      );
-      expect(screen.getByRole("button", { name: /Submit Link \(H-1\)/ })).not.toHaveClass(
-        "bg-green-wash",
-      );
-    });
-  });
-
-  describe("clicking an action", () => {
-    it("hands the task and the action to the page", () => {
-      const onAction = vi.fn();
-      const scheduled = task();
-      render(<MyTaskTable tasks={[scheduled]} onAction={onAction} />);
-
-      fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
-
-      expect(onAction).toHaveBeenCalledWith(scheduled, "submit_draft");
-    });
-
-    // What the Resubmit Draft modal (SCRUM-109) opens on, so it must reach the page as its own action.
-    it("hands a resubmit to the page as resubmit_draft", () => {
-      const onAction = vi.fn();
-      const revision = task({ status: "draft_revision", actions: ["resubmit_draft"] });
-      render(<MyTaskTable tasks={[revision]} onAction={onAction} />);
-
-      fireEvent.click(screen.getByRole("button", { name: /Resubmit Draft/ }));
-
-      expect(onAction).toHaveBeenCalledWith(revision, "resubmit_draft");
-    });
-
-    it("tells apart two actions on the same row", () => {
-      const onAction = vi.fn();
-      const both = task({ actions: ["submit_draft", "submit_video"] });
-      render(<MyTaskTable tasks={[both]} onAction={onAction} now={NOW} />);
-
-      fireEvent.click(screen.getByRole("button", { name: /Submit Link/ }));
-
-      expect(onAction).toHaveBeenCalledWith(both, "submit_video");
-    });
-
-    // Until the Submit Draft / Submit Link Video modals (SCRUM-109, SCRUM-132) are wired in,
-    // a button with nowhere to go is shown but cannot be pressed.
-    it("disables the buttons when there is nothing to open yet", () => {
-      render(<MyTaskTable tasks={[task()]} />);
-
-      expect(screen.getByRole("button", { name: /Submit Draft/ })).toBeDisabled();
-    });
-  });
-
-  it("says so when the creator has no tasks", () => {
-    render(<MyTaskTable tasks={[]} onAction={vi.fn()} />);
-
-    expect(screen.getByText("Belum ada tugas untuk kamu.")).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
-  });
-
-  describe("opening a task", () => {
-    it("opens the detail from the content name itself", () => {
-      const onDetail = vi.fn();
-      const target = task();
-      render(<MyTaskTable tasks={[target]} onAction={vi.fn()} onDetail={onDetail} />);
-
-      const [row] = rows();
-      const name = within(row).getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
-      expect(name).toHaveAttribute("aria-haspopup", "dialog");
-      fireEvent.click(name);
-
-      expect(onDetail).toHaveBeenCalledWith(target);
-    });
-
-    // The row itself carries no click handler (a clickable row would be a non-interactive role
-    // doing an interactive job); the name button is stretched over it instead, so a press
-    // anywhere on the row is a press on a real button.
-    it("stretches the name over the whole row, so a press anywhere on it opens the detail", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
-
-      const [row] = rows();
-      expect(row).not.toHaveAttribute("onclick");
-      expect(row.className).toContain("relative");
-      expect(row.className).toContain("hover:bg-surface-2");
-      const name = within(row).getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
-      expect(name.className).toContain("after:absolute");
-      expect(name.className).toContain("after:inset-0");
-    });
-
-    // The name reads as plain text: only the row says it can be pressed, and a keyboard focus
-    // rings the whole row rather than the name.
-    it("keeps the name looking like text, with the focus ring drawn around the row", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
-
-      const name = screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" });
-      expect(name.className).not.toMatch(/hover:(underline|text-)/);
-      expect(name.className).not.toContain("font-semibold");
-      expect(name.className).toContain("focus-visible:after:outline-focus");
-      expect(rows()[0].className).toContain("cursor-pointer");
-    });
-
-    it("opens the detail once from a row's Detail button, not again through the stretched name", () => {
-      const onDetail = vi.fn();
-      const target = task({ status: "draft_review", actions: [] });
-      render(<MyTaskTable tasks={[target]} onAction={vi.fn()} onDetail={onDetail} />);
-
-      const detail = screen.getByRole("button", { name: "Detail: Evg_1_RanggaPratama_12102026" });
-      expect(detail.parentElement?.className).toContain("z-10");
-      fireEvent.click(detail);
-
-      expect(onDetail).toHaveBeenCalledTimes(1);
-      expect(onDetail).toHaveBeenCalledWith(target);
-    });
-
-    it("lifts the actions above the stretched name, so pressing one runs only that action", () => {
-      const onDetail = vi.fn();
-      const onAction = vi.fn();
-      render(<MyTaskTable tasks={[task()]} onAction={onAction} onDetail={onDetail} />);
-
-      const action = screen.getByRole("button", { name: /^Submit Draft/ });
-      expect(action.parentElement?.className).toContain("relative");
-      expect(action.parentElement?.className).toContain("z-10");
-      fireEvent.click(action);
-
-      expect(onAction).toHaveBeenCalledTimes(1);
-      expect(onDetail).not.toHaveBeenCalled();
-    });
-
-    it("keeps the row plain when there is no detail to open", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
-
-      expect(rows()[0].className).not.toContain("hover:bg-surface-2");
-    });
-
-    it("shows the name as plain text when there is no detail to open", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
-
-      expect(screen.queryByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).not.toBeInTheDocument();
-      expect(screen.getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
-    });
-  });
-
-  describe("without actions", () => {
-    it("drops the Aksi column on a list that never has anything to do", () => {
-      render(
-        <MyTaskTable tasks={[task({ status: "link_submitted", actions: [] })]} onDetail={vi.fn()} hideActions />,
-      );
-
-      expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-        "Nama Konten",
-        "Deadline",
-        "Status",
-      ]);
-      expect(within(rows()[0]).getAllByRole("cell")).toHaveLength(3);
-    });
-  });
-
-  it("centres every cell's content vertically, so the text lines up with the buttons", () => {
-    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
-
-    for (const cell of within(rows()[0]).getAllByRole("cell")) {
-      expect(cell.className).toContain("align-middle");
-      expect(cell.className).not.toContain("align-top");
-    }
-  });
-
-  describe("type and fixed layout", () => {
-    it.each([
-      ["evergreen", "Evergreen"],
-      ["specific", "Specific"],
-    ] as const)("shows a %s task's type under its name, as quiet text", (type, label) => {
-      render(<MyTaskTable tasks={[task({ type })]} onAction={vi.fn()} onDetail={vi.fn()} />);
-
-      const nameCell = within(rows()[0]).getAllByRole("cell")[0];
-      const typeLabel = within(nameCell).getByText(label);
-      expect(typeLabel.className).toContain("text-muted");
-      expect(typeLabel.className).toContain("text-xs");
-    });
-
-    // The prototype's columns hold their width whatever a page holds, so a tab or a page with
-    // short names or no buttons does not reshuffle the table.
-    it("fixes the column widths from lg up, whatever the rows hold", () => {
-      render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} />);
-
-      expect(screen.getByRole("table").className).toContain("lg:table-fixed");
-      const cols = document.querySelectorAll("colgroup col");
-      expect([...cols].map((col) => col.className)).toEqual(["w-[30%]", "w-[13%]", "w-[29%]", "w-[28%]"]);
-    });
-
-    it("spreads the three columns over the width when there is no Aksi column", () => {
-      render(<MyTaskTable tasks={[task({ status: "link_submitted", actions: [] })]} hideActions />);
-
-      const cols = document.querySelectorAll("colgroup col");
-      expect([...cols].map((col) => col.className)).toEqual(["w-[46%]", "w-[20%]", "w-[34%]"]);
-    });
-
-    it("gives every row the same height from lg up, buttons or none", () => {
-      render(
-        <MyTaskTable
-          tasks={[task({ id: "a" }), task({ id: "b", status: "link_submitted", actions: [] })]}
-          onAction={vi.fn()}
-        />,
-      );
-
-      for (const row of rows()) {
-        expect(row.className).toContain("lg:h-16");
-      }
     });
   });
 
   // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
   // it sits in the frame that fades that edge (as every list table does).
   it("sits in a frame that fades the edge hiding more columns", () => {
-    render(<MyTaskTable tasks={[task()]} onAction={vi.fn()} onDetail={vi.fn()} />);
+    renderTable();
 
     expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });

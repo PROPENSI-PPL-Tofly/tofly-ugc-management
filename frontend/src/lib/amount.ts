@@ -1,6 +1,8 @@
 // How the app's rupiah number fields are read and checked. Shared by every form that takes an
 // amount (the contract's fixed rate, the Atur Formula Rate modal), so they cannot disagree on
-// what a valid number is.
+// what a valid number is. The fields group digits by thousands as they are typed (1.500.000).
+
+import { groupDigits, ungroupDigits } from "./grouped-number";
 
 /** A number field takes at most this many digits. */
 export const MAX_AMOUNT_DIGITS = 10;
@@ -12,14 +14,14 @@ export const MAX_AMOUNT_DIGITS = 10;
  * sign, a separator, a letter) is NaN: dropping it would read "1.500,00" as 150000.
  */
 export function parseAmount(raw: string): number | null {
-  const typed = raw.trim();
+  const typed = ungroupDigits(raw.trim());
   if (typed === "") return null;
   return /^\d+$/.test(typed) ? Number(typed) : Number.NaN;
 }
 
 /** A held amount as the input shows it: empty when there is none, so typing "5" gives "5". */
 export function amountText(value: number | null): string {
-  return value === null ? "" : String(value);
+  return value === null ? "" : groupDigits(String(value));
 }
 
 /**

@@ -40,12 +40,15 @@ export function LinkPerformanceTable({
   rows,
   showCreator = false,
   onRowClick,
+  contentHref,
 }: Readonly<{
   rows: readonly PerformanceLinkRow[];
   /** The admin's list names whose link each row is; a creator reads their own. */
   showCreator?: boolean;
-  /** The admin's rows open their content's detail (AC 25); a creator's list offers no press. */
+  /** The admin's rows open their content's detail (AC 25) in a panel on the same page. */
   onRowClick?: (row: PerformanceLinkRow) => void;
+  /** Where a row's content opens instead, as a link: the creator's Detail Konten in Task Saya. */
+  contentHref?: (row: PerformanceLinkRow) => string;
 }>) {
   return (
     <div className="overflow-x-auto">
@@ -88,14 +91,20 @@ export function LinkPerformanceTable({
                   : undefined
               }
               className={`border-b border-rule last:border-none ${
-                onRowClick ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
+                onRowClick || contentHref ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
               }`}
             >
               <td className={`${CELL} min-w-48 wrap-break-word`}>
                 {onRowClick ? (
-                  <ContentNameButton onOpen={() => onRowClick(row)} underlined>
+                  <ContentNameButton onOpen={() => onRowClick(row)}>{row.contentName}</ContentNameButton>
+                ) : contentHref ? (
+                  // Stretched over its row, so the whole row opens it as the admin's rows do.
+                  <Link
+                    href={contentHref(row)}
+                    className="hover:underline after:absolute after:inset-0 after:content-['']"
+                  >
                     {row.contentName}
-                  </ContentNameButton>
+                  </Link>
                 ) : (
                   row.contentName
                 )}

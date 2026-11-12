@@ -179,11 +179,30 @@ describe('Performance routes', () => {
       );
     });
 
+    it('passes the checked data states on', async () => {
+      await get('?state=waiting');
+
+      expect(links.list).toHaveBeenCalledWith(
+        { page: 1, pageSize: 10 },
+        { states: ['waiting'] },
+      );
+    });
+
+    it('passes the search and the data states on together', async () => {
+      await get('?q=kopi&state=manual');
+
+      expect(links.list).toHaveBeenCalledWith(
+        { page: 1, pageSize: 10 },
+        { q: 'kopi', states: ['manual'] },
+      );
+    });
+
     it.each([
       '?page=0',
       '?page=x',
       '?platform=youtube',
       '?creator=rani',
+      '?state=done',
       `?q=${'a'.repeat(101)}`,
       '?q=rani&q=kopi',
     ])('answers 400 for %s', async (query) => {

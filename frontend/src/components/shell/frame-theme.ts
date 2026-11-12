@@ -28,33 +28,19 @@ export interface FrameTheme {
   placeOn: string;
 }
 
+/** Navy at every width, so every role's frame reads as one tool; only the role's name differs. */
+const NAVY: Omit<FrameTheme, "label"> = {
+  rail: "bg-ink text-accent-ink",
+  wordmark: "text-accent-ink",
+  wordmarkDot: "bg-accent",
+  tag: "bg-accent-ink/15 text-accent-ink",
+  account: "md:border-ink-2 md:text-rule",
+  logout: "text-rule hover:bg-accent-ink/10 hover:text-accent-ink active:bg-accent-ink/20",
+  place: "md:bg-accent-ink/5 md:text-rule md:hover:bg-accent-ink/15 md:hover:text-accent-ink",
+  placeOn: "aria-[current=page]:bg-ink aria-[current=page]:text-accent-ink md:aria-[current=page]:bg-accent",
+};
+
 export const FRAME_THEMES: Record<Role, FrameTheme> = {
-  // Brand blue on a phone, the light rail from md up.
-  creator: {
-    label: "Creator",
-    rail: "max-md:bg-accent-deep max-md:text-accent-ink md:border-r md:border-rule md:bg-surface",
-    wordmark: "max-md:text-accent-ink md:text-ink",
-    wordmarkDot: "max-md:bg-accent-wash md:bg-accent",
-    tag: "max-md:bg-accent-ink/20 max-md:text-accent-ink md:bg-accent-wash md:text-accent-deep",
-    account: "md:border-rule md:text-muted",
-    logout:
-      "max-md:text-accent-ink max-md:hover:bg-accent-ink/15 max-md:active:bg-accent-ink/25 md:text-ink-2 md:hover:bg-surface-2 md:hover:text-ink md:active:bg-rule-2",
-    place: "md:bg-transparent md:text-ink-2 md:hover:bg-surface-2 md:hover:text-ink",
-    placeOn:
-      "aria-[current=page]:bg-accent-deep aria-[current=page]:text-accent-ink md:aria-[current=page]:bg-accent",
-  },
-  // Navy at every width, so an admin always knows whose tool this is.
-  admin: {
-    label: "Admin",
-    rail: "bg-ink text-accent-ink",
-    wordmark: "text-accent-ink",
-    wordmarkDot: "bg-accent",
-    tag: "bg-accent-ink/15 text-accent-ink",
-    account: "md:border-ink-2 md:text-rule",
-    logout:
-      "text-rule hover:bg-accent-ink/10 hover:text-accent-ink active:bg-accent-ink/20",
-    place: "md:bg-accent-ink/5 md:text-rule md:hover:bg-accent-ink/15 md:hover:text-accent-ink",
-    placeOn:
-      "aria-[current=page]:bg-ink aria-[current=page]:text-accent-ink md:aria-[current=page]:bg-accent",
-  },
+  creator: { label: "Creator", ...NAVY },
+  admin: { label: "Admin", ...NAVY },
 };

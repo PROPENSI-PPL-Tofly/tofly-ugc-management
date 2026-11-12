@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CreatorLink } from "@/components/ui/creator-link";
-import { FIELD, FIELD_ERROR, NUMERIC_INPUT } from "@/components/ui/form-classes";
-import { PerformanceLockReminder } from "@/components/performance/performance-lock-reminder";
+import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
+import { GroupedNumberInput } from "@/components/ui/grouped-number-input";
+import { groupDigits } from "@/lib/grouped-number";
 import { InfoTip } from "@/components/ui/info-tip";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { Pill, type Tone } from "@/components/ui/pill";
@@ -32,7 +33,11 @@ import {
   type LinkPerformanceSyncer,
   type ManualPerformanceSaver,
 } from "@/lib/link-performance-api";
-import { PLATFORM_LABELS, type ContentLink, type Platform } from "@/lib/platform-links";
+import { PLATFORM_LABELS, PLATFORMS, type ContentLink, type Platform } from "@/lib/platform-links";
+import { PencilIcon } from "./content-manage";
+
+const ICON_BUTTON =
+  "grid size-8 shrink-0 cursor-pointer place-items-center rounded-(--radius-control) border-none bg-transparent text-muted hover:bg-surface-2 hover:text-ink max-sm:size-11";
 
 const SECTION_LABEL = "mb-2 text-[11px] font-bold uppercase tracking-wider text-muted";
 
@@ -53,15 +58,13 @@ interface SaveProblem {
   errors?: ManualErrors;
 }
 
-const HELP = 'Angka bulat 0–999.999.999. Isi minimal satu. Kolom kosong tetap "belum ada data", bukan 0.';
-
 /** The link as the card shows it: without the scheme and www, the whole address in the href. */
 function shortUrl(url: string): string {
   return url.replace(/^https?:\/\/(www\.)?/, "");
 }
 
 function fieldsOf(performance: LinkPerformance): ManualFields {
-  const text = (value: number | null) => (value === null ? "" : String(value));
+  const text = (value: number | null) => (value === null ? "" : groupDigits(String(value)));
   return {
     views: text(performance.views),
     likes: text(performance.likes),
@@ -134,15 +137,16 @@ function ManualForm({
             <div key={name} className="flex flex-col gap-1 text-[13px]">
               <label className="flex flex-col gap-1">
                 <span className="font-semibold text-ink">{label}</span>
-                <input
-                  {...NUMERIC_INPUT}
+                <GroupedNumberInput
                   className={FIELD}
                   value={fields[name]}
-                  placeholder="Kosongkan kalau belum ada"
-                  maxLength={11}
+                  // An empty field is saved as no data, never as 0.
+                  placeholder="Belum ada angka"
+                  // 999.999.999 with its dots, and room to show a number past it so it is refused.
+                  maxLength={15}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? `${id}-${name}` : undefined}
-                  onChange={(event) => setFields((last) => ({ ...last, [name]: event.target.value }))}
+                  onChange={(shown) => setFields((last) => ({ ...last, [name]: shown }))}
                 />
               </label>
               {/* Outside the label, so the message describes the field without renaming it. */}
@@ -155,7 +159,6 @@ function ManualForm({
           );
         })}
       </div>
-      <p className="text-xs text-muted">{HELP}</p>
       {errors.metrics ? <p className={FIELD_ERROR}>{errors.metrics}</p> : null}
       {refusal ? (
         <p role="alert" className={FIELD_ERROR}>
@@ -219,6 +222,8 @@ function LinkCard({
   onSave,
   onSync,
   syncDisabled,
+  onEditLink,
+  linkForm,
 }: Readonly<{
   link: ContentLink;
   performance: LinkPerformance;
@@ -233,6 +238,10 @@ function LinkCard({
   onSync: () => void;
   /** True while any sync of this content runs, so a second one is never started. */
   syncDisabled: boolean;
+  /** The creator's pencil: changes this link. Absent for an admin, who never changes a link. */
+  onEditLink?: () => void;
+  /** This link's form, open in place of the link while the creator changes it. */
+  linkForm?: ReactNode;
 }>) {
   const label = DATA_STATE_LABELS[performance.state];
   const syncName = `Sinkronkan ${PLATFORM_LABELS[platform]}`;
@@ -245,9 +254,28 @@ function LinkCard({
         aria-label={`Performa ${PLATFORM_LABELS[platform]}`}
         className="rounded-(--radius-panel) border border-rule bg-surface p-3"
       >
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
-          <PlatformIcon platform={platform} />
-          <CreatorLink link={link.url} label={shortUrl(link.url)} look="chip" />
+        {/* The link fills its own line, so every card's link is one length whatever its
+            address; the hand-in day and the state share the line under it. */}
+        {linkForm ?? (
+          <div data-link-row="" className="flex items-center gap-2 text-[13px]">
+            <PlatformIcon platform={platform} />
+            <div className="min-w-0 flex-1">
+              <CreatorLink link={link.url} label={shortUrl(link.url)} look="field" />
+            </div>
+            {onEditLink ? (
+              <button
+                type="button"
+                aria-label={`Ubah link ${PLATFORM_LABELS[platform]}`}
+                title="Ubah link"
+                onClick={onEditLink}
+                className={ICON_BUTTON}
+              >
+                <PencilIcon />
+              </button>
+            ) : null}
+          </div>
+        )}
+        <div className="mb-3 mt-2 flex items-center gap-2">
           <time dateTime={link.submittedAt} className="text-xs text-muted">
             Dikirim {formatDate(link.submittedAt)}
           </time>
@@ -298,6 +326,9 @@ export function LinkPerformanceSection({
   sync = syncContentPerformance,
   syncLink = syncLinkPerformance,
   onChanged,
+  editingLink = null,
+  onEditLink = () => undefined,
+  renderLinkForm,
 }: Readonly<{
   contentId: string;
   links: readonly ContentLink[];
@@ -309,9 +340,19 @@ export function LinkPerformanceSection({
   syncLink?: LinkPerformanceSyncer;
   /** Called after the numbers changed, so the panel can read the content again. */
   onChanged?: () => void;
+  /** The platform whose link the creator is changing or adding, with its form open. */
+  editingLink?: Platform | null;
+  /** Opens a platform's link form: the creator's pencil and +. Absent, no link can be changed. */
+  onEditLink?: (platform: Platform) => void;
+  /** The form for one platform's link, drawn by the panel, which holds what it sends. */
+  renderLinkForm?: (platform: Platform) => ReactNode;
 }>) {
   const { show, toast } = useToast();
   const [syncing, setSyncing] = useState(false);
+  // Only the creator adds or changes a link; an admin gets neither the pencil nor the +.
+  const linksChangeable = role === "creator" && onEditLink !== undefined && renderLinkForm !== undefined;
+  const linked = new Set(links.map((link) => link.platform));
+  const missing = PLATFORMS.filter((platform) => !linked.has(platform));
   const [editing, setEditing] = useState<Platform | null>(null);
   // SCRUM-282: the link a card's Refresh is syncing; while any sync runs, no button starts another.
   const [syncingLink, setSyncingLink] = useState<Platform | null>(null);
@@ -353,7 +394,6 @@ export function LinkPerformanceSection({
         ) : null}
       </div>
       {/* PBI-28 AC 13: the creator's own bonus, so only a creator is reminded. */}
-      {role === "creator" ? <PerformanceLockReminder className="mb-2" /> : null}
       <ul className="flex flex-col gap-2">
         {links.map((link) =>
           link.platform && link.performance ? (
@@ -370,6 +410,10 @@ export function LinkPerformanceSection({
               onSave={(values) => saveManual(link.platform as Platform, values)}
               onSync={() => void syncOne(link.platform as Platform)}
               syncDisabled={busy}
+              onEditLink={linksChangeable ? () => onEditLink(link.platform as Platform) : undefined}
+              linkForm={
+                linksChangeable && editingLink === link.platform ? renderLinkForm(link.platform) : undefined
+              }
             />
           ) : (
             // A link kept from before platforms were recorded has nothing to be measured on.
@@ -382,6 +426,31 @@ export function LinkPerformanceSection({
           ),
         )}
       </ul>
+      {/* A platform with no link yet: the creator adds it from here, its form in the +'s place. */}
+      {linksChangeable && missing.length > 0 ? (
+        <ul className="mt-2 flex flex-col gap-2">
+          {missing.map((platform) =>
+            editingLink === platform ? (
+              <li key={platform} className="rounded-(--radius-panel) border border-rule bg-surface p-3">
+                {renderLinkForm(platform)}
+              </li>
+            ) : (
+              <li key={platform}>
+                <button
+                  type="button"
+                  aria-label={`Tambah link ${PLATFORM_LABELS[platform]}`}
+                  onClick={() => onEditLink(platform)}
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-(--radius-panel) border border-dashed border-rule bg-transparent px-3 py-2.5 text-[13px] font-semibold text-muted hover:border-ink-2 hover:text-ink"
+                >
+                  <span aria-hidden="true" className="text-base leading-none">+</span>
+                  <PlatformIcon platform={platform} />
+                  Tambah link {PLATFORM_LABELS[platform]}
+                </button>
+              </li>
+            ),
+          )}
+        </ul>
+      ) : null}
       {toast}
     </section>
   );

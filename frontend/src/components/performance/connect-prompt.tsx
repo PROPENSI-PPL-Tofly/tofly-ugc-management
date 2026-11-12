@@ -23,6 +23,9 @@ export function ConnectPrompt({
           Akun {SOCIAL_PLATFORM_LABELS[account.platform]} belum terhubung.{" "}
           <a
             href={connectHref(account.platform)}
+            // In a new tab, as the Akun Terhubung panel's Hubungkan opens it.
+            target="_blank"
+            rel="noopener noreferrer"
             className="font-semibold text-ink underline decoration-rule underline-offset-[3px] hover:decoration-ink"
           >
             Hubungkan

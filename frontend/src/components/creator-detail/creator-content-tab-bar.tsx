@@ -34,7 +34,6 @@ export function CreatorContentTabBar({
       active={active}
       counts={counts}
       onSelect={select}
-      countEvery
     />
   );
 }

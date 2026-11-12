@@ -81,7 +81,7 @@ async function renderPage(params: Record<string, string> = {}) {
   return render(<>{result}</>);
 }
 
-describe("Rate & Invoicing page", () => {
+describe("Pembayaran page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();
@@ -91,7 +91,7 @@ describe("Rate & Invoicing page", () => {
   it("titles the page and explains the formula behind an ⓘ a keyboard can reach", async () => {
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Rate & Invoicing" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Pembayaran" })).toBeInTheDocument();
     const tip = screen.getByRole("button", { name: "Info rumus Total" });
     expect(tip).toHaveAccessibleDescription(FORMULA);
     // Not a title: a hover-only hint no keyboard or touch can open.
@@ -216,9 +216,13 @@ describe("Rate & Invoicing page", () => {
 
       await renderPage();
 
-      expect(screen.getByRole("status", { name: "Formula rate belum diatur" })).toHaveTextContent(
-        "Formula rate belum diatur. Fee konten tambahan dan penalti belum dihitung sampai formula disimpan lewat Atur Formula Rate.",
-      );
+      // A badge beside Atur Formula Rate in the page's header, not a box over the table.
+      const badge = screen.getByRole("status", { name: "Formula rate belum diatur" });
+      expect(badge).toHaveTextContent("Formula rate belum diatur");
+      expect(badge).toHaveClass("rounded-full");
+      const header = screen.getByRole("heading", { level: 1, name: "Pembayaran" }).parentElement as HTMLElement;
+      expect(header).toContainElement(badge);
+      expect(header).toContainElement(screen.getByRole("button", { name: /atur formula rate/i }));
     });
 
     it("says nothing about the formula once it is saved", async () => {
@@ -248,13 +252,13 @@ describe("Rate & Invoicing page", () => {
       expect(tile).toHaveTextContent("Total = Fixed Rate + Konten Tambahan + Bonus − Penalti");
     });
 
-    it("titles the list in the ink band with its count and the formula button", async () => {
+    it("gives the list no title band and puts the formula button beside the page title", async () => {
       await renderPage();
 
-      const band = screen.getByRole("heading", { level: 2, name: "Invoice" }).closest("[data-tone]") as HTMLElement;
-      expect(band).toHaveAttribute("data-tone", "ink");
-      expect(band.querySelector("[data-count]")).toHaveTextContent("24 invoice");
-      expect(within(band).getByRole("button", { name: /atur formula rate/i })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { level: 2, name: "Invoice" })).toBeNull();
+      expect(document.querySelector("[data-tone]")).toBeNull();
+      const header = screen.getByRole("heading", { level: 1, name: "Pembayaran" }).parentElement as HTMLElement;
+      expect(within(header).getByRole("button", { name: /atur formula rate/i })).toBeInTheDocument();
     });
 
     it("asks the list for the order in the URL", async () => {

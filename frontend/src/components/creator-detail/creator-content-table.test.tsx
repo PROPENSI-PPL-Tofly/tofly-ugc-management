@@ -32,26 +32,22 @@ describe("CreatorContentTable", () => {
 
     expect(
       screen.getAllByRole("columnheader").map((heading) => heading.textContent),
-    ).toEqual(["Konten", "Tipe", "Deadline↑Deadline", "Status", "Platform", "Aksi"]);
+    ).toEqual(["Konten", "Tipe", "Deadline↑Deadline", "Status", "Platform"]);
   });
 
-  it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {
-    renderTable();
+  // The row and the content's name open it; there is no Detail or Tinjau button any more.
+  it("has no Detail or Tinjau button on a row, whatever its status", () => {
+    renderTable([
+      ROW,
+      { ...ROW, contentId: "c-2", name: "Konten Kedua", status: "draft_review" },
+      { ...ROW, contentId: "c-3", name: "Konten Ketiga", status: "link_submitted" },
+    ]);
 
-    expect(screen.getByText("Aksi")).toHaveClass("sr-only");
-  });
-
-  it("keeps that hidden heading inside the table's own scroll area, so a phone never scrolls the page sideways", () => {
-    renderTable();
-
-    // sr-only is position:absolute. Unless the scroll area is positioned, the heading is laid
-    // out against the page and widens it by however far the table overflows (117 px at 375 px).
-    const scrollArea = screen.getByText("Aksi").closest(".overflow-x-auto");
-    expect(scrollArea).toHaveClass("relative");
+    expect(screen.queryByRole("button", { name: /^(Detail|Tinjau) / })).toBeNull();
   });
 
   // Measured in Edge at true 320/375/390/430 px: the table is 628 px wide in a 286-396 px area,
-  // so Status, its tags and Detail/Tinjau all sat off-screen. Below lg each row reads as a card,
+  // so Status and its tags sat off-screen. Below lg each row reads as a card,
   // as the roster and Task Saya do. jsdom lays nothing out, so these pin what the layout is built
   // from; the browser measurement is the evidence for the layout itself.
   describe("on a phone, below lg", () => {
@@ -84,7 +80,7 @@ describe("CreatorContentTable", () => {
       expect(screen.getByRole("table")).toHaveClass("max-lg:block");
       expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
       expect(rowOf("Evg_7_RanggaPratama_26092026")).toHaveClass("max-lg:block");
-      expect(cells()).toHaveLength(6);
+      expect(cells()).toHaveLength(5);
     });
 
     it("names the deadline and the status by their columns, since the headers are hidden", () => {
@@ -96,7 +92,6 @@ describe("CreatorContentTable", () => {
         "Deadline",
         "Status",
         "Platform",
-        null,
       ]);
     });
 
@@ -106,14 +101,6 @@ describe("CreatorContentTable", () => {
       const [name] = cells();
       expect(name).toHaveClass("min-w-52");
       expect(name).toHaveClass("max-lg:min-w-0");
-    });
-
-    it("gives Tinjau a full-width touch target at least 44px tall", () => {
-      renderTable();
-
-      const button = screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" });
-      expect(button).toHaveClass("max-lg:w-full");
-      expect(button).toHaveClass("max-lg:min-h-11");
     });
 
     it("keeps one sort control per width: the header's button is removed below lg, its name kept", () => {
@@ -274,43 +261,12 @@ describe("CreatorContentTable", () => {
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
     });
 
-    it("opens it once from the button, not once for the button and once for the row", () => {
+    it("opens it once from the name, not once for the name and once for the row", () => {
       const { onOpen } = renderTable();
 
-      fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }));
+      fireEvent.click(screen.getByRole("button", { name: "Evg_7_RanggaPratama_26092026" }));
 
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
-    });
-
-    it.each(["pending", "draft_review"] as const)("offers Tinjau for a %s content", (status) => {
-      renderTable([{ ...ROW, status }]);
-
-      expect(
-        screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }),
-      ).toHaveTextContent("Tinjau");
-    });
-
-    it.each(["scheduled", "draft_revision", "draft_approved", "link_submitted"] as const)(
-      "offers a quiet Detail button for a %s content that opens it once",
-      (status) => {
-        const { onOpen } = renderTable([{ ...ROW, status }]);
-
-        const detail = screen.getByRole("button", { name: "Detail Evg_7_RanggaPratama_26092026" });
-        expect(detail).toHaveTextContent("Detail");
-        expect(detail.className).not.toContain("bg-accent");
-        expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
-        fireEvent.click(detail);
-        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
-      },
-    );
-
-    it("makes Tinjau the prominent one, in the accent fill, where a decision is waiting", () => {
-      renderTable([{ ...ROW, status: "draft_review" }]);
-
-      expect(screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }).className).toContain(
-        "bg-accent",
-      );
-      expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
     });
 
     it("opens the content that was pressed, among several", () => {
@@ -354,19 +310,6 @@ describe("CreatorContentTable", () => {
         fireEvent.click(screen.getByText("Evg_7_RanggaPratama_26092026"));
 
         expect(onOpen).not.toHaveBeenCalled();
-      });
-
-      it("still opens from the button, which is never part of a selection", () => {
-        vi.spyOn(window, "getSelection").mockReturnValue({
-          toString: () => "RanggaPratama",
-        } as Selection);
-        const { onOpen } = renderTable();
-
-        fireEvent.click(
-          screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }),
-        );
-
-        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
       });
 
       it("opens as usual where the browser reports no selection at all", () => {
@@ -438,9 +381,7 @@ describe("CreatorContentTable", () => {
 
     expect(screen.getByText("Evg_7_RanggaPratama_26092026")).toBeInTheDocument();
     expect(screen.getByText("(Late Submission)")).toHaveClass("sr-only");
-    expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
-    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Detail Evg_7_RanggaPratama_26092026" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail) / })).toBeNull();
   });
 
   // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;

@@ -47,7 +47,6 @@ describe("ContentPlanTable", () => {
       "DeadlineDeadline",
       "Status",
       "Platform",
-      "Aksi",
     ]);
   });
 
@@ -71,18 +70,17 @@ describe("ContentPlanTable", () => {
     expect(screen.getByText("Draft Menunggu Review")).toBeInTheDocument();
   });
 
-  it("gives a row awaiting a decision the review button, and the rest the quiet detail one", () => {
+  it("has no Tinjau or Detail button, leaving the name as the row's door for the keyboard", () => {
     const { onOpen } = renderTable();
-    const review = screen.getByRole("button", { name: "Tinjau Video Review Kopi" });
-    expect(review).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail) / })).toBeNull();
 
-    fireEvent.click(review);
+    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
     expect(onOpen).toHaveBeenCalledWith("c-1");
   });
 
   // The prototype opens the panel from anywhere on the row; the button stays for the keyboard.
   // Measured in Edge at true 320/375/390/430 px on the live page: the table is 890 px wide in a
-  // 286–396 px area, so Deadline, Status, Tags and Tinjau/Detail sit off-screen. Below lg each
+  // 286–396 px area, so Deadline, Status and Tags sit off-screen. Below lg each
   // row becomes a card, as Task Saya's and the Creator Database's do. jsdom lays nothing out,
   // so these pin what the layout is built from; the browser measurement is the evidence.
   describe("on a phone, below lg", () => {
@@ -138,7 +136,6 @@ describe("ContentPlanTable", () => {
         "Deadline",
         "Status",
         "Platform",
-        null,
       ]);
     });
 
@@ -163,15 +160,6 @@ describe("ContentPlanTable", () => {
       expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
       expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
     });
-
-    it("gives Tinjau a full-width touch target at least 44px tall", () => {
-      renderTable();
-
-      expect(screen.getByRole("button", { name: "Tinjau Video Review Kopi" })).toHaveClass(
-        "max-lg:w-full",
-        "max-lg:min-h-11",
-      );
-    });
   });
 
   describe("opening from the row", () => {
@@ -183,10 +171,10 @@ describe("ContentPlanTable", () => {
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
     });
 
-    it("opens it once, not twice, when the press lands on the row's button", () => {
+    it("opens it once, not twice, when the press lands on the row's name button", () => {
       const { onOpen } = renderTable();
 
-      fireEvent.click(screen.getByRole("button", { name: "Tinjau Video Review Kopi" }));
+      fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
 
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
     });
@@ -243,17 +231,6 @@ describe("ContentPlanTable", () => {
         fireEvent.click(screen.getByText("Video Review Kopi").closest("tr")!);
 
         expect(onOpen).not.toHaveBeenCalled();
-      });
-
-      it("still opens from the button, which is never part of a selection", () => {
-        vi.spyOn(window, "getSelection").mockReturnValue({
-          toString: () => "Video Review",
-        } as Selection);
-        const { onOpen } = renderTable();
-
-        fireEvent.click(screen.getByRole("button", { name: "Tinjau Video Review Kopi" }));
-
-        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
       });
 
       it("opens as usual where the browser reports no selection at all", () => {
@@ -353,15 +330,6 @@ describe("ContentPlanTable", () => {
     });
   });
 
-  it("offers a quiet Detail button for a row the creator holds, opening it once", () => {
-    const { onOpen } = renderTable([{ ...ROW, status: "scheduled" }]);
-
-    const detail = screen.getByRole("button", { name: "Detail Video Review Kopi" });
-    expect(detail.className).not.toContain("bg-accent");
-    fireEvent.click(detail);
-    expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
-  });
-
   it("lets the keyboard reach a row through its name, a real button", () => {
     renderTable();
 
@@ -383,7 +351,7 @@ describe("ContentPlanTable", () => {
     expect(screen.queryByText(/Revisi ke-/)).toBeNull();
   });
 
-  it("keeps the tags and a Detail button on Selesai, with no Tinjau", () => {
+  it("keeps the tags on Selesai, opening from the name with no Detail or Tinjau", () => {
     const { onOpen } = renderTable(
       [{ ...ROW, status: "link_submitted", tags: ["late_submission", "approval_bypassed"] }],
       { tab: "done" },
@@ -391,8 +359,8 @@ describe("ContentPlanTable", () => {
 
     expect(screen.getByText("(Late Submission)")).toHaveClass("sr-only");
     expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Detail Video Review Kopi" }));
+    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail) / })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Video Review Kopi" }));
     expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
   });
 

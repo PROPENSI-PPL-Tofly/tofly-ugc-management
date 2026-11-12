@@ -105,6 +105,33 @@ describe('PerformanceLinksService', () => {
     );
   });
 
+  // Review on #209: each word is four unindexed ILIKEs, run for the count and the page, so a
+  // 100-character search of 50 one-letter words took 9-12 s. A repeated word (whatever its case,
+  // as the match ignores case) adds nothing, and past five words the search stops narrowing.
+  it('searches each word once, whatever its case, and at most five words', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { q: 'Kopi kopi KOPI rani a b c d e f' },
+    );
+
+    const where = content_links.count.mock.calls[0][0].where as {
+      AND: { OR: { contents: { name?: { contains: string } } }[] }[];
+    };
+    expect(
+      where.AND.map((word) => word.OR[0].contents.name?.contains),
+    ).toEqual(['Kopi', 'rani', 'a', 'b', 'c']);
+  });
+
+  it('keeps a 100-character search of one-letter words to five words', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { q: Array.from({ length: 50 }, (_, i) => 'abcdefghij'[i % 10]).join(' ') },
+    );
+
+    const where = content_links.count.mock.calls[0][0].where as { AND: unknown[] };
+    expect(where.AND).toHaveLength(5);
+  });
+
   it('searches alongside the creator and platform filters', async () => {
     await service.list(
       { page: 1, pageSize: 10 },
@@ -117,6 +144,39 @@ describe('PerformanceLinksService', () => {
         contents: { contracts: { creator_id: { in: [CREATOR_A] } } },
         AND: [expect.objectContaining({ OR: expect.any(Array) })],
       }),
+    });
+  });
+
+  it('narrows to the chosen data states beside the other filters, without clashing with them', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { creators: [CREATOR_A], states: ['manual'] },
+    );
+
+    expect(content_links.count).toHaveBeenCalledWith({
+      where: {
+        platform: { not: null },
+        contents: { contracts: { creator_id: { in: [CREATOR_A] } } },
+        AND: [{ OR: [{ data_state: 'manual' }] }],
+      },
+    });
+  });
+
+  // Both narrow through one AND: two spread `AND` keys would let the last one drop the other.
+  it('keeps the search when a data state is chosen too', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { q: 'kopi', states: ['manual'] },
+    );
+
+    expect(content_links.count).toHaveBeenCalledWith({
+      where: {
+        platform: { not: null },
+        AND: [
+          expect.objectContaining({ OR: expect.any(Array) }),
+          { OR: [{ data_state: 'manual' }] },
+        ],
+      },
     });
   });
 

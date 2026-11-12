@@ -37,25 +37,27 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByText("rangga@example.com")).toBeInTheDocument();
   });
 
-  it("lists each handle beside the platform it belongs to", () => {
+  // Each handle after its platform's coloured logo, rather than a caption in words.
+  it("lists each handle after its platform's logo", () => {
     render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
 
     const items = within(socials()).getAllByRole("listitem");
     // The chip itself; its connection badge sits beside it in the same item.
-    expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([
-      "IG@rangga.creates",
-      "TIKTOK@ranggacreates",
-    ]);
+    const chips = items.map((item) => item.firstElementChild as HTMLElement);
+    expect(chips.map((chip) => chip.textContent)).toEqual(["@rangga.creates", "@ranggacreates"]);
+    expect(within(chips[0]).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(within(chips[1]).getByRole("img", { name: "TikTok" })).toBeInTheDocument();
   });
 
   it.each([
-    ["Instagram", { instagram: "rangga.creates" }, "IG@rangga.creates"],
-    ["TikTok", { tiktok: "ranggacreates" }, "TIKTOK@ranggacreates"],
-  ] as const)("lists only %s for a creator with that one account", (_, only, text) => {
+    ["Instagram", { instagram: "rangga.creates" }, "@rangga.creates"],
+    ["TikTok", { tiktok: "ranggacreates" }, "@ranggacreates"],
+  ] as const)("lists only %s for a creator with that one account", (platform, only, text) => {
     render(<CreatorProfilePanel creator={{ ...CREATOR, socials: only }} current={PERIOD} />);
 
     const items = within(socials()).getAllByRole("listitem");
     expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([text]);
+    expect(within(items[0]).getByRole("img", { name: platform })).toBeInTheDocument();
   });
 
   it("says there is no account rather than leaving a gap", () => {

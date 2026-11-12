@@ -174,6 +174,19 @@ describe("ContentDetailPanel", () => {
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   });
 
+  // The form's own buttons take the panel's foot, so the foot is never an empty bar and Kirim
+  // Revisi stays in view however long the note grows.
+  it("puts Batal and Kirim Revisi in the panel's foot while the note is open", async () => {
+    open(detail());
+
+    fireEvent.click(await screen.findByRole("button", { name: "Minta Revisi" }));
+
+    const foot = screen.getByRole("dialog").querySelector("[data-modal-footer]") as HTMLElement;
+    expect(within(foot).getByRole("button", { name: "Kirim Revisi" })).toBeInTheDocument();
+    expect(within(foot).getByRole("button", { name: "Batal" })).toBeInTheDocument();
+    expect(within(foot).queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
   it("keeps Kirim disabled while the note is empty or only spaces, and opens it after real text", async () => {
     open(detail());
 
@@ -1052,13 +1065,13 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(screen.queryByTestId("modal-eyebrow")).not.toBeInTheDocument();
     });
 
-    it("keeps type and status as dots, so the tag pills beside them stand out", async () => {
+    it("draws the type as a badge, as the tables do, and keeps the status a dot", async () => {
       show({ tags: ["overdue", "approval_bypassed"] });
 
       const meta = await screen.findByTestId("modal-meta");
       const status = within(meta).getByText("Draft Menunggu Review");
 
-      expect(within(meta).getByText("Specific")).not.toHaveClass("rounded-full");
+      expect(within(meta).getByText("Specific")).toHaveClass("rounded-full", "bg-accent-wash");
       expect(status).not.toHaveClass("rounded-full");
       expect(status.querySelector(".bg-accent")).not.toBeNull();
       expect(within(meta).getByText("Overdue")).toHaveClass("rounded-full", "bg-red-wash");
@@ -1084,12 +1097,26 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(within(meta).queryByRole("list")).not.toBeInTheDocument();
     });
 
-    it("shows the deadline as a date with its countdown", async () => {
+    it("shows the deadline as a date with its countdown in brackets beside it", async () => {
       show();
 
       const meta = await screen.findByTestId("modal-meta");
-      expect(meta).toHaveTextContent("Deadline 5 Okt 2026");
+      expect(meta).toHaveTextContent("Deadline 5 Okt 2026 (H-3)");
       expect(within(meta).getByTestId("deadline-due")).toHaveTextContent("H-3");
+    });
+
+    it("puts the deadline on a line of its own under the badges, not on one long row", async () => {
+      show({ tags: ["overdue"] });
+
+      const meta = await screen.findByTestId("modal-meta");
+      const rows = meta.querySelectorAll("[data-meta-row]");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveClass("basis-full");
+      expect(rows[0]).toHaveTextContent("Specific");
+      expect(rows[0]).toHaveTextContent("Overdue");
+      expect(rows[0]).not.toHaveTextContent("Deadline");
+      expect(rows[1]).toHaveClass("basis-full");
+      expect(rows[1]).toHaveTextContent("Deadline 5 Okt 2026");
     });
 
     it.each([
@@ -1124,12 +1151,14 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       expect(due.className).not.toMatch(/text-(red|amber|green)-ink/);
     });
 
-    it("reads Selesai in green once the video link is in, however late the deadline", async () => {
+    it("shows only the date once the video link is in, with no countdown and no Selesai", async () => {
       show({ status: "link_submitted", waitingOn: null, deadline: "2026-09-01" });
 
-      const due = await screen.findByTestId("deadline-due");
-      expect(due).toHaveTextContent("Selesai");
-      expect(due).toHaveClass("text-green-ink");
+      const meta = await screen.findByTestId("modal-meta");
+      expect(meta).toHaveTextContent("Deadline 1 Sep 2026");
+      expect(within(meta).queryByTestId("deadline-due")).toBeNull();
+      expect(within(meta).queryByText(/Selesai/)).toBeNull();
+      expect(meta).not.toHaveTextContent("(");
     });
 
     it("counts the deadline from the current day when no day is pinned", async () => {
@@ -1392,6 +1421,16 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       );
       expect(items[2]).toHaveTextContent("Rangga Pratama · Kreator");
       expect(items[3]).toHaveTextContent("dewi.admin@tofly.id · Admin");
+    });
+
+    // The revision's time sits in its grey note box, beside who wrote it, not on the title line.
+    it("puts a revision request's time inside its note box, not beside its title", async () => {
+      show({ events: FULL });
+
+      const revision = (await journeyItems())[3];
+      const time = within(revision).getByText("21 Sep 2026, 10.00 WIB");
+      expect(time.closest("blockquote")).not.toBeNull();
+      expect(revision.querySelector("[data-step-title]")?.parentElement).not.toContainElement(time);
     });
 
     it("shows an event the API dates by day alone without a time", async () => {
@@ -1901,10 +1940,11 @@ describe("ContentDetailPanel follow-up notes", () => {
     );
   });
 
-  it("words the follow-up step in the timeline with the round's amber dot (AC 6)", async () => {
+  // The follow-up reads under the revision note it adds to, so it takes no step of its own.
+  it("gives a follow-up no step of its own in the timeline", async () => {
     open(round());
 
-    const step = (await screen.findByText("Catatan susulan ditambahkan")).closest("li") as HTMLElement;
-    expect(step.querySelector("[data-timeline-dot]")?.className).toContain("bg-amber ring-amber");
+    await screen.findByLabelText("Riwayat konten");
+    expect(screen.queryByText("Catatan susulan ditambahkan")).toBeNull();
   });
 });

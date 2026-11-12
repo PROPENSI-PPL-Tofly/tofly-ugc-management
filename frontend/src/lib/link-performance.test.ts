@@ -95,7 +95,8 @@ describe("canEnterManually (AC 14)", () => {
     ["not_found", true],
     ["sync_failed", true],
     ["manual", true],
-    ["waiting", false],
+    // Still waiting for its first numbers: an admin may type them rather than wait.
+    ["waiting", true],
     ["synced", false],
   ] as const)("%s → %s", (state, allowed) => {
     expect(canEnterManually(state)).toBe(allowed);
@@ -110,7 +111,13 @@ describe("checkManualInput (AC 15)", () => {
     });
   });
 
-  it.each(["1000000000", "-1", "1.5", "12.400", "banyak", "1e3"])(
+  it("reads digits grouped by thousands, as the field shows them", () => {
+    expect(
+      checkManualInput({ views: "12.400", likes: "999.999.999", comments: "", shares: "" }).values,
+    ).toEqual({ views: 12400, likes: 999_999_999, comments: null, shares: null });
+  });
+
+  it.each(["1000000000", "1.000.000.000", "-1", "1.5", "12.40", "banyak", "1e3"])(
     "refuses %s with the same words as the API",
     (typed) => {
       expect(checkManualInput({ views: typed, likes: "", comments: "", shares: "" }).errors).toEqual({

@@ -73,7 +73,7 @@ describe("taskViewParams", () => {
 });
 
 describe("taskViewHref", () => {
-  it("leads to the bare Task Saya address for the table", () => {
+  it("leads to the bare Tugas Saya address for the table", () => {
     expect(taskViewHref("table", BARE)).toBe("/creator/tasks");
   });
 

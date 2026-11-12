@@ -13,25 +13,38 @@ vi.mock("next/navigation", () => ({
 describe("AppShell", () => {
   it("names the page and puts the content in main", () => {
     render(
-        <AppShell title="Creator Database">
+        <AppShell title="Kreator">
           <p>konten</p>
         </AppShell>,
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: "Creator Database" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Kreator" })).toBeInTheDocument();
     // No subtitle under the page title.
     expect(screen.getByRole("heading", { level: 1 }).nextElementSibling).toBeNull();
     expect(screen.getByRole("main")).toHaveTextContent("konten");
   });
 
-  it("marks the creator database as the current place in the navigation", () => {
+  it("puts a page's action beside its title, in the page header", () => {
     render(
-        <AppShell title="Creator Database">
+        <AppShell title="Kreator" action={<button type="button">Tambah Creator</button>}>
           <p>konten</p>
         </AppShell>,
     );
 
-    const link = screen.getByRole("link", { name: "Creator Database" });
+    const header = screen.getByRole("heading", { level: 1 }).parentElement as HTMLElement;
+    expect(header.tagName).toBe("HEADER");
+    expect(within(header).getByRole("button", { name: "Tambah Creator" })).toBeInTheDocument();
+    expect(within(screen.getByRole("main")).queryByRole("button")).toBeNull();
+  });
+
+  it("marks the creator database as the current place in the navigation", () => {
+    render(
+        <AppShell title="Kreator">
+          <p>konten</p>
+        </AppShell>,
+    );
+
+    const link = screen.getByRole("link", { name: "Kreator" });
     expect(link).toHaveAttribute("href", "/admin/creators");
     expect(link).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "Menu admin" })).toBeInTheDocument();
@@ -39,7 +52,7 @@ describe("AppShell", () => {
 
   it("stays the admin frame when no role is given", () => {
     render(
-        <AppShell title="Creator Database">
+        <AppShell title="Kreator">
           <p>konten</p>
         </AppShell>,
     );
@@ -51,7 +64,7 @@ describe("AppShell", () => {
   // The role and the way out sit together in one account block, not as two stray lines.
   it("groups who is signed in with the Keluar button", () => {
     render(
-        <AppShell title="Creator Database">
+        <AppShell title="Kreator">
           <p>konten</p>
         </AppShell>,
     );
@@ -66,19 +79,19 @@ describe("AppShell", () => {
   describe("for a creator", () => {
     it("shows the creator menu and none of the admin's places", () => {
       render(
-          <AppShell role="creator" title="Task Saya">
+          <AppShell role="creator" title="Tugas Saya">
             <p>konten</p>
           </AppShell>,
       );
 
       expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
       expect(screen.queryByRole("navigation", { name: "Menu admin" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: "Creator Database" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Kreator" })).not.toBeInTheDocument();
     });
 
     it("sends the wordmark home to the Dashboard and says whose frame it is", () => {
       render(
-          <AppShell role="creator" title="Task Saya">
+          <AppShell role="creator" title="Tugas Saya">
             <p>konten</p>
           </AppShell>,
       );
@@ -120,13 +133,27 @@ describe("AppShell", () => {
       unmount();
 
       render(
-        <AppShell role="admin" title="Creator Database">
+        <AppShell role="admin" title="Kreator">
           <p>konten</p>
         </AppShell>,
       );
       expect(rail()).toHaveClass(...FRAME_THEMES.admin.rail.split(" "));
       expect(rail()).toHaveAttribute("data-frame", "admin");
-      expect(rail()).not.toHaveClass(...FRAME_THEMES.creator.rail.split(" "));
+    });
+
+    // The creator's sidebar looks as the admin's does: navy at every width, the same rows.
+    it("draws a creator's sidebar in the admin's navy at every width", () => {
+      render(
+        <AppShell role="creator" title="Tugas Saya">
+          <p>konten</p>
+        </AppShell>,
+      );
+
+      expect(rail()).toHaveClass("bg-ink", "text-accent-ink");
+      expect(rail().className).not.toMatch(/max-md:bg-accent-deep|md:bg-surface/);
+      expect(screen.getByRole("link", { name: "Tugas Saya" })).toHaveClass(
+        ...FRAME_THEMES.admin.placeOn.split(" "),
+      );
     });
 
     it("pins the menu to the foot of a phone screen and keeps the content clear of it", () => {
@@ -143,12 +170,12 @@ describe("AppShell", () => {
 
     it("marks the current place with the role's own colour", () => {
       render(
-        <AppShell title="Creator Database">
+        <AppShell title="Kreator">
           <p>konten</p>
         </AppShell>,
       );
 
-      expect(screen.getByRole("link", { name: "Creator Database" })).toHaveClass(
+      expect(screen.getByRole("link", { name: "Kreator" })).toHaveClass(
         ...FRAME_THEMES.admin.placeOn.split(" "),
       );
     });
@@ -156,10 +183,12 @@ describe("AppShell", () => {
 });
 
 describe("FRAME_THEMES", () => {
-  it("gives each role its own colours and its own name", () => {
+  it("gives each role its own name, drawn in the same colours", () => {
     expect(FRAME_THEMES.creator.label).toBe("Creator");
     expect(FRAME_THEMES.admin.label).toBe("Admin");
-    expect(FRAME_THEMES.creator.rail).not.toBe(FRAME_THEMES.admin.rail);
-    expect(FRAME_THEMES.creator.placeOn).not.toBe(FRAME_THEMES.admin.placeOn);
+    const { label: creatorLabel, ...creatorColours } = FRAME_THEMES.creator;
+    const { label: adminLabel, ...adminColours } = FRAME_THEMES.admin;
+    expect(creatorLabel).not.toBe(adminLabel);
+    expect(creatorColours).toEqual(adminColours);
   });
 });

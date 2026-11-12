@@ -3,11 +3,11 @@
 import {
   FilterBar,
   FilterSelect,
-  ResetFilters,
   SearchBox,
   type ActiveFilter,
   type FilterOption,
 } from "@/components/filters/filter-controls";
+import { FilterChips, choiceChip } from "@/components/ui/filter-chips";
 import { CONTRACT_STATUS_FILTERS, PRODUCTIVITY_FILTERS } from "@/lib/creators";
 import { useUrlFilters } from "@/lib/use-url-filters";
 
@@ -65,10 +65,12 @@ export function CreatorFilters() {
   ];
 
   return (
+    <>
     <FilterBar
       search={<SearchBox label="Cari creator" placeholder="Nama atau email…" value={search} onChange={setSearch} />}
       active={active}
-      reset={isFiltered ? <ResetFilters onReset={reset} disabled={pending} /> : null}
+      // Reset sits with the chips below, as on every other list.
+      reset={null}
     >
       <FilterSelect
         label="Produktivitas"
@@ -84,5 +86,16 @@ export function CreatorFilters() {
         onChange={(value) => setParam("contractStatus", value)}
       />
     </FilterBar>
+
+    <FilterChips
+      chips={[
+        ...choiceChip("Produktivitas", productivity, PRODUCTIVITY_OPTIONS, () => setParam("productivity", "all")),
+        ...choiceChip("Status kontrak", contractStatus, CONTRACT_OPTIONS, () => setParam("contractStatus", "all")),
+      ]}
+      canReset={isFiltered}
+      resetDisabled={pending}
+      onReset={reset}
+    />
+    </>
   );
 }

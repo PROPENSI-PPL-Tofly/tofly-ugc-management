@@ -166,7 +166,7 @@ export class ManualPerformanceService {
         throw new ConflictException({
           code: 'MANUAL_NOT_ALLOWED',
           message:
-            'Angka hanya bisa diisi manual saat akun belum terhubung, link tidak ditemukan, atau gagal sinkron',
+            'Angka yang sudah tersinkron tidak bisa diisi manual',
         });
       }
 
