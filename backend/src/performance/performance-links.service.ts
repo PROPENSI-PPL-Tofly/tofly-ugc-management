@@ -53,6 +53,22 @@ function wordMatch(word: string): Prisma.content_linksWhereInput {
   };
 }
 
+/** Past this many words a search stops narrowing: each word is four ILIKEs no index serves. */
+export const MAX_SEARCH_WORDS = 5;
+
+/**
+ * The words a search is made of: each once, whatever its case (the match ignores it), and no
+ * more than MAX_SEARCH_WORDS. Unbounded, a 100-character search of 50 one-letter words was 200
+ * ILIKEs run twice (count and page), 9-12 s on 10,000 links; capped it is about 25 ms.
+ */
+function searchWords(q: string): string[] {
+  const seen = new Map<string, string>();
+  for (const word of q.split(/\s+/)) {
+    if (!seen.has(word.toLowerCase())) seen.set(word.toLowerCase(), word);
+  }
+  return [...seen.values()].slice(0, MAX_SEARCH_WORDS);
+}
+
 /**
  * Every submitted Instagram or TikTok link, newest first (PBI-27, AC 22-23). A link kept from
  * before platforms were recorded has no platform to be measured on, so it is not listed.
@@ -78,7 +94,7 @@ export class PerformanceLinksService {
       // account check also uses.
       ...((filters.q || filters.states) && {
         AND: [
-          ...(filters.q ? filters.q.split(/\s+/).map(wordMatch) : []),
+          ...(filters.q ? searchWords(filters.q).map(wordMatch) : []),
           ...(filters.states ? [stateFilter(filters.states)] : []),
         ],
       }),
