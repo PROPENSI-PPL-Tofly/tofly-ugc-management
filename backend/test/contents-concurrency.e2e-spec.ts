@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import type { INestApplication } from '@nestjs/common';
+import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AdminGuard } from '../src/auth/admin.guard.js';
 import { ContentsController } from '../src/contents/contents.controller.js';
@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { ContentCreationService } from '../src/contents/contents.service.js';
 import { ContentDetailService } from '../src/contents/content-detail.service.js';
+import { ContentEventHistoryService } from '../src/contents/content-event-history.service.js';
 
 // Use a dedicated disposable database, never the application's DATABASE_URL.
 const databaseUrl = process.env.CONTENTS_TEST_DATABASE_URL;
@@ -17,6 +18,8 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
   const users: string[] = [];
   let app: INestApplication;
   let contractId: string;
+  // The admin the stub guard signs in as: a real row, since a scheduled content's event names it.
+  let adminUserId: string;
 
   beforeAll(async () => {
     prisma = new PrismaClient({ datasources: { db: { url: databaseUrl! } } });
@@ -29,17 +32,32 @@ run('content allocation with concurrent PostgreSQL transactions', () => {
       controllers: [ContentsController],
       providers: [
         { provide: ContentCreationService, useValue: service },
-        // The controller also serves GET /contents/:id; this suite never calls it.
+        // The controller also serves GET /contents/:id and GET /contents/:id/events; this suite
+        // never calls them.
         { provide: ContentDetailService, useValue: {} },
+        { provide: ContentEventHistoryService, useValue: {} },
       ],
     })
       // This suite is about transactions on a disposable database; the admin guard is proven
-      // by admin-routes.e2e-spec.ts.
+      // by admin-routes.e2e-spec.ts. The stub still sets the principal, which POST /contents
+      // reads for the event's actor.
       .overrideGuard(AdminGuard)
-      .useValue({ canActivate: () => true })
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          context.switchToHttp().getRequest<{
+            principal?: { userId: string; role: 'admin' };
+          }>().principal = { userId: adminUserId, role: 'admin' };
+          return true;
+        },
+      })
       .compile();
     app = module.createNestApplication();
     await app.init();
+    const admin = await prisma.users.create({
+      data: { email: `admin-${randomUUID()}@example.com`, is_admin: true },
+    });
+    users.push(admin.id);
+    adminUserId = admin.id;
     const user = await prisma.users.create({
       data: { email: `http-${randomUUID()}@example.com` },
     });
