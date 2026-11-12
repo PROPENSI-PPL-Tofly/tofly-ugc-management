@@ -15,6 +15,8 @@ import { TabChoice } from "@/components/ui/tab-choice";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import {
   CONTENT_PLAN_TABS,
+  buildContentPlanQuery,
+  keptOnReset,
   statusOptionsFor,
   tabDef,
   type ContentPlanCounts,
@@ -69,7 +71,8 @@ export function ContentPlanFilters({
 
   /** Clears the box and every filter, but the tab the admin is standing on survives. */
   function resetKeepingTab() {
-    resetKeeping(state.tab === "all" ? {} : { tab: state.tab });
+    // The view and month the admin is on survive too (I3.6).
+    resetKeeping(keptOnReset(new URLSearchParams(buildContentPlanQuery(state))));
   }
 
   // Read from what the address holds, offered or not, so Reset is there to clear it all: an old

@@ -15,10 +15,15 @@ import {
   type ContentPlanCreatorOption,
   type ContentPlanResponse,
 } from "@/lib/content-plan";
+import { ContentPlanViewToggle } from "@/components/content-plan/content-plan-view-toggle";
+import { CALENDAR_MAX_ITEMS, shownMonth } from "@/lib/content-plan-calendar";
 import {
+  ContentPlanCalendarTooLargeError,
   fetchContentPlan,
   fetchContentPlanCreatorOptions,
+  fetchContentPlanMonth,
 } from "@/lib/content-plan.server";
+import { jakartaDay } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -38,22 +43,30 @@ export default async function ContentPlanPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const state = parseContentPlanParams(await searchParams);
+  const isCalendar = state.view === "calendar";
+  // The calendar's month comes from the address, or is today's in Jakarta (I3.6).
+  const today = jakartaDay();
+  const month = shownMonth(state.month, today);
 
   let result: ContentPlanResponse | null = null;
   let creators: ContentPlanCreatorOption[] = [];
   let pastEnd: number | null = null;
   let shownPage = state.page;
+  let tooLarge = false;
 
   // Each fetch fails for itself: a creator-name failure costs the filter's choices, while a
   // list failure costs the page. Promise.all would let either one take down both.
   const [plan, names] = await Promise.allSettled([
-    fetchContentPlan(state),
+    isCalendar ? fetchContentPlanMonth(state, month) : fetchContentPlan(state),
     fetchContentPlanCreatorOptions(),
   ]);
   creators = names.status === "fulfilled" ? names.value : [];
 
   if (plan.status === "rejected") {
     result = null;
+    tooLarge = plan.reason instanceof ContentPlanCalendarTooLargeError;
+  } else if (isCalendar) {
+    result = plan.value;
   } else {
     result = plan.value;
 
@@ -77,6 +90,7 @@ export default async function ContentPlanPage({
   return (
     <AppShell
       title="Content Plan"
+      action={<ContentPlanViewToggle state={state} />}
     >
       {pastEnd !== null ? (
         <p
@@ -97,17 +111,28 @@ export default async function ContentPlanPage({
             filtered={isFiltered(state)}
             tab={state.tab}
             sort={state.sort}
+            calendar={isCalendar ? { month, today, state } : null}
           />
-          <Pagination
-            basePath={CONTENT_PLAN_BASE}
-            noun="konten"
-            query={query}
-            page={shownPage}
-            pageSize={CONTENT_PLAN_PAGE_SIZE}
-            total={result.total}
-            totalPages={result.totalPages}
-          />
+          {/* The calendar shows its whole month, so it has no pages to turn. */}
+          {isCalendar ? null : (
+            <Pagination
+              basePath={CONTENT_PLAN_BASE}
+              noun="konten"
+              query={query}
+              page={shownPage}
+              pageSize={CONTENT_PLAN_PAGE_SIZE}
+              total={result.total}
+              totalPages={result.totalPages}
+            />
+          )}
         </Panel>
+      ) : tooLarge ? (
+        // Refused, not cut short: part of a month drawn as if it were all of it would mislead.
+        <LoadError
+          title="Kalender tidak bisa dimuat."
+          message={`Bulan ini memuat lebih dari ${CALENDAR_MAX_ITEMS.toLocaleString("id-ID")} konten. Persempit dengan filter Creator, Tipe, atau Status, atau gunakan tampilan Tabel.`}
+          retryHref={retryHref}
+        />
       ) : (
         <LoadError title="Content Plan tidak bisa dimuat." retryHref={retryHref} />
       )}
