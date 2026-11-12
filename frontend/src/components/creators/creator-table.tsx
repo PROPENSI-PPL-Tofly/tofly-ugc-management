@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PlatformIcon } from "@/components/ui/platform-icon";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { PRODUCTIVITY_TONES } from "./productivity-tones";
@@ -25,7 +26,6 @@ import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
   formatContractWindow,
-  formatDate,
   formatDaysRemaining,
   formatPercent,
   formatRevisions,
@@ -70,12 +70,12 @@ const NUMERIC = `${CELL} ${LABELLED} text-right tabular-nums max-lg:text-left`;
 
 function socials(
   creator: CreatorSummary,
-): { platform: SocialPlatform; text: string; connection: SocialConnection }[] {
+): { platform: SocialPlatform; handle: string; connection: SocialConnection }[] {
   // Read once per row, not once per platform.
   const connections = readConnections(creator.socialConnections);
   return SOCIAL_PLATFORMS.filter((platform) => creator.socials[platform]).map((platform) => ({
     platform,
-    text: `${SOCIAL_PLATFORM_LABELS[platform]} @${creator.socials[platform]}`,
+    handle: `@${creator.socials[platform]}`,
     connection: connections[platform],
   }));
 }
@@ -195,9 +195,6 @@ export function CreatorTable({
                 </th>
               ))}
 
-              <th role="columnheader" scope="col" className={HEAD}>
-                <span className="sr-only">Aksi</span>
-              </th>
             </tr>
           </thead>
 
@@ -229,22 +226,23 @@ export function CreatorTable({
 
                   <p className="mt-0.5 text-xs text-muted">{creator.email}</p>
 
-                  {socials(creator).map(({ platform, text, connection }) => (
-                    // One line however long the handle: the badge never drops under it.
+                  {socials(creator).map(({ platform, handle, connection }) => (
+                    // One line however long the handle: the badge never drops under it. The
+                    // platform is its coloured logo, which names it to a screen reader.
                     <p key={platform} className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
-                      <span>{text}</span>
-                      <ConnectionBadge
-                        platform={SOCIAL_PLATFORM_LABELS[platform]}
-                        connection={connection}
-                      />
+                      <PlatformIcon platform={platform} />
+                      <span>{handle}</span>
+                      {/* Only a connected account carries its badge here; one not connected is
+                          said on Creator Detail, so the roster stays quiet about it. */}
+                      {connection.connected ? (
+                        <ConnectionBadge
+                          platform={SOCIAL_PLATFORM_LABELS[platform]}
+                          connection={connection}
+                        />
+                      ) : null}
                     </p>
                   ))}
 
-                  {creator.accessRevokeDate ? (
-                    <p className="mt-1 text-xs font-semibold text-red-ink">
-                      Akses dicabut {formatDate(creator.accessRevokeDate)}
-                    </p>
-                  ) : null}
                 </td>
 
                 <td data-label="Kontrak" className={`${CELL} ${LABELLED}`}>
@@ -301,19 +299,6 @@ export function CreatorTable({
                   </Pill>
                 </td>
 
-                <td className={`${CELL} whitespace-nowrap max-lg:pt-2`}>
-                  <Link
-                    href={creatorDetailHref(creator.id, opened)}
-                    // Every row has one; the creator's name tells them apart when heard.
-                    aria-label={`Detail ${creator.name}`}
-                    // The row would hear this press too and open the page a second time.
-                    onClick={(event) => event.stopPropagation()}
-                    // A full-width target on a phone, well above WCAG 2.5.8's 24px.
-                    className="rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-ink-2 hover:bg-surface-2 active:bg-surface-2 max-lg:flex max-lg:min-h-11 max-lg:w-full max-lg:items-center max-lg:justify-center max-lg:text-[13px]"
-                  >
-                    Detail
-                  </Link>
-                </td>
               </tr>
             ))}
           </tbody>

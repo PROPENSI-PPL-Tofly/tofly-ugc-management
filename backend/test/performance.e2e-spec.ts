@@ -184,6 +184,7 @@ describe('content performance (e2e)', () => {
         comments: null,
         shares: null,
         state: 'manual',
+        manualBy: `${MARKER}-signed-in-admin@example.com`,
       });
       expect(await linkOf(content.id, 'instagram')).toMatchObject({
         views: 12400,
@@ -227,11 +228,30 @@ describe('content performance (e2e)', () => {
       expect(instagram.performance).toMatchObject({
         views: 12400,
         state: 'manual',
+        manualBy: `${MARKER}-signed-in-admin@example.com`,
       });
     });
 
-    it('refuses a link the platform still reads, with 409 (AC 14)', async () => {
+    it('accepts a link still waiting for its first sync, rather than make the admin wait', async () => {
       const content = await linked(owner, 'connected');
+
+      const response = await as(app, admin)
+        .put(`/contents/${content.id}/links/instagram/performance`)
+        .send({ views: 1 });
+
+      expect(response.status).toBe(200);
+      expect(await linkOf(content.id, 'instagram')).toMatchObject({
+        views: 1,
+        data_state: 'manual',
+      });
+    });
+
+    it('refuses a link the platform has already synced, with 409 (AC 14)', async () => {
+      const content = await linked(owner, 'synced');
+      await prisma.content_links.updateMany({
+        where: { content_id: content.id, platform: 'instagram' },
+        data: { data_state: 'synced', views: 500 },
+      });
 
       const response = await as(app, admin)
         .put(`/contents/${content.id}/links/instagram/performance`)
@@ -239,6 +259,10 @@ describe('content performance (e2e)', () => {
 
       expect(response.status).toBe(409);
       expect(response.body.code).toBe('MANUAL_NOT_ALLOWED');
+      expect(await linkOf(content.id, 'instagram')).toMatchObject({
+        views: 500,
+        data_state: 'synced',
+      });
     });
 
     it('refuses once the invoice is finalized, with the message of AC 18', async () => {
@@ -405,12 +429,13 @@ describe('content performance (e2e)', () => {
 
   describe('replacing a link (PBI-38 AC 9)', () => {
     it("drops the old video's numbers and state", async () => {
-      const content = await linked(other, 'replaced');
+      const content = await linked(owner, 'replaced');
       await as(app, admin)
         .put(`/contents/${content.id}/links/instagram/performance`)
         .send({ views: 500 });
 
-      const response = await as(app, admin)
+      // Only the creator changes a link; the admin types numbers in, never the link.
+      const response = await as(app, creator)
         .put(`/contents/${content.id}/links/instagram`)
         .send({ url: reel('replaced-new') });
 
@@ -420,6 +445,19 @@ describe('content performance (e2e)', () => {
         data_state: 'waiting',
         manual_by: null,
         manual_at: null,
+      });
+    });
+
+    it('refuses an admin who tries to replace a link, changing nothing', async () => {
+      const content = await linked(owner, 'admin-replace');
+
+      const response = await as(app, admin)
+        .put(`/contents/${content.id}/links/instagram`)
+        .send({ url: reel('admin-replace-new') });
+
+      expect(response.status).toBe(403);
+      expect(await linkOf(content.id, 'instagram')).toMatchObject({
+        url: reel('admin-replace'),
       });
     });
   });

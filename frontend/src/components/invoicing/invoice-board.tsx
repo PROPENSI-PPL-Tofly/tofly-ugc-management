@@ -2,10 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { InvoiceTable } from "@/components/invoice/invoice-table";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import {
-  invoiceTitle,
   nextInvoiceSort,
   type InvoiceRow,
   type InvoiceSortKey,
@@ -18,7 +16,7 @@ import { useBreakdownPopups } from "./use-breakdown-popups";
 /**
  * The Rate & Invoicing table with its breakdown popups (PBI-8, subtasks 8.4 and 8.5). The table
  * stays the server-rendered table; this client wrapper hands it a money cell that opens a
- * popup, a Rincian button per row that opens the whole invoice, and a press on a sortable
+ * popup, a row that opens the whole invoice on a press, and a press on a sortable
  * header, and holds the popups once for every row. The order lives in the URL like the
  * filters, so a sorted view can be linked and reloaded; a new order starts again on page one.
  * A decision taken from a Content Detail panel reads the page again, so the amounts follow it.
@@ -63,11 +61,8 @@ export function InvoiceBoard({
         amount={(kind, row) => <BreakdownAmount kind={kind} row={row} onOpen={open} />}
         sort={sort ? { ...sort, onSort: (key) => sortBy(sort, key) } : undefined}
         summary={summary}
-        action={(row) => (
-          <Button aria-label={`Rincian invoice ${invoiceTitle(row)}`} onClick={() => open("all", row)}>
-            Rincian
-          </Button>
-        )}
+        // The row opens the whole invoice (Rincian); its money cells open their own breakdowns.
+        onOpen={(row) => open("all", row)}
       />
       {layers}
       {toast}

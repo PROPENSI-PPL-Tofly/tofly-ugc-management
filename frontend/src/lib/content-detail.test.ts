@@ -338,11 +338,24 @@ describe("describeJourney", () => {
     expect(step.linkLabel).toBeNull();
   });
 
-  it("signs an admin's note as the admin's and a creator's with their name", () => {
+  it("signs an admin's note by role when no account is named, and a creator's with their name", () => {
     const steps = describeJourney(journey);
 
     expect(steps[3].noteBy).toBe("Catatan Admin");
     expect(steps[4].noteBy).toBe("Catatan Rangga Pratama");
+  });
+
+  it("signs an admin's note with the email of the admin who wrote it", () => {
+    const [step] = describeJourney([
+      event({
+        id: "a",
+        type: "revision_requested",
+        actor: { name: "sinta.admin@tofly.id", role: "admin" },
+        payload: { note: "Tolong perbaiki intro." },
+      }),
+    ]);
+
+    expect(step.noteBy).toBe("Catatan sinta.admin@tofly.id");
   });
 
   it("signs a creator's note generically when the API sends no name", () => {
@@ -376,14 +389,14 @@ describe("describeJourney", () => {
     expect(journey.map((item) => item.id)).toEqual(before);
   });
 
-  it("titles a follow-up step as added, with no note of its own to sign", () => {
-    const [step] = describeJourney([
+  // A follow-up already reads under the revision note it adds to, so it has no step of its own.
+  it("leaves a follow-up out of the journey", () => {
+    const steps = describeJourney([
       event({ id: "fu-1", type: "revision_followup_added", actor: { name: "Bastian", role: "admin" } }),
+      event({ id: "sch", type: "scheduled", actor: { name: null, role: "admin" } }),
     ]);
 
-    expect(step.title).toBe("Catatan susulan ditambahkan");
-    expect(step.linkLabel).toBeNull();
-    expect(step.noteBy).toBeNull();
+    expect(steps.map((step) => step.event.id)).toEqual(["sch"]);
   });
 });
 

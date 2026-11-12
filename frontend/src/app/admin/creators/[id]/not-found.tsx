@@ -18,7 +18,7 @@ export default function CreatorNotFound() {
           hint="Creator ini tidak ada atau sudah dihapus. Periksa lagi tautannya."
           action={
             <Link href="/admin/creators" className={`inline-flex items-center ${buttonClasses()}`}>
-              Kembali ke Creator Database
+              Kembali ke Kreator
             </Link>
           }
         />

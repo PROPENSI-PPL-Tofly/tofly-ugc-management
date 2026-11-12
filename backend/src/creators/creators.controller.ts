@@ -43,8 +43,7 @@ function onboardingInput(creator: NewCreator): OnboardingInput {
     interval: creator.interval,
     quota: creator.quota,
     fixedRate: creator.fixedRate,
-    socialPlatform: creator.socialPlatform,
-    socialUsername: creator.socialUsername,
+    socialAccounts: creator.socialAccounts,
     contractType: creator.contractType,
     deadlines: creator.deadlines.map(day),
   };

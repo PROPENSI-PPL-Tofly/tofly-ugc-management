@@ -1,4 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
+import { PerformanceSyncModule } from '../performance/sync/performance-sync.module.js';
+import { PerformanceSyncService } from '../performance/sync/performance-sync.service.js';
+import { LINKS_SAVED, syncInBackground } from './links-saved.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
@@ -24,6 +27,8 @@ import { VideoSubmissionController } from './video-submission.controller.js';
 import { VideoSubmissionService } from './video-submission.service.js';
 
 @Module({
+  // A saved link syncs its content in the background (PBI-27's sync, 27.4).
+  imports: [PerformanceSyncModule],
   controllers: [
     ContentEditController,
     ContentLinksController,
@@ -44,6 +49,12 @@ import { VideoSubmissionService } from './video-submission.service.js';
     LinkChangeService,
     // A replaced link starts again with no numbers (PBI-38 AC 9, PBI-27).
     { provide: LINK_PERFORMANCE_COLUMNS, useValue: CLEARED_PERFORMANCE },
+    {
+      provide: LINKS_SAVED,
+      useFactory: (sync: PerformanceSyncService) =>
+        syncInBackground(sync, new Logger('LinkSync')),
+      inject: [PerformanceSyncService],
+    },
     VideoSubmissionService,
     AdminGuard,
     CreatorOrAdminGuard,

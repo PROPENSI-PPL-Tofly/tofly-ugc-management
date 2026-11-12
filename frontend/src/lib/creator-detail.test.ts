@@ -114,7 +114,7 @@ describe("parseCreatorDetailParams", () => {
 });
 
 describe("creatorDetailBase", () => {
-  it("is the creator's own address under the Creator Database", () => {
+  it("is the creator's own address under the Kreator", () => {
     expect(creatorDetailBase("creator-1")).toBe("/admin/creators/creator-1");
   });
 
@@ -217,7 +217,7 @@ describe("creatorDetailAfterFilterChange", () => {
 
 // The Creator Database view the admin came from rides along as `return`, so the way back lands
 // on the same search, filters and page. Only what the roster itself reads is kept.
-describe("the Creator Database view to return to", () => {
+describe("the Kreator view to return to", () => {
   it("keeps the roster's search, filters and page as they were", () => {
     expect(
       parseCreatorDetailParams({ return: "q=nadia&contractStatus=active&productivity=risk&page=3" })

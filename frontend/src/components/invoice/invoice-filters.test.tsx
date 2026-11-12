@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { filterPill, pickFilter } from "@/test/filters";
 import { InvoiceFilters } from "./invoice-filters";
 
 const hook = vi.hoisted(() => ({
@@ -39,8 +40,8 @@ describe("InvoiceFilters", () => {
   it("offers the contract choices in the prototype's words and order", () => {
     render(<InvoiceFilters />);
 
-    const kontrak = screen.getByRole("combobox", { name: "Kontrak" });
-    expect(Array.from(kontrak.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+    fireEvent.click(filterPill("Kontrak"));
+    expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
       "Semua",
       "Aktif",
       "Belum Dimulai",
@@ -51,8 +52,8 @@ describe("InvoiceFilters", () => {
   it("offers the invoice pipeline in the prototype's words and order", () => {
     render(<InvoiceFilters />);
 
-    const invoice = screen.getByRole("combobox", { name: "Invoice" });
-    expect(Array.from(invoice.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+    fireEvent.click(filterPill("Invoice"));
+    expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
       "Semua",
       "Berjalan",
       "Invoice Terkirim",
@@ -65,9 +66,7 @@ describe("InvoiceFilters", () => {
   it("sends a contract pick to the address", () => {
     render(<InvoiceFilters />);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Kontrak" }), {
-      target: { value: "active" },
-    });
+    pickFilter("Kontrak", "Aktif");
 
     expect(hook.current.setParam).toHaveBeenCalledWith("contract", "active");
   });
@@ -75,54 +74,16 @@ describe("InvoiceFilters", () => {
   it("sends an invoice pick to the address", () => {
     render(<InvoiceFilters />);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Invoice" }), {
-      target: { value: "paid" },
-    });
+    pickFilter("Invoice", "Paid");
 
     expect(hook.current.setParam).toHaveBeenCalledWith("status", "paid");
   });
 
-  it("offers the contract-end period in its own words, so it cannot be read as a period number", () => {
+  it("offers no contract-end period filter", () => {
     render(<InvoiceFilters />);
 
-    const period = screen.getByRole("combobox", { name: "Periode Berakhir Kontrak" });
-    expect(Array.from(period.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
-      "Semua periode",
-      "Bulan ini",
-      "30 hari ke depan",
-      "90 hari terakhir",
-      "Pilih tanggal…",
-    ]);
-  });
-
-  it("sends a contract-end period pick to the address", () => {
-    render(<InvoiceFilters />);
-
-    fireEvent.change(screen.getByRole("combobox", { name: "Periode Berakhir Kontrak" }), {
-      target: { value: "month" },
-    });
-
-    // The period and its days change together, so a named period takes stale days off with it.
-    expect(hook.current.setPeriod).toHaveBeenCalledWith("month");
-  });
-
-  it("asks for the two days of a custom range and sends them", () => {
-    // The days render only once the address holds a custom period, as the bar reads it.
-    hook.current.param.mockImplementation((key: string) => (key === "period" ? "custom" : "all"));
-    render(<InvoiceFilters />);
-
-    fireEvent.change(screen.getByLabelText("Akhir kontrak mulai"), { target: { value: "2026-06-01" } });
-    fireEvent.change(screen.getByLabelText("Akhir kontrak sampai"), { target: { value: "2026-08-31" } });
-
-    expect(hook.current.setParam).toHaveBeenCalledWith("from", "2026-06-01");
-    expect(hook.current.setParam).toHaveBeenCalledWith("to", "2026-08-31");
-  });
-
-  it("keeps the custom days hidden while a named period is picked", () => {
-    render(<InvoiceFilters />);
-
-    expect(screen.queryByLabelText("Akhir kontrak mulai")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Akhir kontrak sampai")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Periode/ })).toBeNull();
+    expect(screen.queryByLabelText("Akhir kontrak mulai")).toBeNull();
   });
 
   it("passes typing on to the search box's owner", () => {
@@ -185,5 +146,18 @@ describe("InvoiceFilters", () => {
     render(<InvoiceFilters />);
 
     expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+  });
+
+  // Its picks read as chips under the bar, with Reset beside them, as every other list's do.
+  it("shows each choice in use as a chip that clears only it", () => {
+    hook.current.param.mockImplementation(
+      (key: string) => ({ contract: "active", status: "paid" })[key] ?? "all",
+    );
+    render(<InvoiceFilters />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Kontrak: Aktif" }));
+    expect(hook.current.setParam).toHaveBeenCalledWith("contract", "all");
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Invoice: Paid" }));
+    expect(hook.current.setParam).toHaveBeenCalledWith("status", "all");
   });
 });

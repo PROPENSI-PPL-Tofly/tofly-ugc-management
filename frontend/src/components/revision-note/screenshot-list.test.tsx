@@ -2,7 +2,8 @@ import { act, fireEvent, render, renderHook, screen } from "@testing-library/rea
 import type { ScreenshotUploader, StoredImage } from "@/lib/revision-note-uploads";
 import { UploadRefused } from "@/lib/revision-note-images-api";
 import { expectMinTarget, expectPhoneTarget } from "@/test/touch-target";
-import { ScreenshotList } from "./screenshot-list";
+import { ScreenshotList, ScreenshotTiles } from "./screenshot-list";
+import type { Screenshots } from "./use-screenshots";
 import { useScreenshots } from "./use-screenshots";
 
 interface UploadCall {
@@ -471,5 +472,48 @@ describe("a progress that repeats itself", () => {
     act(() => calls[0].onProgress(40));
 
     expect(screen.getByText("Mengunggah 40%")).toBeInTheDocument();
+  });
+});
+
+// A stored screenshot the text places is read there, so it has no tile; one the text lost, and
+// every upload still on its way, keep theirs.
+describe("ScreenshotTiles with images placed in the text", () => {
+  function stub(uploads: Screenshots["uploads"]): Screenshots {
+    return {
+      uploads,
+      refusal: null,
+      uploading: false,
+      imageIds: [],
+      add: vi.fn(),
+      retry: vi.fn(),
+      remove: vi.fn(),
+      removing: new Set(),
+    };
+  }
+  const stored = (id: string) => ({ id: `shot-${id}`, file: null, status: "done" as const, imageId: id, url: `/u/${id}` });
+
+  it("leaves out the tile of an image the text holds, and keeps the others", () => {
+    render(
+      <ScreenshotTiles
+        screenshots={stub([
+          stored("a"),
+          stored("b"),
+          { id: "shot-c", file: image("c.png"), status: "uploading", progress: 40 },
+        ])}
+        placed={new Set(["a"])}
+      />,
+    );
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText("Mengunggah 40%")).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: "Lampiran" })).toHaveLength(1);
+  });
+
+  it("draws nothing when every tile is placed in the text", () => {
+    const { container } = render(
+      <ScreenshotTiles screenshots={stub([stored("a")])} placed={new Set(["a"])} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

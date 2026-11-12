@@ -48,14 +48,21 @@ export function invalidRevisionImages(
   });
 }
 
-function checkedImageIds(value: unknown): string[] {
+/**
+ * The image ids a note is sent with: each once, none or a list of at most five. A refusal is
+ * raised by `refuse`, so a revision note and a follow-up each answer in their own 422 shape.
+ */
+export function checkedImageIds(
+  value: unknown,
+  refuse: (reason: string) => Error = invalidRevisionImages,
+): string[] {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value) || value.some((id) => typeof id !== 'string')) {
-    throw invalidRevisionImages('Gambar tidak valid');
+    throw refuse('Gambar tidak valid');
   }
   const imageIds = [...new Set(value as string[])];
   if (imageIds.length > MAX_NOTE_IMAGES) {
-    throw invalidRevisionImages('Maksimal 5 gambar per catatan');
+    throw refuse('Maksimal 5 gambar per catatan');
   }
   return imageIds;
 }

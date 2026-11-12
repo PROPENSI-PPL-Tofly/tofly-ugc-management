@@ -12,7 +12,7 @@ import { LinkPerformanceSection } from "./link-performance-section";
 import { RevisionNoteField } from "@/components/revision-note/revision-note-field";
 import { screenshotUploader } from "@/lib/revision-note-images-api";
 import type { ScreenshotUploader } from "@/lib/revision-note-uploads";
-import { EditForm, ManageMenu } from "./content-manage";
+import { EditForm, ManageButtons } from "./content-manage";
 import { RevisionNote } from "./revision-note";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
@@ -25,14 +25,20 @@ import {
 } from "@/lib/content-edit";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { FollowUpForm } from "./follow-up-form";
+import { DraftHandIn, VideoLinksHandIn } from "./hand-in";
+import type { DraftSubmitter } from "@/lib/draft-submission";
+import type { VideoLinksSaver } from "@/lib/video-links-api";
+import type { MyTaskAction } from "@/lib/my-tasks";
+import type { VideoPlatform } from "@/lib/video-links";
 import { FollowUpList } from "./follow-up-list";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
-import { StatusDot } from "@/components/ui/pill";
+import { Pill, StatusDot } from "@/components/ui/pill";
 import {
   CONTENT_STATUS_LABELS,
   CONTENT_STATUS_TONES,
   CONTENT_TYPE_LABELS,
+  CONTENT_TYPE_TONES,
 } from "@/lib/content-labels";
 import {
   ContentDetailError,
@@ -162,8 +168,30 @@ const FORMS: Record<FormKind, FormSpec> = {
 const OPENS_FORM: ReadonlySet<PanelActionKind> = new Set<PanelActionKind>([
   "revise",
   "reject_proposal",
-  "manage_links",
+  // A creator's hand-ins open in the panel too (a host that brings its own handler still gets one call).
+  "submit_draft",
+  "resubmit_draft",
+  "submit_video",
 ]);
+
+/**
+ * Which hand-in a creator has open in the panel: the draft's two forms, the first video links, or
+ * one platform's link changed (or added) from its card once the content is sent.
+ */
+type LinkEdit = `link:${VideoPlatform}`;
+type HandInKind = MyTaskAction | LinkEdit;
+
+function isLinkEdit(kind: HandInKind): kind is LinkEdit {
+  return kind.startsWith("link:");
+}
+
+/** How each hand-in is confirmed in the panel, which stays open on the content it changed. */
+const HAND_IN_CONFIRMATIONS: Record<MyTaskAction | "link", string> = {
+  submit_draft: "Draft terkirim. Admin akan meninjaunya.",
+  resubmit_draft: "Draft terkirim. Admin akan meninjaunya.",
+  submit_video: "Link video terkirim. Konten ini selesai.",
+  link: "Link video diperbarui.",
+};
 
 /** Where the admin reads the step differently from the creator: their own decision is due. */
 const ADMIN_STEP_TEXT: Partial<Record<ContentDetail["status"], string>> = {
@@ -224,12 +252,11 @@ function focusOnMount(element: HTMLTextAreaElement | null) {
 }
 
 /**
- * Red once the deadline has passed, amber from the day before it, green when finished. A
+ * Red once the deadline has passed, amber from the day before it. A
  * pending proposal is not assigned work yet, so its deadline warns about nothing, the same
  * way it never carries the Overdue tag.
  */
 function dueTone(status: ContentDetail["status"], days: number | null): string {
-  if (status === "link_submitted") return "text-green-ink";
   if (status === "pending" || days === null) return "";
   if (days < 0) return "text-red-ink";
   return days <= DUE_SOON_DAYS ? "text-amber-ink" : "";
@@ -243,20 +270,27 @@ function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Dat
   // The API can name a status newer than this build: its raw name then, never a blank.
   const statusLabel: string = CONTENT_STATUS_LABELS[detail.status] ?? detail.status;
 
+  // Two lines rather than one long row: what the content is, then when it is due.
   return (
     <>
-      <StatusDot tone="accent">{CONTENT_TYPE_LABELS[detail.type]}</StatusDot>
+      <div data-meta-row className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1.5">
+        <Pill tone={CONTENT_TYPE_TONES[detail.type]}>{CONTENT_TYPE_LABELS[detail.type]}</Pill>
+        <StatusDot tone={CONTENT_STATUS_TONES[detail.status] ?? "neutral"}>{statusLabel}</StatusDot>
+        <ContentTags tags={detail.tags} />
+      </div>
 
-      <StatusDot tone={CONTENT_STATUS_TONES[detail.status] ?? "neutral"}>{statusLabel}</StatusDot>
-
-      <ContentTags tags={detail.tags} />
-
-      <span>
-        Deadline <b className="font-semibold text-ink">{formatDate(detail.deadline)}</b> ·{" "}
-        <span data-testid="deadline-due" className={`font-semibold ${dueTone(detail.status, days)}`}>
-          {finished ? "Selesai" : formatDaysLeft(days)}
-        </span>
-      </span>
+      <p data-meta-row className="basis-full">
+        Deadline <b className="font-semibold text-ink">{formatDate(detail.deadline)}</b>
+        {finished ? null : (
+          <>
+            {" "}(
+            <span data-testid="deadline-due" className={`font-semibold ${dueTone(detail.status, days)}`}>
+              {formatDaysLeft(days)}
+            </span>
+            )
+          </>
+        )}
+      </p>
     </>
   );
 }
@@ -319,6 +353,13 @@ function JourneyItem({ step, children }: Readonly<{ step: JourneyStep; children?
   const { event } = step;
   const role = ROLE_LABELS[event.actor.role];
   const link = event.payload?.link;
+  // A revision request's time sits in its note box, beside who wrote it, not on the title line.
+  const timeInNote = event.type === "revision_requested" && step.noteBy !== null;
+  const time = (
+    <time dateTime={event.at} className="text-[11.5px] font-normal text-muted">
+      {formatTimestamp(event.at)}
+    </time>
+  );
 
   return (
     <li className={TIMELINE_ROW}>
@@ -327,9 +368,7 @@ function JourneyItem({ step, children }: Readonly<{ step: JourneyStep; children?
       <div className="min-w-0">
         <p className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold">
           <span data-step-title="">{step.title}</span>
-          <time dateTime={event.at} className="text-[11.5px] font-normal text-muted">
-            {formatTimestamp(event.at)}
-          </time>
+          {timeInNote ? null : time}
         </p>
 
         <p data-step-actor="" className="mt-0.5 text-[11.5px] text-muted">
@@ -358,7 +397,10 @@ function JourneyItem({ step, children }: Readonly<{ step: JourneyStep; children?
 
         {step.noteBy ? (
           <blockquote className="mt-2 rounded-r-(--radius-control) border-l-2 border-rule bg-surface-2 px-3 py-2 text-[12.5px] leading-relaxed">
-            <span className="mb-0.5 block text-[11px] font-semibold text-muted">{step.noteBy}</span>
+            <span className="mb-0.5 flex flex-wrap items-baseline gap-x-2 text-[11px] font-semibold text-muted">
+              <span>{step.noteBy}</span>
+              {timeInNote ? time : null}
+            </span>
             <RevisionNote
               note={event.payload?.note}
               noteHtml={event.payload?.noteHtml}
@@ -477,6 +519,7 @@ export function ContentDetailPanel({
   manage = {},
   now,
   uploader,
+  handIn: handInPorts = {},
 }: Readonly<{
   contentId: string;
   role: Role;
@@ -504,6 +547,8 @@ export function ContentDetailPanel({
    * review by default, a stub in tests.
    */
   uploader?: ScreenshotUploader;
+  /** Where a creator's draft and links go; the API by default, stubs in tests. */
+  handIn?: Partial<{ submitDraft: DraftSubmitter; saveLinks: VideoLinksSaver }>;
 }>) {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
@@ -530,6 +575,11 @@ export function ContentDetailPanel({
   const missingId = useId();
   const busy = pending !== null;
   const [attempt, setAttempt] = useState(0);
+  // A creator's hand-in open in the panel, and whether it holds typing that closing would lose.
+  const [handingIn, setHandingIn] = useState<HandInKind | null>(null);
+  const [handInDirty, setHandInDirty] = useState(false);
+  // The panel's foot, where an open hand-in puts its own Batal and send button.
+  const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null);
   // PBI-25: the inline edit form, and the delete question, each open on its own.
   const [editing, setEditing] = useState(false);
   const [askingDelete, setAskingDelete] = useState(false);
@@ -616,8 +666,8 @@ export function ContentDetailPanel({
       setForm("reject");
       ports.openRejectForm?.();
     },
-    onCreatorAction: ports.onCreatorAction,
-    onManageLinks: ports.onManageLinks,
+    // A creator hands in from this panel unless the touchpoint brings its own handler.
+    onCreatorAction: ports.onCreatorAction ?? (role === "creator" ? (action) => setHandingIn(action) : undefined),
   };
 
   const snapshot = () => ({ busy, note, noteHtml, uploading, imageIds });
@@ -686,6 +736,7 @@ export function ContentDetailPanel({
           <FollowUpForm
             submissionId={followUpRound}
             add={ports.addFollowUp ?? addFollowUp}
+            uploader={revisionUploader ?? undefined}
             onAdded={(followUp) => {
               setState((current) =>
                 current.kind === "loaded"
@@ -716,11 +767,23 @@ export function ContentDetailPanel({
   // Every way out of the panel (✕, Escape, a press outside) asks first while a note is unsent,
   // so a stray Escape cannot throw away what the admin wrote.
   const { requestClose, confirmDialog } = useDiscardGuard({
-    isDirty: formOpen && (note.trim() !== "" || attached),
+    isDirty: (formOpen && (note.trim() !== "" || attached)) || (handingIn !== null && handInDirty),
     onDiscard: onClose,
-    title: "Buang catatan revisi?",
-    message: "Catatan dan gambar yang belum terkirim akan hilang.",
+    title: handingIn ? "Batalkan pengiriman?" : "Buang catatan revisi?",
+    message: handingIn
+      ? "Data yang sudah diisi akan hilang."
+      : "Catatan dan gambar yang belum terkirim akan hilang.",
   });
+
+  /**
+   * A hand-in went through. The panel stays on the content: it confirms, reads the content again
+   * for its new status and timeline, and the list behind it refreshes.
+   */
+  function handInSent(kind: HandInKind) {
+    confirm(HAND_IN_CONFIRMATIONS[isLinkEdit(kind) ? "link" : kind]);
+    router.refresh();
+    void readAgain();
+  }
 
   function cancelForm() {
     setCancelled(form);
@@ -744,7 +807,7 @@ export function ContentDetailPanel({
         meta={loaded ? <HeaderMeta detail={loaded} now={now} /> : undefined}
         tools={
           editWindow && !editing && !formOpen ? (
-            <ManageMenu
+            <ManageButtons
               onEdit={() => {
                 setError(null);
                 setEditing(true);
@@ -758,9 +821,33 @@ export function ContentDetailPanel({
         }
         footer={
           <>
-            {formOpen ? null : actions}
+            {formOpen || handingIn ? null : actions}
 
-            {formOpen ? null : commands.map((command) => (
+            {/* An open form's own buttons take the foot, so it is never an empty bar and the send
+                button stays in view however long the note grows. */}
+            {send && formSpec ? (
+              <>
+                <Button variant="ghost" onClick={cancelForm} disabled={busy}>
+                  Batal
+                </Button>
+                <Button
+                  variant={send.variant}
+                  onClick={() => {
+                    void decide(formSpec.decision, async () => {
+                      await send.run();
+                    });
+                  }}
+                  disabled={!send.canRun()}
+                  aria-busy={pending === formSpec.decision}
+                >
+                  {send.label}
+                </Button>
+              </>
+            ) : null}
+
+            {handingIn ? <div ref={setFooterSlot} className="flex flex-wrap justify-end gap-2" /> : null}
+
+            {formOpen || handingIn ? null : commands.map((command) => (
               <Button
                 key={command.kind}
                 variant={command.variant}
@@ -785,7 +872,7 @@ export function ContentDetailPanel({
               </Button>
             ))}
 
-            {showClose && !formOpen ? (
+            {showClose && !formOpen && !handingIn ? (
               <Button variant="ghost" onClick={onClose}>
                 Tutup
               </Button>
@@ -833,6 +920,22 @@ export function ContentDetailPanel({
                 role={role}
                 creatorFirstName={loaded.creatorName.split(" ")[0]}
                 onChanged={() => void readAgain()}
+                // Only the creator adds or changes a link, from its card; the form opens there.
+                editingLink={handingIn && isLinkEdit(handingIn) ? (handingIn.slice(5) as VideoPlatform) : null}
+                onEditLink={role === "creator" ? (platform) => setHandingIn(`link:${platform}`) : undefined}
+                renderLinkForm={(platform) => (
+                  <VideoLinksHandIn
+                    only={platform}
+                    links={loaded.links ?? []}
+                    saveLinks={handInPorts.saveLinks}
+                    onPartlySaved={() => void readAgain()}
+                    actionsTarget={footerSlot}
+                    contentId={loaded.id}
+                    onLeave={() => setHandingIn(null)}
+                    onSent={() => handInSent(`link:${platform}`)}
+                    onDirtyChange={setHandInDirty}
+                  />
+                )}
               />
             ) : loaded.links?.length ? (
               <Links links={loaded.links} />
@@ -842,7 +945,30 @@ export function ContentDetailPanel({
               <h3 className={SECTION_LABEL}>Timeline</h3>
 
               <CurrentStep status={loaded.status} waitingOn={loaded.waitingOn} role={role}>
-              {send && formSpec ? (
+              {handingIn && !isLinkEdit(handingIn) ? (
+                handingIn === "submit_video" ? (
+                  <VideoLinksHandIn
+                    links={loaded.links ?? []}
+                    saveLinks={handInPorts.saveLinks}
+                    onPartlySaved={() => void readAgain()}
+                    actionsTarget={footerSlot}
+                    contentId={loaded.id}
+                    onLeave={() => setHandingIn(null)}
+                    onSent={() => handInSent(handingIn)}
+                    onDirtyChange={setHandInDirty}
+                  />
+                ) : (
+                  <DraftHandIn
+                    action={handingIn}
+                    submitDraft={handInPorts.submitDraft}
+                    actionsTarget={footerSlot}
+                    contentId={loaded.id}
+                    onLeave={() => setHandingIn(null)}
+                    onSent={() => handInSent(handingIn)}
+                    onDirtyChange={setHandInDirty}
+                  />
+                )
+              ) : send && formSpec ? (
                 <div className="mt-3 flex w-full flex-col gap-2">
                   {error ? (
                     <p role="alert" className="text-right text-xs text-red-ink">
@@ -906,23 +1032,6 @@ export function ContentDetailPanel({
                     <CharLimit id={countId} length={note.length} max={formSpec.max} />
                   )}
 
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" onClick={cancelForm} disabled={busy}>
-                      Batal
-                    </Button>
-                    <Button
-                      variant={send.variant}
-                      onClick={() => {
-                        void decide(formSpec.decision, async () => {
-                          await send.run();
-                        });
-                      }}
-                      disabled={!send.canRun()}
-                      aria-busy={pending === formSpec.decision}
-                    >
-                      {send.label}
-                    </Button>
-                  </div>
                 </div>
               ) : error ? (
                 <p role="alert" className="mt-2 text-xs text-red-ink">

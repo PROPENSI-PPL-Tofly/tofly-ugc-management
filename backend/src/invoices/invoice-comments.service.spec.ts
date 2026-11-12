@@ -26,7 +26,12 @@ const COMMENT_SELECT = {
   author_role: true,
   text: true,
   created_at: true,
+  users: { select: { email: true } },
 };
+// Who wrote a comment, as the author's user row answers it.
+const ADMIN_EMAIL = 'sinta.admin@tofly.id';
+const BY_ADMIN = { users: { email: ADMIN_EMAIL } };
+const BY_CREATOR = { users: { email: 'rangga@example.com' } };
 const OLDEST_FIRST = [{ created_at: 'asc' }, { id: 'asc' }];
 const NOT_FOUND = {
   code: 'INVOICE_NOT_FOUND',
@@ -77,7 +82,7 @@ describe('InvoiceCommentsService', () => {
   });
 
   describe('list', () => {
-    it('reads the thread oldest first in one query, the admin as "Admin" and the creator by name', async () => {
+    it("reads the thread oldest first in one query, the admin by email and the creator by name", async () => {
       prisma.contracts.findFirst.mockResolvedValue({
         id: CONTRACT,
         creators: {
@@ -92,12 +97,14 @@ describe('InvoiceCommentsService', () => {
               author_role: 'creator',
               text: 'Halo kak',
               created_at: AT,
+              ...BY_CREATOR,
             },
             {
               id: 'c2',
               author_role: 'admin',
               text: 'Sudah dicek',
               created_at: LATER,
+              ...BY_ADMIN,
             },
           ],
         },
@@ -113,7 +120,7 @@ describe('InvoiceCommentsService', () => {
         },
         {
           id: 'c2',
-          authorName: 'Admin',
+          authorName: ADMIN_EMAIL,
           authorRole: 'admin',
           text: 'Sudah dicek',
           createdAt: '2026-10-20T04:00:00.000Z',
@@ -169,6 +176,7 @@ describe('InvoiceCommentsService', () => {
         author_role: 'admin',
         text: 'Bukti sudah diupload',
         created_at: AT,
+        ...BY_ADMIN,
       });
 
       await expect(
@@ -179,7 +187,7 @@ describe('InvoiceCommentsService', () => {
         ),
       ).resolves.toEqual({
         id: 'c9',
-        authorName: 'Admin',
+        authorName: ADMIN_EMAIL,
         authorRole: 'admin',
         text: 'Bukti sudah diupload',
         createdAt: '2026-10-20T03:00:00.000Z',
@@ -213,6 +221,7 @@ describe('InvoiceCommentsService', () => {
         author_role: 'creator',
         text: 'Terima kasih',
         created_at: AT,
+        ...BY_CREATOR,
       });
 
       const saved = await service.add(
@@ -248,6 +257,7 @@ describe('InvoiceCommentsService', () => {
             author_role: 'admin',
             text: 'Halo',
             created_at: AT,
+            ...BY_ADMIN,
           }),
         },
       };
@@ -297,6 +307,7 @@ describe('InvoiceCommentsService', () => {
           author_role: 'creator',
           text: 'a',
           created_at: AT,
+          ...BY_CREATOR,
           invoices: contractOf(CONTRACT),
         },
         {
@@ -304,6 +315,7 @@ describe('InvoiceCommentsService', () => {
           author_role: 'admin',
           text: 'b',
           created_at: AT,
+          ...BY_ADMIN,
           invoices: contractOf(OTHER_CONTRACT),
         },
         {
@@ -311,6 +323,7 @@ describe('InvoiceCommentsService', () => {
           author_role: 'admin',
           text: 'c',
           created_at: LATER,
+          ...BY_ADMIN,
           invoices: contractOf(CONTRACT),
         },
       ]);
@@ -333,7 +346,7 @@ describe('InvoiceCommentsService', () => {
         orderBy: OLDEST_FIRST,
       });
       expect(threads.get(CONTRACT)?.map(({ id }) => id)).toEqual(['c1', 'c3']);
-      expect(threads.get(OTHER_CONTRACT)?.[0].authorName).toBe('Admin');
+      expect(threads.get(OTHER_CONTRACT)?.[0].authorName).toBe(ADMIN_EMAIL);
     });
 
     it('asks nothing for an empty page', async () => {

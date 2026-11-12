@@ -3,25 +3,32 @@
 import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import type { ContentPlanCreatorOption } from "@/lib/content-plan";
+import { DATA_STATE_LABELS, type DataState } from "@/lib/link-performance";
 import { PLATFORM_LABELS, PLATFORMS } from "@/lib/platform-links";
-import { offeredPicks } from "@/components/filters/filter-controls";
+import { offeredPicks, SearchBox } from "@/components/filters/filter-controls";
 import { useUrlFilters } from "@/lib/use-url-filters";
 
 /**
- * The "Performa Konten" filter bar: whose link and which platform (AC 23). Every control reads
- * the live address through the shared hook, so a pick is one replace away, the page it was on
- * is dropped, and Reset clears the two filters at once. The creator filter reuses the creator
- * list's options.
+ * The "Performa Konten" filter bar: a search over content and creator names (I3.2), then whose
+ * link, which platform (AC 23) and which Status Data. Every control reads the live address
+ * through the shared hook, so a pick is one replace away, the page it was on is dropped, and
+ * Reset clears the search and the filters at once. The creator filter reuses the creator list's
+ * options. The search and the creator filter are left out when no creators are given: a
+ * creator's own list is only theirs, and their page never searches.
  */
 export function PerformanceFilters({
   creators,
-}: Readonly<{ creators: readonly ContentPlanCreatorOption[] }>) {
-  const { param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
+}: Readonly<{ creators?: readonly ContentPlanCreatorOption[] }>) {
+  const { search, setSearch, param, listParam, setParam, resetKeeping, pending } = useUrlFilters();
 
-  const creatorOptions: MultiSelectOption[] = creators.map((c) => ({
+  const creatorOptions: MultiSelectOption[] = (creators ?? []).map((c) => ({
     value: c.id,
     label: c.name,
   }));
+  // Worded as the state's badge in the table is, in the order the table's tips explain them.
+  const stateOptions: MultiSelectOption[] = (
+    ["synced", "waiting", "not_connected", "not_found", "sync_failed", "manual"] as DataState[]
+  ).map((value) => ({ value, label: DATA_STATE_LABELS[value] }));
   const platformOptions: MultiSelectOption[] = PLATFORMS.map((value) => ({
     value,
     label: PLATFORM_LABELS[value],
@@ -41,17 +48,27 @@ export function PerformanceFilters({
   }
 
   const pickedPlatforms = offeredPicks(listParam("platform"), platformOptions);
-  const isFilteredNow = param("creator") !== "all" || param("platform") !== "all";
+  const pickedStates = offeredPicks(listParam("state"), stateOptions);
+  const isFilteredNow =
+    (creators !== undefined && (search !== "" || param("creator") !== "all")) ||
+    param("platform") !== "all" ||
+    param("state") !== "all";
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
-        <MultiSelect
-          label="Creator"
-          options={creatorOptions}
-          selected={pickedCreators()}
-          onChange={(next) => setListParam("creator", next)}
-        />
+        {creators ? (
+          <>
+            {/* Worded as Content Plan's, the other list of contents by creator. */}
+            <SearchBox label="Cari konten atau creator" value={search} onChange={setSearch} />
+            <MultiSelect
+              label="Creator"
+              options={creatorOptions}
+              selected={pickedCreators()}
+              onChange={(next) => setListParam("creator", next)}
+            />
+          </>
+        ) : null}
 
         <MultiSelect
           label="Platform"
@@ -59,21 +76,36 @@ export function PerformanceFilters({
           selected={pickedPlatforms}
           onChange={(next) => setListParam("platform", next)}
         />
+
+        <MultiSelect
+          label="Status Data"
+          options={stateOptions}
+          selected={pickedStates}
+          onChange={(next) => setListParam("state", next)}
+        />
       </div>
 
       {/* Every pick named after its filter, gathered below the bar as the benchmark lays them. */}
       <FilterChips
         chips={[
-          ...pickedChips("Creator", pickedCreators(), creatorOptions, (value) =>
-            setListParam(
-              "creator",
-              pickedCreators().filter((pick) => pick !== value),
-            ),
-          ),
+          ...(creators
+            ? pickedChips("Creator", pickedCreators(), creatorOptions, (value) =>
+                setListParam(
+                  "creator",
+                  pickedCreators().filter((pick) => pick !== value),
+                ),
+              )
+            : []),
           ...pickedChips("Platform", pickedPlatforms, platformOptions, (value) =>
             setListParam(
               "platform",
               pickedPlatforms.filter((pick) => pick !== value),
+            ),
+          ),
+          ...pickedChips("Status Data", pickedStates, stateOptions, (value) =>
+            setListParam(
+              "state",
+              pickedStates.filter((pick) => pick !== value),
             ),
           ),
         ]}

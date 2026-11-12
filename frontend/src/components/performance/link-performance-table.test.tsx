@@ -55,13 +55,24 @@ describe("LinkPerformanceTable", () => {
     expect(screen.getByText(DATA_STATE_LABELS[state])).toHaveClass("rounded-full", colour);
   });
 
-  it("underlines the content and the creator, and links the creator to their detail page", () => {
+  it("leaves the content name plain, underlines the creator, and links them to their detail page", () => {
     render(<LinkPerformanceTable rows={[row()]} showCreator onRowClick={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).toHaveClass("underline");
+    expect(screen.getByRole("button", { name: "Evg_1_RanggaPratama_12102026" })).not.toHaveClass("underline");
     const creator = screen.getByRole("link", { name: "Rangga Pratama" });
     expect(creator).toHaveClass("underline");
     expect(creator).toHaveAttribute("href", "/admin/creators/11111111-1111-4111-8111-111111111111");
+  });
+
+  it("opens a creator's content from anywhere on its row, as the admin's rows do", () => {
+    render(<LinkPerformanceTable rows={[row()]} contentHref={() => "/creator/tasks?content=c-1"} />);
+
+    const name = screen.getByRole("link", { name: "Evg_1_RanggaPratama_12102026" });
+    expect(name).toHaveAttribute("href", "/creator/tasks?content=c-1");
+    expect(name).not.toHaveClass("underline");
+    // The link's hit area is stretched over the row it sits in.
+    expect(name).toHaveClass("after:absolute", "after:inset-0");
+    expect(name.closest("tr")).toHaveClass("relative", "cursor-pointer", "hover:bg-surface-2");
   });
 
   it("writes the four numbers in Indonesian format, and an empty one as a dash, never 0 (AC 2, 19)", () => {

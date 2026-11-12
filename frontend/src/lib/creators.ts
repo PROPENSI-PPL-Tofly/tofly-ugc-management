@@ -215,8 +215,8 @@ const FORM_ERROR_FIELDS: (keyof CreatorFormErrors)[] = [
   "interval",
   "quota",
   "fixedRate",
-  "socialPlatform",
-  "socialUsername",
+  "instagramUsername",
+  "tiktokUsername",
   "deadlines",
 ];
 

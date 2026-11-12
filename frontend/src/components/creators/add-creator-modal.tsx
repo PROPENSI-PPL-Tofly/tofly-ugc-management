@@ -22,7 +22,6 @@ import {
   type CreatorFormErrors,
   type ContractType,
   type CreatorFormInput,
-  type SocialPlatform,
 } from "@/lib/creator-form";
 import {
   addManualDeadline,
@@ -44,16 +43,19 @@ const ALERT = "rounded-(--radius-control) border border-red-wash bg-red-wash px-
 const FIELD =
   "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
 
-// Every field in this form is required, so each label carries the asterisk; the control itself
-// still sets `required` for assistive tech.
+// Every field but the two usernames is required, so its label carries the asterisk; the control
+// itself still sets `required` for assistive tech.
 function Field({
   label,
   error,
   note,
   hint,
+  optional = false,
   children,
 }: {
   label: string;
+  /** Left without the asterisk: the usernames, which the creator's connecting fills in later. */
+  optional?: boolean;
   error?: string;
   /** Rendered outside the label so it stays out of the control's accessible name. */
   note?: React.ReactNode;
@@ -73,9 +75,11 @@ function Field({
       <label className="flex flex-col gap-1">
         <span className="font-semibold">
           {label}
-          <span aria-hidden="true" className="ml-0.5 text-red-ink">
-            *
-          </span>
+          {optional ? null : (
+            <span aria-hidden="true" className="ml-0.5 text-red-ink">
+              *
+            </span>
+          )}
         </span>
         {children}
       </label>
@@ -98,6 +102,12 @@ function wholeNumber(value: string): number {
   return digits === "" ? 0 : Number(digits);
 }
 
+/** One optional username per platform, Instagram first as the API saves them. */
+const USERNAME_FIELDS = [
+  { field: "instagramUsername", label: "Username Instagram", placeholder: "mis. salsa.amelia" },
+  { field: "tiktokUsername", label: "Username TikTok", placeholder: "mis. salsa.amelia" },
+] as const;
+
 const NO_ERRORS: CreatorFormErrors = {};
 
 const INITIAL_FORM: CreatorFormInput = {
@@ -108,9 +118,9 @@ const INITIAL_FORM: CreatorFormInput = {
   interval: 14,
   quota: 0,
   fixedRate: null,
-  socialPlatform: "",
+  instagramUsername: "",
+  tiktokUsername: "",
   contractType: "",
-  socialUsername: "",
 };
 
 export function AddCreatorModal({
@@ -136,7 +146,8 @@ export function AddCreatorModal({
   const [form, setForm] = useState<CreatorFormInput>(INITIAL_FORM);
   const nameCountId = useId();
   const emailCountId = useId();
-  const usernameCountId = useId();
+  const instagramCountId = useId();
+  const tiktokCountId = useId();
   // Which fields the admin has already blurred at least once. Simpan's disabled state tracks
   // liveErrors directly regardless of this, but a field only *shows* its error once touched —
   // otherwise every field would flash red the instant the modal opens.
@@ -291,45 +302,29 @@ export function AddCreatorModal({
             />
           </Field>
 
-          <Field label="Platform" error={fieldError("socialPlatform")}>
-            <select
-              className={FIELD}
-              required
-              value={form.socialPlatform}
-              onChange={(event) =>
-                change("socialPlatform", event.target.value as SocialPlatform | "")
-              }
-              onBlur={() => markTouched("socialPlatform")}
-            >
-              <option value="">Pilih platform</option>
-              <option value="instagram">Instagram</option>
-              <option value="tiktok">TikTok</option>
-            </select>
-          </Field>
-
-          <Field
-            label="Username Social Media"
-            error={fieldError("socialUsername")}
-            note={
-              <CharLimit
-                id={usernameCountId}
-                length={form.socialUsername.length}
-                max={MAX_USERNAME_LENGTH}
-              />
-            }
-          >
-            <input
-              type="text"
-              className={FIELD}
-              required
-              maxLength={MAX_USERNAME_LENGTH}
-              aria-describedby={usernameCountId}
-              placeholder="mis. salsa.amelia"
-              value={form.socialUsername}
-              onChange={(event) => change("socialUsername", event.target.value)}
-              onBlur={() => markTouched("socialUsername")}
-            />
-          </Field>
+          {USERNAME_FIELDS.map(({ field, label, placeholder }) => {
+            const countId = field === "instagramUsername" ? instagramCountId : tiktokCountId;
+            return (
+              <Field
+                key={field}
+                label={label}
+                optional
+                error={fieldError(field)}
+                note={<CharLimit id={countId} length={form[field].length} max={MAX_USERNAME_LENGTH} />}
+              >
+                <input
+                  type="text"
+                  className={FIELD}
+                  maxLength={MAX_USERNAME_LENGTH}
+                  aria-describedby={countId}
+                  placeholder={placeholder}
+                  value={form[field]}
+                  onChange={(event) => change(field, event.target.value)}
+                  onBlur={() => markTouched(field)}
+                />
+              </Field>
+            );
+          })}
         </div>
       </fieldset>
 

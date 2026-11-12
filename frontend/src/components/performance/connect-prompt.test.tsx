@@ -23,6 +23,7 @@ describe("ConnectPrompt", () => {
       "href",
       "/api/social/instagram/connect",
     );
+    expect(screen.getByRole("link", { name: "Hubungkan" })).toHaveAttribute("target", "_blank");
   });
 
   it("prompts once per unconnected account", () => {

@@ -257,7 +257,7 @@ describe('Invoice payment proof and comments (e2e)', () => {
         })),
       ).toEqual([
         {
-          authorName: 'Admin',
+          authorName: `${MARKER}-signed-in-admin@example.com`,
           authorRole: 'admin',
           text: 'Bukti transfer sudah diupload ya.',
         },
@@ -267,8 +267,10 @@ describe('Invoice payment proof and comments (e2e)', () => {
           text: 'Sudah masuk, terima kasih!',
         },
       ]);
-      // No admin email anywhere in what a creator reads.
-      expect(JSON.stringify(asCreator.body)).not.toContain('@example.com');
+      // The admin is named by email on both sides; the creator never by theirs.
+      expect(JSON.stringify(asAdmin.body)).not.toContain(
+        `${MARKER}-nadia@example.com`,
+      );
     });
   });
 

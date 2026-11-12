@@ -2,7 +2,7 @@
 
 import { ContentTags } from "@/components/contents/content-tags";
 import { DueDate, badgeTags } from "@/components/contents/due-date";
-import { ContentNameButton, RowActionButton } from "@/components/contents/content-row-buttons";
+import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { DeadlineSortButton, DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -77,10 +77,6 @@ export function CreatorContentTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Platform
             </th>
-            <th role="columnheader" scope="col" className={HEAD}>
-              {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
-              <span className="sr-only">Aksi</span>
-            </th>
           </tr>
         </thead>
         <tbody role="rowgroup" className="max-lg:block">
@@ -118,10 +114,6 @@ export function CreatorContentTable({
               </td>
               <td data-label="Platform" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
                 <PlatformIcons platforms={row.platforms} />
-              </td>
-              {/* Every row offers a door into its detail; Tinjau stands out where a decision waits. */}
-              <td className={`${CELL} text-right max-lg:pt-2 max-lg:text-left`}>
-                <RowActionButton status={row.status} name={row.name} onOpen={() => onOpen(row.contentId)} />
               </td>
             </tr>
           ))}

@@ -36,7 +36,7 @@ describe("Creator database page", () => {
     await renderPage({ page: "2" });
 
     expect(fetchCreators).toHaveBeenCalledWith(2, { q: "", contractStatus: "all", productivity: "all" });
-    expect(screen.getByRole("heading", { level: 1, name: "Creator Database" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Kreator" })).toBeInTheDocument();
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Halaman 2 dari 2")).toBeInTheDocument();
   });
@@ -48,7 +48,7 @@ describe("Creator database page", () => {
 
     await renderPage({ q: "ra", contractStatus: "expired", productivity: "bogus", page: "2" });
 
-    expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
       "href",
       "/admin/creators/creator-9?return=q%3Dra%26contractStatus%3Dexpired%26page%3D2",
     );
@@ -59,7 +59,7 @@ describe("Creator database page", () => {
 
     await renderPage();
 
-    expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
       "href",
       "/admin/creators/creator-9",
     );
@@ -197,8 +197,9 @@ describe("Creator database page", () => {
   });
 });
 
-// Approved design: the roster is titled in the admin's ink band, with how many creators match.
-describe("Creator Database's list band", () => {
+// The page's title already names its one list, so the roster has no title band of its own; Tambah
+// Creator sits beside the page title instead.
+describe("Kreator's list head", () => {
   beforeEach(() => {
     vi.mocked(fetchCreators).mockReset();
     vi.mocked(fetchCreators).mockResolvedValue(
@@ -206,12 +207,12 @@ describe("Creator Database's list band", () => {
     );
   });
 
-  it("titles the roster in the ink band with the creators that match", async () => {
+  it("gives the roster no title band and puts Tambah Creator beside the page title", async () => {
     await renderPage();
 
-    const band = screen.getByRole("heading", { level: 2, name: "Kreator" }).closest("[data-tone]") as HTMLElement;
-    expect(band).toHaveAttribute("data-tone", "ink");
-    expect(band.querySelector("[data-count]")).toHaveTextContent("12 creator");
-    expect(within(band).getByRole("button", { name: /tambah creator/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Kreator" })).toBeNull();
+    expect(document.querySelector("[data-tone]")).toBeNull();
+    const header = screen.getByRole("heading", { level: 1, name: "Kreator" }).parentElement as HTMLElement;
+    expect(within(header).getByRole("button", { name: /tambah creator/i })).toBeInTheDocument();
   });
 });

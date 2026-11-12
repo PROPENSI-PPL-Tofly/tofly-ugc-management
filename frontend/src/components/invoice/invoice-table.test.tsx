@@ -266,7 +266,7 @@ describe("InvoiceTable", () => {
     // A table whose display changes can lose its semantics in some browsers, so the table, its
     // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
     it("reads each card as a row of cells, one per column, under explicit table roles", () => {
-      render(<InvoiceTable rows={[FULL, WAITING]} action={() => <button type="button">Rincian</button>} />);
+      render(<InvoiceTable rows={[FULL, WAITING]} onOpen={vi.fn()} />);
 
       const table = screen.getByRole("table");
       expect(table).toHaveAttribute("role", "table");
@@ -293,7 +293,7 @@ describe("InvoiceTable", () => {
     });
 
     it("names every amount and the invoice status by their columns", () => {
-      render(<InvoiceTable rows={[FULL]} action={() => <button type="button">Rincian</button>} />);
+      render(<InvoiceTable rows={[FULL]} onOpen={vi.fn()} />);
 
       const cells = within(rowOf("Rangga Pratama")).getAllByRole("cell");
       expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([
@@ -304,7 +304,6 @@ describe("InvoiceTable", () => {
         "Penalti",
         "Total",
         "Status Invoice",
-        null,
       ]);
     });
 
@@ -325,12 +324,6 @@ describe("InvoiceTable", () => {
       expect(screen.getByText("Rangga Pratama")).toHaveClass("truncate", "max-lg:whitespace-normal");
     });
 
-    it("gives the row's action a full-width touch target at least 44px tall", () => {
-      render(<InvoiceTable rows={[FULL]} action={() => <button type="button">Rincian</button>} />);
-
-      const actionCell = within(rowOf("Rangga Pratama")).getAllByRole("cell").at(-1);
-      expect(actionCell).toHaveClass("max-lg:[&_button]:w-full", "max-lg:[&_button]:min-h-11");
-    });
 
     it("keeps the footer's sum as one line of its own under the cards", () => {
       render(<InvoiceTable rows={[FULL]} summary={{ total: 12345000, count: 24 }} />);
@@ -479,11 +472,47 @@ describe("InvoiceTable", () => {
     expect(container.querySelector("tfoot")).toBeNull();
   });
 
-  it("gives each row an action column when the board hands one in, named for a screen reader", () => {
-    render(<InvoiceTable rows={[FULL]} action={(row) => <button type="button">Rincian {row.creatorName}</button>} />);
+  // No Rincian button: the row opens the invoice, as every other list's row opens its detail, and
+  // the creator's name is the same door for the keyboard.
+  describe("opening an invoice", () => {
+    function rowOf(name: string) {
+      return screen.getByText(name).closest("tr") as HTMLElement;
+    }
 
-    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Rincian Rangga Pratama" })).toBeInTheDocument();
+    it("has no action column and no Rincian button", () => {
+      render(<InvoiceTable rows={[FULL]} onOpen={vi.fn()} />);
+
+      expect(screen.queryByRole("columnheader", { name: "Aksi" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Rincian/ })).toBeNull();
+    });
+
+    it("opens the invoice from the creator's name, a real button", () => {
+      const onOpen = vi.fn();
+      render(<InvoiceTable rows={[FULL]} onOpen={onOpen} />);
+
+      const name = screen.getByRole("button", { name: "Rangga Pratama" });
+      expect(name).toHaveAttribute("aria-haspopup", "dialog");
+      fireEvent.click(name);
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith(FULL);
+    });
+
+    it("opens it from a press anywhere on the row, once", () => {
+      const onOpen = vi.fn();
+      render(<InvoiceTable rows={[FULL]} onOpen={onOpen} />);
+
+      fireEvent.click(within(rowOf("Rangga Pratama")).getAllByRole("cell")[6]);
+
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith(FULL);
+      expect(rowOf("Rangga Pratama")).toHaveClass("cursor-pointer");
+    });
+
+    it("leaves the row plain where nothing opens", () => {
+      render(<InvoiceTable rows={[FULL]} />);
+
+      expect(rowOf("Rangga Pratama")).not.toHaveClass("cursor-pointer");
+      expect(screen.queryByRole("button", { name: "Rangga Pratama" })).toBeNull();
+    });
   });
 
   // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;

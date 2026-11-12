@@ -83,7 +83,7 @@ describe("the Content Plan's address, written by its tabs, filters and sort toge
     renderPlan();
 
     tickCreator("Salsa");
-    fireEvent.click(screen.getByRole("tab", { name: "Menunggu Kreator12" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Menunggu\ Kreator12/ }));
 
     expect(lastAddress()).toBe("/admin/content-plan?tab=waiting&creator=id-1");
   });
@@ -100,7 +100,7 @@ describe("the Content Plan's address, written by its tabs, filters and sort toge
   it("keeps a tab pressed a moment ago when a creator is ticked", () => {
     renderPlan();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Selesai" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Selesai/ }));
     tickCreator("Rangga");
 
     expect(lastAddress()).toBe("/admin/content-plan?tab=done&creator=id-2");
@@ -121,7 +121,7 @@ describe("the Content Plan's address, written by its tabs, filters and sort toge
 
     tickCreator("Salsa");
     fireEvent.click(screen.getByRole("button", { name: /Deadline/ }));
-    fireEvent.click(screen.getByRole("tab", { name: "Perlu Approval3" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Perlu\ Approval3/ }));
 
     // A tab change keeps the picks and lets go of the old tab's sort.
     expect(lastAddress()).toBe("/admin/content-plan?tab=action&creator=id-1");
@@ -132,7 +132,7 @@ describe("the Content Plan's address, written by its tabs, filters and sort toge
 
     tickCreator("Salsa");
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Menunggu Kreator12" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Menunggu\ Kreator12/ }));
     act(() => vi.advanceTimersByTime(400));
 
     expect(lastAddress()).toBe("/admin/content-plan?tab=waiting");
@@ -152,7 +152,7 @@ describe("the Content Plan's address, written by its tabs, filters and sort toge
   it("builds a search typed after a tab press on that tab", () => {
     renderPlan();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Menunggu Kreator12" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Menunggu\ Kreator12/ }));
     fireEvent.change(screen.getByRole("searchbox", { name: "Cari konten atau creator" }), {
       target: { value: "kopi" },
     });

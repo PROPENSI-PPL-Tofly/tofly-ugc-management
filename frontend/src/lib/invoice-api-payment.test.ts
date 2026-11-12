@@ -39,7 +39,7 @@ describe("paymentOf", () => {
   });
 });
 
-describe("the Rate & Invoicing row", () => {
+describe("the Pembayaran row", () => {
   it("carries the payment GET /invoices sends with it, under the page's names", () => {
     expect(toInvoiceList(listOf(ACKNOWLEDGED_ROW)).rows[0].payment).toEqual({
       acknowledgedAt: "2026-10-20T02:15:00.000Z",

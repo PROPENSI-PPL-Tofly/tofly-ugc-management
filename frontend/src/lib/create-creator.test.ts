@@ -9,9 +9,9 @@ describe("createCreator", () => {
     interval: 14,
     quota: 1,
     fixedRate: 500000,
-    socialPlatform: "tiktok" as const,
     contractType: "regular" as const,
-    socialUsername: "salsa.amelia",
+    instagramUsername: "salsa.amelia",
+    tiktokUsername: "",
     deadlines: ["2026-10-06"],
   };
 
@@ -59,6 +59,17 @@ describe("createCreator", () => {
       ok: false,
       message: "Data creator tidak valid",
       errors: { email: "Email sudah terdaftar" },
+    });
+  });
+
+  it("keeps a username's message under the platform it belongs to", async () => {
+    respond(422, { errors: { instagramUsername: "Username maksimal 100 karakter", tiktokUsername: "Username maksimal 100 karakter" } });
+
+    await expect(createCreator(request)).resolves.toMatchObject({
+      errors: {
+        instagramUsername: "Username maksimal 100 karakter",
+        tiktokUsername: "Username maksimal 100 karakter",
+      },
     });
   });
 

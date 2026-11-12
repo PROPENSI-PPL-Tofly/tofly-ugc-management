@@ -78,10 +78,12 @@ export class PerformanceLinksController {
     pageSize: number,
     @Query('creator') creator?: unknown,
     @Query('platform') platform?: unknown,
+    @Query('q') q?: unknown,
+    @Query('state') state?: unknown,
   ): Promise<PerformanceLinksPage> {
     return this.links.list(
       checkPaging(page, pageSize),
-      checkPerformanceLinksQuery({ creator, platform }),
+      checkPerformanceLinksQuery({ creator, platform, q, state }),
     );
   }
 }

@@ -53,10 +53,19 @@ describe("stateTip (AC 3)", () => {
     ).toBe("Sinkron terakhir 2 Nov 2026, 02.00 WIB. Sinkron otomatis tiap hari 02.00 WIB.");
   });
 
-  it("says who filled a link in and when", () => {
-    expect(stateTip(performance({ state: "manual", manualAt: "2026-11-02T03:00:00.000Z" }), "Rani")).toBe(
-      "Diisi Admin · 2 Nov 2026, 10.00 WIB.",
-    );
+  it("says which admin filled a link in, by email, and when", () => {
+    expect(
+      stateTip(
+        performance({ state: "manual", manualAt: "2026-11-02T03:00:00.000Z", manualBy: "sinta.admin@tofly.id" }),
+        "Rani",
+      ),
+    ).toBe("Diisi sinta.admin@tofly.id · 2 Nov 2026, 10.00 WIB.");
+  });
+
+  it("says an admin filled a link in when no account is named", () => {
+    expect(
+      stateTip(performance({ state: "manual", manualAt: "2026-11-02T03:00:00.000Z", manualBy: null }), "Rani"),
+    ).toBe("Diisi Admin · 2 Nov 2026, 10.00 WIB.");
   });
 
   it("names the creator who has not connected the account", () => {
@@ -86,7 +95,8 @@ describe("canEnterManually (AC 14)", () => {
     ["not_found", true],
     ["sync_failed", true],
     ["manual", true],
-    ["waiting", false],
+    // Still waiting for its first numbers: an admin may type them rather than wait.
+    ["waiting", true],
     ["synced", false],
   ] as const)("%s → %s", (state, allowed) => {
     expect(canEnterManually(state)).toBe(allowed);
@@ -101,7 +111,13 @@ describe("checkManualInput (AC 15)", () => {
     });
   });
 
-  it.each(["1000000000", "-1", "1.5", "12.400", "banyak", "1e3"])(
+  it("reads digits grouped by thousands, as the field shows them", () => {
+    expect(
+      checkManualInput({ views: "12.400", likes: "999.999.999", comments: "", shares: "" }).values,
+    ).toEqual({ views: 12400, likes: 999_999_999, comments: null, shares: null });
+  });
+
+  it.each(["1000000000", "1.000.000.000", "-1", "1.5", "12.40", "banyak", "1e3"])(
     "refuses %s with the same words as the API",
     (typed) => {
       expect(checkManualInput({ views: typed, likes: "", comments: "", shares: "" }).errors).toEqual({

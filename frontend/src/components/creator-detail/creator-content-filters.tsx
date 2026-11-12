@@ -6,7 +6,7 @@ import {
   SearchBox,
   offeredPicks,
 } from "@/components/filters/filter-controls";
-import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
+import { FilterChips, choiceChip, pickedChips } from "@/components/ui/filter-chips";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
 import { statusOptionsFor, type ContentPlanTab } from "@/lib/content-plan";
@@ -99,6 +99,9 @@ export function CreatorContentFilters({ tab = "all" }: Readonly<{ tab?: ContentP
                   ),
               )
             : []),
+          ...(tab === "done"
+            ? []
+            : choiceChip("Overdue", param("overdue"), OVERDUE_OPTIONS, () => setParam("overdue", "all"))),
         ]}
         canReset={filtered}
         resetDisabled={pending}

@@ -190,8 +190,7 @@ describe('CreatorsController', () => {
     const body = {
       name: 'Salsa Amelia',
       email: 'salsa@example.com',
-      socialPlatform: 'tiktok',
-      socialUsername: 'salsa.amelia',
+      tiktokUsername: 'salsa.amelia',
       contractType: 'regular',
       contractStart: '2026-10-01',
       contractEnd: '2026-12-31',
@@ -210,6 +209,7 @@ describe('CreatorsController', () => {
       expect(onboarding.onboard).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'Salsa Amelia',
+          socialAccounts: [{ platform: 'tiktok', username: 'salsa.amelia' }],
           contractType: 'regular',
           contractStart: '2026-10-01',
           deadlines: ['2026-10-06'],

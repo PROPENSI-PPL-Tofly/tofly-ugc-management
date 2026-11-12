@@ -20,15 +20,15 @@ describe("MyTaskTabBar", () => {
     searchParams = new URLSearchParams();
   });
 
-  it("shows the four Task Saya tabs with Perlu Dikerjakan's counter red and Menunggu Admin's grey", () => {
+  it("shows the four Tugas Saya tabs with Perlu Dikerjakan's counter red and Menunggu Admin's grey", () => {
     render(<MyTaskTabBar active="all" counts={COUNTS} />);
 
-    expect(screen.getByRole("tablist", { name: "Tab Task Saya" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Tab Tugas Saya" })).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((node) => node.textContent)).toEqual([
-      "Semua",
+      "Semua9",
       "Perlu Dikerjakan4",
       "Menunggu Admin2",
-      "Selesai",
+      "Selesai3",
     ]);
     expect(screen.getByTestId("count-action").className).toContain("bg-red");
     expect(screen.getByTestId("count-waiting").className).toContain("bg-surface-2");
@@ -47,7 +47,7 @@ describe("MyTaskTabBar", () => {
     });
     render(<MyTaskTabBar active="all" counts={COUNTS} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Perlu Dikerjakan4" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Perlu\ Dikerjakan4/ }));
 
     expect(replace).toHaveBeenCalledWith(
       "/creator/tasks?tab=action&q=serum&type=specific&period=month",
@@ -59,7 +59,7 @@ describe("MyTaskTabBar", () => {
     searchParams = new URLSearchParams({ tab: "done", q: "serum" });
     render(<MyTaskTabBar active="done" counts={COUNTS} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Semua" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Semua/ }));
 
     expect(replace).toHaveBeenCalledWith("/creator/tasks?q=serum", { scroll: false });
   });
@@ -67,7 +67,7 @@ describe("MyTaskTabBar", () => {
   it("moves with the arrow keys too", () => {
     render(<MyTaskTabBar active="all" counts={COUNTS} />);
 
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Semua" }), { key: "ArrowLeft" });
+    fireEvent.keyDown(screen.getByRole("tab", { name: /^Semua/ }), { key: "ArrowLeft" });
 
     expect(replace).toHaveBeenCalledWith("/creator/tasks?tab=done", { scroll: false });
   });

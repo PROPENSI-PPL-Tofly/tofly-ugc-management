@@ -2,10 +2,10 @@ import { FRAME_THEMES } from "./frame-theme";
 import { ShellNav, type Place } from "./shell-nav";
 
 const PLACES: Place[] = [
-  { href: "/admin/creators", label: "Creator Database", icon: "people" },
+  { href: "/admin/creators", label: "Kreator", icon: "people" },
   { href: "/admin/content-plan", label: "Content Plan", icon: "calendar" },
   { href: "/admin/performance", label: "Performa Konten", icon: "chart" },
-  { href: "/admin/invoicing", label: "Rate & Invoicing", icon: "receipt" },
+  { href: "/admin/invoicing", label: "Pembayaran", icon: "receipt" },
 ];
 
 /** The places an admin can go. */
