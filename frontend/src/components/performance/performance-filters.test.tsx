@@ -164,6 +164,16 @@ describe("PerformanceFilters", () => {
       expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance", { scroll: false });
       expect(box()).toHaveValue("");
     });
+
+    // I3.2 is the admin's box: the creator's page never searches, so a stale `?q=` in its
+    // address neither shows a box nor offers a Reset.
+    it("is left out where no creators are given, with no Reset for a search in the address", () => {
+      searchParams = new URLSearchParams({ q: "kopi" });
+      renderCreatorFilters();
+
+      expect(screen.queryByRole("searchbox")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Reset" })).toBeNull();
+    });
   });
 
   it("drops one platform from its chip, keeping the other", () => {
