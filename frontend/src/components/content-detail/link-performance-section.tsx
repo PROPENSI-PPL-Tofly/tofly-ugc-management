@@ -27,7 +27,9 @@ import {
 import {
   saveManualPerformance,
   syncContentPerformance,
+  syncLinkPerformance,
   type ContentPerformanceSyncer,
+  type LinkPerformanceSyncer,
   type ManualPerformanceSaver,
 } from "@/lib/link-performance-api";
 import { PLATFORM_LABELS, type ContentLink, type Platform } from "@/lib/platform-links";
@@ -183,6 +185,28 @@ function ManualForm({
   );
 }
 
+// SCRUM-282: two arrows round a circle, drawn inline as the platform marks are; the button
+// around it carries the name, so the drawing says nothing to a screen reader.
+function RefreshIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="size-4"
+    >
+      <path d="M20 12a8 8 0 0 1-14.3 4.9" />
+      <path d="M4 12A8 8 0 0 1 18.3 7.1" />
+      <path d="M18.5 3v4.2h-4.2" />
+      <path d="M5.5 21v-4.2h4.2" />
+    </svg>
+  );
+}
+
 function LinkCard({
   link,
   performance,
@@ -193,6 +217,8 @@ function LinkCard({
   onEdit,
   onCancel,
   onSave,
+  onSync,
+  syncDisabled,
 }: Readonly<{
   link: ContentLink;
   performance: LinkPerformance;
@@ -203,8 +229,13 @@ function LinkCard({
   onEdit: () => void;
   onCancel: () => void;
   onSave: (values: ManualValues) => Promise<SaveProblem | null>;
+  /** SCRUM-282: syncs only this card's link. */
+  onSync: () => void;
+  /** True while any sync of this content runs, so a second one is never started. */
+  syncDisabled: boolean;
 }>) {
   const label = DATA_STATE_LABELS[performance.state];
+  const syncName = `Sinkronkan ${PLATFORM_LABELS[platform]}`;
   const manual = role === "admin" && canEnterManually(performance.state);
 
   return (
@@ -221,6 +252,19 @@ function LinkCard({
             Dikirim {formatDate(link.submittedAt)}
           </time>
           <span className="ml-auto inline-flex items-center gap-1">
+            {role === "admin" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="px-1.5 max-sm:min-w-11"
+                aria-label={syncName}
+                title={syncName}
+                onClick={onSync}
+                disabled={syncDisabled}
+              >
+                <RefreshIcon />
+              </Button>
+            ) : null}
             <Pill tone={STATE_TONES[performance.state]}>{label}</Pill>
             <InfoTip text={stateTip(performance, creatorFirstName)} label={`Tentang ${label}`} align="end" />
           </span>
@@ -252,6 +296,7 @@ export function LinkPerformanceSection({
   creatorFirstName,
   save = saveManualPerformance,
   sync = syncContentPerformance,
+  syncLink = syncLinkPerformance,
   onChanged,
 }: Readonly<{
   contentId: string;
@@ -260,17 +305,30 @@ export function LinkPerformanceSection({
   creatorFirstName: string;
   save?: ManualPerformanceSaver;
   sync?: ContentPerformanceSyncer;
+  /** SCRUM-282: one card's Refresh. */
+  syncLink?: LinkPerformanceSyncer;
   /** Called after the numbers changed, so the panel can read the content again. */
   onChanged?: () => void;
 }>) {
   const { show, toast } = useToast();
   const [syncing, setSyncing] = useState(false);
   const [editing, setEditing] = useState<Platform | null>(null);
+  // SCRUM-282: the link a card's Refresh is syncing; while any sync runs, no button starts another.
+  const [syncingLink, setSyncingLink] = useState<Platform | null>(null);
+  const busy = syncing || syncingLink !== null;
 
   async function syncNow() {
     setSyncing(true);
     const result = await sync(contentId);
     setSyncing(false);
+    show(result.ok ? result.toast : result.message);
+    if (result.ok) onChanged?.();
+  }
+
+  async function syncOne(platform: Platform) {
+    setSyncingLink(platform);
+    const result = await syncLink(contentId, platform);
+    setSyncingLink(null);
     show(result.ok ? result.toast : result.message);
     if (result.ok) onChanged?.();
   }
@@ -289,7 +347,7 @@ export function LinkPerformanceSection({
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className={`${SECTION_LABEL} mb-0`}>Link &amp; Performa</h3>
         {role === "admin" ? (
-          <Button type="button" onClick={() => void syncNow()} disabled={syncing}>
+          <Button type="button" onClick={() => void syncNow()} disabled={busy}>
             {syncing ? "Menyinkronkan…" : "Sinkronkan Sekarang"}
           </Button>
         ) : null}
@@ -310,6 +368,8 @@ export function LinkPerformanceSection({
               onEdit={() => setEditing(link.platform)}
               onCancel={() => setEditing(null)}
               onSave={(values) => saveManual(link.platform as Platform, values)}
+              onSync={() => void syncOne(link.platform as Platform)}
+              syncDisabled={busy}
             />
           ) : (
             // A link kept from before platforms were recorded has nothing to be measured on.

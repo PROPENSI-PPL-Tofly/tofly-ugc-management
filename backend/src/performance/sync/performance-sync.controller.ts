@@ -2,6 +2,7 @@ import {
   Controller,
   HttpCode,
   Inject,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { social_platform } from '@prisma/client';
 import { AdminGuard } from '../../auth/admin.guard.js';
+import { isSocialPlatform } from '../../contents/link-rules.js';
 import {
   PerformanceSyncService,
   type SyncRunReport,
@@ -49,5 +51,22 @@ export class ContentPerformanceSyncController {
     @Param('id', new ParseUUIDPipe()) contentId: string,
   ): Promise<{ notUpdated: { platform: social_platform }[] }> {
     return this.sync.syncContent(contentId);
+  }
+
+  // The Refresh button on one link card: only that link (SCRUM-282). An unknown platform is
+  // refused before any read, as the manual-entry route refuses it.
+  @Post(':id/links/:platform/performance-sync')
+  @HttpCode(200)
+  syncLink(
+    @Param('id', new ParseUUIDPipe()) contentId: string,
+    @Param('platform') platform: string,
+  ): Promise<{ notUpdated: { platform: social_platform }[] }> {
+    if (!isSocialPlatform(platform)) {
+      throw new NotFoundException({
+        code: 'PLATFORM_NOT_FOUND',
+        message: 'Platform tidak dikenal',
+      });
+    }
+    return this.sync.syncContent(contentId, platform);
   }
 }

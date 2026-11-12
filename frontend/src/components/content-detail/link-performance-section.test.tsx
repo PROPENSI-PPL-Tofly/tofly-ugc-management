@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import type { LinkPerformance } from "@/lib/link-performance";
 import type { ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
@@ -153,6 +154,62 @@ describe("LinkPerformanceSection: Sinkronkan Sekarang (AC 12, 13)", () => {
     expect(screen.queryByRole("button", { name: "Sinkronkan Sekarang" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Isi Manual/ })).toBeNull();
     expect(within(card("Instagram")).getByText("12.400")).toBeInTheDocument();
+  });
+});
+
+// SCRUM-282: a Refresh button on each card syncs only that card's link, like Sinkronkan Sekarang.
+describe("LinkPerformanceSection: Refresh on each link card (SCRUM-282)", () => {
+  it("syncs only that card's link, with every sync button disabled while it runs, then toasts and reloads", async () => {
+    let finish: (value: { ok: true; toast: string }) => void = () => undefined;
+    const syncLink = vi.fn(() => new Promise<{ ok: true; toast: string }>((resolve) => (finish = resolve)));
+    const props = show([SYNCED, NOT_CONNECTED], { syncLink });
+
+    fireEvent.click(within(card("TikTok")).getByRole("button", { name: "Sinkronkan TikTok" }));
+
+    expect(syncLink).toHaveBeenCalledWith(CONTENT, "tiktok");
+    expect(props.sync).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Sinkronkan Sekarang" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan Instagram" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan TikTok" })).toBeDisabled();
+
+    finish({ ok: true, toast: "Data performa TikTok diperbarui" });
+    expect(await screen.findByText("Data performa TikTok diperbarui")).toBeInTheDocument();
+    expect(props.onChanged).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Sinkronkan TikTok" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan Sekarang" })).toBeEnabled();
+  });
+
+  it("toasts the reason that link's sync did not run, and reloads nothing", async () => {
+    const props = show([SYNCED], {
+      syncLink: vi.fn().mockResolvedValue({ ok: false, message: "Konten ini sedang disinkronkan. Tunggu sebentar." }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sinkronkan Instagram" }));
+
+    expect(await screen.findByText("Konten ini sedang disinkronkan. Tunggu sebentar.")).toBeInTheDocument();
+    expect(props.onChanged).not.toHaveBeenCalled();
+  });
+
+  it("keeps every card's Refresh disabled while Sinkronkan Sekarang runs", () => {
+    show([SYNCED, NOT_CONNECTED], { sync: vi.fn(() => new Promise<{ ok: true; toast: string }>(() => undefined)) });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sinkronkan Sekarang" }));
+
+    expect(screen.getByRole("button", { name: "Sinkronkan Instagram" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan TikTok" })).toBeDisabled();
+  });
+
+  it("is not offered to a creator, who only reads the numbers (AC 20)", () => {
+    show([SYNCED, NOT_CONNECTED], { role: "creator" });
+
+    expect(screen.queryByRole("button", { name: /^Sinkronkan (Instagram|TikTok)$/ })).toBeNull();
+  });
+
+  // Button already makes it 44px tall on a phone; the icon alone leaves it narrow, so it widens too.
+  it("is at least 44px wide on a phone, as Button makes it tall", () => {
+    show([SYNCED]);
+
+    expect(screen.getByRole("button", { name: "Sinkronkan Instagram" })).toHaveClass("max-sm:min-w-11", PHONE_TARGET);
   });
 });
 
