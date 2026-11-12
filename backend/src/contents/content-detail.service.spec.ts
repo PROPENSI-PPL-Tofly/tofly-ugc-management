@@ -75,6 +75,7 @@ describe('ContentDetailService', () => {
             data_state: true,
             last_synced_at: true,
             manual_at: true,
+            manual_users: { select: { email: true } },
           },
         },
         // Whether each account is connected decides a waiting link's state; no token is read.

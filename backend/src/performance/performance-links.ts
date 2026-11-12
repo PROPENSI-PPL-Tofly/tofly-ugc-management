@@ -60,6 +60,8 @@ export interface StoredLinkPerformance extends LinkMetrics {
   data_state: link_data_state;
   last_synced_at: Date | null;
   manual_at: Date | null;
+  /** The admin who typed the numbers in, when one did. */
+  manual_users?: { email: string } | null;
 }
 
 export const LINK_PERFORMANCE_SELECT = {
@@ -72,6 +74,7 @@ export const LINK_PERFORMANCE_SELECT = {
   data_state: true,
   last_synced_at: true,
   manual_at: true,
+  manual_users: { select: { email: true } },
 } as const;
 
 export interface PerformanceLinkRow extends StoredLinkPerformance {
@@ -146,6 +149,7 @@ export function performanceOf(
     ),
     lastSyncedAt: link.last_synced_at?.toISOString() ?? null,
     manualAt: link.manual_at?.toISOString() ?? null,
+    manualBy: link.manual_users?.email ?? null,
   };
 }
 
