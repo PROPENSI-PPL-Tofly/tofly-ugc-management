@@ -62,7 +62,8 @@ export function isPendingProposal(row: Pick<ChipRow, "status">): boolean {
 }
 
 function firstName(creatorName: string | undefined): string {
-  return (creatorName ?? "").trim().split(/\s+/)[0] ?? "";
+  // split always yields at least one part: "" for a blank name.
+  return (creatorName ?? "").trim().split(/\s+/)[0];
 }
 
 /** What a chip reads: "Salsa · Review Serum", or the content alone when no name came. */
