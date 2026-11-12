@@ -105,6 +105,33 @@ describe('PerformanceLinksService', () => {
     );
   });
 
+  // Review on #209: each word is four unindexed ILIKEs, run for the count and the page, so a
+  // 100-character search of 50 one-letter words took 9-12 s. A repeated word (whatever its case,
+  // as the match ignores case) adds nothing, and past five words the search stops narrowing.
+  it('searches each word once, whatever its case, and at most five words', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { q: 'Kopi kopi KOPI rani a b c d e f' },
+    );
+
+    const where = content_links.count.mock.calls[0][0].where as {
+      AND: { OR: { contents: { name?: { contains: string } } }[] }[];
+    };
+    expect(
+      where.AND.map((word) => word.OR[0].contents.name?.contains),
+    ).toEqual(['Kopi', 'rani', 'a', 'b', 'c']);
+  });
+
+  it('keeps a 100-character search of one-letter words to five words', async () => {
+    await service.list(
+      { page: 1, pageSize: 10 },
+      { q: Array.from({ length: 50 }, (_, i) => 'abcdefghij'[i % 10]).join(' ') },
+    );
+
+    const where = content_links.count.mock.calls[0][0].where as { AND: unknown[] };
+    expect(where.AND).toHaveLength(5);
+  });
+
   it('searches alongside the creator and platform filters', async () => {
     await service.list(
       { page: 1, pageSize: 10 },
