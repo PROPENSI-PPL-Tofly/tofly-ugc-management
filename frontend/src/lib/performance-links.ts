@@ -143,6 +143,7 @@ function toRow(entry: unknown): PerformanceLinkRow {
     state,
     lastSyncedAt,
     manualAt,
+    manualBy = null,
   } = entry;
 
   if (
@@ -159,7 +160,8 @@ function toRow(entry: unknown): PerformanceLinkRow {
     !isMetric(comments) ||
     !isMetric(shares) ||
     !isMoment(lastSyncedAt) ||
-    !isMoment(manualAt)
+    !isMoment(manualAt) ||
+    (manualBy !== null && typeof manualBy !== "string")
   ) {
     throw new PerformanceLinksError(UNUSABLE_ANSWER);
   }
@@ -179,6 +181,7 @@ function toRow(entry: unknown): PerformanceLinkRow {
     state: state as DataState,
     lastSyncedAt: lastSyncedAt as string | null,
     manualAt: manualAt as string | null,
+    manualBy: manualBy as string | null,
   };
 }
 

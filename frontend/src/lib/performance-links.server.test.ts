@@ -85,6 +85,7 @@ describe("fetchPerformanceLinks", () => {
           state: "synced",
           lastSyncedAt: "2026-11-01T17:00:00.000Z",
           manualAt: null,
+          manualBy: null,
         },
       ],
       page: 2,

@@ -1284,7 +1284,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         id: "rev-1",
         type: "revision_requested",
         at: "2026-09-21T03:00:00.000Z",
-        actor: { name: "Dewi Lestari", role: "admin" },
+        actor: { name: "dewi.admin@tofly.id", role: "admin" },
         payload: { note: "Audio terlalu pelan.\nTambahkan subtitle." },
       },
       {
@@ -1391,7 +1391,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         "2026-09-22T03:00:00.000Z",
       );
       expect(items[2]).toHaveTextContent("Rangga Pratama · Kreator");
-      expect(items[3]).toHaveTextContent("Dewi Lestari · Admin");
+      expect(items[3]).toHaveTextContent("dewi.admin@tofly.id · Admin");
     });
 
     it("shows an event the API dates by day alone without a time", async () => {
@@ -1442,7 +1442,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
       const items = await journeyItems();
       const note = within(items[3]).getByText(/Audio terlalu pelan\./);
 
-      expect(within(items[3]).getByText("Catatan Admin")).toBeInTheDocument();
+      expect(within(items[3]).getByText("Catatan dewi.admin@tofly.id")).toBeInTheDocument();
       expect(note).toHaveTextContent("Tambahkan subtitle.");
       expect(note).toHaveClass("whitespace-pre-line");
       expect(within(items[2]).getByText("Catatan Rangga Pratama")).toBeInTheDocument();
@@ -1646,7 +1646,7 @@ describe("ContentDetailPanel revision notes (PBI-34)", () => {
           id: "rev-1",
           type: "revision_requested",
           at: "2026-09-21T03:00:00.000Z",
-          actor: { name: "Dewi Lestari", role: "admin" },
+          actor: { name: "dewi.admin@tofly.id", role: "admin" },
           payload,
         },
       ],

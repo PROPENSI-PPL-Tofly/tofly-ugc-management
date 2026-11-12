@@ -23,6 +23,8 @@ export interface LinkPerformance {
   state: DataState;
   lastSyncedAt: string | null;
   manualAt: string | null;
+  /** The email of the admin who typed the numbers in; null (or absent) when none is known. */
+  manualBy?: string | null;
 }
 
 export const METRICS: readonly { name: MetricName; label: string }[] = [
@@ -81,8 +83,8 @@ export function stateTip(performance: LinkPerformance, creatorFirstName: string)
     case "synced":
       return `Sinkron terakhir ${formatTimestamp(performance.lastSyncedAt)}. Sinkron otomatis tiap hari 02.00 WIB.`;
     case "manual":
-      // Every admin is "Admin" to whoever reads the content, as in the timeline.
-      return `Diisi Admin · ${formatTimestamp(performance.manualAt)}.`;
+      // The admin who typed the numbers, by email, as in the timeline.
+      return `Diisi ${performance.manualBy ?? "Admin"} · ${formatTimestamp(performance.manualAt)}.`;
     case "not_connected":
       return `${creatorFirstName} belum menghubungkan akun ini.`;
     case "waiting":
