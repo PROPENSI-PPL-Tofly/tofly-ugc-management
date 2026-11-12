@@ -53,10 +53,19 @@ describe("stateTip (AC 3)", () => {
     ).toBe("Sinkron terakhir 2 Nov 2026, 02.00 WIB. Sinkron otomatis tiap hari 02.00 WIB.");
   });
 
-  it("says who filled a link in and when", () => {
-    expect(stateTip(performance({ state: "manual", manualAt: "2026-11-02T03:00:00.000Z" }), "Rani")).toBe(
-      "Diisi Admin · 2 Nov 2026, 10.00 WIB.",
-    );
+  it("says which admin filled a link in, by email, and when", () => {
+    expect(
+      stateTip(
+        performance({ state: "manual", manualAt: "2026-11-02T03:00:00.000Z", manualBy: "sinta.admin@tofly.id" }),
+        "Rani",
+      ),
+    ).toBe("Diisi sinta.admin@tofly.id · 2 Nov 2026, 10.00 WIB.");
+  });
+
+  it("says an admin filled a link in when no account is named", () => {
+    expect(
+      stateTip(performance({ state: "manual", manualAt: "2026-11-02T03:00:00.000Z", manualBy: null }), "Rani"),
+    ).toBe("Diisi Admin · 2 Nov 2026, 10.00 WIB.");
   });
 
   it("names the creator who has not connected the account", () => {
