@@ -38,6 +38,8 @@ const COMMENT_SELECT = {
   author_role: true,
   text: true,
   created_at: true,
+  // The author's account: an admin is named by its email.
+  users: { select: { email: true } },
 } as const;
 
 const OLDEST_FIRST = [{ created_at: 'asc' }, { id: 'asc' }] as const;
@@ -47,17 +49,19 @@ interface CommentRow {
   author_role: string;
   text: string;
   created_at: Date;
+  users: { email: string };
 }
 
 /**
  * Only the contract's own creator can write as a creator on it, so the creator's name comes from
- * the contract, not from the author's user row.
+ * the contract, not from the author's user row. An admin is named by their own account's email,
+ * so every comment can be traced to the admin who wrote it.
  */
 function toDto(row: CommentRow, creator: string): InvoiceCommentDto {
   const authorRole = row.author_role as CommentAuthorRole;
   return {
     id: row.id,
-    authorName: authorRole === 'admin' ? 'Admin' : creator,
+    authorName: authorRole === 'admin' ? row.users.email : creator,
     authorRole,
     text: row.text,
     createdAt: row.created_at.toISOString(),

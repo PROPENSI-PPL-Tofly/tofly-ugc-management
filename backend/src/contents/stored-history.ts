@@ -1,5 +1,5 @@
 import type { social_platform } from '@prisma/client';
-import { ADMIN_ACTOR_NAME } from './content-event-actors.js';
+import { adminName, type AdminAccount } from './content-event-actors.js';
 import type {
   ContentChanges,
   ContentEvent,
@@ -25,6 +25,8 @@ export interface StoredEventRow {
   actor_role: string;
   occurred_at: Date;
   event_data: unknown;
+  /** The account behind the event (an admin's), when one is. */
+  users?: AdminAccount | null;
 }
 
 // Each stored kind and the panel step it becomes, with the details that step carries. A kind
@@ -211,8 +213,9 @@ function details(
 }
 
 /**
- * The stored rows as panel steps, in the order they came (newest first). An admin is only ever
- * sent as "an admin": whatever name an admin event stored stays on the server (OWASP A01).
+ * The stored rows as panel steps, in the order they came (newest first). An admin is named by
+ * their account's email; an admin event with no account behind it names no one, and the panel
+ * shows the role alone.
  */
 export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
   return withFollowUps(rows, toSteps(rows));
@@ -234,11 +237,21 @@ function toSteps(rows: StoredEventRow[]): ContentEvent[] {
         id: row.id,
         type: step.type,
         at: row.occurred_at.toISOString(),
-        actor: { name: role === 'creator' ? row.actor_name : null, role },
+        actor: { name: actorName(row, role), role },
         ...(payload && { payload }),
       },
     ];
   });
+}
+
+// A creator by the name the row stored, an admin by email, the system by no name at all.
+function actorName(
+  row: StoredEventRow,
+  role: 'admin' | 'system' | 'creator',
+): string | null {
+  if (role === 'creator') return row.actor_name;
+  if (role === 'admin') return row.users?.email ?? null;
+  return null;
 }
 
 // The follow-up a stored row holds, or null when its note or id cannot be read.
@@ -255,7 +268,7 @@ function followUpOf(row: StoredEventRow): DetailFollowUp | null {
     note,
     ...(noteHtml !== undefined && { noteHtml }),
     at: row.occurred_at.toISOString(),
-    actor: { name: ADMIN_ACTOR_NAME },
+    actor: { name: adminName(row.users) },
   };
 }
 
