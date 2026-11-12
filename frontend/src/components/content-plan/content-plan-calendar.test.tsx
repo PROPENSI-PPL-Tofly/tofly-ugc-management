@@ -171,6 +171,38 @@ describe("ContentPlanCalendar", () => {
     expect(onOpen).toHaveBeenCalledWith("spec");
   });
 
+  it("opens a content from the phone's month list too", () => {
+    const { onOpen } = renderCalendar();
+
+    const list = screen.getByRole("region", { name: "Konten bulan ini" });
+    fireEvent.click(
+      within(list)
+        .getAllByRole("button")
+        .find((entry) => entry.getAttribute("data-content") === "proposal")!,
+    );
+
+    expect(onOpen).toHaveBeenCalledWith("proposal");
+  });
+
+  it("draws a content of a type it does not know in the neutral tone, named as the API sent it (OWASP A10)", () => {
+    renderCalendar({
+      items: [
+        row({
+          contentId: "odd",
+          name: "Konten Aneh",
+          type: "sponsored" as unknown as ContentPlanRow["type"],
+        }),
+      ],
+    });
+
+    const odd = chip(/^Konten Aneh/);
+    expect(odd).toHaveAttribute("data-type", "sponsored");
+    expect(odd.className).toContain("bg-surface-2");
+    expect(odd.querySelector(".bg-ink-2")).not.toBeNull();
+    const list = screen.getByRole("region", { name: "Konten bulan ini" });
+    expect(within(list).getByText("sponsored")).toBeInTheDocument();
+  });
+
   it("marks today and keys the legend: Evergreen, Specific, Overdue, Menunggu persetujuan, Hari Ini", () => {
     renderCalendar();
 

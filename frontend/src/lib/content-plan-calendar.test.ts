@@ -174,6 +174,23 @@ describe("Content Plan calendar chips", () => {
     ).toBe("Review Serum Pagi");
   });
 
+  it("reads only the first word of a creator name padded or spread with spaces", () => {
+    expect(
+      calendarChipLabel(row({ creatorName: "  Salsa   Putri Wijaya " })),
+    ).toBe("Salsa · Review Serum Pagi");
+  });
+
+  it("titles a chip whose creator name is missing or status is unknown without breaking (OWASP A10)", () => {
+    expect(
+      calendarChipTitle(
+        row({
+          creatorName: undefined as unknown as string,
+          status: "archived" as unknown as ContentPlanRow["status"],
+        }),
+      ),
+    ).toBe("Review Serum Pagi · archived");
+  });
+
   it("names the full creator, the status and any flag in the title", () => {
     expect(calendarChipTitle(row())).toBe(
       "Review Serum Pagi · Salsa Wijaya · Scheduled",
