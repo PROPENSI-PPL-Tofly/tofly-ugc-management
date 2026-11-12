@@ -9,6 +9,7 @@ import {
 const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
 const LINK_ID = '3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f';
 const ADMIN_USER = '9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f';
+const ADMIN_EMAIL = 'sinta.admin@tofly.id';
 const REEL = 'https://www.instagram.com/reel/C9xYz/';
 
 // 2 Nov 2026, 10.00 WIB.
@@ -74,6 +75,7 @@ describe('ManualPerformanceService', () => {
     $queryRaw: vi.fn(),
     content_links: { findFirst: vi.fn(), updateMany: vi.fn() },
     content_events: { create: vi.fn() },
+    users: { findUnique: vi.fn() },
   };
   const prisma = {
     $transaction: vi.fn((work: (tx: typeof transaction) => unknown) =>
@@ -86,6 +88,7 @@ describe('ManualPerformanceService', () => {
     vi.clearAllMocks();
     transaction.content_links.findFirst.mockResolvedValue(row());
     transaction.content_links.updateMany.mockResolvedValue({ count: 1 });
+    transaction.users.findUnique.mockResolvedValue({ email: ADMIN_EMAIL });
   });
 
   it("locks the content's contract row before it reads the invoice, so it queues behind Finalize (AC 18)", async () => {
@@ -170,7 +173,20 @@ describe('ManualPerformanceService', () => {
       state: 'manual',
       lastSyncedAt: null,
       manualAt: NOW.toISOString(),
+      manualBy: ADMIN_EMAIL,
     });
+    expect(transaction.users.findUnique).toHaveBeenCalledWith({
+      where: { id: ADMIN_USER },
+      select: { email: true },
+    });
+  });
+
+  // Corner: the local stand-in for sign-in has no admin account, so the numbers name no one.
+  it('names no admin when no admin account is signed in', async () => {
+    const saved = await service.save(CONTENT_ID, 'instagram', TYPED, null, NOW);
+
+    expect(saved.manualBy).toBeNull();
+    expect(transaction.users.findUnique).not.toHaveBeenCalled();
   });
 
   it('records the old and new numbers, who and when, in the timeline (AC 16)', async () => {

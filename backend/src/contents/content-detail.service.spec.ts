@@ -75,6 +75,7 @@ describe('ContentDetailService', () => {
             data_state: true,
             last_synced_at: true,
             manual_at: true,
+            manual_users: { select: { email: true } },
           },
         },
         // Whether each account is connected decides a waiting link's state; no token is read.
@@ -113,6 +114,8 @@ describe('ContentDetailService', () => {
             actor_role: true,
             occurred_at: true,
             event_data: true,
+            // The account behind an admin event, so the timeline names them by email.
+            users: { select: { email: true } },
           },
         },
       }),

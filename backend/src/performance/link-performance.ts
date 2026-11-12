@@ -33,6 +33,8 @@ export interface LinkPerformance extends LinkMetrics {
   state: LinkDataState;
   lastSyncedAt: string | null;
   manualAt: string | null;
+  /** The email of the admin who typed the numbers in; null when none did, or no account is known. */
+  manualBy: string | null;
 }
 
 /**

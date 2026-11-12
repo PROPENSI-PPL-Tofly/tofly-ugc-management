@@ -89,6 +89,12 @@ export interface ManualPerformanceTransaction extends ContractLockClient {
       data: Prisma.content_eventsUncheckedCreateInput;
     }): Promise<unknown>;
   };
+  users: {
+    findUnique(args: {
+      where: { id: string };
+      select: { email: true };
+    }): Promise<{ email: string } | null>;
+  };
 }
 
 /** The slice of Prisma this service touches, so tests stub exactly that. */
@@ -195,6 +201,14 @@ export class ManualPerformanceService {
         },
       });
 
+      // The card names who typed the numbers, as every later read of the link does.
+      const admin = adminUserId
+        ? await transaction.users.findUnique({
+            where: { id: adminUserId },
+            select: { email: true },
+          })
+        : null;
+
       return {
         platform: row.platform,
         url: row.url,
@@ -202,6 +216,7 @@ export class ManualPerformanceService {
         state: 'manual',
         lastSyncedAt: null,
         manualAt: now.toISOString(),
+        manualBy: admin?.email ?? null,
       };
     });
   }

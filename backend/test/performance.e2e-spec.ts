@@ -184,6 +184,7 @@ describe('content performance (e2e)', () => {
         comments: null,
         shares: null,
         state: 'manual',
+        manualBy: `${MARKER}-signed-in-admin@example.com`,
       });
       expect(await linkOf(content.id, 'instagram')).toMatchObject({
         views: 12400,
@@ -227,6 +228,7 @@ describe('content performance (e2e)', () => {
       expect(instagram.performance).toMatchObject({
         views: 12400,
         state: 'manual',
+        manualBy: `${MARKER}-signed-in-admin@example.com`,
       });
     });
 

@@ -69,7 +69,8 @@ const CONTENT_DETAIL_SELECT = {
       creator_notes: true,
     },
   },
-  // The stored history, newest first. Never the admin's account id: the panel has no use for it.
+  // The stored history, newest first, with the email of the admin behind each admin event. Never
+  // the account id itself: the panel has no use for it.
   content_events: {
     orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],
     select: {
@@ -79,6 +80,7 @@ const CONTENT_DETAIL_SELECT = {
       actor_role: true,
       occurred_at: true,
       event_data: true,
+      users: { select: { email: true } },
     },
   },
 } as const;

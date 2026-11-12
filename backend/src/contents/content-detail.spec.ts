@@ -42,6 +42,7 @@ const UNMEASURED = {
   state: 'not_connected',
   lastSyncedAt: null,
   manualAt: null,
+  manualBy: null,
 };
 
 function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
@@ -897,6 +898,7 @@ describe('toContentDetail link performance (PBI-27)', () => {
       state: 'synced',
       lastSyncedAt: '2026-09-17T19:00:00.000Z',
       manualAt: null,
+      manualBy: null,
     });
   });
 
@@ -937,7 +939,7 @@ describe('toContentDetail link performance (PBI-27)', () => {
     ]);
   });
 
-  it('gives the time an admin filled a link in (AC 3)', () => {
+  it('gives the time an admin filled a link in, and that admin by email (AC 3)', () => {
     const detail = toContentDetail(
       row({
         ...SUBMITTED,
@@ -951,6 +953,7 @@ describe('toContentDetail link performance (PBI-27)', () => {
             views: 5000,
             data_state: 'manual',
             manual_at: new Date('2026-09-18T03:00:00.000Z'),
+            manual_users: { email: 'sinta.admin@tofly.id' },
           },
         ],
       }),
@@ -960,6 +963,7 @@ describe('toContentDetail link performance (PBI-27)', () => {
     expect(detail.links[0].performance).toMatchObject({
       state: 'manual',
       manualAt: '2026-09-18T03:00:00.000Z',
+      manualBy: 'sinta.admin@tofly.id',
     });
   });
 });

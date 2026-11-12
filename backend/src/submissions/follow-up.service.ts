@@ -1,8 +1,8 @@
 import { ConflictException } from '@nestjs/common';
 import { unauthenticated } from '../auth/creator-request.js';
 import {
-  ADMIN_ACTOR_NAME,
   adminActor,
+  adminName,
   type AdminActor,
 } from '../contents/content-event-actors.js';
 import { submissionNotFound } from './review-errors.js';
@@ -12,7 +12,7 @@ import { submissionNotFound } from './review-errors.js';
 // open: the content waits on the creator's revision and this is still the latest draft (AC 3).
 // The timeline records it in the same transaction (AC 6).
 
-/** What the admin's form (33.2) reads back: the saved follow-up, named by role only. */
+/** What the admin's form (33.2) reads back: the saved follow-up, signed by the admin's email. */
 export interface FollowUpDto {
   id: string;
   note: string;
@@ -34,8 +34,8 @@ interface FollowUpTransaction {
   users: {
     findUnique(args: {
       where: { id: string };
-      select: { id: true };
-    }): Promise<{ id: string } | null>;
+      select: { id: true; email: true };
+    }): Promise<{ id: string; email: string } | null>;
   };
   revision_followups: {
     create(args: {
@@ -137,7 +137,7 @@ export class FollowUpService {
     return this.prisma.$transaction(async (transaction) => {
       const admin = await transaction.users.findUnique({
         where: { id: adminUserId },
-        select: { id: true },
+        select: { id: true, email: true },
       });
       if (!admin) throw unauthenticated();
 
@@ -168,7 +168,7 @@ export class FollowUpService {
         note: saved.body,
         ...(noteHtml !== undefined && { noteHtml }),
         at: saved.created_at.toISOString(),
-        actor: { name: ADMIN_ACTOR_NAME },
+        actor: { name: adminName(admin) },
       };
     });
   }

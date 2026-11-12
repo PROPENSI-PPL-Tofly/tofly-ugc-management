@@ -393,6 +393,7 @@ describe('content links API (e2e)', () => {
             state: 'not_connected',
             lastSyncedAt: null,
             manualAt: null,
+            manualBy: null,
           },
         },
       ]);

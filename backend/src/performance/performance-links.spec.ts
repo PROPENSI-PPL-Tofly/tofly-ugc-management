@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   checkPerformanceLinksQuery,
+  LINK_PERFORMANCE_SELECT,
   linkPerformanceOf,
   toPerformanceLinkItem,
   type PerformanceLinkRow,
@@ -23,6 +24,7 @@ function row(overrides: Partial<PerformanceLinkRow> = {}): PerformanceLinkRow {
     data_state: 'synced',
     last_synced_at: new Date('2026-11-01T19:00:00.000Z'),
     manual_at: null,
+    manual_users: null,
     contents: {
       id: CONTENT_ID,
       name: 'Review Kopi',
@@ -128,6 +130,7 @@ describe('linkPerformanceOf', () => {
       state: 'synced',
       lastSyncedAt: '2026-11-01T19:00:00.000Z',
       manualAt: null,
+      manualBy: null,
     });
   });
 
@@ -151,15 +154,26 @@ describe('linkPerformanceOf', () => {
     ).toBe('not_connected');
   });
 
-  it('gives the time an admin filled the numbers in', () => {
+  it('gives the time an admin filled the numbers in, and that admin by email', () => {
     expect(
       linkPerformanceOf(
         row({
           data_state: 'manual',
           manual_at: new Date('2026-11-02T03:00:00.000Z'),
+          manual_users: { email: 'sinta.admin@tofly.id' },
         }),
       ),
-    ).toMatchObject({ state: 'manual', manualAt: '2026-11-02T03:00:00.000Z' });
+    ).toMatchObject({
+      state: 'manual',
+      manualAt: '2026-11-02T03:00:00.000Z',
+      manualBy: 'sinta.admin@tofly.id',
+    });
+  });
+
+  it('reads the columns that name the admin who typed the numbers', () => {
+    expect(LINK_PERFORMANCE_SELECT.manual_users).toEqual({
+      select: { email: true },
+    });
   });
 });
 

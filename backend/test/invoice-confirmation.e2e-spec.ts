@@ -342,7 +342,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         },
         comments: [
           {
-            authorName: 'Admin',
+            authorName: `${MARKER}-signed-in-admin@example.com`,
             authorRole: 'admin',
             text: 'Sudah ditransfer ya.',
           },
@@ -354,10 +354,11 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         ],
       });
 
-      // OWASP Top 10:2025 A01: who on the admin side recorded an adjustment is not the
-      // creator's to read, at the top level or inside the frozen snapshot.
+      // OWASP Top 10:2025 A01: the admin's account id behind an adjustment is not the creator's
+      // to read, at the top level or inside the frozen snapshot. The admin who commented is named
+      // by email; the creator's own email is never sent back.
       expect(JSON.stringify(res.body)).not.toContain(adminId);
-      expect(JSON.stringify(res.body)).not.toContain('@example.com');
+      expect(JSON.stringify(res.body)).not.toContain(`${MARKER}-nadia@example.com`);
     });
 
     it('GET /me/invoices answers an empty list for a creator with no contract', async () => {
