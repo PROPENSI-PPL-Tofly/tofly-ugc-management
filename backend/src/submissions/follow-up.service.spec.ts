@@ -3,6 +3,7 @@ import { FollowUpService, type FollowUpClient } from './follow-up.service.js';
 const SUBMISSION = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
 const CONTENT = '11111111-1111-4111-8111-111111111111';
 const ADMIN = '22222222-2222-4222-8222-222222222222';
+const ADMIN_EMAIL = 'sinta.admin@tofly.id';
 const SAVED_AT = new Date(Date.UTC(2026, 10, 9, 4, 0, 0));
 
 interface RoundRow {
@@ -26,7 +27,10 @@ function openRound(overrides: Partial<RoundRow> = {}): RoundRow {
 // A fake database: it records what the service writes, inside the transaction or outside it.
 function fakeClient(
   round: RoundRow | null,
-  admin: { id: string } | null = { id: ADMIN },
+  admin: { id: string; email: string } | null = {
+    id: ADMIN,
+    email: ADMIN_EMAIL,
+  },
 ) {
   const inTransaction: string[] = [];
   const followUpCreate = vi.fn((args: { data: Record<string, unknown> }) => {
@@ -52,6 +56,7 @@ function fakeClient(
   return {
     service: new FollowUpService(client as unknown as FollowUpClient),
     client,
+    usersFind,
     followUpCreate,
     eventCreate,
     inTransaction,
@@ -59,9 +64,10 @@ function fakeClient(
 }
 
 describe('FollowUpService.add', () => {
-  // Positive (AC 4): the follow-up is kept and answered in the shape the admin's form reads.
-  it('keeps the follow-up and answers with it', async () => {
-    const { service, followUpCreate } = fakeClient(openRound());
+  // Positive (AC 4): the follow-up is kept and answered in the shape the admin's form reads,
+  // signed by the email of the admin who wrote it.
+  it("keeps the follow-up and answers with it, by the admin's email", async () => {
+    const { service, followUpCreate, usersFind } = fakeClient(openRound());
 
     await expect(
       service.add(SUBMISSION, 'Intro juga dipotong ya.', ADMIN),
@@ -69,7 +75,11 @@ describe('FollowUpService.add', () => {
       id: 'fu-1',
       note: 'Intro juga dipotong ya.',
       at: SAVED_AT.toISOString(),
-      actor: { name: 'Admin' },
+      actor: { name: ADMIN_EMAIL },
+    });
+    expect(usersFind).toHaveBeenCalledWith({
+      where: { id: ADMIN },
+      select: { id: true, email: true },
     });
     expect(followUpCreate).toHaveBeenCalledWith({
       data: {

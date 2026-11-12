@@ -1,5 +1,8 @@
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
+// The admin behind an admin event, as the row's account answers it.
+const ADMIN_EMAIL = 'sinta.admin@tofly.id';
+
 describe('fromStoredHistory', () => {
   // PBI-27 AC 17: the platform replacing typed numbers is a step, by the system.
   it('reads manual numbers the platform replaced as their own step', () => {
@@ -76,6 +79,10 @@ describe('fromStoredHistory follow-up notes', () => {
       actor_role: event_type === 'Draft Submitted' ? 'creator' : 'admin',
       occurred_at: new Date(at),
       event_data,
+      users:
+        event_type === 'Draft Submitted'
+          ? { email: 'rangga@example.com' }
+          : { email: ADMIN_EMAIL },
     };
   }
 
@@ -91,8 +98,8 @@ describe('fromStoredHistory follow-up notes', () => {
     id: string,
   ) => events.find((event) => event.id === id);
 
-  // AC 6: the timeline shows "Catatan susulan ditambahkan" as its own step, by an admin only.
-  it('reads a follow-up as its own step, naming no admin', () => {
+  // AC 6: the timeline shows "Catatan susulan ditambahkan" as its own step, by the admin's email.
+  it('reads a follow-up as its own step, naming the admin by email', () => {
     const [event] = fromStoredHistory([
       followUp('fu-1', '2026-11-09T04:00:00.000Z', 'Intro juga dipotong ya.'),
     ]);
@@ -101,8 +108,42 @@ describe('fromStoredHistory follow-up notes', () => {
       id: 'event-fu-1',
       type: 'revision_followup_added',
       at: '2026-11-09T04:00:00.000Z',
-      actor: { name: null, role: 'admin' },
+      actor: { name: ADMIN_EMAIL, role: 'admin' },
     });
+  });
+
+  // A creator's step keeps the name it stored, never the creator's email.
+  it("names a creator's step by the name it stored", () => {
+    const [event] = fromStoredHistory([
+      row('sub-1', 'Draft Submitted', '2026-11-09T02:00:00.000Z', {
+        version: 1,
+      }),
+    ]);
+
+    expect(event.actor).toEqual({ name: 'Rangga', role: 'creator' });
+  });
+
+  // Corner: an admin event with no account behind it (the local stand-in for sign-in) names
+  // no one; its follow-up is still signed, by the role.
+  it('names an admin event with no account by role only', () => {
+    const anonymous = (stored: StoredEventRow) => ({ ...stored, users: null });
+    const events = fromStoredHistory([
+      anonymous(followUp('fu-1', '2026-11-09T04:00:00.000Z', 'Intro juga.')),
+      anonymous(
+        row('rev-1', 'Revision Requested', '2026-11-09T03:00:00.000Z', {
+          revision_note: 'Tolong perbaiki intro.',
+          submission_id: 'sub-1',
+        }),
+      ),
+    ]);
+
+    expect(events.map((event) => event.actor)).toEqual([
+      { name: null, role: 'admin' },
+      { name: null, role: 'admin' },
+    ]);
+    expect(revisionOf(events, 'rev-1')?.payload?.followUps?.[0].actor).toEqual(
+      { name: 'Admin' },
+    );
   });
 
   // AC 2 with PBI-34: a formatted follow-up reaches the reader with its formatting.
@@ -126,7 +167,7 @@ describe('fromStoredHistory follow-up notes', () => {
         note: 'Ralat: musik',
         noteHtml: '<p><strong>Ralat</strong>: musik</p>',
         at: '2026-11-09T04:00:00.000Z',
-        actor: { name: 'Admin' },
+        actor: { name: ADMIN_EMAIL },
       },
     ]);
   });
@@ -151,13 +192,13 @@ describe('fromStoredHistory follow-up notes', () => {
           id: 'fu-1',
           note: 'Intro juga dipotong ya.',
           at: '2026-11-09T04:00:00.000Z',
-          actor: { name: 'Admin' },
+          actor: { name: ADMIN_EMAIL },
         },
         {
           id: 'fu-2',
           note: 'Ralat: musik versi kedua.',
           at: '2026-11-09T05:00:00.000Z',
-          actor: { name: 'Admin' },
+          actor: { name: ADMIN_EMAIL },
         },
       ],
     });

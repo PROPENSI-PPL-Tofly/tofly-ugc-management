@@ -113,6 +113,8 @@ describe('ContentDetailService', () => {
             actor_role: true,
             occurred_at: true,
             event_data: true,
+            // The account behind an admin event, so the timeline names them by email.
+            users: { select: { email: true } },
           },
         },
       }),
