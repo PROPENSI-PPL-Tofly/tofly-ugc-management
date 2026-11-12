@@ -52,10 +52,11 @@ export function fetchPerformanceLinks(
 /**
  * The creator's own page of links for their Performa page (AC 20). The request names nobody —
  * not even a creator picked in the address: the endpoint scopes the rows to the session's
- * creator, so no address can reach another creator's numbers (OWASP A01).
+ * creator, so no address can reach another creator's numbers (OWASP A01). Nor a search: that
+ * is Performa Konten's box (I3.2), and the creator's page has none.
  */
 export function fetchMyPerformanceLinks(
   state: PerformanceLinksState,
 ): Promise<PerformanceLinksPage> {
-  return fetchLinks(MY_PERFORMANCE_LINKS_PATH, { ...state, creator: [] });
+  return fetchLinks(MY_PERFORMANCE_LINKS_PATH, { ...state, creator: [], q: "" });
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { PerformanceFilters } from "./performance-filters";
 
 const mockReplace = vi.fn();
@@ -75,6 +75,51 @@ describe("PerformanceFilters", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
     expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance", { scroll: false });
+  });
+
+  // I3.2 (SCRUM-279): the search box, as Content Plan has it.
+  describe("the search box", () => {
+    const box = () => screen.getByRole("searchbox", { name: "Cari konten atau creator" });
+
+    it("sends the search to the address once typing pauses, dropping the old page", () => {
+      searchParams = new URLSearchParams({ page: "3" });
+      renderFilters();
+
+      fireEvent.change(box(), { target: { value: "rani" } });
+      expect(mockReplace).not.toHaveBeenCalled();
+
+      act(() => vi.advanceTimersByTime(300));
+      expect(mockReplace).toHaveBeenCalledWith("/admin/performance?q=rani", { scroll: false });
+    });
+
+    it("shows the search the address holds, and takes at most 100 characters", () => {
+      searchParams = new URLSearchParams({ q: "kopi" });
+      renderFilters();
+
+      expect(box()).toHaveValue("kopi");
+      expect(box()).toHaveAttribute("maxLength", "100");
+    });
+
+    it("is cleared with the other filters by Reset, which a search alone offers", () => {
+      searchParams = new URLSearchParams({ q: "kopi" });
+      renderFilters();
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+      expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance", { scroll: false });
+      expect(box()).toHaveValue("");
+    });
+  });
+
+  it("drops one platform from its chip, keeping the other", () => {
+    searchParams = new URLSearchParams({ platform: "instagram,tiktok" });
+    renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Platform: Instagram" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/performance?platform=tiktok", {
+      scroll: false,
+    });
   });
 
   it("shows no chip for a platform the address names but the filter does not offer", () => {

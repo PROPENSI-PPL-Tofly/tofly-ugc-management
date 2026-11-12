@@ -1,7 +1,7 @@
 import type { link_data_state, social_platform } from '@prisma/client';
 import { joinName } from '../creators/evergreen.js';
 import { isSocialPlatform } from '../contents/link-rules.js';
-import { listOf, withoutUnset } from '../list-query.js';
+import { listOf, searchText, withoutUnset } from '../list-query.js';
 import { isUuid } from '../uuid.js';
 import {
   effectiveState,
@@ -15,11 +15,14 @@ import {
 export interface PerformanceLinksQuery {
   creator?: unknown;
   platform?: unknown;
+  q?: unknown;
 }
 
 export interface PerformanceLinksFilters {
   creators?: string[];
   platforms?: social_platform[];
+  /** The search box (I3.2): words to find in the content's or the creator's name. */
+  q?: string;
 }
 
 /** Repeated values arrive as a list; every refused value is a 400 before any read (OWASP A05). */
@@ -39,6 +42,8 @@ export function checkPerformanceLinksQuery(
       isSocialPlatform,
       'platform must be instagram or tiktok',
     ),
+    // The same cap and trim as every list's search (MAX_SEARCH_LENGTH).
+    q: searchText(query.q),
   });
 }
 
