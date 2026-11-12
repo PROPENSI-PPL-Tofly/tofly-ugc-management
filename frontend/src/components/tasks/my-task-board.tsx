@@ -1,69 +1,31 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { DeadlineSortButton } from "@/components/content-plan/deadline-sort";
-import { SubmitDraftModal } from "@/components/my-task/submit-draft-modal";
-import { SubmitVideoModal } from "@/components/my-task/submit-video-modal";
-import type { TaskContent } from "@/components/my-task/task-summary";
-import { useVideoLinksModal } from "@/components/my-task/use-video-links-modal";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
-import { useToast } from "@/components/ui/toast";
 import type { DeadlineSort } from "@/lib/content-plan";
 import {
   DEFAULT_MY_TASKS_SORT,
   MY_TASKS_EMPTY,
   MY_TASKS_FILTERED_EMPTY,
   type MyTask,
-  type MyTaskAction,
   type MyTaskTab,
 } from "@/lib/my-tasks";
-import type { PanelActionFacts } from "@/lib/panel-actions";
 import { latestQuery, useUrlQuery } from "@/lib/url-query";
 import { MY_TASK_LIST_ID } from "./my-task-tab-bar";
 import { MyTaskTable } from "./my-task-table";
 import { TaskCalendar } from "./task-calendar";
 
-interface Opened {
-  content: TaskContent;
-  action: MyTaskAction;
-}
-
-/** What the submit modals show of a row. */
-function contentOf({ id, name, deadline, brief, revisionNotes }: MyTask): TaskContent {
-  return { id, name, deadline, brief, revisionNotes };
-}
-
-/**
- * The same, read from the detail panel's content, for one the list does not hold. The note is
- * the admin's latest revision request, and only while a resubmit answers it, as on a row.
- */
-function contentOfDetail(detail: PanelActionFacts): TaskContent {
-  const { id, name, deadline, brief } = detail;
-  const asked = detail.events.find((event) => event.type === "revision_requested");
-  const revisionNotes =
-    detail.status === "draft_revision" ? (asked?.payload?.note ?? null) : null;
-
-  return { id, name, deadline, brief, revisionNotes };
-}
-
 /** The search parameter a notification or a bookmark uses to open one content's panel. */
 const CONTENT_PARAM = "content";
 
-const SUBMITTED: Record<MyTaskAction, string> = {
-  submit_draft: "Draft terkirim. Admin akan meninjaunya.",
-  resubmit_draft: "Draft terkirim. Admin akan meninjaunya.",
-  submit_video: "Link video terkirim. Konten ini selesai.",
-};
-
 /**
- * Task Saya's interactive part: the table, or the month calendar, plus the modal its buttons
- * open and the deadline sort. The page fetches on the server and cannot hold "which task is
- * open", so this client component does. After a hand-in the page is refreshed, which re-fetches
- * the list with the row's new status, and a toast confirms it. Focus then goes to the list: the
- * button that opened the modal usually disappears with the new status, which would otherwise
- * drop focus to the page body.
+ * Task Saya's interactive part: the table, or the month calendar, the Content Detail panel a row
+ * opens, and the deadline sort. The page fetches on the server and cannot hold "which task is
+ * open", so this client component does. A draft or a link is handed in from inside that panel,
+ * which confirms it, refreshes the page behind it and shows the content's new status.
  */
 export function MyTaskBoard({
   tasks,
@@ -83,17 +45,12 @@ export function MyTaskBoard({
   /** The day of the deadline range whose month the calendar opens on; null for today's. */
   calendarOpensOn?: string | null;
 }>) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { replaceQuery, replaceQuietly } = useUrlQuery();
-  const [opened, setOpened] = useState<Opened | null>(null);
   // The content whose detail panel is open; keyed by content so a ?content= link can
   // deep-link into it the way a notification would.
   const [detailContentId, setDetailContentId] = useState<string | null>(null);
-  const { show: confirm, toast } = useToast();
-  const { openLinks, linksModal } = useVideoLinksModal("creator");
   const listRef = useRef<HTMLElement>(null);
-  const focusListOnClose = useRef(false);
 
   // A notification (or a bookmarked link) opens the panel straight from the URL; read on
   // the client because the search string only carries the real address after hydration.
@@ -125,16 +82,6 @@ export function MyTaskBoard({
     replaceQuietly(next.toString());
   }, [detailContentId, linked, replaceQuietly]);
 
-  // Runs after the modal's own cleanup has handed focus back to its opener, so this wins.
-  useEffect(() => {
-    if (opened === null && focusListOnClose.current) {
-      focusListOnClose.current = false;
-      listRef.current?.focus();
-    }
-  }, [opened]);
-
-  const close = () => setOpened(null);
-
   /** Closing takes the link back out, so a reload or a Back does not open the panel again. */
   function closeDetail() {
     setDetailContentId(null);
@@ -161,50 +108,6 @@ export function MyTaskBoard({
   /** The empty filtered list's way back: every filter goes, the tab stays. */
   function resetFilters() {
     replaceQuery(tab === "all" ? "" : new URLSearchParams({ tab }).toString());
-  }
-
-  /**
-   * A command inside the panel hands its action back here: the submit modal owns it. The row's
-   * own facts are used when the list holds the content. A link can open the panel for one it
-   * does not hold (another tab, a later page); the modal then opens from what the panel shows,
-   * so its button is never a dead end.
-   */
-  function openSubmitFromPanel(action: MyTaskAction, detail: PanelActionFacts) {
-    const task = tasks.find((candidate) => candidate.id === detail.id);
-    closeDetail();
-    setOpened({ content: task ? contentOf(task) : contentOfDetail(detail), action });
-  }
-
-  function renderModal(current: Opened) {
-    const { content } = current;
-    const submitted = () => {
-      focusListOnClose.current = true;
-      confirm(SUBMITTED[current.action]);
-      router.refresh();
-    };
-    // Keyed by task and action so opening another row starts from an empty form.
-    const key = `${content.id}:${current.action}`;
-
-    if (current.action === "submit_video") {
-      return (
-        <SubmitVideoModal
-          key={key}
-          content={content}
-          onClose={close}
-          onSubmitted={submitted}
-        />
-      );
-    }
-
-    return (
-      <SubmitDraftModal
-        key={key}
-        action={current.action}
-        content={content}
-        onClose={close}
-        onSubmitted={submitted}
-      />
-    );
   }
 
   return (
@@ -241,29 +144,18 @@ export function MyTaskBoard({
             emptyHint={tab === "all" || tab === "action" ? undefined : null}
             sort={sort}
             onSortToggle={toggleSort}
-            onAction={(task, action) => setOpened({ content: contentOf(task), action })}
             onDetail={(task) => setDetailContentId(task.id)}
           />
         )}
       </section>
-      {opened ? renderModal(opened) : null}
       {detailContentId ? (
         <ContentDetailPanel
           key={detailContentId}
           contentId={detailContentId}
           role="creator"
           onClose={closeDetail}
-          ports={{
-            onCreatorAction: openSubmitFromPanel,
-            onManageLinks: (detail) => {
-              closeDetail();
-              openLinks(detail);
-            },
-          }}
         />
       ) : null}
-      {linksModal}
-      {toast}
     </>
   );
 }

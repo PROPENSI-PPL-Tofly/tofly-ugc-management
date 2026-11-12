@@ -51,7 +51,7 @@ describe("Creator area", () => {
 
     expect(screen.getByRole("heading", { name: "Akses ditolak" })).toBeInTheDocument();
     expect(screen.getByText("Halaman ini hanya untuk creator.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Kembali ke Creator Database" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kembali ke Kreator" })).toHaveAttribute(
       "href",
       "/admin/creators",
     );

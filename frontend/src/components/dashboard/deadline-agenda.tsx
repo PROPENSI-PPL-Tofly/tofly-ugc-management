@@ -125,7 +125,7 @@ function DeadlineSection({
           href={allHref}
           className="flex min-h-11 items-center justify-center border-t border-rule-2 px-5 text-[13px] font-bold text-accent-deep transition-colors hover:bg-surface-2 active:bg-rule-2"
         >
-          Lihat semua {list.total} di Task Saya
+          Lihat semua {list.total} di Tugas Saya
         </Link>
       ) : null}
     </section>

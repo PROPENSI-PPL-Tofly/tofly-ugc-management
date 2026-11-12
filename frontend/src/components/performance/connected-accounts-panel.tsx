@@ -63,6 +63,18 @@ export function ConnectedAccountsPanel({
     window.history.replaceState(null, "", PERFORMANCE_PATH);
   }, [outcome, show]);
 
+  // The platform's login opens in a new tab. Back on this one, the accounts are read again, so
+  // an account connected over there shows here, and the row stops saying it is on its way.
+  useEffect(() => {
+    if (connecting === null) return;
+    function onReturn() {
+      setConnecting(null);
+      router.refresh();
+    }
+    window.addEventListener("focus", onReturn);
+    return () => window.removeEventListener("focus", onReturn);
+  }, [connecting, router]);
+
   async function confirmDisconnect(platform: SocialPlatform) {
     setConfirming(null);
     setDisconnecting(platform);
@@ -172,8 +184,15 @@ function ConnectLink({
   }
   return (
     // A plain anchor: the backend answers with a redirect to the platform, which needs a full
-    // page load, not client-side navigation.
-    <a href={connectHref(platform)} aria-label={ariaLabel} onClick={onConnect} className={look}>
+    // page load, not client-side navigation. In a new tab, so this page stays where it is.
+    <a
+      href={connectHref(platform)}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={ariaLabel}
+      onClick={onConnect}
+      className={look}
+    >
       {label}
     </a>
   );

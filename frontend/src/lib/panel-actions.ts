@@ -21,8 +21,7 @@ export type PanelActionKind =
   | "reject_proposal"
   | "submit_draft"
   | "resubmit_draft"
-  | "submit_video"
-  | "manage_links";
+  | "submit_video";
 
 /**
  * One button of the current step. `canRun` is the enablement predicate (Command's
@@ -69,8 +68,6 @@ export interface PanelActionPorts {
    * hold (a link to it, on another tab or page).
    */
   onCreatorAction?: (action: MyTaskAction, detail: PanelActionFacts) => void;
-  /** The touchpoint also owns adding and replacing a sent content's links (PBI-38 AC 8, 9). */
-  onManageLinks?: (detail: PanelActionFacts) => void;
 }
 
 /** The step's facts the command list is chosen from. */
@@ -142,8 +139,9 @@ export function actionsFor(input: {
 }): PanelCommand[] {
   const { role, detail, state, ports, now = new Date() } = input;
 
+  // A sent content's links are changed from their own cards (Content Detail), not from the step.
   if (detail.status === "link_submitted") {
-    return manageLinksCommands(role, detail, state, ports);
+    return [];
   }
 
   if (detail.waitingOn === null) {
@@ -204,34 +202,6 @@ export function actionsFor(input: {
       ports.onCreatorAction?.(action, detail);
     },
   }));
-}
-
-/**
- * A sent content's links stay open: the creator may add or replace one, the admin may only
- * replace one, so an admin needs a link that names its platform. Whether the invoice still
- * allows it is the endpoint's to say: it answers 409 once the invoice is finalized.
- */
-function manageLinksCommands(
-  role: Role,
-  detail: PanelActionFacts,
-  state: () => PanelActionState,
-  ports: PanelActionPorts,
-): PanelCommand[] {
-  const { onManageLinks } = ports;
-  const replaceable = detail.links?.some((link) => link.platform !== null) ?? false;
-  if (!onManageLinks || (role === "admin" && !replaceable)) {
-    return [];
-  }
-
-  return [
-    {
-      kind: "manage_links",
-      label: role === "admin" ? "Ganti Link" : "Tambah / Ganti Link",
-      variant: "default",
-      canRun: () => !state().busy,
-      run: () => onManageLinks(detail),
-    },
-  ];
 }
 
 /**

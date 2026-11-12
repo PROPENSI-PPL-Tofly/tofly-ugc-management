@@ -118,18 +118,18 @@ describe("Creator Detail page", () => {
     expect(metadata.title).toBe("Detail Creator — Tofly");
   });
 
-  it("offers the way back to the Creator Database", async () => {
+  it("offers the way back to the Kreator", async () => {
     await renderPage();
 
-    expect(screen.getByRole("link", { name: "← Kembali ke Creator Database" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "← Kembali ke Kreator" })).toHaveAttribute(
       "href",
       "/admin/creators",
     );
   });
 
-  describe("the way back to the Creator Database", () => {
+  describe("the way back to the Kreator", () => {
     function backLink() {
-      return screen.getByRole("link", { name: "← Kembali ke Creator Database" });
+      return screen.getByRole("link", { name: "← Kembali ke Kreator" });
     }
 
     // A one-line text link was 20px tall: under the 24px WCAG 2.5.8 asks for, on the page's
@@ -301,7 +301,7 @@ describe("Creator Detail page", () => {
       await renderPage();
 
       expect(screen.getByRole("heading", { level: 1, name: "Detail Creator" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "← Kembali ke Creator Database" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "← Kembali ke Kreator" })).toBeInTheDocument();
     });
   });
 });

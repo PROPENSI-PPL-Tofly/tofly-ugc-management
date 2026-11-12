@@ -5,6 +5,8 @@ import {
   adminName,
   type AdminActor,
 } from '../contents/content-event-actors.js';
+import { noteImageOf, type NoteImage } from './note-image.js';
+import { invalidRevisionImages } from './revise-submission.js';
 import { submissionNotFound } from './review-errors.js';
 
 // A follow-up note under a revision note already sent (PBI-33, 33.1). It is its own row, so the
@@ -18,6 +20,8 @@ export interface FollowUpDto {
   note: string;
   /** The follow-up's sanitized formatting, when it was written with any (PBI-34's editor). */
   noteHtml?: string;
+  /** The screenshots it went out with (PBI-34), in the order the editor named them. */
+  images?: NoteImage[];
   /** ISO instant the follow-up was saved. */
   at: string;
   actor: { name: string };
@@ -31,6 +35,17 @@ interface RoundRow {
 }
 
 interface FollowUpTransaction {
+  /** Only read when the follow-up names screenshots, as a revision note's are. */
+  revision_note_images: {
+    findMany(args: {
+      where: { id: { in: string[] }; submission_id: string; sent_at: null };
+      select: { id: true; content_type: true };
+    }): Promise<{ id: string; content_type: string }[]>;
+    updateMany(args: {
+      where: { id: { in: string[] }; submission_id: string };
+      data: { sent_at: Date };
+    }): Promise<unknown>;
+  };
   users: {
     findUnique(args: {
       where: { id: string };
@@ -51,6 +66,7 @@ interface FollowUpTransaction {
         event_data: {
           note: string;
           note_html?: string;
+          images?: { id: string; content_type: string }[];
           submission_id: string;
           follow_up_id: string;
         };
@@ -112,6 +128,7 @@ export class FollowUpService {
     note: string,
     adminUserId: string,
     noteHtml?: string,
+    imageIds: string[] = [],
   ): Promise<FollowUpDto> {
     const round = await this.prisma.submissions.findUnique({
       where: { id: submissionId },
@@ -141,6 +158,23 @@ export class FollowUpService {
       });
       if (!admin) throw unauthenticated();
 
+      // As a revision note's are: exactly the images the editor named, unsent and this draft's.
+      // Each is marked sent here, so nothing already in the history can be taken down under it.
+      const found =
+        imageIds.length === 0
+          ? []
+          : await transaction.revision_note_images.findMany({
+              where: {
+                id: { in: imageIds },
+                submission_id: submissionId,
+                sent_at: null,
+              },
+              select: { id: true, content_type: true },
+            });
+      if (found.length !== imageIds.length) throw invalidRevisionImages();
+      const byId = new Map(found.map((image) => [image.id, image]));
+      const images = imageIds.map((id) => byId.get(id)!);
+
       const saved = await transaction.revision_followups.create({
         data: {
           submission_id: submissionId,
@@ -157,16 +191,25 @@ export class FollowUpService {
           event_data: {
             note: saved.body,
             ...(noteHtml !== undefined && { note_html: noteHtml }),
+            ...(images.length > 0 && { images }),
             submission_id: submissionId,
             follow_up_id: saved.id,
           },
         },
       });
 
+      if (images.length > 0) {
+        await transaction.revision_note_images.updateMany({
+          where: { id: { in: imageIds }, submission_id: submissionId },
+          data: { sent_at: saved.created_at },
+        });
+      }
+
       return {
         id: saved.id,
         note: saved.body,
         ...(noteHtml !== undefined && { noteHtml }),
+        ...(images.length > 0 && { images: images.map(noteImageOf) }),
         at: saved.created_at.toISOString(),
         actor: { name: adminName(admin) },
       };

@@ -389,14 +389,14 @@ describe("describeJourney", () => {
     expect(journey.map((item) => item.id)).toEqual(before);
   });
 
-  it("titles a follow-up step as added, with no note of its own to sign", () => {
-    const [step] = describeJourney([
+  // A follow-up already reads under the revision note it adds to, so it has no step of its own.
+  it("leaves a follow-up out of the journey", () => {
+    const steps = describeJourney([
       event({ id: "fu-1", type: "revision_followup_added", actor: { name: "Bastian", role: "admin" } }),
+      event({ id: "sch", type: "scheduled", actor: { name: null, role: "admin" } }),
     ]);
 
-    expect(step.title).toBe("Catatan susulan ditambahkan");
-    expect(step.linkLabel).toBeNull();
-    expect(step.noteBy).toBeNull();
+    expect(steps.map((step) => step.event.id)).toEqual(["sch"]);
   });
 });
 

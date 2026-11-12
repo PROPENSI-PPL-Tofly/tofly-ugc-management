@@ -7,6 +7,7 @@ import {
   toPerformanceLinkItem,
   type PerformanceLinkItem,
   type PerformanceLinkRow,
+  stateFilter,
   type PerformanceLinksFilters,
 } from './performance-links.js';
 
@@ -72,7 +73,15 @@ export class PerformanceLinksService {
       ...(filters.creators && {
         contents: { contracts: { creator_id: { in: filters.creators } } },
       }),
-      ...(filters.q && { AND: filters.q.split(/\s+/).map(wordMatch) }),
+      // One AND for the search's words and the Status Data filter: two spread `AND` keys would
+      // overwrite each other. Its own key apart from the creator's `contents`, which a state's
+      // account check also uses.
+      ...((filters.q || filters.states) && {
+        AND: [
+          ...(filters.q ? filters.q.split(/\s+/).map(wordMatch) : []),
+          ...(filters.states ? [stateFilter(filters.states)] : []),
+        ],
+      }),
     };
     const [total, rows] = await Promise.all([
       this.prisma.content_links.count({ where }),

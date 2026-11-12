@@ -24,7 +24,7 @@ describe("STAT_CARDS", () => {
     expect(new Set(statuses).size).toBe(statuses.length);
   });
 
-  it("only counts statuses Task Saya can be filtered by, so every card has somewhere to lead", () => {
+  it("only counts statuses Tugas Saya can be filtered by, so every card has somewhere to lead", () => {
     for (const card of STAT_CARDS) {
       expect(TASK_STATUS_FILTERS).toContain(card.status);
     }

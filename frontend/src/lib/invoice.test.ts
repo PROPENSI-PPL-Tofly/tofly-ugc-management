@@ -71,41 +71,12 @@ describe("parseInvoiceParams", () => {
     });
   });
 
-  it("reads the contract-end period the filter bar offers", () => {
-    expect(parseInvoiceParams({ period: "month" }).period).toBe("month");
-    expect(parseInvoiceParams({ period: "next30" }).period).toBe("next30");
-    expect(parseInvoiceParams({ period: "last90" }).period).toBe("last90");
-    expect(parseInvoiceParams({ period: "custom", from: "2026-06-01", to: "2026-08-31" })).toEqual(
-      {
-        ...DEFAULT_INVOICE_PARAMS,
-        period: "custom",
-        from: "2026-06-01",
-        to: "2026-08-31",
-      },
-    );
-  });
-
-  it.each(["week", "MONTH", "banana", ""])(
-    "falls back to all periods for %s, which is not one of ours",
-    (raw) => {
-      expect(parseInvoiceParams({ period: raw }).period).toBe("all");
-    },
-  );
-
-  it("keeps only real days as the custom range", () => {
-    expect(parseInvoiceParams({ period: "custom", from: "2026-02-31", to: "31-08-2026" })).toEqual({
-      ...DEFAULT_INVOICE_PARAMS,
-      period: "custom",
-      from: "",
-      to: "",
-    });
-  });
-
-  it("carries the custom days through when a period is not named", () => {
-    expect(parseInvoiceParams({ from: "2026-06-01" })).toEqual({
-      ...DEFAULT_INVOICE_PARAMS,
-      from: "2026-06-01",
-    });
+  // The contract-end period filter is gone, so an old link that still names one narrows nothing.
+  it("ignores a contract-end period an old link still names", () => {
+    expect(
+      parseInvoiceParams({ period: "custom", from: "2026-06-01", to: "2026-08-31" }),
+    ).toEqual(DEFAULT_INVOICE_PARAMS);
+    expect(parseInvoiceParams({ period: "month" })).toEqual(DEFAULT_INVOICE_PARAMS);
   });
 
   it.each(["running", "ended", "banana", ""])(

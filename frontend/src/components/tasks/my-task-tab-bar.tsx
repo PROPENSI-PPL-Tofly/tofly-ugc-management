@@ -48,7 +48,7 @@ export function MyTaskTabBar({
 
   return (
     <StatusTabs
-      label="Tab Task Saya"
+      label="Tab Tugas Saya"
       panelId={MY_TASK_LIST_ID}
       tabs={MY_TASK_TABS}
       active={active}

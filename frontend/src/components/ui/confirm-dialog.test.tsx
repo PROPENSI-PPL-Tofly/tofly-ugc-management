@@ -29,7 +29,7 @@ describe("ConfirmDialog", () => {
     render(
       <ConfirmDialog
         title="Simpan Perubahan Konten?"
-        message="Rangga langsung melihat perubahan ini di Task Saya."
+        message="Rangga langsung melihat perubahan ini di Tugas Saya."
         details={[
           ["Konten", "Promo Lebaran"],
           ["Deadline", "20 Nov 2026 → 25 Nov 2026"],

@@ -63,6 +63,26 @@ describe('FollowUpController', () => {
     );
   });
 
+  // PBI-34: the screenshots the editor holds go with the note, by id.
+  it('hands the image ids on with the sanitized note', async () => {
+    const { controller, add } = controllerWith();
+    const image = '3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f';
+
+    await controller.add(
+      SUBMISSION,
+      { note: `<p>Lihat</p><img data-image-id="${image}">`, imageIds: [image] },
+      asAdmin,
+    );
+
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      SUBMISSION,
+      'Lihat',
+      ADMIN,
+      `<p>Lihat</p><img data-image-id="${image}" />`,
+      [image],
+    );
+  });
+
   // Negative (AC 2): an invalid note is refused before anything is kept.
   it('refuses an empty note with 422, keeping nothing', async () => {
     const { controller, add } = controllerWith();

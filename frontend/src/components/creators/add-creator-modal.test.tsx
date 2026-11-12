@@ -13,10 +13,9 @@ describe("AddCreatorModal", () => {
     expect(screen.getByLabelText(/jarak antar-deadline/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/fixed rate/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/jumlah konten/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^platform/i)).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Instagram" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "TikTok" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^platform/i)).toBeNull();
+    expect(screen.getByLabelText(/username instagram/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/username tiktok/i)).toBeInTheDocument();
   });
 
   // The fixed rate is agreed for the whole contract, not paid per content.
@@ -38,7 +37,7 @@ describe("AddCreatorModal", () => {
         span.textContent?.replace("*", ""),
       );
 
-    expect(names(creator)).toEqual(["Nama Creator", "Email", "Platform", "Username Social Media"]);
+    expect(names(creator)).toEqual(["Nama Creator", "Email", "Username Instagram", "Username TikTok"]);
     expect(names(contract)).toEqual([
       "Jenis Kontrak",
       "Fixed Rate Kontrak (Rp)",
@@ -63,14 +62,14 @@ describe("AddCreatorModal", () => {
     ]);
   });
 
-  it("marks every field as required, in the markup and visibly", () => {
+  it("marks every field but the two usernames as required, in the markup and visibly", () => {
     render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
+    expect(screen.getByLabelText(/username instagram/i)).not.toBeRequired();
+    expect(screen.getByLabelText(/username tiktok/i)).not.toBeRequired();
     for (const label of [
       /nama creator/i,
       /^email/i,
-      /^platform/i,
-      /username/i,
       /jenis kontrak/i,
       /mulai kontrak/i,
       /akhir kontrak/i,
@@ -80,7 +79,7 @@ describe("AddCreatorModal", () => {
     ]) {
       expect(screen.getByLabelText(label)).toBeRequired();
     }
-    expect(screen.getAllByText("*")).toHaveLength(10);
+    expect(screen.getAllByText("*")).toHaveLength(8);
     expect(screen.getByText(/wajib diisi/i)).toBeInTheDocument();
   });
 
@@ -114,9 +113,8 @@ describe("AddCreatorModal", () => {
     fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
     fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
     fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
-    fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
     fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
+    fireEvent.change(screen.getByLabelText(/username instagram/i), { target: { value: "salsa.amelia" } });
 
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
 
@@ -129,8 +127,8 @@ describe("AddCreatorModal", () => {
       interval: 14,
       quota: 6,
       fixedRate: 500000,
-      socialPlatform: "instagram",
-      socialUsername: "salsa.amelia",
+      instagramUsername: "salsa.amelia",
+      tiktokUsername: "",
       contractType: "probation",
       deadlines: ["2099-01-06", "2099-01-20", "2099-02-03", "2099-02-17", "2099-03-03", "2099-03-17"],
     });
@@ -245,10 +243,11 @@ describe("AddCreatorModal", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Maksimal 100 karakter");
     });
 
-    it("limits the username and the email to what the API stores", () => {
+    it("limits the usernames and the email to what the API stores", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-      expect(screen.getByLabelText(/username/i)).toHaveAttribute("maxLength", "100");
+      expect(screen.getByLabelText(/username instagram/i)).toHaveAttribute("maxLength", "100");
+      expect(screen.getByLabelText(/username tiktok/i)).toHaveAttribute("maxLength", "100");
       expect(screen.getByLabelText(/^email/i)).toHaveAttribute("maxLength", "254");
     });
 
@@ -293,9 +292,8 @@ describe("AddCreatorModal", () => {
       fireEvent.change(screen.getByLabelText(/jarak antar-deadline/i), { target: { value: "14" } });
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
       fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
-      fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
       fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
-      fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "salsa.amelia" } });
+      fireEvent.change(screen.getByLabelText(/username instagram/i), { target: { value: "salsa.amelia" } });
     }
 
     function simpanButton() {
@@ -376,15 +374,15 @@ describe("AddCreatorModal", () => {
     });
 
     it.each([
-      ["-1000", "Fixed rate harus berupa angka bulat"],
-      ["1.5", "Fixed rate harus berupa angka bulat"],
-      ["Rp 7a5", "Fixed rate harus berupa angka bulat"],
-      ["0", "Fixed rate harus lebih dari 0"],
-      ["20000000", "Fixed rate maksimal Rp10.000.000"],
-      ["12345678901", "Fixed rate maksimal Rp10.000.000"],
+      ["-1000", "-1000", "Fixed rate harus berupa angka bulat"],
+      ["1,5", "1,5", "Fixed rate harus berupa angka bulat"],
+      ["Rp 7a5", "Rp 7a5", "Fixed rate harus berupa angka bulat"],
+      ["0", "0", "Fixed rate harus lebih dari 0"],
+      ["20000000", "20.000.000", "Fixed rate maksimal Rp10.000.000"],
+      ["12345678901", "12.345.678.901", "Fixed rate maksimal Rp10.000.000"],
     ])(
-      "keeps %j as typed and says what is wrong with it, rather than changing it",
-      (typed, message) => {
+      "shows %j as %j and says what is wrong with it, grouping digits but never changing them",
+      (typed, shown, message) => {
         render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
         fillValidForm();
@@ -392,11 +390,24 @@ describe("AddCreatorModal", () => {
         fireEvent.change(fixedRate, { target: { value: typed } });
         fireEvent.blur(fixedRate);
 
-        expect(fixedRate).toHaveValue(typed);
+        expect(fixedRate).toHaveValue(shown);
         expect(screen.getByText(message)).toBeInTheDocument();
         expect(simpanButton()).toBeDisabled();
       },
     );
+
+    it("groups the fixed rate by thousands as it is typed, and saves the number it means", () => {
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
+
+      fillValidForm();
+      const fixedRate = screen.getByLabelText(/fixed rate/i);
+      fireEvent.change(fixedRate, { target: { value: "1500000" } });
+      fireEvent.click(simpanButton());
+
+      expect(fixedRate).toHaveValue("1.500.000");
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fixedRate: 1_500_000 }));
+    });
 
     it("saves the highest fixed rate the server takes", () => {
       const onSubmit = vi.fn();
@@ -418,22 +429,30 @@ describe("AddCreatorModal", () => {
       expect(simpanButton()).toBeDisabled();
     });
 
-    it("stays disabled when no social platform is selected", () => {
-      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+    it("saves with both usernames left empty, since both are optional", () => {
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
 
       fillValidForm();
-      fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "" } });
+      fireEvent.change(screen.getByLabelText(/username instagram/i), { target: { value: "" } });
+      fireEvent.click(simpanButton());
 
-      expect(simpanButton()).toBeDisabled();
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ instagramUsername: "", tiktokUsername: "" }),
+      );
     });
 
-    it("stays disabled when the social username is empty", () => {
-      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+    it("sends both usernames when both are filled", () => {
+      const onSubmit = vi.fn();
+      render(<AddCreatorModal onClose={() => {}} onSubmit={onSubmit} />);
 
       fillValidForm();
-      fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "" } });
+      fireEvent.change(screen.getByLabelText(/username tiktok/i), { target: { value: "salsa.tt" } });
+      fireEvent.click(simpanButton());
 
-      expect(simpanButton()).toBeDisabled();
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ instagramUsername: "salsa.amelia", tiktokUsername: "salsa.tt" }),
+      );
     });
   });
 
@@ -446,7 +465,6 @@ describe("AddCreatorModal", () => {
     it("shows no validation errors before any field has been touched", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-      expect(screen.queryByText("Username wajib diisi")).not.toBeInTheDocument();
       expect(screen.queryByText("Nama wajib diisi")).not.toBeInTheDocument();
       expect(screen.queryByText("Format email tidak valid")).not.toBeInTheDocument();
     });
@@ -454,27 +472,27 @@ describe("AddCreatorModal", () => {
     it("shows the field's error once it is blurred while still invalid", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-      fireEvent.blur(screen.getByLabelText(/username/i));
+      fireEvent.blur(screen.getByLabelText(/nama creator/i));
 
-      expect(screen.getByText("Username wajib diisi")).toBeInTheDocument();
+      expect(screen.getByText("Nama wajib diisi")).toBeInTheDocument();
     });
 
     it("clears the field's error once it is filled with a valid value", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-      const usernameInput = screen.getByLabelText(/username/i);
-      fireEvent.blur(usernameInput);
-      expect(screen.getByText("Username wajib diisi")).toBeInTheDocument();
+      const nameInput = screen.getByLabelText(/nama creator/i);
+      fireEvent.blur(nameInput);
+      expect(screen.getByText("Nama wajib diisi")).toBeInTheDocument();
 
-      fireEvent.change(usernameInput, { target: { value: "salsa.amelia" } });
+      fireEvent.change(nameInput, { target: { value: "Salsa" } });
 
-      expect(screen.queryByText("Username wajib diisi")).not.toBeInTheDocument();
+      expect(screen.queryByText("Nama wajib diisi")).not.toBeInTheDocument();
     });
 
     it("keeps Simpan disabled while other required fields are still invalid, even after a blur reveals one error", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
 
-      fireEvent.blur(screen.getByLabelText(/username/i));
+      fireEvent.blur(screen.getByLabelText(/nama creator/i));
 
       expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
     });
@@ -500,9 +518,8 @@ describe("AddCreatorModal", () => {
       fireEvent.change(screen.getByLabelText(/nama creator/i), { target: { value: "Bagas" } });
       fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "bagas@example.com" } });
       fireEvent.change(screen.getByLabelText(/fixed rate/i), { target: { value: "500000" } });
-      fireEvent.change(screen.getByLabelText(/^platform/i), { target: { value: "instagram" } });
       fireEvent.change(screen.getByLabelText(/jenis kontrak/i), { target: { value: "probation" } });
-      fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "bagas" } });
+      fireEvent.change(screen.getByLabelText(/username instagram/i), { target: { value: "bagas" } });
     }
 
     it("stops the date pickers at today and at each other", () => {
@@ -712,8 +729,6 @@ describe("AddCreatorModal", () => {
     for (const label of [
       /nama creator/i,
       /^email/i,
-      /^platform/i,
-      /username/i,
       /jenis kontrak/i,
       /mulai kontrak/i,
       /jarak antar-deadline/i,
@@ -726,8 +741,6 @@ describe("AddCreatorModal", () => {
     for (const message of [
       "Nama wajib diisi",
       "Format email tidak valid",
-      "Platform wajib dipilih",
-      "Username wajib diisi",
       "Jenis kontrak wajib dipilih",
       "Tanggal mulai wajib diisi",
       "Jarak antar-deadline minimal 1 hari",

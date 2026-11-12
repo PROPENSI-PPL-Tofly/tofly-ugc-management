@@ -263,10 +263,12 @@ function followUpOf(row: StoredEventRow): DetailFollowUp | null {
     return null;
   }
   const noteHtml = data.text('note_html');
+  const images = data.images('images');
   return {
     id,
     note,
     ...(noteHtml !== undefined && { noteHtml }),
+    ...(images !== undefined && images.length > 0 && { images }),
     at: row.occurred_at.toISOString(),
     actor: { name: adminName(row.users) },
   };

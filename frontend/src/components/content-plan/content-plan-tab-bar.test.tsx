@@ -31,7 +31,7 @@ describe("ContentPlanTabBar", () => {
     });
     render(<ContentPlanTabBar active="all" counts={COUNTS} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Menunggu Kreator12" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Menunggu\ Kreator12/ }));
 
     expect(replace).toHaveBeenCalledWith(
       "/admin/content-plan?tab=waiting&q=salsa&creator=id-1",
@@ -43,7 +43,7 @@ describe("ContentPlanTabBar", () => {
     searchParams = new URLSearchParams({ tab: "waiting", q: "salsa" });
     render(<ContentPlanTabBar active="waiting" counts={COUNTS} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Semua" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Semua/ }));
 
     expect(replace).toHaveBeenCalledWith("/admin/content-plan?q=salsa", { scroll: false });
   });
@@ -51,7 +51,7 @@ describe("ContentPlanTabBar", () => {
   it("opens the bare address when Semua is pressed on a bare view", () => {
     render(<ContentPlanTabBar active="all" counts={COUNTS} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Semua" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Semua/ }));
 
     expect(replace).toHaveBeenCalledWith("/admin/content-plan", { scroll: false });
   });

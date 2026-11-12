@@ -5,6 +5,7 @@
  * the backend's link-performance.ts, so the form refuses what the API would.
  */
 
+import { ungroupDigits } from "./grouped-number";
 import type { Tone } from "@/components/ui/pill";
 import { EMPTY, formatTimestamp } from "./format";
 
@@ -57,13 +58,6 @@ export const DATA_STATE_TONES: Record<DataState, Tone> = {
   manual: "accent",
 };
 
-/**
- * What a creator is told wherever they send or follow their links (PBI-28 AC 13): the numbers
- * count for the bonus only until the invoice is finalized.
- */
-export const PERFORMANCE_LOCK_REMINDER =
-  "Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.";
-
 /** The highest number an admin may type (AC 15), as the API holds it. */
 export const MAX_METRIC = 999_999_999;
 
@@ -98,6 +92,7 @@ export function stateTip(performance: LinkPerformance, creatorFirstName: string)
 
 /** The states in which the platform cannot give the numbers, so an admin may type them (AC 14). */
 const MANUAL_STATES: ReadonlySet<DataState> = new Set<DataState>([
+  "waiting",
   "not_connected",
   "not_found",
   "sync_failed",
@@ -118,7 +113,8 @@ export function checkManualInput(fields: ManualFields): { values: ManualValues; 
   const errors: ManualErrors = {};
 
   for (const { name } of METRICS) {
-    const typed = fields[name].trim();
+    // The field groups its digits by thousands as they are typed (12.400).
+    const typed = ungroupDigits(fields[name].trim());
     if (typed === "") continue;
     const number = /^\d+$/.test(typed) ? Number(typed) : Number.NaN;
     if (number <= MAX_METRIC) values[name] = number;

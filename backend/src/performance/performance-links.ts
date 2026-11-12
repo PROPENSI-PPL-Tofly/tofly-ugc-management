@@ -1,10 +1,16 @@
-import type { link_data_state, social_platform } from '@prisma/client';
+import type {
+  link_data_state,
+  Prisma,
+  social_platform,
+} from '@prisma/client';
 import { joinName } from '../creators/evergreen.js';
 import { isSocialPlatform } from '../contents/link-rules.js';
-import { listOf, searchText, withoutUnset } from '../list-query.js';
+import { SOCIAL_PLATFORMS } from '../creators/new-creator.js';
+import { isOneOf, listOf, searchText, withoutUnset } from '../list-query.js';
 import { isUuid } from '../uuid.js';
 import {
   effectiveState,
+  type LinkDataState,
   type LinkMetrics,
   type LinkPerformance,
 } from './link-performance.js';
@@ -16,13 +22,29 @@ export interface PerformanceLinksQuery {
   creator?: unknown;
   platform?: unknown;
   q?: unknown;
+  state?: unknown;
 }
 
 export interface PerformanceLinksFilters {
   creators?: string[];
   platforms?: social_platform[];
+  /** The states a row shows (Status Data), which is not always the one stored: stateFilter. */
+  states?: LinkDataState[];
   /** The search box (I3.2): words to find in the content's or the creator's name. */
   q?: string;
+}
+
+const DATA_STATES: readonly LinkDataState[] = [
+  'waiting',
+  'not_connected',
+  'synced',
+  'not_found',
+  'sync_failed',
+  'manual',
+];
+
+function isDataState(value: unknown): value is LinkDataState {
+  return isOneOf(DATA_STATES, value);
 }
 
 /** Repeated values arrive as a list; every refused value is a 400 before any read (OWASP A05). */
@@ -44,7 +66,69 @@ export function checkPerformanceLinksQuery(
     ),
     // The same cap and trim as every list's search (MAX_SEARCH_LENGTH).
     q: searchText(query.q),
+    states: listOf(
+      'state',
+      query.state,
+      isDataState,
+      `state must be one of ${DATA_STATES.join(', ')}`,
+    ),
   });
+}
+
+/** The account behind a link is connected as isConnected reads it: flagged and with a platform id. */
+function accountOn(platform: social_platform): Prisma.social_accountsWhereInput {
+  return { platform, is_connected: true, platform_user_id: { not: null } };
+}
+
+/**
+ * The link's creator has (or has not) a connected account on the link's own platform. The
+ * platform is repeated per branch because a where cannot compare two columns across a relation.
+ */
+function connection(
+  connected: boolean,
+): Prisma.content_linksWhereInput[] {
+  return SOCIAL_PLATFORMS.map((platform) => ({
+    platform,
+    contents: {
+      contracts: {
+        creators: {
+          social_accounts: connected
+            ? { some: accountOn(platform) }
+            : { none: accountOn(platform) },
+        },
+      },
+    },
+  }));
+}
+
+/**
+ * Status Data as a where: the state a row shows is derived (effectiveState), so the filter
+ * keeps its rule. A link shows Tersinkron or Menunggu only while its account is connected, and
+ * Belum Terhubung only while it is not; the other three show as stored.
+ */
+export function stateFilter(
+  states: readonly LinkDataState[],
+): Prisma.content_linksWhereInput {
+  return {
+    OR: states.map((state): Prisma.content_linksWhereInput => {
+      switch (state) {
+        case 'synced':
+          return { data_state: 'synced', OR: connection(true) };
+        case 'waiting':
+          return {
+            data_state: { in: ['waiting', 'not_connected'] },
+            OR: connection(true),
+          };
+        case 'not_connected':
+          return {
+            data_state: { in: ['waiting', 'synced', 'not_connected'] },
+            OR: connection(false),
+          };
+        default:
+          return { data_state: state };
+      }
+    }),
+  };
 }
 
 /** The creator's accounts, only as far as whether each is connected. No token is read. */
