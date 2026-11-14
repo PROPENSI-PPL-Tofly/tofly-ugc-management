@@ -126,7 +126,9 @@ export async function syncPbis({ pbis, jira, fetch }) {
     try {
       const issue = await findPbi(fetch, jira, pbi);
       if (!issue) {
-        log.push({ text: `${pbi}: no PBI in Jira has a title starting with ${pbi}:`, failed: true });
+        // A wrong token searches empty instead of answering 404, so the warning names both causes.
+        const text = `${pbi}: no PBI in Jira has a title starting with ${pbi}: (check the release title, or that the Jira token can see SCRUM)`;
+        log.push({ text, failed: true });
         continue;
       }
       const label = `${pbi} (${issue.key})`;
