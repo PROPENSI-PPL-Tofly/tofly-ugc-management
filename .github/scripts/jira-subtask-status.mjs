@@ -2,7 +2,8 @@
 // (Idea → To Do → In Progress → Testing → Done): opening a PR into a
 // feat/pbi-* branch, or retargeting one to it, puts its subtask in Testing;
 // merging it puts it in Done, unless another open PR into a PBI branch still
-// names the same subtask.
+// names the same subtask. Merging a release into staging puts the PBIs it
+// names (PBI-<no> in its title, or its feat/pbi-<no>- branch) in Done.
 // Run by .github/workflows/jira-subtask-status.yml; no dependencies.
 import { readFileSync, appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -47,6 +48,11 @@ export function targetStatus({ action, merged, changes }) {
   if (action === "edited" && changes?.base) return "Testing";
   if (action === "closed" && merged) return "Done";
   return null;
+}
+
+// Only a merge into staging releases PBIs; every other PR into staging moves nothing.
+export function releasedToStaging({ base, action, merged }) {
+  return base === "staging" && action === "closed" && merged === true;
 }
 
 export function shouldMove(currentId, target) {
@@ -163,8 +169,41 @@ async function listOpenPrs(fetch, repository, token) {
   }
 }
 
+function jiraFromEnv() {
+  return { baseUrl: process.env.JIRA_BASE_URL, email: process.env.JIRA_EMAIL, token: process.env.JIRA_API_TOKEN };
+}
+
+// A wrong or expired token gets 404 (Jira hides the issue), not 401.
+function report(heading, log) {
+  for (const { text, failed } of log) console.log(failed ? `::warning::${text}` : text);
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### ${heading}\n\n${log.map((l) => `- ${l.text}`).join("\n")}\n`);
+  }
+}
+
+async function releasePbis({ action, pr }) {
+  if (!releasedToStaging({ base: pr.base.ref, action, merged: pr.merged })) {
+    console.log(`Nothing to move (action ${action} into staging).`);
+    return;
+  }
+  const pbis = pbiNumbers({ title: pr.title, branch: pr.head.ref });
+  if (pbis.length === 0) {
+    console.log("::warning::This release names no PBI-<no> in its title or branch; no PBI was moved.");
+    return;
+  }
+  const jira = jiraFromEnv();
+  if (!jira.email || !jira.token) {
+    console.log("::warning::JIRA_EMAIL or JIRA_API_TOKEN is not set; no PBI was moved.");
+    return;
+  }
+  report("Jira PBIs", await syncPbis({ pbis, jira, fetch }));
+}
+
 async function main() {
   const { action, changes, pull_request: pr } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
+  // A PR into staging is a release: it moves PBIs, never subtasks.
+  if (pr.base.ref === "staging") return releasePbis({ action, pr });
+
   const target = targetStatus({ action, merged: pr.merged, changes });
   const keys = subtaskKeys({ title: pr.title, branch: pr.head.ref });
   if (!target || keys.length === 0) {
@@ -172,11 +211,7 @@ async function main() {
     return;
   }
 
-  const jira = {
-    baseUrl: process.env.JIRA_BASE_URL,
-    email: process.env.JIRA_EMAIL,
-    token: process.env.JIRA_API_TOKEN,
-  };
+  const jira = jiraFromEnv();
   if (!jira.email || !jira.token) {
     console.log("::warning::JIRA_EMAIL or JIRA_API_TOKEN is not set; no subtask was moved.");
     return;
@@ -193,12 +228,7 @@ async function main() {
     }
   }
 
-  const log = await syncSubtasks({ keys, target, held, jira, fetch });
-  // A wrong or expired token gets 404 (Jira hides the issue), not 401.
-  for (const { text, failed } of log) console.log(failed ? `::warning::${text}` : text);
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Jira subtasks\n\n${log.map((l) => `- ${l.text}`).join("\n")}\n`);
-  }
+  report("Jira subtasks", await syncSubtasks({ keys, target, held, jira, fetch }));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
