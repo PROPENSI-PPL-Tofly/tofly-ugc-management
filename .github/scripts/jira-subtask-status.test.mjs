@@ -297,13 +297,17 @@ test("moves only the PBI whose title starts with PBI-<no>:, not PBI-39 for PBI-3
   assert.deepEqual(moved, [["SCRUM-120", "51"]]);
 });
 
+// A wrong token makes the search come back empty, not 404, so the warning names both causes.
 test("reports a PBI missing from Jira as a warning and still moves the others", async () => {
   const { fetch, moved } = fakeJiraPbis({
     "SCRUM-199": { summary: "PBI-25: Editing and Deleting Scheduled Content", status: "10003", name: "Testing" },
   });
   const log = await syncPbis({ pbis: ["PBI-99", "PBI-25"], jira, fetch });
   assert.deepEqual(moved, [["SCRUM-199", "51"]]);
-  assert.deepEqual(log[0], { text: "PBI-99: no PBI in Jira has a title starting with PBI-99:", failed: true });
+  assert.deepEqual(log[0], {
+    text: "PBI-99: no PBI in Jira has a title starting with PBI-99: (check the release title, or that the Jira token can see SCRUM)",
+    failed: true,
+  });
 });
 
 test("treats a PR merged into staging as a release", () => {
