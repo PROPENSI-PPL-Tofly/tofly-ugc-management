@@ -10,6 +10,7 @@ import {
   syncSubtasks,
   pbiNumbers,
   syncPbis,
+  releasedToStaging,
 } from "./jira-subtask-status.mjs";
 
 test("reads the subtask number from the end of a feat/<name>_<no> branch", () => {
@@ -303,4 +304,18 @@ test("reports a PBI missing from Jira as a warning and still moves the others", 
   const log = await syncPbis({ pbis: ["PBI-99", "PBI-25"], jira, fetch });
   assert.deepEqual(moved, [["SCRUM-199", "51"]]);
   assert.deepEqual(log[0], { text: "PBI-99: no PBI in Jira has a title starting with PBI-99:", failed: true });
+});
+
+test("treats a PR merged into staging as a release", () => {
+  assert.equal(releasedToStaging({ base: "staging", action: "closed", merged: true }), true);
+});
+
+test("does not treat a PR into staging that is opened, edited or closed unmerged as a release", () => {
+  assert.equal(releasedToStaging({ base: "staging", action: "opened", merged: false }), false);
+  assert.equal(releasedToStaging({ base: "staging", action: "edited", merged: false }), false);
+  assert.equal(releasedToStaging({ base: "staging", action: "closed", merged: false }), false);
+});
+
+test("leaves a PR merged into a PBI branch on the subtask path", () => {
+  assert.equal(releasedToStaging({ base: "feat/pbi-28-performance-bonus", action: "closed", merged: true }), false);
 });
