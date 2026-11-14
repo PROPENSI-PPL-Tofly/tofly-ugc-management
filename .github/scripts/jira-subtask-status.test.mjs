@@ -235,8 +235,9 @@ test("ignores a PBI number inside a longer word or a fix branch", () => {
   assert.deepEqual(pbiNumbers({ title: "fix(db): keep SUBPBI-25 events", branch: "fix/pbi-34-concurrent-uploads" }), []);
 });
 
-// A fake Jira for PBIs: the search answers every PBI whose title contains the searched text, as
-// JQL's summary ~ does, and the issue routes answer as in fakeJira.
+// A fake Jira for PBIs: the search answers every issue whose title contains the searched text, as
+// JQL's summary ~ does: PBIs for issuetype = PBI, a PBI's subtasks for parent = <key>. The issue
+// routes answer as in fakeJira.
 function fakeJiraPbis(pbis) {
   const moved = [];
   const searched = [];
@@ -246,7 +247,9 @@ function fakeJiraPbis(pbis) {
       const jql = searchParams.get("jql");
       searched.push(jql);
       const text = jql.match(/summary ~ "([^"]+)"/)[1];
+      const parent = jql.match(/parent = (\S+)/)?.[1];
       const issues = Object.entries(pbis)
+        .filter(([, pbi]) => (parent ? pbi.parent === parent : !pbi.parent))
         .filter(([, pbi]) => pbi.summary.includes(text))
         .map(([key, pbi]) => ({ key, fields: { summary: pbi.summary, status: { id: pbi.status, name: pbi.name } } }));
       return { ok: true, json: async () => ({ issues }) };
@@ -274,7 +277,10 @@ test("moves a released PBI, found by its PBI-<no>: title, from Testing to Done",
     "SCRUM-198": { summary: "PBI-39: Signing In with an Email Code", status: "10003", name: "Testing" },
   });
   const log = await syncPbis({ pbis: ["PBI-39"], jira, fetch });
-  assert.deepEqual(searched, ['project = SCRUM AND issuetype = PBI AND summary ~ "PBI-39"']);
+  assert.deepEqual(searched, [
+    'project = SCRUM AND issuetype = PBI AND summary ~ "PBI-39"',
+    'parent = SCRUM-198 AND summary ~ "QA"',
+  ]);
   assert.deepEqual(moved, [["SCRUM-198", "51"]]);
   assert.deepEqual(log, [{ text: "PBI-39 (SCRUM-198): Testing → Done", failed: false }]);
 });
@@ -322,4 +328,41 @@ test("does not treat a PR into staging that is opened, edited or closed unmerged
 
 test("leaves a PR merged into a PBI branch on the subtask path", () => {
   assert.equal(releasedToStaging({ base: "feat/pbi-28-performance-bonus", action: "closed", merged: true }), false);
+});
+
+// Staging is where QA tests, so a released PBI hands its [QA] subtask over as ready to test.
+test("moves a released PBI's [QA] subtask from Idea to Testing", async () => {
+  const { fetch, moved } = fakeJiraPbis({
+    "SCRUM-198": { summary: "PBI-39: Signing In with an Email Code", status: "10003", name: "Testing" },
+    "SCRUM-242": { summary: "39.4 [FE] Email code sign-in screens", status: "10004", name: "Done", parent: "SCRUM-198" },
+    "SCRUM-259": { summary: "39.5 [QA] Email code sign-in testing", status: "10000", name: "Idea", parent: "SCRUM-198" },
+  });
+  const log = await syncPbis({ pbis: ["PBI-39"], jira, fetch });
+  assert.deepEqual(moved, [
+    ["SCRUM-198", "51"],
+    ["SCRUM-259", "41"],
+  ]);
+  assert.deepEqual(log, [
+    { text: "PBI-39 (SCRUM-198): Testing → Done", failed: false },
+    { text: "PBI-39 [QA] (SCRUM-259): Idea → Testing", failed: false },
+  ]);
+});
+
+test("leaves a [QA] subtask that is already Done alone", async () => {
+  const { fetch, moved } = fakeJiraPbis({
+    "SCRUM-197": { summary: "PBI-28: Applying the Performance Bonus to Invoices", status: "10003", name: "Testing" },
+    "SCRUM-258": { summary: "28.5 [QA] Performance bonus and finalize testing", status: "10004", name: "Done", parent: "SCRUM-197" },
+  });
+  const log = await syncPbis({ pbis: ["PBI-28"], jira, fetch });
+  assert.deepEqual(moved, [["SCRUM-197", "51"]]);
+  assert.deepEqual(log[1], { text: "PBI-28 [QA] (SCRUM-258): already Done, left alone", failed: false });
+});
+
+test("moves only the PBI when it has no [QA] subtask", async () => {
+  const { fetch, moved } = fakeJiraPbis({
+    "SCRUM-199": { summary: "PBI-25: Editing and Deleting Scheduled Content", status: "10003", name: "Testing" },
+  });
+  const log = await syncPbis({ pbis: ["PBI-25"], jira, fetch });
+  assert.deepEqual(moved, [["SCRUM-199", "51"]]);
+  assert.deepEqual(log, [{ text: "PBI-25 (SCRUM-199): Testing → Done", failed: false }]);
 });
