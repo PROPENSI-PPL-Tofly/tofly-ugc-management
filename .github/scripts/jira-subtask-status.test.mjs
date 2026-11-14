@@ -9,6 +9,7 @@ import {
   heldByOpenPrs,
   syncSubtasks,
   pbiNumbers,
+  syncPbis,
 } from "./jira-subtask-status.mjs";
 
 test("reads the subtask number from the end of a feat/<name>_<no> branch", () => {
@@ -231,4 +232,75 @@ test("finds no PBI in a release that names none, like #214", () => {
 
 test("ignores a PBI number inside a longer word or a fix branch", () => {
   assert.deepEqual(pbiNumbers({ title: "fix(db): keep SUBPBI-25 events", branch: "fix/pbi-34-concurrent-uploads" }), []);
+});
+
+// A fake Jira for PBIs: the search answers every PBI whose title contains the searched text, as
+// JQL's summary ~ does, and the issue routes answer as in fakeJira.
+function fakeJiraPbis(pbis) {
+  const moved = [];
+  const searched = [];
+  const fetch = async (url, init = {}) => {
+    const { pathname, searchParams } = new URL(url);
+    if (pathname === "/rest/api/3/search/jql") {
+      const jql = searchParams.get("jql");
+      searched.push(jql);
+      const text = jql.match(/summary ~ "([^"]+)"/)[1];
+      const issues = Object.entries(pbis)
+        .filter(([, pbi]) => pbi.summary.includes(text))
+        .map(([key, pbi]) => ({ key, fields: { summary: pbi.summary, status: { id: pbi.status, name: pbi.name } } }));
+      return { ok: true, json: async () => ({ issues }) };
+    }
+    const key = pathname.split("/")[5];
+    if (pathname.endsWith("/transitions") && init.method === "POST") {
+      moved.push([key, JSON.parse(init.body).transition.id]);
+      return { ok: true, status: 204, text: async () => "" };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        transitions: [
+          { id: "41", to: { id: "10003", name: "Testing" } },
+          { id: "51", to: { id: "10004", name: "Done" } },
+        ],
+      }),
+    };
+  };
+  return { fetch, moved, searched };
+}
+
+test("moves a released PBI, found by its PBI-<no>: title, from Testing to Done", async () => {
+  const { fetch, moved, searched } = fakeJiraPbis({
+    "SCRUM-198": { summary: "PBI-39: Signing In with an Email Code", status: "10003", name: "Testing" },
+  });
+  const log = await syncPbis({ pbis: ["PBI-39"], jira, fetch });
+  assert.deepEqual(searched, ['project = SCRUM AND issuetype = PBI AND summary ~ "PBI-39"']);
+  assert.deepEqual(moved, [["SCRUM-198", "51"]]);
+  assert.deepEqual(log, [{ text: "PBI-39 (SCRUM-198): Testing → Done", failed: false }]);
+});
+
+test("leaves a PBI that is already Done alone", async () => {
+  const { fetch, moved } = fakeJiraPbis({
+    "SCRUM-197": { summary: "PBI-28: Applying the Performance Bonus to Invoices", status: "10004", name: "Done" },
+  });
+  const log = await syncPbis({ pbis: ["PBI-28"], jira, fetch });
+  assert.deepEqual(moved, []);
+  assert.deepEqual(log, [{ text: "PBI-28 (SCRUM-197): already Done, left alone", failed: false }]);
+});
+
+test("moves only the PBI whose title starts with PBI-<no>:, not PBI-39 for PBI-3", async () => {
+  const { fetch, moved } = fakeJiraPbis({
+    "SCRUM-198": { summary: "PBI-39: Signing In with an Email Code", status: "10003", name: "Testing" },
+    "SCRUM-120": { summary: "PBI-3: Managing the Creator Whitelist", status: "10003", name: "Testing" },
+  });
+  await syncPbis({ pbis: ["PBI-3"], jira, fetch });
+  assert.deepEqual(moved, [["SCRUM-120", "51"]]);
+});
+
+test("reports a PBI missing from Jira as a warning and still moves the others", async () => {
+  const { fetch, moved } = fakeJiraPbis({
+    "SCRUM-199": { summary: "PBI-25: Editing and Deleting Scheduled Content", status: "10003", name: "Testing" },
+  });
+  const log = await syncPbis({ pbis: ["PBI-99", "PBI-25"], jira, fetch });
+  assert.deepEqual(moved, [["SCRUM-199", "51"]]);
+  assert.deepEqual(log[0], { text: "PBI-99: no PBI in Jira has a title starting with PBI-99:", failed: true });
 });
