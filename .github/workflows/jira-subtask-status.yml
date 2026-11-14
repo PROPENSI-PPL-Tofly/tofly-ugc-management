@@ -7,7 +7,8 @@ name: Jira subtask status
 # further along are left alone, and a merge only reaches Done once no other
 # open PR into a PBI branch names the same subtask. Merging a release into
 # staging moves the PBIs it names (PBI-<no> in its title, or its
-# feat/pbi-<no>- branch) to Done, so the sprint burndown counts them
+# feat/pbi-<no>- branch) to Done, so the sprint burndown counts them, and
+# moves their [QA] subtasks to Testing, ready to test on staging
 # (.github/scripts/jira-subtask-status.mjs).
 #
 # pull_request_target, not pull_request: since 2025-12-08 GitHub always runs
