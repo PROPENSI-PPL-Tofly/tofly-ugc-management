@@ -8,6 +8,7 @@ import {
   shouldMove,
   heldByOpenPrs,
   syncSubtasks,
+  pbiNumbers,
 } from "./jira-subtask-status.mjs";
 
 test("reads the subtask number from the end of a feat/<name>_<no> branch", () => {
@@ -198,4 +199,36 @@ test("leaves a held subtask where it is and still moves the others to Done", asy
   });
   assert.deepEqual(moved, [["SCRUM-238", "51"]]);
   assert.deepEqual(log[0], { text: "SCRUM-229: open PR #155, #156 still names it, left alone", failed: false });
+});
+
+// A release into staging names the PBIs it ships, as #204 and #190 do, or comes from one PBI's branch.
+test("reads every PBI a release PR into staging names in its title", () => {
+  assert.deepEqual(
+    pbiNumbers({
+      title: "feat: release PBI-39, PBI-25, PBI-34 and PBI-33 to staging",
+      branch: "fix/sprint-3-release",
+    }),
+    ["PBI-39", "PBI-25", "PBI-34", "PBI-33"],
+  );
+});
+
+test("reads the PBI from a feat/pbi-<no>-<name> branch and drops the title duplicate", () => {
+  assert.deepEqual(
+    pbiNumbers({ title: "feat: release PBI-19 and PBI-28 to staging", branch: "feat/pbi-28-performance-bonus" }),
+    ["PBI-19", "PBI-28"],
+  );
+});
+
+test("finds no PBI in a release that names none, like #214", () => {
+  assert.deepEqual(
+    pbiNumbers({
+      title: "feat: sprint 3 improvements and UI review fixes into staging",
+      branch: "feat/pbi-sprint-3-improvements",
+    }),
+    [],
+  );
+});
+
+test("ignores a PBI number inside a longer word or a fix branch", () => {
+  assert.deepEqual(pbiNumbers({ title: "fix(db): keep SUBPBI-25 events", branch: "fix/pbi-34-concurrent-uploads" }), []);
 });
