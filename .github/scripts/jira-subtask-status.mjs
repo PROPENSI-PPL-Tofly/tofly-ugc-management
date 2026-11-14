@@ -68,9 +68,9 @@ export function heldByOpenPrs({ keys, openPrs, mergedNumber }) {
   return held;
 }
 
-async function jiraCall(fetch, jira, path, init = {}) {
+async function jiraApi(fetch, jira, path, init = {}) {
   const auth = Buffer.from(`${jira.email}:${jira.token}`).toString("base64");
-  const res = await fetch(`${jira.baseUrl}/rest/api/3/issue/${path}`, {
+  const res = await fetch(`${jira.baseUrl}/rest/api/3/${path}`, {
     ...init,
     headers: { Authorization: `Basic ${auth}`, Accept: "application/json", "Content-Type": "application/json" },
   });
@@ -78,24 +78,58 @@ async function jiraCall(fetch, jira, path, init = {}) {
   return res;
 }
 
-async function syncOne({ key, target, jira, fetch }) {
-  const issue = await (await jiraCall(fetch, jira, `${key}?fields=issuetype,status`)).json();
-  if (!issue.fields.issuetype.subtask) return { text: `${key}: not a subtask, skipped`, failed: false };
+function jiraCall(fetch, jira, path, init = {}) {
+  return jiraApi(fetch, jira, `issue/${path}`, init);
+}
 
-  const current = issue.fields.status.name;
-  if (!shouldMove(issue.fields.status.id, target)) {
-    return { text: `${key}: already ${current}, left alone`, failed: false };
+// Moves one issue to target unless it is already there; label names it in the log.
+async function moveIssue({ label, key, status, target, jira, fetch }) {
+  if (!shouldMove(status.id, target)) {
+    return { text: `${label}: already ${status.name}, left alone`, failed: false };
   }
 
   const { transitions } = await (await jiraCall(fetch, jira, `${key}/transitions`)).json();
   const transition = transitions.find((t) => t.to.id === STATUS_ID[target]);
-  if (!transition) return { text: `${key}: no transition from ${current} to ${target}`, failed: true };
+  if (!transition) return { text: `${label}: no transition from ${status.name} to ${target}`, failed: true };
 
   await jiraCall(fetch, jira, `${key}/transitions`, {
     method: "POST",
     body: JSON.stringify({ transition: { id: transition.id } }),
   });
-  return { text: `${key}: ${current} → ${target}`, failed: false };
+  return { text: `${label}: ${status.name} → ${target}`, failed: false };
+}
+
+async function syncOne({ key, target, jira, fetch }) {
+  const issue = await (await jiraCall(fetch, jira, `${key}?fields=issuetype,status`)).json();
+  if (!issue.fields.issuetype.subtask) return { text: `${key}: not a subtask, skipped`, failed: false };
+  return moveIssue({ label: key, key, status: issue.fields.status, target, jira, fetch });
+}
+
+// summary ~ is a word search, so PBI-3 also finds PBI-39: only a title starting with PBI-<no>: counts.
+async function findPbi(fetch, jira, pbi) {
+  const jql = `project = SCRUM AND issuetype = PBI AND summary ~ "${pbi}"`;
+  const res = await jiraApi(fetch, jira, `search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status`);
+  const { issues } = await res.json();
+  return issues.find((issue) => issue.fields.summary.startsWith(`${pbi}:`));
+}
+
+// One entry per PBI. A failing PBI is reported, never thrown, so the others still move.
+export async function syncPbis({ pbis, jira, fetch }) {
+  const log = [];
+  for (const pbi of pbis) {
+    try {
+      const issue = await findPbi(fetch, jira, pbi);
+      if (!issue) {
+        log.push({ text: `${pbi}: no PBI in Jira has a title starting with ${pbi}:`, failed: true });
+        continue;
+      }
+      const label = `${pbi} (${issue.key})`;
+      log.push(await moveIssue({ label, key: issue.key, status: issue.fields.status, target: "Done", jira, fetch }));
+    } catch (err) {
+      log.push({ text: `${pbi}: ${err.message}`, failed: true });
+    }
+  }
+  return log;
 }
 
 // One entry per key. A failing key is reported, never thrown, so the others still move.
