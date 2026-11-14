@@ -28,6 +28,18 @@ export function subtaskKeys({ title, branch }) {
   return [...new Set(numbers)].map((n) => `SCRUM-${n}`);
 }
 
+// A release into staging names the PBIs it ships (PBI-39, as in #204), or comes from one PBI's
+// feat/pbi-<no>-<name> branch. PBI-27.6 (a subtask number) does not count.
+const TITLE_PBI = /\bPBI-(\d+)(?![\d.])/g;
+const PBI_BRANCH = /^feat\/pbi-(\d+)-/;
+
+export function pbiNumbers({ title, branch }) {
+  const numbers = [...title.matchAll(TITLE_PBI)].map((m) => m[1]);
+  const fromBranch = branch.match(PBI_BRANCH);
+  if (fromBranch) numbers.push(fromBranch[1]);
+  return [...new Set(numbers)].map((n) => `PBI-${n}`);
+}
+
 // A PR opened into main or another branch and then retargeted to its PBI branch arrives as
 // "edited" with changes.base; the workflow's branch filter has already checked the new base.
 export function targetStatus({ action, merged, changes }) {
