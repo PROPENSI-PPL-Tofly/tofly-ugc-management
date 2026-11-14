@@ -3,8 +3,7 @@
 // feat/pbi-* branch, or retargeting one to it, puts its subtask in Testing;
 // merging it puts it in Done, unless another open PR into a PBI branch still
 // names the same subtask. Merging a release into staging puts the PBIs it
-// names (PBI-<no> in its title, or its feat/pbi-<no>- branch) in Done, and
-// their [QA] subtasks in Testing, ready to test on staging.
+// names (PBI-<no> in its title, or its feat/pbi-<no>- branch) in Done.
 // Run by .github/workflows/jira-subtask-status.yml; no dependencies.
 import { readFileSync, appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -120,14 +119,6 @@ async function findPbi(fetch, jira, pbi) {
   return issues.find((issue) => issue.fields.summary.startsWith(`${pbi}:`));
 }
 
-// A PBI's [QA] subtasks; summary ~ drops the brackets, so the title is checked again.
-async function findQaSubtasks(fetch, jira, pbiKey) {
-  const jql = `parent = ${pbiKey} AND summary ~ "QA"`;
-  const res = await jiraApi(fetch, jira, `search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status`);
-  const { issues } = await res.json();
-  return issues.filter((issue) => issue.fields.summary.includes("[QA]"));
-}
-
 // One entry per PBI. A failing PBI is reported, never thrown, so the others still move.
 export async function syncPbis({ pbis, jira, fetch }) {
   const log = [];
@@ -142,11 +133,6 @@ export async function syncPbis({ pbis, jira, fetch }) {
       }
       const label = `${pbi} (${issue.key})`;
       log.push(await moveIssue({ label, key: issue.key, status: issue.fields.status, target: "Done", jira, fetch }));
-      // Staging is where QA tests: a [QA] subtask still waiting becomes ready to test, a Done one stays.
-      for (const qa of await findQaSubtasks(fetch, jira, issue.key)) {
-        const qaLabel = `${pbi} [QA] (${qa.key})`;
-        log.push(await moveIssue({ label: qaLabel, key: qa.key, status: qa.fields.status, target: "Testing", jira, fetch }));
-      }
     } catch (err) {
       log.push({ text: `${pbi}: ${err.message}`, failed: true });
     }
