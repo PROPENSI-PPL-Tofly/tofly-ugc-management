@@ -1,4 +1,3 @@
-import type { Logger } from '@nestjs/common';
 import { smtpConfig } from './email-config.js';
 import {
   SmtpEmailSender,
@@ -21,10 +20,6 @@ function transport() {
   return { sendMail: vi.fn().mockResolvedValue({ accepted: true }) };
 }
 
-function logger() {
-  return { warn: vi.fn() } as unknown as Pick<Logger, 'warn'>;
-}
-
 const MESSAGE = {
   to: 'rangga@example.com',
   senderName: 'Tofly',
@@ -37,7 +32,7 @@ describe('SmtpEmailSender', () => {
   it('delivers each message as Tofly from the configured address (AC 3)', async () => {
     const mail = transport();
 
-    await new SmtpEmailSender(CONFIG, mail, logger()).send(MESSAGE);
+    await new SmtpEmailSender(CONFIG, mail).send(MESSAGE);
 
     expect(mail.sendMail).toHaveBeenCalledWith({
       from: 'Tofly <tofly.notify@gmail.com>',
@@ -51,7 +46,7 @@ describe('SmtpEmailSender', () => {
   it('leaves the HTML body out of a message that has none', async () => {
     const mail = transport();
 
-    await new SmtpEmailSender(CONFIG, mail, logger()).send({
+    await new SmtpEmailSender(CONFIG, mail).send({
       to: 'rangga@example.com',
       senderName: 'Tofly',
       subject: 'Kode masuk Tofly',
@@ -66,35 +61,28 @@ describe('SmtpEmailSender', () => {
     });
   });
 
-  it('reports a refused send to the caller and leaves the logging to the decorator (AC 6, OWASP-A09)', async () => {
+  // Logging a refused send is LoggingEmailSenderDecorator's job; this sender only delivers,
+  // and has no logger to write a duplicate line (or the recipient's address) with.
+  it('reports a refused send to the caller unchanged (AC 6)', async () => {
     const mail = transport();
-    const log = logger();
-    mail.sendMail.mockRejectedValue(new Error('Invalid login: 535 5.7.8'));
+    const error = new Error('Invalid login: 535 5.7.8');
+    mail.sendMail.mockRejectedValue(error);
 
-    await expect(
-      new SmtpEmailSender(CONFIG, mail, log).send(MESSAGE),
-    ).rejects.toThrow('Invalid login: 535 5.7.8');
-
-    // LoggingEmailSenderDecorator logs this once; a second line here would be a duplicate
-    // that also carried the recipient's address.
-    expect(log.warn).not.toHaveBeenCalled();
+    await expect(new SmtpEmailSender(CONFIG, mail).send(MESSAGE)).rejects.toBe(error);
   });
 
-  it('rethrows a failure that is not an Error unchanged, without logging it', async () => {
+  it('rethrows a failure that is not an Error unchanged', async () => {
     const mail = transport();
-    const log = logger();
     mail.sendMail.mockRejectedValue('boom');
 
-    await expect(new SmtpEmailSender(CONFIG, mail, log).send(MESSAGE)).rejects.toBe('boom');
-
-    expect(log.warn).not.toHaveBeenCalled();
+    await expect(new SmtpEmailSender(CONFIG, mail).send(MESSAGE)).rejects.toBe('boom');
   });
 });
 
 describe('emailSenderFromEnv', () => {
   it('builds the real sender around the transport its account asks for', async () => {
     const mail = transport();
-    const sender = emailSenderFromEnv(FULL_ENV, () => mail, logger());
+    const sender = emailSenderFromEnv(FULL_ENV, () => mail);
 
     await sender.send(MESSAGE);
 
@@ -102,7 +90,7 @@ describe('emailSenderFromEnv', () => {
   });
 
   it('is the fail-closed unready sender while no account is configured', async () => {
-    const sender = emailSenderFromEnv({}, () => transport(), logger());
+    const sender = emailSenderFromEnv({}, () => transport());
 
     expect(sender).toBe(unreadyEmailSender);
     await expect(sender.send(MESSAGE)).rejects.toThrow(PortNotReady);

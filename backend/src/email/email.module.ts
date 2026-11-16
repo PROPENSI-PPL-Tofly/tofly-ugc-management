@@ -19,7 +19,7 @@ export const EMAIL_LOG = 'EMAIL_LOG';
       provide: EMAIL_SENDER,
       useFactory: (log: Pick<Logger, 'log' | 'warn'>) =>
         new LoggingEmailSenderDecorator(
-          emailSenderFromEnv(process.env, smtpTransport, log),
+          emailSenderFromEnv(process.env, smtpTransport),
           log,
         ),
       inject: [EMAIL_LOG],
