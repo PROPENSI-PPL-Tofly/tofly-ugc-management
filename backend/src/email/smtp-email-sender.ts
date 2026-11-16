@@ -14,11 +14,6 @@ export interface MailTransport {
   }): Promise<unknown>;
 }
 
-/** The error's kind, the only part of a failure the log keeps (OWASP-A09). */
-function errorKind(error: unknown): string {
-  return error instanceof Error ? error.constructor.name : typeof error;
-}
-
 /**
  * The outgoing-email port bound to one SMTP account (PBI-39, 39.1): the message is handed to
  * nodemailer as the recipient's mail reader should see it — the message's own sender name over
@@ -34,18 +29,13 @@ export class SmtpEmailSender implements EmailSender {
   ) {}
 
   async send(message: EmailMessage): Promise<void> {
-    try {
-      await this.transport.sendMail({
-        from: `${message.senderName} <${this.config.from}>`,
-        to: message.to,
-        subject: message.subject,
-        text: message.text,
-        ...(message.html === undefined ? {} : { html: message.html }),
-      });
-    } catch (error) {
-      this.log.warn(`Email to ${message.to} failed (${errorKind(error)})`);
-      throw error;
-    }
+    await this.transport.sendMail({
+      from: `${message.senderName} <${this.config.from}>`,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      ...(message.html === undefined ? {} : { html: message.html }),
+    });
   }
 }
 
