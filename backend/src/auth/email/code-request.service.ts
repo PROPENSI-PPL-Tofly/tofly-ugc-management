@@ -100,8 +100,8 @@ export class CodeRequestService {
         loginCodeEmail(email, code, CODE_LIFETIME_MINUTES),
       );
       return SENT;
-    } catch (error) {
-      this.logger.warn(`Login code email not sent: ${safeReason(error)}`);
+    } catch {
+      // The email layer's LoggingEmailSenderDecorator has already logged this failure.
       await this.issuer.discard(id);
       return FAILED;
     }
