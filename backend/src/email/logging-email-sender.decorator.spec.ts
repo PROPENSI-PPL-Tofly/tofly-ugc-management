@@ -29,7 +29,9 @@ function setup() {
     warn: vi.fn<(message: string) => void>(),
   };
   const sender = new LoggingEmailSenderDecorator(inner, log);
-  return { send, log, sender };
+  const logged = () =>
+    [...log.log.mock.calls, ...log.warn.mock.calls].flat().join('\n');
+  return { send, log, sender, logged };
 }
 
 describe('LoggingEmailSenderDecorator', () => {
@@ -121,6 +123,38 @@ describe('LoggingEmailSenderDecorator', () => {
         expect(log.warn).toHaveBeenCalledExactlyOnceWith(
           `Email delivery failed (${kind})`,
         );
+      },
+    );
+  });
+
+  describe('what the log may hold (OWASP-A04)', () => {
+    it.each([
+      ['an accepted send', null],
+      ['an Error', new Error(PROVIDER_ERROR_TEXT)],
+      ['a thrown string', PROVIDER_ERROR_TEXT],
+    ])(
+      'never writes the recipient, the code, the bodies, the password or the provider text for %s',
+      async (_, failure) => {
+        const { send, sender, logged } = setup();
+        if (failure !== null) {
+          send.mockImplementationOnce(() => Promise.reject(failure));
+        }
+
+        await sender.send(MESSAGE).catch(() => undefined);
+
+        const lines = logged();
+        expect(lines).not.toBe('');
+        for (const secret of [
+          RECIPIENT,
+          CODE,
+          MESSAGE.text,
+          MESSAGE.html,
+          SMTP_PASSWORD,
+          'mailbox',
+          'EAUTH',
+        ]) {
+          expect(lines).not.toContain(secret);
+        }
       },
     );
   });
