@@ -101,5 +101,27 @@ describe('LoggingEmailSenderDecorator', () => {
         'Email delivery failed (RangeError)',
       );
     });
+
+    it.each([
+      ['a string', PROVIDER_ERROR_TEXT, 'string'],
+      ['undefined', undefined, 'undefined'],
+      [
+        'a plain object',
+        { code: 'EAUTH', response: PROVIDER_ERROR_TEXT },
+        'object',
+      ],
+    ])(
+      'rethrows %s unchanged and logs only its type',
+      async (_, thrown, kind) => {
+        const { send, log, sender } = setup();
+        send.mockImplementationOnce(() => Promise.reject(thrown));
+
+        await expect(sender.send(MESSAGE)).rejects.toBe(thrown);
+
+        expect(log.warn).toHaveBeenCalledExactlyOnceWith(
+          `Email delivery failed (${kind})`,
+        );
+      },
+    );
   });
 });
