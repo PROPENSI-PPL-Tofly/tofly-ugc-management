@@ -5,11 +5,18 @@ import type { EmailMessage, EmailSender } from './email-sender.js';
 export class LoggingEmailSenderDecorator implements EmailSender {
   constructor(
     private readonly inner: EmailSender,
-    private readonly log: Pick<Logger, 'log'>,
+    private readonly log: Pick<Logger, 'log' | 'warn'>,
   ) {}
 
   async send(message: EmailMessage): Promise<void> {
-    await this.inner.send(message);
+    try {
+      await this.inner.send(message);
+    } catch (error) {
+      this.log.warn(
+        `Email delivery failed (${(error as Error).constructor.name})`,
+      );
+      throw error;
+    }
     this.log.log('Email accepted for delivery');
   }
 }
