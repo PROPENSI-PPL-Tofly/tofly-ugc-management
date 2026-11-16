@@ -66,7 +66,7 @@ describe('SmtpEmailSender', () => {
     });
   });
 
-  it('reports a refused send to the caller and logs it without the code or the error\'s text (AC 6)', async () => {
+  it('reports a refused send to the caller and leaves the logging to the decorator (AC 6, OWASP-A09)', async () => {
     const mail = transport();
     const log = logger();
     mail.sendMail.mockRejectedValue(new Error('Invalid login: 535 5.7.8'));
@@ -75,22 +75,19 @@ describe('SmtpEmailSender', () => {
       new SmtpEmailSender(CONFIG, mail, log).send(MESSAGE),
     ).rejects.toThrow('Invalid login: 535 5.7.8');
 
-    expect(log.warn).toHaveBeenCalledTimes(1);
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('rangga@example.com'),
-    );
-    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('123456'));
-    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('Invalid login'));
+    // LoggingEmailSenderDecorator logs this once; a second line here would be a duplicate
+    // that also carried the recipient's address.
+    expect(log.warn).not.toHaveBeenCalled();
   });
 
-  it('names the kind of a failure that is not an Error either', async () => {
+  it('rethrows a failure that is not an Error unchanged, without logging it', async () => {
     const mail = transport();
     const log = logger();
     mail.sendMail.mockRejectedValue('boom');
 
     await expect(new SmtpEmailSender(CONFIG, mail, log).send(MESSAGE)).rejects.toBe('boom');
 
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('(string)'));
+    expect(log.warn).not.toHaveBeenCalled();
   });
 });
 

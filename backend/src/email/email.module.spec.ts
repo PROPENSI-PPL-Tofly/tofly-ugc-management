@@ -71,7 +71,7 @@ describe('EmailModule', () => {
     );
   });
 
-  it('logs a refused SMTP send by kind only, and still rejects (OWASP-A09)', async () => {
+  it('logs a refused SMTP send exactly once, by kind only, and still rejects (OWASP-A09)', async () => {
     configureSmtp(vi.fn().mockRejectedValue(new Error('Invalid login: 535')));
     const log = logger();
 
@@ -79,7 +79,7 @@ describe('EmailModule', () => {
       builtSender(log).then((sender) => sender.send(MESSAGE)),
     ).rejects.toThrow('Invalid login: 535');
 
-    expect(log.warn).toHaveBeenCalledWith(
+    expect(log.warn).toHaveBeenCalledExactlyOnceWith(
       'Email delivery failed (Error)',
     );
   });
