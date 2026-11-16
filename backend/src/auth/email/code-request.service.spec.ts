@@ -297,33 +297,31 @@ describe('CodeRequestService', () => {
       ]);
     });
 
-    it('logs the error class only: no email, code, hash or provider message', async () => {
+    // The email layer's LoggingEmailSenderDecorator logs every failed send once, by kind only;
+    // logging it here as well would write the same failure twice (OWASP-A09).
+    it('leaves the failed send to the email log: discards the row, answers failed, writes nothing', async () => {
       const { service, issuer, send, warn } = setup();
       send.mockRejectedValueOnce(
         new TypeError(`550 mailbox ${CREATOR} rejected code ${CODE}`),
       );
-      await service.request(CREATOR);
-      expect(warn).toHaveBeenCalledExactlyOnceWith(
-        'Login code email not sent: TypeError',
-      );
-      const logged = warn.mock.calls.flat().join(' ');
-      expect(logged).not.toContain(CREATOR);
-      expect(logged).not.toContain(CODE);
-      expect(logged).not.toContain(hashLoginCode(CREATOR, CODE, SECRET));
-      expect(logged).not.toContain('mailbox');
+      await expect(service.request(CREATOR)).resolves.toEqual({
+        outcome: 'failed',
+      });
+      expect(warn).not.toHaveBeenCalled();
       expect(issuer.rows).toHaveLength(0);
     });
 
-    it('logs a thrown value that is not an error as unknown', async () => {
-      const { service, send, warn } = setup();
+    it('treats a thrown value that is not an error the same way', async () => {
+      const { service, issuer, send, warn } = setup();
       send.mockImplementationOnce(() => Promise.reject(CREATOR));
-      await service.request(CREATOR);
-      expect(warn).toHaveBeenCalledExactlyOnceWith(
-        'Login code email not sent: unknown error',
-      );
+      await expect(service.request(CREATOR)).resolves.toEqual({
+        outcome: 'failed',
+      });
+      expect(warn).not.toHaveBeenCalled();
+      expect(issuer.rows).toHaveLength(0);
     });
 
-    it('still answers failed when the unsent row cannot be removed', async () => {
+    it('still answers failed when the unsent row cannot be removed, logging only that', async () => {
       const { service, issuer, send, warn } = setup();
       send.mockRejectedValueOnce(new Error('SMTP down'));
       vi.spyOn(issuer, 'discard').mockRejectedValueOnce(
@@ -332,7 +330,13 @@ describe('CodeRequestService', () => {
       await expect(service.request(CREATOR)).resolves.toEqual({
         outcome: 'failed',
       });
-      expect(warn).toHaveBeenLastCalledWith('Code request failed: RangeError');
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        'Code request failed: RangeError',
+      );
+      const logged = warn.mock.calls.flat().join(' ');
+      expect(logged).not.toContain(CREATOR);
+      expect(logged).not.toContain(CODE);
+      expect(logged).not.toContain(hashLoginCode(CREATOR, CODE, SECRET));
     });
   });
 
@@ -348,6 +352,19 @@ describe('CodeRequestService', () => {
       expect(send).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledExactlyOnceWith(
         'Code request failed: SyntaxError',
+      );
+    });
+
+    it('logs a thrown value that is not an error as unknown, never its text', async () => {
+      const { service, issuer, warn } = setup();
+      vi.spyOn(issuer, 'issue').mockImplementationOnce(() =>
+        Promise.reject(`insert for ${CREATOR} failed`),
+      );
+      await expect(service.request(CREATOR)).resolves.toEqual({
+        outcome: 'failed',
+      });
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        'Code request failed: unknown error',
       );
     });
 
