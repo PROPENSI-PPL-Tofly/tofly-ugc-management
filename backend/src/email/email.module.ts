@@ -1,5 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import { EMAIL_SENDER } from './email-sender.js';
+import { LoggingEmailSenderDecorator } from './logging-email-sender.decorator.js';
 import { emailSenderFromEnv, smtpTransport } from './smtp-email-sender.js';
 
 /** The logger the sender reports failures through, as GoogleSignIn's is bound. */
@@ -16,8 +17,11 @@ export const EMAIL_LOG = 'EMAIL_LOG';
     { provide: EMAIL_LOG, useValue: new Logger('EmailSender') },
     {
       provide: EMAIL_SENDER,
-      useFactory: (log: Pick<Logger, 'warn'>) =>
-        emailSenderFromEnv(process.env, smtpTransport, log),
+      useFactory: (log: Pick<Logger, 'log' | 'warn'>) =>
+        new LoggingEmailSenderDecorator(
+          emailSenderFromEnv(process.env, smtpTransport, log),
+          log,
+        ),
       inject: [EMAIL_LOG],
     },
   ],
