@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { EMAIL_SENDER } from '../../email/email-sender.js';
-import { SmtpEmailSender } from '../../email/smtp-email-sender.js';
+import { LoggingEmailSenderDecorator } from '../../email/logging-email-sender.decorator.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { EmailRequestModule } from './email-request.module.js';
 import { LOGIN_CODE_ISSUER } from './login-code-issuer.js';
@@ -45,7 +45,9 @@ describe('EmailRequestModule', () => {
       expect(module.get(LOGIN_CODE_ISSUER)).toBeInstanceOf(
         PrismaLoginCodeIssuer,
       );
-      expect(module.get(EMAIL_SENDER)).toBeInstanceOf(SmtpEmailSender);
+      expect(module.get(EMAIL_SENDER)).toBeInstanceOf(
+        LoggingEmailSenderDecorator,
+      );
     } finally {
       await app.close();
     }
