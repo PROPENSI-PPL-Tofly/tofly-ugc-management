@@ -7,8 +7,16 @@ import {
   DECISION_CONFIRMATIONS,
 } from "@/components/content-detail/content-detail-panel";
 import { useToast } from "@/components/ui/toast";
-import { DEFAULT_SORT, type ContentPlanRow, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
+import {
+  DEFAULT_SORT,
+  type ContentPlanParams,
+  type ContentPlanRow,
+  type ContentPlanTab,
+  type DeadlineSort,
+} from "@/lib/content-plan";
+import type { CalendarMonth } from "@/lib/task-calendar";
 import { latestQuery, useUrlQuery } from "@/lib/url-query";
+import { ContentPlanCalendar } from "./content-plan-calendar";
 import { ContentPlanTable } from "./content-plan-table";
 import { CONTENT_PLAN_LIST_ID } from "./content-plan-tabs";
 
@@ -26,11 +34,14 @@ export function ContentPlanBoard({
   filtered,
   tab,
   sort,
+  calendar = null,
 }: Readonly<{
   items: readonly ContentPlanRow[];
   filtered: boolean;
   tab: ContentPlanTab;
   sort: DeadlineSort;
+  /** Shows the month calendar (I3.6) in place of the table; null keeps the table. */
+  calendar?: { month: CalendarMonth; today: string; state: ContentPlanParams } | null;
 }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -104,15 +115,27 @@ export function ContentPlanBoard({
     <>
       {/* The region the tabs switch, named by the tabs' aria-controls. */}
       <div id={CONTENT_PLAN_LIST_ID} role="tabpanel" aria-label="Daftar konten">
-        <ContentPlanTable
-          items={items}
-          filtered={filtered}
-          tab={tab}
-          sort={sort}
-          onSortToggle={toggleSort}
-          onOpen={setOpenContentId}
-          onReset={resetFilters}
-        />
+        {calendar ? (
+          // A chip opens the same panel a row does, so ?content= and closing behave the same.
+          <ContentPlanCalendar
+            items={items}
+            month={calendar.month}
+            today={calendar.today}
+            state={calendar.state}
+            filtered={filtered}
+            onOpen={setOpenContentId}
+          />
+        ) : (
+          <ContentPlanTable
+            items={items}
+            filtered={filtered}
+            tab={tab}
+            sort={sort}
+            onSortToggle={toggleSort}
+            onOpen={setOpenContentId}
+            onReset={resetFilters}
+          />
+        )}
       </div>
       {openContentId ? (
         // Keyed by content so switching rows remounts the panel rather than leaving the

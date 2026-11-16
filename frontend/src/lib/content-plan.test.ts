@@ -28,6 +28,8 @@ const FULL: ContentPlanParams = {
   from: "",
   to: "",
   sort: "desc",
+  view: "table",
+  month: "",
 };
 
 describe("CONTENT_PLAN_TABS", () => {
@@ -312,6 +314,8 @@ describe("contentPlanAfterTabChange", () => {
       from: "2026-10-01",
       to: "2026-10-31",
       sort: "asc",
+      view: "table",
+      month: "",
     };
     expect(contentPlanAfterTabChange(state, "action")).toEqual({
       ...state,

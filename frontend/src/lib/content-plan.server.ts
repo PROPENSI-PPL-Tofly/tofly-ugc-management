@@ -19,8 +19,14 @@ import type {
   ContentPlanParams,
   ContentPlanResponse,
 } from "./content-plan";
+import {
+  CALENDAR_PAGE_LIMIT,
+  CALENDAR_PAGE_SIZE,
+  monthRange,
+} from "./content-plan-calendar";
 import { jakartaDay } from "./format";
 import { appSessionCookieHeader } from "./session-cookie";
+import type { CalendarMonth } from "./task-calendar";
 
 /** The names arrive in the API's largest pages — fifty at a time, its own ceiling. */
 const CREATORS_PAGE_SIZE = 50;
@@ -46,16 +52,18 @@ function withoutTrailingSlash(url: string): string {
 export async function fetchContentPlan(
   state: ContentPlanParams,
 ): Promise<ContentPlanResponse> {
+  // Named periods ("30 hari ke depan") are counted from today where the admins work.
+  return toContentPlanResponse(await readContentList(toContentListQuery(state, jakartaDay())));
+}
+
+/** One GET /contents, admin-only: the request carries the browser's session, and only it. */
+async function readContentList(query: URLSearchParams): Promise<RawContentList> {
   const backendUrl = process.env.BACKEND_URL;
 
   if (!backendUrl) {
     throw new Error("BACKEND_URL is not configured");
   }
 
-  // Named periods ("30 hari ke depan") are counted from today where the admins work.
-  const query = toContentListQuery(state, jakartaDay());
-
-  // Admin-only: the request carries the browser's session, and only it.
   const cookie = await appSessionCookieHeader();
   const response = await fetch(`${withoutTrailingSlash(backendUrl)}/contents?${query}`, {
     cache: "no-store",
@@ -66,7 +74,53 @@ export async function fetchContentPlan(
     throw new Error(`Loading the content plan failed with HTTP ${response.status}`);
   }
 
-  return toContentPlanResponse((await response.json()) as RawContentList);
+  return (await response.json()) as RawContentList;
+}
+
+/** A month holds more pages than the calendar draws: shown as an error, never as part of it. */
+export class ContentPlanCalendarTooLargeError extends Error {
+  constructor(readonly totalPages: number) {
+    super(
+      `The month holds ${totalPages} pages of content, past the calendar's ${CALENDAR_PAGE_LIMIT}`,
+    );
+    this.name = "ContentPlanCalendarTooLargeError";
+  }
+}
+
+/**
+ * Every content of one month under the tab, search and filters, for the calendar (I3.6). The
+ * month is the deadline range and the rows come in the API's largest pages: the first says how
+ * many there are, the rest are read together. A failure on any page fails the whole read, and a
+ * month past the page limit is refused before the rest are asked for: a calendar missing some
+ * of its content would look complete and be wrong (OWASP A06).
+ */
+export async function fetchContentPlanMonth(
+  state: ContentPlanParams,
+  month: CalendarMonth,
+): Promise<ContentPlanResponse> {
+  const [from, to] = monthRange(month);
+  const page = (number: number) => {
+    const query = toContentListQuery(
+      { ...state, period: "custom", from, to, sort: "asc", page: number },
+      from,
+    );
+    query.set("pageSize", String(CALENDAR_PAGE_SIZE));
+    return readContentList(query);
+  };
+
+  const first = await page(1);
+  if (first.totalPages > CALENDAR_PAGE_LIMIT) {
+    throw new ContentPlanCalendarTooLargeError(first.totalPages);
+  }
+
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => page(index + 2)),
+  );
+
+  return toContentPlanResponse({
+    ...first,
+    items: [first, ...rest].flatMap((answer) => answer.items),
+  });
 }
 
 /**
