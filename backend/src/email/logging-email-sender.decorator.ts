@@ -13,7 +13,7 @@ export class LoggingEmailSenderDecorator implements EmailSender {
       await this.inner.send(message);
     } catch (error) {
       this.log.warn(
-        `Email delivery failed (${(error as Error).constructor.name})`,
+        `Email delivery failed (${error instanceof Error ? error.constructor.name : typeof error})`,
       );
       throw error;
     }
