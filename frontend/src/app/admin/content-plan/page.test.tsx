@@ -30,6 +30,7 @@ function planOf(overrides: Partial<ContentPlanResponse> = {}): ContentPlanRespon
   return {
     items: [
       {
+        platforms: [],
         contentId: "content-1",
         name: "Evg_1_Salsa_15Sep2026",
         creatorId: "id-1",
@@ -75,7 +76,7 @@ describe("Content Plan page", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Content Plan" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Semua" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Semua/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("count-action")).toHaveTextContent("3");
     expect(screen.getByTestId("count-waiting")).toHaveTextContent("12");
   });
@@ -143,7 +144,7 @@ describe("Content Plan page", () => {
     await renderPage();
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Semua" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^Semua/ })).toBeInTheDocument();
     expect(screen.getByText("Evg_1_Salsa_15Sep2026")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveTextContent(
       "Creator: Semua",
@@ -195,5 +196,25 @@ describe("Content Plan page", () => {
 
     expect(screen.getByText("Tidak ada konten sesuai filter.")).toBeInTheDocument();
     expect(screen.queryByText("Belum ada konten.")).not.toBeInTheDocument();
+  });
+});
+
+// Approved design: the plan is titled Konten in the admin's ink band, with how many contents
+// the tab and filters hold, and on a phone the open tab's name, since the tabs fold away there.
+describe("Content Plan's list band", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams = new URLSearchParams();
+    window.history.replaceState({}, "", "/admin/content-plan");
+    fetchCreators.mockResolvedValue([{ id: "id-1", name: "Salsa Wijaya" }]);
+  });
+
+  it("gives the plan no title band, since the page's title already names its one list", async () => {
+    fetchPlan.mockResolvedValue(planOf({ total: 12, counts: { all: 42, action: 3, waiting: 12, done: 27 } }));
+
+    await renderPage({ tab: "waiting" });
+
+    expect(screen.queryByRole("heading", { level: 2, name: "Konten" })).toBeNull();
+    expect(document.querySelector("[data-tone]")).toBeNull();
   });
 });

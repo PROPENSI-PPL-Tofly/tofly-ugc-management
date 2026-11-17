@@ -13,12 +13,14 @@ import type {
 } from './dto/invoice-list.dto.js';
 import type { InvoiceFilters } from './invoice-filters.js';
 import {
+  INVOICE_ROSTER_REPOSITORY,
+  type InvoiceRosterRepository,
+} from './invoice-roster.repository.js';
+import {
   adjustmentDto,
-  CONTENT_SELECT,
   creatorName,
   INVOICE_ADJUSTMENT_SELECT,
   INVOICE_SELECT,
-  type InvoiceContentRow,
   type InvoiceContractRow,
   invoiceContractStatus,
   type InvoiceCreatorRow,
@@ -45,12 +47,13 @@ import {
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
 /**
- * The database operations this service uses: reads only. Without $transaction, $queryRaw or a
- * write, the reads cannot lock or change an invoice; that is InvoiceCommandService's job.
+ * The database operations this service still makes itself: reads only. Without $transaction,
+ * $queryRaw or a write, the reads cannot lock or change an invoice; that is
+ * InvoiceCommandService's job. The roster and its content come through InvoiceRosterRepository.
  */
 export type InvoicesClient = Pick<
   PrismaService,
-  'creators' | 'contents' | 'invoices' | 'invoice_adjustments'
+  'creators' | 'invoices' | 'invoice_adjustments'
 >;
 
 /** What the Rate & Invoicing table needs: one page of invoices with their summary. */
@@ -71,17 +74,6 @@ export interface InvoiceDetailReader {
     contractId?: string,
   ): Promise<InvoiceDetail | null>;
 }
-
-/** A creator without a contract has nothing to invoice. */
-const HAS_CONTRACT = {
-  contracts: { some: {} },
-} satisfies Prisma.creatorsWhereInput;
-
-const ORDER_BY: Prisma.creatorsOrderByWithRelationInput[] = [
-  { first_name: 'asc' },
-  { last_name: 'asc' },
-  { id: 'asc' },
-];
 
 interface PickedCreator {
   row: InvoiceCreatorRow;
@@ -174,6 +166,8 @@ function clampPage(asked: number, pageSize: number, total: number) {
 export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoicesClient,
+    @Inject(INVOICE_ROSTER_REPOSITORY)
+    private readonly roster: InvoiceRosterRepository,
     @Inject(RATE_FORMULA_SOURCE) private readonly formulas: RateFormulaSource,
     @Inject(INVOICE_STATUS_SOURCE)
     private readonly pipeline: InvoiceStatusSource,
@@ -277,7 +271,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     const ids = contracts.map(({ id }) => id);
     const [byContract, statuses, formula, lifecycleByContract] =
       await Promise.all([
-        this.contentsOf(ids),
+        this.roster.contentsOf(ids),
         this.pipeline.statuses(ids),
         this.formulas.current(),
         this.lifecycleForContracts(ids),
@@ -313,11 +307,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     sort: InvoiceSort,
   ): Promise<Calculated> {
     const [rows, formula] = await Promise.all([
-      this.prisma.creators.findMany({
-        where: HAS_CONTRACT,
-        select: INVOICE_SELECT,
-        orderBy: ORDER_BY,
-      }),
+      this.roster.creators(filters),
       this.formulas.current(),
     ]);
 
@@ -348,7 +338,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     );
 
     const [byContract, adjustmentTotals] = await Promise.all([
-      this.contentsOf(live.map(({ contract }) => contract.id)),
+      this.roster.contentsOf(live.map(({ contract }) => contract.id)),
       this.adjustmentTotals(
         live.flatMap(({ contract }) => saved.get(contract.id)?.id ?? []),
       ),
@@ -493,28 +483,5 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       const id = invoiceIds.get(item.contract.id);
       return id ? { ...item, adjustments: byInvoice.get(id) ?? [] } : item;
     });
-  }
-
-  /** Load each requested contract's content in deadline order. */
-  private async contentsOf(
-    contractIds: string[],
-  ): Promise<Map<string, InvoiceContentRow[]>> {
-    if (contractIds.length === 0) return new Map();
-
-    const contents = await this.prisma.contents.findMany({
-      where: { contract_id: { in: contractIds } },
-      select: CONTENT_SELECT,
-      orderBy: { deadline: 'asc' },
-    });
-
-    const byContract = new Map<string, InvoiceContentRow[]>();
-
-    for (const content of contents) {
-      const list = byContract.get(content.contract_id) ?? [];
-      list.push(content);
-      byContract.set(content.contract_id, list);
-    }
-
-    return byContract;
   }
 }

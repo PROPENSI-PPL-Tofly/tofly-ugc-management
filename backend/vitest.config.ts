@@ -9,13 +9,23 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.spec.ts'],
+    // A developer's backend/.env turns the dev sign-in on (ConfigModule loads it when a test boots
+    // AppModule), which answers 200 where a test expects 401. Pinned off, as in CI.
+    env: { DEV_AUTH_ENABLED: 'false', DEV_CREATOR_ID: '' },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.ts'],
       exclude: [
         'src/main.ts',
-        'src/**/*.module.ts',
+        'src/email/send-test-email-cli.ts',
+        // Nest wiring is proven by booting the app. The email sign-in modules (PBI-39) are measured
+        // instead: they choose which adapter (Prisma, a fail-closed sender) a request really gets.
+        'src/*.module.ts',
+        'src/*/*.module.ts',
+        'src/auth/google/*.module.ts',
+        'src/auth/session/*.module.ts',
+        'src/performance/sync/*.module.ts',
         'src/**/*.spec.ts',
         // Prisma connection wiring (extends PrismaClient, $connect on boot):
         // its correctness is proven by the live DB health check, not unit tests.
@@ -33,6 +43,14 @@ export default defineConfig({
           functions: 100,
           statements: 100,
         },
+        // Outgoing email (PBI-39): a message that reaches the wrong address, or a failure nobody
+        // notices, is a security bug, so every line is held to the auth standard.
+        'src/email/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
         'src/me/**': {
           lines: 100,
           branches: 100,
@@ -44,6 +62,14 @@ export default defineConfig({
         // The creator's acknowledge and receipt confirmation (13.1) are held to it too, and so are
         // the admin's adjustments and finalizing in InvoiceCommandService.
         'src/storage/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        // A content's video links: which link is stored, who may change it and when the invoice
+        // freezes it decide what a creator is paid for, so no rule there may go untested.
+        'src/contents/{content-links*,link-*,video-submission.service}.ts': {
           lines: 100,
           branches: 100,
           functions: 100,

@@ -25,6 +25,12 @@ describe("proxy", () => {
     expect(first).not.toBe(second);
   });
 
+  it("lets an image load from the bucket a revision note's signed link redirects to, and nowhere else", () => {
+    const csp = headersFor().get("content-security-policy") ?? "";
+
+    expect(csp).toContain("img-src 'self' blob: data: https://storage.googleapis.com;");
+  });
+
   it("relaxes only what the dev tooling needs, and only in development", () => {
     vi.stubEnv("NODE_ENV", "development");
 

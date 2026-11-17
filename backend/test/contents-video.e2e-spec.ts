@@ -9,7 +9,9 @@ import { day } from './days.js';
 // Rows created here carry this marker so the cleanup never touches anything else.
 const MARKER = 'e2e-video';
 
-const REEL = 'https://www.instagram.com/reel/e2e-video/';
+// One video per test: a video already linked from one content is refused on another (AC 5).
+const reel = (name: string) =>
+  `https://www.instagram.com/reel/e2e-video-${name}/`;
 const DRAFT = 'https://drive.google.com/file/d/e2e-video-draft';
 
 describe('POST /contents/:id/video (e2e)', () => {
@@ -41,11 +43,18 @@ describe('POST /contents/:id/video (e2e)', () => {
       .send(body);
   }
 
+  /** The content's status and bypass flag, and its one link if any, read from content_links. */
   async function stateOf(contentId: string) {
-    return prisma.contents.findUniqueOrThrow({
-      where: { id: contentId },
-      select: { status: true, video_link: true, approval_bypassed: true },
-    });
+    const { content_links, ...content } =
+      await prisma.contents.findUniqueOrThrow({
+        where: { id: contentId },
+        select: {
+          status: true,
+          approval_bypassed: true,
+          content_links: { select: { url: true, platform: true } },
+        },
+      });
+    return { ...content, video_link: content_links[0]?.url ?? null };
   }
 
   beforeAll(async () => {
@@ -64,6 +73,10 @@ describe('POST /contents/:id/video (e2e)', () => {
           create: {
             first_name: MARKER,
             last_name: 'owner',
+            // A link is taken only for a platform the creator has an account on (PBI-38 AC 3).
+            social_accounts: {
+              create: { platform: 'instagram', username: `${MARKER}-owner` },
+            },
             contracts: {
               create: {
                 start_date: day(-30),
@@ -101,18 +114,22 @@ describe('POST /contents/:id/video (e2e)', () => {
       .send({ link: DRAFT })
       .expect(201);
 
-    const response = await handIn(scheduled.id, { link: REEL });
+    const response = await handIn(scheduled.id, { link: reel('h1') });
 
     expect(response.status).toBe(201);
     expect(await stateOf(scheduled.id)).toEqual({
       status: 'link_submitted',
-      video_link: REEL,
+      video_link: reel('h1'),
       approval_bypassed: true,
     });
   });
 
   it.each([
-    ['no draft has been handed in', 'scheduled', 'Kirim draft dulu sebelum mengirim link video'],
+    [
+      'no draft has been handed in',
+      'scheduled',
+      'Kirim draft dulu sebelum mengirim link video',
+    ],
     [
       'a revision is still owed',
       'draft_revision',
@@ -123,17 +140,24 @@ describe('POST /contents/:id/video (e2e)', () => {
     async (_why, status, message) => {
       const waiting = await content(`refused ${status}`, status);
 
-      const response = await handIn(waiting.id, { link: REEL });
+      const response = await handIn(waiting.id, {
+        link: reel(`refused-${status}`),
+      });
 
       expect(response.status).toBe(409);
-      expect(response.body).toMatchObject({ code: 'VIDEO_NOT_ELIGIBLE', message });
+      expect(response.body).toMatchObject({
+        code: 'VIDEO_NOT_ELIGIBLE',
+        message,
+      });
       expect(await stateOf(waiting.id)).toEqual({
         status,
         video_link: null,
         approval_bypassed: false,
       });
       expect(
-        await prisma.content_events.count({ where: { content_id: waiting.id } }),
+        await prisma.content_events.count({
+          where: { content_id: waiting.id },
+        }),
       ).toBe(0);
     },
   );
@@ -141,12 +165,12 @@ describe('POST /contents/:id/video (e2e)', () => {
   it('does not mark a link handed in after the draft was approved', async () => {
     const approved = await content('approved', 'draft_approved');
 
-    const response = await handIn(approved.id, { link: REEL });
+    const response = await handIn(approved.id, { link: reel('approved') });
 
     expect(response.status).toBe(201);
     expect(await stateOf(approved.id)).toEqual({
       status: 'link_submitted',
-      video_link: REEL,
+      video_link: reel('approved'),
       approval_bypassed: false,
     });
   });
@@ -155,7 +179,7 @@ describe('POST /contents/:id/video (e2e)', () => {
     const inReview = await content('mass assignment', 'draft_review');
 
     const response = await handIn(inReview.id, {
-      link: REEL,
+      link: reel('mass-assignment'),
       approval_bypassed: false,
       status: 'draft_approved',
     });
@@ -163,8 +187,63 @@ describe('POST /contents/:id/video (e2e)', () => {
     expect(response.status).toBe(201);
     expect(await stateOf(inReview.id)).toEqual({
       status: 'link_submitted',
-      video_link: REEL,
+      video_link: reel('mass-assignment'),
       approval_bypassed: true,
     });
+  });
+
+  it('stores the link in content_links with its platform, and no longer in contents.video_link', async () => {
+    const approved = await content('stored', 'draft_approved');
+
+    await handIn(approved.id, { link: reel('stored') }).expect(201);
+
+    expect(
+      await prisma.content_links.findMany({
+        where: { content_id: approved.id },
+        select: {
+          platform: true,
+          url: true,
+          normalized_url: true,
+          submitted_at: true,
+        },
+      }),
+    ).toEqual([
+      {
+        platform: 'instagram',
+        url: reel('stored'),
+        normalized_url: 'instagram:e2e-video-stored',
+        submitted_at: day(0),
+      },
+    ]);
+    expect(
+      await prisma.contents.findUniqueOrThrow({
+        where: { id: approved.id },
+        select: { video_link: true, platform: true, video_submitted_at: true },
+      }),
+    ).toEqual({ video_link: null, platform: null, video_submitted_at: day(0) });
+  });
+
+  it('refuses a video already linked from another content, however it was copied, and leaves the second content as it was (AC 5)', async () => {
+    const first = await content('taken first', 'draft_approved');
+    const second = await content('taken second', 'draft_approved');
+    await handIn(first.id, { link: reel('taken') }).expect(201);
+
+    const response = await handIn(second.id, {
+      link: 'http://instagram.com/reel/e2e-video-taken?igsh=copy',
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      code: 'VIDEO_LINK_TAKEN',
+      message: 'Link ini sudah dipakai di konten lain',
+    });
+    expect(await stateOf(second.id)).toEqual({
+      status: 'draft_approved',
+      video_link: null,
+      approval_bypassed: false,
+    });
+    expect(
+      await prisma.content_events.count({ where: { content_id: second.id } }),
+    ).toBe(0);
   });
 });

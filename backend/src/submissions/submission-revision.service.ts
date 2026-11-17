@@ -23,7 +23,7 @@ export interface RevisionStore {
   saveRevision(
     submissionId: string,
     contentId: string,
-    revisionNotes: string,
+    input: RevisionRequest,
     adminUserId?: string,
   ): Promise<RevisedSubmission | null>;
 }
@@ -58,12 +58,12 @@ export class SubmissionRevisionService {
         ? await this.repository.saveRevision(
           submissionId,
           submission.content_id,
-          input.revisionNotes,
+          input,
         )
         : await this.repository.saveRevision(
           submissionId,
           submission.content_id,
-          input.revisionNotes,
+          input,
           adminUserId,
         );
 

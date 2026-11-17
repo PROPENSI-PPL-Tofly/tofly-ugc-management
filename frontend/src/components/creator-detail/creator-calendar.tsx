@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Panel } from "@/components/ui/panel";
 import { StatusDot } from "@/components/ui/pill";
 import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
 import { statusInTab } from "@/lib/content-plan";
@@ -98,16 +97,10 @@ export function CreatorCalendar({
   const monthEntries = cells.flatMap((cell) => cell?.tasks ?? []);
 
   return (
-    <Panel>
-      <div className="px-5 pt-5 pb-3">
-        <h2 className="text-[15px]">Jadwal Konten</h2>
-      </div>
+    // The body of the Jadwal Konten panel, which titles it: no box of its own, so none is stacked
+    // on the panel's.
+    <div>
       <div className="px-5 pb-5">
-        {period.remainingEvergreenQuota > 0 ? (
-          <p role="note" className="mb-3 rounded-(--radius-control) border border-amber bg-amber-wash px-3 py-2 text-xs text-amber-ink">
-            {period.remainingEvergreenQuota} slot Evergreen belum dialokasikan.
-          </p>
-        ) : null}
         <div className="mb-3 flex flex-wrap items-center gap-2.5">
           <Button disabled={!todayInPeriod || sameMonth(shown, opening)} onClick={() => setShown(opening)}>
             Hari Ini
@@ -130,7 +123,7 @@ export function CreatorCalendar({
           >
             ›
           </button>
-          <h3 className="text-[15px]">{monthLabel(shown)}</h3>
+          <h4 className="text-[15px]">{monthLabel(shown)}</h4>
           {!todayInPeriod ? <p className="text-xs text-muted">Hari ini di luar periode ini.</p> : null}
         </div>
 
@@ -223,6 +216,6 @@ export function CreatorCalendar({
           )}
         </section>
       </div>
-    </Panel>
+    </div>
   );
 }

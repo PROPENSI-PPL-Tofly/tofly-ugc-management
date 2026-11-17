@@ -225,7 +225,8 @@ const EVENT_TEXT: Record<keyof ReachedAt, string> = {
 /**
  * The invoice's story, oldest first, as the prototype's activity tab tells it: every step it
  * reached woven together with the comments. A step comes before a comment written at the same
- * moment. An admin writes as "Admin", never by person, as the Content Detail timeline does.
+ * moment. An admin is named by their email, as the API names them and the Content Detail timeline
+ * does.
  */
 export function invoiceActivity(
   invoice: CreatorInvoice,
@@ -239,7 +240,7 @@ export function invoiceActivity(
   const comments: ActivityEntry[] = invoice.comments.map((comment) => ({
     kind: "comment",
     id: comment.id,
-    author: comment.authorRole === "admin" ? "Admin" : comment.authorName,
+    author: comment.authorName,
     text: comment.text,
     at: comment.createdAt,
   }));

@@ -16,15 +16,19 @@ export async function approveSubmission(submissionId: string): Promise<void> {
   );
 }
 
-/** Sends the draft back to the creator with a revision note. */
+/**
+ * Sends the draft back to the creator with a revision note, and the ids of the screenshots
+ * uploaded for it (PBI-34), which the API attaches to the note; none are sent when there are none.
+ */
 export async function reviseSubmission(
   submissionId: string,
   revisionNotes: string,
+  imageIds: readonly string[] = [],
 ): Promise<void> {
   return sendDecision(
     `/api/submissions/${encodeURIComponent(submissionId)}/revise`,
     "PATCH",
     "Permintaan revisi gagal dikirim. Coba lagi.",
-    { revisionNotes },
+    imageIds.length > 0 ? { revisionNotes, imageIds } : { revisionNotes },
   );
 }

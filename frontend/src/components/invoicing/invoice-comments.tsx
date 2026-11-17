@@ -107,7 +107,7 @@ export function InvoiceComments({
                 <li key={comment.id} className="flex flex-col gap-0.5">
                   <p className="text-xs text-muted">
                     <strong className="text-ink">{comment.author}</strong>
-                    {/* The backend names an admin "Admin": the role is said once, not twice. */}
+                    {/* An admin is named by email; one with no account is "Admin", said once, not twice. */}
                     {comment.author === ROLE_LABELS[comment.role] ? "" : ` · ${ROLE_LABELS[comment.role]}`}
                     {` · ${formatTimestamp(comment.createdAt)}`}
                   </p>

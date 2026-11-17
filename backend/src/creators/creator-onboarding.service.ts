@@ -78,10 +78,10 @@ function onboardingData(
     ...splitName(name),
     users: { create: { email: input.email.trim() } },
     social_accounts: {
-      create: {
-        platform: input.socialPlatform,
-        username: input.socialUsername,
-      },
+      create: input.socialAccounts.map(({ platform, username }) => ({
+        platform,
+        username,
+      })),
     },
     contracts: {
       create: {

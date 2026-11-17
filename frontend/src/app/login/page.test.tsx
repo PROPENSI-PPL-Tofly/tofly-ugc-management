@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { redirect } from "next/navigation";
 import { currentRole } from "@/lib/session.server";
 import LoginPage, { metadata } from "./page";
+import { expectMinTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
@@ -24,7 +25,7 @@ describe("Login page", () => {
     expect(screen.getByText("Tofly Creator Management System")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Masuk" })).toBeInTheDocument();
     expect(
-      screen.getByText("Gunakan akun Google yang sudah didaftarkan oleh Admin."),
+      screen.getByText("Gunakan akun Google atau email yang sudah didaftarkan oleh Admin."),
     ).toBeInTheDocument();
   });
 
@@ -36,6 +37,22 @@ describe("Login page", () => {
     expect(button).toHaveAttribute("href", "/api/auth/google");
     expect(button.tagName).toBe("A");
     expect(button).not.toHaveAttribute("target");
+  });
+
+  // PBI-39: an email code is the other way in, beside Google and after it.
+  it("offers signing in with an email code below the Google button", async () => {
+    await renderLogin();
+
+    const google = screen.getByRole("link", { name: "Masuk dengan Google" });
+    const email = screen.getByRole("button", { name: "Masuk dengan Kode Email" });
+    expect(google.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("atau")).toBeInTheDocument();
+  });
+
+  it("keeps offering the email code when the last Google attempt came back with an error", async () => {
+    await renderLogin({ error: "not_authorized" });
+
+    expect(screen.getByRole("button", { name: "Masuk dengan Kode Email" })).toBeInTheDocument();
   });
 
   it("hides the Google mark from assistive technology", async () => {
@@ -53,6 +70,14 @@ describe("Login page", () => {
       "href",
       "/privasi",
     );
+  });
+
+  // On its own line under the panel it is no link inside a sentence, so WCAG 2.5.8's 24px applies;
+  // it was 17px tall.
+  it("gives the privacy link at least a 24px press", async () => {
+    await renderLogin();
+
+    expectMinTarget(screen.getByRole("link", { name: "Kebijakan Privasi" }));
   });
 
   it("shows no alert on a normal visit", async () => {

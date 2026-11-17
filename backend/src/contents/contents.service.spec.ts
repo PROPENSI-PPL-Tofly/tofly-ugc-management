@@ -415,8 +415,9 @@ describe('ContentCreationService', () => {
       deadline: '2026-10-15',
     },
     {
-      label: 'the contract end date',
-      deadline: '2026-10-31',
+      // PBI-38 AC 14: the contract ends on 31 Oct, so the H-5 day is the last one allowed.
+      label: 'the H-5 day before the contract end',
+      deadline: '2026-10-26',
     },
   ])('accepts $label', async ({ deadline }) => {
     const contractId = '550e8400-e29b-41d4-a716-446655440000';
@@ -479,7 +480,7 @@ describe('ContentCreationService', () => {
     const input = {
       contractId,
       type: 'specific' as const,
-      deadline: '2099-12-31',
+      deadline: '2099-12-26',
       name: 'Future campaign',
       brief: 'Test the default scheduling functions.',
     };
@@ -490,7 +491,7 @@ describe('ContentCreationService', () => {
       type: 'specific',
       name: input.name,
       brief: input.brief,
-      deadline: new Date('2099-12-31T00:00:00.000Z'),
+      deadline: new Date('2099-12-26T00:00:00.000Z'),
       status: 'scheduled',
     };
 
@@ -518,7 +519,7 @@ describe('ContentCreationService', () => {
 
     await expect(service.create(input)).resolves.toMatchObject({
       contractId,
-      deadline: '2099-12-31',
+      deadline: '2099-12-26',
       status: 'scheduled',
     });
 

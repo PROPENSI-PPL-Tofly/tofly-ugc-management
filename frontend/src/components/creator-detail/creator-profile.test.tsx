@@ -37,24 +37,27 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByText("rangga@example.com")).toBeInTheDocument();
   });
 
-  it("lists each handle beside the platform it belongs to", () => {
+  // Each handle after its platform's coloured logo, rather than a caption in words.
+  it("lists each handle after its platform's logo", () => {
     render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
 
     const items = within(socials()).getAllByRole("listitem");
-    expect(items.map((item) => item.textContent)).toEqual([
-      "IG@rangga.creates",
-      "TIKTOK@ranggacreates",
-    ]);
+    // The chip itself; its connection badge sits beside it in the same item.
+    const chips = items.map((item) => item.firstElementChild as HTMLElement);
+    expect(chips.map((chip) => chip.textContent)).toEqual(["@rangga.creates", "@ranggacreates"]);
+    expect(within(chips[0]).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(within(chips[1]).getByRole("img", { name: "TikTok" })).toBeInTheDocument();
   });
 
   it.each([
-    ["Instagram", { instagram: "rangga.creates" }, "IG@rangga.creates"],
-    ["TikTok", { tiktok: "ranggacreates" }, "TIKTOK@ranggacreates"],
-  ] as const)("lists only %s for a creator with that one account", (_, only, text) => {
+    ["Instagram", { instagram: "rangga.creates" }, "@rangga.creates"],
+    ["TikTok", { tiktok: "ranggacreates" }, "@ranggacreates"],
+  ] as const)("lists only %s for a creator with that one account", (platform, only, text) => {
     render(<CreatorProfilePanel creator={{ ...CREATOR, socials: only }} current={PERIOD} />);
 
     const items = within(socials()).getAllByRole("listitem");
-    expect(items.map((item) => item.textContent)).toEqual([text]);
+    expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([text]);
+    expect(within(items[0]).getByRole("img", { name: platform })).toBeInTheDocument();
   });
 
   it("says there is no account rather than leaving a gap", () => {
@@ -83,13 +86,26 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByText("Kontrak").nextElementSibling).toHaveTextContent(label);
   });
 
-  it("writes the contract type as text and the contract state as a dot and its words, not pills", () => {
+  it("writes the contract type as text and the contract and access states as badges", () => {
     render(<CreatorProfilePanel creator={CREATOR} current={{ ...PERIOD, type: "regular", status: "active" }} />);
 
     expect(screen.getByText("Regular")).not.toHaveClass("rounded-full");
-    const state = within(screen.getByText("Akses").nextElementSibling as HTMLElement).getByText("Aktif");
-    expect(state).not.toHaveClass("rounded-full");
-    expect(state.querySelector('[aria-hidden="true"]')).toHaveClass("bg-green");
+    const contract = within(screen.getByText("Kontrak").nextElementSibling as HTMLElement).getByText("Aktif");
+    expect(contract).toHaveClass("rounded-full", "bg-green-wash");
+    const access = within(screen.getByText("Akses").nextElementSibling as HTMLElement).getByText("Aktif");
+    expect(access).toHaveClass("rounded-full", "bg-green-wash");
+  });
+
+  it("puts no caption above the contract facts", () => {
+    render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+    expect(screen.queryByText(/Kontrak terbaru/)).toBeNull();
+  });
+
+  it("is tinted apart from the data panels below it, as the page's own header", () => {
+    const { container } = render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+    expect(container.querySelector("section")).toHaveClass("bg-linear-to-r", "from-accent-wash");
   });
 
   it("shows neither the type nor the contract state for a creator without a contract", () => {
@@ -98,6 +114,7 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByRole("heading", { name: "Rangga Pratama" })).toBeInTheDocument();
     expect(screen.queryByText("Tipe")).toBeNull();
     expect(screen.queryByText("Kontrak")).toBeNull();
+    expect(screen.queryByText(/Kontrak terbaru/)).toBeNull();
   });
 
   it("shows markup in a name or a handle as the text it is, never as markup", () => {
@@ -115,5 +132,49 @@ describe("CreatorProfilePanel", () => {
     expect(screen.getByRole("heading", { name: '<img src=x onerror="alert(1)">' })).toBeInTheDocument();
     expect(screen.getByText("@<script>alert(1)</script>")).toBeInTheDocument();
     expect(container.querySelector("img, script")).toBeNull();
+  });
+
+  // PBI-19, AC 12: the same badge as Creator Database, beside each account's chip.
+  describe("connection badges", () => {
+    const connections = {
+      instagram: { connected: true, connectedAt: "2026-10-29T10:00:00Z", lastSyncAt: null },
+      tiktok: { connected: false, connectedAt: null, lastSyncAt: null },
+    };
+
+    it("puts each account's badge beside its chip, with the connection day and last sync in its tooltip", () => {
+      render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} connections={connections} />);
+
+      const [instagram, tiktok] = within(socials()).getAllByRole("listitem");
+      expect(within(instagram).getByRole("button", { name: "Instagram Terhubung" })).toHaveAccessibleDescription(
+        "Terhubung sejak 29 Okt 2026 · sinkron terakhir —.",
+      );
+      expect(within(tiktok).getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+    });
+
+    it("shows every account as Belum terhubung when no connections are given (19.3 not merged)", () => {
+      render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+      expect(screen.getByRole("button", { name: "Instagram Belum terhubung" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+    });
+
+    it("lets a badge's tooltip open past the card's edge instead of being cut off", () => {
+      const { container } = render(<CreatorProfilePanel creator={CREATOR} current={PERIOD} />);
+
+      expect(container.querySelector("section")).not.toHaveClass("overflow-hidden");
+    });
+
+    it("gives no badge to a platform the creator has no username for", () => {
+      render(
+        <CreatorProfilePanel
+          creator={{ ...CREATOR, socials: { tiktok: "ranggacreates" } }}
+          current={PERIOD}
+          connections={connections}
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: /^Instagram / })).toBeNull();
+      expect(screen.getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+    });
   });
 });

@@ -5,7 +5,7 @@ import { MyTaskTabBar } from "@/components/tasks/my-task-tab-bar";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Pagination } from "@/components/ui/pagination";
-import { Panel, PanelHead } from "@/components/ui/panel";
+import { Panel } from "@/components/ui/panel";
 import { parsePage } from "@/lib/creators";
 import { jakartaDay } from "@/lib/format";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
@@ -27,7 +27,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Task Saya — Tofly",
+  title: "Tugas Saya — Tofly",
 };
 
 const NOTICE =
@@ -70,6 +70,19 @@ async function load(state: MyTasksParams, view: TaskView): Promise<Loaded> {
   }
 }
 
+/**
+ * The day a custom deadline range starts on (the earlier day, as the list reads a range picked
+ * backwards), or ends on when only the end is picked, for the calendar to open on its month.
+ * A named period always reaches into today's month, so it keeps that one.
+ */
+function rangeStart(state: MyTasksParams): string | null {
+  if (state.period !== "custom") return null;
+  const days = [state.from, state.to]
+    .filter((day) => day !== "")
+    .sort((a, b) => a.localeCompare(b));
+  return days[0] ?? null;
+}
+
 function LoadFailed({ signedOut, retryHref }: Readonly<{ signedOut: boolean; retryHref: string }>) {
   return (
       <div role="alert" className="px-5 py-14 text-center">
@@ -82,11 +95,11 @@ function LoadFailed({ signedOut, retryHref }: Readonly<{ signedOut: boolean; ret
         </p>
 
         {signedOut ? (
-            <a href="/login" className={`mt-4 inline-block ${buttonClasses("accent")}`}>
+            <a href="/login" className={`mt-4 inline-flex items-center ${buttonClasses("accent")}`}>
               Masuk
             </a>
         ) : (
-            <a href={retryHref} className={`mt-4 inline-block ${buttonClasses()}`}>
+            <a href={retryHref} className={`mt-4 inline-flex items-center ${buttonClasses()}`}>
               Muat ulang
             </a>
         )}
@@ -124,8 +137,8 @@ export default async function TaskSayaPage({
   return (
       <AppShell
           role="creator"
-          title="Task Saya"
-          subtitle="Semua konten yang ditugaskan ke kamu"
+          title="Tugas Saya"
+          action={<TaskViewToggle view={view} state={state} />}
       >
         {invalid === null ? null : (
             <p role="status" className={NOTICE}>
@@ -149,16 +162,11 @@ export default async function TaskSayaPage({
 
         {/* Unclipped: the filter popups hang below the bar and past the panel's foot. */}
         <Panel clip={false}>
-          <PanelHead
-              title="Daftar Tugas Saya"
-              action={<TaskViewToggle view={view} state={state} />}
-          />
-
           {loaded.kind === "calendar" ? (
               <>
                 <MyTaskTabBar active={state.tab} counts={loaded.counts} />
 
-                <MyTaskFilters state={state} view={view} />
+                <MyTaskFilters state={state} counts={loaded.counts} view={view} />
 
                 <MyTaskBoard
                     tasks={loaded.tasks}
@@ -166,6 +174,9 @@ export default async function TaskSayaPage({
                     sort={state.sort}
                     filtered={isMyTasksFiltered(state)}
                     calendarToday={jakartaDay()}
+                    // Read before the period is let go: a range in the address still picks the
+                    // month the calendar opens on, though it hides no task there.
+                    calendarOpensOn={rangeStart(parsed)}
                 />
               </>
           ) : null}
@@ -174,7 +185,7 @@ export default async function TaskSayaPage({
               <>
                 <MyTaskTabBar active={state.tab} counts={loaded.result.counts} />
 
-                <MyTaskFilters state={state} />
+                <MyTaskFilters state={state} counts={loaded.result.counts} />
 
                 <MyTaskBoard
                     tasks={loaded.result.items}

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/pill";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
 import { formatDate } from "@/lib/format";
 import type { MyTask } from "@/lib/my-tasks";
@@ -39,13 +40,22 @@ const GROUP_BY_KEY = Object.fromEntries(
   CALENDAR_GROUPS.map((group) => [group.key, group]),
 ) as Record<CalendarGroup, CalendarGroupDef>;
 
-const CHIP =
-  "block w-full cursor-pointer truncate rounded-(--radius-control) border-none px-1.5 py-0.5 text-left text-[11.5px] font-semibold";
+// On a phone a chip is only a dot, and seven days share the row: the press spans its whole day
+// (the cell's padding included) and is 44px tall, while the wash behind the dot is dropped, so
+// the press grows and the mark does not. The day grows to fit.
+const CHIP = `block w-full cursor-pointer truncate rounded-(--radius-control) border-none px-1.5 py-0.5 text-left text-[11.5px] font-semibold ${PHONE_TARGET} max-sm:-mx-1.5 max-sm:w-auto max-sm:bg-transparent`;
 
-const NAV =
-  "cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 text-base leading-7 text-ink-2 hover:border-ink-2";
+const NAV = `cursor-pointer rounded-(--radius-control) border border-rule bg-surface px-2 text-base leading-7 text-ink-2 hover:border-ink-2 ${PHONE_TARGET} max-sm:min-w-11`;
 
 const DAYS_PER_WEEK = WEEKDAYS.length;
+
+// A day's date is the button that chooses it; plain text until hovered, like the date it was.
+const DAY = `mb-1 flex h-6 w-full cursor-pointer items-center rounded-(--radius-control) px-1 text-left text-xs ${PHONE_TARGET}`;
+
+/** How a day button reads: its date and how many tasks fall on it. */
+function dayLabel(day: string, count: number): string {
+  return `${formatDate(day)}, ${count > 0 ? `${count} task` : "tidak ada task"}`;
+}
 
 /** The month a calendar day falls in. */
 function monthOf(day: string): CalendarMonth {
@@ -56,21 +66,39 @@ function monthOf(day: string): CalendarMonth {
  * Task Saya as a month (PBI-7, subtask 7.3): each task is a chip on its deadline day, coloured
  * by whose move it is, as the prototype's calendar draws it. It shows the tasks it is handed
  * and reports the chip that was pressed; loading tasks and opening the panel are the board's.
+ *
+ * A day can be chosen by its date (client feedback C2): the list under the grid then holds
+ * that day alone. The choice is the calendar's own, like the month it shows, so it never
+ * touches the filters, the tab or the view; new tasks from a filter keep it, and turning the
+ * month lets go of it.
  */
 export function TaskCalendar({
   tasks,
   today,
+  opensOn = null,
   onOpen,
 }: Readonly<{
   tasks: readonly MyTask[];
   /** Today's calendar day in Jakarta, "YYYY-MM-DD", read once by the server. */
   today: string;
+  /**
+   * The day whose month the calendar opens on, when a deadline range names one, so a range in
+   * another month is not shown as an empty grid. Today's month otherwise.
+   */
+  opensOn?: string | null;
   /** Called with the content id of the chip that was pressed. */
   onOpen: (contentId: string) => void;
 }>) {
   const current = monthOf(today);
-  const [shown, setShown] = useState<CalendarMonth>(current);
+  const [shown, setShown] = useState<CalendarMonth>(opensOn ? monthOf(opensOn) : current);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const agendaHeading = useId();
   const isCurrent = shown.year === current.year && shown.month === current.month;
+
+  function turnTo(month: CalendarMonth) {
+    setShown(month);
+    setChosen(null);
+  }
 
   const cells = monthGrid(shown, tasks, today);
   const weeks = Array.from({ length: cells.length / DAYS_PER_WEEK }, (_, week) =>
@@ -78,18 +106,19 @@ export function TaskCalendar({
   );
   // The shown month's tasks, already in date order: the grid walks its days from the 1st.
   const monthTasks = cells.flatMap((cell) => cell?.tasks ?? []);
+  const listed = chosen ? monthTasks.filter((task) => task.deadline === chosen) : monthTasks;
 
   return (
     <div className="px-5 pb-5">
       <div className="mb-3 flex items-center gap-2.5">
-        <Button disabled={isCurrent} onClick={() => setShown(current)}>
+        <Button disabled={isCurrent} onClick={() => turnTo(current)}>
           Hari Ini
         </Button>
         <button
           type="button"
           aria-label="Bulan Sebelumnya"
           className={NAV}
-          onClick={() => setShown(shiftMonth(shown, -1))}
+          onClick={() => turnTo(shiftMonth(shown, -1))}
         >
           ‹
         </button>
@@ -97,7 +126,7 @@ export function TaskCalendar({
           type="button"
           aria-label="Bulan Berikutnya"
           className={NAV}
-          onClick={() => setShown(shiftMonth(shown, 1))}
+          onClick={() => turnTo(shiftMonth(shown, 1))}
         >
           ›
         </button>
@@ -128,14 +157,24 @@ export function TaskCalendar({
                   <td
                     key={cell.day}
                     data-day={cell.day}
+                    data-selected={chosen === cell.day ? "" : undefined}
                     aria-current={cell.isToday ? "date" : undefined}
-                    className={`h-24 border border-rule p-1.5 align-top ${cell.isToday ? "bg-accent-wash" : ""}`}
+                    className={`h-24 border border-rule p-1.5 align-top ${cell.isToday ? "bg-accent-wash" : ""} ${chosen === cell.day ? "outline-2 -outline-offset-2 outline-accent" : ""}`}
                   >
-                    <p
-                      className={`mb-1 text-xs ${cell.isToday ? "font-bold text-accent-deep" : "text-muted"}`}
+                    {/* Pressed again, the chosen day lets go and the list holds the month. */}
+                    <button
+                      type="button"
+                      aria-pressed={chosen === cell.day}
+                      aria-label={dayLabel(cell.day, cell.tasks.length)}
+                      onClick={() => setChosen(chosen === cell.day ? null : cell.day)}
+                      className={`${DAY} ${
+                        chosen === cell.day
+                          ? "bg-accent font-bold text-accent-ink"
+                          : `hover:bg-surface-2 ${cell.isToday ? "font-bold text-accent-deep" : "text-muted"}`
+                      }`}
                     >
                       {cell.date}
-                    </p>
+                    </button>
                     <div className="flex flex-col gap-1">
                       {cell.tasks.map((task) => (
                         <button
@@ -177,14 +216,32 @@ export function TaskCalendar({
         </li>
       </ul>
 
-      {/* Small screens only: the grid shows where the deadlines fall, this says what they are. */}
-      <section aria-label="Task bulan ini" className="mt-4 sm:hidden">
-        <h4 className="mb-2 text-xs font-semibold text-muted">Task bulan ini</h4>
-        {monthTasks.length === 0 ? (
-          <p className="text-xs text-muted">Tidak ada task di bulan ini.</p>
+      {/* The month's list is for small screens: the grid shows where the deadlines fall, this
+          says what they are. A chosen day's list shows at every width. */}
+      <section aria-labelledby={agendaHeading} className={`mt-4 ${chosen ? "" : "sm:hidden"}`}>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div aria-live="polite">
+            <h4 id={agendaHeading} className="text-xs font-semibold text-muted">
+              {chosen ? `Task ${formatDate(chosen)}` : "Task bulan ini"}
+            </h4>
+          </div>
+          {chosen ? (
+            <button
+              type="button"
+              onClick={() => setChosen(null)}
+              className={`cursor-pointer rounded-(--radius-control) px-2 py-1 text-xs font-semibold text-accent-deep hover:bg-surface-2 ${PHONE_TARGET}`}
+            >
+              Lihat sebulan
+            </button>
+          ) : null}
+        </div>
+        {listed.length === 0 ? (
+          <p className="text-xs text-muted">
+            {chosen ? "Tidak ada task di tanggal ini." : "Tidak ada task di bulan ini."}
+          </p>
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {monthTasks.map((task) => (
+            {listed.map((task) => (
               <li key={task.id}>
                 <button
                   type="button"

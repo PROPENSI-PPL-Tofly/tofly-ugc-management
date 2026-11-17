@@ -10,6 +10,7 @@
 
 import { backendPost } from "./backend.server";
 import { isUuid } from "./creator-detail";
+import { toFinalizeReport, type FinalizeReport } from "./finalize-report";
 import {
   adjustmentAmount,
   adjustmentReason,
@@ -25,6 +26,15 @@ import { currentRole } from "./session.server";
 export type ActionOutcome =
   | { ok: true }
   | { ok: false; code: string; message: string; fieldErrors?: AdjustmentErrors };
+
+/**
+ * What Finalize comes to: frozen, or why it was refused — with its report either way (28.2).
+ * The report rides the success answer and the pending-bonus refusal alike, so the dialog can
+ * name the links the last sync left behind (AC 8) and what still waits (AC 9).
+ */
+export type FinalizeOutcome =
+  | { ok: true; report: FinalizeReport }
+  | { ok: false; code: string; message: string; report: FinalizeReport };
 
 /** What every failure says when there is no operator-facing message to show. */
 const GENERIC_FAILURE = "Permintaan tidak dapat diproses. Coba lagi.";
@@ -114,11 +124,42 @@ export async function addInvoiceAdjustment(
 export async function finalizeInvoice(
   contractId: string,
   { acceptPendingBonus }: { acceptPendingBonus?: boolean } = {},
-): Promise<ActionOutcome> {
+): Promise<FinalizeOutcome> {
   const blocked = await allowed(contractId);
-  if (blocked) return blocked;
+  if (blocked) return { ...blocked, report: { lastSync: null, bonusGaps: null } };
 
-  return move(`/invoices/${contractId}/finalize`, {
+  const response = await backendPost(`/invoices/${contractId}/finalize`, {
     acceptPendingBonus: acceptPendingBonus === true,
   });
+
+  // Finalize's answer carries its report on both outcomes: the frozen invoice's last sync
+  // (AC 8) and the pending-bonus refusal's waiting list (AC 9). A body that cannot be read
+  // answers with no report, never one the dialog would have made up (OWASP A05).
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = (await response.json()) as Record<string, unknown>;
+  } catch {
+    parsed = {};
+  }
+  const report = toFinalizeReport(parsed);
+
+  if (response.ok) return { ok: true, report };
+
+  if (response.status === 422 && typeof parsed.code !== "string") {
+    const errors = parsed.errors as AdjustmentErrors | undefined;
+    return {
+      ...refuse(
+        "INVALID",
+        typeof parsed.message === "string" ? parsed.message : GENERIC_FAILURE,
+        errors,
+      ),
+      report,
+    };
+  }
+
+  if (response.status >= 400 && response.status < 500) {
+    return { ...readRefusal(response.status, parsed), report };
+  }
+
+  return { ...refuse(`HTTP_${response.status}`, GENERIC_FAILURE), report };
 }

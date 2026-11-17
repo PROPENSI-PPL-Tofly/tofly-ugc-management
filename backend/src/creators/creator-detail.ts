@@ -36,7 +36,8 @@ export interface DetailContentRow {
   type: 'evergreen' | 'specific';
   deadline: Date;
   status: content_status;
-  video_link: string | null;
+  /** The first link only (PBI-38), or none before it. */
+  content_links: { url: string }[];
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
   _count: { submissions: number };
@@ -140,12 +141,11 @@ export function toContentEntries(
         deadline: content.deadline,
         status: content.status,
         videoSubmittedAt: content.video_submitted_at,
-        latestDraftAt: content.submissions[0]?.created_at ?? null,
         approvalBypassed: content.approval_bypassed,
       },
       today,
     ),
-    videoLink: content.video_link,
+    videoLink: content.content_links[0]?.url ?? null,
   }));
 }
 

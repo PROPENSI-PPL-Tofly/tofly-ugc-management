@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { filterPill, pickFilter } from "@/test/filters";
 import type { ContentPlanParams } from "@/lib/content-plan";
 import { DEFAULT_CONTENT_PLAN_PARAMS } from "@/lib/content-plan";
 import { ContentPlanFilters } from "./content-plan-filters";
+import { ContentPlanTabBar } from "./content-plan-tab-bar";
 
 const mockReplace = vi.fn();
 let searchParams = new URLSearchParams();
@@ -17,11 +19,14 @@ const CREATORS = [
   { id: "id-2", name: "Rangga" },
 ];
 
+const COUNTS = { all: 58, action: 3, waiting: 10, done: 45 };
+
 function renderFilters(state: Partial<ContentPlanParams> = {}) {
   const view = render(
     <ContentPlanFilters
       state={{ ...DEFAULT_CONTENT_PLAN_PARAMS, ...state }}
       creators={CREATORS}
+      counts={COUNTS}
     />,
   );
   return {
@@ -45,15 +50,24 @@ afterEach(() => {
 });
 
 describe("ContentPlanFilters", () => {
-  it("offers the search box, the three multi-selects, and the two single selects", () => {
+  it("shows Overdue in use as a chip that clears it", () => {
+    searchParams = new URLSearchParams({ overdue: "yes" });
+    renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Overdue: Overdue" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan", { scroll: false });
+  });
+
+  it("offers the search box, the three multi-selects, and Overdue as a pill, with no Periode filter", () => {
     renderFilters();
 
     expect(screen.getByRole("searchbox", { name: "Cari konten atau creator" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Creator:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Tipe:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Status:/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("Overdue")).toBeInTheDocument();
-    expect(screen.getByLabelText("Periode")).toBeInTheDocument();
+    expect(filterPill("Overdue")).toHaveClass("rounded-full");
+    expect(screen.queryByRole("button", { name: /^Periode:/ })).not.toBeInTheDocument();
   });
 
   it("sends the search to the URL once typing pauses, dropping the old page", () => {
@@ -70,59 +84,15 @@ describe("ContentPlanFilters", () => {
 
   it("narrows by overdue and clears it back to all", () => {
     let view = renderFilters();
-    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "yes" } });
+    pickFilter("Overdue", "Overdue");
     expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?overdue=yes", {
       scroll: false,
     });
 
     view = view.rerenderWith(new URLSearchParams({ overdue: "yes" }));
-    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "all" } });
+    pickFilter("Overdue", "Semua");
     expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan", { scroll: false });
     view.unmount();
-  });
-
-  it("offers the five periods and shows the custom dates only on Pilih tanggal", () => {
-    const view = renderFilters();
-    const options = Array.from((screen.getByLabelText("Periode") as HTMLSelectElement).options).map(
-      (option) => [option.value, option.text],
-    );
-    expect(options).toEqual([
-      ["all", "Semua periode"],
-      ["month", "Bulan ini"],
-      ["next30", "30 hari ke depan"],
-      ["last90", "90 hari terakhir"],
-      ["custom", "Pilih tanggal…"],
-    ]);
-    expect(screen.queryByLabelText("Dari")).not.toBeInTheDocument();
-
-    view.rerenderWith(new URLSearchParams({ period: "custom" }), { period: "custom" });
-    expect(screen.getByLabelText("Dari")).toBeInTheDocument();
-    expect(screen.getByLabelText("Sampai")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Dari"), { target: { value: "2026-10-01" } });
-    expect(mockReplace).toHaveBeenLastCalledWith(
-      "/admin/content-plan?period=custom&from=2026-10-01",
-      { scroll: false },
-    );
-  });
-
-  it("says the period does not reach Perlu Approval while one is set there", () => {
-    searchParams = new URLSearchParams({ tab: "action", period: "month" });
-    renderFilters({ tab: "action", period: "month" });
-    expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
-  });
-
-  // The select shows a pick at once; the notice beside it read the server's state and only
-  // caught up a round trip later, so for a moment the two said different things.
-  it("says so the moment a period is picked there, and stops the moment it is cleared", () => {
-    renderFilters({ tab: "action" });
-    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "month" } });
-    expect(screen.getByText("Periode tidak berlaku di tab ini")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "all" } });
-    expect(screen.queryByText("Periode tidak berlaku di tab ini")).not.toBeInTheDocument();
   });
 
   it("scopes the status choices to the tab it is on", () => {
@@ -204,6 +174,36 @@ describe("ContentPlanFilters", () => {
     view.unmount();
   });
 
+  it("drops a type and a status pick from their chips, one press each", () => {
+    searchParams = new URLSearchParams({
+      tab: "action",
+      type: "evergreen,specific",
+      status: "pending,draft_review",
+    });
+    let view = renderFilters({
+      tab: "action",
+      type: ["evergreen", "specific"],
+      status: ["pending", "draft_review"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Tipe: Evergreen" }));
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      "/admin/content-plan?tab=action&type=specific&status=pending%2Cdraft_review",
+      { scroll: false },
+    );
+
+    view = view.rerenderWith(
+      new URLSearchParams({ tab: "action", type: "specific", status: "pending,draft_review" }),
+      { tab: "action", type: ["specific"], status: ["pending", "draft_review"] },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Status: Pending" }));
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      "/admin/content-plan?tab=action&type=specific&status=draft_review",
+      { scroll: false },
+    );
+    view.unmount();
+  });
+
   // On a slow connection the URL changes well after the tick, and a second tick used to be
   // built on the old URL: Salsa was dropped the moment Rangga was ticked.
   it("keeps the first creator when a second is ticked before the URL has changed", () => {
@@ -241,23 +241,6 @@ describe("ContentPlanFilters", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Draft Menunggu Review" }));
     expect(mockReplace).toHaveBeenLastCalledWith(
       "/admin/content-plan?type=evergreen&status=draft_review",
-      { scroll: false },
-    );
-    view.unmount();
-  });
-
-  it("turns the period over and dates the far end of a custom range", () => {
-    let view = renderFilters();
-
-    fireEvent.change(screen.getByLabelText("Periode"), { target: { value: "month" } });
-    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?period=month", {
-      scroll: false,
-    });
-
-    view = view.rerenderWith(new URLSearchParams({ period: "custom" }), { period: "custom" });
-    fireEvent.change(screen.getByLabelText("Sampai"), { target: { value: "2026-10-31" } });
-    expect(mockReplace).toHaveBeenLastCalledWith(
-      "/admin/content-plan?period=custom&to=2026-10-31",
       { scroll: false },
     );
     view.unmount();
@@ -301,15 +284,49 @@ describe("ContentPlanFilters", () => {
     expect(mockReplace).toHaveBeenCalledWith("/admin/content-plan", { scroll: false });
   });
 
-  it("shows the custom dates already sitting in the URL", () => {
-    searchParams = new URLSearchParams({
-      period: "custom",
-      from: "2026-10-01",
-      to: "2026-10-31",
-    });
-    renderFilters({ period: "custom", from: "2026-10-01", to: "2026-10-31" });
+  // The approved design folds the filters behind one Filter button on a phone, with no row of
+  // chips: the button counts what is on, and the open controls show each choice themselves.
+  describe("folded on a phone", () => {
+    it("counts every active filter on the Filter button and draws no chip row", () => {
+      searchParams = new URLSearchParams({ creator: "id-1,id-2", type: "specific", overdue: "no" });
+      renderFilters();
 
-    expect(screen.getByLabelText("Dari")).toHaveValue("2026-10-01");
-    expect(screen.getByLabelText("Sampai")).toHaveValue("2026-10-31");
+      expect(screen.getByRole("button", { name: "Filter, 4 aktif" })).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Filter aktif" })).not.toBeInTheDocument();
+    });
+
+    // The approved design moves the tabs into the folded filters on a phone, as one choice.
+    it("offers the tabs as one Tampilkan choice, each with its count", () => {
+      searchParams = new URLSearchParams({ tab: "action" });
+      renderFilters({ tab: "action" });
+
+      expect(filterPill("Tampilkan")).toHaveTextContent("Tampilkan: Perlu Approval (3)");
+      fireEvent.click(filterPill("Tampilkan"));
+      expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
+        "Semua (58)",
+        "Perlu Approval (3)",
+        "Menunggu Kreator (10)",
+        "Selesai (45)",
+      ]);
+      expect(screen.getByRole("button", { name: "Filter, 1 aktif" })).toBeInTheDocument();
+    });
+
+    it("picks a tab exactly as pressing it does: one navigation to the same address", () => {
+      const query = { creator: "id-1", status: "scheduled", sort: "asc", page: "3" };
+      searchParams = new URLSearchParams(query);
+      const bar = render(<ContentPlanTabBar active="all" counts={COUNTS} />);
+      fireEvent.click(screen.getByRole("tab", { name: /Menunggu Kreator/ }));
+      expect(mockReplace).toHaveBeenCalledOnce();
+      const pressed = mockReplace.mock.calls[0];
+      bar.unmount();
+      mockReplace.mockClear();
+
+      searchParams = new URLSearchParams(query);
+      renderFilters({ creator: ["id-1"], status: ["scheduled"], sort: "asc" });
+      pickFilter("Tampilkan", "Menunggu Kreator (10)");
+
+      expect(mockReplace).toHaveBeenCalledExactlyOnceWith(...pressed);
+    });
+
   });
 });

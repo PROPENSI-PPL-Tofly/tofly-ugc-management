@@ -35,7 +35,8 @@ describe("Creator payments page", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Pembayaran" })).toBeInTheDocument();
-    expect(screen.getByText("Invoice kamu per periode kontrak")).toBeInTheDocument();
+    // No subtitle under the page title.
+    expect(screen.queryByText("Invoice kamu per periode kontrak")).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 

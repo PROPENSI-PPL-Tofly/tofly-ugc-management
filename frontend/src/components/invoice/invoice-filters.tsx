@@ -2,11 +2,11 @@
 
 import {
   FilterSelect,
-  ResetFilters,
   SearchBox,
   type FilterOption,
 } from "@/components/filters/filter-controls";
 import { CONTRACT_STATUS_LABELS, INVOICE_STATUS_LABELS } from "@/lib/invoice";
+import { FilterChips, choiceChip } from "@/components/ui/filter-chips";
 import { useUrlFilters } from "@/lib/use-url-filters";
 
 /** A label map as the choices of a select, in the order the map names them. */
@@ -41,6 +41,7 @@ export function InvoiceFilters() {
     search !== "" || RESETTABLE.some((key) => param(key) !== "all");
 
   return (
+    <>
     <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
       <SearchBox label="Cari nama creator" value={search} onChange={setSearch} />
 
@@ -58,8 +59,18 @@ export function InvoiceFilters() {
         onChange={(value) => setParam("status", value)}
       />
 
-      {/* Left out until there is something to clear, as on Creator Database. */}
-      {isFilteredNow ? <ResetFilters onReset={reset} disabled={pending} /> : null}
     </div>
+
+    {/* Every pick named after its filter, with Reset beside them, as on every other list. */}
+    <FilterChips
+      chips={[
+        ...choiceChip("Kontrak", param("contract"), CONTRACT_OPTIONS, () => setParam("contract", "all")),
+        ...choiceChip("Invoice", param("status"), INVOICE_OPTIONS, () => setParam("status", "all")),
+      ]}
+      canReset={isFilteredNow}
+      resetDisabled={pending}
+      onReset={reset}
+    />
+    </>
   );
 }

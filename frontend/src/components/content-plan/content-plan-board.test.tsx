@@ -30,6 +30,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const ROW: ContentPlanRow = {
+  platforms: [],
   contentId: "content-1",
   name: "Evg_1_Salsa_15Sep2026",
   creatorId: "id-1",
@@ -86,17 +87,43 @@ describe("ContentPlanBoard", () => {
     expect(replace).toHaveBeenCalledWith("/admin/content-plan?tab=waiting", { scroll: false });
   });
 
+  it("clears every filter from an empty filtered list on Semua, leaving a bare address", () => {
+    window.history.pushState({}, "", "/admin/content-plan?q=kopi&type=specific");
+    render(<ContentPlanBoard items={[]} filtered tab="all" sort="desc" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replace).toHaveBeenCalledWith("/admin/content-plan", { scroll: false });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();
     window.history.replaceState({}, "", "/admin/content-plan");
   });
 
+  // Only the creator adds or changes a link, so the admin's panel offers no way to.
+  it("offers the admin no way to change a sent link", async () => {
+    fetchContentDetail.mockResolvedValue({
+      ...detailOf(),
+      status: "link_submitted",
+      waitingOn: null,
+      latestSubmissionId: null,
+      links: [{ platform: "instagram", url: "https://www.instagram.com/reel/C8abc12345/", submittedAt: "2026-10-01" }],
+    });
+    renderBoard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
+    await screen.findByRole("dialog");
+
+    expect(screen.queryByRole("button", { name: /Ganti Link|Ubah link/ })).toBeNull();
+  });
+
   it("opens the panel from a row and puts the content in the address", async () => {
     fetchContentDetail.mockResolvedValue(detailOf());
     renderBoard();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "admin");
@@ -131,7 +158,7 @@ describe("ContentPlanBoard", () => {
   it("puts the content back in the address when a navigation lands without it", async () => {
     fetchContentDetail.mockResolvedValue(detailOf());
     const view = render(<ContentPlanBoard items={[ROW]} filtered={false} tab="all" sort="desc" />);
-    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     // Next shows the board the address it has just written.
     searchParams = new URLSearchParams({ content: "content-1" });
@@ -162,7 +189,7 @@ describe("ContentPlanBoard", () => {
     approveSubmission.mockResolvedValue(undefined);
     renderBoard();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_1_Salsa_15Sep2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Salsa_15Sep2026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

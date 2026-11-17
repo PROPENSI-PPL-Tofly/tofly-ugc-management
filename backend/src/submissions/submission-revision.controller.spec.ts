@@ -36,7 +36,10 @@ describe('SubmissionRevisionController', () => {
 
     expect(revise).toHaveBeenCalledExactlyOnceWith(
       submissionId,
-      body,
+      {
+        revisionNotes: body.revisionNotes,
+        revisionNotesHtml: body.revisionNotes,
+      },
       adminUserId,
     );
   });

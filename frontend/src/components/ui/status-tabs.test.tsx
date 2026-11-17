@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { StatusTabs, type StatusTabDef } from "./status-tabs";
+import { SCROLL_HINT } from "./use-scroll-hint";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 type Key = "all" | "todo" | "wait" | "done";
 
@@ -16,7 +18,7 @@ function renderTabs(active: Key = "all", counts = COUNTS) {
   const onSelect = vi.fn();
   render(
     <StatusTabs
-      label="Tab Task Saya"
+      label="Tab Tugas Saya"
       panelId="task-list"
       tabs={TABS}
       active={active}
@@ -30,15 +32,24 @@ function renderTabs(active: Key = "all", counts = COUNTS) {
 const tabs = () => screen.getAllByRole("tab");
 
 describe("StatusTabs", () => {
-  it("names its tab list and offers each tab in order, counting only those that count", () => {
+  // The approved design: on a phone the tabs are one Tampilkan choice inside the folded filters
+  // (TabChoice), so the row of tabs steps aside below sm and stays as it is from sm up.
+  it("steps aside on a phone, where the tabs are a choice in the filters", () => {
     renderTabs();
 
-    expect(screen.getByRole("tablist", { name: "Tab Task Saya" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Tab Tugas Saya" })).toHaveClass("max-sm:hidden");
+  });
+
+  // Every tab shows its count on every list.
+  it("names its tab list and offers each tab in order, every one with its count", () => {
+    renderTabs();
+
+    expect(screen.getByRole("tablist", { name: "Tab Tugas Saya" })).toBeInTheDocument();
     expect(tabs().map((node) => node.textContent)).toEqual([
-      "Semua",
+      "Semua9",
       "Perlu Dikerjakan4",
       "Menunggu Admin2",
-      "Selesai",
+      "Selesai3",
     ]);
   });
 
@@ -70,26 +81,38 @@ describe("StatusTabs", () => {
     expect(plain.className).toContain("text-muted");
   });
 
-  it("turns the urgent counter red past zero and hides it at zero", () => {
+  // The tab holding what still needs doing (Perlu Dikerjakan, Perlu Approval) is told apart in red,
+  // whatever its count; every other counter is grey.
+  it("draws the urgent tab's counter red and every other one grey", () => {
     renderTabs("all", { ...COUNTS, todo: 4 });
+
     expect(screen.getByTestId("count-todo").className).toContain("bg-red");
+    for (const key of ["all", "wait", "done"]) {
+      expect(screen.getByTestId(`count-${key}`).className).toContain("bg-surface-2");
+    }
   });
 
-  it("hides the urgent counter at zero, so an empty queue does not cry wolf", () => {
+  it("keeps the urgent counter red at zero too, and shows the zero", () => {
     renderTabs("all", { ...COUNTS, todo: 0 });
-    expect(screen.queryByTestId("count-todo")).not.toBeInTheDocument();
+
+    const badge = screen.getByTestId("count-todo");
+    expect(badge).toHaveTextContent("0");
+    expect(badge.className).toContain("bg-red");
   });
 
-  it("keeps a counting tab grey with zero included", () => {
-    renderTabs("all", { ...COUNTS, wait: 0 });
-    const badge = screen.getByTestId("count-wait");
-    expect(badge).toHaveTextContent("0");
-    expect(badge.className).toContain("bg-surface-2");
+  it("shows a zero on every other tab, in grey", () => {
+    renderTabs("all", { ...COUNTS, wait: 0, done: 0 });
+
+    for (const key of ["wait", "done"]) {
+      const badge = screen.getByTestId(`count-${key}`);
+      expect(badge).toHaveTextContent("0");
+      expect(badge.className).toContain("bg-surface-2");
+    }
   });
 
   it("hands the pressed tab back", () => {
     const onSelect = renderTabs();
-    fireEvent.click(screen.getByRole("tab", { name: "Selesai" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Selesai/ }));
     expect(onSelect).toHaveBeenCalledWith("done");
   });
 
@@ -129,5 +152,24 @@ describe("StatusTabs", () => {
     const list = screen.getByRole("tablist");
     expect(list.className).toContain("overflow-x-auto");
     expect(list.className).not.toContain("flex-wrap");
+  });
+
+  it("fades the edge of the tab row where more tabs sit off-screen on a phone", () => {
+    renderTabs();
+    const list = screen.getByRole("tablist");
+    Object.defineProperty(list, "clientWidth", { configurable: true, value: 300 });
+    Object.defineProperty(list, "scrollWidth", { configurable: true, value: 420 });
+    fireEvent.scroll(list);
+
+    expect(list).toHaveAttribute("data-more", "end");
+    expect(list).toHaveClass(...SCROLL_HINT.split(" "));
+  });
+
+  // Under a finger a press needs about 44px (WCAG 2.5.5, Apple and Android guidance); on a phone
+  // this control is one of the page's main ways around, so it gets that height.
+  it("gives each tab a 44px press on a phone, chosen or not", () => {
+    renderTabs("wait");
+
+    for (const tab of tabs()) expectPhoneTarget(tab);
   });
 });

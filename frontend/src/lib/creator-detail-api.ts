@@ -19,12 +19,14 @@ import type {
 import type { ContractPeriod } from "./creators";
 import type { RawInvoiceDetail } from "./invoice-api";
 import { jakartaDay } from "./format";
+import { readConnections } from "./social-connection";
 
 /**
  * One contract period as GET /creators/:id sends it, picked from the mirror of the backend's
  * DTO rather than spelled out again: a field the API drops or renames fails to compile here,
- * not at runtime on the page. The API answers with more (fixed rate, progress, performance);
- * only what the page reads is picked.
+ * not at runtime on the page. The API answers with more (the fixed rate, the counts the
+ * progress repeats); only what the page reads is picked. The period's progress and performance
+ * are read when they come, and the page shows nothing in their place when they do not.
  */
 export type RawCreatorPeriod = Pick<
   ContractPeriod,
@@ -49,6 +51,8 @@ export interface RawCreatorDetail {
   name: string;
   email: string;
   socials: Partial<Record<"instagram" | "tiktok", string>>;
+  // Sent by 19.3; read only through readConnections.
+  socialConnections?: unknown;
   accessRevokeDate?: string | null;
   /** Oldest first. */
   contractHistory: RawCreatorPeriod[];
@@ -164,6 +168,7 @@ function toRow(item: RawContentListItem): CreatorContentRow {
     status: item.status,
     tags: item.tags,
     revisionCount: item.revisionCount,
+    platforms: item.platforms,
   };
 }
 
@@ -204,5 +209,6 @@ export function toCreatorDetailView(
     earnings: invoice
       ? { amount: invoice.floored ? 0 : invoice.total, status: invoice.invoiceStatus }
       : null,
+    connections: readConnections(raw.socialConnections),
   };
 }

@@ -13,6 +13,38 @@ function on(day: string): Date {
   return new Date(`${day}T05:00:00.000Z`);
 }
 
+/** One stored link, as content-detail.service selects it. */
+function linkRow(
+  platform: 'instagram' | 'tiktok' | null,
+  url: string,
+  day: string,
+): ContentDetailRow['content_links'][number] {
+  return {
+    platform,
+    url,
+    submitted_at: new Date(`${day}T00:00:00.000Z`),
+    views: null,
+    likes: null,
+    comments: null,
+    shares: null,
+    data_state: 'waiting',
+    last_synced_at: null,
+    manual_at: null,
+  };
+}
+
+/** A link no sync or admin has measured yet, its creator's account not connected. */
+const UNMEASURED = {
+  views: null,
+  likes: null,
+  comments: null,
+  shares: null,
+  state: 'not_connected',
+  lastSyncedAt: null,
+  manualAt: null,
+  manualBy: null,
+};
+
 function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
   return {
     id: '11111111-1111-1111-1111-111111111111',
@@ -21,16 +53,20 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
     brief: '',
     deadline: DEADLINE,
     status: 'scheduled',
-    video_link: null,
+    content_links: [],
     video_submitted_at: null,
     approval_bypassed: false,
     created_at: new Date('2026-09-01T03:00:00.000Z'),
     updated_at: new Date('2026-09-01T03:00:00.000Z'),
     contracts: {
+      start_date: new Date('2026-09-01T00:00:00.000Z'),
+      end_date: new Date('2026-11-30T00:00:00.000Z'),
+      invoice: { status: 'running' },
       creators: {
         first_name: 'Rangga',
         middle_name: null,
         last_name: 'Pratama',
+        social_accounts: [],
       },
     },
     submissions: [],
@@ -66,6 +102,8 @@ function submission(
     created_at: new Date('2026-09-10T10:00:00.000Z'),
     updated_at: new Date('2026-09-11T08:00:00.000Z'),
     revision_notes: null,
+    revision_notes_html: null,
+    revision_note_images: [],
     creator_notes: null,
     ...overrides,
   };
@@ -145,6 +183,172 @@ describe('buildEvents', () => {
       at: '2026-09-11T08:00:00.000Z',
       actor: { role: 'admin' },
       payload: { note: 'Durasi lewat 30 detik, mohon dipangkas.' },
+    });
+  });
+
+  it('carries the note as rich text with its screenshots on the revision step (AC 8)', () => {
+    const events = buildEvents(
+      row({
+        status: 'draft_revision',
+        submissions: [
+          submission({
+            revision_notes: 'Durasi lewat 30 detik.',
+            revision_notes_html: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+            revision_note_images: [
+              {
+                id: '33333333-3333-4333-8333-333333333333',
+                content_type: 'image/png',
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const revision = events.find(
+      (event) => event.type === 'revision_requested',
+    );
+    expect(revision).toMatchObject({
+      payload: {
+        note: 'Durasi lewat 30 detik.',
+        noteHtml: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+        images: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            url: '/api/revision-note-images/33333333-3333-4333-8333-333333333333',
+            contentType: 'image/png',
+          },
+        ],
+      },
+    });
+  });
+
+  it('shows a note written before rich text exactly as before (AC 9)', () => {
+    const events = buildEvents(
+      row({
+        status: 'draft_revision',
+        submissions: [
+          submission({ revision_notes: 'Durasi lewat 30 detik.' }),
+        ],
+      }),
+    );
+
+    const revision = events.find(
+      (event) => event.type === 'revision_requested',
+    );
+    expect(revision?.payload).toEqual({ note: 'Durasi lewat 30 detik.' });
+  });
+
+  it('reads a stored revision step as it was sent, note and screenshots (AC 8)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: {
+              revision_note: 'Durasi lewat 30 detik.',
+              revision_note_html: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+              images: [
+                {
+                  id: '33333333-3333-4333-8333-333333333333',
+                  content_type: 'image/webp',
+                },
+              ],
+            },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toEqual({
+      note: 'Durasi lewat 30 detik.',
+      noteHtml: '<p>Durasi <strong>lewat</strong> 30 detik.</p>',
+      images: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          url: '/api/revision-note-images/33333333-3333-4333-8333-333333333333',
+          contentType: 'image/webp',
+        },
+      ],
+    });
+  });
+
+  it('reads a stored revision step from before rich text exactly as before (AC 9)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: { revision_note: 'Audio terlalu pelan.' },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toEqual({ note: 'Audio terlalu pelan.' });
+  });
+
+  it('reads a stored revision step that recorded no screenshots as having none (AC 8)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: {
+              revision_note: 'Perbaiki intro.',
+              revision_note_html: '<p>Perbaiki intro.</p>',
+              images: [],
+            },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toEqual({
+      note: 'Perbaiki intro.',
+      noteHtml: '<p>Perbaiki intro.</p>',
+    });
+  });
+
+  it('drops a screenshot entry it cannot read rather than making one up (OWASP A05)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_revision',
+        content_events: [
+          stored('event-1', 'Revision Requested', '2026-09-11T08:00:00.000Z', {
+            actor_role: 'admin',
+            event_data: {
+              revision_note: 'Perbaiki intro.',
+              revision_note_html: '<p>Perbaiki intro.</p>',
+              images: [
+                { id: 7, content_type: 'image/png' },
+                'not-an-image',
+                { id: '33333333-3333-4333-8333-333333333333', content_type: 42 },
+                {
+                  id: '44444444-4444-4444-8444-444444444444',
+                  content_type: 'image/jpeg',
+                },
+              ],
+            },
+          }),
+        ],
+      }),
+      on('2026-09-11'),
+    );
+
+    expect(detail.events[0].payload).toMatchObject({
+      images: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          contentType: 'image/jpeg',
+        },
+      ],
     });
   });
 
@@ -233,7 +437,9 @@ describe('buildEvents', () => {
     const events = buildEvents(
       row({
         status: 'link_submitted',
-        video_link: 'https://instagram.com/reel/abc',
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+        ],
         video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
         submissions: [submission()],
       }),
@@ -245,6 +451,29 @@ describe('buildEvents', () => {
       actor: { name: 'Rangga Pratama', role: 'creator' },
       payload: { link: 'https://instagram.com/reel/abc' },
     });
+  });
+
+  it('carries the first link of a cross-posted content, the one that set its submitted day', () => {
+    const [link] = buildEvents(
+      row({
+        status: 'link_submitted',
+        content_links: [
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/2',
+            '2026-09-17',
+          ),
+          linkRow(
+            'instagram',
+            'https://instagram.com/reel/first',
+            '2026-09-15',
+          ),
+        ],
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+    );
+
+    expect(link.payload).toEqual({ link: 'https://instagram.com/reel/first' });
   });
 
   it('dates the link by its day alone, because the hour it came in was never stored', () => {
@@ -265,7 +494,9 @@ describe('buildEvents', () => {
     const events = buildEvents(
       row({
         status: 'link_submitted',
-        video_link: 'https://instagram.com/reel/abc',
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+        ],
         video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
         submissions: [
           submission({
@@ -447,7 +678,7 @@ describe('toContentDetail', () => {
       on('2026-10-03'),
     );
 
-    expect(detail.tags).toEqual(['overdue']);
+    expect(detail.tags).toEqual(['late_submission']);
   });
 
   it('tags a link handed in without an approval from the flag stored at hand-in', () => {
@@ -490,6 +721,253 @@ describe('toContentDetail', () => {
   });
 });
 
+describe('toContentDetail edit window (PBI-25)', () => {
+  const ADMIN_VIEW = { bufferDays: 5 };
+
+  it('gives an admin the days the deadline may move to: today plus the buffer up to H-5 (AC 3)', () => {
+    const detail = toContentDetail(row(), on('2026-09-21'), ADMIN_VIEW);
+
+    expect(detail.edit).toEqual({
+      earliestDeadline: '2026-09-26',
+      latestDeadline: '2026-11-25',
+    });
+  });
+
+  it('gives a creator no window, since only an admin edits', () => {
+    expect(toContentDetail(row(), on('2026-09-21')).edit).toBeNull();
+  });
+
+  it('closes the window once a draft exists, so Ubah and Hapus are hidden (AC 1)', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'draft_review',
+        submissions: [
+          {
+            id: 'sub-1',
+            link: 'https://drive.google.com/v1',
+            created_at: new Date('2026-09-20T03:00:00.000Z'),
+            updated_at: new Date('2026-09-20T03:00:00.000Z'),
+            revision_notes: null,
+            revision_notes_html: null,
+            revision_note_images: [],
+            creator_notes: null,
+          },
+        ],
+      }),
+      on('2026-09-21'),
+      ADMIN_VIEW,
+    );
+
+    expect(detail.edit).toBeNull();
+  });
+
+  it('closes the window once the contract’s invoice is finalized (AC 9)', () => {
+    const base = row();
+    const detail = toContentDetail(
+      row({
+        contracts: { ...base.contracts, invoice: { status: 'finalized' } },
+      }),
+      on('2026-09-21'),
+      ADMIN_VIEW,
+    );
+
+    expect(detail.edit).toBeNull();
+  });
+
+  it('opens the window before the contract has an invoice', () => {
+    const base = row();
+    const detail = toContentDetail(
+      row({ contracts: { ...base.contracts, invoice: null } }),
+      on('2026-09-21'),
+      ADMIN_VIEW,
+    );
+
+    expect(detail.edit).not.toBeNull();
+  });
+});
+
+describe('toContentDetail links (PBI-38)', () => {
+  it('lists each link with its platform, url and submitted day, first link first', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-17',
+          ),
+        ],
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links).toEqual([
+      {
+        platform: 'instagram',
+        url: 'https://instagram.com/reel/abc',
+        submittedAt: '2026-09-15',
+        performance: UNMEASURED,
+      },
+      {
+        platform: 'tiktok',
+        url: 'https://www.tiktok.com/@rangga/video/1',
+        submittedAt: '2026-09-17',
+        performance: UNMEASURED,
+      },
+    ]);
+  });
+
+  it('keeps a link from before platforms were recorded, with no platform', () => {
+    const detail = toContentDetail(
+      row({
+        status: 'link_submitted',
+        content_links: [
+          linkRow(null, 'https://example.com/video/old', '2026-09-15'),
+        ],
+        video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links).toEqual([
+      {
+        platform: null,
+        url: 'https://example.com/video/old',
+        submittedAt: '2026-09-15',
+        // No platform to be measured on, so no numbers and no state either.
+        performance: null,
+      },
+    ]);
+  });
+
+  it('has no links before the first is submitted', () => {
+    expect(toContentDetail(row(), on('2026-09-18')).links).toEqual([]);
+  });
+});
+
+describe('toContentDetail link performance (PBI-27)', () => {
+  const SUBMITTED = {
+    status: 'link_submitted' as const,
+    video_submitted_at: new Date('2026-09-15T00:00:00.000Z'),
+  };
+
+  it('gives each link its four numbers and state, an empty one as no data and a 0 as 0 (AC 1-3, 19)', () => {
+    const detail = toContentDetail(
+      row({
+        ...SUBMITTED,
+        content_links: [
+          {
+            ...linkRow(
+              'instagram',
+              'https://instagram.com/reel/abc',
+              '2026-09-15',
+            ),
+            views: 12400,
+            likes: 0,
+            data_state: 'synced',
+            last_synced_at: new Date('2026-09-17T19:00:00.000Z'),
+          },
+        ],
+        contracts: {
+          ...row().contracts,
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+            social_accounts: [
+              {
+                platform: 'instagram',
+                is_connected: true,
+                platform_user_id: '1784',
+              },
+            ],
+          },
+        },
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links[0].performance).toEqual({
+      views: 12400,
+      likes: 0,
+      comments: null,
+      shares: null,
+      state: 'synced',
+      lastSyncedAt: '2026-09-17T19:00:00.000Z',
+      manualAt: null,
+      manualBy: null,
+    });
+  });
+
+  it("reads a waiting link as waiting once the creator's account on its platform is connected", () => {
+    const detail = toContentDetail(
+      row({
+        ...SUBMITTED,
+        content_links: [
+          linkRow('instagram', 'https://instagram.com/reel/abc', '2026-09-15'),
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-15',
+          ),
+        ],
+        contracts: {
+          ...row().contracts,
+          creators: {
+            first_name: 'Rangga',
+            middle_name: null,
+            last_name: 'Pratama',
+            social_accounts: [
+              {
+                platform: 'instagram',
+                is_connected: true,
+                platform_user_id: '1784',
+              },
+            ],
+          },
+        },
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links.map((link) => link.performance?.state)).toEqual([
+      'waiting',
+      'not_connected',
+    ]);
+  });
+
+  it('gives the time an admin filled a link in, and that admin by email (AC 3)', () => {
+    const detail = toContentDetail(
+      row({
+        ...SUBMITTED,
+        content_links: [
+          {
+            ...linkRow(
+              'tiktok',
+              'https://www.tiktok.com/@rangga/video/1',
+              '2026-09-15',
+            ),
+            views: 5000,
+            data_state: 'manual',
+            manual_at: new Date('2026-09-18T03:00:00.000Z'),
+            manual_users: { email: 'sinta.admin@tofly.id' },
+          },
+        ],
+      }),
+      on('2026-09-18'),
+    );
+
+    expect(detail.links[0].performance).toMatchObject({
+      state: 'manual',
+      manualAt: '2026-09-18T03:00:00.000Z',
+      manualBy: 'sinta.admin@tofly.id',
+    });
+  });
+});
+
 describe('toContentDetail with a stored history', () => {
   const ADMIN = { actor_name: 'Admin', actor_role: 'admin' };
 
@@ -520,7 +998,13 @@ describe('toContentDetail with a stored history', () => {
     const detail = toContentDetail(
       row({
         status: 'link_submitted',
-        video_link: 'https://www.tiktok.com/@rangga/video/1',
+        content_links: [
+          linkRow(
+            'tiktok',
+            'https://www.tiktok.com/@rangga/video/1',
+            '2026-09-20',
+          ),
+        ],
         video_submitted_at: new Date('2026-09-20T00:00:00.000Z'),
         content_events: history,
       }),
@@ -630,6 +1114,37 @@ describe('toContentDetail with a stored history', () => {
     ]);
   });
 
+  // PBI-27 AC 16: numbers an admin typed in are a step of the timeline, naming the platform.
+  it('words manual performance numbers as a step by an admin, naming the platform', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Performance Entered', '2026-09-04T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              platform: 'tiktok',
+              before: { views: null, state: 'not_connected' },
+              after: { views: 500, state: 'manual' },
+            },
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z'),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toEqual({
+      id: 'e2',
+      type: 'performance_entered',
+      at: '2026-09-04T03:00:00.000Z',
+      actor: { name: null, role: 'admin' },
+      payload: {
+        platform: 'tiktok',
+        changes: [{ metric: 'views', before: null, after: 500 }],
+      },
+    });
+  });
+
   it('reads a proposal the system scheduled at H-1 as a step by the system, not by anyone', () => {
     const detail = toContentDetail(
       row({
@@ -650,6 +1165,80 @@ describe('toContentDetail with a stored history', () => {
       at: '2026-09-02T03:00:00.000Z',
       actor: { name: null, role: 'system' },
     });
+  });
+
+  it('words an edit as a step by an admin, carrying each changed field’s old and new value (AC 4)', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Content Updated', '2026-09-05T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              changes: {
+                deadline: { from: '2026-09-30', to: '2026-10-02' },
+                brief: { from: 'Lama', to: 'Baru' },
+              },
+            },
+          }),
+          stored('e1', 'Scheduled', '2026-09-01T03:00:00.000Z', ADMIN),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toEqual({
+      id: 'e2',
+      type: 'content_updated',
+      at: '2026-09-05T03:00:00.000Z',
+      actor: { name: null, role: 'admin' },
+      payload: {
+        changes: {
+          deadline: { from: '2026-09-30', to: '2026-10-02' },
+          brief: { from: 'Lama', to: 'Baru' },
+        },
+      },
+    });
+  });
+
+  it('keeps only the edited fields it knows, each with text on both sides', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Content Updated', '2026-09-05T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              changes: {
+                name: { from: 'Lama', to: 'Baru' },
+                deadline: { from: '2026-09-30', to: 7 },
+                status: { from: 'scheduled', to: 'link_submitted' },
+                brief: 'Baru',
+              },
+            },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0].payload).toEqual({
+      changes: { name: { from: 'Lama', to: 'Baru' } },
+    });
+  });
+
+  it('reads an edit whose changes are not an object as a step without details', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Content Updated', '2026-09-05T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: { changes: ['deadline'] },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0]).toMatchObject({ type: 'content_updated', payload: {} });
   });
 
   it('skips a step of a kind this build does not know, and data fields that are not the right type', () => {
@@ -691,6 +1280,71 @@ describe('toContentDetail with a stored history', () => {
         payload: {},
       },
     ]);
+  });
+
+  // PBI-38 AC 12: one step per link, naming its platform. A replaced link stays a link step, so
+  // a panel that knows no other kind keeps showing it, and says it replaced another.
+  it('names the platform of each link step and marks a replaced link as such', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e2', 'Link Replaced', '2026-09-03T03:00:00.000Z', {
+            ...ADMIN,
+            event_data: {
+              link: 'https://www.instagram.com/p/New1/',
+              platform: 'instagram',
+              previous_link: 'https://www.instagram.com/reel/Old1/',
+            },
+          }),
+          stored('e1', 'Link Submitted', '2026-09-01T03:00:00.000Z', {
+            event_data: {
+              link: 'https://www.instagram.com/reel/Old1/',
+              platform: 'instagram',
+            },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events).toEqual([
+      {
+        id: 'e2',
+        type: 'link_submitted',
+        at: '2026-09-03T03:00:00.000Z',
+        actor: { name: null, role: 'admin' },
+        payload: {
+          link: 'https://www.instagram.com/p/New1/',
+          platform: 'instagram',
+          replaced: true,
+        },
+      },
+      {
+        id: 'e1',
+        type: 'link_submitted',
+        at: '2026-09-01T03:00:00.000Z',
+        actor: { name: 'Rangga Pratama', role: 'creator' },
+        payload: {
+          link: 'https://www.instagram.com/reel/Old1/',
+          platform: 'instagram',
+        },
+      },
+    ]);
+  });
+
+  it('leaves out a stored platform the app does not know', () => {
+    const detail = toContentDetail(
+      row({
+        content_events: [
+          stored('e1', 'Link Submitted', '2026-09-01T03:00:00.000Z', {
+            event_data: { link: 'https://youtu.be/x', platform: 'youtube' },
+          }),
+        ],
+      }),
+      on('2026-09-21'),
+    );
+
+    expect(detail.events[0].payload).toEqual({ link: 'https://youtu.be/x' });
   });
 
   it('falls back to the journey its rows prove when nothing was stored for it', () => {

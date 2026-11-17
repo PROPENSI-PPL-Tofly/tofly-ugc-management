@@ -3,6 +3,7 @@ import {
   toInvoiceBreakdown,
   toInvoiceList,
   toInvoiceListQuery,
+  type RawInvoiceLine,
   type RawInvoiceList,
   type RawInvoiceRow,
 } from "./invoice-api";
@@ -12,20 +13,57 @@ const STATE: InvoiceParams = {
   q: "salsa",
   contract: "active",
   status: "paid",
+  period: "all",
+  from: "",
+  to: "",
   sort: "total",
   order: "desc",
   page: 3,
 };
 
+/** The day the named periods are counted from, pinned so a range never moves under the test. */
+const TODAY = "2026-10-18";
+
 describe("toInvoiceListQuery", () => {
   it("sends every filter and the page, in the words the API reads", () => {
-    expect(toInvoiceListQuery(STATE).toString()).toBe(
+    expect(toInvoiceListQuery(STATE, TODAY).toString()).toBe(
       "q=salsa&contract=active&status=paid&sort=total&order=desc&page=3&pageSize=10",
     );
   });
 
   it("leaves out a filter that is not applied, and still names the page and its size", () => {
-    expect(toInvoiceListQuery(DEFAULT_INVOICE_PARAMS).toString()).toBe("page=1&pageSize=10");
+    expect(toInvoiceListQuery(DEFAULT_INVOICE_PARAMS, TODAY).toString()).toBe("page=1&pageSize=10");
+  });
+
+  it("sends a named contract-end period as the two days it stands for", () => {
+    expect(toInvoiceListQuery({ ...STATE, period: "month" }, TODAY).toString()).toContain(
+      "contractEndFrom=2026-10-01&contractEndTo=2026-10-31",
+    );
+    expect(toInvoiceListQuery({ ...STATE, period: "next30" }, TODAY).toString()).toContain(
+      "contractEndFrom=2026-10-18&contractEndTo=2026-11-17",
+    );
+    expect(toInvoiceListQuery({ ...STATE, period: "last90" }, TODAY).toString()).toContain(
+      "contractEndFrom=2026-07-20&contractEndTo=2026-10-18",
+    );
+  });
+
+  it("sends a custom range as its two days, in order even when it was picked backwards", () => {
+    expect(
+      toInvoiceListQuery(
+        { ...STATE, period: "custom", from: "2026-08-31", to: "2026-06-01" },
+        TODAY,
+      ).toString(),
+    ).toContain("contractEndFrom=2026-06-01&contractEndTo=2026-08-31");
+  });
+
+  it("sends an open custom end as it stands, and no period at all while none is named", () => {
+    expect(
+      toInvoiceListQuery(
+        { ...STATE, period: "custom", from: "2026-06-01", to: "" },
+        TODAY,
+      ).toString(),
+    ).toContain("contractEndFrom=2026-06-01");
+    expect(toInvoiceListQuery(STATE, TODAY).toString()).not.toContain("contractEnd");
   });
 });
 
@@ -362,10 +400,19 @@ describe("toInvoiceBreakdown", () => {
           value: 12400,
           tier: 1,
           amount: 150000,
+          // A line from before links carried a source says none, rather than guessing one.
+          source: null,
+          lastSyncedAt: null,
+          manualAt: null,
+          noData: false,
+          waiting: false,
+          state: null,
         },
       ],
       total: 0,
       performance: "waiting",
+      // Still running: nothing is locked yet.
+      lockedOn: null,
       rules: {
         tiers: [
           {
@@ -380,6 +427,130 @@ describe("toInvoiceBreakdown", () => {
         ],
         specificBonus: 100000,
       },
+    });
+  });
+
+  // PBI-28 28.4: a finalized invoice's bonus says when it was locked, once for the invoice,
+  // for the admin's Rincian and the creator's alike.
+  describe("when the bonus was locked", () => {
+    const lockedOn = (snapshot: { finalizedAt: string } | null) =>
+      toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, snapshot }).bonus.lockedOn;
+
+    it("is the moment the invoice was finalized", () => {
+      expect(lockedOn({ finalizedAt: "2026-11-02T17:00:00.000Z" })).toBe("2026-11-02T17:00:00.000Z");
+    });
+
+    it("is nothing while the invoice still runs", () => {
+      expect(lockedOn(null)).toBeNull();
+    });
+
+    it("is nothing for a finalize moment it cannot read, rather than a broken date", () => {
+      expect(lockedOn({ finalizedAt: "bukan-waktu" })).toBeNull();
+    });
+  });
+
+  // PBI-28 AC 6 and 12: one line per link, each saying where its number came from, so the
+  // creator's Rincian reads exactly as the admin's.
+  describe("each bonus line's source", () => {
+    const bonusLines = (lines: RawInvoiceLine[]) =>
+      toInvoiceBreakdown({
+        ...RAW_RANGGA_DETAIL,
+        components: {
+          ...RAW_RANGGA_DETAIL.components,
+          performanceBonus: { amount: 200000, status: "calculated", lines },
+        },
+      }).bonus.lines;
+    const crossPosted = (basis: RawInvoiceLine["basis"]): RawInvoiceLine => ({
+      contentId: "c1c1c1c1-0000-4000-8000-000000000001",
+      contentName: "Review cross-post",
+      amount: 100000,
+      basis,
+    });
+
+    it("keeps one line per link of a cross-posted content, each with its source and sync time", () => {
+      expect(
+        bonusLines([
+          crossPosted({
+            platform: "instagram",
+            metric: "views",
+            value: 41200,
+            tier: 2,
+            source: "synced",
+            lastSyncedAt: "2026-11-02T19:00:00.000Z",
+          }),
+          crossPosted({ platform: "tiktok", metric: "likes", value: 1200, tier: 1, source: "manual" }),
+        ]),
+      ).toEqual([
+        {
+          kind: "performance",
+          contentId: "c1c1c1c1-0000-4000-8000-000000000001",
+          name: "Review cross-post",
+          platform: "instagram",
+          metric: "views",
+          value: 41200,
+          tier: 2,
+          amount: 100000,
+          source: "synced",
+          lastSyncedAt: "2026-11-02T19:00:00.000Z",
+          manualAt: null,
+          noData: false,
+          waiting: false,
+          state: null,
+        },
+        {
+          kind: "performance",
+          contentId: "c1c1c1c1-0000-4000-8000-000000000001",
+          name: "Review cross-post",
+          platform: "tiktok",
+          metric: "likes",
+          value: 1200,
+          tier: 1,
+          amount: 100000,
+          source: "manual",
+          lastSyncedAt: null,
+          manualAt: null,
+          noData: false,
+          waiting: false,
+          state: null,
+        },
+      ]);
+    });
+
+    // 28.2 freezes a link that never had a number as an Rp0 line, so it can be corrected later.
+    it("marks a link frozen without data", () => {
+      const [line] = bonusLines([crossPosted({ platform: "tiktok", metric: "views", status: "no_data" })]);
+
+      expect(line).toMatchObject({ platform: "tiktok", noData: true, source: null, lastSyncedAt: null });
+    });
+
+    // 28.1's line for a judged link with no number yet, named by its state (AC 5, prototype).
+    it("marks a link still waiting for its number, with its state", () => {
+      const [line] = bonusLines([
+        crossPosted({ platform: "tiktok", metric: "likes", status: "waiting", state: "not_connected" }),
+      ]);
+
+      expect(line).toMatchObject({ waiting: true, noData: false, state: "not_connected" });
+    });
+
+    it("reads when an admin typed the numbers in, and no state it does not know", () => {
+      const [line] = bonusLines([
+        crossPosted({ source: "manual", manualAt: "2026-11-01T18:30:00.000Z", state: "hacked" }),
+      ]);
+
+      expect(line).toMatchObject({ manualAt: "2026-11-01T18:30:00.000Z", state: null });
+    });
+
+    it.each([
+      ["a source it does not know", { source: "scraped" }],
+      ["a sync time that is a number", { source: "synced", lastSyncedAt: 1793646000 }],
+      ["a sync time it cannot read", { source: "synced", lastSyncedAt: "bukan-waktu" }],
+    ])("drops %s rather than show it", (_, extra) => {
+      const [line] = bonusLines([crossPosted({ platform: "instagram", metric: "views", value: 900, tier: 1, ...extra })]);
+
+      expect(line).toMatchObject({
+        source: extra.source === "synced" ? "synced" : null,
+        lastSyncedAt: null,
+      });
     });
   });
 
@@ -445,6 +616,7 @@ describe("toInvoiceBreakdown", () => {
         total: 0,
         performance: "waiting",
         rules: { tiers: [], specificBonus: 0 },
+        lockedOn: null,
       },
       penalty: { lines: [], total: 0 },
     });

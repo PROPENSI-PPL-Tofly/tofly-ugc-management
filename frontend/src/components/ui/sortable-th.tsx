@@ -28,6 +28,7 @@ export function SortableTh({
   idleHint,
   align = "left",
   beside,
+  stacked = false,
   onToggle,
 }: Readonly<{
   label: string;
@@ -39,6 +40,12 @@ export function SortableTh({
   /** "right" for a column of numbers. */
   align?: "left" | "right";
   beside?: ReactNode;
+  /**
+   * The table stacks into cards below lg, where its header row is only read aloud and the page
+   * offers its own visible sort control. The button leaves that width (so no unseen control
+   * takes focus) and the column's name stays as plain text.
+   */
+  stacked?: boolean;
   onToggle: () => void;
 }>) {
   const right = align === "right";
@@ -55,7 +62,7 @@ export function SortableTh({
           type="button"
           onClick={onToggle}
           title={direction ? hints[direction] : (idleHint ?? `Urutkan menurut ${label}`)}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-(--radius-control) border-none bg-transparent p-0 text-left font-semibold text-muted hover:text-ink"
+          className={`inline-flex cursor-pointer items-center gap-1 rounded-(--radius-control) border-none bg-transparent p-0 text-left font-semibold text-muted hover:text-ink ${stacked ? "max-lg:hidden" : ""}`}
         >
           {label}
           {direction ? (
@@ -64,6 +71,7 @@ export function SortableTh({
             </span>
           ) : null}
         </button>
+        {stacked ? <span className="lg:hidden">{label}</span> : null}
         {beside}
       </span>
     </th>

@@ -1,3 +1,4 @@
+import type { FrozenPerformanceLinkDto } from '../frozen-links.js';
 import type {
   ComponentStatus,
   InvoiceComponentKey,
@@ -61,6 +62,11 @@ export interface InvoiceSnapshotDto {
    * a pending bonus could be frozen.
    */
   performanceBonusPending?: boolean;
+  /**
+   * Every delivered link's numbers, source, state and sync time as Finalize froze them (PBI-28
+   * AC 10). Absent from a snapshot saved before links were frozen with it.
+   */
+  performanceLinks?: FrozenPerformanceLinkDto[];
 }
 
 /** Calculation result before the invoice pipeline assigns its status. */

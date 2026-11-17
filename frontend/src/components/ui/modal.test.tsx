@@ -47,6 +47,19 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalledTimes(3);
   });
 
+  // Next.js hydrates React onto the document itself, so a control's stopPropagation cannot keep
+  // a key from this dialog's own document listener; a handled key is marked defaultPrevented.
+  it("leaves an Escape that a control inside has already handled", () => {
+    const onClose = vi.fn();
+    render(<Harness open onClose={onClose} />);
+    const handled = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    handled.preventDefault();
+
+    document.dispatchEvent(handled);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   // The browser moves focus on mousedown by default, after the dialog has already handed it
   // back to its opener, which would leave a keyboard user on the page body.
   it("keeps the browser from taking focus away from the opener on a press outside", () => {
@@ -350,5 +363,17 @@ describe("Modal as a side sheet", () => {
     const { dialog } = renderSheet();
 
     expect(dialog).toHaveClass("shadow-sheet");
+  });
+
+  // Measured in the creator's invoice side sheet: the ✕ was a 23x18px target, under WCAG
+  // 2.5.8's 24px minimum, and small for a thumb on a phone.
+  it("gives the close button a target at least 32px square, 44px on a phone", () => {
+    render(
+      <Modal title="Invoice Periode 1" onClose={vi.fn()}>
+        Isi
+      </Modal>,
+    );
+
+    expect(screen.getByRole("button", { name: "Tutup dialog" })).toHaveClass("size-8", "max-sm:size-11");
   });
 });

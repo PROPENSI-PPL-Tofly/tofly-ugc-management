@@ -17,3 +17,5 @@ Thumbs.db
 *.log
 
 .claude
+# CPU profile artifacts (scripts/bench/profile-workload.mjs)
+.profiles/

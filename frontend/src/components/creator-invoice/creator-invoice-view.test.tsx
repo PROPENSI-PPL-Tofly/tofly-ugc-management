@@ -133,6 +133,81 @@ describe("CreatorInvoiceView", () => {
       );
     });
 
+    // PBI-28 AC 6 and 12: Estimasi Pendapatan and Riwayat Invoice both open this view, and its
+    // bonus reads as the admin's Rincian: one line per link, each with its source and sync time.
+    it("lists a cross-posted content's bonus once per link, each saying where its number came from", () => {
+      const base = aCreatorInvoice();
+      const link = { kind: "performance" as const, contentId: "c-1", name: "Review cross-post", amount: 100000 };
+      renderView({
+        bonusAmount: 200000,
+        breakdown: {
+          ...base.breakdown,
+          bonus: {
+            ...base.breakdown.bonus,
+            performance: "ready",
+            total: 200000,
+            lines: [
+              {
+                ...link,
+                platform: "instagram",
+                metric: "views",
+                value: 41200,
+                tier: 2,
+                source: "synced",
+                lastSyncedAt: "2026-11-02T19:00:00.000Z",
+              },
+              { ...link, platform: "tiktok", metric: "likes", value: 1200, tier: 1, source: "manual", lastSyncedAt: null },
+            ],
+          },
+        },
+      });
+
+      fireEvent.click(within(part("Bonus Performa")).getByRole("button", { name: /Bonus Performa/ }));
+
+      const lines = within(part("Bonus Performa")).getAllByRole("listitem");
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toHaveTextContent("Instagram · 41.200 Views · Tier 2 · Tersinkron 3 Nov 2026, 02.00 WIB");
+      expect(lines[1]).toHaveTextContent("TikTok · 1.200 Likes · Tier 1 · Diisi manual");
+    });
+
+    // PBI-28 28.4: a finalized invoice in Riwayat Invoice says when each bonus line was locked.
+    it("ends each bonus line of a finalized invoice with the day it was locked", () => {
+      const base = aCreatorInvoice();
+      renderView({
+        status: "finalized",
+        bonusAmount: 150000,
+        breakdown: {
+          ...base.breakdown,
+          bonus: {
+            ...base.breakdown.bonus,
+            performance: "ready",
+            total: 150000,
+            lockedOn: "2026-09-01T17:30:00.000Z",
+            lines: [
+              {
+                kind: "performance",
+                contentId: "c-1",
+                name: "Unboxing Kelas TOEFL",
+                platform: "instagram",
+                metric: "views",
+                value: 41200,
+                tier: 2,
+                amount: 150000,
+                source: "manual",
+                lastSyncedAt: null,
+              },
+            ],
+          },
+        },
+      });
+
+      fireEvent.click(within(part("Bonus Performa")).getByRole("button", { name: /Bonus Performa/ }));
+
+      expect(within(part("Bonus Performa")).getByRole("listitem")).toHaveTextContent(
+        "Instagram · 41.200 Views · Tier 2 · Diisi manual · Dikunci pada 2 Sep 2026",
+      );
+    });
+
     it("says a contract that has not started has not, beside its fixed rate", () => {
       renderView({ notStarted: true });
 
@@ -171,6 +246,13 @@ describe("CreatorInvoiceView", () => {
       const total = screen.getByRole("group", { name: "Total invoice" });
       expect(total).toHaveTextContent("Total Final");
       expect(total).toHaveTextContent("Rp550.000");
+    });
+
+    // Approved design: the total closes Rincian as a navy bar, so the sum reads as the sum.
+    it("draws the total as the closing navy bar", () => {
+      renderView({ status: "finalized" });
+
+      expect(screen.getByRole("group", { name: "Total invoice" })).toHaveClass("bg-ink", "text-accent-ink");
     });
 
     it("says a total the penalty used up is held at Rp0", () => {
@@ -250,6 +332,16 @@ describe("CreatorInvoiceView", () => {
       expect(within(turn).getByRole("button", { name: "aksi confirm" })).toBeInTheDocument();
       // The proof is linked once, where the creator is asked about it.
       expect(screen.getAllByRole("link", { name: "Lihat Bukti" })).toHaveLength(1);
+    });
+
+    // Approved design: the turn is a card that names itself, so the ask reads as the creator's
+    // move at a glance, edged in the accent like the other emphasised boxes.
+    it("names the creator's turn on its card, edged firmly", () => {
+      renderView({ status: "finalized" }, action);
+
+      const turn = screen.getByRole("region", { name: "Giliran kamu" });
+      expect(within(turn).getByText("Giliran kamu")).toHaveClass("uppercase");
+      expect(turn).toHaveClass("border-[1.5px]", "border-accent");
     });
 
     it("offers no move while it is the admin's turn, only says whose it is", () => {

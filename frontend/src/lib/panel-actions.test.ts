@@ -44,6 +44,27 @@ function adminPorts(overrides: Partial<PanelActionPorts> = {}): PanelActionPorts
   };
 }
 
+describe("actionsFor (managing a sent content's links)", () => {
+  const sent = facts({
+    status: "link_submitted",
+    waitingOn: null,
+    latestSubmissionId: null,
+    links: [
+      {
+        platform: "instagram",
+        url: "https://www.instagram.com/reel/C8abc12345/",
+        submittedAt: "2026-10-01",
+      },
+    ],
+  });
+
+  // A sent link is changed from its own card in Content Detail (a pencil, and a + for a platform
+  // still missing), so the step offers no link command of its own, to the creator or the admin.
+  it.each(["creator", "admin"] as const)("offers the %s no link command once the link is sent", (role) => {
+    expect(actionsFor({ role, detail: sent, state: idle, ports: ports() })).toEqual([]);
+  });
+});
+
 describe("actionsFor (admin)", () => {
   it("offers Minta Revisi and Approve while a draft waits on the admin", () => {
     const commands = actionsFor({
@@ -430,6 +451,25 @@ describe("submitRevision", () => {
 
     expect(revise).toHaveBeenCalledWith(SUBMISSION, "Perbaiki intro");
   });
+
+  // PBI-34 AC 3, 8: the screenshots uploaded with the note go out with it, so the creator sees them.
+  it("sends the uploaded screenshots' ids with the note", async () => {
+    const revise = vi.fn().mockResolvedValue(undefined);
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({
+        busy: false,
+        note: "Perbaiki intro",
+        noteHtml: "<p>Perbaiki intro</p>",
+        imageIds: ["img-1", "img-2"],
+      }),
+      ports: adminPorts({ revise }),
+    });
+
+    await command.run();
+
+    expect(revise).toHaveBeenCalledWith(SUBMISSION, "<p>Perbaiki intro</p>", ["img-1", "img-2"]);
+  });
 });
 
 describe("optional ports", () => {
@@ -454,5 +494,47 @@ describe("optional ports", () => {
     });
 
     await expect(command.run()).resolves.toBeUndefined();
+  });
+});
+
+// PBI-34, subtask 34.2: the revision note is the rich text editor, with its screenshots.
+describe("submitRevision with the rich text note (34.2)", () => {
+  // AC 5: Kirim Revisi waits while a screenshot is still uploading.
+  it("keeps Kirim Revisi disabled while a screenshot uploads", () => {
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({ busy: false, note: "Perbaiki intro", uploading: true }),
+      ports: adminPorts(),
+    });
+
+    expect(command.canRun()).toBe(false);
+  });
+
+  it("opens Kirim Revisi once the uploads are done", () => {
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({ busy: false, note: "Perbaiki intro", uploading: false }),
+      ports: adminPorts(),
+    });
+
+    expect(command.canRun()).toBe(true);
+  });
+
+  // 34.1 takes the editor's HTML and sanitizes it on the server.
+  it("sends the note's formatting when the editor gives it", async () => {
+    const revise = vi.fn().mockResolvedValue(undefined);
+    const command = submitRevision({
+      submissionId: SUBMISSION,
+      state: () => ({
+        busy: false,
+        note: "Perbaiki intro",
+        noteHtml: "<p><strong>Perbaiki</strong> intro</p>",
+      }),
+      ports: adminPorts({ revise }),
+    });
+
+    await command.run();
+
+    expect(revise).toHaveBeenCalledWith(SUBMISSION, "<p><strong>Perbaiki</strong> intro</p>");
   });
 });

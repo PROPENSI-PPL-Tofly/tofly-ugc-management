@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ProposalReviewService,
@@ -12,7 +16,8 @@ const CREATOR = '22222222-2222-4222-8222-222222222222';
 interface Stored {
   status: string;
   name: string;
-  contracts: { creator_id: string };
+  deadline: Date;
+  contracts: { creator_id: string; end_date: Date };
 }
 
 /**
@@ -25,6 +30,7 @@ function stubClient(stored: Stored | null, due?: string[]) {
   const tables = {
     contents: {
       findUnique: vi.fn(async () => row),
+      count: vi.fn(async () => due?.length ?? 0),
       updateMany: vi.fn(async ({ where, data }: Parameters<ProposalReviewClient['contents']['updateMany']>[0]) => {
         if ('id' in where) {
           if (!row || where.id !== ID || row.status !== where.status) return { count: 0 };
@@ -69,10 +75,36 @@ function notifier() {
 const pending: Stored = {
   status: 'pending',
   name: 'Ide konten dari Intan',
-  contracts: { creator_id: CREATOR },
+  deadline: new Date('2026-12-26T00:00:00.000Z'),
+  contracts: {
+    creator_id: CREATOR,
+    end_date: new Date('2026-12-31T00:00:00.000Z'),
+  },
 };
 
 describe('ProposalReviewService.approve', () => {
+  // PBI-38 AC 15: a proposal past the H-5 line cannot become a scheduled content.
+  it('refuses a proposal past the H-5 line, and leaves it pending', async () => {
+    const { client, current } = stubClient({
+      ...pending,
+      deadline: new Date('2026-12-27T00:00:00.000Z'),
+    });
+
+    const approving = new ProposalReviewService(client, notifier()).approve(ID);
+
+    await expect(approving).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+    await expect(approving).rejects.toMatchObject({
+      response: {
+        code: 'PROPOSAL_PAST_LATEST_DEADLINE',
+        message: 'Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)',
+      },
+    });
+    expect(current()?.status).toBe('pending');
+    expect(client.contents.updateMany).not.toHaveBeenCalled();
+  });
+
   it('moves a pending proposal to scheduled, guarded on it still being pending', async () => {
     const { client, current } = stubClient(pending);
 
@@ -290,6 +322,28 @@ describe('ProposalReviewService.scheduleDue', () => {
 
     await expect(new ProposalReviewService(client, notifier()).scheduleDue(NOW)).resolves.toBe(0);
 
+    expect(client.content_events.createMany).not.toHaveBeenCalled();
+  });
+
+  it('opens no transaction when nothing is due, so a read holds no connection for it', async () => {
+    const { client } = stubClient(pending, []);
+
+    await new ProposalReviewService(client, notifier()).scheduleDue(NOW);
+
+    expect(client.contents.count).toHaveBeenCalledWith({
+      where: { status: 'pending', deadline: { lte: new Date('2026-10-11T00:00:00.000Z') } },
+    });
+    expect(client.$transaction).not.toHaveBeenCalled();
+    expect(client.contents.updateManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it('answers 0 when a simultaneous request promoted what the count saw', async () => {
+    const { client } = stubClient(pending, []);
+    vi.mocked(client.contents.count).mockResolvedValue(1);
+
+    await expect(new ProposalReviewService(client, notifier()).scheduleDue(NOW)).resolves.toBe(0);
+
+    expect(client.$transaction).toHaveBeenCalledTimes(1);
     expect(client.content_events.createMany).not.toHaveBeenCalled();
   });
 });

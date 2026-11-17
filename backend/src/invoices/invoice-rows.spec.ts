@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { FORMULA, TODAY, day } from './invoice-test-data.js';
+import { FORMULA, SYNCED_AT, TODAY, day } from './invoice-test-data.js';
 import {
   CONTENT_SELECT,
   INVOICE_SELECT,
@@ -7,6 +7,7 @@ import {
   listedContracts,
   pickContract,
   savedSnapshot,
+  toInvoiceContent,
   toInvoiceContract,
   toInvoiceItem,
   type InvoiceContentRow,
@@ -25,9 +26,32 @@ function contentRow(
     status: 'scheduled',
     deadline: day(10),
     video_submitted_at: null,
-    platform: null,
+    content_links: [],
+    // Both accounts connected, so a link reads the state it is stored with.
+    contracts: {
+      creators: {
+        social_accounts: [
+          { platform: 'instagram', is_connected: true, platform_user_id: 'ig-1' },
+          { platform: 'tiktok', is_connected: true, platform_user_id: 'tt-1' },
+        ],
+      },
+    },
+    ...overrides,
+  };
+}
+
+type LinkRow = InvoiceContentRow['content_links'][number];
+
+function linkRow(overrides: Partial<LinkRow> = {}): LinkRow {
+  return {
+    platform: 'instagram',
     views: null,
     likes: null,
+    comments: null,
+    shares: null,
+    data_state: 'waiting',
+    last_synced_at: null,
+    manual_at: null,
     ...overrides,
   };
 }
@@ -68,6 +92,99 @@ describe('creatorName', () => {
         last_name: null,
       }),
     ).toBe('Muhammad Farhan');
+  });
+});
+
+describe('toInvoiceContent', () => {
+  it('reads every link in the order handed in, with its four numbers, its state and where they came from (28.1)', () => {
+    // Arrange
+    const typedInLater = new Date(SYNCED_AT.getTime() + 60_000);
+    const row = contentRow({
+      status: 'link_submitted',
+      video_submitted_at: day(-1),
+      content_links: [
+        linkRow({
+          views: 41_200,
+          likes: 900,
+          comments: 12,
+          shares: 3,
+          data_state: 'synced',
+          last_synced_at: SYNCED_AT,
+        }),
+        linkRow({
+          platform: 'tiktok',
+          likes: 1_000,
+          data_state: 'manual',
+          last_synced_at: SYNCED_AT,
+          manual_at: typedInLater,
+        }),
+      ],
+    });
+
+    // Act
+    const mapped = toInvoiceContent(row);
+
+    // Assert
+    expect(mapped).toMatchObject({ videoSubmittedAt: day(-1) });
+    expect(mapped.links).toEqual([
+      {
+        platform: 'instagram',
+        views: 41_200,
+        likes: 900,
+        comments: 12,
+        shares: 3,
+        state: 'synced',
+        source: 'synced',
+        lastSyncedAt: SYNCED_AT,
+        manualAt: null,
+      },
+      {
+        platform: 'tiktok',
+        views: null,
+        likes: 1_000,
+        comments: null,
+        shares: null,
+        state: 'manual',
+        source: 'manual',
+        lastSyncedAt: SYNCED_AT,
+        manualAt: typedInLater,
+      },
+    ]);
+  });
+
+  // As the Performa page reads it (PBI-27 AC 3): a link of an account that is not connected will
+  // never be synced, so it reads as not connected rather than waiting.
+  it('reads a waiting link of a creator whose account is not connected as not_connected', () => {
+    const row = contentRow({
+      content_links: [linkRow(), linkRow({ platform: 'tiktok' })],
+      contracts: {
+        creators: {
+          social_accounts: [
+            { platform: 'tiktok', is_connected: true, platform_user_id: 'tt-1' },
+          ],
+        },
+      },
+    });
+
+    expect(toInvoiceContent(row).links.map(({ state }) => state)).toEqual([
+      'not_connected',
+      'waiting',
+    ]);
+  });
+
+  it('has no source for a link no sync or admin has measured yet', () => {
+    expect(
+      toInvoiceContent(contentRow({ content_links: [linkRow()] })).links,
+    ).toEqual([expect.objectContaining({ source: null, lastSyncedAt: null })]);
+  });
+
+  it('has no links before the first, and leaves out one kept from before platforms were recorded', () => {
+    expect(toInvoiceContent(contentRow()).links).toEqual([]);
+    expect(
+      toInvoiceContent(
+        contentRow({ content_links: [linkRow({ platform: null, views: 9 })] }),
+      ).links,
+    ).toEqual([]);
   });
 });
 
@@ -480,9 +597,36 @@ describe('the columns an invoice is read from', () => {
       status: true,
       deadline: true,
       video_submitted_at: true,
-      platform: true,
-      views: true,
-      likes: true,
+      // Every link is judged on its own platform's numbers (28.1).
+      content_links: {
+        orderBy: [{ submitted_at: 'asc' }, { created_at: 'asc' }],
+        select: {
+          platform: true,
+          views: true,
+          likes: true,
+          comments: true,
+          shares: true,
+          data_state: true,
+          last_synced_at: true,
+          manual_at: true,
+        },
+      },
+      // Whether each link's account is connected, for the state the link reads as.
+      contracts: {
+        select: {
+          creators: {
+            select: {
+              social_accounts: {
+                select: {
+                  platform: true,
+                  is_connected: true,
+                  platform_user_id: true,
+                },
+              },
+            },
+          },
+        },
+      },
     });
   });
 });
@@ -529,6 +673,76 @@ describe('savedSnapshot', () => {
 
   it('reads no snapshot for an invoice that has none', () => {
     expect(savedSnapshot(null)).toBeNull();
+  });
+
+  // Tolerant Reader (PBI-28 AC 10-11): snapshots saved before links were frozen and after both
+  // read; a frozen part that cannot be trusted is left out, never the whole snapshot, since an
+  // unreadable snapshot would send a finalized invoice back to a live calculation.
+  describe('the frozen links (PBI-28 AC 10)', () => {
+    const link = {
+      contentId: 'content-1',
+      contentName: 'Evg_1',
+      platform: 'tiktok',
+      views: 12_400,
+      likes: 0,
+      comments: null,
+      shares: null,
+      source: 'synced',
+      state: 'synced',
+      lastSyncedAt: '2026-10-30T19:00:00.000Z',
+    };
+
+    it('reads a snapshot saved before links were frozen as it was', () => {
+      expect(savedSnapshot(complete)).not.toHaveProperty('performanceLinks');
+    });
+
+    it.each([
+      ['a synced link', [link]],
+      [
+        'a manual link',
+        [{ ...link, source: 'manual', state: 'manual', lastSyncedAt: null }],
+      ],
+      [
+        'a link that never had numbers',
+        [
+          {
+            ...link,
+            views: null,
+            likes: null,
+            source: null,
+            state: 'waiting',
+            lastSyncedAt: null,
+          },
+        ],
+      ],
+      ['no link at all', []],
+    ])('reads back the frozen links of %s', (_, performanceLinks) => {
+      const saved = { ...complete, performanceLinks };
+
+      expect(savedSnapshot(saved)).toBe(saved);
+    });
+
+    // OWASP A08:2025 Software or Data Integrity Failures: a frozen list that is not what Finalize
+    // writes is never shown as if it were, and the frozen totals still stand.
+    it.each([
+      ['not a list', { links: [link] }],
+      ['a link without a content', [{ ...link, contentId: 7 }]],
+      ['an unknown platform', [{ ...link, platform: 'youtube' }]],
+      ['a negative number', [{ ...link, views: -1 }]],
+      ['a fractional number', [{ ...link, likes: 1.5 }]],
+      ['an unknown source', [{ ...link, source: 'guessed' }]],
+      ['an unknown state', [{ ...link, state: 'stale' }]],
+      ['a sync time that is not text', [{ ...link, lastSyncedAt: 0 }]],
+      ['a link that is not an object', [null]],
+    ])(
+      'keeps the snapshot but leaves out frozen links holding %s',
+      (_, performanceLinks) => {
+        const read = savedSnapshot({ ...complete, performanceLinks });
+
+        expect(read).toEqual(complete);
+        expect(read).not.toHaveProperty('performanceLinks');
+      },
+    );
   });
 
   it.each([

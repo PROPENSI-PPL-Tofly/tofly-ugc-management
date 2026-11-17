@@ -32,8 +32,10 @@ const INPUT: NewCreator = {
   interval: 14,
   quota: 2,
   fixedRate: 1500000,
-  socialPlatform: 'instagram',
-  socialUsername: 'rangga.creates',
+  socialAccounts: [
+    { platform: 'instagram', username: 'rangga.creates' },
+    { platform: 'tiktok', username: 'rangga.tt' },
+  ],
   contractType: 'probation',
   deadlines: ['2026-10-10', '2026-09-26'],
 };
@@ -105,7 +107,10 @@ describe('CreatorOnboardingService', () => {
       last_name: 'Pratama',
       users: { create: { email: 'rangga@example.com' } },
       social_accounts: {
-        create: { platform: 'instagram', username: 'rangga.creates' },
+        create: [
+          { platform: 'instagram', username: 'rangga.creates' },
+          { platform: 'tiktok', username: 'rangga.tt' },
+        ],
       },
       contracts: {
         create: {

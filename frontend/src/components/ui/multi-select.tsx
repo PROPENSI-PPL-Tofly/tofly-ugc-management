@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { PHONE_TARGET } from "./touch-target";
 
 export interface MultiSelectOption {
   value: string;
@@ -9,8 +10,8 @@ export interface MultiSelectOption {
 
 // A pill, as the prototype draws every filter: a quiet label, the value in strong type, and a
 // caret that says there is more behind it.
-const TRIGGER =
-  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[12.5px] text-ink hover:border-ink";
+// A pill from sm up; in the open phone filter card, a full-width field like the selects there.
+const TRIGGER = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[12.5px] text-ink hover:border-ink active:bg-surface-2 max-sm:w-full max-sm:rounded-(--radius-control) max-sm:text-sm`;
 
 const CARET = "ml-0.5 size-1.5 -translate-y-px rotate-45 border-b-[1.6px] border-r-[1.6px] border-muted";
 
@@ -25,14 +26,75 @@ const POPUP =
 /** How far a popup stays from the edge of the window, in pixels. */
 const WINDOW_MARGIN = 8;
 
-const CHIP =
-  "inline-flex max-w-full items-center gap-1 rounded-full border border-rule bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-2";
+
+/**
+ * What every filter popup does, the multi-select's and the single one's alike: a press anywhere
+ * but on it closes it, Escape sends it away and hands focus back to its pill, and it is pulled back
+ * inside a narrow window before it is painted.
+ */
+function usePopup(
+  open: boolean,
+  setOpen: (open: boolean) => void,
+  {
+    rootRef,
+    triggerRef,
+    popupRef,
+  }: {
+    rootRef: RefObject<HTMLElement | null>;
+    triggerRef: RefObject<HTMLButtonElement | null>;
+    popupRef: RefObject<HTMLDivElement | null>;
+  },
+) {
+  // The popup follows the pointer and the keyboard: a click anywhere but on it closes it,
+  // and Escape sends it away without hunting for the trigger again.
+  useEffect(() => {
+    if (!open) return;
+
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      // The popup held focus and is about to unmount; without this a keyboard user is dropped
+      // to the top of the page. A click outside keeps focus where the press landed instead.
+      triggerRef.current?.focus();
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, setOpen, rootRef, triggerRef]);
+
+  // The popup opens from the trigger's left edge. On a narrow window that can carry it past
+  // the right edge, so it is measured before it is painted and pulled back by the overhang,
+  // though never further than the left edge allows. It runs after every render, not only on
+  // opening: a pick adds a chip, the chip can wrap the trigger onto another row, and an
+  // offset measured for the old place would then push the popup off the other side.
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    if (!popup) return;
+
+    popup.style.left = "";
+    const box = popup.getBoundingClientRect();
+    const overhang = box.right - (document.documentElement.clientWidth - WINDOW_MARGIN);
+    const pull = Math.min(overhang, box.left - WINDOW_MARGIN);
+    if (pull > 0) popup.style.left = `${-pull}px`;
+  });
+
+}
 
 /**
  * A multi-select whose choices read as chips: the popup holds the checkboxes, and each pick
  * becomes a chip the admin can drop on its own, so narrowing one list never means starting
- * the whole filter over. Shared vocabulary for every filter bar that needs more than one
- * pick (Content Plan, and Task Saya when it wants the same).
+ * the whole filter over. The chips themselves are gathered below the bar by FilterChips, each
+ * named for this filter; this control shows the picks as its summary and does the ticking.
  */
 export function MultiSelect({
   label,
@@ -59,48 +121,7 @@ export function MultiSelect({
     return selected.length === 1 ? labelFor(selected[0]) : `${selected.length} dipilih`;
   }
 
-  // The popup follows the pointer and the keyboard: a click anywhere but on it closes it,
-  // and Escape sends it away without hunting for the trigger again.
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      // The popup held focus and is about to unmount; without this a keyboard user is dropped
-      // to the top of the page. A click outside keeps focus where the press landed instead.
-      triggerRef.current?.focus();
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  // The popup opens from the trigger's left edge. On a narrow window that can carry it past
-  // the right edge, so it is measured before it is painted and pulled back by the overhang,
-  // though never further than the left edge allows. It runs after every render, not only on
-  // opening: a pick adds a chip, the chip can wrap the trigger onto another row, and an
-  // offset measured for the old place would then push the popup off the other side.
-  useLayoutEffect(() => {
-    const popup = popupRef.current;
-    if (!popup) return;
-
-    popup.style.left = "";
-    const box = popup.getBoundingClientRect();
-    const overhang = box.right - (document.documentElement.clientWidth - WINDOW_MARGIN);
-    const pull = Math.min(overhang, box.left - WINDOW_MARGIN);
-    if (pull > 0) popup.style.left = `${-pull}px`;
-  });
+  usePopup(open, setOpen, { rootRef, triggerRef, popupRef });
 
   function toggle(value: string) {
     onChange(
@@ -116,10 +137,11 @@ export function MultiSelect({
   }
 
   return (
-    <div ref={rootRef} className="flex flex-wrap items-center gap-2">
-      {/* The popup hangs from the trigger alone. The chips wrap onto more rows as picks are
-          added, and a popup anchored to the whole box would open under the last of them. */}
-      <span className="relative inline-flex">
+    <div ref={rootRef} className="flex flex-wrap items-center gap-2 max-sm:w-full">
+      {/* The popup hangs from the trigger alone. The summary can widen as picks are added and
+          wrap the trigger onto another row, and a popup anchored to the whole box would open
+          under the last of them. */}
+      <span className="relative inline-flex max-sm:w-full">
         <button
           ref={triggerRef}
           type="button"
@@ -131,7 +153,7 @@ export function MultiSelect({
         >
           <span className="text-muted">{label}:</span>{" "}
           <b className="max-w-48 truncate font-semibold">{summary()}</b>
-          <span aria-hidden="true" className={CARET} />
+          <span aria-hidden="true" className={`${CARET} max-sm:ml-auto`} />
         </button>
 
         {open ? (
@@ -161,19 +183,88 @@ export function MultiSelect({
           </div>
         ) : null}
       </span>
+    </div>
+  );
+}
 
-      {selected.map((value) => (
+export interface SingleSelectOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * One choice out of a few, drawn as the very same pill and popup as the multi-select beside it
+ * ("Overdue: Semua"), so every filter in the app looks one way. The first option is the "all" one
+ * and is set apart above the rest, as the multi-select's Semua is; the choices are radios, since
+ * only one can hold. A pick closes the popup.
+ */
+export function SingleSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: Readonly<{
+  label: string;
+  value: string;
+  options: readonly SingleSelectOption[];
+  onChange: (value: string) => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const name = useId();
+  usePopup(open, setOpen, { rootRef, triggerRef, popupRef });
+
+  const chosen = options.find((option) => option.value === value) ?? options[0];
+
+  function choose(next: string) {
+    setOpen(false);
+    triggerRef.current?.focus();
+    if (next !== value) onChange(next);
+  }
+
+  return (
+    <div ref={rootRef} className="flex flex-wrap items-center gap-2 max-sm:w-full">
+      <span className="relative inline-flex max-sm:w-full">
         <button
-          key={value}
+          ref={triggerRef}
           type="button"
-          aria-label={`Hapus filter ${label}: ${labelFor(value)}`}
-          onClick={() => toggle(value)}
-          className={`${CHIP} cursor-pointer hover:border-ink-2`}
+          aria-haspopup="true"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen(!open)}
+          className={`${TRIGGER} ${open ? "border-ink" : "border-rule"}`}
         >
-          <span className="max-w-40 truncate">{labelFor(value)}</span>
-          <span aria-hidden="true">×</span>
+          <span className="text-muted">{label}:</span>{" "}
+          <b className="max-w-48 truncate font-semibold">{chosen?.label}</b>
+          <span aria-hidden="true" className={`${CARET} max-sm:ml-auto`} />
         </button>
-      ))}
+
+        {open ? (
+          <div ref={popupRef} id={listId} role="radiogroup" aria-label={label} className={POPUP}>
+            {options.map((option, index) => (
+              <label
+                key={option.value}
+                // The "all" choice sits apart above the rest, as the multi-select's Semua does.
+                className={`${OPTION} ${index === 0 ? "mb-1 border-b border-rule pb-2" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name={name}
+                  checked={option.value === chosen?.value}
+                  // A click, not a change: pressing the choice already held still closes the popup.
+                  readOnly
+                  onClick={() => choose(option.value)}
+                  className={CHECKBOX}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        ) : null}
+      </span>
     </div>
   );
 }

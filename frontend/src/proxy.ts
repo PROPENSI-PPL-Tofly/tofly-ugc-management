@@ -16,7 +16,8 @@ function contentSecurityPolicy(nonce: string): string {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' ${dev ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
-    "img-src 'self' blob: data:",
+    // A revision note's screenshot redirects to a signed link on the storage bucket (PBI-34).
+    "img-src 'self' blob: data: https://storage.googleapis.com",
     "font-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

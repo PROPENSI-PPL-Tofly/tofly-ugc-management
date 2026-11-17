@@ -1,8 +1,18 @@
-import type { content_status } from '@prisma/client';
+import type { content_status, social_platform } from '@prisma/client';
 import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { taskActions, type TaskAction } from '../me/task-actions.js';
+import { firstLink } from './content-links.js';
 import { contentTags, type ContentTag } from './content-tags.js';
+import type { LinkPerformance } from '../performance/link-performance.js';
+import {
+  performanceOf,
+  type AccountConnection,
+  type StoredLinkPerformance,
+} from '../performance/performance-links.js';
+import { noteImageOf, type NoteImage, type StoredNoteImage } from '../submissions/note-image.js';
 import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
+import { editWindow, type EditWindow } from './content-edit.js';
+import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
 
 // The facts one content item's detail panel needs, assembled without a database: the side the
 // step is waiting on and the journey so far. The tags the prototype draws beside the status
@@ -15,6 +25,13 @@ import { fromStoredHistory, type StoredEventRow } from './stored-history.js';
 
 export type DetailWaitingOn = 'admin' | 'creator' | null;
 
+/** One number a performance step moved; null is a number that was empty. */
+export interface MetricChange {
+  metric: 'views' | 'likes' | 'comments' | 'shares';
+  before: number | null;
+  after: number | null;
+}
+
 export type DetailEventType =
   | 'scheduled'
   | 'proposal_approved'
@@ -23,7 +40,24 @@ export type DetailEventType =
   | 'draft_submitted'
   | 'revision_requested'
   | 'draft_approved'
-  | 'link_submitted';
+  | 'link_submitted'
+  | 'performance_entered'
+  | 'performance_replaced'
+  | 'content_updated'
+  | 'revision_followup_added';
+
+// A follow-up an admin added under a revision note already sent (PBI-33), named by role only.
+export interface DetailFollowUp {
+  id: string;
+  note: string;
+  /** The follow-up's sanitized formatting, when it was written with any. */
+  noteHtml?: string;
+  /** The screenshots it went out with (PBI-34); absent when it has none. */
+  images?: NoteImage[];
+  // ISO instant the follow-up was saved.
+  at: string;
+  actor: { name: string };
+}
 
 export interface DetailSubmissionRow {
   id: string;
@@ -31,8 +65,17 @@ export interface DetailSubmissionRow {
   created_at: Date;
   updated_at: Date;
   revision_notes: string | null;
+  /** The same note as sanitized rich text (PBI-34); null for a note from before it (AC 9). */
+  revision_notes_html: string | null;
+  /** The screenshots attached to the note (PBI-34, AC 8), first attached first. */
+  revision_note_images: StoredNoteImage[];
   /** What the creator wrote to the admin with this hand-in, if anything. */
   creator_notes: string | null;
+}
+
+/** One stored link (PBI-38), in the order the read sorts them: first handed in first. */
+export interface DetailLinkRow extends StoredLinkPerformance {
+  submitted_at: Date;
 }
 
 export interface ContentDetailRow {
@@ -42,16 +85,20 @@ export interface ContentDetailRow {
   brief: string;
   deadline: Date;
   status: content_status;
-  video_link: string | null;
+  content_links: DetailLinkRow[];
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
   created_at: Date;
   updated_at: Date;
   contracts: {
+    start_date: Date;
+    end_date: Date;
+    invoice: { status: InvoiceLifecycleStatus } | null;
     creators: {
       first_name: string;
       middle_name: string | null;
       last_name: string | null;
+      social_accounts: AccountConnection[];
     };
   };
   submissions: DetailSubmissionRow[];
@@ -69,7 +116,48 @@ export interface ContentEvent {
   at: string;
   /** A system step has no name: the app did it by itself. */
   actor: { name: string | null; role: 'admin' | 'creator' | 'system' };
-  payload?: { version?: number; link?: string; note?: string };
+  /**
+   * `platform` names a link step's platform (PBI-38 AC 12); `replaced` marks a link that took
+   * another's place, so the step still reads as a link to a panel that knows no other kind.
+   */
+  payload?: {
+    version?: number;
+    link?: string;
+    note?: string;
+    /** The note as sanitized rich text (PBI-34 AC 8); absent for a plain or legacy note (AC 9). */
+    noteHtml?: string;
+    /** The note's screenshots (PBI-34 AC 8); absent when the note has none. */
+    images?: NoteImage[];
+    platform?: social_platform;
+    replaced?: true;
+    /**
+     * What the step changed: the numbers a performance step moved (PBI-27 AC 16, 17), or each
+     * field an admin's edit changed, old and new (PBI-25 AC 4, on content_updated).
+     */
+    changes?: MetricChange[] | ContentChanges;
+    // On a revision request: the follow-ups added under its note, oldest first (PBI-33 AC 4).
+    followUps?: DetailFollowUp[];
+  };
+}
+
+/** One edited field's value before and after. */
+export interface FieldChange {
+  from: string;
+  to: string;
+}
+
+export type ContentChanges = Partial<
+  Record<'deadline' | 'brief' | 'name', FieldChange>
+>;
+
+/** One of the content's video links, as the panel lists them (PBI-38 AC 11). */
+export interface ContentLink {
+  platform: social_platform | null;
+  url: string;
+  /** ISO calendar day. */
+  submittedAt: string;
+  /** Its numbers and state (PBI-27); null for a link with no platform to be measured on. */
+  performance: Omit<LinkPerformance, 'platform' | 'url'> | null;
 }
 
 export interface ContentDetail {
@@ -86,7 +174,19 @@ export interface ContentDetail {
   waitingOn: DetailWaitingOn;
   latestSubmissionId: string | null;
   creatorActions: TaskAction[];
+  /** Every link handed in, first first; empty before the first. */
+  links: ContentLink[];
   events: ContentEvent[];
+  /**
+   * The days an admin may move the deadline to while Ubah and Hapus are offered (PBI-25 AC 1,
+   * 3, 9); null when the content may no longer change, and always null on a creator's read.
+   */
+  edit: EditWindow | null;
+}
+
+/** An admin's read: the global buffer the earliest-deadline rule counts with. */
+export interface AdminView {
+  bufferDays: number;
 }
 
 // One entry per status, so a status added to the lifecycle cannot be left without an answer.
@@ -122,7 +222,7 @@ export function buildEvents(
     | 'status'
     | 'created_at'
     | 'updated_at'
-    | 'video_link'
+    | 'content_links'
     | 'video_submitted_at'
     | 'contracts'
     | 'submissions'
@@ -164,12 +264,21 @@ export function buildEvents(
     });
 
     if (said(submission.revision_notes)) {
+      const images = submission.revision_note_images.map(noteImageOf);
       events.push({
         id: `${submission.id}:revision`,
         type: 'revision_requested',
         at: submission.updated_at.toISOString(),
         actor: { name: null, role: 'admin' },
-        payload: { note: submission.revision_notes },
+        payload: {
+          note: submission.revision_notes,
+          // A note from before rich text carries no HTML and no screenshots, and so reads
+          // exactly as it always did (AC 9).
+          ...(said(submission.revision_notes_html) && {
+            noteHtml: submission.revision_notes_html,
+          }),
+          ...(images.length > 0 && { images }),
+        },
       });
     }
   });
@@ -196,16 +305,32 @@ export function buildEvents(
       // A Postgres `date`: its day is all that was stored, so its day is all that is sent.
       at: row.video_submitted_at.toISOString().slice(0, 10),
       actor: { name: creatorName, role: 'creator' },
-      payload: { link: row.video_link ?? '' },
+      // The first link is the one that set the submitted day.
+      payload: { link: firstLink(row.content_links)?.url ?? '' },
     });
   }
 
   return events;
 }
 
+/** A link's numbers and state without the platform and url the link already carries. */
+function measuredOf(
+  link: DetailLinkRow,
+  accounts: readonly AccountConnection[],
+): ContentLink['performance'] {
+  if (link.platform === null) return null;
+  const {
+    platform: _platform,
+    url: _url,
+    ...measured
+  } = performanceOf(link, accounts);
+  return measured;
+}
+
 export function toContentDetail(
   row: ContentDetailRow,
   now: Date,
+  admin?: AdminView,
 ): ContentDetail {
   const today = jakartaDay(now);
   const deadlineDay = row.deadline.toISOString().slice(0, 10);
@@ -228,7 +353,6 @@ export function toContentDetail(
         deadline: row.deadline,
         status: row.status,
         videoSubmittedAt: row.video_submitted_at,
-        latestDraftAt: latest?.created_at ?? null,
         approvalBypassed: row.approval_bypassed,
       },
       now,
@@ -236,10 +360,28 @@ export function toContentDetail(
     waitingOn: waitingOnFor(row.status),
     latestSubmissionId: latest?.id ?? null,
     creatorActions: taskActions(row.status, deadlineDay, today),
+    links: row.content_links.map((link) => ({
+      platform: link.platform,
+      url: link.url,
+      submittedAt: link.submitted_at.toISOString().slice(0, 10),
+      performance: measuredOf(link, row.contracts.creators.social_accounts),
+    })),
     // The stored history is the record; a content with none falls back to what its rows prove.
     events:
       row.content_events.length > 0
         ? fromStoredHistory(row.content_events)
         : buildEvents(row),
+    edit: admin
+      ? editWindow(
+          {
+            status: row.status,
+            drafts: row.submissions.length,
+            contractStart: row.contracts.start_date.toISOString().slice(0, 10),
+            contractEnd: row.contracts.end_date.toISOString().slice(0, 10),
+            invoiceStatus: row.contracts.invoice?.status ?? null,
+          },
+          { today, bufferDays: admin.bufferDays },
+        )
+      : null,
   };
 }

@@ -285,6 +285,7 @@ describe("toContentPlanResponse", () => {
           status: "draft_review",
           tags: ["overdue"],
           revisionCount: 2,
+          platforms: ["instagram", "tiktok"],
         },
       ],
       page: 1,
@@ -309,6 +310,7 @@ describe("toContentPlanResponse", () => {
       status: "draft_review",
       tags: ["overdue"],
       revisionCount: 2,
+      platforms: ["instagram", "tiktok"],
     });
   });
 

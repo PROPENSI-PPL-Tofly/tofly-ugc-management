@@ -41,8 +41,10 @@ export interface CreatorFormInput {
   quota: number;
   /** In rupiah; null until the admin fills it in, since 0 is a rate they may choose. */
   fixedRate: number | null;
-  socialPlatform: SocialPlatform | "";
-  socialUsername: string;
+  /** Optional, as is the TikTok one: connecting the account later replaces it with the
+   *  platform's own handle, and blank means no account on file yet. */
+  instagramUsername: string;
+  tiktokUsername: string;
   contractType: ContractType | "";
 }
 
@@ -54,15 +56,15 @@ export interface CreatorFormErrors {
   interval?: string;
   quota?: string;
   fixedRate?: string;
-  socialPlatform?: string;
-  socialUsername?: string;
+  instagramUsername?: string;
+  tiktokUsername?: string;
   contractType?: string;
   deadlines?: string;
 }
 
 // The API's pattern (backend new-creator.ts): dot-separated runs of allowed characters on both
 // sides of one "@", and at least one dot in the domain.
-const EMAIL_FORMAT =
+export const EMAIL_FORMAT =
   /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 /**
@@ -212,17 +214,12 @@ export function validateCreatorForm(
   const fixedRate = fixedRateProblem(input.fixedRate);
   if (fixedRate) errors.fixedRate = fixedRate;
 
-  if (input.socialPlatform === "") {
-    errors.socialPlatform = "Platform wajib dipilih";
+  // Both usernames are optional; only one longer than the API stores is a problem.
+  for (const field of ["instagramUsername", "tiktokUsername"] as const) {
+    if (input[field].trim().length > MAX_USERNAME_LENGTH) {
+      errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
+    }
   }
-
-  const username = textProblem(
-    input.socialUsername,
-    MAX_USERNAME_LENGTH,
-    "Username wajib diisi",
-    "Username",
-  );
-  if (username) errors.socialUsername = username;
 
   if (input.contractType === "") {
     errors.contractType = "Jenis kontrak wajib dipilih";

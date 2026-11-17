@@ -1,4 +1,17 @@
-import type { ContentEvent, DetailEventType } from './content-detail.js';
+import type { social_platform } from '@prisma/client';
+import { adminName, type AdminAccount } from './content-event-actors.js';
+import type {
+  ContentChanges,
+  ContentEvent,
+  DetailEventType,
+  DetailFollowUp,
+  MetricChange,
+} from './content-detail.js';
+import { isSocialPlatform } from './link-rules.js';
+import {
+  noteImageOf,
+  type NoteImage,
+} from '../submissions/note-image.js';
 
 // The stored history (content_events) read back into the steps the Content Detail panel shows.
 // The table speaks the writers' vocabulary ("Draft Submitted", revision_note); the panel's
@@ -12,76 +25,285 @@ export interface StoredEventRow {
   actor_role: string;
   occurred_at: Date;
   event_data: unknown;
+  /** The account behind the event (an admin's), when one is. */
+  users?: AdminAccount | null;
 }
 
 // Each stored kind and the panel step it becomes, with the details that step carries. A kind
 // missing here is skipped rather than guessed at.
-const STEP_FOR: Record<string, { type: DetailEventType; payload: (data: Data) => ContentEvent['payload'] }> = {
+const STEP_FOR: Record<
+  string,
+  { type: DetailEventType; payload: (data: Data) => ContentEvent['payload'] }
+> = {
   Scheduled: { type: 'scheduled', payload: () => undefined },
   'Proposal Approved': { type: 'proposal_approved', payload: () => undefined },
   'Auto Scheduled': { type: 'auto_scheduled', payload: () => undefined },
   'Draft Approved': { type: 'draft_approved', payload: () => undefined },
   'Draft Submitted': {
     type: 'draft_submitted',
-    payload: (data) => details({ version: data.number('version'), link: data.text('link'), note: data.text('note') }),
+    payload: (data) =>
+      details({
+        version: data.number('version'),
+        link: data.text('link'),
+        note: data.text('note'),
+      }),
   },
   'Revision Requested': {
     type: 'revision_requested',
-    payload: (data) => details({ note: data.text('revision_note') }),
+    payload: (data) =>
+      details({
+        note: data.text('revision_note'),
+        noteHtml: data.text('revision_note_html'),
+        images: data.images('images'),
+      }),
   },
-  'Link Submitted': { type: 'link_submitted', payload: (data) => details({ link: data.text('link') }) },
-  'Creator Comment': { type: 'creator_comment', payload: (data) => details({ note: data.text('comment') }) },
+  'Link Submitted': {
+    type: 'link_submitted',
+    payload: (data) =>
+      details({ link: data.text('link'), platform: data.platform('platform') }),
+  },
+  // A replaced link is still a link step (PBI-38 AC 9); `replaced` says it took another's place.
+  'Link Replaced': {
+    type: 'link_submitted',
+    payload: (data) =>
+      details({
+        link: data.text('link'),
+        platform: data.platform('platform'),
+        replaced: true,
+      }),
+  },
+  // Numbers an admin typed in, with what moved (PBI-27 AC 16).
+  'Performance Entered': {
+    type: 'performance_entered',
+    payload: (data) =>
+      details({
+        platform: data.platform('platform'),
+        changes: data.metricChanges(),
+      }),
+  },
+  // The platform's numbers took the place of typed ones (PBI-27 AC 17).
+  'Performance Replaced': {
+    type: 'performance_replaced',
+    payload: (data) =>
+      details({
+        platform: data.platform('platform'),
+        changes: data.metricChanges(),
+      }),
+  },
+  'Creator Comment': {
+    type: 'creator_comment',
+    payload: (data) => details({ note: data.text('comment') }),
+  },
+  // An admin's edit of a scheduled content (PBI-25 AC 4): each changed field, old and new.
+  'Content Updated': {
+    type: 'content_updated',
+    payload: (data) => details({ changes: data.changes('changes') }),
+  },
+  // PBI-33 AC 6: the step only marks when; the follow-up itself is listed under its note.
+  'Revision Followup Added': {
+    type: 'revision_followup_added',
+    payload: () => undefined,
+  },
 };
+
+const EDITED_FIELDS = ['deadline', 'brief', 'name'] as const;
 
 /** Typed reads of a stored jsonb object; a field of the wrong type reads as absent. */
 interface Data {
   number(key: string): number | undefined;
   text(key: string): string | undefined;
+  /** A platform the app knows; any other stored value reads as absent. */
+  platform(key: string): social_platform | undefined;
+  /** The numbers that moved between `before` and `after`; absent when no values were stored. */
+  metricChanges(): MetricChange[] | undefined;
+  /** An edit's changes: only the fields an edit can touch, with text on both sides. */
+  changes(key: string): ContentChanges | undefined;
+  /** The note's screenshots (PBI-34): an entry of the wrong shape is dropped, not guessed at. */
+  images(key: string): NoteImage[] | undefined;
+}
+
+const METRIC_NAMES: readonly MetricChange['metric'][] = [
+  'views',
+  'likes',
+  'comments',
+  'shares',
+];
+
+function metricOf(values: unknown, metric: string): number | null {
+  const value = (values as Record<string, unknown>)[metric];
+  return typeof value === 'number' ? value : null;
+}
+
+function isObject(value: unknown): boolean {
+  return value !== null && typeof value === 'object';
+}
+
+function objectOf(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function changesOf(value: unknown): ContentChanges | undefined {
+  if (objectOf(value) !== value) {
+    return undefined;
+  }
+  const changes: ContentChanges = {};
+  for (const field of EDITED_FIELDS) {
+    const { from, to } = objectOf(objectOf(value)[field]);
+    if (typeof from === 'string' && typeof to === 'string') {
+      changes[field] = { from, to };
+    }
+  }
+  return changes;
+}
+
+/** The stored screenshots, entries first-attached first; one of the wrong shape is left out. */
+function imagesOf(value: unknown): NoteImage[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const images = value.flatMap((entry) => {
+    const fields = objectOf(entry);
+    return typeof fields.id === 'string' &&
+      typeof fields.content_type === 'string'
+      ? [noteImageOf({ id: fields.id, content_type: fields.content_type })]
+      : [];
+  });
+  return images.length > 0 ? images : undefined;
 }
 
 function dataOf(value: unknown): Data {
-  const fields =
-    value !== null && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
+  const fields = objectOf(value);
   return {
-    number: (key) => (typeof fields[key] === 'number' ? fields[key] : undefined),
+    metricChanges: () => {
+      const { before, after } = fields;
+      if (!isObject(before) || !isObject(after)) {
+        return undefined;
+      }
+      return METRIC_NAMES.map((metric) => ({
+        metric,
+        before: metricOf(before, metric),
+        after: metricOf(after, metric),
+      })).filter((change) => change.before !== change.after);
+    },
+    changes: (key) => changesOf(fields[key]),
+    images: (key) => imagesOf(fields[key]),
+    number: (key) =>
+      typeof fields[key] === 'number' ? fields[key] : undefined,
     // Blank text says nothing, as blank notes are left out everywhere else.
+    platform: (key) =>
+      isSocialPlatform(fields[key]) ? fields[key] : undefined,
     text: (key) => {
       const field = fields[key];
-      return typeof field === 'string' && field.trim() !== '' ? field : undefined;
+      return typeof field === 'string' && field.trim() !== ''
+        ? field
+        : undefined;
     },
   };
 }
 
 /** Drops the absent fields, so the payload holds only what was stored. */
-function details(fields: NonNullable<ContentEvent['payload']>): NonNullable<ContentEvent['payload']> {
+function details(
+  fields: NonNullable<ContentEvent['payload']>,
+): NonNullable<ContentEvent['payload']> {
   return Object.fromEntries(
     Object.entries(fields).filter(([, value]) => value !== undefined),
   ) as NonNullable<ContentEvent['payload']>;
 }
 
 /**
- * The stored rows as panel steps, in the order they came (newest first). An admin is only ever
- * sent as "an admin": whatever name an admin event stored stays on the server (OWASP A01).
+ * The stored rows as panel steps, in the order they came (newest first). An admin is named by
+ * their account's email; an admin event with no account behind it names no one, and the panel
+ * shows the role alone.
  */
 export function fromStoredHistory(rows: StoredEventRow[]): ContentEvent[] {
+  return withFollowUps(rows, toSteps(rows));
+}
+
+function toSteps(rows: StoredEventRow[]): ContentEvent[] {
   return rows.flatMap((row) => {
     const step = STEP_FOR[row.event_type];
     if (!step) {
       return [];
     }
     const role =
-      row.actor_role === 'admin' || row.actor_role === 'system' ? row.actor_role : 'creator';
+      row.actor_role === 'admin' || row.actor_role === 'system'
+        ? row.actor_role
+        : 'creator';
     const payload = step.payload(dataOf(row.event_data));
     return [
       {
         id: row.id,
         type: step.type,
         at: row.occurred_at.toISOString(),
-        actor: { name: role === 'creator' ? row.actor_name : null, role },
+        actor: { name: actorName(row, role), role },
         ...(payload && { payload }),
       },
     ];
+  });
+}
+
+// A creator by the name the row stored, an admin by email, the system by no name at all.
+function actorName(
+  row: StoredEventRow,
+  role: 'admin' | 'system' | 'creator',
+): string | null {
+  if (role === 'creator') return row.actor_name;
+  if (role === 'admin') return row.users?.email ?? null;
+  return null;
+}
+
+// The follow-up a stored row holds, or null when its note or id cannot be read.
+function followUpOf(row: StoredEventRow): DetailFollowUp | null {
+  const data = dataOf(row.event_data);
+  const id = data.text('follow_up_id');
+  const note = data.text('note');
+  if (id === undefined || note === undefined) {
+    return null;
+  }
+  const noteHtml = data.text('note_html');
+  const images = data.images('images');
+  return {
+    id,
+    note,
+    ...(noteHtml !== undefined && { noteHtml }),
+    ...(images !== undefined && images.length > 0 && { images }),
+    at: row.occurred_at.toISOString(),
+    actor: { name: adminName(row.users) },
+  };
+}
+
+// PBI-33 AC 4: each follow-up goes under the revision request of its own draft: both store
+// the draft's submission_id, so two requests saved at the same instant cannot swap them. A
+// request stored before it carried that id falls back to the latest request before the
+// follow-up, which is the one it adds to, since a follow-up is only kept while that round is
+// open. One with neither is listed nowhere rather than under a guess. Rows come newest first,
+// so they are walked from the oldest.
+function withFollowUps(
+  rows: StoredEventRow[],
+  steps: ContentEvent[],
+): ContentEvent[] {
+  const listed = new Map<string, DetailFollowUp[]>();
+  const requestOfDraft = new Map<string, string>();
+  let latestRequest: string | null = null;
+  for (const row of [...rows].reverse()) {
+    const draft = dataOf(row.event_data).text('submission_id');
+    if (row.event_type === 'Revision Requested') {
+      latestRequest = row.id;
+      if (draft) requestOfDraft.set(draft, row.id);
+    } else if (row.event_type === 'Revision Followup Added') {
+      const request = (draft && requestOfDraft.get(draft)) ?? latestRequest;
+      const followUp = followUpOf(row);
+      if (request && followUp) {
+        listed.set(request, [...(listed.get(request) ?? []), followUp]);
+      }
+    }
+  }
+  return steps.map((step) => {
+    const followUps = listed.get(step.id);
+    return followUps
+      ? { ...step, payload: { ...step.payload, followUps } }
+      : step;
   });
 }

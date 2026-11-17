@@ -23,6 +23,7 @@ export type ContentEventType =
   | 'Revision Requested'
   | 'Draft Approved'
   | 'Link Submitted'
+  | 'Link Replaced'
   | 'Creator Comment';
 
 export type ContentEventActorRole = 'admin' | 'creator';
@@ -41,10 +42,17 @@ interface ContentEventBase<
 
 export type ContentEventInput =
   | ContentEventBase<'Scheduled', Record<string, never>>
-  | ContentEventBase<'Draft Submitted', { version: number; link: string; note?: string }>
+  | ContentEventBase<
+      'Draft Submitted',
+      { version: number; link: string; note?: string }
+    >
   | ContentEventBase<'Revision Requested', { revision_note: string }>
   | ContentEventBase<'Draft Approved', Record<string, never>>
-  | ContentEventBase<'Link Submitted', { link: string }>
+  | ContentEventBase<'Link Submitted', { link: string; platform?: string }>
+  | ContentEventBase<
+      'Link Replaced',
+      { link: string; platform: string; previous_link: string }
+    >
   | ContentEventBase<'Creator Comment', { comment: string }>;
 
 export type ContentEventOrder = readonly [
@@ -77,6 +85,7 @@ const CONTENT_EVENT_TYPES: readonly ContentEventType[] = [
   'Revision Requested',
   'Draft Approved',
   'Link Submitted',
+  'Link Replaced',
   'Creator Comment',
 ];
 
@@ -155,6 +164,13 @@ function assertContentEventInput(
           errors.link = 'Wajib diisi';
         }
         break;
+      case 'Link Replaced':
+        for (const field of ['link', 'platform', 'previous_link'] as const) {
+          if (!isNonblankString(eventData[field])) {
+            errors[field] = 'Wajib diisi';
+          }
+        }
+        break;
       case 'Creator Comment':
         if (!isNonblankString(eventData.comment)) {
           errors.comment = 'Wajib diisi';
@@ -169,7 +185,6 @@ function assertContentEventInput(
   if (Object.keys(errors).length > 0) {
     throw invalidContentEvent(errors);
   }
-
 }
 
 @Injectable()

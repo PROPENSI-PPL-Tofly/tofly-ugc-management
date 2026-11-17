@@ -20,6 +20,10 @@ export interface InvoiceState {
   assertCanAcknowledge(): void;
   /** The creator confirms the payment arrived (13.1). */
   assertCanConfirmReceipt(): void;
+  /** A video link is submitted, added for another platform or replaced (PBI-38 AC 8, 9). */
+  assertCanChangeLinks(): void;
+  /** A scheduled content is edited or deleted (PBI-25 AC 9). */
+  assertCanChangeSchedule(): void;
 }
 
 /** Why a proof is refused: the invoice is not waiting for one. */
@@ -76,6 +80,10 @@ export class RunningInvoiceState implements InvoiceState {
   assertCanConfirmReceipt(): never {
     throw proofNotUploaded();
   }
+
+  assertCanChangeLinks(): void {}
+
+  assertCanChangeSchedule(): void {}
 }
 
 /**
@@ -86,7 +94,7 @@ export class RunningInvoiceState implements InvoiceState {
 abstract class FrozenInvoiceState implements InvoiceState {
   abstract readonly pipelineStatus: InvoiceStatus;
 
-  assertCanAdjust(): never {
+  assertCanAdjust(): void {
     throw this.finalized();
   }
 
@@ -106,6 +114,22 @@ abstract class FrozenInvoiceState implements InvoiceState {
     throw proofNotUploaded();
   }
 
+  /** The bonus was read from these links: changing one now would pay for a video nobody counted. */
+  assertCanChangeLinks(): never {
+    throw refused(
+      'INVOICE_FINALIZED',
+      'Invoice sudah difinalisasi. Link video tidak bisa diubah lagi',
+    );
+  }
+
+  /** The penalties were counted from these contents: moving or removing one now changes nothing paid. */
+  assertCanChangeSchedule(): never {
+    throw refused(
+      'INVOICE_FINALIZED',
+      'Invoice sudah difinalisasi. Konten tidak bisa diubah atau dihapus lagi',
+    );
+  }
+
   private finalized(): ConflictException {
     return new ConflictException({
       code: 'INVOICE_FINALIZED',
@@ -119,6 +143,9 @@ export class FinalizedInvoiceState extends FrozenInvoiceState {
   readonly pipelineStatus = 'finalized';
 
   override assertCanAcknowledge(): void {}
+
+  /** A correction stays possible until the creator acknowledges (PBI-28 AC 11). */
+  override assertCanAdjust(): void {}
 }
 
 /** The creator accepted the amount; the admin's payment proof is what comes next. */

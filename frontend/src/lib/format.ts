@@ -64,6 +64,19 @@ export function formatTimestamp(timestamp: string | null): string {
   return `${JAKARTA_DAY_FORMAT.format(moment)}, ${JAKARTA_TIME_FORMAT.format(moment)} WIB`;
 }
 
+/**
+ * "3 Nov 2026" for an ISO moment: the day it fell on in Jakarta, without the time. A moment at
+ * 00.30 WIB is still the previous day in UTC, so the day is never read off the ISO string.
+ */
+export function formatJakartaDay(timestamp: string | null): string {
+  if (!timestamp) return EMPTY;
+
+  const moment = new Date(timestamp);
+  if (Number.isNaN(moment.getTime())) return EMPTY;
+
+  return JAKARTA_DAY_FORMAT.format(moment);
+}
+
 /** "10 Jun – 7 Des 2026" when both ends share a year, both full dates otherwise. */
 export function formatContractWindow(start: string | null, end: string | null): string {
   if (!start || !end) return "Belum ada kontrak";
@@ -144,6 +157,9 @@ export function formatRevisions(value: number): string {
 
 /** Rupiah, as the prototype writes it: "Rp500.000", with a plain minus for what is taken off. */
 export function formatRupiah(amount: number): string {
+  // Number#toLocaleString is deliberately kept: a hoisted Intl.NumberFormat was measured
+  // ~20% slower on V8, which memoizes the locale formatter across toLocaleString calls
+  // (bench case below, and docs/perf/profiling-notes.md). Measure before optimizing.
   return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
 }
 

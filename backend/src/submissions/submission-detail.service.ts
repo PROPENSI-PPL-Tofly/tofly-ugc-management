@@ -1,6 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { joinName } from '../creators/evergreen.js';
+import { adminName } from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { FollowUpDto } from './follow-up.service.js';
 import { submissionNotFound } from './review-errors.js';
 
 interface SubmissionDetailRow {
@@ -23,6 +25,12 @@ interface SubmissionDetailRow {
     submissions: {
       revision_notes: string | null;
       updated_at: Date;
+      revision_followups: {
+        id: string;
+        body: string;
+        created_at: Date;
+        users: { email: string };
+      }[];
     }[];
   };
 }
@@ -39,6 +47,8 @@ export interface SubmissionDetail {
   revisionHistory: {
     note: string | null;
     date: string;
+    // PBI-33 AC 4: what the admin added under this note, oldest first.
+    followUps: FollowUpDto[];
   }[];
 }
 
@@ -78,6 +88,15 @@ export interface SubmissionDetailClient {
               select: {
                 revision_notes: true;
                 updated_at: true;
+                revision_followups: {
+                  orderBy: [{ created_at: 'asc' }, { id: 'asc' }];
+                  select: {
+                    id: true;
+                    body: true;
+                    created_at: true;
+                    users: { select: { email: true } };
+                  };
+                };
               };
             };
           };
@@ -129,6 +148,15 @@ export class SubmissionDetailService {
               select: {
                 revision_notes: true,
                 updated_at: true,
+                revision_followups: {
+                  orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+                  select: {
+                    id: true,
+                    body: true,
+                    created_at: true,
+                    users: { select: { email: true } },
+                  },
+                },
               },
             },
           },
@@ -151,6 +179,12 @@ export class SubmissionDetailService {
       revisionHistory: submission.contents.submissions.map((revision) => ({
         note: revision.revision_notes,
         date: revision.updated_at.toISOString(),
+        followUps: revision.revision_followups.map((followUp) => ({
+          id: followUp.id,
+          note: followUp.body,
+          at: followUp.created_at.toISOString(),
+          actor: { name: adminName(followUp.users) },
+        })),
       })),
     };
   }

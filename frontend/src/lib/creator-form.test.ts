@@ -19,8 +19,8 @@ describe("validateCreatorForm", () => {
     interval: 14,
     quota: 6,
     fixedRate: 500000,
-    socialPlatform: "instagram" as const,
-    socialUsername: "salsa.amelia",
+    instagramUsername: "salsa.amelia",
+    tiktokUsername: "",
     contractType: "regular" as const,
   };
 
@@ -131,19 +131,13 @@ describe("validateCreatorForm", () => {
   });
 
 
-  // A new creator needs at least one connected account before Tofly can pull performance
-  // data — only the platform is enum-constrained by the database (instagram | tiktok); the
-  // username itself is free text, same as the DB's `social_accounts.username` column.
-  it("requires a social platform", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, socialPlatform: "" });
+  // Both usernames are optional: the creator connects each account later, and the platform's
+  // own handle then replaces what the admin typed.
+  it("accepts a creator with neither username", () => {
+    const errors = validateCreatorForm({ ...VALID_INPUT, instagramUsername: "", tiktokUsername: "  " });
 
-    expect(errors.socialPlatform).toBe("Platform wajib dipilih");
-  });
-
-  it("requires a social username", () => {
-    const errors = validateCreatorForm({ ...VALID_INPUT, socialUsername: "" });
-
-    expect(errors.socialUsername).toBe("Username wajib diisi");
+    expect(errors.instagramUsername).toBeUndefined();
+    expect(errors.tiktokUsername).toBeUndefined();
   });
 
   // `existingEmails` is not a parameter of validateCreatorForm yet — GREEN adds it. This is
@@ -191,8 +185,8 @@ describe("localCalendarDay", () => {
         interval: 14,
         quota: 1,
         fixedRate: 500000,
-        socialPlatform: "instagram",
-        socialUsername: "bagas",
+        instagramUsername: "bagas",
+        tiktokUsername: "",
         contractType: "regular",
       },
       new Date("2026-09-23T18:30:00Z"),
@@ -246,8 +240,8 @@ describe("validateCreatorForm contract end and limits", () => {
     interval: 14,
     quota: 3,
     fixedRate: 500000,
-    socialPlatform: "instagram" as const,
-    socialUsername: "bagas",
+    instagramUsername: "bagas",
+    tiktokUsername: "",
     contractType: "regular" as const,
   };
 
@@ -292,11 +286,10 @@ describe("validateCreatorForm contract end and limits", () => {
     );
   });
 
-  it("treats a name or username of only spaces as empty", () => {
-    const errors = validateCreatorForm({ ...INPUT, name: "   ", socialUsername: "  " }, TODAY);
+  it("treats a name of only spaces as empty", () => {
+    const errors = validateCreatorForm({ ...INPUT, name: "   " }, TODAY);
 
     expect(errors.name).toBe("Nama wajib diisi");
-    expect(errors.socialUsername).toBe("Username wajib diisi");
   });
 
   it("holds names, usernames and emails to the API's lengths", () => {
@@ -305,14 +298,16 @@ describe("validateCreatorForm contract end and limits", () => {
       {
         ...INPUT,
         name: long,
-        socialUsername: long,
+        instagramUsername: long,
+        tiktokUsername: long,
         email: `${"a".repeat(250)}@x.co`,
       },
       TODAY,
     );
 
     expect(errors.name).toBe("Nama maksimal 100 karakter");
-    expect(errors.socialUsername).toBe("Username maksimal 100 karakter");
+    expect(errors.instagramUsername).toBe("Username maksimal 100 karakter");
+    expect(errors.tiktokUsername).toBe("Username maksimal 100 karakter");
     expect(errors.email).toBe("Email maksimal 254 karakter");
   });
 
@@ -394,8 +389,8 @@ describe("validateCreatorForm schedule", () => {
     interval: 14,
     quota: 3,
     fixedRate: 500000,
-    socialPlatform: "instagram" as const,
-    socialUsername: "bagas",
+    instagramUsername: "bagas",
+    tiktokUsername: "",
     contractType: "regular" as const,
   };
   const TODAY = new Date("2026-09-24T05:00:00Z");

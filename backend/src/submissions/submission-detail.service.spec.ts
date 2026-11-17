@@ -24,6 +24,12 @@ function stubClient(
       revision_notes: string | null;
       created_at: Date;
       updated_at: Date;
+      revision_followups?: {
+        id: string;
+        body: string;
+        created_at: Date;
+        users: { email: string };
+      }[];
     }[];
   } | null,
 ) {
@@ -47,9 +53,12 @@ function stubClient(
             },
             brief: found.brief,
             status: found.status,
-            submissions: found.revisions.filter(
-              (revision) => revision.revision_notes !== null,
-            ),
+            submissions: found.revisions
+              .filter((revision) => revision.revision_notes !== null)
+              .map((revision) => ({
+                ...revision,
+                revision_followups: revision.revision_followups ?? [],
+              })),
           },
         },
       ),
@@ -100,6 +109,7 @@ describe('SubmissionDetailService.getDetail', () => {
         {
           note: 'Tolong ubah opening',
           date: '2026-09-21T00:00:00.000Z',
+          followUps: [],
         },
       ],
     });
@@ -160,12 +170,78 @@ describe('SubmissionDetailService.getDetail', () => {
               select: {
                 revision_notes: true,
                 updated_at: true,
+                // PBI-33: the follow-ups under each note, oldest first.
+                revision_followups: {
+                  orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+                  select: {
+                    id: true,
+                    body: true,
+                    created_at: true,
+                    users: { select: { email: true } },
+                  },
+                },
               },
             },
           },
         },
       },
     });
+  });
+
+  // PBI-33, 33.1 (AC 4): the note stays as sent, with the follow-ups added under it, oldest
+  // first, each signed by the email of the admin who wrote it.
+  it('lists the follow-ups under the revision note they add to, oldest first', async () => {
+    const client = stubClient({
+      brief: 'Create a short product review',
+      status: 'draft_revision',
+      link: 'https://drive.example.com/draft-1',
+      revisions: [
+        {
+          revision_notes: 'Tolong ubah opening',
+          created_at: new Date('2026-09-05T00:00:00.000Z'),
+          updated_at: new Date('2026-09-21T00:00:00.000Z'),
+          revision_followups: [
+            {
+              id: 'fu-1',
+              body: 'Intro juga dipotong ya.',
+              created_at: new Date('2026-09-21T04:00:00.000Z'),
+              users: { email: 'sinta.admin@tofly.id' },
+            },
+            {
+              id: 'fu-2',
+              body: 'Ralat: musik versi kedua.',
+              created_at: new Date('2026-09-21T05:00:00.000Z'),
+              users: { email: 'bima.admin@tofly.id' },
+            },
+          ],
+        },
+      ],
+    });
+
+    const detail = await new SubmissionDetailService(client).getDetail(
+      SUBMISSION_ID,
+    );
+
+    expect(detail.revisionHistory).toEqual([
+      {
+        note: 'Tolong ubah opening',
+        date: '2026-09-21T00:00:00.000Z',
+        followUps: [
+          {
+            id: 'fu-1',
+            note: 'Intro juga dipotong ya.',
+            at: '2026-09-21T04:00:00.000Z',
+            actor: { name: 'sinta.admin@tofly.id' },
+          },
+          {
+            id: 'fu-2',
+            note: 'Ralat: musik versi kedua.',
+            at: '2026-09-21T05:00:00.000Z',
+            actor: { name: 'bima.admin@tofly.id' },
+          },
+        ],
+      },
+    ]);
   });
 
   it('joins only the name parts a creator has, so a single name has no stray spaces', async () => {

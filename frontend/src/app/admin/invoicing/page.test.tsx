@@ -81,7 +81,7 @@ async function renderPage(params: Record<string, string> = {}) {
   return render(<>{result}</>);
 }
 
-describe("Rate & Invoicing page", () => {
+describe("Pembayaran page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();
@@ -91,7 +91,7 @@ describe("Rate & Invoicing page", () => {
   it("titles the page and explains the formula behind an ⓘ a keyboard can reach", async () => {
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Rate & Invoicing" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Pembayaran" })).toBeInTheDocument();
     const tip = screen.getByRole("button", { name: "Info rumus Total" });
     expect(tip).toHaveAccessibleDescription(FORMULA);
     // Not a title: a hover-only hint no keyboard or touch can open.
@@ -112,6 +112,9 @@ describe("Rate & Invoicing page", () => {
       q: "pw",
       contract: "active",
       status: "paid",
+      period: "all",
+      from: "",
+      to: "",
       sort: "action",
       order: "asc",
       page: 2,
@@ -213,9 +216,13 @@ describe("Rate & Invoicing page", () => {
 
       await renderPage();
 
-      expect(screen.getByRole("status", { name: "Formula rate belum diatur" })).toHaveTextContent(
-        "Formula rate belum diatur. Fee konten tambahan dan penalti belum dihitung sampai formula disimpan lewat Atur Formula Rate.",
-      );
+      // A badge beside Atur Formula Rate in the page's header, not a box over the table.
+      const badge = screen.getByRole("status", { name: "Formula rate belum diatur" });
+      expect(badge).toHaveTextContent("Formula rate belum diatur");
+      expect(badge).toHaveClass("rounded-full");
+      const header = screen.getByRole("heading", { level: 1, name: "Pembayaran" }).parentElement as HTMLElement;
+      expect(header).toContainElement(badge);
+      expect(header).toContainElement(screen.getByRole("button", { name: /atur formula rate/i }));
     });
 
     it("says nothing about the formula once it is saved", async () => {
@@ -224,11 +231,34 @@ describe("Rate & Invoicing page", () => {
       expect(screen.queryByRole("status", { name: "Formula rate belum diatur" })).not.toBeInTheDocument();
     });
 
+    // Scoped to the table: the approved design repeats the sum in the Ringkasan tile above.
     it("adds up the whole filtered list under the table", async () => {
       await renderPage();
 
-      expect(screen.getByText("Total 24 invoice")).toBeInTheDocument();
-      expect(screen.getByText("Rp9.800.000")).toBeInTheDocument();
+      const table = screen.getByRole("table");
+      expect(within(table).getByText("Total 24 invoice")).toBeInTheDocument();
+      expect(within(table).getByText("Rp9.800.000")).toBeInTheDocument();
+    });
+
+    // Approved design: the filtered list's sum leads the page as a navy tile, how many and
+    // what they come to, with the rule that adds each one up.
+    it("leads with the filtered list's sum in a navy Ringkasan tile", async () => {
+      await renderPage();
+
+      const tile = screen.getByRole("region", { name: "Ringkasan" });
+      expect(tile).toHaveClass("bg-ink", "text-accent-ink");
+      expect(tile).toHaveTextContent("Total 24 invoice");
+      expect(tile).toHaveTextContent("Rp9.800.000");
+      expect(tile).toHaveTextContent("Total = Fixed Rate + Konten Tambahan + Bonus − Penalti");
+    });
+
+    it("gives the list no title band and puts the formula button beside the page title", async () => {
+      await renderPage();
+
+      expect(screen.queryByRole("heading", { level: 2, name: "Invoice" })).toBeNull();
+      expect(document.querySelector("[data-tone]")).toBeNull();
+      const header = screen.getByRole("heading", { level: 1, name: "Pembayaran" }).parentElement as HTMLElement;
+      expect(within(header).getByRole("button", { name: /atur formula rate/i })).toBeInTheDocument();
     });
 
     it("asks the list for the order in the URL", async () => {

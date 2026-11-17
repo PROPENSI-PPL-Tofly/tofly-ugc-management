@@ -1,10 +1,12 @@
 import { InvoiceFilters } from "@/components/invoice/invoice-filters";
 import { InvoiceBoard } from "@/components/invoicing/invoice-board";
+import { InfoTip } from "@/components/ui/info-tip";
 import { RateFormulaTrigger } from "@/components/rate-formula/rate-formula-trigger";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
+import { formatRupiah } from "@/lib/format";
 import {
   buildInvoiceQuery,
   INVOICE_PAGE_SIZE,
@@ -18,7 +20,7 @@ import { fetchRateInvoices } from "@/lib/invoice.server";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Rate & Invoicing — Tofly",
+  title: "Pembayaran — Tofly",
 };
 
 /**
@@ -46,27 +48,52 @@ export default async function RateInvoicingPage({
 
   return (
     <AppShell
-      title="Rate & Invoicing"
-      subtitle="Fixed rate, konten tambahan, bonus, penalti, dan invoice berjalan setiap creator"
+      title="Pembayaran"
+      action={
+        list ? (
+          <span className="flex flex-wrap items-center gap-2">
+            {/* Until a formula is saved only the fixed rate is counted: said beside the button that
+                sets it, with what that means behind its ⓘ. */}
+            {list.summary.formulaSet ? null : (
+              <span className="inline-flex items-center gap-1">
+                <span
+                  role="status"
+                  aria-label="Formula rate belum diatur"
+                  className="rounded-full bg-amber-wash px-2.5 py-1 text-xs font-semibold text-amber-ink"
+                >
+                  Formula rate belum diatur
+                </span>
+                <InfoTip
+                  label="Tentang formula rate"
+                  text="Fee konten tambahan dan penalti belum dihitung sampai formula disimpan lewat Atur Formula Rate."
+                  align="end"
+                />
+              </span>
+            )}
+            <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} />
+          </span>
+        ) : undefined
+      }
     >
       {list ? (
-        <Panel>
-          {/* The prototype's panel head; the ⓘ that explains Total sits on the Total header. */}
-          <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-3 pt-5">
-            <h2 className="text-[15px]">Rate & Invoicing</h2>
-            <RateFormulaTrigger runningInvoices={list.summary.runningInvoices} />
-          </div>
-
-          {list.summary.formulaSet ? null : (
-            <p
-              role="status"
-              aria-label="Formula rate belum diatur"
-              className="mx-5 mb-3 rounded-(--radius-control) border border-amber bg-amber-wash px-3 py-2 text-[13px] text-amber-ink"
-            >
-              Formula rate belum diatur. Fee konten tambahan dan penalti belum dihitung sampai formula
-              disimpan lewat Atur Formula Rate.
+        <>
+        {/* The approved design leads with the filtered list's sum, the rule that makes it beside. */}
+        <section
+          aria-label="Ringkasan"
+          className="mb-4 flex flex-col gap-3 rounded-(--radius-panel) bg-ink px-5 py-4 text-accent-ink max-sm:px-4"
+        >
+          <div>
+            <p className="text-xs font-semibold text-rule">{`Total ${list.total} invoice`}</p>
+            <p className="mt-0.5 text-[28px] leading-tight font-extrabold tabular-nums">
+              {formatRupiah(list.summary.total)}
             </p>
-          )}
+          </div>
+          <p className="text-xs leading-normal text-rule">Total = Fixed Rate + Konten Tambahan + Bonus − Penalti</p>
+        </section>
+
+        <Panel>
+          {/* No title band: the page's title already names its one list, and the formula button
+              and its notice sit beside that title. */}
 
           <InvoiceFilters />
           {/* The table, with each money cell opening its breakdown (8.5). */}
@@ -87,9 +114,10 @@ export default async function RateInvoicingPage({
             totalPages={list.totalPages}
           />
         </Panel>
+        </>
       ) : (
         <Panel>
-          <LoadError title="Rate & Invoicing tidak bisa dimuat." retryHref={invoiceHref(state)} />
+          <LoadError title="Pembayaran tidak bisa dimuat." retryHref={invoiceHref(state)} />
         </Panel>
       )}
     </AppShell>

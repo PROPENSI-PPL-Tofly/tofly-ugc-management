@@ -69,6 +69,7 @@ export function Modal({
   meta,
   role = "dialog",
   initialFocus,
+  tools,
 }: {
   title: string;
   onClose: () => void;
@@ -84,6 +85,8 @@ export function Modal({
   role?: "dialog" | "alertdialog";
   /** Where focus lands on open; the dialog container itself when not given. */
   initialFocus?: RefObject<HTMLElement | null>;
+  /** Controls beside the close button, such as a menu of actions on the subject. */
+  tools?: ReactNode;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingId = useId();
@@ -118,7 +121,9 @@ export function Modal({
       if (!isTopDialog(dialog)) return;
 
       if (event.key === "Escape") {
-        close.current();
+        // A control inside (a menu, the link row) already used this Escape. React listens on the
+        // document in the app, beside this listener, so stopPropagation alone cannot keep it out.
+        if (!event.defaultPrevented) close.current();
         return;
       }
 
@@ -194,14 +199,18 @@ export function Modal({
               </h2>
             </div>
 
+            <div className="flex shrink-0 items-center gap-1">
+            {tools}
             <button
               type="button"
               onClick={onClose}
               aria-label="Tutup dialog"
-              className="cursor-pointer rounded-(--radius-control) border-none bg-transparent px-1 text-lg leading-none text-muted hover:text-ink"
+              // The same ✕ in a target at least 32px square, 44px on a phone (WCAG 2.5.8).
+              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-(--radius-control) border-none bg-transparent text-lg leading-none text-muted hover:text-ink max-sm:size-11"
             >
               ✕
             </button>
+            </div>
           </div>
 
           {meta ? (
@@ -217,7 +226,7 @@ export function Modal({
         <div className={`flex flex-col gap-3.5 p-5 ${layout.body}`}>{children}</div>
 
         {footer ? (
-          <div className="flex flex-wrap justify-end gap-2 border-t border-rule px-5 py-4">
+          <div data-modal-footer="" className="flex flex-wrap justify-end gap-2 border-t border-rule px-5 py-4">
             {footer}
           </div>
         ) : null}

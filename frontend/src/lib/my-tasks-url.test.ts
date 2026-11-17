@@ -254,3 +254,23 @@ describe("myTabOf", () => {
     }
   });
 });
+
+// OWASP A05:2025 Injection / A01:2025 Broken Access Control: the phone's Tampilkan choice
+// writes the same ?tab= the row of tabs does, and an address can carry anything there. Only a
+// tab on the allow-list is ever read; anything else is Semua, never echoed or passed on.
+describe("parseMyTasksParams, a forged tab", () => {
+  const PARSE = parseMyTasksParams;
+  it.each([
+    ["an unknown name", "bogus"],
+    ["markup", "<img src=x onerror=alert(1)>"],
+    ["a case variant", "Waiting"],
+    ["an empty value", ""],
+  ])("reads %s as the Semua tab", (_, tab) => {
+    expect(PARSE({ tab }).tab).toBe("all");
+  });
+
+  it("reads a repeated tab by its first value only, still from the allow-list", () => {
+    expect(PARSE({ tab: ["waiting", "bogus"] }).tab).toBe("waiting");
+    expect(PARSE({ tab: ["bogus", "waiting"] }).tab).toBe("all");
+  });
+});

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { InfoTip } from "./info-tip";
 
 describe("InfoTip", () => {
@@ -18,109 +18,236 @@ describe("InfoTip", () => {
     );
   });
 
-  it("lines the bubble up with the icon's left edge by default", () => {
-    render(<InfoTip label="Info" text="Teks" />);
-
-    expect(screen.getByRole("tooltip")).toHaveClass("left-0");
-  });
-
-  it("lines the bubble up with the icon's right edge when asked", () => {
-    render(<InfoTip label="Info" text="Teks" align="end" />);
-
-    expect(screen.getByRole("tooltip")).toHaveClass("right-0");
-  });
-
-  // Once nothing around it clips, the bubble can still run off the window: on a phone the
-  // Produktivitas card sits in the right column and its 260 px bubble opened 182 px past the edge.
-  // jsdom lays nothing out, so the boxes a browser would measure are stubbed in.
-  describe("near the edge of the window", () => {
+  // The bubble once hung inside the table it explained, and a scrolling table cut it off at its
+  // edge (the last row of Performa Konten lost it under the pagination). It is placed on the
+  // screen layer instead, against the icon, and kept inside the window. jsdom lays nothing out,
+  // so the boxes a browser would measure are stubbed in.
+  describe("placed against its icon, on the screen layer", () => {
     function box(left: number, top: number, width: number, height: number): DOMRect {
-      return { left, top, width, height, right: left + width, bottom: top + height } as DOMRect;
+      return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) };
     }
 
-    /** Sizes the window and puts the icon and its bubble where a browser would. */
-    function layout(width: number, height: number, icon: DOMRect, bubble: DOMRect) {
+    function window(width: number, height: number) {
       Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: width });
       Object.defineProperty(document.documentElement, "clientHeight", { configurable: true, value: height });
-      const tooltip = screen.getByRole("tooltip");
-      vi.spyOn(tooltip.parentElement as HTMLElement, "getBoundingClientRect").mockReturnValue(icon);
-      vi.spyOn(tooltip, "getBoundingClientRect").mockReturnValue(bubble);
     }
 
-    function hover() {
-      fireEvent.pointerEnter(screen.getByRole("button"));
-      return screen.getByRole("tooltip");
+    /** Renders the tip inside a clipping, scrolling box, with the icon and bubble measured as given. */
+    function openAt(icon: DOMRect, bubble: DOMRect, align: "start" | "end" = "start") {
+      render(
+        <div style={{ overflow: "auto" }}>
+          <InfoTip label="Info" text="Teks" align={align} />
+        </div>,
+      );
+      const tooltip = screen.getByRole("tooltip");
+      const iconSpy = vi.spyOn(tooltip.parentElement as HTMLElement, "getBoundingClientRect").mockReturnValue(icon);
+      vi.spyOn(tooltip, "getBoundingClientRect").mockReturnValue(bubble);
+      fireEvent.focus(screen.getByRole("button", { name: "Info" }));
+      return { tooltip, iconSpy };
     }
 
     afterEach(() => {
       vi.restoreAllMocks();
-      for (const side of ["clientWidth", "clientHeight"]) {
-        Object.defineProperty(document.documentElement, side, { configurable: true, value: 0 });
-      }
+      window(0, 0);
     });
 
-    it("leaves the bubble where it opens when it fits", () => {
+    it("is fixed to the screen, so no scrolling area it sits in can cut it off", () => {
       render(<InfoTip label="Info" text="Teks" />);
-      layout(1024, 768, box(600, 300, 16, 16), box(600, 322, 260, 90));
 
-      expect(hover().style.transform).toBe("");
+      expect(screen.getByRole("tooltip")).toHaveClass("fixed");
     });
 
-    it("pulls the bubble back inside when it would run past the right edge, keeping a margin", () => {
+    it("takes no room while closed, so it can never widen what it sits in", () => {
       render(<InfoTip label="Info" text="Teks" />);
-      layout(375, 800, box(289, 400, 16, 16), box(289, 422, 260, 90));
 
-      // Its right edge at 549 is 174 past the window; 8 more leaves a margin.
-      expect(hover().style.transform).toBe("translate(-182px, 0px)");
+      expect(screen.getByRole("tooltip")).toHaveClass("hidden", "group-hover:block");
     });
 
-    it("never pulls it past the left edge on a window narrower than the bubble", () => {
-      render(<InfoTip label="Info" text="Teks" />);
-      layout(200, 800, box(100, 400, 16, 16), box(100, 422, 260, 90));
+    it("opens 6px below the icon, lined up with its left edge", async () => {
+      window(1024, 800);
+      const { tooltip } = openAt(box(100, 200, 16, 16), box(0, 0, 260, 90));
 
-      expect(hover().style.transform).toBe("translate(-92px, 0px)");
+      await waitFor(() => expect(tooltip.style.top).toBe("222px"));
+      expect(tooltip.style.left).toBe("100px");
     });
 
-    it("pushes an end-aligned bubble back inside when it would run past the left edge", () => {
-      render(<InfoTip label="Info" text="Teks" align="end" />);
-      layout(375, 800, box(20, 400, 16, 16), box(-224, 422, 260, 90));
+    it("lines up with the icon's right edge when asked", async () => {
+      window(1024, 800);
+      const { tooltip } = openAt(box(600, 200, 16, 16), box(0, 0, 260, 90), "end");
 
-      expect(hover().style.transform).toBe("translate(232px, 0px)");
+      await waitFor(() => expect(tooltip.style.left).toBe("356px"));
     });
 
-    it("opens the bubble above the icon when it would run past the bottom and there is room", () => {
-      render(<InfoTip label="Info" text="Teks" />);
-      layout(1024, 700, box(600, 640, 16, 16), box(600, 662, 260, 90));
+    it("opens above the icon when it would run past the bottom and there is room", async () => {
+      window(1024, 700);
+      const { tooltip } = openAt(box(600, 640, 16, 16), box(0, 0, 260, 90));
 
       // It ends 6 px above the icon, as it starts 6 px below it.
-      expect(hover().style.transform).toBe("translate(0px, -118px)");
+      await waitFor(() => expect(tooltip.style.top).toBe("544px"));
+      expect(tooltip).toHaveAttribute("data-above");
     });
 
-    it("keeps the bubble below when there is no room above either", () => {
+    it("keeps below when there is no room above either", async () => {
+      window(1024, 100);
+      const { tooltip } = openAt(box(600, 40, 16, 16), box(0, 0, 260, 90));
+
+      await waitFor(() => expect(tooltip.style.top).toBe("62px"));
+      expect(tooltip).not.toHaveAttribute("data-above");
+    });
+
+    it("is pulled back inside the window near its right edge, 8px clear of it", async () => {
+      window(375, 800);
+      const { tooltip } = openAt(box(300, 200, 16, 16), box(0, 0, 260, 90));
+
+      // 375 - 8 - 260
+      await waitFor(() => expect(tooltip.style.left).toBe("107px"));
+    });
+
+    it("is pushed back inside the window near its left edge", async () => {
+      window(375, 800);
+      const { tooltip } = openAt(box(84, 200, 16, 16), box(0, 0, 260, 90), "end");
+
+      await waitFor(() => expect(tooltip.style.left).toBe("8px"));
+    });
+
+    // A window made taller after a first opening must not keep the place measured for the old one.
+    it("measures afresh each time it opens", async () => {
+      window(1024, 700);
+      const { tooltip } = openAt(box(600, 640, 16, 16), box(0, 0, 260, 90));
+      await waitFor(() => expect(tooltip).toHaveAttribute("data-above"));
+      const button = screen.getByRole("button", { name: "Info" });
+      fireEvent.blur(button);
+      window(1024, 1000);
+
+      fireEvent.focus(button);
+
+      await waitFor(() => expect(tooltip.style.top).toBe("662px"));
+      expect(tooltip).not.toHaveAttribute("data-above");
+    });
+
+    it("follows its icon when the page scrolls while it is open", async () => {
+      window(1024, 800);
+      const { tooltip, iconSpy } = openAt(box(100, 200, 16, 16), box(0, 0, 260, 90));
+      await waitFor(() => expect(tooltip.style.top).toBe("222px"));
+
+      iconSpy.mockReturnValue(box(100, 150, 16, 16));
+      fireEvent.scroll(document);
+
+      await waitFor(() => expect(tooltip.style.top).toBe("172px"));
+    });
+  });
+
+  // A phone browser need not focus a button it is tapped on (Safari does not), so a bubble that
+  // opened on focus alone never opened under a finger. A tap opens it, and it closes the ways a
+  // tooltip should: Escape, leaving it, or a press anywhere else.
+  describe("on a touch screen", () => {
+    it("opens on a tap, focused or not", () => {
       render(<InfoTip label="Info" text="Teks" />);
-      layout(1024, 100, box(600, 40, 16, 16), box(600, 62, 260, 90));
 
-      expect(hover().style.transform).toBe("");
+      fireEvent.click(screen.getByRole("button", { name: "Info" }));
+
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+      expect(screen.getByRole("tooltip")).not.toHaveClass("hidden");
     });
 
-    it("places the bubble when the icon is reached by keyboard too", () => {
+    it("stays open when the tap also focused it", () => {
       render(<InfoTip label="Info" text="Teks" />);
-      layout(375, 800, box(289, 400, 16, 16), box(289, 422, 260, 90));
+      const button = screen.getByRole("button", { name: "Info" });
 
-      act(() => screen.getByRole("button").focus());
+      fireEvent.focus(button);
+      fireEvent.click(button);
 
-      expect(screen.getByRole("tooltip").style.transform).toBe("translate(-182px, 0px)");
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
     });
 
-    // A window widened after a first opening must not keep the offset measured for the old one.
-    it("measures afresh each time it opens", () => {
+    it("closes on Escape without moving focus", () => {
       render(<InfoTip label="Info" text="Teks" />);
-      layout(375, 800, box(289, 400, 16, 16), box(289, 422, 260, 90));
-      hover();
-      vi.restoreAllMocks();
-      layout(1024, 768, box(289, 400, 16, 16), box(289, 422, 260, 90));
+      const button = screen.getByRole("button", { name: "Info" });
+      button.focus();
+      fireEvent.click(button);
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
 
-      expect(hover().style.transform).toBe("");
+      fireEvent.keyDown(button, { key: "Escape" });
+
+      expect(screen.getByRole("tooltip")).toHaveClass("hidden");
+      expect(button).toHaveFocus();
     });
+
+    it("closes on a press anywhere else", () => {
+      render(
+        <>
+          <InfoTip label="Info" text="Teks" />
+          <p>Di luar</p>
+        </>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Info" }));
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+
+      fireEvent.pointerDown(screen.getByText("Di luar"));
+
+      expect(screen.getByRole("tooltip")).toHaveClass("hidden");
+    });
+
+    it("closes when focus leaves it", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      const button = screen.getByRole("button", { name: "Info" });
+      fireEvent.focus(button);
+      fireEvent.click(button);
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+
+      fireEvent.blur(button);
+
+      expect(screen.getByRole("tooltip")).toHaveClass("hidden");
+    });
+
+    it("opens on keyboard focus alone", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+
+      fireEvent.focus(screen.getByRole("button", { name: "Info" }));
+
+      expect(screen.getByRole("tooltip")).toHaveClass("block");
+    });
+
+    // Measured at 375px on Rate & Invoicing: a tap on the open Total bubble went through it to
+    // the cell beneath, and the press counted as one elsewhere, so the bubble being read shut.
+    // The bubble takes its own presses now; jsdom does no hit-testing, so the browser checks it.
+    it("takes a press on its own open bubble, which stays open", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      fireEvent.click(screen.getByRole("button", { name: "Info" }));
+      const tooltip = screen.getByRole("tooltip");
+
+      expect(tooltip).not.toHaveClass("pointer-events-none");
+      fireEvent.pointerDown(tooltip);
+
+      expect(tooltip).toHaveClass("block");
+    });
+
+    // Measured at 375px: the tap on the bubble took focus off the button it opened from, and
+    // the blur shut it. Pressing the bubble leaves focus where it is.
+    it("keeps focus on the button, and the bubble open, when the bubble is pressed", () => {
+      render(<InfoTip label="Info" text="Teks" />);
+      const button = screen.getByRole("button", { name: "Info" });
+      button.focus();
+      fireEvent.click(button);
+      const tooltip = screen.getByRole("tooltip");
+
+      const focusMoved = fireEvent.mouseDown(tooltip);
+
+      expect(focusMoved).toBe(false);
+      expect(button).toHaveFocus();
+      expect(tooltip).toHaveClass("block");
+    });
+  });
+
+  // Measured at 1280px: the bubble shut the moment the pointer reached it, so a long explanation
+  // could not be followed with the pointer (a tablet's trackpad included). The bubble sits 6px
+  // below the icon; a strip above it covers that gap, so the pointer never leaves the tip.
+  it("keeps the bubble open as the pointer crosses from the icon onto it", () => {
+    render(<InfoTip label="Info" text="Teks" />);
+    const tooltip = screen.getByRole("tooltip");
+
+    expect(tooltip).toHaveClass("group-hover:block");
+    expect(tooltip).not.toHaveClass("pointer-events-none");
+    expect(tooltip).toHaveClass("before:absolute", "before:inset-x-0", "before:-top-1.5", "before:h-1.5");
   });
 });

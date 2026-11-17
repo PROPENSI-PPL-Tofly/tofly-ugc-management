@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 // The pill is reserved for a judgement — the productivity band. Plain facts such as the
 // contract state use a dot beside text (StatusDot) so the eye can tell the two apart.
-export type Tone = "neutral" | "accent" | "green" | "amber" | "red";
+export type Tone = "neutral" | "accent" | "green" | "amber" | "red" | "redSoft";
 
 const PILL_TONES: Record<Tone, string> = {
   neutral: "bg-surface-2 text-ink-2",
@@ -10,6 +10,8 @@ const PILL_TONES: Record<Tone, string> = {
   green: "bg-green-wash text-green-ink",
   amber: "bg-amber-wash text-amber-ink",
   red: "bg-red-wash text-red-ink",
+  // The same red, outlined on the plain surface: a near relation of red, told apart at a glance.
+  redSoft: "border border-red/40 bg-surface text-red-ink",
 };
 
 const DOT_TONES: Record<Tone, string> = {
@@ -18,6 +20,7 @@ const DOT_TONES: Record<Tone, string> = {
   green: "bg-green",
   amber: "bg-amber",
   red: "bg-red",
+  redSoft: "bg-red/50",
 };
 
 export function Pill({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {

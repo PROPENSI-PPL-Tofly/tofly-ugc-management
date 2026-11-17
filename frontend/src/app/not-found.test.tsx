@@ -18,11 +18,11 @@ describe("App not-found screen", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers one way on, back to the Creator Database", () => {
+  it("offers one way on, back to the Kreator", () => {
     render(<NotFound />);
 
     expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "Kembali ke Creator Database" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kembali ke Kreator" })).toHaveAttribute(
       "href",
       "/admin/creators",
     );

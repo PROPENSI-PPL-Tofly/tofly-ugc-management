@@ -33,6 +33,7 @@ const RAW: RawCreatorDetail = {
 
 const CONTENTS: RawContentList = {
   items: [{
+    platforms: [],
     id: "content-1",
     name: "Evg_1_Rangga_2026",
     creatorId: CREATOR,

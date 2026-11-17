@@ -15,8 +15,8 @@ function body(
   return {
     name: 'Salsa Putri Amelia',
     email: 'salsa@example.com',
-    socialPlatform: 'instagram',
-    socialUsername: 'salsa.amelia',
+    instagramUsername: 'salsa.amelia',
+    tiktokUsername: 'salsa.tt',
     contractType: 'probation',
     contractStart: '2026-10-01',
     contractEnd: '2026-12-31',
@@ -57,8 +57,10 @@ describe('checkNewCreator', () => {
       middleName: 'Putri',
       lastName: 'Amelia',
       email: 'salsa@example.com',
-      socialPlatform: 'instagram',
-      socialUsername: 'salsa.amelia',
+      socialAccounts: [
+        { platform: 'instagram', username: 'salsa.amelia' },
+        { platform: 'tiktok', username: 'salsa.tt' },
+      ],
       contractType: 'probation',
       contractStart: day('2026-10-01'),
       contractEnd: day('2026-12-31'),
@@ -198,37 +200,17 @@ describe('checkNewCreator', () => {
     });
   });
 
-  describe('social account', () => {
-    it.each(['instagram', 'tiktok'])('accepts the %s platform', (platform) => {
+  // One optional username per platform: the creator connects their accounts later anyway, and
+  // the platform's own handle then replaces whatever the admin typed here.
+  describe('social accounts', () => {
+    it('keeps only the platforms given a username, Instagram first', () => {
       expect(
-        checkNewCreator(body({ socialPlatform: platform }), TODAY),
-      ).toMatchObject({ socialPlatform: platform });
-    });
-
-    it.each([
-      ['missing', undefined],
-      ['empty', ''],
-    ])('requires a platform (%s)', (_case, socialPlatform) => {
-      expect(errorsFor(body({ socialPlatform }))).toEqual({
-        socialPlatform: 'Platform wajib dipilih',
-      });
-    });
-
-    it.each([
-      ['a platform the database has no enum for', 'youtube'],
-      ['a differently cased value', 'Instagram'],
-      ['not a string', 1],
-    ])('rejects %s', (_case, socialPlatform) => {
-      expect(errorsFor(body({ socialPlatform }))).toEqual({
-        socialPlatform: 'Platform harus instagram atau tiktok',
-      });
-    });
-
-    it('trims the username', () => {
+        checkNewCreator(body({ instagramUsername: '' }), TODAY).socialAccounts,
+      ).toEqual([{ platform: 'tiktok', username: 'salsa.tt' }]);
       expect(
-        checkNewCreator(body({ socialUsername: ' salsa.amelia ' }), TODAY)
-          .socialUsername,
-      ).toBe('salsa.amelia');
+        checkNewCreator(body({ tiktokUsername: undefined }), TODAY)
+          .socialAccounts,
+      ).toEqual([{ platform: 'instagram', username: 'salsa.amelia' }]);
     });
 
     it.each([
@@ -236,20 +218,38 @@ describe('checkNewCreator', () => {
       ['empty', ''],
       ['only spaces', '  '],
       ['not a string', 7],
-    ])('requires a username (%s)', (_case, socialUsername) => {
-      expect(errorsFor(body({ socialUsername }))).toEqual({
-        socialUsername: 'Username wajib diisi',
-      });
+    ])('accepts a creator with no username at all (%s)', (_case, value) => {
+      expect(
+        checkNewCreator(
+          body({ instagramUsername: value, tiktokUsername: value }),
+          TODAY,
+        ).socialAccounts,
+      ).toEqual([]);
     });
 
-    it('accepts a 100-character username and rejects 101', () => {
-      expect(() =>
-        checkNewCreator(body({ socialUsername: 'u'.repeat(100) }), TODAY),
-      ).not.toThrow();
-      expect(errorsFor(body({ socialUsername: 'u'.repeat(101) }))).toEqual({
-        socialUsername: 'Username maksimal 100 karakter',
-      });
+    it('trims each username', () => {
+      expect(
+        checkNewCreator(
+          body({ instagramUsername: ' salsa.amelia ', tiktokUsername: ' salsa.tt ' }),
+          TODAY,
+        ).socialAccounts,
+      ).toEqual([
+        { platform: 'instagram', username: 'salsa.amelia' },
+        { platform: 'tiktok', username: 'salsa.tt' },
+      ]);
     });
+
+    it.each(['instagramUsername', 'tiktokUsername'])(
+      'accepts a 100-character %s and rejects 101',
+      (field) => {
+        expect(() =>
+          checkNewCreator(body({ [field]: 'u'.repeat(100) }), TODAY),
+        ).not.toThrow();
+        expect(errorsFor(body({ [field]: 'u'.repeat(101) }))).toEqual({
+          [field]: 'Username maksimal 100 karakter',
+        });
+      },
+    );
   });
 
   describe('contract dates', () => {
@@ -317,11 +317,28 @@ describe('checkNewCreator', () => {
         quota: 1,
         deadlines: ['2026-10-06'],
       });
-      expect(fieldErrors(lastDay)).toEqual({});
+      expect(fieldErrors(lastDay)).not.toHaveProperty('contractEnd');
 
       expect(
         errorsFor({ ...lastDay, contractEnd: '2026-10-05' }),
       ).toHaveProperty('contractEnd');
+    });
+
+    // Contracts run for months, so the minimum end stays as it was: one this short simply
+    // fits no deadline, and the H-5 line refuses it.
+    it('refuses a contract too short to fit a deadline before its H-5 line', () => {
+      expect(
+        fieldErrors(
+          body({
+            contractStart: '2026-10-01',
+            contractEnd: '2026-10-06',
+            quota: 1,
+            deadlines: ['2026-10-06'],
+          }),
+        ),
+      ).toEqual({
+        deadlines: 'Deadline paling lambat 1 Okt 2026 (H-5 akhir kontrak)',
+      });
     });
 
     it('counts the buffer from today when the contract has already started', () => {
@@ -537,16 +554,18 @@ describe('checkNewCreator', () => {
       ).toEqual({ deadlines: 'Deadline paling cepat 28 Sep 2026' });
     });
 
-    it('accepts the contract end date and rejects the day after it', () => {
+    it('accepts the H-5 line and rejects the day after it (PBI-38 AC 14)', () => {
       expect(() =>
         checkNewCreator(
-          body(three('2026-10-06', '2026-10-13', '2026-12-31')),
+          body(three('2026-10-06', '2026-10-13', '2026-12-26')),
           TODAY,
         ),
       ).not.toThrow();
       expect(
-        errorsFor(body(three('2026-10-06', '2026-10-13', '2027-01-01'))),
-      ).toEqual({ deadlines: 'Deadline tidak boleh setelah akhir kontrak' });
+        errorsFor(body(three('2026-10-06', '2026-10-13', '2026-12-27'))),
+      ).toEqual({
+        deadlines: 'Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)',
+      });
     });
 
     it('allows more than one slot on the same day, as the PRD does', () => {
@@ -598,8 +617,6 @@ describe('checkNewCreator', () => {
           'interval',
           'name',
           'quota',
-          'socialPlatform',
-          'socialUsername',
         ]);
       },
     );

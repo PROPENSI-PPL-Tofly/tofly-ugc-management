@@ -9,7 +9,11 @@ import { apiFetch } from "./api-client";
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
+import { METRICS, formatMetric, type MetricName } from "./link-performance";
 import type { MyTaskAction } from "./my-tasks";
+import { PLATFORM_LABELS, linkEventTitle, type ContentLink, type Platform } from "./platform-links";
+import type { EditWindow } from "./content-edit";
+import { formatDate } from "./format";
 
 export type DetailEventType =
   | "scheduled"
@@ -19,7 +23,46 @@ export type DetailEventType =
   | "draft_submitted"
   | "revision_requested"
   | "draft_approved"
-  | "link_submitted";
+  | "link_submitted"
+  | "performance_entered"
+  | "performance_replaced"
+  | "content_updated"
+  | "revision_followup_added";
+
+/** One number a performance step moved (PBI-27 AC 16, 17). */
+export interface MetricChangeRow {
+  metric: MetricName;
+  before: number | null;
+  after: number | null;
+}
+
+/** One edited field's value before and after (PBI-25 AC 4). */
+export interface FieldChange {
+  from: string;
+  to: string;
+}
+
+export type ContentChanges = Partial<Record<"deadline" | "brief" | "name", FieldChange>>;
+
+/** A screenshot attached to a revision note (PBI-34); `url` is what the browser opens it through. */
+export interface NoteImage {
+  id: string;
+  url: string;
+  contentType: string;
+}
+
+/** A note the admin added under a revision note already sent, while that round was open. */
+export interface FollowUp {
+  id: string;
+  note: string;
+  /** The follow-up's sanitized formatting (PBI-34's editor); absent for a plain one. */
+  noteHtml?: string;
+  /** The screenshots it went out with (PBI-34); absent when it has none. */
+  images?: NoteImage[];
+  /** ISO instant the follow-up was saved. */
+  at: string;
+  actor: { name: string | null };
+}
 
 /** One step of the journey as the API sends it. */
 export interface RawContentEvent {
@@ -29,7 +72,25 @@ export interface RawContentEvent {
   at: string;
   /** "system" for a step the app took by itself (the H-1 scheduling); it has no name. */
   actor: { name: string | null; role: "admin" | "creator" | "system" };
-  payload?: { version?: number; link?: string; note?: string };
+  payload?: {
+    version?: number;
+    link?: string;
+    note?: string;
+    /** The note as sanitized rich text (PBI-34 AC 8); absent for a note from before it (AC 9). */
+    noteHtml?: string;
+    /** The note's screenshots (PBI-34 AC 8); absent when it has none. */
+    images?: NoteImage[];
+    platform?: Platform;
+    /** A link that took the place of another (38.2); the step stays a link step. */
+    replaced?: boolean;
+    /**
+     * What the step changed: the numbers a performance step moved (PBI-27 AC 16, 17), or each
+     * field an admin's edit changed (PBI-25 AC 4, on content_updated).
+     */
+    changes?: MetricChangeRow[] | ContentChanges;
+    /** On a revision request: the follow-ups added under its note, oldest first. */
+    followUps?: FollowUp[];
+  };
 }
 
 export interface RawContentDetail {
@@ -47,6 +108,13 @@ export interface RawContentDetail {
   latestSubmissionId: string | null;
   creatorActions: MyTaskAction[];
   events: RawContentEvent[];
+  /** The submitted links, one per platform (AC 11); absent in an answer that predates 38.1. */
+  links?: ContentLink[];
+  /**
+   * The days an admin may move the deadline to, sent only while Ubah and Hapus apply (PBI-25
+   * AC 1, 3, 9); null otherwise and on a creator's read, absent in an answer from before 25.2.
+   */
+  edit?: EditWindow | null;
 }
 
 export type ContentDetail = RawContentDetail;
@@ -77,6 +145,8 @@ export interface JourneyStep {
   linkLabel: string | null;
   /** Whose note it is, as the line above the note reads; null without a note. */
   noteBy: string | null;
+  /** What the step changed, one line each ("Views: 100 → 12.400", "Deadline 20 Nov 2026 → 25 Nov 2026"); empty when nothing did. */
+  changes: string[];
 }
 
 // How each kind of event reads. The number is the draft's version or the revision round;
@@ -87,7 +157,10 @@ export interface JourneyStep {
 // and the function that walks the events stays as it is.
 const STEP_WORDING: Record<
   DetailEventType,
-  (ordinal: number, by: RawContentEvent["actor"]["role"]) => { title: string; linkLabel: string | null }
+  (ordinal: number, by: RawContentEvent["actor"]["role"], event: RawContentEvent) => {
+    title: string;
+    linkLabel: string | null;
+  }
 > = {
   // A content starts with whoever made it: an admin adds it, a creator proposes it.
   scheduled: (_ordinal, by) => ({
@@ -104,15 +177,42 @@ const STEP_WORDING: Record<
   auto_scheduled: () => ({ title: "Dijadwalkan otomatis (H-1)", linkLabel: null }),
   // A comment moves the content nowhere; its note is the whole point and reads signed.
   creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
-  link_submitted: () => ({ title: "Link video dikirim", linkLabel: "Buka video" }),
+  performance_entered: (_ordinal, _by, event) => ({
+    title: `Angka ${event.payload?.platform ? PLATFORM_LABELS[event.payload.platform] : "performa"} diisi manual`,
+    linkLabel: null,
+  }),
+  performance_replaced: (_ordinal, _by, event) => ({
+    title: `Angka manual diganti data ${event.payload?.platform ? PLATFORM_LABELS[event.payload.platform] : "platform"}`,
+    linkLabel: null,
+  }),
+  link_submitted: (_ordinal, _by, event) => ({
+    title: linkEventTitle(event.payload?.platform, event.payload?.replaced === true),
+    linkLabel: "Buka video",
+  }),
+  // An admin's edit of scheduled content (PBI-25 AC 4); what changed is listed under it.
+  content_updated: () => ({ title: "Konten diubah", linkLabel: null }),
+  // The follow-up itself reads under the note it adds to; this step only marks when.
+  revision_followup_added: () => ({ title: "Catatan susulan ditambahkan", linkLabel: null }),
 };
+
+/** The lines under an edit: the old and new deadline and name, and that the brief changed. */
+function editLines(changes: ContentChanges | undefined): string[] {
+  const lines: string[] = [];
+  if (changes?.deadline) {
+    lines.push(`Deadline ${formatDate(changes.deadline.from)} → ${formatDate(changes.deadline.to)}`);
+  }
+  if (changes?.name) lines.push(`Nama ${changes.name.from} → ${changes.name.to}`);
+  if (changes?.brief) lines.push("Brief diubah");
+  return lines;
+}
 
 function noteSignature(event: RawContentEvent): string | null {
   if (!event.payload?.note?.trim()) {
     return null;
   }
   if (event.actor.role === "admin") {
-    return "Catatan Admin";
+    // The admin's email when the API names one; the role alone when no account is behind it.
+    return `Catatan ${event.actor.name ?? "Admin"}`;
   }
   return `Catatan ${event.actor.name ?? "kreator"}`;
 }
@@ -122,6 +222,18 @@ function noteSignature(event: RawContentEvent): string | null {
  * API; when it sends none they are counted from the oldest event up, as revision rounds
  * always are, so the numbers stay right whichever way the list is shown.
  */
+// An edit carries its fields by name; a number step carries the metrics that moved, as a list.
+function changeLines(event: RawContentEvent): string[] {
+  const changes = event.payload?.changes;
+  if (event.type === "content_updated") {
+    return Array.isArray(changes) ? [] : editLines(changes);
+  }
+  return (Array.isArray(changes) ? changes : []).map(({ metric, before, after }) => {
+    const label = METRICS.find(({ name }) => name === metric)?.label;
+    return `${label}: ${formatMetric(before)} → ${formatMetric(after)}`;
+  });
+}
+
 export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
   const steps: JourneyStep[] = [];
   let drafts = 0;
@@ -130,6 +242,8 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
   // The endpoint sends newest first, so the count walks the list backwards.
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
+    // A follow-up reads under the revision note it adds to (PBI-33 AC 4), so it takes no step.
+    if (event.type === "revision_followup_added") continue;
     let ordinal = 0;
 
     if (event.type === "draft_submitted") {
@@ -140,17 +254,30 @@ export function describeJourney(events: RawContentEvent[]): JourneyStep[] {
       ordinal = rounds;
     }
 
-    const { title, linkLabel } = STEP_WORDING[event.type](ordinal, event.actor.role);
+    // A kind newer than this build (the backend deploys first) is left out rather than guessed
+    // at, as the backend skips a stored kind it does not know.
+    const wording = STEP_WORDING[event.type] as (typeof STEP_WORDING)[DetailEventType] | undefined;
+    if (!wording) continue;
+    const { title, linkLabel } = wording(ordinal, event.actor.role, event);
 
     steps.unshift({
       event,
       title,
       linkLabel: event.payload?.link ? linkLabel : null,
       noteBy: noteSignature(event),
+      changes: changeLines(event),
     });
   }
 
   return steps;
+}
+
+/**
+ * The revision request whose note follow-ups go under: the newest one, which in the
+ * endpoint's newest-first order is the first. Null when no revision was ever asked for.
+ */
+export function latestRevisionEventId(events: readonly RawContentEvent[]): string | null {
+  return events.find((event) => event.type === "revision_requested")?.id ?? null;
 }
 
 /**

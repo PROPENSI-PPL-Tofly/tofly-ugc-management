@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { pickFilter } from "@/test/filters";
 import {
   DEFAULT_MY_TASKS_PARAMS,
   MY_TASKS_EMPTY,
@@ -39,6 +40,7 @@ function answer(overrides: Partial<MyTasksResponse> = {}): MyTasksResponse {
   return {
     items: [
       {
+        platforms: [],
         id: "content-1",
         name: "Evg_1_RanggaPratama_12102026",
         type: "evergreen",
@@ -48,6 +50,7 @@ function answer(overrides: Partial<MyTasksResponse> = {}): MyTasksResponse {
         tags: [],
         actions: ["submit_draft"],
         revisionNotes: null,
+        revisionNotesUpdatedAt: null,
       },
     ],
     page: 1,
@@ -68,18 +71,18 @@ async function renderPage(searchParams: Record<string, string> = {}) {
   return render(<>{page}</>);
 }
 
-describe("Task Saya page", () => {
+describe("Tugas Saya page", () => {
   beforeEach(() => {
     mockedFetch.mockReset();
     window.history.pushState({}, "", "/creator/tasks");
   });
 
-  it("opens in the creator frame under the Task Saya title", async () => {
+  it("opens in the creator frame under the Tugas Saya title", async () => {
     mockedFetch.mockResolvedValue(answer());
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Task Saya" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Tugas Saya" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu creator" })).toBeInTheDocument();
   });
 
@@ -108,12 +111,12 @@ describe("Task Saya page", () => {
     await renderPage({ tab: "waiting" });
 
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Semua",
+      "Semua11",
       "Perlu Dikerjakan6",
       "Menunggu Admin2",
-      "Selesai",
+      "Selesai3",
     ]);
-    expect(screen.getByRole("tab", { name: "Menunggu Admin2" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Menunggu\ Admin2/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("lists the tasks with their actions and pages through them ten at a time, keeping the view", async () => {
@@ -139,13 +142,13 @@ describe("Task Saya page", () => {
     expect(screen.getByRole("columnheader", { name: /Deadline/ })).toHaveAttribute("aria-sort", "ascending");
   });
 
-  it("opens the Submit Draft modal from a task's button", async () => {
+  it("has no Submit Draft button on a task's row, since the draft is handed in from its Detail Konten", async () => {
     mockedFetch.mockResolvedValue(answer());
 
     await renderPage();
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
 
-    expect(screen.getByRole("dialog", { name: "Submit Draft" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Submit Draft/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("falls back to the first page, and says so, for a page that is not a number", async () => {
@@ -264,7 +267,7 @@ describe("Task Saya page", () => {
   });
 });
 
-describe("Task Saya page views", () => {
+describe("Tugas Saya page views", () => {
   const mockedFetchAll = vi.mocked(fetchAllMyTasks);
 
   beforeEach(() => {
@@ -318,6 +321,52 @@ describe("Task Saya page views", () => {
     expect(mockedFetch).not.toHaveBeenCalled();
   });
 
+  // The calendar filters by no period (its month is the scope), but a range in its address
+  // still says which month to open on.
+  describe("a deadline range in the calendar's address", () => {
+    it("opens the calendar on the month the range starts in", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2026-12-03", to: "2027-01-20" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the month of the end day when only the end is picked", async () => {
+      await renderPage({ view: "calendar", period: "custom", to: "2027-01-15" });
+
+      expect(screen.getByRole("heading", { name: "Januari 2027" })).toBeInTheDocument();
+    });
+
+    it("opens on the earlier day of a range picked backwards, as the list reads it", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-02-10", to: "2026-12-03" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the earlier day of a backwards range that crosses into the next year", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-01-02", to: "2026-12-31" });
+
+      expect(screen.getByRole("heading", { name: "Desember 2026" })).toBeInTheDocument();
+    });
+
+    it("opens on the month of the start day when only the start is picked", async () => {
+      await renderPage({ view: "calendar", period: "custom", from: "2027-03-05" });
+
+      expect(screen.getByRole("heading", { name: "Maret 2027" })).toBeInTheDocument();
+    });
+
+    it("stays on this month while Pilih tanggal is chosen but no day is picked yet", async () => {
+      await renderPage({ view: "calendar", period: "custom" });
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+
+    it("stays on this month for a day the period does not use", async () => {
+      await renderPage({ view: "calendar", period: "next30", from: "2026-12-03" });
+
+      expect(screen.getByRole("heading", { name: "Oktober 2026" })).toBeInTheDocument();
+    });
+  });
+
   it("shows no pager on the calendar: a month is not paged", async () => {
     await renderPage({ view: "calendar" });
 
@@ -328,7 +377,7 @@ describe("Task Saya page views", () => {
   it("keeps the tabs and their counters above the calendar", async () => {
     await renderPage({ view: "calendar", tab: "waiting" });
 
-    const tabs = screen.getByRole("tablist", { name: "Tab Task Saya" });
+    const tabs = screen.getByRole("tablist", { name: "Tab Tugas Saya" });
     expect(within(tabs).getByRole("tab", { name: /Menunggu Admin/ })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -367,9 +416,7 @@ describe("Task Saya page views", () => {
   it("stays on the calendar when a filter is changed there", async () => {
     await renderAt({ view: "calendar" });
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Overdue" }), {
-      target: { value: "yes" },
-    });
+    pickFilter("Overdue", "Overdue");
 
     expect(replace).toHaveBeenCalledExactlyOnceWith(
       "/creator/tasks?view=calendar&overdue=yes",
@@ -447,5 +494,32 @@ describe("Task Saya page views", () => {
       "/creator/tasks?tab=done&view=calendar",
     );
     expect(screen.queryByRole("heading", { name: "Oktober 2026" })).not.toBeInTheDocument();
+  });
+});
+
+// The page's title already names its one list, so the list has no title band of its own; the
+// list/calendar switch sits beside the page title instead.
+describe("Tugas Saya's list head", () => {
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
+  });
+
+  it("gives the list no title band of its own", async () => {
+    mockedFetch.mockResolvedValue(answer());
+
+    await renderPage();
+
+    expect(screen.queryByRole("heading", { level: 2, name: "Daftar Tugas Saya" })).toBeNull();
+    expect(document.querySelector("[data-tone]")).toBeNull();
+  });
+
+  it("puts the list/calendar switch beside the page title", async () => {
+    mockedFetch.mockResolvedValue(answer());
+
+    await renderPage();
+
+    const header = screen.getByRole("heading", { level: 1, name: "Tugas Saya" }).parentElement as HTMLElement;
+    expect(within(header).getByRole("group", { name: "Tampilan tugas" })).toBeInTheDocument();
   });
 });

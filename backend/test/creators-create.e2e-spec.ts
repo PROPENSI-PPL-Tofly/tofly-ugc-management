@@ -36,8 +36,8 @@ function body(email: string, overrides: Record<string, unknown> = {}) {
   return {
     name: 'Salsa Putri Amelia',
     email,
-    socialPlatform: 'instagram',
-    socialUsername: 'salsa.amelia',
+    instagramUsername: 'salsa.amelia',
+    tiktokUsername: 'salsa.tt',
     contractType: 'regular',
     contractStart: iso(1),
     contractEnd: iso(60),
@@ -88,7 +88,7 @@ describe('POST /creators (e2e)', () => {
       where: { id: created.id },
       include: {
         users: true,
-        social_accounts: true,
+        social_accounts: { orderBy: { platform: 'asc' } },
         contracts: { include: { contents: { orderBy: { deadline: 'asc' } } } },
       },
     });
@@ -98,7 +98,10 @@ describe('POST /creators (e2e)', () => {
       middle_name: 'Putri',
       last_name: 'Amelia',
       users: { email, is_admin: false },
-      social_accounts: [{ platform: 'instagram', username: 'salsa.amelia' }],
+      social_accounts: [
+        { platform: 'instagram', username: 'salsa.amelia' },
+        { platform: 'tiktok', username: 'salsa.tt' },
+      ],
     });
     expect(saved.contracts).toHaveLength(1);
     expect(saved.contracts[0]).toMatchObject({
@@ -124,6 +127,19 @@ describe('POST /creators (e2e)', () => {
         status: 'scheduled',
       },
     ]);
+  });
+
+  it('saves a creator given no social username, with no social account', async () => {
+    const email = `${MARKER}-nosocial@example.com`;
+    const { body: created } = await admin
+      .post('/creators')
+      .send(body(email, { instagramUsername: '', tiktokUsername: '' }))
+      .expect(201);
+
+    const accounts = await prisma.social_accounts.findMany({
+      where: { creator_id: created.id },
+    });
+    expect(accounts).toEqual([]);
   });
 
   it('shows the new creator in the Creator Database listing', async () => {
@@ -178,13 +194,25 @@ describe('POST /creators (e2e)', () => {
     await expect(prisma.users.count({ where: { email } })).resolves.toBe(0);
   });
 
-  it('accepts a contract that ends exactly when the buffer does', async () => {
+  it('accepts a contract whose H-5 line falls exactly when the buffer ends', async () => {
     const email = `${MARKER}-edge@example.com`;
 
     await admin
       .post('/creators')
-      .send(body(email, { contractEnd: iso(6), quota: 1, deadlines: [iso(6)] }))
+      .send(body(email, { contractEnd: iso(11), quota: 1, deadlines: [iso(6)] }))
       .expect(201);
+  });
+
+  it('refuses a contract too short to fit a deadline before its H-5 line', async () => {
+    const email = `${MARKER}-too-short@example.com`;
+
+    const { body: rejected } = await admin
+      .post('/creators')
+      .send(body(email, { contractEnd: iso(6), quota: 1, deadlines: [iso(6)] }))
+      .expect(422);
+
+    expect(rejected.errors.deadlines).toContain('H-5 akhir kontrak');
+    await expect(prisma.users.count({ where: { email } })).resolves.toBe(0);
   });
 
   it('accepts 100 contents and refuses 101', async () => {

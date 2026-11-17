@@ -1,6 +1,12 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
+  CONNECTION_SELECT,
+  LINK_PERFORMANCE_SELECT,
+} from '../performance/performance-links.js';
+import { LINKS_AS_HANDED_IN } from './content-links.js';
+import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
+import {
   toContentDetail,
   type ContentDetail,
   type ContentDetailRow,
@@ -17,15 +23,30 @@ const CONTENT_DETAIL_SELECT = {
   brief: true,
   deadline: true,
   status: true,
-  video_link: true,
+  // The links in the order they were handed in: the first is the content's submitted one.
+  content_links: {
+    orderBy: LINKS_AS_HANDED_IN,
+    select: { submitted_at: true, ...LINK_PERFORMANCE_SELECT },
+  },
   video_submitted_at: true,
   approval_bypassed: true,
   created_at: true,
   updated_at: true,
+  // The contract's dates and invoice decide whether and where an admin may move the deadline
+  // (PBI-25 AC 1, 3, 9); a creator's read never sends them.
   contracts: {
     select: {
+      start_date: true,
+      end_date: true,
+      invoice: { select: { status: true } },
       creators: {
-        select: { first_name: true, middle_name: true, last_name: true },
+        select: {
+          first_name: true,
+          middle_name: true,
+          last_name: true,
+          // Whether each account is connected decides a waiting link's state; no token.
+          social_accounts: CONNECTION_SELECT,
+        },
       },
     },
   },
@@ -39,10 +60,17 @@ const CONTENT_DETAIL_SELECT = {
       created_at: true,
       updated_at: true,
       revision_notes: true,
+      revision_notes_html: true,
+      // The note's screenshots (PBI-34 AC 8), first attached first.
+      revision_note_images: {
+        select: { id: true, content_type: true },
+        orderBy: [{ created_at: 'asc' }],
+      },
       creator_notes: true,
     },
   },
-  // The stored history, newest first. Never the admin's account id: the panel has no use for it.
+  // The stored history, newest first, with the email of the admin behind each admin event. Never
+  // the account id itself: the panel has no use for it.
   content_events: {
     orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],
     select: {
@@ -52,6 +80,7 @@ const CONTENT_DETAIL_SELECT = {
       actor_role: true,
       occurred_at: true,
       event_data: true,
+      users: { select: { email: true } },
     },
   },
 } as const;
@@ -109,6 +138,11 @@ export class ContentDetailService implements ContentDetailReader {
       });
     }
 
-    return toContentDetail(row, now);
+    // Only an admin edits, so only an admin's read carries the edit window.
+    return toContentDetail(
+      row,
+      now,
+      options?.creatorId ? undefined : { bufferDays: DEFAULT_BUFFER_DAYS },
+    );
   }
 }

@@ -15,6 +15,8 @@ import {
   CONTENT_SELECT,
   INVOICE_ADJUSTMENT_SELECT,
   adjustedTotals,
+  type AdjustableSnapshot,
+  withAdjustment,
   adjustmentDto,
   sumAdjustments,
   toInvoiceContent,
@@ -23,10 +25,19 @@ import {
 import { invoiceState } from './invoice-lifecycle.js';
 import type { ManualAdjustmentInput } from './manual-adjustment.js';
 import { calculateInvoice } from './invoice-calculator.js';
+import { lockContractRow } from './contract-lock.js';
 import { contractLastDay } from './invoice-days.js';
 import { settleForFinalize } from './invoice-settlement.js';
 import type { FinalizeRequest } from './finalize-request.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
+import {
+  LAST_SYNC,
+  lastSyncReport,
+  type LastSync,
+  type LastSyncDto,
+} from './last-sync.js';
+import { lockDeliveredLinks, toFrozenLink } from './frozen-links.js';
+import { bonusDataGaps, type BonusDataGapsDto } from './bonus-data-gaps.js';
 
 // The admin's commands on a running invoice (PBI-12): recording a manual adjustment and
 // finalizing the invoice into its frozen snapshot. The reads stay in InvoicesService. This is
@@ -50,7 +61,7 @@ export interface InvoiceCommands {
     contractId: string,
     input: ManualAdjustmentInput,
     actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }>;
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: AdjustableStatus }>;
 
   finalize(
     contractId: string,
@@ -61,6 +72,10 @@ export interface InvoiceCommands {
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto;
+    /** How the last sync before freezing went (AC 8). */
+    lastSync: LastSyncDto;
+    /** The links the bonus still waited on when it was frozen (AC 9). */
+    bonusDataGaps: BonusDataGapsDto;
   }>;
 }
 
@@ -69,8 +84,21 @@ const NO_PENDING_BONUS_ACCEPTED: Readonly<FinalizeRequest> = Object.freeze({
   acceptPendingBonus: false,
 });
 
+/** What an invoice can be while an adjustment lands on it. */
+type AdjustableStatus = 'accruing' | 'finalized';
+
 function codeError(code: string, message: string): ConflictException {
   return new ConflictException({ code, message });
+}
+
+// An early end counts: the contract stops on the day access was revoked.
+function assertContractEnded(
+  contract: Parameters<typeof contractLastDay>[0],
+  today: Date,
+): void {
+  if (jakartaDay(today) <= contractLastDay(contract)) {
+    throw codeError('CONTRACT_NOT_ENDED', 'Kontrak belum berakhir');
+  }
 }
 
 @Injectable()
@@ -78,23 +106,24 @@ export class InvoiceCommandService implements InvoiceCommands {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoiceCommandClient,
     @Inject(RATE_FORMULA_SOURCE) private readonly formulas: RateFormulaSource,
+    @Inject(LAST_SYNC) private readonly lastSync: LastSync,
   ) {}
 
   async addAdjustment(
     contractId: string,
     input: ManualAdjustmentInput,
     actorUserId: string,
-  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: 'accruing' }> {
+  ): Promise<InvoiceAdjustmentDto & { invoiceStatus: AdjustableStatus }> {
     return this.prisma.$transaction(
       async (tx) => {
-        await this.lockContract(tx, contractId);
+        await lockContractRow(tx, contractId);
         await this.requireContract(tx, contractId);
 
         const invoice = await tx.invoices.upsert({
           where: { contract_id: contractId },
           create: { contract_id: contractId },
           update: {},
-          select: { id: true, status: true },
+          select: { id: true, status: true, snapshot: true },
         });
 
         invoiceState(invoice.status).assertCanAdjust();
@@ -109,11 +138,60 @@ export class InvoiceCommandService implements InvoiceCommands {
           select: INVOICE_ADJUSTMENT_SELECT,
         });
 
-        // Still running in the database; the API names it as the pipeline does.
-        return { ...adjustmentDto(saved), invoiceStatus: 'accruing' };
+        const adjustment = adjustmentDto(saved);
+        if (invoice.status === 'running') {
+          // Still running in the database; the API names it as the pipeline does.
+          return { ...adjustment, invoiceStatus: 'accruing' };
+        }
+
+        // Frozen numbers move only here, and only while nobody has acknowledged them.
+        const updated = await tx.invoices.updateMany({
+          where: { id: invoice.id, status: 'finalized' },
+          data: {
+            snapshot: withAdjustment(
+              invoice.snapshot as unknown as AdjustableSnapshot,
+              adjustment,
+            ) as unknown as Prisma.InputJsonValue,
+          },
+        });
+        if (updated.count !== 1) {
+          throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
+        }
+        return { ...adjustment, invoiceStatus: 'finalized' };
       },
       { isolationLevel: 'ReadCommitted' },
     );
+  }
+
+  // A first look, without a lock, so a refused Finalize never reaches the platforms and moves
+  // nothing. The transaction checks both again under the lock, and that check is the one that
+  // holds.
+  private async assertFinalizable(
+    contractId: string,
+    today: Date,
+  ): Promise<void> {
+    const contract = await this.prisma.contracts.findUnique({
+      where: { id: contractId },
+      select: {
+        id: true,
+        start_date: true,
+        end_date: true,
+        content_quota: true,
+        fixed_rate: true,
+        creators: { select: { access_revoke_date: true } },
+        invoice: { select: { status: true } },
+      },
+    });
+    if (!contract) this.contractNotFound();
+
+    const { creators, invoice, ...row } = contract;
+    assertContractEnded(
+      toInvoiceContract(row, creators.access_revoke_date),
+      today,
+    );
+    if (invoice) {
+      invoiceState(invoice.status).assertCanFinalize();
+    }
   }
 
   async finalize(
@@ -126,12 +204,25 @@ export class InvoiceCommandService implements InvoiceCommands {
     invoiceStatus: 'finalized';
     adjustments: InvoiceAdjustmentDto[];
     snapshot: InvoiceSnapshotDto;
+    /** How the last sync before freezing went (AC 8). */
+    lastSync: LastSyncDto;
+    /** The links the bonus still waited on when it was frozen (AC 9). */
+    bonusDataGaps: BonusDataGapsDto;
   }> {
     const formula = await this.formulas.current();
+    await this.assertFinalizable(contractId, today);
+    // The platforms are asked first, outside the transaction: a sync takes up to 20 s and must
+    // never hold the contract lock every other command on this contract waits for (AC 7).
+    const synced = await this.lastSync.beforeFinalize(contractId);
 
     return this.prisma.$transaction(
       async (tx) => {
-        await this.lockContract(tx, contractId);
+        await lockContractRow(tx, contractId);
+        // Read after the lock, so a manual entry queued on it has committed; share-locked, so no
+        // sync writes a number between here and the commit (AC 10-11).
+        const links = (await lockDeliveredLinks(tx, contractId)).map(
+          toFrozenLink,
+        );
 
         const contract = await tx.contracts.findUnique({
           where: { id: contractId },
@@ -162,10 +253,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           contract.creators.access_revoke_date,
         );
 
-        // An early end counts: the contract stops on the day access was revoked.
-        if (jakartaDay(today) <= contractLastDay(invoiceContract)) {
-          throw codeError('CONTRACT_NOT_ENDED', 'Kontrak belum berakhir');
-        }
+        assertContractEnded(invoiceContract, today);
 
         const invoice = await tx.invoices.upsert({
           where: { contract_id: contractId },
@@ -183,9 +271,12 @@ export class InvoiceCommandService implements InvoiceCommands {
           today,
         });
 
+        // The waiting links (AC 9), from the bonus calculated on the contract locked above.
+        const gaps = bonusDataGaps(breakdown.components.performanceBonus);
         const settled = settleForFinalize(
           breakdown,
           request.acceptPendingBonus,
+          gaps,
         );
 
         const adjustmentRows = await tx.invoice_adjustments.findMany({
@@ -205,6 +296,7 @@ export class InvoiceCommandService implements InvoiceCommands {
           finalizedAt: today.toISOString(),
           formula,
           performanceBonusPending: settled.performanceBonusPending,
+          performanceLinks: links,
         };
 
         const updated = await tx.invoices.updateMany({
@@ -221,18 +313,15 @@ export class InvoiceCommandService implements InvoiceCommands {
           throw codeError('INVOICE_FINALIZED', 'Invoice sudah difinalisasi');
         }
 
-        return { invoiceStatus: 'finalized', adjustments, snapshot };
+        return {
+          invoiceStatus: 'finalized',
+          adjustments,
+          snapshot,
+          lastSync: lastSyncReport(synced, links),
+          bonusDataGaps: gaps,
+        };
       },
       { isolationLevel: 'ReadCommitted' },
-    );
-  }
-
-  private async lockContract(
-    tx: Prisma.TransactionClient,
-    contractId: string,
-  ): Promise<void> {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT id FROM contracts WHERE id = ${contractId}::uuid FOR UPDATE`,
     );
   }
 

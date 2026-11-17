@@ -1,3 +1,5 @@
+import { latestDeadline } from "./platform-links";
+
 export interface DeadlineScheduleInput { // Interface for the input parameters required to generate a deadline schedule
   contractStart: string; // The start date of the contract in YYYY-MM-DD format
   contractEnd: string; // The end date of the contract in YYYY-MM-DD format
@@ -21,7 +23,8 @@ export function getBufferWindow(
 }
 
 export function generateDeadlineSchedule(input: DeadlineScheduleInput): string[] {
-  const contractEnd = new Date(`${input.contractEnd}T00:00:00Z`);
+  // The H-5 line, as the API holds it: no deadline after the contract end minus the buffer.
+  const lastAllowedDate = new Date(`${latestDeadline(input.contractEnd)}T00:00:00Z`);
   const { firstAllowedDate } = getBufferWindow(input);
 
   const deadlines: string[] = []; //collect the generated deadlines in array of strings
@@ -29,7 +32,7 @@ export function generateDeadlineSchedule(input: DeadlineScheduleInput): string[]
 
   while (
     deadlines.length < input.quota && // Continue generating deadlines until the quota is met
-    currentDeadline.getTime() <= contractEnd.getTime() // Ensure the current deadline does not exceed the contract end date
+    currentDeadline.getTime() <= lastAllowedDate.getTime() // Ensure the current deadline does not pass the H-5 line
   ) {
     deadlines.push(currentDeadline.toISOString().slice(0, 10)); // Add the current deadline to the deadlines array
     currentDeadline.setUTCDate(currentDeadline.getUTCDate() + input.intervalDays); // Move to the next deadline by adding the interval days

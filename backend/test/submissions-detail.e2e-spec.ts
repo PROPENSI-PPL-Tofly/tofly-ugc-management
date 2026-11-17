@@ -142,6 +142,8 @@ describe('GET /submissions/:id (e2e)', () => {
         {
           note: 'Tolong ubah opening',
           date: '2026-09-21T00:00:00.000Z',
+          // PBI-33: none were added under this note.
+          followUps: [],
         },
       ],
     });

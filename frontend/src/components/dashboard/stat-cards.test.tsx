@@ -36,7 +36,7 @@ describe("StatCards", () => {
     ["Draft Perlu Disubmit", "/creator/tasks?tab=action&status=scheduled"],
     ["Draft Perlu Direvisi", "/creator/tasks?tab=action&status=draft_revision"],
     ["Link Konten Perlu Diupload", "/creator/tasks?tab=action&status=draft_approved"],
-  ])("makes %s a link to its status on Task Saya's Perlu Dikerjakan tab", (label, href) => {
+  ])("makes %s a link to its status on Tugas Saya's Perlu Dikerjakan tab", (label, href) => {
     renderCards();
 
     expect(screen.getByRole("link", { name: new RegExp(label) })).toHaveAttribute("href", href);
@@ -76,5 +76,17 @@ describe("StatCards", () => {
 
     expect(within(card).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(3);
+  });
+
+  // The approved design: the one date sits apart from the three counts, on the navy tile, and
+  // the counts get a firmer edge than a plain card.
+  it("sets the nearest deadline apart from the counts", () => {
+    renderCards();
+
+    const [disubmit, , , terdekat] = screen.getAllByRole("listitem");
+    expect(terdekat.firstElementChild).toHaveAttribute("data-emphasis", "true");
+    expect(disubmit.firstElementChild).not.toHaveAttribute("data-emphasis");
+    expect(terdekat.firstElementChild).toHaveClass("bg-ink", "text-accent-ink");
+    expect(disubmit.firstElementChild).toHaveClass("border-[1.5px]");
   });
 });

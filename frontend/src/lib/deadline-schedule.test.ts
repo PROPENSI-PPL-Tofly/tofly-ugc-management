@@ -58,10 +58,10 @@ describe('generateDeadlineSchedule', () => {
   });
 
   it.each([ // Test cases for contract end dates and expected deadlines
-    { contractEnd: '2026-10-01', expected: ['2026-09-25'] }, // Only the first deadline is before the contract end
-    { contractEnd: '2026-10-02', expected: ['2026-09-25', '2026-10-02'] }, // The first two deadlines are before the contract end
-    { contractEnd: '2026-10-03', expected: ['2026-09-25', '2026-10-02'] }, // The first two deadlines are before the contract end
-  ])('includes only deadlines on or before contract end $contractEnd', ({ contractEnd, expected }) => {
+    { contractEnd: '2026-10-06', expected: ['2026-09-25'] }, // Only the first deadline is before the contract end
+    { contractEnd: '2026-10-07', expected: ['2026-09-25', '2026-10-02'] }, // The first two deadlines are before the contract end
+    { contractEnd: '2026-10-08', expected: ['2026-09-25', '2026-10-02'] }, // The first two deadlines are before the contract end
+  ])('includes only deadlines on or before the H-5 line of contract end $contractEnd', ({ contractEnd, expected }) => {
     const deadlines = generateDeadlineSchedule({
       ...defaultInput, 
       contractEnd,
@@ -69,6 +69,18 @@ describe('generateDeadlineSchedule', () => {
     });
 
     expect(deadlines).toEqual(expected); // Check that the generated deadlines match the expected deadlines
+  });
+
+  // PBI-38 AC 14: the auto schedule stops at the H-5 line, as the API does.
+  it('never places a deadline past the H-5 line', () => {
+    const deadlines = generateDeadlineSchedule({
+      ...defaultInput,
+      contractEnd: '2026-10-10',
+      intervalDays: 1,
+      quota: 100,
+    });
+
+    expect(deadlines.at(-1)).toBe('2026-10-05');
   });
 
   it('returns no deadlines when the first deadline would be after the contract ends', () => { // Test case for when the first deadline is after the contract end
@@ -85,7 +97,7 @@ describe('getDeadlinePreview', () => {
   it('reports remaining slots when automatic deadlines cannot fill the quota', () => { // Test case for when the automatic deadlines do not fill the quota
     const preview = getDeadlinePreview({ 
       ...defaultInput,
-      contractEnd: '2026-10-03',
+      contractEnd: '2026-10-08',
       quota: 4,
     });
 

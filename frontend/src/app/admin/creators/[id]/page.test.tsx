@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { DEFAULT_CREATOR_DETAIL_PARAMS, type CreatorDetailView, type CreatorPeriod } from "@/lib/creator-detail";
 import { fetchCreatorDetail } from "@/lib/creator-detail.server";
 import CreatorDetailPage, { metadata } from "./page";
+import { expectPhoneTarget } from "@/test/touch-target";
 
 const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const FIRST = "11111111-1111-4111-8111-111111111111";
@@ -72,6 +73,7 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
     selected: NEWEST,
     rows: [
       {
+        platforms: [],
         contentId: "content-1",
         name: "Evg_7_RanggaPratama_26092026",
         type: "evergreen",
@@ -116,29 +118,84 @@ describe("Creator Detail page", () => {
     expect(metadata.title).toBe("Detail Creator — Tofly");
   });
 
-  it("is subtitled as the prototype subtitles it", async () => {
+  it("offers the way back to the Kreator", async () => {
     await renderPage();
 
-    expect(screen.getByText("Data, jadwal, dan content plan satu creator")).toBeInTheDocument();
-  });
-
-  it("offers the way back to the Creator Database", async () => {
-    await renderPage();
-
-    expect(screen.getByRole("link", { name: "← Kembali ke Creator Database" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "← Kembali ke Kreator" })).toHaveAttribute(
       "href",
       "/admin/creators",
     );
   });
 
+  describe("the way back to the Kreator", () => {
+    function backLink() {
+      return screen.getByRole("link", { name: "← Kembali ke Kreator" });
+    }
+
+    // A one-line text link was 20px tall: under the 24px WCAG 2.5.8 asks for, on the page's
+    // only way back. On a phone it gets the 44px a main way around needs.
+    it("is a 44px press on a phone", async () => {
+      await renderPage();
+
+      expectPhoneTarget(backLink());
+    });
+
+    it("returns to the search, filters and page the admin left", async () => {
+      await renderPage({ return: "q=nadia&contractStatus=active&productivity=risk&page=3" });
+
+      expect(backLink()).toHaveAttribute(
+        "href",
+        "/admin/creators?q=nadia&contractStatus=active&productivity=risk&page=3",
+      );
+    });
+
+    it("returns to only the parts of the view that were set", async () => {
+      await renderPage({ return: "productivity=no_data" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators?productivity=no_data");
+    });
+
+    it("returns to the bare roster when the view held nothing the roster reads", async () => {
+      await renderPage({ return: "contractStatus=bogus&page=-1&next=%2F%2Fevil.example" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators");
+    });
+
+    it("keeps the view to return to on the links to another period", async () => {
+      await renderPage({ return: "page=3" });
+
+      const periods = within(screen.getByRole("navigation", { name: "Pilih periode kontrak" }));
+      expect(periods.getByRole("link", { name: /Periode 1/ })).toHaveAttribute(
+        "href",
+        `${PAGE}?contract=${FIRST}&return=page%3D3`,
+      );
+      expect(periods.getByRole("link", { name: /Periode 2/ })).toHaveAttribute(
+        "href",
+        `${PAGE}?return=page%3D3`,
+      );
+    });
+
+    it("keeps the view to return to when the detail cannot be loaded", async () => {
+      vi.mocked(fetchCreatorDetail).mockRejectedValue(new Error("503"));
+
+      await renderPage({ return: "q=nadia" });
+
+      expect(backLink()).toHaveAttribute("href", "/admin/creators?q=nadia");
+    });
+  });
+
   // PBI-4: creator → contract history per period → content per contract, on one page.
-  it("shows the creator, then the contract periods, then the open period's content", async () => {
+  it("shows the creator, then the contract periods, then the open period's summary and content", async () => {
     await renderPage();
 
-    const [profile, periods, plan] = screen.getAllByRole("heading", { level: 2 });
+    const [profile, periods, summary, schedule, list] = screen.getAllByRole("heading", { level: 2 });
     expect(profile).toHaveTextContent("Rangga Pratama");
     expect(periods).toHaveTextContent("Periode Kontrak");
-    expect(plan).toHaveTextContent("Content Plan");
+    expect(summary).toHaveTextContent(/^Ringkasan$/);
+    expect(schedule).toHaveTextContent("Jadwal Konten");
+    expect(list).toHaveTextContent("Daftar Konten");
+    // The page title says enough; no subtitle under it.
+    expect(screen.queryByText("Data, jadwal, dan content plan satu creator")).toBeNull();
 
     expect(screen.getByText("rangga@example.com")).toBeInTheDocument();
     expect(
@@ -190,10 +247,11 @@ describe("Creator Detail page", () => {
 
     await renderPage({ contract: FIRST });
 
-    expect(screen.getByText("Tipe").nextElementSibling).toHaveTextContent("Regular");
+    // The profile's own Tipe, not the content table's Tipe column.
+    expect(screen.getByText("Tipe", { selector: "dt" }).nextElementSibling).toHaveTextContent("Regular");
     expect(screen.getByText("Kontrak").nextElementSibling).toHaveTextContent("Aktif");
-    // The open period is still the older one, down in the Content Plan.
-    expect(screen.getByText("Periode 1 · Berakhir")).toBeInTheDocument();
+    // The open period is still the older one, on the panels below.
+    expect(screen.getAllByText("Periode 1 · Berakhir").length).toBeGreaterThan(0);
   });
 
   it("still shows the profile of a creator without any contract", async () => {
@@ -243,7 +301,7 @@ describe("Creator Detail page", () => {
       await renderPage();
 
       expect(screen.getByRole("heading", { level: 1, name: "Detail Creator" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "← Kembali ke Creator Database" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "← Kembali ke Kreator" })).toBeInTheDocument();
     });
   });
 });

@@ -137,6 +137,22 @@ describe("reviseSubmission", () => {
     );
   });
 
+  // PBI-34 AC 3, 8: the note's screenshots are named by id, so the API attaches them to it.
+  it("sends the screenshots' ids with the note when there are any", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ id: UUID, status: "draft_revision" })),
+    );
+
+    await reviseSubmission(UUID, "<p>Audio</p>", ["img-1"]);
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `/api/submissions/${UUID}/revise`,
+      expect.objectContaining({
+        body: JSON.stringify({ revisionNotes: "<p>Audio</p>", imageIds: ["img-1"] }),
+      }),
+    );
+  });
+
   it("resolves when the backend answers 2xx", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response("{}", { status: 200 }));
 

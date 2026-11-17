@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  UnprocessableEntityException,
 } from '@nestjs/common';
+import { latestDeadline, pastLatestDeadline } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   adminActor,
@@ -21,7 +23,8 @@ import { schedulingCutoff, type RejectReason } from './proposal-review.js';
 interface ProposalRow {
   status: string;
   name: string;
-  contracts: { creator_id: string };
+  deadline: Date;
+  contracts: { creator_id: string; end_date: Date };
 }
 
 /** The slice of Prisma this service touches, so tests can stub exactly that. */
@@ -29,12 +32,15 @@ export interface ProposalReviewClient {
   contents: {
     findUnique: (args: {
       where: { id: string };
-      select: { status: true; name: true; contracts: { select: { creator_id: true } } };
+      select: typeof PROPOSAL_SELECT;
     }) => Promise<ProposalRow | null>;
     updateMany: (args: {
       where: { id: string; status: 'pending' };
       data: { status: 'scheduled' };
     }) => Promise<{ count: number }>;
+    count: (args: {
+      where: { status: 'pending'; deadline: { lte: Date } };
+    }) => Promise<number>;
     updateManyAndReturn: (args: {
       where: { status: 'pending'; deadline: { lte: Date } };
       data: { status: 'scheduled' };
@@ -113,8 +119,21 @@ function notPending(): ConflictException {
 const PROPOSAL_SELECT = {
   status: true,
   name: true,
-  contracts: { select: { creator_id: true } },
+  deadline: true,
+  contracts: { select: { creator_id: true, end_date: true } },
 } as const;
+
+/** The refusal of a proposal past the H-5 line (PBI-38 AC 15), or nothing when it fits. */
+function pastLatest(row: ProposalRow): UnprocessableEntityException | null {
+  const end = row.contracts.end_date.toISOString().slice(0, 10);
+  if (row.deadline.toISOString().slice(0, 10) <= latestDeadline(end)) {
+    return null;
+  }
+  return new UnprocessableEntityException({
+    code: 'PROPOSAL_PAST_LATEST_DEADLINE',
+    message: pastLatestDeadline(end),
+  });
+}
 
 @Injectable()
 export class ProposalReviewService {
@@ -132,17 +151,25 @@ export class ProposalReviewService {
    */
   async approve(id: string, adminUserId?: string): Promise<ApprovedProposal> {
     return this.prisma.$transaction(async (transaction) => {
+      const row = await transaction.contents.findUnique({
+        where: { id },
+        select: PROPOSAL_SELECT,
+      });
+      if (!row) {
+        throw contentNotFound();
+      }
+      const refusal = pastLatest(row);
+      if (row.status === 'pending' && refusal) {
+        throw refusal;
+      }
+
       const { count } = await transaction.contents.updateMany({
         where: { id, status: 'pending' },
         data: { status: 'scheduled' },
       });
       if (count === 0) {
-        // Nothing matched: either there is no such content or it is no longer a proposal.
-        const row = await transaction.contents.findUnique({
-          where: { id },
-          select: PROPOSAL_SELECT,
-        });
-        throw row ? notPending() : contentNotFound();
+        // Nothing matched: it is no longer a proposal.
+        throw notPending();
       }
 
       await transaction.content_events.create({
@@ -186,14 +213,19 @@ export class ProposalReviewService {
    * Schedules every proposal still pending from H-1 of its deadline on, approved or not, so the
    * creator can still hand it in, and records in each one's history that the system did it.
    * One statement for the move and one for the history, in one transaction; answers how many
-   * moved. On most requests nothing is due and nothing is written.
+   * moved. This runs before every content and creator request and nearly always finds nothing,
+   * so a plain count answers that case: a transaction would hold one of the instance's few
+   * connections for three round trips, which is what limited throughput under load.
    */
   async scheduleDue(now: Date): Promise<number> {
+    const due = { status: 'pending', deadline: { lte: schedulingCutoff(now) } } as const;
+    if ((await this.prisma.contents.count({ where: due })) === 0) return 0;
+
     return this.prisma.$transaction(async (transaction) => {
       // The status guard is in the UPDATE itself, so two requests promoting at once move (and
       // record) each proposal once: the second finds it no longer pending.
       const promoted = await transaction.contents.updateManyAndReturn({
-        where: { status: 'pending', deadline: { lte: schedulingCutoff(now) } },
+        where: due,
         data: { status: 'scheduled' },
         select: { id: true },
       });

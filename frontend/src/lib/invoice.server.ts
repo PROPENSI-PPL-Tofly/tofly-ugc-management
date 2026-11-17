@@ -9,6 +9,7 @@
 import { backendGet } from "./backend.server";
 import { toInvoiceList, toInvoiceListQuery, type RawInvoiceList } from "./invoice-api";
 import type { InvoiceList, InvoiceParams } from "./invoice";
+import { jakartaDay } from "./format";
 
 /**
  * One page of the table. Any failure throws, so the page offers a retry rather than an empty
@@ -16,7 +17,7 @@ import type { InvoiceList, InvoiceParams } from "./invoice";
  * last page, so an old link never shows an empty table either.
  */
 export async function fetchRateInvoices(state: InvoiceParams): Promise<InvoiceList> {
-  const response = await backendGet(`/invoices?${toInvoiceListQuery(state)}`);
+  const response = await backendGet(`/invoices?${toInvoiceListQuery(state, jakartaDay())}`);
 
   if (!response.ok) {
     throw new Error(`Loading the invoices failed with HTTP ${response.status}`);

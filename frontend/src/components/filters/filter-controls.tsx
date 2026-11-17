@@ -1,7 +1,11 @@
 "use client";
 
+import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SingleSelect } from "@/components/ui/multi-select";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
+import { formatContractWindow, formatDate } from "@/lib/format";
 import { list } from "@/lib/search-params";
 import { MAX_SEARCH_LENGTH } from "@/lib/use-url-filters";
 
@@ -21,7 +25,7 @@ export const OVERDUE_OPTIONS: readonly FilterOption[] = [
   { value: "no", label: "Tidak overdue" },
 ];
 
-const PERIOD_OPTIONS: readonly FilterOption[] = [
+export const PERIOD_OPTIONS: readonly FilterOption[] = [
   { value: "all", label: "Semua periode" },
   { value: "month", label: "Bulan ini" },
   { value: "next30", label: "30 hari ke depan" },
@@ -39,31 +43,43 @@ export function offeredPicks(raw: string, options: readonly FilterOption[]): str
   return list(raw).filter((part) => options.some((option) => option.value === part));
 }
 
-export const FILTER_FIELD =
-  "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink";
+export const FILTER_FIELD = `rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink ${PHONE_TARGET}`;
 
-const LABEL = "flex items-center gap-2 text-[13px]";
+// Side by side from sm up; inside the open phone card, the name over a full-width control.
+const LABEL = "flex items-center gap-2 text-[13px] max-sm:flex-col max-sm:items-stretch";
 
 /** The search box; `label` names it and, with an ellipsis, is its placeholder too. */
 export function SearchBox({
   label,
+  placeholder = `${label}…`,
   value,
   onChange,
-}: Readonly<{ label: string; value: string; onChange: (value: string) => void }>) {
+}: Readonly<{
+  label: string;
+  /** What the empty box says; the label with an ellipsis unless the bar has better words. */
+  placeholder?: string;
+  value: string;
+  onChange: (value: string) => void;
+}>) {
   return (
     <input
       type="search"
-      placeholder={`${label}…`}
+      placeholder={placeholder}
       aria-label={label}
       maxLength={MAX_SEARCH_LENGTH}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className={`${FILTER_FIELD} w-52 max-sm:w-full`}
+      // On a phone the box shares its row with the Filter press, taking what the press leaves.
+      className={`${FILTER_FIELD} w-52 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1`}
     />
   );
 }
 
-/** A native select with its visible name beside it. */
+/**
+ * One choice out of a few, as every filter in the app is drawn: the same pill and popup as the
+ * multi-selects ("Overdue: Semua"), the first option the "all" one. FilterSelect, PillSelect and
+ * FilterRadio are the same control under the names the bars already use.
+ */
 export function FilterSelect({
   label,
   value,
@@ -75,37 +91,37 @@ export function FilterSelect({
   options: readonly FilterOption[];
   onChange: (value: string) => void;
 }>) {
-  return (
-    <label className={LABEL}>
-      <span className="text-muted">{label}</span>
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={FILTER_FIELD}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  return <SingleSelect label={label} value={value} options={options} onChange={onChange} />;
 }
+
+export const PillSelect = FilterSelect;
+export const FilterRadio = FilterSelect;
 
 function DayField({
   label,
   value,
+  min,
+  max,
+  describedBy,
   onChange,
-}: Readonly<{ label: string; value: string; onChange: (value: string) => void }>) {
+}: Readonly<{
+  label: string;
+  value: string;
+  min?: string;
+  max?: string;
+  describedBy: string;
+  onChange: (value: string) => void;
+}>) {
   return (
-    <label className={LABEL}>
+    <label className={`${LABEL} max-sm:flex-1 max-sm:gap-1`}>
       <span className="text-muted">{label}</span>
       <input
         type="date"
         aria-label={label}
+        aria-describedby={describedBy}
         value={value}
+        min={min || undefined}
+        max={max || undefined}
         onChange={(event) => onChange(event.target.value)}
         className={FILTER_FIELD}
       />
@@ -114,37 +130,124 @@ function DayField({
 }
 
 /**
- * The deadline period: a named period, or Dari/Sampai once "Pilih tanggal…" is picked. Every
- * change comes back under the URL key it belongs to. `ignored` says the open tab never narrows
- * by period, so nobody wonders why the period changed nothing there.
+ * Which deadlines a custom range shows, in words. A range picked backwards is read the right way
+ * round by the list (periodRange), and says so here rather than leaving the admin to wonder.
+ */
+function rangeSummary(subject: string, from: string, to: string): string {
+  const noun = subject.toLowerCase();
+  if (from && to) {
+    return from > to
+      ? `${subject} mulai jatuh setelah ${noun} sampai, jadi dibaca ${formatContractWindow(to, from)}`
+      : `${subject} ${formatContractWindow(from, to)}`;
+  }
+  if (from) return `${subject} mulai ${formatDate(from)}`;
+  if (to) return `${subject} sampai ${formatDate(to)}`;
+  return "Pilih salah satu atau kedua tanggal";
+}
+
+/**
+ * The custom days, named for the deadlines they bound and grouped as one range. Each picker
+ * stops at the other day, the line beneath says what is shown, and one press clears both.
+ * Stacked on a phone, so neither picker is squeezed.
+ */
+function DeadlineRange({
+  subject,
+  from,
+  to,
+  onChange,
+  onClear,
+}: Readonly<{
+  /** What the days bound: "Deadline", or "Akhir kontrak" on Rate & Invoicing. */
+  subject: string;
+  from: string;
+  to: string;
+  onChange: (key: "from" | "to", value: string) => void;
+  /** Clears both days in one change, so no address with one day left on it is opened. */
+  onClear: () => void;
+}>) {
+  const summaryId = useId();
+
+  return (
+    <fieldset className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-0 p-0 max-sm:w-full">
+      <legend className="float-left mr-1 text-[13px] font-semibold text-ink-2 max-sm:mb-1 max-sm:w-full">
+        {`Rentang ${subject.toLowerCase()}`}
+      </legend>
+      <DayField
+        label={`${subject} mulai`}
+        value={from}
+        max={to}
+        describedBy={summaryId}
+        onChange={(value) => onChange("from", value)}
+      />
+      <DayField
+        label={`${subject} sampai`}
+        value={to}
+        min={from}
+        describedBy={summaryId}
+        onChange={(value) => onChange("to", value)}
+      />
+      {from || to ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className="cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          Kosongkan tanggal
+        </button>
+      ) : null}
+      <p
+        id={summaryId}
+        role="status"
+        className={`basis-full text-xs ${from && to && from > to ? "text-amber-ink" : "text-muted"}`}
+      >
+        {rangeSummary(subject, from, to)}
+      </p>
+    </fieldset>
+  );
+}
+
+/**
+ * The deadline period: a named period, or a deadline range once "Pilih tanggal…" is picked.
+ * Every change comes back under the URL key it belongs to. `ignored` says the open tab never
+ * narrows by period, so nobody wonders why the period changed nothing there.
  */
 export function PeriodFilter({
   period,
   from,
   to,
   ignored,
+  label = "Periode",
+  subject = "Deadline",
+  onPeriod,
   onChange,
+  onClear,
 }: Readonly<{
   period: string;
   from: string;
   to: string;
   ignored: boolean;
+  /** Names the period where it means something other than the deadline: the contract end. */
+  label?: string;
+  /** What the custom days bound, for their names and the line under them. */
+  subject?: string;
+  /** The period picked, for the bar to apply together with its days (useUrlFilters.setPeriod). */
+  onPeriod: (period: string) => void;
+  /** A custom day, under its own key. */
   onChange: (key: "period" | "from" | "to", value: string) => void;
+  /** Clears both custom days in one change. */
+  onClear: () => void;
 }>) {
   return (
     <>
       <FilterSelect
-        label="Periode"
+        label={label}
         value={period}
         options={PERIOD_OPTIONS}
-        onChange={(value) => onChange("period", value)}
+        onChange={onPeriod}
       />
 
       {period === "custom" ? (
-        <>
-          <DayField label="Dari" value={from} onChange={(value) => onChange("from", value)} />
-          <DayField label="Sampai" value={to} onChange={(value) => onChange("to", value)} />
-        </>
+        <DeadlineRange subject={subject} from={from} to={to} onChange={onChange} onClear={onClear} />
       ) : null}
 
       {/* amber-ink, not amber: the plain amber token is too light to read on white. */}
@@ -165,7 +268,7 @@ export function ResetFilters({
       type="button"
       onClick={onReset}
       disabled={disabled}
-      className="cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:opacity-60"
+      className={`cursor-pointer rounded-(--radius-control) border border-transparent bg-transparent px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:opacity-60 ${PHONE_TARGET}`}
     >
       Reset
     </button>
@@ -187,5 +290,116 @@ export function FilteredEmpty({
       hint="Longgarkan pencarian atau filternya."
       action={<Button onClick={onReset}>Reset filter</Button>}
     />
+  );
+}
+
+/**
+ * One filter in use, as the folded phone bar counts it. Taking one off is done at its control,
+ * or at its chip in the row under the bar (FilterChips).
+ */
+export interface ActiveFilter {
+  id: string;
+  text: string;
+}
+
+/** Each pick of a multi-select as its own active filter: "Tipe: Evergreen". */
+export function pickFilters(
+  group: string,
+  picks: readonly string[],
+  options: readonly FilterOption[],
+): ActiveFilter[] {
+  return picks.map((value) => ({
+    id: `${group}:${value}`,
+    text: `${group}: ${options.find((option) => option.value === value)?.label ?? value}`,
+  }));
+}
+
+/** The Overdue choice, under the select's own words for it. */
+export function overdueFilter(value: string): ActiveFilter[] {
+  const option = OVERDUE_OPTIONS.find((candidate) => candidate.value === value);
+  return value === "all" || !option ? [] : [{ id: "overdue", text: option.label }];
+}
+
+/** A custom range in words, read the right way round as the list reads it. */
+function rangeChip(from: string, to: string): string {
+  if (from && to) {
+    return `Deadline ${from > to ? formatContractWindow(to, from) : formatContractWindow(from, to)}`;
+  }
+  if (from) return `Deadline mulai ${formatDate(from)}`;
+  if (to) return `Deadline sampai ${formatDate(to)}`;
+  return "Periode: Pilih tanggal";
+}
+
+/**
+ * The period: a named one, or the custom range in words. `ignored` says the open tab does not
+ * narrow by period.
+ */
+export function periodFilter(
+  period: string,
+  from: string,
+  to: string,
+  ignored: boolean,
+): ActiveFilter[] {
+  const option = PERIOD_OPTIONS.find((candidate) => candidate.value === period);
+  if (period === "all" || !option) return [];
+
+  const text = period === "custom" ? rangeChip(from, to) : `Periode: ${option.label}`;
+  return [{ id: "period", text: ignored ? `${text} (tidak berlaku di tab ini)` : text }];
+}
+
+const TOGGLE = `inline-flex h-8 ${PHONE_TARGET} cursor-pointer items-center gap-1.5 rounded-full border border-rule bg-surface px-3 text-[12.5px] font-semibold text-ink transition-colors hover:border-ink active:bg-surface-2 aria-expanded:border-accent aria-expanded:bg-accent-wash sm:hidden`;
+
+const TOGGLE_COUNT = "rounded-full bg-accent-wash px-1.5 text-[11px] font-semibold text-accent-deep";
+
+// Open on a phone: one card under the search row (order-last keeps Reset in that row), a
+// control per line. From sm up, display: contents leaves the controls in the bar's own row.
+const PANEL_OPEN =
+  "max-sm:order-last max-sm:flex max-sm:basis-full max-sm:flex-col max-sm:gap-3.5 max-sm:rounded-xl max-sm:border-[1.5px] max-sm:border-rule max-sm:bg-surface max-sm:p-3.5 max-sm:shadow-sm sm:contents";
+
+/**
+ * A list's filter bar. From sm up every control sits in one wrapping row, as it always has. On
+ * a phone the controls fold behind one Filter button that counts what is active (and shows
+ * itself pressed while open), so the list starts sooner; open, each control marks its own
+ * choice. The search and Reset stay outside the fold, as does the row of picked chips a bar
+ * may draw under itself (FilterChips).
+ */
+export function FilterBar({
+  search,
+  active,
+  reset,
+  children,
+}: Readonly<{
+  search: ReactNode;
+  active: readonly ActiveFilter[];
+  reset: ReactNode;
+  children: ReactNode;
+}>) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3 max-sm:gap-2">
+      {search}
+
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        // The count is read as a count, not as a bare number after the word.
+        aria-label={active.length > 0 ? `Filter, ${active.length} aktif` : undefined}
+        onClick={() => setOpen(!open)}
+        className={TOGGLE}
+      >
+        Filter
+        {active.length > 0 ? <span className={TOGGLE_COUNT}>{active.length}</span> : null}
+      </button>
+
+      <div id={panelId} className={open ? PANEL_OPEN : "contents max-sm:hidden"}>
+        {children}
+      </div>
+
+      {reset}
+
+    </div>
   );
 }

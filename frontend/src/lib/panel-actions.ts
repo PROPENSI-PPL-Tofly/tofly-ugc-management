@@ -10,7 +10,7 @@
 
 import type { Variant } from "@/components/ui/button-classes";
 import { daysUntil } from "./format";
-import type { ContentDetail } from "./content-detail";
+import type { ContentDetail, FollowUp } from "./content-detail";
 import type { MyTaskAction } from "./my-tasks";
 import type { Role } from "./session";
 
@@ -40,12 +40,20 @@ export interface PanelCommand {
 export interface PanelActionState {
   busy: boolean;
   note: string;
+  // The revision note's editor (PBI-34, 34.2): a screenshot still uploading holds Kirim Revisi
+  // back (AC 5), and the note goes out with its formatting, which 34.1 sanitizes.
+  uploading?: boolean;
+  noteHtml?: string;
+  // The screenshots uploaded for the note, sent with it so the API attaches them (AC 3, 8).
+  imageIds?: readonly string[];
 }
 
 /** What a command may ask the outside world to do; every port is optional. */
 export interface PanelActionPorts {
   approve?: (submissionId: string) => Promise<void>;
-  revise?: (submissionId: string, note: string) => Promise<void>;
+  revise?: (submissionId: string, note: string, imageIds?: readonly string[]) => Promise<void>;
+  /** Adds a follow-up under the open round's revision note; answers with the saved entry. */
+  addFollowUp?: (submissionId: string, note: string) => Promise<FollowUp>;
   /** Opens the revision note form; revising starts with a form, not a request. */
   openRevisionForm?: () => void;
   /** A creator's proposal becomes scheduled work (PRD 3.10). */
@@ -75,6 +83,7 @@ export type PanelActionFacts = Pick<
   | "name"
   | "brief"
   | "events"
+  | "links"
 >;
 
 type CreatorLabelCase = "approved" | "grace" | "late";
@@ -129,6 +138,11 @@ export function actionsFor(input: {
   now?: Date;
 }): PanelCommand[] {
   const { role, detail, state, ports, now = new Date() } = input;
+
+  // A sent content's links are changed from their own cards (Content Detail), not from the step.
+  if (detail.status === "link_submitted") {
+    return [];
+  }
 
   if (detail.waitingOn === null) {
     return [];
@@ -206,8 +220,16 @@ export function submitRevision(input: {
     kind: "revise",
     label: "Kirim Revisi",
     variant: "accent",
-    canRun: () => !state().busy && state().note.trim() !== "",
-    run: () => ports.revise?.(submissionId, state().note.trim()) ?? Promise.resolve(),
+    canRun: () => !state().busy && !state().uploading && state().note.trim() !== "",
+    run: () => {
+      const { noteHtml, note, imageIds = [] } = state();
+      const text = noteHtml ?? note.trim();
+      return (
+        (imageIds.length > 0
+          ? ports.revise?.(submissionId, text, imageIds)
+          : ports.revise?.(submissionId, text)) ?? Promise.resolve()
+      );
+    },
   };
 }
 

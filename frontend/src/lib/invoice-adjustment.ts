@@ -113,11 +113,12 @@ export function adjustmentReason(draft: AdjustmentDraft): string {
 }
 
 /**
- * A manual adjustment moves an invoice that is still running. A frozen one is settled history;
- * the backend refuses a change and so does the form.
+ * A manual adjustment moves an invoice until the creator acknowledges it: a finalized one can
+ * still be corrected. After that it is settled history; the backend refuses a change and so does
+ * the form.
  */
 export function canAdjust(invoiceStatus: InvoiceStatus): boolean {
-  return invoiceStatus === "accruing";
+  return invoiceStatus === "accruing" || invoiceStatus === "finalized";
 }
 
 /**

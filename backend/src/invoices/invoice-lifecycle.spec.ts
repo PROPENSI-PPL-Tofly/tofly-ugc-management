@@ -33,7 +33,72 @@ describe('RunningInvoiceState', () => {
     expect(() => state.assertCanAdjust()).not.toThrow();
     expect(() => state.assertCanFinalize()).not.toThrow();
   });
+
+  it('lets a video link be submitted, added or replaced (PBI-38 AC 8, 9)', () => {
+    expect(() =>
+      new RunningInvoiceState().assertCanChangeLinks(),
+    ).not.toThrow();
+  });
+
+  it('lets a scheduled content be edited or deleted (PBI-25 AC 9)', () => {
+    expect(() =>
+      new RunningInvoiceState().assertCanChangeSchedule(),
+    ).not.toThrow();
+  });
 });
+
+// PBI-38 AC 8, 9: the links an invoice was calculated from stay as they were once it is frozen.
+describe.each([
+  'finalized',
+  'creator_acked',
+  'payment_uploaded',
+  'paid',
+] as const)('the video links of a contract whose invoice is %s', (status) => {
+  it('can no longer be submitted, added or replaced', () => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanChangeLinks()),
+    ).toEqual({
+      code: 'INVOICE_FINALIZED',
+      message: 'Invoice sudah difinalisasi. Link video tidak bisa diubah lagi',
+    });
+  });
+});
+
+// PBI-28 AC 11: a correction stays possible until the creator acknowledges, then never again.
+describe('adjusting an invoice', () => {
+  it('is allowed on a finalized invoice', () => {
+    expect(() => invoiceState('finalized').assertCanAdjust()).not.toThrow();
+  });
+
+  it.each(['creator_acked', 'payment_uploaded', 'paid'] as const)(
+    'is refused on a %s invoice',
+    (status) => {
+      expect(refusalOf(() => invoiceState(status).assertCanAdjust())).toEqual(
+        FINALIZED,
+      );
+    },
+  );
+});
+// PBI-25 AC 9: the contents an invoice was calculated from stay as they were once it is frozen.
+describe.each([
+  'finalized',
+  'creator_acked',
+  'payment_uploaded',
+  'paid',
+] as const)(
+  'the scheduled contents of a contract whose invoice is %s',
+  (status) => {
+    it('can no longer be edited or deleted', () => {
+      expect(
+        refusalOf(() => invoiceState(status).assertCanChangeSchedule()),
+      ).toEqual({
+        code: 'INVOICE_FINALIZED',
+        message:
+          'Invoice sudah difinalisasi. Konten tidak bisa diubah atau dihapus lagi',
+      });
+    });
+  },
+);
 
 // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): once finalized, an invoice stays
 // frozen through every later step.
@@ -43,11 +108,10 @@ describe.each([
   'payment_uploaded',
   'paid',
 ] as const)('a %s invoice', (status) => {
-  it('refuses an adjustment and a second finalize', () => {
-    const state = invoiceState(status);
-
-    expect(refusalOf(() => state.assertCanAdjust())).toEqual(FINALIZED);
-    expect(refusalOf(() => state.assertCanFinalize())).toEqual(FINALIZED);
+  it('refuses a second finalize', () => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanFinalize()),
+    ).toEqual(FINALIZED);
   });
 
   it('is reported under its own pipeline name', () => {

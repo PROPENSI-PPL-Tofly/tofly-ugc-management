@@ -4,7 +4,10 @@ import { SubmissionRevisionRepository } from './submission-revision.repository.j
 const SUBMISSION_ID = '550e8400-e29b-41d4-a716-446655440000';
 const CONTENT_ID = '550e8400-e29b-41d4-a716-446655440001';
 const ADMIN_USER_ID = '11111111-1111-4111-8111-111111111111';
-const REVISION_NOTES = 'Mohon perbaiki bagian pembuka.';
+const NOTE = {
+  revisionNotes: 'Mohon perbaiki bagian pembuka.',
+  revisionNotesHtml: 'Mohon perbaiki bagian pembuka.',
+};
 
 interface TestTransaction {
   submissions: {
@@ -12,6 +15,9 @@ interface TestTransaction {
   };
   contents: {
     updateMany: ReturnType<typeof vi.fn>;
+  };
+  revision_note_images?: {
+    findMany: ReturnType<typeof vi.fn>;
   };
   users?: {
     findUnique: ReturnType<typeof vi.fn>;
@@ -31,11 +37,15 @@ function createHarness(options?: {
       update: vi.fn().mockResolvedValue({
         id: SUBMISSION_ID,
         content_id: CONTENT_ID,
-        revision_notes: REVISION_NOTES,
+        revision_notes: NOTE.revisionNotes,
+        revision_notes_html: NOTE.revisionNotesHtml,
       }),
     },
     contents: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    revision_note_images: {
+      findMany: vi.fn().mockResolvedValue([]),
     },
   };
 
@@ -84,7 +94,7 @@ describe('SubmissionRevisionRepository audit error paths', () => {
       repository.saveRevision(
         SUBMISSION_ID,
         CONTENT_ID,
-        REVISION_NOTES,
+        NOTE,
         ADMIN_USER_ID,
       ),
     ).rejects.toThrow(
@@ -106,7 +116,7 @@ describe('SubmissionRevisionRepository audit error paths', () => {
       repository.saveRevision(
         SUBMISSION_ID,
         CONTENT_ID,
-        REVISION_NOTES,
+        NOTE,
         ADMIN_USER_ID,
       ),
     ).rejects.toThrow(
@@ -127,7 +137,7 @@ describe('SubmissionRevisionRepository audit error paths', () => {
       repository.saveRevision(
         SUBMISSION_ID,
         CONTENT_ID,
-        REVISION_NOTES,
+        NOTE,
         ADMIN_USER_ID,
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);

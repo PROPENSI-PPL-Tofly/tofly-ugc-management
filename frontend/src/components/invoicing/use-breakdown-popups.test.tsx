@@ -12,15 +12,20 @@ vi.mock("@/components/content-detail/content-detail-panel", () => ({
     role,
     onClose,
     onDecided,
+    onEdited,
   }: {
     contentId: string;
     role: string;
     onClose: () => void;
     onDecided: (decision: "approve" | "revise") => void;
+    onEdited?: () => void;
   }) => (
     <div data-testid="content-detail" data-content={contentId} data-role={role}>
       <button type="button" onClick={onClose}>
         Tutup panel
+      </button>
+      <button type="button" onClick={() => onEdited?.()}>
+        Simpan perubahan
       </button>
       <button type="button" onClick={() => onDecided("approve")}>
         Setujui
@@ -349,6 +354,20 @@ describe("useBreakdownPopups", () => {
     expect(panel()).not.toBeInTheDocument();
   });
 
+  it("reads the breakdown again after an edit in the panel, keeping the panel open (PBI-25 AC 5)", async () => {
+    const { load, onDecided } = await openCell(/^Konten Tambahan Rangga Pratama/);
+    fireEvent.click(screen.getByRole("button", { name: "Evg_1_Rangga_01102026" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Simpan perubahan" }));
+
+    expect(panel()).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(onDecided).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tutup panel" }));
+    expect(await screen.findByRole("list")).toBeInTheDocument();
+  });
+
   it("takes a decision without a listener", async () => {
     render(<Table load={answering()} />);
     fireEvent.click(cell(/^Konten Tambahan Rangga Pratama/));
@@ -362,7 +381,7 @@ describe("useBreakdownPopups", () => {
 });
 
 describe("useBreakdownPopups without a loader", () => {
-  it("asks the Rate & Invoicing server action by default", async () => {
+  it("asks the Pembayaran server action by default", async () => {
     const { loadInvoiceBreakdown } = await import("@/lib/invoice-breakdown.server");
     vi.mocked(loadInvoiceBreakdown).mockResolvedValue(RANGGA);
 
@@ -565,7 +584,7 @@ describe("useBreakdownPopups after the table is read again", () => {
       const rincian = screen.getByRole("dialog", { name: "Rincian Invoice" });
       expect(within(rincian).getByRole("group", { name: "Total invoice" })).toHaveTextContent("Total Final");
       expect(within(rincian).getByText("Menunggu ack creator.")).toBeInTheDocument();
-      expect(within(rincian).queryByRole("button", { name: "+ Tambah Penyesuaian" })).not.toBeInTheDocument();
+      expect(within(rincian).getByRole("button", { name: "+ Tambah Penyesuaian" })).toBeInTheDocument();
     });
 
     it("opens a content from the panel and comes back to the panel when it closes", async () => {

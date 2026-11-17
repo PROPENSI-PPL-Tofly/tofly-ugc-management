@@ -108,7 +108,7 @@ export function PaymentProofUpload({
         />
         <label
           htmlFor={inputId}
-          className={`${buttonClasses()} inline-block peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus peer-disabled:cursor-not-allowed peer-disabled:opacity-40`}
+          className={`${buttonClasses()} inline-flex items-center peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus peer-disabled:cursor-not-allowed peer-disabled:opacity-40`}
         >
           Pilih file
         </label>

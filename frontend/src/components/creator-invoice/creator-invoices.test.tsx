@@ -50,6 +50,29 @@ function panel(name: string): HTMLElement {
 }
 
 describe("CreatorInvoices", () => {
+  // Approved Pembayaran: the invoice in play in the creator's accent, the history quieter, each
+  // titled in a band; the history counts what it holds.
+  describe("as the approved design draws it", () => {
+    it("titles the current invoice in an accent band, its panel edged to match", () => {
+      render(<CreatorInvoices invoices={[EARLIER, CURRENT]} />);
+
+      const current = panel("Invoice Periode Ini");
+      const band = within(current).getByRole("heading", { name: "Invoice Periode Ini" }).closest("[data-tone]");
+      expect(band).toHaveAttribute("data-tone", "accent");
+      expect(current).toHaveClass("border-[1.5px]", "border-accent/35");
+    });
+
+    it("titles the history in a quiet band that counts the earlier invoices", () => {
+      render(<CreatorInvoices invoices={[EARLIER, CURRENT]} />);
+
+      const history = panel("Riwayat Invoice");
+      const band = within(history).getByRole("heading", { name: "Riwayat Invoice" }).closest("[data-tone]");
+      expect(band).toHaveAttribute("data-tone", "quiet");
+      expect(band?.querySelector("[data-count]")).toHaveTextContent("1 invoice");
+      expect(history).toHaveClass("border-[1.5px]", "border-rule");
+    });
+  });
+
   it("shows the latest period's invoice in full, whatever order the list came in", () => {
     render(<CreatorInvoices invoices={[EARLIER, CURRENT]} />);
 

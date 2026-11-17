@@ -1,7 +1,8 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { contract_type, social_platform } from '@prisma/client';
 import {
-  DEADLINE_AFTER_CONTRACT_END,
+  latestDeadline,
+  pastLatestDeadline,
   earliestDeadline,
   jakartaMidnight,
   readableDay,
@@ -48,8 +49,8 @@ export interface NewCreator {
   middleName: string | null;
   lastName: string | null;
   email: string;
-  socialPlatform: social_platform;
-  socialUsername: string;
+  /** One per platform the admin typed a username for; none is fine, as both are optional. */
+  socialAccounts: SocialAccount[];
   contractType: contract_type;
   contractStart: Date;
   contractEnd: Date;
@@ -91,7 +92,7 @@ function checkName(value: unknown, errors: NewCreatorErrors): NameParts {
   };
 }
 
-function checkEmail(value: unknown, errors: NewCreatorErrors): string {
+export function checkEmail(value: unknown, errors: NewCreatorErrors): string {
   const email = trimmed(value);
 
   if (email === '') {
@@ -103,31 +104,37 @@ function checkEmail(value: unknown, errors: NewCreatorErrors): string {
   return email;
 }
 
-type SocialAccount = Pick<NewCreator, 'socialPlatform' | 'socialUsername'>;
+export interface SocialAccount {
+  platform: social_platform;
+  username: string;
+}
 
+/** The form's username field for each platform, in the order the accounts are saved. */
+const USERNAME_FIELDS: Record<social_platform, string> = {
+  instagram: 'instagramUsername',
+  tiktok: 'tiktokUsername',
+};
+
+/**
+ * One optional username per platform. The admin's handle is only a starting record: connecting
+ * the account later replaces it with the platform's own (PBI-19), so a blank field just means no
+ * account on file yet, and the creator adds it by connecting.
+ */
 function checkSocial(
-  platform: unknown,
-  username: unknown,
+  body: Record<string, unknown>,
   errors: NewCreatorErrors,
-): SocialAccount {
-  if (platform === undefined || platform === '') {
-    errors.socialPlatform = 'Platform wajib dipilih';
-  } else if (!SOCIAL_PLATFORMS.includes(platform as social_platform)) {
-    errors.socialPlatform = 'Platform harus instagram atau tiktok';
+): SocialAccount[] {
+  const accounts: SocialAccount[] = [];
+  for (const platform of SOCIAL_PLATFORMS) {
+    const field = USERNAME_FIELDS[platform];
+    const username = trimmed(body[field]);
+    if (username.length > MAX_USERNAME_LENGTH) {
+      errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
+    } else if (username !== '') {
+      accounts.push({ platform, username });
+    }
   }
-
-  const handle = trimmed(username);
-
-  if (handle === '') {
-    errors.socialUsername = 'Username wajib diisi';
-  } else if (handle.length > MAX_USERNAME_LENGTH) {
-    errors.socialUsername = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
-  }
-
-  return {
-    socialPlatform: platform as social_platform,
-    socialUsername: handle,
-  };
+  return accounts;
 }
 
 /**
@@ -318,14 +325,18 @@ function checkDeadlines(
     return deadlines;
   }
 
-  const earliest = earliestDeadline(isoDay(contractStart), isoDay(startOfDay(now)), DEFAULT_BUFFER_DAYS);
+  const earliest = earliestDeadline(
+    isoDay(contractStart),
+    isoDay(startOfDay(now)),
+    DEFAULT_BUFFER_DAYS,
+  );
 
   if (deadlines.length !== quota) {
     errors.deadlines = `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
   } else if (isoDay(deadlines[0]) < earliest) {
     errors.deadlines = `Deadline paling cepat ${readableDay(earliest)}`;
-  } else if (deadlines[deadlines.length - 1] > contractEnd) {
-    errors.deadlines = DEADLINE_AFTER_CONTRACT_END;
+  } else if (isoDay(deadlines[deadlines.length - 1]) > latestDeadline(isoDay(contractEnd))) {
+    errors.deadlines = pastLatestDeadline(isoDay(contractEnd));
   }
   return deadlines;
 }
@@ -341,7 +352,7 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
   const errors: NewCreatorErrors = {};
   const name = checkName(body.name, errors);
   const email = checkEmail(body.email, errors);
-  const social = checkSocial(body.socialPlatform, body.socialUsername, errors);
+  const socialAccounts = checkSocial(body, errors);
   const contractType = checkContractType(body.contractType, errors);
   const contract = checkContract(
     body.contractStart,
@@ -371,7 +382,7 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
   return {
     ...name,
     email,
-    ...social,
+    socialAccounts,
     contractType,
     ...contract,
     interval,

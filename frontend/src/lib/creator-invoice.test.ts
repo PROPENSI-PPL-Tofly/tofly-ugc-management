@@ -255,18 +255,18 @@ describe("invoiceActivity", () => {
     expect(entries.map((entry) => entry.kind)).toEqual(["event", "comment"]);
   });
 
-  it("names an admin's comment Admin, never by person, and a creator's by their name", () => {
+  it("names an admin's comment by the admin's email and a creator's by their name", () => {
     const entries = invoiceActivity(
       invoice({
         comments: [
-          { ...COMMENT, id: "c-1", authorRole: "admin", authorName: "Budi (admin)" },
+          { ...COMMENT, id: "c-1", authorRole: "admin", authorName: "budi.admin@tofly.id" },
           { ...COMMENT, id: "c-2", createdAt: "2026-12-03T05:00:00Z" },
         ],
       }),
     );
 
     expect(entries.map((entry) => (entry.kind === "comment" ? entry.author : null))).toEqual([
-      "Admin",
+      "budi.admin@tofly.id",
       "Rangga Pratama",
     ]);
   });

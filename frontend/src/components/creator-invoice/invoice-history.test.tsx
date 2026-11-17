@@ -28,6 +28,87 @@ describe("InvoiceHistory", () => {
     expect(row).toHaveTextContent("Rp1.200.000");
   });
 
+  // Measured on this table's real markup in Edge at true 320–390 px: the table is 484 px wide,
+  // every Rincian sits off-screen, and the page itself widened to 411 px, because the hidden
+  // Aksi heading was laid out against the page rather than the table's scroll area. jsdom lays
+  // nothing out, so these pin what the fix is built from.
+  describe("on a phone, below lg", () => {
+    function rowOf(period: string) {
+      return screen.getByText(period).closest("tr") as HTMLElement;
+    }
+
+    // A table whose display changes can lose its semantics in some browsers, so the table, its
+    // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
+    it("reads each card as a row of cells, one per column, under explicit table roles", () => {
+      render(
+        <InvoiceHistory
+          invoices={[PAID, aCreatorInvoice({ contractId: "c-2", periodNumber: 2 })]}
+          onOpen={vi.fn()}
+        />,
+      );
+
+      const table = screen.getByRole("table");
+      expect(table).toHaveAttribute("role", "table");
+      for (const group of within(table).getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
+      }
+      const columns = within(table).getAllByRole("columnheader");
+      const [, ...records] = within(table).getAllByRole("row");
+      expect(records).toHaveLength(2);
+      for (const record of records) {
+        expect(record).toHaveAttribute("role", "row");
+        expect(within(record).getAllByRole("cell")).toHaveLength(columns.length);
+      }
+    });
+
+    it("keeps the hidden Aksi heading inside the table's own area, so the page never widens", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      expect(screen.getByText("Aksi").closest(".overflow-x-auto")).toHaveClass("relative");
+    });
+
+    it("sets each invoice apart as its own card, with the headers hidden but still read", () => {
+      render(
+        <InvoiceHistory
+          invoices={[PAID, aCreatorInvoice({ contractId: "c-2", periodNumber: 2 })]}
+          onOpen={vi.fn()}
+        />,
+      );
+
+      const table = screen.getByRole("table", { name: "Riwayat Invoice" });
+      const [head, body] = within(table).getAllByRole("rowgroup");
+      expect(table).toHaveClass("max-lg:block");
+      expect(head).toHaveClass("max-lg:sr-only");
+      expect(body).toHaveClass("max-lg:flex", "max-lg:flex-col", "max-lg:gap-3");
+      expect(rowOf("Periode 1")).toHaveClass("max-lg:rounded-(--radius-panel)", "max-lg:border");
+    });
+
+    it("names the status and the total by their columns", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      const cells = within(rowOf("Periode 1")).getAllByRole("cell");
+      expect(cells.map((cell) => cell.dataset.label ?? null)).toEqual([null, "Status", "Total", null]);
+    });
+
+    // Seen in the browser check: the desktop right-alignment pushed the "Total" label away from
+    // the "Status" label above it.
+    it("lines the total up with the status in a card, and keeps it right-aligned in the table", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      const total = within(rowOf("Periode 1")).getAllByRole("cell")[2];
+      expect(total).toHaveClass("text-right", "max-lg:text-left");
+    });
+
+    it("gives Rincian a full-width touch target at least 44px tall", () => {
+      render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+      expect(screen.getByRole("button", { name: "Rincian invoice Periode 1" })).toHaveClass(
+        "max-lg:w-full",
+        "max-lg:min-h-11",
+      );
+    });
+  });
+
   it("opens an invoice's breakdown from its Rincian button", () => {
     const onOpen = vi.fn();
     render(<InvoiceHistory invoices={[PAID]} onOpen={onOpen} />);
@@ -49,5 +130,13 @@ describe("InvoiceHistory", () => {
     expect(screen.getByRole("table", { name: "Riwayat Invoice" })).toHaveTextContent(
       "Belum ada invoice dari periode sebelumnya.",
     );
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as every list table does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
+
+    expect(screen.getByRole("table", { name: "Riwayat Invoice" }).closest("[data-scroll-frame]")).not.toBeNull();
   });
 });

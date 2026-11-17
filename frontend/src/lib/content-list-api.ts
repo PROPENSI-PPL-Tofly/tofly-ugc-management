@@ -12,6 +12,8 @@
 // renamed parameter is fixed here without touching the filter bar, the table or the page.
 
 import type { ContentType } from "./contents";
+import type { Platform } from "./platform-links";
+
 import type {
   ContentPlanCounts,
   ContentPlanParams,
@@ -27,7 +29,7 @@ import { periodRange } from "./deadline-period";
 export const MAX_FILTER_VALUES = 50;
 
 /** The longest search the API takes. */
-const MAX_SEARCH_LENGTH = 100;
+export const MAX_SEARCH_LENGTH = 100;
 
 /** What an id looks like to the API: 8-4-4-4-12 hexadecimal, and nothing more. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,6 +71,8 @@ export interface RawContentListItem {
   status: ContentStatus;
   tags: ContentTag[];
   revisionCount: number;
+  /** The platforms the content has a link for, Instagram first; empty before the first link. */
+  platforms: Platform[];
 }
 
 export interface RawContentList {

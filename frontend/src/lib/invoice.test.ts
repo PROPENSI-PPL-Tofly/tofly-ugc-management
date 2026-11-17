@@ -43,6 +43,9 @@ describe("parseInvoiceParams", () => {
       q: "",
       contract: "all",
       status: "all",
+      period: "all",
+      from: "",
+      to: "",
       sort: "action",
       order: "asc",
       page: 1,
@@ -66,6 +69,14 @@ describe("parseInvoiceParams", () => {
       contract: "upcoming",
       status: "paid",
     });
+  });
+
+  // The contract-end period filter is gone, so an old link that still names one narrows nothing.
+  it("ignores a contract-end period an old link still names", () => {
+    expect(
+      parseInvoiceParams({ period: "custom", from: "2026-06-01", to: "2026-08-31" }),
+    ).toEqual(DEFAULT_INVOICE_PARAMS);
+    expect(parseInvoiceParams({ period: "month" })).toEqual(DEFAULT_INVOICE_PARAMS);
   });
 
   it.each(["running", "ended", "banana", ""])(
@@ -110,6 +121,7 @@ describe("buildInvoiceQuery", () => {
   it("carries every part of a narrowed state into the page links", () => {
     expect(
       buildInvoiceQuery({
+        ...DEFAULT_INVOICE_PARAMS,
         q: "salsa",
         contract: "active",
         status: "paid",
@@ -122,6 +134,24 @@ describe("buildInvoiceQuery", () => {
 
   it("does not carry a contract or status that is not applied", () => {
     expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, page: 2 })).toEqual({ page: "2" });
+  });
+
+  it("carries the contract-end period into the page links", () => {
+    expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, period: "month" })).toEqual({
+      period: "month",
+    });
+  });
+
+  it("carries the custom days of a period, and only the ones set", () => {
+    expect(
+      buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, period: "custom", from: "2026-06-01", to: "" }),
+    ).toEqual({ period: "custom", from: "2026-06-01" });
+  });
+
+  it("carries no period while none is named", () => {
+    expect(buildInvoiceQuery({ ...DEFAULT_INVOICE_PARAMS, from: "2026-06-01" })).toEqual({
+      from: "2026-06-01",
+    });
   });
 });
 

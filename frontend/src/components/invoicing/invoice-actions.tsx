@@ -28,6 +28,7 @@ export function InvoiceActions({
   today = jakartaDay(),
   onAdjust,
   onMutated,
+  onOpenContent,
 }: Readonly<{
   row: InvoiceRow;
   /** The day the freeze gate is read against; Jakarta's, unless a test says otherwise. */
@@ -36,6 +37,8 @@ export function InvoiceActions({
   onAdjust: () => void;
   /** A move was accepted, with what to tell the admin; the invoice reads again. */
   onMutated: (message: string) => void;
+  /** A waiting content is opened at its Content Detail, where its numbers can be typed (AC 9). */
+  onOpenContent?: (contentId: string) => void;
 }>) {
   const [finalizing, setFinalizing] = useState(false);
 
@@ -73,6 +76,7 @@ export function InvoiceActions({
             setFinalizing(false);
             onMutated(FINALIZED_MESSAGE);
           }}
+          onOpenContent={onOpenContent}
         />
       ) : null}
     </>

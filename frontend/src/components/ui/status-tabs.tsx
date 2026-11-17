@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, type KeyboardEvent } from "react";
+import { PHONE_TARGET } from "./touch-target";
+import { SCROLL_HINT, useScrollHint } from "./use-scroll-hint";
 
-const TAB_BASE =
-  "shrink-0 cursor-pointer whitespace-nowrap rounded-t-(--radius-control) border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors";
+const TAB_BASE = `shrink-0 cursor-pointer whitespace-nowrap rounded-t-(--radius-control) border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors ${PHONE_TARGET}`;
 
 // Each state names its own border and colour: stacked on one another, two utilities of the same
 // property resolve by stylesheet order, and the plain tab's won.
@@ -25,9 +26,8 @@ export interface StatusTabDef<K extends string> {
 }
 
 /**
- * A list's tabs grouped by whose turn it is, shared by the admin Content Plan and Task Saya.
- * Only the urgent counter turns red, and only past zero — a red badge on an empty queue would
- * cry wolf; the number itself carries the meaning, so colour is never the only signal.
+ * A list's tabs grouped by whose turn it is, shared by the admin Content Plan, Creator Detail and
+ * Tugas Saya. Every tab shows its count; the urgent tab's (Perlu Dikerjakan, Perlu Approval) is red.
  *
  * Keyboard as the WAI-ARIA tab pattern expects: the list is one Tab stop (the selected tab),
  * the arrows move between tabs with wrap-around, Home and End jump to either end. Moving
@@ -51,6 +51,9 @@ export function StatusTabs<K extends string>({
   onSelect: (tab: K) => void;
 }>) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  // On a phone the row scrolls sideways: its edge fades where more tabs sit off-screen, and
+  // the selected tab is kept fully in view.
+  const list = useScrollHint<HTMLDivElement>(active);
 
   function move(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const last = tabs.length - 1;
@@ -70,15 +73,19 @@ export function StatusTabs<K extends string>({
 
   return (
     <div
+      ref={list}
       role="tablist"
       aria-label={label}
-      className="flex gap-1 overflow-x-auto border-b border-rule px-5"
+      // Below sm the tabs are one Tampilkan choice in the folded filters (TabChoice).
+      className={`flex gap-1 overflow-x-auto border-b border-rule px-5 max-sm:hidden ${SCROLL_HINT}`}
     >
       {tabs.map((def, index) => {
         const count = counts[def.key];
         const selected = active === def.key;
-        // The urgent tab shows its count only when there is one; a counting tab always does.
-        const showCount = def.urgent ? count > 0 : def.counter;
+        // Every tab shows its count; the urgent one (what still needs doing) is told apart in red,
+        // zero included, and the number itself carries the meaning, so colour is never the only
+        // signal.
+        const red = def.urgent;
 
         return (
           <button
@@ -96,14 +103,9 @@ export function StatusTabs<K extends string>({
             className={selected ? TAB_ON : TAB}
           >
             {def.label}
-            {showCount ? (
-              <span
-                data-testid={`count-${def.key}`}
-                className={def.urgent ? COUNT_RED : COUNT_GREY}
-              >
-                {count}
-              </span>
-            ) : null}
+            <span data-testid={`count-${def.key}`} className={red ? COUNT_RED : COUNT_GREY}>
+              {count}
+            </span>
           </button>
         );
       })}

@@ -10,8 +10,10 @@ import {
 } from "@/lib/invoice";
 import { BREAKDOWN_LABELS, type BreakdownKind } from "@/lib/invoice-breakdown";
 
+// On a card the press spans the whole statement line (the cell is relative there), not the
+// figure alone.
 const AMOUNT =
-  "cursor-pointer whitespace-nowrap border-none bg-transparent p-0 tabular-nums transition-colors hover:text-accent-deep focus-visible:text-accent-deep";
+  "cursor-pointer whitespace-nowrap border-none bg-transparent p-0 tabular-nums transition-colors hover:text-accent-deep focus-visible:text-accent-deep max-lg:after:absolute max-lg:after:inset-0";
 
 interface Cell {
   amount: number | null;

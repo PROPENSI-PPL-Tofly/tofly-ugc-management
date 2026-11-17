@@ -18,9 +18,12 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   confirmVariant = "danger",
+  details,
 }: {
   title: string;
   message: string;
+  /** Labelled facts under the message, such as the old and the new deadline. */
+  details?: readonly (readonly [string, string])[];
   confirmLabel: string;
   cancelLabel: string;
   onConfirm: () => void;
@@ -49,6 +52,17 @@ export function ConfirmDialog({
       }
     >
       <p className="text-[13px] text-ink-2">{message}</p>
+
+      {details?.length ? (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-(--radius-control) bg-surface-2 px-3 py-2.5 text-[13px]">
+          {details.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted">{label}</dt>
+              <dd className="min-w-0 break-words font-semibold text-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </Modal>
   );
 }

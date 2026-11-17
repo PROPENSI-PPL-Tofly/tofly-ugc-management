@@ -4,6 +4,7 @@ import type { CreatorContentRow } from "@/lib/creator-detail";
 import { CreatorContentTable } from "./creator-content-table";
 
 const ROW: CreatorContentRow = {
+  platforms: [],
   contentId: "c-1",
   name: "Evg_7_RanggaPratama_26092026",
   type: "evergreen",
@@ -31,22 +32,84 @@ describe("CreatorContentTable", () => {
 
     expect(
       screen.getAllByRole("columnheader").map((heading) => heading.textContent),
-    ).toEqual(["Konten", "Deadline↑", "Status", "Aksi"]);
+    ).toEqual(["Konten", "Tipe", "Deadline↑Deadline", "Status", "Platform"]);
   });
 
-  it("keeps the action column's heading for screen readers only, as the prototype shows none", () => {
-    renderTable();
+  // The row and the content's name open it; there is no Detail or Tinjau button any more.
+  it("has no Detail or Tinjau button on a row, whatever its status", () => {
+    renderTable([
+      ROW,
+      { ...ROW, contentId: "c-2", name: "Konten Kedua", status: "draft_review" },
+      { ...ROW, contentId: "c-3", name: "Konten Ketiga", status: "link_submitted" },
+    ]);
 
-    expect(screen.getByText("Aksi")).toHaveClass("sr-only");
+    expect(screen.queryByRole("button", { name: /^(Detail|Tinjau) / })).toBeNull();
   });
 
-  it("keeps that hidden heading inside the table's own scroll area, so a phone never scrolls the page sideways", () => {
-    renderTable();
+  // Measured in Edge at true 320/375/390/430 px: the table is 628 px wide in a 286-396 px area,
+  // so Status and its tags sat off-screen. Below lg each row reads as a card,
+  // as the roster and Task Saya do. jsdom lays nothing out, so these pin what the layout is built
+  // from; the browser measurement is the evidence for the layout itself.
+  describe("on a phone, below lg", () => {
+    function cells() {
+      return within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell");
+    }
 
-    // sr-only is position:absolute. Unless the scroll area is positioned, the heading is laid
-    // out against the page and widens it by however far the table overflows (117 px at 375 px).
-    const scrollArea = screen.getByText("Aksi").closest(".overflow-x-auto");
-    expect(scrollArea).toHaveClass("relative");
+    // A table whose display changes can lose its semantics in some browsers, so the table, its
+    // row groups and its rows carry explicit roles; a cell takes its role from the row it sits in.
+    it("reads each card as a row of cells, one per column, under explicit table roles", () => {
+      renderTable([ROW, { ...ROW, contentId: "c-2", name: "Spc_Done", status: "link_submitted" }]);
+
+      const table = screen.getByRole("table");
+      expect(table).toHaveAttribute("role", "table");
+      for (const group of within(table).getAllByRole("rowgroup")) {
+        expect(group).toHaveAttribute("role", "rowgroup");
+      }
+      const columns = within(table).getAllByRole("columnheader");
+      const [, ...records] = within(table).getAllByRole("row");
+      expect(records).toHaveLength(2);
+      for (const record of records) {
+        expect(record).toHaveAttribute("role", "row");
+        expect(within(record).getAllByRole("cell")).toHaveLength(columns.length);
+      }
+    });
+
+    it("keeps table semantics while the rows stack as cards", () => {
+      renderTable();
+
+      expect(screen.getByRole("table")).toHaveClass("max-lg:block");
+      expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
+      expect(rowOf("Evg_7_RanggaPratama_26092026")).toHaveClass("max-lg:block");
+      expect(cells()).toHaveLength(5);
+    });
+
+    it("names the deadline and the status by their columns, since the headers are hidden", () => {
+      renderTable();
+
+      expect(cells().map((cell) => cell.dataset.label ?? null)).toEqual([
+        null,
+        "Tipe",
+        "Deadline",
+        "Status",
+        "Platform",
+      ]);
+    });
+
+    it("lets a long name wrap instead of holding the card wider than the phone", () => {
+      renderTable();
+
+      const [name] = cells();
+      expect(name).toHaveClass("min-w-52");
+      expect(name).toHaveClass("max-lg:min-w-0");
+    });
+
+    it("keeps one sort control per width: the header's button is removed below lg, its name kept", () => {
+      renderTable();
+
+      const header = screen.getByRole("columnheader", { name: /Deadline/ });
+      expect(within(header).getByRole("button")).toHaveClass("max-lg:hidden");
+      expect(within(header).getByText("Deadline", { selector: "span" })).toHaveClass("lg:hidden");
+    });
   });
 
   it("fills a row with the content, its type under the name, and its formatted deadline", () => {
@@ -97,21 +160,72 @@ describe("CreatorContentTable", () => {
   });
 
   it.each([
-    ["evergreen", "Evergreen"],
-    ["specific", "Specific"],
-  ] as const)("writes a %s content's type as quiet text, not a coloured pill", (type, label) => {
+    ["evergreen", "Evergreen", "bg-surface-2"],
+    ["specific", "Specific", "bg-accent-wash"],
+  ] as const)("draws a %s content's type as a badge of its own colour", (type, label, colour) => {
     renderTable([{ ...ROW, type }]);
 
-    const typeLabel = screen.getByText(label);
-    expect(typeLabel).not.toHaveClass("rounded-full");
-    expect(typeLabel).toHaveClass("text-muted");
+    expect(screen.getByText(label)).toHaveClass("rounded-full", colour);
   });
 
-  it("shows Overdue and Approval di-bypass beside the status", () => {
-    renderTable([{ ...ROW, tags: ["overdue", "approval_bypassed"] }]);
+  it("shows the marks of the platforms the content was posted to (AC 13)", () => {
+    render(
+      <CreatorContentTable
+        rows={[
+          {
+            ...ROW,
+            platforms: ["instagram", "tiktok"],
+          },
+        ]}
+        filtered={false}
+        onOpen={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
 
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText("Approval di-bypass")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
+  it("gives the type a column beside the content, and the platforms one right of the status", () => {
+    renderTable([{ ...ROW, platforms: ["instagram"] }]);
+
+    const [, type, , status, platform] = within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell");
+    expect(within(type).getByText("Evergreen")).toHaveClass("rounded-full");
+    expect(within(platform).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(status.compareDocumentPosition(platform) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows no marks for a content with no link sent yet", () => {
+    render(
+      <CreatorContentTable rows={[ROW]} filtered={false} onOpen={vi.fn()} onReset={vi.fn()} />,
+    );
+
+    expect(screen.queryByRole("img", { name: "Instagram" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TikTok" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["overdue", "Overdue"],
+    ["late_submission", "Late Submission"],
+  ] as const)("reds the deadline of a %s content instead of a badge, still naming it for a screen reader", (tag, label) => {
+    renderTable([{ ...ROW, tags: [tag, "approval_bypassed"] }]);
+
+    const deadline = within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell")[2];
+    expect(deadline.firstElementChild).toHaveClass("text-red-ink");
+    expect(within(deadline).getByText(`(${label})`)).toHaveClass("sr-only");
+    expect(screen.queryByRole("listitem", { name: label })).toBeNull();
+    expect(within(screen.getByRole("list", { name: "Tanda konten" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Approval di-bypass",
+    ]);
+  });
+
+  it("leaves an on-time deadline in ink", () => {
+    renderTable();
+
+    expect(within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell")[2].firstElementChild).not.toHaveClass(
+      "text-red-ink",
+    );
   });
 
   it("leaves the revision count to the content's panel", () => {
@@ -147,32 +261,13 @@ describe("CreatorContentTable", () => {
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
     });
 
-    it("opens it once from the button, not once for the button and once for the row", () => {
+    it("opens it once from the name, not once for the name and once for the row", () => {
       const { onOpen } = renderTable();
 
-      fireEvent.click(screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }));
+      fireEvent.click(screen.getByRole("button", { name: "Evg_7_RanggaPratama_26092026" }));
 
       expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
     });
-
-    it.each(["pending", "draft_review"] as const)("offers Tinjau for a %s content", (status) => {
-      renderTable([{ ...ROW, status }]);
-
-      expect(
-        screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }),
-      ).toHaveTextContent("Tinjau");
-    });
-
-    it.each(["scheduled", "draft_revision", "draft_approved", "link_submitted"] as const)(
-      "offers no Detail button for a %s content; its name opens it",
-      (status) => {
-        const { onOpen } = renderTable([{ ...ROW, status }]);
-
-        expect(screen.queryByRole("button", { name: /^Detail/ })).toBeNull();
-        fireEvent.click(screen.getByRole("button", { name: "Evg_7_RanggaPratama_26092026" }));
-        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
-      },
-    );
 
     it("opens the content that was pressed, among several", () => {
       const { onOpen } = renderTable([ROW, { ...ROW, contentId: "c-2", name: "Konten Kedua" }]);
@@ -185,7 +280,7 @@ describe("CreatorContentTable", () => {
     it("leaves the heading row alone", () => {
       const { onOpen } = renderTable();
 
-      fireEvent.click(screen.getByText("Deadline"));
+      fireEvent.click(within(screen.getByRole("columnheader", { name: /Deadline/ })).getByRole("button"));
 
       expect(onOpen).not.toHaveBeenCalled();
     });
@@ -193,6 +288,17 @@ describe("CreatorContentTable", () => {
     describe("when the press ends a text selection", () => {
       afterEach(() => {
         vi.restoreAllMocks();
+      });
+
+      it("does not open the panel when the selection ends on the row itself", () => {
+        vi.spyOn(window, "getSelection").mockReturnValue({
+          toString: () => "26 Sep",
+        } as Selection);
+        const { onOpen } = renderTable();
+
+        fireEvent.click(screen.getByText("26 Sep 2026"));
+
+        expect(onOpen).not.toHaveBeenCalled();
       });
 
       it("does not open the panel over the text just selected", () => {
@@ -204,19 +310,6 @@ describe("CreatorContentTable", () => {
         fireEvent.click(screen.getByText("Evg_7_RanggaPratama_26092026"));
 
         expect(onOpen).not.toHaveBeenCalled();
-      });
-
-      it("still opens from the button, which is never part of a selection", () => {
-        vi.spyOn(window, "getSelection").mockReturnValue({
-          toString: () => "RanggaPratama",
-        } as Selection);
-        const { onOpen } = renderTable();
-
-        fireEvent.click(
-          screen.getByRole("button", { name: "Tinjau Evg_7_RanggaPratama_26092026" }),
-        );
-
-        expect(onOpen).toHaveBeenCalledExactlyOnceWith("c-1");
       });
 
       it("opens as usual where the browser reports no selection at all", () => {
@@ -264,7 +357,7 @@ describe("CreatorContentTable", () => {
     expect(container.querySelector("img, script")).toBeNull();
   });
 
-  it("follows Content Plan's Selesai convention and omits the action column for finished content", () => {
+  it("keeps the action column in Selesai too, offering Detail for finished content", () => {
     const TabbedTable = CreatorContentTable as unknown as ComponentType<{
       rows: readonly CreatorContentRow[];
       filtered: boolean;
@@ -276,7 +369,7 @@ describe("CreatorContentTable", () => {
     }>;
     render(
       <TabbedTable
-        rows={[{ ...ROW, status: "link_submitted", tags: ["overdue"] }]}
+        rows={[{ ...ROW, status: "link_submitted", tags: ["late_submission"] }]}
         filtered={false}
         tab="done"
         sort="asc"
@@ -287,8 +380,23 @@ describe("CreatorContentTable", () => {
     );
 
     expect(screen.getByText("Evg_7_RanggaPratama_26092026")).toBeInTheDocument();
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Tinjau/ })).toBeNull();
-    expect(screen.queryByRole("columnheader", { name: "Aksi" })).toBeNull();
+    expect(screen.getByText("(Late Submission)")).toHaveClass("sr-only");
+    expect(screen.queryByRole("button", { name: /^(Tinjau|Detail) / })).toBeNull();
+  });
+
+  // At 1024px the table scrolled sideways with nothing to say more columns sat past the edge;
+  // it sits in the frame that fades that edge (as Content Plan's does).
+  it("sits in a frame that fades the edge hiding more columns", () => {
+    renderTable();
+
+    expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
+  });
+
+  it("centres every cell of a row on one line, the action button included", () => {
+    renderTable();
+
+    for (const cell of within(rowOf("Evg_7_RanggaPratama_26092026")).getAllByRole("cell")) {
+      expect(cell).toHaveClass("align-middle");
+    }
   });
 });

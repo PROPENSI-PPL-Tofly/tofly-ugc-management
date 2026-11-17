@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import PrivacyPage, { metadata } from "./page";
+import { expectMinTarget } from "@/test/touch-target";
 
 describe("Privacy page", () => {
   it("is titled as Tofly's privacy policy", () => {
@@ -17,6 +18,7 @@ describe("Privacy page", () => {
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Data dari akun Google",
       "Data yang dikelola Admin",
+      "Data performa dari Instagram dan TikTok",
       "Cookie",
       "Siapa yang dapat melihat data",
       "Pertanyaan dan penghapusan data",
@@ -45,6 +47,75 @@ describe("Privacy page", () => {
     expect(screen.getByRole("link", { name: "Kembali ke halaman masuk" })).toHaveAttribute(
       "href",
       "/login",
+    );
+  });
+
+  // On its own line it is no link inside a sentence, so WCAG 2.5.8's 24px applies; it was 17px.
+  it("gives the way back at least a 24px press", () => {
+    render(<PrivacyPage />);
+
+    expectMinTarget(screen.getByRole("link", { name: "Kembali ke halaman masuk" }));
+  });
+});
+
+// PBI-19, AC 15: what Tofly pulls from a connected Instagram or TikTok, why, how long it is kept
+// and how to disconnect, in the words of the creator's own Kebijakan Privasi pop-up (19.4).
+describe("Privacy page, performance data", () => {
+  function section() {
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: "Data performa dari Instagram dan TikTok",
+    });
+    // The section's paragraphs run until the next heading.
+    const paragraphs: string[] = [];
+    for (let node = heading.nextElementSibling; node && node.tagName !== "H2"; ) {
+      paragraphs.push(node.textContent ?? "");
+      node = node.nextElementSibling;
+    }
+    return paragraphs.join(" ");
+  }
+
+  it("says what is pulled: the username and the numbers of the creator's own content", () => {
+    render(<PrivacyPage />);
+
+    expect(section()).toMatch(/username/);
+    expect(section()).toMatch(/views, likes, comments, shares/);
+    expect(section()).toMatch(/konten yang Anda buat sendiri/);
+  });
+
+  it("says why: to show the creator's performance and work out the performance bonus", () => {
+    render(<PrivacyPage />);
+
+    expect(section()).toMatch(/bonus performa di invoice/);
+  });
+
+  it("says how long: access only while connected, saved numbers kept with the invoice", () => {
+    render(<PrivacyPage />);
+
+    expect(section()).toMatch(/selama akun masih terhubung/);
+    expect(section()).toMatch(/dihapus saat Anda menekan Putuskan/);
+    expect(section()).toMatch(/catatan invoice/);
+  });
+
+  it("says how to disconnect, from the Performa page", () => {
+    render(<PrivacyPage />);
+
+    expect(section()).toMatch(/halaman Performa/);
+    expect(section()).toMatch(/tekan Putuskan/);
+  });
+
+  it("promises no retention period the product has not set", () => {
+    render(<PrivacyPage />);
+
+    expect(section()).not.toMatch(/\d+\s*(hari|bulan|tahun)/);
+  });
+
+  it("comes right after the data Admin manages, before cookies", () => {
+    render(<PrivacyPage />);
+
+    const titles = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(titles.indexOf("Data performa dari Instagram dan TikTok")).toBe(
+      titles.indexOf("Data yang dikelola Admin") + 1,
     );
   });
 });

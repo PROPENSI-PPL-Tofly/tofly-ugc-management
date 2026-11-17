@@ -76,6 +76,38 @@ describe("/api/* proxy", () => {
     },
   );
 
+  // The backend's /internal routes are for Cloud Scheduler alone, behind their own secret. The
+  // public site never forwards to them, so the secret is the only way in (OWASP A01).
+  it.each([
+    ["internal", "performance-sync"],
+    ["INTERNAL", "performance-sync"],
+    ["internal"],
+  ])("answers 404 for /api/%s/… without calling the backend", async (...path) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    const response = await POST(
+      new Request(`http://localhost:3000/api/${path.join("/")}`, {
+        method: "POST",
+        headers: { "x-sync-secret": "guess" },
+      }),
+      params(...path),
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "Not found" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("still forwards a route that only starts with the letters internal", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await GET(new Request("http://localhost:3000/api/internals"), params("internals"));
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe("http://backend:3001/internals");
+  });
+
   it("still forwards a segment that only contains dots among other characters", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

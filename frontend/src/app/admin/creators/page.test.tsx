@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { creator, listResponse } from "@/components/creators/creator.fixture";
 import { fetchCreators } from "@/lib/creators.server";
 import CreatorsPage from "./page";
@@ -36,9 +36,33 @@ describe("Creator database page", () => {
     await renderPage({ page: "2" });
 
     expect(fetchCreators).toHaveBeenCalledWith(2, { q: "", contractStatus: "all", productivity: "all" });
-    expect(screen.getByRole("heading", { level: 1, name: "Creator Database" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Kreator" })).toBeInTheDocument();
     expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
     expect(screen.getByText("Halaman 2 dari 2")).toBeInTheDocument();
+  });
+
+  it("opens a creator with the search, filters and page to return to", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(
+      listResponse({ items: [creator({ id: "creator-9" })], page: 2, total: 12, totalPages: 2 }),
+    );
+
+    await renderPage({ q: "ra", contractStatus: "expired", productivity: "bogus", page: "2" });
+
+    expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
+      "href",
+      "/admin/creators/creator-9?return=q%3Dra%26contractStatus%3Dexpired%26page%3D2",
+    );
+  });
+
+  it("opens a creator from the bare roster with nothing to return to", async () => {
+    vi.mocked(fetchCreators).mockResolvedValue(listResponse({ items: [creator({ id: "creator-9" })] }));
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
+      "href",
+      "/admin/creators/creator-9",
+    );
   });
 
   it("keeps the search and filters when moving to another page", async () => {
@@ -170,5 +194,25 @@ describe("Creator database page", () => {
     fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "6" } });
 
     expect(screen.getByRole("button", { name: /simpan/i })).toBeDisabled();
+  });
+});
+
+// The page's title already names its one list, so the roster has no title band of its own; Tambah
+// Creator sits beside the page title instead.
+describe("Kreator's list head", () => {
+  beforeEach(() => {
+    vi.mocked(fetchCreators).mockReset();
+    vi.mocked(fetchCreators).mockResolvedValue(
+      listResponse({ items: [creator()], page: 1, total: 12, totalPages: 2 }),
+    );
+  });
+
+  it("gives the roster no title band and puts Tambah Creator beside the page title", async () => {
+    await renderPage();
+
+    expect(screen.queryByRole("heading", { level: 2, name: "Kreator" })).toBeNull();
+    expect(document.querySelector("[data-tone]")).toBeNull();
+    const header = screen.getByRole("heading", { level: 1, name: "Kreator" }).parentElement as HTMLElement;
+    expect(within(header).getByRole("button", { name: /tambah creator/i })).toBeInTheDocument();
   });
 });

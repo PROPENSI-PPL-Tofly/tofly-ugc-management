@@ -42,6 +42,29 @@ export async function sendDecision(
   fallbackMessage: string,
   body?: Record<string, unknown>,
 ): Promise<void> {
+  await send(url, method, fallbackMessage, body);
+}
+
+/**
+ * Like sendDecision, for a request whose answer the admin's screen shows next (the saved
+ * follow-up note): the same refusals, then the backend's JSON body.
+ */
+export async function sendAndRead<T>(
+  url: string,
+  method: "PATCH" | "POST",
+  fallbackMessage: string,
+  body?: Record<string, unknown>,
+): Promise<T> {
+  const response = await send(url, method, fallbackMessage, body);
+  return (await response.json()) as T;
+}
+
+async function send(
+  url: string,
+  method: "PATCH" | "POST",
+  fallbackMessage: string,
+  body?: Record<string, unknown>,
+): Promise<Response> {
   const response = await apiFetch(url, {
     method,
     ...(body
@@ -55,4 +78,6 @@ export async function sendDecision(
     const message = response.status < 500 ? await readMessage(response) : null;
     throw new DecisionError(response.status, message ?? fallbackMessage);
   }
+
+  return response;
 }

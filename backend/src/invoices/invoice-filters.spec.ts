@@ -77,6 +77,69 @@ describe('checkInvoiceFilters, invoice status', () => {
   });
 });
 
+describe('checkInvoiceFilters, the contract-end period', () => {
+  it('reads the two ends of a range as days', () => {
+    expect(
+      checkInvoiceFilters(undefined, undefined, undefined, '2026-06-01', '2026-08-31'),
+    ).toEqual({
+      contractEndFrom: '2026-06-01',
+      contractEndTo: '2026-08-31',
+    });
+  });
+
+  it('reads one open end on its own', () => {
+    expect(checkInvoiceFilters(undefined, undefined, undefined, '2026-06-01')).toEqual({
+      contractEndFrom: '2026-06-01',
+    });
+    expect(checkInvoiceFilters(undefined, undefined, undefined, undefined, '2026-08-31')).toEqual({
+      contractEndTo: '2026-08-31',
+    });
+  });
+
+  it.each(['banana', '31-08-2026'])(
+    'refuses a start that is not a day written as YYYY-MM-DD (%s)',
+    (raw) => {
+      expect(() =>
+        checkInvoiceFilters(undefined, undefined, undefined, raw),
+      ).toThrow('contractEndFrom must be a day written as YYYY-MM-DD');
+    },
+  );
+
+  it.each(['banana', '31-08-2026'])(
+    'refuses an end that is not a day written as YYYY-MM-DD (%s)',
+    (raw) => {
+      expect(() =>
+        checkInvoiceFilters(undefined, undefined, undefined, undefined, raw),
+      ).toThrow('contractEndTo must be a day written as YYYY-MM-DD');
+    },
+  );
+
+  it('refuses a range put in backwards, naming the two days', () => {
+    expect(() =>
+      checkInvoiceFilters(undefined, undefined, undefined, '2026-08-31', '2026-06-01'),
+    ).toThrow('contractEndFrom must not be after contractEndTo');
+  });
+
+  it('takes the same day at both ends', () => {
+    expect(
+      checkInvoiceFilters(undefined, undefined, undefined, '2026-06-01', '2026-06-01'),
+    ).toEqual({
+      contractEndFrom: '2026-06-01',
+      contractEndTo: '2026-06-01',
+    });
+  });
+
+  it('reads the period beside every other filter', () => {
+    expect(checkInvoiceFilters(' Salsa ', 'expired', 'paid', '2026-06-01', '2026-08-31')).toEqual({
+      q: 'Salsa',
+      contract: 'expired',
+      status: 'paid',
+      contractEndFrom: '2026-06-01',
+      contractEndTo: '2026-08-31',
+    });
+  });
+});
+
 describe('checkInvoiceFilters messages', () => {
   it('says how long a search word may be and which contract statuses exist', () => {
     expect(() =>

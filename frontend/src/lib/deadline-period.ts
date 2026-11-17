@@ -16,7 +16,7 @@ export interface PeriodState {
 const MS_PER_DAY = 86_400_000;
 
 /** A calendar day moved by a number of days, counted in UTC so no timezone can shift it. */
-function shiftDay(day: string, days: number): string {
+export function shiftDay(day: string, days: number): string {
   return new Date(Date.parse(`${day}T00:00:00Z`) + days * MS_PER_DAY).toISOString().slice(0, 10);
 }
 

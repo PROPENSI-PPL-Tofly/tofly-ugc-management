@@ -17,6 +17,11 @@ describe("parseAmount", () => {
     },
   );
 
+  it("reads digits grouped by thousands, as the field shows them", () => {
+    expect(parseAmount("1.500.000")).toBe(1500000);
+    expect(parseAmount("75.000")).toBe(75000);
+  });
+
   it("ignores spaces around the digits", () => {
     expect(parseAmount("  500 ")).toBe(500);
   });
@@ -34,8 +39,9 @@ describe("parseAmount", () => {
 });
 
 describe("amountText", () => {
-  it("shows a held number as digits", () => {
-    expect(amountText(75000)).toBe("75000");
+  it("shows a held number as digits grouped by thousands", () => {
+    expect(amountText(75000)).toBe("75.000");
+    expect(amountText(500)).toBe("500");
   });
 
   it("shows 0 as a digit, because 0 is a value", () => {

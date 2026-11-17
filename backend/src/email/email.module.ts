@@ -1,0 +1,32 @@
+import { Logger, Module } from '@nestjs/common';
+import { EMAIL_SENDER } from './email-sender.js';
+import { LoggingEmailSenderDecorator } from './logging-email-sender.decorator.js';
+import { emailSenderFromEnv, smtpTransport } from './smtp-email-sender.js';
+
+/** The logger every delivery is reported through, as GoogleSignIn's is bound. */
+export const EMAIL_LOG = 'EMAIL_LOG';
+
+/**
+ * The outgoing-email wiring (PBI-39, 39.1): EMAIL_SENDER is the real SMTP sender while its
+ * account is configured and the fail-closed unready sender while it is not, so a missing
+ * secret fails every send rather than the boot (39.2 answers "Kode gagal dikirim. Coba
+ * lagi."). Either one is wrapped in LoggingEmailSenderDecorator (SCRUM-325), the single place
+ * a delivery is logged. The port is what the modules that send mail import — PBI-11 reuses it
+ * unchanged, never knowing a decorator is there.
+ */
+@Module({
+  providers: [
+    { provide: EMAIL_LOG, useValue: new Logger('EmailSender') },
+    {
+      provide: EMAIL_SENDER,
+      useFactory: (log: Pick<Logger, 'log' | 'warn'>) =>
+        new LoggingEmailSenderDecorator(
+          emailSenderFromEnv(process.env, smtpTransport),
+          log,
+        ),
+      inject: [EMAIL_LOG],
+    },
+  ],
+  exports: [EMAIL_SENDER],
+})
+export class EmailModule {}

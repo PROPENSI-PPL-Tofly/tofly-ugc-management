@@ -59,6 +59,7 @@ const DETAIL: RawCreatorDetail = {
 const CONTENTS: RawContentList = {
   items: [
     {
+      platforms: [],
       id: "content-1",
       name: "Evg_1_LestariWulandari_15102026",
       creatorId: CREATOR,

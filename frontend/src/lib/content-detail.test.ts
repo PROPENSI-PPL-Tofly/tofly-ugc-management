@@ -2,6 +2,7 @@ import {
   ContentDetailError,
   describeJourney,
   fetchContentDetail,
+  latestRevisionEventId,
   toContentDetail,
   type RawContentDetail,
   type RawContentEvent,
@@ -191,6 +192,98 @@ describe("describeJourney", () => {
     ]);
   });
 
+  // PBI-27 AC 16: numbers an admin typed in are a step, named by their platform.
+  it("titles manual performance numbers by the platform they were typed for", () => {
+    const steps = describeJourney([
+      event({ id: "tiktok", type: "performance_entered", payload: { platform: "tiktok" } }),
+      event({ id: "unknown", type: "performance_entered" }),
+    ]);
+
+    expect(steps.map((step) => [step.title, step.linkLabel, step.noteBy])).toEqual([
+      ["Angka TikTok diisi manual", null, null],
+      ["Angka performa diisi manual", null, null],
+    ]);
+  });
+
+  // PBI-27 AC 16, 17: a number step says what moved, an empty number reading as a dash.
+  it("words what moved on a number step", () => {
+    const [step] = describeJourney([
+      event({
+        id: "typed",
+        type: "performance_entered",
+        payload: {
+          platform: "tiktok",
+          changes: [
+            { metric: "views", before: 100, after: 12400 },
+            { metric: "likes", before: null, after: 5 },
+          ],
+        },
+      }),
+    ]);
+
+    expect(step.changes).toEqual(["Views: 100 → 12.400", "Likes: — → 5"]);
+  });
+
+  it("words no change on a step that carries none", () => {
+    const [step] = describeJourney([event({ id: "plain", type: "scheduled" })]);
+
+    expect(step.changes).toEqual([]);
+  });
+
+  // PBI-27 AC 17: the platform taking over from typed numbers is a step too.
+  it("titles manual numbers the platform replaced by that platform", () => {
+    const steps = describeJourney([
+      event({ id: "tiktok", type: "performance_replaced", payload: { platform: "tiktok" } }),
+      event({ id: "unknown", type: "performance_replaced" }),
+    ]);
+
+    expect(steps.map((step) => step.title)).toEqual([
+      "Angka manual diganti data TikTok",
+      "Angka manual diganti data platform",
+    ]);
+  });
+
+  it("words an admin's edit with each change, old and new (PBI-25 AC 4)", () => {
+    const [step] = describeJourney([
+      event({
+        id: "edit",
+        type: "content_updated",
+        payload: {
+          changes: {
+            deadline: { from: "2026-11-20", to: "2026-11-25" },
+            name: { from: "Promo Lebaran", to: "Promo Ramadan" },
+            brief: { from: "Lama", to: "Baru" },
+          },
+        },
+      }),
+    ]);
+
+    expect(step.title).toBe("Konten diubah");
+    expect(step.changes).toEqual([
+      "Deadline 20 Nov 2026 → 25 Nov 2026",
+      "Nama Promo Lebaran → Promo Ramadan",
+      "Brief diubah",
+    ]);
+  });
+
+  it("gives an edit without details and every other step an empty list of changes", () => {
+    const steps = describeJourney([
+      event({ id: "edit", type: "content_updated" }),
+      event({ id: "scheduled", type: "scheduled" }),
+    ]);
+
+    expect(steps.map((step) => step.changes)).toEqual([[], []]);
+  });
+
+  it("skips a kind of event this build does not know yet, instead of breaking the panel", () => {
+    const steps = describeJourney([
+      event({ id: "new", type: "content_archived" as RawContentEvent["type"] }),
+      event({ id: "scheduled", type: "scheduled" }),
+    ]);
+
+    expect(steps.map((step) => step.event.id)).toEqual(["scheduled"]);
+  });
+
   it("keeps every event, in the order it was given, with the event itself", () => {
     const steps = describeJourney(journey);
 
@@ -245,11 +338,24 @@ describe("describeJourney", () => {
     expect(step.linkLabel).toBeNull();
   });
 
-  it("signs an admin's note as the admin's and a creator's with their name", () => {
+  it("signs an admin's note by role when no account is named, and a creator's with their name", () => {
     const steps = describeJourney(journey);
 
     expect(steps[3].noteBy).toBe("Catatan Admin");
     expect(steps[4].noteBy).toBe("Catatan Rangga Pratama");
+  });
+
+  it("signs an admin's note with the email of the admin who wrote it", () => {
+    const [step] = describeJourney([
+      event({
+        id: "a",
+        type: "revision_requested",
+        actor: { name: "sinta.admin@tofly.id", role: "admin" },
+        payload: { note: "Tolong perbaiki intro." },
+      }),
+    ]);
+
+    expect(step.noteBy).toBe("Catatan sinta.admin@tofly.id");
   });
 
   it("signs a creator's note generically when the API sends no name", () => {
@@ -281,5 +387,35 @@ describe("describeJourney", () => {
     describeJourney(journey);
 
     expect(journey.map((item) => item.id)).toEqual(before);
+  });
+
+  // A follow-up already reads under the revision note it adds to, so it has no step of its own.
+  it("leaves a follow-up out of the journey", () => {
+    const steps = describeJourney([
+      event({ id: "fu-1", type: "revision_followup_added", actor: { name: "Bastian", role: "admin" } }),
+      event({ id: "sch", type: "scheduled", actor: { name: null, role: "admin" } }),
+    ]);
+
+    expect(steps.map((step) => step.event.id)).toEqual(["sch"]);
+  });
+});
+
+describe("latestRevisionEventId", () => {
+  function event(overrides: Pick<RawContentEvent, "id" | "type" | "payload">): RawContentEvent {
+    return { at: "2026-11-01T04:00:00.000Z", actor: { name: null, role: "admin" }, ...overrides };
+  }
+
+  it("names the newest revision request, the first one in the newest-first journey", () => {
+    const events: RawContentEvent[] = [
+      event({ id: "sub-3", type: "draft_submitted", payload: { version: 3 } }),
+      event({ id: "rev-2", type: "revision_requested", payload: { note: "Perbaiki intro." } }),
+      event({ id: "rev-1", type: "revision_requested", payload: { note: "Warna kurang kontras." } }),
+    ];
+
+    expect(latestRevisionEventId(events)).toBe("rev-2");
+  });
+
+  it("names nothing when no revision was ever asked for", () => {
+    expect(latestRevisionEventId(raw().events)).toBeNull();
   });
 });

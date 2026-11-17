@@ -17,6 +17,7 @@ vi.mock("next/headers", () => ({
 const response: RawMyContents = {
   items: [
     {
+      platforms: [],
       id: "content-1",
       name: "Evg_1_RanggaPratama_12102026",
       type: "evergreen",
@@ -26,6 +27,7 @@ const response: RawMyContents = {
       tags: [],
       actions: ["submit_draft"],
       revisionNotes: null,
+      revisionNotesUpdatedAt: null,
     },
   ],
   page: 2,
