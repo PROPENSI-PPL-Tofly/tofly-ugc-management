@@ -29,8 +29,12 @@ permissions:
 jobs:
   move:
     name: Move subtask
-    # Only branches pushed to this repo; a fork PR could name any subtask.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Only branches pushed to this repo; a fork PR could name any subtask. Into staging only a
+    # merge moves anything, so other staging events never start a runner.
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.pull_request.base.ref != 'staging' ||
+       (github.event.action == 'closed' && github.event.pull_request.merged))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
