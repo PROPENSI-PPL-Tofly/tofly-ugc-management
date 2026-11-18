@@ -114,10 +114,10 @@ function setup(contracts: unknown[] | null) {
 
 /** The raw statements in the order the transaction ran them. */
 function locks(tx: ReturnType<typeof setup>['tx']): { sql: string; values: unknown[] }[] {
-  return tx.$queryRaw.mock.calls.map(([query]: [Prisma.Sql]) => ({
-    sql: query.sql,
-    values: query.values,
-  }));
+  return tx.$queryRaw.mock.calls.map((call: unknown[]) => {
+    const query = call[0] as Prisma.Sql;
+    return { sql: query.sql, values: query.values };
+  });
 }
 
 async function rejection(work: Promise<unknown>): Promise<{ error: unknown; body: Record<string, unknown> }> {
