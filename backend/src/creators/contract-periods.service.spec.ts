@@ -70,6 +70,19 @@ const RESULT = {
   ],
 };
 
+/** What a saved period is read back with: its invoice and only its Evergreen schedule, in date order. */
+const SAVED_SELECT = {
+  id: true,
+  start_date: true,
+  end_date: true,
+  invoice: { select: { id: true } },
+  contents: {
+    where: { type: 'evergreen' },
+    select: { id: true, name: true, deadline: true },
+    orderBy: { deadline: 'asc' },
+  },
+};
+
 /** The Evergreen rows the schedule creates, as the nested write receives them. */
 const SCHEDULE = [
   expect.objectContaining({
@@ -157,7 +170,7 @@ describe('ContractPeriodsService.create', () => {
         invoice: { create: {} },
         contents: { create: SCHEDULE },
       },
-      select: expect.any(Object),
+      select: SAVED_SELECT,
     });
   });
 
@@ -249,7 +262,7 @@ describe('ContractPeriodsService.update', () => {
           ],
         },
       },
-      select: expect.any(Object),
+      select: SAVED_SELECT,
     });
     expect(tx.contents.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
       tx.contracts.update.mock.invocationCallOrder[0],

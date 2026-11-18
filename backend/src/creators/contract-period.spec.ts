@@ -134,6 +134,14 @@ describe('overlappingPeriod', () => {
     ).toBeUndefined();
   });
 
+  it('accepts a period ending the day before a later one starts', () => {
+    expect(
+      overlappingPeriod(terms, [
+        { startDate: day('2027-02-01'), endDate: day('2027-03-31') },
+      ]),
+    ).toBeUndefined();
+  });
+
   it('refuses a start on the last day of another period: both days count', () => {
     expect(
       overlappingPeriod(terms, [
