@@ -63,9 +63,37 @@ function isEmailTaken(error: unknown): boolean {
 }
 
 /**
+ * One Evergreen content per deadline, earliest first and numbered from 1 within the contract,
+ * each starting its history with the admin who scheduled it. Onboarding and a new or edited
+ * period (PBI-30) generate their schedules through this one function.
+ */
+export function evergreenSchedule(
+  creatorName: string,
+  days: readonly string[],
+  now: Date,
+  adminUserId: string | null,
+): Prisma.contentsCreateWithoutContractsInput[] {
+  const deadlines = [...days].sort((a, b) => a.localeCompare(b));
+  return deadlines.map((day, index) => ({
+    name: evergreenName(creatorName, day, index + 1),
+    type: 'evergreen',
+    brief: '',
+    deadline: toDate(day),
+    status: 'scheduled',
+    content_events: {
+      create: {
+        event_type: 'Scheduled',
+        ...adminActor(adminUserId),
+        occurred_at: now,
+        event_data: {},
+      },
+    },
+  }));
+}
+
+/**
  * The whole onboarding as one nested create: the whitelisted login, the creator, their social
- * account, the contract and one Evergreen content per deadline, earliest first, each starting
- * its history with the admin who scheduled it.
+ * account, the contract and its Evergreen schedule.
  */
 function onboardingData(
   input: NewCreator,
@@ -73,7 +101,6 @@ function onboardingData(
   adminUserId: string | null,
 ): Prisma.creatorsCreateInput {
   const name = input.name.trim();
-  const deadlines = [...input.deadlines].sort((a, b) => a.localeCompare(b));
   return {
     ...splitName(name),
     users: { create: { email: input.email.trim() } },
@@ -92,21 +119,7 @@ function onboardingData(
         content_quota: input.quota,
         fixed_rate: input.fixedRate,
         contents: {
-          create: deadlines.map((day, index) => ({
-            name: evergreenName(name, day, index + 1),
-            type: 'evergreen',
-            brief: '',
-            deadline: toDate(day),
-            status: 'scheduled',
-            content_events: {
-              create: {
-                event_type: 'Scheduled',
-                ...adminActor(adminUserId),
-                occurred_at: now,
-                event_data: {},
-              },
-            },
-          })),
+          create: evergreenSchedule(name, input.deadlines, now, adminUserId),
         },
       },
     },
