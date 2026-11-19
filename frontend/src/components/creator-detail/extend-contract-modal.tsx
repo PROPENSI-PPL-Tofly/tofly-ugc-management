@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useFieldErrors } from "@/components/creators/use-field-errors";
 import { Modal } from "@/components/ui/modal";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import {
@@ -61,19 +62,16 @@ export function ExtendContractModal({
   const today = localCalendarDay(new Date());
   const [initial] = useState(() => extensionDefaults(previous, today));
   const [terms, setTerms] = useState<ContractTermsInput>(initial);
-  const [touched, setTouched] = useState<Partial<Record<TermField, boolean>>>({});
-  const [answered, setAnswered] = useState(serverErrors);
-  const [edited, setEdited] = useState<Partial<Record<TermField, boolean>>>({});
-  if (answered !== serverErrors) {
-    setAnswered(serverErrors);
-    setEdited({});
-  }
   const [confirming, setConfirming] = useState(false);
 
   const { allocation, picks, setPicks } = useDeadlineAllocation(terms, today);
   const remaining = allocation?.remaining ?? 0;
   const liveErrors = validateContractExtension(terms, previous.endDate);
   const isValid = Object.keys(liveErrors).length === 0;
+  const { markTouched, markEdited, fieldError } = useFieldErrors<keyof CreatorFormErrors>(
+    liveErrors,
+    serverErrors,
+  );
   const showSchedule = allocation !== null && scheduleReady(liveErrors);
 
   const isDirty =
@@ -87,16 +85,7 @@ export function ExtendContractModal({
 
   function patch(changes: Partial<ContractTermsInput>) {
     setTerms((prev) => ({ ...prev, ...changes }));
-    setEdited((prev) => ({ ...prev, ...Object.fromEntries(Object.keys(changes).map((field) => [field, true])) }));
-  }
-
-  function markTouched(field: TermField) {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  }
-
-  function fieldError(field: TermField): string | undefined {
-    const live = touched[field] ? liveErrors[field] : undefined;
-    return live ?? (edited[field] ? undefined : serverErrors[field]);
+    markEdited(Object.keys(changes) as TermField[]);
   }
 
   // Disabled until valid with every content placed, so the terms are complete by now.

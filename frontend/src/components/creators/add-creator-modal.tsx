@@ -13,6 +13,7 @@ import {
   Field,
   useDeadlineAllocation,
 } from "./contract-terms-fields";
+import { useFieldErrors } from "./use-field-errors";
 import {
   localCalendarDay,
   MAX_EMAIL_LENGTH,
@@ -72,19 +73,6 @@ export function AddCreatorModal({
   const emailCountId = useId();
   const instagramCountId = useId();
   const tiktokCountId = useId();
-  // Which fields the admin has already blurred at least once. Simpan's disabled state tracks
-  // liveErrors directly regardless of this, but a field only *shows* its error once touched —
-  // otherwise every field would flash red the instant the modal opens.
-  const [touched, setTouched] = useState<Partial<Record<keyof CreatorFormInput, boolean>>>({});
-  // Fields edited since the server last answered: their server message no longer describes
-  // what is in the input. Reset whenever a new set of server messages arrives.
-  const [answered, setAnswered] = useState(serverErrors);
-  const [edited, setEdited] = useState<Partial<Record<keyof CreatorFormInput, boolean>>>({});
-  if (answered !== serverErrors) {
-    setAnswered(serverErrors);
-    setEdited({});
-  }
-
   const today = localCalendarDay(new Date());
   // What the admin changed on the calendar; re-applied to whatever the contract now allows.
   const { allocation, picks, setPicks } = useDeadlineAllocation(form, today);
@@ -94,6 +82,12 @@ export function AddCreatorModal({
   // and the per-field error messages below, so there is only one place validation ever runs.
   const liveErrors = validateCreatorForm(form, undefined, existingEmails);
   const isFormValid = Object.keys(liveErrors).length === 0;
+  // Simpan's disabled state reads liveErrors directly; a field only *shows* its message once
+  // touched, or the server's until it is edited (see useFieldErrors).
+  const { markTouched, markEdited, fieldError } = useFieldErrors<keyof CreatorFormErrors>(
+    liveErrors,
+    serverErrors,
+  );
   // The calendar only once the dates it draws are ones that could be saved.
   const showSchedule = allocation !== null && scheduleReady(liveErrors);
 
@@ -109,13 +103,9 @@ export function AddCreatorModal({
     title: "Batalkan penambahan creator?",
   });
 
-  function markTouched(field: keyof CreatorFormInput) {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  }
-
   function change<K extends keyof CreatorFormInput>(field: K, value: CreatorFormInput[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
-    setEdited((prev) => ({ ...prev, [field]: true }));
+    markEdited([field]);
   }
 
   // The contract's terms come back as a patch from ContractTermsFields, one field at a time.
@@ -129,11 +119,6 @@ export function AddCreatorModal({
   function changeDate(field: "contractStart" | "contractEnd", value: string) {
     change(field, value);
     markTouched(field);
-  }
-
-  function fieldError(field: keyof CreatorFormInput): string | undefined {
-    const live = touched[field] ? liveErrors[field] : undefined;
-    return live ?? (edited[field] ? undefined : serverErrors[field]);
   }
 
   const scheduleError = serverErrors.deadlines;
