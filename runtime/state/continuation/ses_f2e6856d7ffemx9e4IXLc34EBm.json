@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "sessionID": "ses_f2e6856d7ffemx9e4IXLc34EBm",
+  "directory": "C:\\Users\\user\\Documents\\tofly-ugc-management",
+  "enabled": false,
+  "mode": "daily",
+  "idleEligible": true,
+  "createdAt": "2026-09-24T04:06:12.602Z",
+  "updatedAt": "2026-09-28T10:07:46.043Z",
+  "pausedByUser": false,
+  "lastSessionStatus": "busy",
+  "lastTodoSummary": "pending=1,in_progress=0,high_open=0"
+}

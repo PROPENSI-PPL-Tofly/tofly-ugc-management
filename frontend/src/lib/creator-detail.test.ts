@@ -3,6 +3,7 @@ import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   buildCreatorDetailQuery,
   creatorDetailAfterContractChange,
+  creatorDetailAfterTabChange,
   creatorDatabaseHref,
   creatorDetailAfterFilterChange,
   creatorDetailBase,
@@ -300,6 +301,28 @@ describe("creatorDetailAfterContractChange", () => {
     expect(creatorDetailAfterContractChange(state, OTHER_CONTRACT)).toEqual({
       ...BARE,
       contract: OTHER_CONTRACT,
+    });
+  });
+});
+
+describe("creatorDetailAfterTabChange", () => {
+  it("keeps the search and type/overdue picks while resetting the status, sort and page", () => {
+    const state: CreatorDetailParams = {
+      ...BARE,
+      q: "review",
+      type: ["evergreen"],
+      status: ["draft_review"],
+      overdue: "overdue",
+      sort: "desc",
+      page: 5,
+    };
+
+    expect(creatorDetailAfterTabChange(state, "done")).toEqual({
+      ...state,
+      tab: "done",
+      status: [],
+      sort: "asc",
+      page: 1,
     });
   });
 });

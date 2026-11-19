@@ -2,6 +2,7 @@ import type { RawContentList } from "./content-list-api";
 import { DEFAULT_CREATOR_DETAIL_PARAMS, type CreatorDetailParams } from "./creator-detail";
 import {
   openContractId,
+  toCreatorCalendarQuery,
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
@@ -87,8 +88,49 @@ const CONTENTS: RawContentList = {
 const BARE: CreatorDetailParams = DEFAULT_CREATOR_DETAIL_PARAMS;
 
 describe("openContractId", () => {
-  it("is the newest contract when the address names none", () => {
+  // PBI-30 display: the switcher selects the active period first, the next Belum Dimulai
+  // second, and the most recent as the last resort (AC 2).
+  it("is the active contract when the address names none", () => {
+    // RAW has NEWEST as active; the old behaviour also picked it, so this passes either way.
     expect(openContractId(RAW, BARE)).toBe(NEWEST);
+  });
+
+  it("prefers the active period even when a newer one has not started yet", () => {
+    const raw = {
+      ...RAW,
+      contractHistory: [
+        period(OLDEST, { periodNumber: 1, status: "expired" }),
+        period(MIDDLE, { periodNumber: 2, status: "active" }),
+        period(NEWEST, { periodNumber: 3, status: "upcoming", startDate: "2027-01-01" }),
+      ],
+    };
+
+    expect(openContractId(raw, BARE)).toBe(MIDDLE);
+  });
+
+  it("picks the next Belum Dimulai period when none is active", () => {
+    const raw = {
+      ...RAW,
+      contractHistory: [
+        period(OLDEST, { periodNumber: 1, status: "expired" }),
+        period(MIDDLE, { periodNumber: 2, status: "upcoming", startDate: "2026-12-01" }),
+        period(NEWEST, { periodNumber: 3, status: "upcoming", startDate: "2027-06-01" }),
+      ],
+    };
+
+    expect(openContractId(raw, BARE)).toBe(MIDDLE);
+  });
+
+  it("falls back to the most recent period when none is active or upcoming", () => {
+    const raw = {
+      ...RAW,
+      contractHistory: [
+        period(OLDEST, { periodNumber: 1, status: "expired" }),
+        period(MIDDLE, { periodNumber: 2, status: "expired" }),
+      ],
+    };
+
+    expect(openContractId(raw, BARE)).toBe(MIDDLE);
   });
 
   it("is the contract the address names, when it is this creator's", () => {
@@ -102,7 +144,7 @@ describe("openContractId", () => {
     expect(openContractId(raw, { ...BARE, contract: lower.toUpperCase() })).toBe(lower);
   });
 
-  it("falls back to the newest when the named contract is not this creator's", () => {
+  it("falls back to the active period when the named contract is not this creator's", () => {
     expect(openContractId(RAW, { ...BARE, contract: SOMEONE_ELSES })).toBe(NEWEST);
   });
 
@@ -177,6 +219,23 @@ describe("toCreatorContentsQuery", () => {
     const query = toCreatorContentsQuery(NEWEST, { ...BARE, type: ["specific"], page: 2 });
 
     expect([...query.keys()].sort()).toEqual(["contract", "page", "sort", "type"]);
+  });
+});
+
+describe("toCreatorCalendarQuery", () => {
+  it("asks for the contract's contents in deadline order, one page at a time", () => {
+    const query = toCreatorCalendarQuery(NEWEST, 2);
+
+    expect(query.get("contract")).toBe(NEWEST);
+    expect(query.get("sort")).toBe("deadline_asc");
+    expect(query.get("pageSize")).toBe("50");
+    expect(query.get("page")).toBe("2");
+  });
+
+  it("sends no filters beyond the contract, the sort and the page", () => {
+    const query = toCreatorCalendarQuery(MIDDLE, 1);
+
+    expect([...query.keys()].sort()).toEqual(["contract", "page", "pageSize", "sort"]);
   });
 });
 
@@ -336,7 +395,8 @@ describe("toCreatorDetailView", () => {
     },
   );
 
-  it("opens the newest period when the address names none", () => {
+  it("opens the active period when the address names none", () => {
+    // RAW's NEWEST is active, so the active period is the newest here.
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).selected?.contractId).toBe(NEWEST);
   });
 
@@ -347,7 +407,7 @@ describe("toCreatorDetailView", () => {
     expect(view.selected?.periodNumber).toBe(2);
   });
 
-  it("opens the newest period when the named contract is not this creator's", () => {
+  it("opens the active period when the named contract is not this creator's", () => {
     const view = toCreatorDetailView(RAW, CONTENTS, { ...BARE, contract: SOMEONE_ELSES });
 
     expect(view.selected?.contractId).toBe(NEWEST);
@@ -411,6 +471,26 @@ describe("toCreatorDetailView", () => {
     expect(view.total).toBe(0);
     expect(view.totalPages).toBe(1);
     expect(view.page).toBe(1);
+  });
+
+  it("carries the period's earnings and invoice status when the invoice is known", () => {
+    const invoice = { total: 2_500_000, floored: false, invoiceStatus: "finalized" as const };
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], invoice);
+
+    expect(view.earnings).toEqual({ amount: 2_500_000, status: "finalized" });
+  });
+
+  it("holds the earnings at zero when the penalty floored the total", () => {
+    const invoice = { total: 500_000, floored: true, invoiceStatus: "paid" as const };
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], invoice);
+
+    expect(view.earnings).toEqual({ amount: 0, status: "paid" });
+  });
+
+  it("carries no earnings when the invoice endpoint was unavailable", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], null);
+
+    expect(view.earnings).toBeNull();
   });
 });
 

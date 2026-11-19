@@ -68,6 +68,22 @@ describe("AddContentModal", () => {
       expect(deadline).toHaveAttribute("max", "2026-12-02");
     });
 
+    it("holds the date picker inside the period's own window for a Belum Dimulai period (AC 8.1.1)", async () => {
+      // A period that has not started: the buffer starts at the contract start, not today.
+      const { getBufferWindow } = await import("@/lib/deadline-schedule");
+      vi.mocked(getBufferWindow).mockReturnValueOnce({
+        bufferStartDate: new Date("2027-01-01T00:00:00Z"),
+        firstAllowedDate: new Date("2027-01-06T00:00:00Z"),
+      });
+
+      openModal({ contractStart: "2027-01-01", contractEnd: "2027-06-30" });
+
+      const deadline = screen.getByLabelText("Deadline");
+      expect(deadline).toHaveAttribute("min", "2027-01-06");
+      // 2027-06-30 minus the five-day H-5 buffer.
+      expect(deadline).toHaveAttribute("max", "2027-06-25");
+    });
+
     it("explains the H-5 line in a keyboard-reachable tip, never the input's title (AC 14)", () => {
       openModal();
 

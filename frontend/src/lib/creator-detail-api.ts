@@ -60,16 +60,31 @@ export interface RawCreatorDetail {
 
 /**
  * The contract whose content the page shows: the one the address names when it is this
- * creator's, and their newest otherwise. An old link, or an id typed by hand, shows the current
- * contract rather than an empty page, and never another creator's content (OWASP A01). Null
- * for a creator without a contract.
+ * creator's, and otherwise by priority — the active period first, the next "Belum Dimulai"
+ * second, the most recent as the last resort. An old link, or an id typed by hand, shows the
+ * right contract rather than an empty page, and never another creator's content (OWASP A01).
+ * Null for a creator without a contract.
  */
 export function openContractId(raw: RawCreatorDetail, state: CreatorDetailParams): string | null {
   const named = state.contract?.toLowerCase();
   const found = raw.contractHistory.find((period) => period.id.toLowerCase() === named);
+  if (found) return found.id;
 
-  // Periods arrive oldest first, so the last one is the newest.
-  return (found ?? raw.contractHistory.at(-1))?.id ?? null;
+  // contractHistory arrives oldest first.
+  const periods = raw.contractHistory;
+
+  // Priority 1: the active period.
+  const active = periods.find((p) => p.status === "active");
+  if (active) return active.id;
+
+  // Priority 2: the next upcoming period (earliest start date).
+  const upcoming = periods
+    .filter((p) => p.status === "upcoming")
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
+  if (upcoming) return upcoming.id;
+
+  // Priority 3: the most recent period.
+  return periods.at(-1)?.id ?? null;
 }
 
 /**
@@ -109,13 +124,10 @@ export function toCreatorCalendarQuery(
   page: number,
   today: string = jakartaDay(),
 ): URLSearchParams {
-  const translated = toContentListQuery(
-    { ...DEFAULT_CONTENT_PLAN_PARAMS, sort: "asc", page },
-    today,
-  );
+  // The calendar always reads deadlines from the earliest, whatever the table's sort.
   const query = new URLSearchParams({
     contract: contractId,
-    sort: translated.get("sort") ?? "deadline_asc",
+    sort: "deadline_asc",
     pageSize: String(CREATOR_CALENDAR_PAGE_SIZE),
     page: String(page),
   });

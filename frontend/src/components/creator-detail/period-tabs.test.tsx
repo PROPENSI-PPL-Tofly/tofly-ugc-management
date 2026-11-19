@@ -115,6 +115,23 @@ describe("PeriodTabs", () => {
     expect(tabs()[2]).toHaveTextContent("Belum Dimulai");
   });
 
+  it("shows an upcoming period's contract type and duration alongside its status", () => {
+    const upcoming = period({
+      contractId: THIRD,
+      periodNumber: 3,
+      type: "probation",
+      startDate: "2027-01-01",
+      endDate: "2027-06-30",
+      status: "upcoming",
+    });
+    render(<PeriodTabs creatorId={CREATOR} periods={[upcoming, ...PERIODS]} selected={upcoming} />);
+
+    const tab = tabs()[2];
+    expect(tab).toHaveTextContent("Periode 3 · Probation");
+    expect(tab).toHaveTextContent("1 Jan – 30 Jun 2027");
+    expect(tab).toHaveTextContent("Belum Dimulai");
+  });
+
   it("marks the open period as the current one, and only it", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={OLDEST} />);
 
@@ -204,6 +221,32 @@ describe("PeriodSummary", () => {
     const facts = screen.getByTestId("period-facts");
     expect(facts).toHaveTextContent(/^Periode 1 · Berakhir$/);
     expect(within(facts).getByText("Periode 1 · Berakhir")).toHaveClass("rounded-full", "bg-red-wash");
+  });
+
+  it("shows the period's earnings with its invoice status and a link when they are known", () => {
+    render(
+      <PeriodSummary
+        period={OLDEST}
+        earnings={{ amount: 2_500_000, status: "finalized" }}
+        creatorName="Lestari Wulandari"
+      />,
+    );
+
+    expect(screen.getByText("Rp2.500.000")).toBeInTheDocument();
+    expect(screen.getByText("Invoice Terkirim")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Lihat Invoice ›" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("q=Lestari+Wulandari"),
+    );
+  });
+
+  it("shows nothing for Total Pendapatan on a period that has not started", () => {
+    const upcoming = period({ contractId: THIRD, periodNumber: 3, status: "upcoming" });
+    render(<PeriodSummary period={upcoming} earnings={{ amount: 999, status: "paid" }} />);
+
+    expect(screen.queryByText("Rp999")).toBeNull();
+    expect(screen.queryByText("Paid")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Lihat Invoice ›" })).toBeNull();
   });
 });
 

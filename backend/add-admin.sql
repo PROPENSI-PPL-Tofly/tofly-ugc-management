@@ -1,0 +1,1 @@
+insert into users (email, is_admin) values ('davinhijran08@gmail.com', true);

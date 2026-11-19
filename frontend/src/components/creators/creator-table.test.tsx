@@ -139,6 +139,26 @@ describe("CreatorTable", () => {
     expect(screen.getByText("Regular · sisa 80 hari, periode ke-2")).toBeInTheDocument();
   });
 
+  it("shows the current period number even when it is not the newest (AC 10)", () => {
+    // A creator in their 2nd period with a 3rd upcoming: the table shows the active one.
+    render(
+      <CreatorTable
+        creators={[
+          creator({
+            contract: {
+              ...creator().contract,
+              periodNumber: 2,
+              status: "active",
+            },
+          }),
+        ]}
+        total={1}
+      />,
+    );
+
+    expect(screen.getByText(/periode ke-2/)).toBeInTheDocument();
+  });
+
   it("names the contract type beside the time left", () => {
     render(
       <CreatorTable
