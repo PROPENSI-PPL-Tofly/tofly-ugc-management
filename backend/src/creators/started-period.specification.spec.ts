@@ -39,3 +39,38 @@ describe('StartedPeriodSpecification.isSatisfiedBy', () => {
     expect(spec.isSatisfiedBy(PERIOD)).toBe(true);
   });
 });
+
+describe('StartedPeriodSpecification.asWhere', () => {
+  it('selects periods starting on or before the Jakarta day, up to 23:59:59.999 WIB', () => {
+    const spec = new StartedPeriodSpecification(
+      new Date('2026-12-01T16:59:59.999Z'),
+    );
+
+    expect(spec.asWhere()).toEqual({
+      start_date: { lte: new Date('2026-12-01T00:00:00Z') },
+    });
+  });
+
+  it('moves to the next day at Jakarta midnight, while UTC still reads the day before', () => {
+    const spec = new StartedPeriodSpecification(
+      new Date('2026-12-01T17:00:00Z'),
+    );
+
+    expect(spec.asWhere()).toEqual({
+      start_date: { lte: new Date('2026-12-02T00:00:00Z') },
+    });
+  });
+
+  it('selects exactly the periods isSatisfiedBy accepts, judged by the same cutoff', () => {
+    const spec = new StartedPeriodSpecification(
+      new Date('2026-12-01T17:00:00Z'),
+    );
+    const { lte } = spec.asWhere().start_date;
+    const starts = ['2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03'];
+
+    for (const start of starts) {
+      const period = { start_date: new Date(`${start}T00:00:00Z`) };
+      expect(period.start_date <= lte).toBe(spec.isSatisfiedBy(period));
+    }
+  });
+});
