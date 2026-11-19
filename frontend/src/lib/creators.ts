@@ -226,11 +226,18 @@ const FORM_ERROR_FIELDS: (keyof CreatorFormErrors)[] = [
   "deadlines",
 ];
 
-/** The server's per-field messages, narrowed to text for fields the form can show them under. */
-function formErrors(body: unknown): CreatorFormErrors {
+/**
+ * A 422's per-field messages, narrowed to text for the fields a form can show them under; any
+ * other key or a message that is not text is dropped (OWASP A05). Shared by every form that
+ * saves a creator or a contract period.
+ */
+export function readFieldErrors(
+  body: unknown,
+  fields: readonly (keyof CreatorFormErrors)[],
+): CreatorFormErrors {
   const raw = (body as { errors?: Record<string, unknown> } | null)?.errors ?? {};
   const errors: CreatorFormErrors = {};
-  for (const field of FORM_ERROR_FIELDS) {
+  for (const field of fields) {
     const message = raw[field];
     if (typeof message === "string") {
       errors[field] = message;
@@ -270,5 +277,5 @@ export async function createCreator(request: NewCreatorRequest): Promise<CreateC
   }
 
   const body: unknown = await response.json().catch(() => null);
-  return { ok: false, message: "Data creator tidak valid", errors: formErrors(body) };
+  return { ok: false, message: "Data creator tidak valid", errors: readFieldErrors(body, FORM_ERROR_FIELDS) };
 }

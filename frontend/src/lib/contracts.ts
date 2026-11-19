@@ -4,9 +4,9 @@
 // form's messages.
 
 import { apiFetch } from "./api-client";
-import type { ContractType, CreatorFormErrors } from "./creator-form";
-import type { ContractTermsInput } from "./creator-form";
+import type { ContractTermsInput, ContractType, CreatorFormErrors } from "./creator-form";
 import { isUuid } from "./creator-detail";
+import { readFieldErrors } from "./creators";
 
 /** One period's terms and its Evergreen deadlines, as POST/PUT /creators/:id/contracts take them. */
 export interface ContractRequest extends Omit<ContractTermsInput, "fixedRate" | "contractType"> {
@@ -60,14 +60,7 @@ function toBody(request: ContractRequest): string {
 }
 
 async function fieldErrors(response: Response): Promise<CreatorFormErrors> {
-  const body: unknown = await response.json().catch(() => null);
-  const raw = (body as { errors?: Record<string, unknown> } | null)?.errors ?? {};
-  const errors: CreatorFormErrors = {};
-  for (const field of PERIOD_FIELDS) {
-    const message = raw[field];
-    if (typeof message === "string") errors[field] = message;
-  }
-  return errors;
+  return readFieldErrors(await response.json().catch(() => null), PERIOD_FIELDS);
 }
 
 async function save(method: "POST" | "PUT", path: string | null, request: ContractRequest): Promise<SaveContractResult> {
