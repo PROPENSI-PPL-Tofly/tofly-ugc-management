@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PreviousPeriod } from "@/lib/contract-extension";
+import type { CreatorPeriod } from "@/lib/creator-detail";
 import { ExtendContractModal } from "./extend-contract-modal";
 
 // The current period runs to the end of 2026; today is 19 Nov 2026 in Jakarta.
@@ -232,6 +233,120 @@ describe("ExtendContractModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Batal" }));
 
     expect(screen.getByRole("alertdialog", { name: "Batalkan perpanjangan kontrak?" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+// AC 8: while a renewal is "Belum Dimulai", the same form changes it, opened on its own terms.
+describe("ExtendContractModal changing a period that has not started", () => {
+  const UPCOMING: CreatorPeriod = {
+    contractId: "33333333-3333-4333-8333-333333333333",
+    periodNumber: 2,
+    type: "regular",
+    startDate: "2027-01-01",
+    endDate: "2027-03-31",
+    status: "upcoming",
+    contentQuota: 6,
+    evergreenCount: 6,
+    remainingEvergreenQuota: 0,
+    daysBetween: 14,
+    fixedRate: 3_000_000,
+    earlyEndReason: null,
+    progress: { submitted: 0, total: 6, percent: 0 },
+    performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
+  };
+
+  function renderEdit(previous: PreviousPeriod = PREVIOUS) {
+    const onSubmit = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <ExtendContractModal
+        creatorName="Rani Kusuma"
+        previous={previous}
+        editing={UPCOMING}
+        onClose={onClose}
+        onSubmit={onSubmit}
+      />,
+    );
+    return { onSubmit, onClose };
+  }
+
+  function saveButton() {
+    return screen.getByRole("button", { name: "Simpan Perubahan" });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T05:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("names the period it changes", () => {
+    renderEdit();
+
+    expect(screen.getByRole("dialog", { name: "Ubah Periode 2 — Rani Kusuma" })).toBeInTheDocument();
+  });
+
+  it("opens on the period's own terms, ready to save", () => {
+    renderEdit();
+
+    expect(screen.getByLabelText(/mulai kontrak/i)).toHaveValue("2027-01-01");
+    expect(screen.getByLabelText(/akhir kontrak/i)).toHaveValue("2027-03-31");
+    expect(screen.getByLabelText(/fixed rate/i)).toHaveValue("3.000.000");
+    expect(screen.getByLabelText(/jumlah konten/i)).toHaveValue("6");
+    expect(screen.getByLabelText(/jarak antar-deadline/i)).toHaveValue("14");
+    expect(screen.getByLabelText(/jenis kontrak/i)).toHaveValue("regular");
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it("still refuses a start on the end of the period before it", () => {
+    renderEdit();
+
+    fireEvent.change(screen.getByLabelText(/mulai kontrak/i), { target: { value: "2026-12-31" } });
+
+    expect(screen.getByText("Tanggal mulai harus setelah akhir kontrak sebelumnya (31 Des 2026)")).toBeInTheDocument();
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it("confirms that the schedule is generated again, then saves the changed terms", () => {
+    const { onSubmit } = renderEdit();
+    fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "2" } });
+
+    fireEvent.click(saveButton());
+    const confirm = screen.getByRole("alertdialog", { name: "Simpan perubahan periode?" });
+    expect(confirm).toHaveTextContent("Jadwal Evergreen periode ini di-generate ulang.");
+    fireEvent.click(within(confirm).getByRole("button", { name: "Simpan" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      contractStart: "2027-01-01",
+      contractEnd: "2027-03-31",
+      interval: 14,
+      quota: 2,
+      fixedRate: 3_000_000,
+      contractType: "regular",
+      deadlines: ["2027-01-06", "2027-01-20"],
+    });
+  });
+
+  // The warning is about renewing a creator ended for cause; that choice was already made.
+  it("does not repeat the early-end warning when only changing the period", () => {
+    renderEdit({ ...PREVIOUS, status: "expired", endDate: "2026-11-10", earlyEndReason: "fraud" });
+
+    fireEvent.click(saveButton());
+
+    expect(screen.getByRole("alertdialog")).not.toHaveTextContent("diakhiri lebih awal");
+  });
+
+  it("closes at once while nothing was changed, and asks once something was", () => {
+    const { onClose } = renderEdit();
+
+    fireEvent.change(screen.getByLabelText(/jumlah konten/i), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+    expect(screen.getByRole("alertdialog", { name: "Batalkan perubahan periode?" })).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

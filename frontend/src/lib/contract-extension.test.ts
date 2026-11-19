@@ -1,7 +1,10 @@
+import type { CreatorPeriod } from "./creator-detail";
 import {
   canExtendContract,
   earlyEndWarning,
+  editablePeriod,
   extensionDefaults,
+  periodTerms,
   validateContractExtension,
   type ContractTermsInput,
   type PreviousPeriod,
@@ -145,5 +148,64 @@ describe("earlyEndWarning", () => {
     ["not ended early", null],
   ] as const)("stays quiet for a contract %s", (_label, reason) => {
     expect(earlyEndWarning(reason)).toBeNull();
+  });
+});
+
+/** A whole period as Creator Detail's view carries it, newest first in the tests below. */
+function full(contractId: string, periodNumber: number, overrides: Partial<CreatorPeriod> = {}): CreatorPeriod {
+  return {
+    contractId,
+    periodNumber,
+    type: "regular",
+    startDate: "2027-01-01",
+    endDate: "2027-03-31",
+    status: "upcoming",
+    contentQuota: 6,
+    evergreenCount: 6,
+    remainingEvergreenQuota: 0,
+    daysBetween: 14,
+    fixedRate: 3_000_000,
+    earlyEndReason: null,
+    progress: { submitted: 0, total: 6, percent: 0 },
+    performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
+    ...overrides,
+  };
+}
+
+const CURRENT = full("current", 1, { status: "active", startDate: "2026-07-01", endDate: "2026-12-31" });
+const NEXT = full("next", 2);
+
+describe("editablePeriod", () => {
+  // AC 8-9: a renewal that has not started can be changed or deleted, measured against the
+  // period before it.
+  it("is the renewal still to start, with the period it follows", () => {
+    expect(editablePeriod([NEXT, CURRENT])).toEqual({ period: NEXT, previous: CURRENT });
+  });
+
+  it("is nothing once the newest period has started (AC 10: PBI-16 and PBI-37 take over)", () => {
+    expect(editablePeriod([CURRENT])).toBeNull();
+    expect(editablePeriod([{ ...NEXT, status: "active" }, CURRENT])).toBeNull();
+  });
+
+  // Tambah Creator's own first contract is not a renewal: deleting it would leave none.
+  it("is nothing for a first contract that has not started", () => {
+    expect(editablePeriod([{ ...NEXT, periodNumber: 1 }])).toBeNull();
+  });
+
+  it("is nothing for a creator without a contract", () => {
+    expect(editablePeriod([])).toBeNull();
+  });
+});
+
+describe("periodTerms", () => {
+  it("reads a period back into the form's terms, for its change (AC 8)", () => {
+    expect(periodTerms(full("p", 2, { type: "probation", daysBetween: 7, contentQuota: 4, fixedRate: 1_000_000 }))).toEqual({
+      contractStart: "2027-01-01",
+      contractEnd: "2027-03-31",
+      interval: 7,
+      quota: 4,
+      fixedRate: 1_000_000,
+      contractType: "probation",
+    });
   });
 });

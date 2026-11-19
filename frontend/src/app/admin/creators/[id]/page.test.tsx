@@ -274,6 +274,17 @@ describe("Creator Detail page", () => {
     expect(screen.queryByRole("button", { name: "+ Perpanjang Kontrak" })).not.toBeInTheDocument();
   });
 
+  // PBI-30 AC 8-9: a renewal still to start is changed or deleted from the same panel.
+  it("offers to change or delete the next period while it has not started", async () => {
+    const next: CreatorPeriod = { ...NEWEST, contractId: "33333333-3333-4333-8333-333333333333", periodNumber: 3, status: "upcoming" };
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [next, NEWEST, OLDEST] }));
+
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Periode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hapus Periode" })).toBeInTheDocument();
+  });
+
   it("still shows the profile of a creator without any contract", async () => {
     vi.mocked(fetchCreatorDetail).mockResolvedValue(
       viewOf({ periods: [], selected: null, rows: [], total: 0 }),
