@@ -19,9 +19,12 @@ export function ConfirmDialog({
   onCancel,
   confirmVariant = "danger",
   details,
+  warning,
 }: {
   title: string;
   message: string;
+  /** Something the admin should weigh before confirming, set apart from the message. */
+  warning?: string;
   /** Labelled facts under the message, such as the old and the new deadline. */
   details?: readonly (readonly [string, string])[];
   confirmLabel: string;
@@ -52,6 +55,12 @@ export function ConfirmDialog({
       }
     >
       <p className="text-[13px] text-ink-2">{message}</p>
+
+      {warning ? (
+        <p className="rounded-(--radius-control) border border-amber-wash bg-amber-wash px-3 py-2 text-[13px] font-semibold text-amber-ink">
+          {warning}
+        </p>
+      ) : null}
 
       {details?.length ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-(--radius-control) bg-surface-2 px-3 py-2.5 text-[13px]">
