@@ -425,6 +425,24 @@ describe('InvoicesService', () => {
         });
       });
 
+      // PBI-30.2: each row is one period's invoice, so a contract-end range keeps the rows whose
+      // own period ends in it — not every row of a creator one of whose periods does.
+      it('keeps only the period whose own contract end is in the named range', async () => {
+        // salsa-old ends 9 Aug 2026, salsa-new on 15 Feb 2027.
+        const august = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+          contractEndFrom: '2026-08-01',
+          contractEndTo: '2026-08-31',
+        });
+        const fromSeptember = await service.list(
+          { page: 1, pageSize: 10 },
+          TODAY,
+          { contractEndFrom: '2026-09-01' },
+        );
+
+        expect(contracts(august)).toEqual([['salsa-old', 1]]);
+        expect(contracts(fromSeptember)).toEqual([['salsa-new', 2]]);
+      });
+
       it('keeps listing it once finalized, so the admin sees it Final and can take it to payment', async () => {
         pipeline = { 'salsa-old': 'finalized' };
 
