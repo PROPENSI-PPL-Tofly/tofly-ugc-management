@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { useFormSave } from "@/components/creators/use-form-save";
 import { canExtendContract } from "@/lib/contract-extension";
 import { createContract, type ContractRequest } from "@/lib/contracts";
 import type { CreatorPeriod } from "@/lib/creator-detail";
@@ -11,12 +11,7 @@ import type { CreatorFormErrors } from "@/lib/creator-form";
 import { formatDate } from "@/lib/format";
 import { ExtendContractModal } from "./extend-contract-modal";
 
-interface SaveFailure {
-  message?: string;
-  errors: CreatorFormErrors;
-}
-
-const NO_FAILURE: SaveFailure = { errors: {} };
+const NO_ERRORS: CreatorFormErrors = {};
 
 /**
  * "+ Perpanjang Kontrak" on Creator Detail's Periode Kontrak panel (PBI-30 AC 1): offered while
@@ -35,54 +30,36 @@ export function ExtendContractTrigger({
   periods: readonly CreatorPeriod[];
 }>) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<SaveFailure>(NO_FAILURE);
   const { show: confirm, toast } = useToast();
-
-  // Stable, so the modal's discard guard is not rebuilt on every render.
-  const close = useCallback(() => {
-    setOpen(false);
-    setFailure(NO_FAILURE);
-  }, []);
-
-  const current = periods[0];
-  if (!current || !canExtendContract(periods)) return toast;
-
-  async function save(request: ContractRequest) {
-    setSaving(true);
-    const result = await createContract(creatorId, request);
-    setSaving(false);
-
-    if (result.ok) {
-      close();
+  const form = useFormSave(
+    (request: ContractRequest) => createContract(creatorId, request),
+    (request) => {
       confirm(
         `Kontrak ${creatorName} diperpanjang sampai ${formatDate(request.contractEnd)}. ${request.deadlines.length} deadline Evergreen baru ter-generate.`,
       );
       router.refresh();
-      return;
-    }
+    },
+    NO_ERRORS,
+  );
 
-    // Field messages are shown under their inputs; the general message only when none are.
-    const hasFieldErrors = Object.keys(result.errors).length > 0;
-    setFailure({ errors: result.errors, message: hasFieldErrors ? undefined : result.message });
-  }
+  const current = periods[0];
+  if (!current || !canExtendContract(periods)) return toast;
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
+      <Button onClick={form.openForm}>
         + Perpanjang Kontrak
       </Button>
 
-      {open ? (
+      {form.open ? (
         <ExtendContractModal
           creatorName={creatorName}
           previous={current}
-          onClose={close}
-          onSubmit={save}
-          loading={saving}
-          serverErrors={failure.errors}
-          formError={failure.message}
+          onClose={form.close}
+          onSubmit={form.submit}
+          loading={form.saving}
+          serverErrors={form.serverErrors}
+          formError={form.formError}
         />
       ) : null}
 
