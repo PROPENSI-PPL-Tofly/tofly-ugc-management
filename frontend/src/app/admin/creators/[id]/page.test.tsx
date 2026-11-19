@@ -258,6 +258,22 @@ describe("Creator Detail page", () => {
     expect(screen.getAllByText("Periode 1 · Berakhir").length).toBeGreaterThan(0);
   });
 
+  // PBI-30 AC 1: the renewal is offered on the Periode Kontrak panel, for this creator.
+  it("offers Perpanjang Kontrak on the Periode Kontrak panel while the contract runs", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "+ Perpanjang Kontrak" })).toBeInTheDocument();
+  });
+
+  it("offers no renewal while the next period is still to start", async () => {
+    const next: CreatorPeriod = { ...NEWEST, contractId: "33333333-3333-4333-8333-333333333333", periodNumber: 3, status: "upcoming" };
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [next, NEWEST, OLDEST] }));
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "+ Perpanjang Kontrak" })).not.toBeInTheDocument();
+  });
+
   it("still shows the profile of a creator without any contract", async () => {
     vi.mocked(fetchCreatorDetail).mockResolvedValue(
       viewOf({ periods: [], selected: null, rows: [], total: 0 }),

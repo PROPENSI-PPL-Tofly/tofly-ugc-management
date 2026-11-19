@@ -66,6 +66,23 @@ describe("PeriodTabs", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Periode Kontrak" })).toBeInTheDocument();
   });
 
+  // PBI-30: "+ Perpanjang Kontrak" sits in the panel's header, given by the page.
+  it("puts the action it is given in its header, beside the title", () => {
+    render(
+      <PeriodTabs
+        creatorId={CREATOR}
+        periods={PERIODS}
+        selected={NEWEST}
+        action={<button type="button">+ Perpanjang Kontrak</button>}
+      />,
+    );
+
+    const heading = screen.getByRole("heading", { level: 2, name: "Periode Kontrak" });
+    expect(heading.closest("div")?.parentElement).toContainElement(
+      screen.getByRole("button", { name: "+ Perpanjang Kontrak" }),
+    );
+  });
+
   it("lays the periods out oldest to newest, as the prototype does", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
