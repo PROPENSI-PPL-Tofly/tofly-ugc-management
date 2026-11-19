@@ -367,10 +367,23 @@ describe('content links API (e2e)', () => {
     it('frees the old video for another content once the creator swaps it', async () => {
       const linked = await linkedContent('creator replace', reel('old-4'));
 
-      await replace(linked.id, 'instagram', reel('new-4'), owner.creatorId).expect(200);
+      const replaced = await replace(
+        linked.id,
+        'instagram',
+        reel('new-4'),
+        owner.creatorId,
+      );
+      expect(replaced.status).toBe(200);
+      expect((await stateOf(linked.id)).content_links).toEqual([
+        expect.objectContaining({ url: reel('new-4') }),
+      ]);
 
       const other = await content(owner.contractId, 'reuses old video');
-      await submit(other.id, { instagram: reel('old-4') }).expect(201);
+      const reused = await submit(other.id, { instagram: reel('old-4') });
+      expect(reused.status).toBe(201);
+      expect((await stateOf(other.id)).content_links).toEqual([
+        expect.objectContaining({ url: reel('old-4') }),
+      ]);
     });
 
     it('shows the replaced link on Content Detail as a link step naming its platform', async () => {
