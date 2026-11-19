@@ -12,6 +12,10 @@ import type { ContractType, CreatorFormErrors, CreatorFormInput } from "./creato
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
+
+/** Why a contract was ended early, as PBI-37 stores it on the contract. */
+export const EARLY_END_REASONS = ["violation", "fraud", "other"] as const;
+export type EarlyEndReason = (typeof EARLY_END_REASONS)[number];
 /** Where a content is in its lifecycle, as the API reports it. */
 export type ContentStatus =
   | "pending"
@@ -96,6 +100,8 @@ export interface ContractPeriod {
   contentQuota: number;
   /** In rupiah. */
   fixedRate: number;
+  /** Set once PBI-37 ends the contract early; not sent by APIs from before it. */
+  earlyEndReason?: EarlyEndReason | null;
   /** Evergreen contents the period can still take before its quota is full; never below 0. */
   remainingEvergreenQuota: number;
   type: ContractType;
