@@ -21,7 +21,16 @@ export class StartedPeriodSpecification implements Specification<PeriodStart> {
     this.cutoff = jakartaMidnight(now);
   }
 
+  /** Validation: whether one period already read has started. */
   isSatisfiedBy(period: PeriodStart): boolean {
     return period.start_date.getTime() <= this.cutoff.getTime();
+  }
+
+  /**
+   * Selection: the same rule as a Prisma filter on `contracts`, so the database keeps only the
+   * periods isSatisfiedBy would accept — same column, same cutoff, same inclusive bound.
+   */
+  asWhere(): { start_date: { lte: Date } } {
+    return { start_date: { lte: this.cutoff } };
   }
 }
