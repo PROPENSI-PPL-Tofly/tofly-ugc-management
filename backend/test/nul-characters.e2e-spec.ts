@@ -112,10 +112,15 @@ describe('NUL characters in request bodies (e2e, security assessment)', () => {
   });
 
   it('still saves the same comment without the NUL character', async () => {
-    await admin
+    const before = await storedComments();
+
+    const response = await admin
       .post(`/invoices/${contractId}/comments`)
-      .send({ text: 'halo' })
-      .expect(201);
+      .send({ text: 'halo' });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ text: 'halo', authorRole: 'admin' });
+    expect(await storedComments()).toBe(before + 1);
   });
 
   // The check never replaces authentication: a signed-out request is still refused as one.

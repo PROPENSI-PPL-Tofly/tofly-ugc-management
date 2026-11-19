@@ -304,9 +304,20 @@ describe('Invoices API (e2e)', () => {
   });
 
   it('rejects paging values that are not positive integers', async () => {
-    await admin.get('/invoices?page=abc').expect(400);
-    await admin.get('/invoices?page=0').expect(400);
-    await admin.get('/invoices?pageSize=51').expect(400);
+    const nan = await admin.get('/invoices?page=abc');
+    const zero = await admin.get('/invoices?page=0');
+    const huge = await admin.get('/invoices?pageSize=51');
+
+    // Each 400 names the paging value that was refused, not some other failure.
+    expect(nan.body).toMatchObject({ statusCode: 400 });
+    expect(zero.body).toMatchObject({
+      statusCode: 400,
+      message: 'page must be 1 or greater',
+    });
+    expect(huge.body).toMatchObject({
+      statusCode: 400,
+      message: 'pageSize must be between 1 and 50',
+    });
   });
 
   it('searches by name and filters by contract status across the whole roster', async () => {
