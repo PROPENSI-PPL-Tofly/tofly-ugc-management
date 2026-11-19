@@ -84,9 +84,14 @@ const COMMITTED = [
   'draft_approved',
   'link_submitted',
 ];
+// PBI-30.2 (AC 8.2.1): only periods that have started by today in Jakarta (10 October at NOW),
+// so content of a period still to come never reaches Task Saya.
 const OWN = {
   status: { in: COMMITTED },
-  contracts: { creator_id: CREATOR_ID },
+  contracts: {
+    creator_id: CREATOR_ID,
+    start_date: { lte: new Date('2026-10-10T00:00:00.000Z') },
+  },
 };
 
 const ids = (response: { items: { id: string }[] }) =>
@@ -208,6 +213,32 @@ describe('MyContentsService.list', () => {
         },
       }),
     );
+  });
+
+  it('leaves out a period that starts tomorrow in Jakarta until Jakarta midnight (AC 8.2.1)', async () => {
+    const { client, service } = stub([]);
+
+    // 23:59:59.999 WIB on 10 October, then 00:00 WIB on the 11th (still the 10th in UTC).
+    await service.list(
+      CREATOR_ID,
+      query(),
+      new Date('2026-10-10T16:59:59.999Z'),
+    );
+    await service.list(CREATOR_ID, query(), new Date('2026-10-10T17:00:00Z'));
+
+    const periods = client.contents.findMany.mock.calls.map(
+      ([args]) => args.where.contracts,
+    );
+    expect(periods).toEqual([
+      {
+        creator_id: CREATOR_ID,
+        start_date: { lte: new Date('2026-10-10T00:00:00.000Z') },
+      },
+      {
+        creator_id: CREATOR_ID,
+        start_date: { lte: new Date('2026-10-11T00:00:00.000Z') },
+      },
+    ]);
   });
 
   it('reads an open-ended period with only the end it was given', async () => {
