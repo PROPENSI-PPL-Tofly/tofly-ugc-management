@@ -15,6 +15,7 @@ import {
   withinPeriod,
 } from '../contents/list-rows.js';
 import { jakartaDay } from '../creators/evergreen.js';
+import { StartedPeriodSpecification } from '../creators/started-period.specification.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
@@ -87,7 +88,7 @@ interface DeadlineRange {
 }
 
 interface MyContentsWhere {
-  contracts: { creator_id: string };
+  contracts: { creator_id: string; start_date: { lte: Date } };
   // Always named: a pending proposal, which is not assigned work yet, never reaches Task Saya.
   status: { in: MyTaskStatus[] };
   type?: { in: ContentListType[] };
@@ -164,14 +165,19 @@ function openFirst(sort: MyTaskFilters['sort']) {
  * period. The period keeps everything Perlu Dikerjakan can hold whatever its deadline, because
  * that tab is never narrowed by it: its statuses, and a draft in review whose H-1 link is open
  * today. Which rows the period then leaves in each tab is decided row by row in list().
+ *
+ * The contract scope also holds only contract periods that have started (PBI-30.2, AC 8.2.1).
+ * It sits under `contracts`, beside the owner, so it is ANDed with the deadline OR below and no
+ * filter the creator sends can widen it.
  */
 function narrowing(
   creatorId: string,
   filters: MyTaskFilters,
   today: string,
+  started: StartedPeriodSpecification,
 ): MyContentsWhere {
   const where: MyContentsWhere = {
-    contracts: { creator_id: creatorId },
+    contracts: { creator_id: creatorId, ...started.asWhere() },
     status: { in: [...MY_TASK_TAB_STATUSES.all] },
   };
   if (filters.types) {
@@ -224,7 +230,12 @@ export class MyContentsService implements MyContentsLister {
   ): Promise<MyContentsResponse> {
     const today = jakartaDay(now);
     const rows = await this.prisma.contents.findMany({
-      where: narrowing(creatorId, query, today),
+      where: narrowing(
+        creatorId,
+        query,
+        today,
+        new StartedPeriodSpecification(now),
+      ),
       select: MY_CONTENT_SELECT,
     });
 
