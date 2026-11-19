@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import type { content_status, social_platform } from '@prisma/client';
 import { joinName } from '../creators/evergreen.js';
+import { StartedPeriodSpecification } from '../creators/started-period.specification.js';
 import {
   invoiceState,
   type InvoiceLifecycleStatus,
@@ -14,6 +15,7 @@ import { adminActor } from './content-event-actors.js';
 import { normalizeVideoLink } from './content-links.js';
 import type { PlatformLink } from './link-request.js';
 import { LINK_RULES } from './link-rules.js';
+import { periodNotStarted } from './period-not-started.js';
 
 // Submitting, adding and replacing a content's video links (PBI-38 38.2). Each change is a
 // command object that turns the content as it was read into a plan of writes, with no database
@@ -41,6 +43,8 @@ export interface LinkedContent {
     submitted_at: Date;
   }[];
   contracts: {
+    /** The contract period's start day, which a creator's change waits for (PBI-30.2). */
+    start_date: Date;
     /** No row yet means the invoice is still running. */
     invoice: { status: InvoiceLifecycleStatus } | null;
     creators: {
@@ -67,6 +71,8 @@ export interface LinkActor {
   /** The users.id stored as the link's submitted_by. */
   submittedBy(content: LinkedContent): string;
   eventActor(content: LinkedContent): LinkEventActor;
+  /** Throws when this actor may not change the content's links at the clock's moment. */
+  assertCanChangeLinks(content: LinkedContent, clock: LinkClock): void;
 }
 
 export class CreatorLinkActor implements LinkActor {
@@ -74,6 +80,14 @@ export class CreatorLinkActor implements LinkActor {
 
   constructor(creatorId: string) {
     this.scope = { contracts: { creator_id: creatorId } };
+  }
+
+  /** PBI-30.2 (AC 8.2.2): no link until Jakarta reaches the period's start date. */
+  assertCanChangeLinks(content: LinkedContent, clock: LinkClock): void {
+    const started = new StartedPeriodSpecification(clock.now);
+    if (!started.isSatisfiedBy(content.contracts)) {
+      throw periodNotStarted();
+    }
   }
 
   submittedBy(content: LinkedContent): string {
@@ -94,6 +108,9 @@ export class AdminLinkActor implements LinkActor {
 
   /** Null only for the local development stand-in for sign-in, which has no account. */
   constructor(private readonly adminUserId: string | null) {}
+
+  /** An admin's link changes are not held to the period's start (PBI-30.2 is about creators). */
+  assertCanChangeLinks(): void {}
 
   submittedBy(content: LinkedContent): string {
     // submitted_by must name a user; with no admin account the link stays the creator's.
@@ -233,6 +250,7 @@ export abstract class LinkChange {
     invoiceState(
       content.contracts.invoice?.status ?? 'running',
     ).assertCanChangeLinks();
+    actor.assertCanChangeLinks(content, clock);
     return this.planChange(content, actor, clock);
   }
 
