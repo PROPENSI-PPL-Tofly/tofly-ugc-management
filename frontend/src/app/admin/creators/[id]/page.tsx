@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreatorContentBoard } from "@/components/creator-detail/creator-content-board";
 import { CreatorProfilePanel } from "@/components/creator-detail/creator-profile";
+import { ExtendContractTrigger } from "@/components/creator-detail/extend-contract-trigger";
 import { PeriodSummary, PeriodTabs } from "@/components/creator-detail/period-tabs";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
@@ -69,7 +70,13 @@ export default async function CreatorDetailPage({
         <div className="flex flex-col gap-4">
           {/* The profile describes the creator's latest contract, whichever period is open. */}
           <CreatorProfilePanel creator={view.creator} current={view.periods[0] ?? null} today={today} connections={view.connections} />
-          <PeriodTabs creatorId={id} periods={view.periods} selected={view.selected} back={state.back} />
+          <PeriodTabs
+            creatorId={id}
+            periods={view.periods}
+            selected={view.selected}
+            back={state.back}
+            action={<ExtendContractTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />}
+          />
           {view.selected ? (
             <PeriodSummary period={view.selected} earnings={view.earnings} creatorName={view.creator.name} />
           ) : null}
