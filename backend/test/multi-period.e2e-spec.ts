@@ -102,8 +102,8 @@ describe('Contract periods that have not started (e2e)', () => {
       .send(body);
   }
 
-  /** What a refused hand-in must have left alone. */
-  async function untouched(contentId: string) {
+  /** A content's status and how many drafts and links it holds, as a hand-in left them. */
+  async function stateOf(contentId: string) {
     return prisma.contents.findUniqueOrThrow({
       where: { id: contentId },
       select: {
@@ -179,7 +179,7 @@ describe('Contract periods that have not started (e2e)', () => {
 
       expect(response.status).toBe(409);
       expect(response.body).toMatchObject(PERIOD_NOT_STARTED);
-      expect(await untouched(next.id)).toEqual({
+      expect(await stateOf(next.id)).toEqual({
         status: 'scheduled',
         _count: { submissions: 0, content_links: 0 },
       });
@@ -206,7 +206,7 @@ describe('Contract periods that have not started (e2e)', () => {
       expect([video.status, links.status]).toEqual([409, 409]);
       expect(video.body).toMatchObject(PERIOD_NOT_STARTED);
       expect(links.body).toMatchObject(PERIOD_NOT_STARTED);
-      expect(await untouched(next.id)).toEqual({
+      expect(await stateOf(next.id)).toEqual({
         status: 'draft_approved',
         _count: { submissions: 0, content_links: 0 },
       });
@@ -221,12 +221,26 @@ describe('Contract periods that have not started (e2e)', () => {
         0,
       );
 
-      await post(`/contents/${draft.id}/draft`, renewed.creatorId, {
-        link: DRAFT,
-      }).expect(201);
-      await post(`/contents/${link.id}/links`, renewed.creatorId, {
-        links: { instagram: reel('ok') },
-      }).expect(201);
+      const drafted = await post(
+        `/contents/${draft.id}/draft`,
+        renewed.creatorId,
+        { link: DRAFT },
+      );
+      const linked = await post(
+        `/contents/${link.id}/links`,
+        renewed.creatorId,
+        { links: { instagram: reel('ok') } },
+      );
+
+      expect([drafted.status, linked.status]).toEqual([201, 201]);
+      expect(await stateOf(draft.id)).toEqual({
+        status: 'draft_review',
+        _count: { submissions: 1, content_links: 0 },
+      });
+      expect(await stateOf(link.id)).toEqual({
+        status: 'link_submitted',
+        _count: { submissions: 0, content_links: 1 },
+      });
     });
 
     it("answers another creator's content of a period not started with the same 404 as before", async () => {
