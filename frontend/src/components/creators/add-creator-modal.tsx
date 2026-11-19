@@ -3,104 +3,28 @@
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
-import { InfoTip } from "@/components/ui/info-tip";
-import { NUMERIC_INPUT, digitsOnly } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
-import DeadlinePreview from "./deadline-preview";
 import {
-  BUFFER_DAYS,
-  CONTRACT_TYPE_LABELS,
-  contractDateLimits,
+  ALERT,
+  ContractTermsFields,
+  DeadlineSchedule,
+  FIELD,
+  Field,
+  useDeadlineAllocation,
+} from "./contract-terms-fields";
+import {
   localCalendarDay,
   MAX_EMAIL_LENGTH,
   MAX_NAME_LENGTH,
   MAX_USERNAME_LENGTH,
-  scheduleDeadlines,
   scheduleReady,
   validateCreatorForm,
   type CreatorFormErrors,
-  type ContractType,
   type CreatorFormInput,
 } from "@/lib/creator-form";
-import {
-  addManualDeadline,
-  allocateDeadlines,
-  NO_PICKS,
-  removeManualDeadline,
-  toggleAutoDeadline,
-  type SlotPicks,
-} from "@/lib/deadline-allocation";
-import { AmountInput } from "@/components/ui/amount-input";
-import { getBufferWindow } from "@/lib/deadline-schedule";
-import { formatDate } from "@/lib/format";
-import { latestDeadline } from "@/lib/platform-links";
+import { NO_PICKS } from "@/lib/deadline-allocation";
 import type { NewCreatorRequest } from "@/lib/creators";
-
-const ALERT = "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
-
-// Same field styling as the filter bar's inputs, for a consistent form control vocabulary.
-const FIELD =
-  "rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2";
-
-// Every field but the two usernames is required, so its label carries the asterisk; the control
-// itself still sets `required` for assistive tech.
-function Field({
-  label,
-  error,
-  note,
-  hint,
-  optional = false,
-  children,
-}: {
-  label: string;
-  /** Left without the asterisk: the usernames, which the creator's connecting fills in later. */
-  optional?: boolean;
-  error?: string;
-  /** Rendered outside the label so it stays out of the control's accessible name. */
-  note?: React.ReactNode;
-  /** What the field means, behind an ⓘ at the end of the label row; outside the label so the
-   *  explanation stays out of the control's accessible name. */
-  hint?: { label: string; text: string };
-  children: React.ReactNode;
-}) {
-  return (
-    // The message sits outside the label so it never becomes part of the input's name.
-    <div className="relative flex flex-col gap-1 text-[13px]">
-      {hint ? (
-        <span className="absolute right-0 top-0">
-          <InfoTip label={hint.label} text={hint.text} align="end" />
-        </span>
-      ) : null}
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">
-          {label}
-          {optional ? null : (
-            <span aria-hidden="true" className="ml-0.5 text-red-ink">
-              *
-            </span>
-          )}
-        </span>
-        {children}
-      </label>
-      {note}
-      {error ? <span className="text-xs text-red-ink">{error}</span> : null}
-    </div>
-  );
-}
-
-// A required numeric field displays empty rather than "0" — 0 is never a valid value for
-// either field that uses this, and showing it as a literal digit meant typing "1" into the
-// field produced "01" (manual UI review finding).
-function emptyIfZero(value: number): number | "" {
-  return value === 0 ? "" : value;
-}
-
-/** Reads a digits-only field back into the number the form holds; empty is 0. */
-function wholeNumber(value: string): number {
-  const digits = digitsOnly(value);
-  return digits === "" ? 0 : Number(digits);
-}
 
 /** One optional username per platform, Instagram first as the API saves them. */
 const USERNAME_FIELDS = [
@@ -162,28 +86,8 @@ export function AddCreatorModal({
   }
 
   const today = localCalendarDay(new Date());
-  const limits = contractDateLimits(form, today);
-  const schedule = scheduleDeadlines(form, today);
   // What the admin changed on the calendar; re-applied to whatever the contract now allows.
-  const [picks, setPicks] = useState<SlotPicks>(NO_PICKS);
-  const allocation =
-    schedule === null
-      ? null
-      : allocateDeadlines(
-          {
-            autoDeadlines: schedule.autoDeadlines,
-            quota: form.quota,
-            firstAllowed: getBufferWindow({
-              contractStart: form.contractStart,
-              today,
-              bufferDays: BUFFER_DAYS,
-            })
-              .firstAllowedDate.toISOString()
-              .slice(0, 10),
-            contractEnd: latestDeadline(form.contractEnd),
-          },
-          picks,
-        );
+  const { allocation, picks, setPicks } = useDeadlineAllocation(form, today);
   const remaining = allocation?.remaining ?? 0;
 
   // Recomputed on every render — the single source of truth for both Simpan's disabled state
@@ -212,6 +116,13 @@ export function AddCreatorModal({
   function change<K extends keyof CreatorFormInput>(field: K, value: CreatorFormInput[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setEdited((prev) => ({ ...prev, [field]: true }));
+  }
+
+  // The contract's terms come back as a patch from ContractTermsFields, one field at a time.
+  function patch(changes: Partial<CreatorFormInput>) {
+    for (const field of Object.keys(changes) as (keyof CreatorFormInput)[]) {
+      change(field, changes[field] as CreatorFormInput[typeof field]);
+    }
   }
 
   // A date is picked, not typed: its verdict is due as soon as it changes, not on blur.
@@ -330,153 +241,25 @@ export function AddCreatorModal({
 
       <fieldset className="mb-4 border-t border-rule pt-3">
         <legend className="pr-2 text-[13px] font-bold text-ink">Kontrak &amp; Jadwal</legend>
-        <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field label="Jenis Kontrak" error={fieldError("contractType")}>
-            <select
-              className={FIELD}
-              required
-              value={form.contractType}
-              onChange={(event) => change("contractType", event.target.value as ContractType | "")}
-              onBlur={() => markTouched("contractType")}
-            >
-              <option value="">Pilih jenis kontrak</option>
-              {(Object.keys(CONTRACT_TYPE_LABELS) as ContractType[]).map((type) => (
-                <option key={type} value={type}>
-                  {CONTRACT_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field
-            label="Fixed Rate Kontrak (Rp)"
-            error={fieldError("fixedRate")}
-            hint={{
-              label: "Info Fixed Rate Kontrak",
-              text: "Rate tetap untuk periode kontrak pertama creator ini. Tidak ada biaya default untuk tiap konten.",
-            }}
-          >
-            <AmountInput
-              className={FIELD}
-              required
-              placeholder="mis. 5000000"
-              value={form.fixedRate}
-              onChange={(value) => change("fixedRate", value)}
-              onBlur={() => markTouched("fixedRate")}
-            />
-          </Field>
-
-          <Field label="Mulai Kontrak" error={fieldError("contractStart")}>
-            <input
-              type="date"
-              className={FIELD}
-              required
-              min={limits.startMin}
-              max={limits.startMax}
-              value={form.contractStart}
-              onChange={(event) => changeDate("contractStart", event.target.value)}
-              onBlur={() => markTouched("contractStart")}
-            />
-          </Field>
-
-          <Field label="Akhir Kontrak" error={fieldError("contractEnd")}>
-            <input
-              type="date"
-              className={FIELD}
-              required
-              min={limits.endMin}
-              value={form.contractEnd}
-              onChange={(event) => changeDate("contractEnd", event.target.value)}
-              onBlur={() => markTouched("contractEnd")}
-            />
-          </Field>
-
-          <Field label="Jumlah konten yang disepakati" error={fieldError("quota")}>
-            <input
-              {...NUMERIC_INPUT}
-              className={FIELD}
-              required
-              placeholder="mis. 6"
-              value={emptyIfZero(form.quota)}
-              onChange={(event) => change("quota", wholeNumber(event.target.value))}
-              onBlur={() => markTouched("quota")}
-            />
-          </Field>
-
-          <Field label="Jarak antar-deadline (hari)" error={fieldError("interval")}>
-            <input
-              {...NUMERIC_INPUT}
-              className={FIELD}
-              required
-              value={emptyIfZero(form.interval)}
-              onChange={(event) => change("interval", wholeNumber(event.target.value))}
-              onBlur={() => markTouched("interval")}
-            />
-          </Field>
-        </div>
+        <ContractTermsFields
+          terms={form}
+          today={today}
+          fieldError={fieldError}
+          onChange={patch}
+          onDateChange={changeDate}
+          onBlur={markTouched}
+          fixedRateHint="Rate tetap untuk periode kontrak pertama creator ini. Tidak ada biaya default untuk tiap konten."
+        />
       </fieldset>
 
-      {!showSchedule ? (
-        <p className="rounded-(--radius-control) border border-dashed border-rule bg-surface-2 px-3 py-2.5 text-[13px] text-muted">
-          Lengkapi tanggal kontrak yang valid untuk melihat jadwal deadline.
-        </p>
-      ) : null}
-
-      {showSchedule && allocation !== null ? (
-        <div className="mt-1">
-          <DeadlinePreview
-            contractStart={form.contractStart}
-            contractEnd={form.contractEnd}
-            lastDeadline={latestDeadline(form.contractEnd)}
-            today={today}
-            bufferDays={BUFFER_DAYS}
-            autoDeadlines={allocation.auto}
-            manualDeadlines={allocation.manual}
-            allocatedCount={allocation.deadlines.length}
-            remainingCount={remaining}
-            quota={form.quota}
-            onToggleAuto={(day) => setPicks((prev) => toggleAutoDeadline(prev, day))}
-            onAddManual={(day) => setPicks((prev) => addManualDeadline(prev, day, remaining))}
-          />
-
-          {remaining > 0 ? (
-            <p role="status" className="mt-3 text-[13px] text-amber-ink">
-              Sisa {remaining} konten belum punya deadline. Pilih tanggalnya di kalender.
-            </p>
-          ) : null}
-
-          {allocation.manual.length > 0 ? (
-            <ul className="mt-3 flex flex-wrap gap-2" aria-label="Deadline manual">
-              {[...new Set(allocation.manual)].map((day) => {
-                const count = allocation.manual.filter((picked) => picked === day).length;
-                return (
-                  <li
-                    key={day}
-                    className="inline-flex items-center gap-1 rounded-full bg-accent-wash px-3 py-0.5 text-xs font-semibold text-accent-deep"
-                  >
-                    {formatDate(day)}
-                    {count > 1 ? ` ×${count}` : ""}
-                    <button
-                      type="button"
-                      aria-label={`Hapus deadline manual ${formatDate(day)}`}
-                      onClick={() => setPicks((prev) => removeManualDeadline(prev, day))}
-                      className="ml-1 cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      {scheduleError ? (
-        <p role="alert" className={`mt-3 ${ALERT}`}>
-          {scheduleError}
-        </p>
-      ) : null}
+      <DeadlineSchedule
+        terms={form}
+        today={today}
+        allocation={allocation}
+        show={showSchedule}
+        setPicks={setPicks}
+        error={scheduleError}
+      />
 
       {formError ? (
         <p role="alert" className={`mt-3 ${ALERT}`}>
