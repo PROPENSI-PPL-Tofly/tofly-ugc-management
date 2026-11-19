@@ -251,6 +251,22 @@ describe("AddCreatorModal", () => {
       expect(screen.getByLabelText(/^email/i)).toHaveAttribute("maxLength", "254");
     });
 
+    // A pasted value can pass the input's maxLength; the form still names it once it is left.
+    it.each([
+      ["Instagram", /username instagram/i],
+      ["TikTok", /username tiktok/i],
+    ])("says a %s username of 101 characters is one too long, and 100 is not", (_label, field) => {
+      render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
+      const input = screen.getByLabelText(field);
+
+      fireEvent.change(input, { target: { value: "a".repeat(100) } });
+      fireEvent.blur(input);
+      expect(screen.queryByText("Username maksimal 100 karakter")).toBeNull();
+
+      fireEvent.change(input, { target: { value: "a".repeat(101) } });
+      expect(screen.getByText("Username maksimal 100 karakter")).toBeInTheDocument();
+    });
+
     // UAT: a number field changed its value when the modal was scrolled with the wheel over it.
     it("uses plain numeric text fields, so scrolling over them never changes a value", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);

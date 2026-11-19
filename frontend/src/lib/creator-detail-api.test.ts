@@ -320,6 +320,16 @@ describe("toCreatorDetailView", () => {
     expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEndReason).toBeNull();
   });
 
+  // The invoice card's Total Pendapatan: a floored total is one the penalties ate, so Rp0.
+  it.each([
+    ["the invoice's total", false, 3_000_000],
+    ["nothing when the penalties floored the total", true, 0],
+  ])("reads the period's earnings as %s", (_label, floored, amount) => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], { total: 3_000_000, floored, invoiceStatus: "accruing" });
+
+    expect(view.earnings).toEqual({ amount, status: "accruing" });
+  });
+
   it("keeps each period's own measurements apart", () => {
     const answered = {
       ...RAW,

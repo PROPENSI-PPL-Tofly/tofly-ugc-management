@@ -5,6 +5,7 @@ import {
   creatorDetailAfterContractChange,
   creatorDatabaseHref,
   creatorDetailAfterFilterChange,
+  creatorDetailAfterTabChange,
   creatorDetailBase,
   creatorDetailHref,
   isCreatorDetailFiltered,
@@ -300,6 +301,30 @@ describe("creatorDetailAfterContractChange", () => {
     expect(creatorDetailAfterContractChange(state, OTHER_CONTRACT)).toEqual({
       ...BARE,
       contract: OTHER_CONTRACT,
+    });
+  });
+});
+
+describe("creatorDetailAfterTabChange", () => {
+  // A tab names its own statuses and order: the old tab's would filter the new one to nothing.
+  it("keeps the search, type and overdue picks, and starts the new tab bare on its first page", () => {
+    const state: CreatorDetailParams = {
+      ...BARE,
+      contract: CONTRACT,
+      q: "promo",
+      type: ["specific"],
+      overdue: "yes",
+      status: ["scheduled"],
+      sort: "desc",
+      page: 3,
+    };
+
+    expect(creatorDetailAfterTabChange(state, "done")).toEqual({
+      ...state,
+      tab: "done",
+      status: [],
+      sort: "asc",
+      page: 1,
     });
   });
 });
