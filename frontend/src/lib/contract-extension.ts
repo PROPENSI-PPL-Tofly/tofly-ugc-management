@@ -4,12 +4,11 @@
 
 import { validateContractTerms, type ContractTermsInput, type CreatorFormErrors } from "./creator-form";
 import type { CreatorPeriod } from "./creator-detail";
+import type { EarlyEndReason } from "./creators";
 import { shiftDay } from "./deadline-period";
 import { formatDate } from "./format";
 
-/** Why a contract was ended early (PBI-37's three reason types). */
-export type EarlyEndReason = "violation" | "fraud" | "other";
-
+/** PBI-37's words for each reason type, as its form lists them. */
 export const EARLY_END_REASON_LABELS: Record<EarlyEndReason, string> = {
   violation: "Pelanggaran Kontrak",
   fraud: "Fraud",
@@ -20,10 +19,10 @@ export const EARLY_END_REASON_LABELS: Record<EarlyEndReason, string> = {
 export type { ContractTermsInput };
 
 /** What the form reads of the period it extends. */
-export type PreviousPeriod = Pick<CreatorPeriod, "status" | "type" | "endDate" | "daysBetween"> & {
-  fixedRate: number;
-  earlyEndReason: EarlyEndReason | null;
-};
+export type PreviousPeriod = Pick<
+  CreatorPeriod,
+  "status" | "type" | "endDate" | "daysBetween" | "fixedRate" | "earlyEndReason"
+>;
 
 /**
  * Whether "Perpanjang Kontrak" is offered: while the newest period runs and any time after it
