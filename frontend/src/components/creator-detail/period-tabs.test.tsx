@@ -19,6 +19,8 @@ function period(overrides: Partial<CreatorPeriod> = {}): CreatorPeriod {
     evergreenCount: 18,
     remainingEvergreenQuota: 1,
     daysBetween: 14,
+    fixedRate: 2_500_000,
+    earlyEndReason: null,
     progress: { submitted: 0, total: 19, percent: 0 },
     performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     ...overrides,

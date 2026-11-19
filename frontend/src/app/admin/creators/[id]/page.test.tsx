@@ -41,6 +41,8 @@ const NEWEST: CreatorPeriod = {
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  fixedRate: 2_500_000,
+  earlyEndReason: null,
   progress: { submitted: 0, total: 19, percent: 0 },
   performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
@@ -56,6 +58,8 @@ const OLDEST: CreatorPeriod = {
   evergreenCount: 3,
   remainingEvergreenQuota: 0,
   daysBetween: 7,
+  fixedRate: 2_500_000,
+  earlyEndReason: null,
   progress: { submitted: 3, total: 3, percent: 100 },
   performance: { onTimeRate: 100, avgRevisions: 0, productivity: "good", productivityLabel: "Baik" },
 };
