@@ -73,3 +73,28 @@ export function earlyEndWarning(reason: EarlyEndReason | null): string | null {
   if (reason !== "violation" && reason !== "fraud") return null;
   return `Kontrak sebelumnya diakhiri lebih awal karena ${EARLY_END_REASON_LABELS[reason]}.`;
 }
+
+/**
+ * The renewal Admin may still change or delete (AC 8-9): the newest period while it is "Belum
+ * Dimulai", with the period it follows. Not a first contract that has not started, which is
+ * Tambah Creator's own; once a period starts, PBI-16 and PBI-37 take over (AC 10).
+ */
+export function editablePeriod(
+  periods: readonly CreatorPeriod[],
+): { period: CreatorPeriod; previous: CreatorPeriod } | null {
+  const [period, previous] = periods;
+  if (period?.status !== "upcoming" || previous === undefined) return null;
+  return { period, previous };
+}
+
+/** A period's terms as the form holds them, for changing it (AC 8). */
+export function periodTerms(period: CreatorPeriod): ContractTermsInput {
+  return {
+    contractStart: period.startDate,
+    contractEnd: period.endDate,
+    interval: period.daysBetween,
+    quota: period.contentQuota,
+    fixedRate: period.fixedRate,
+    contractType: period.type,
+  };
+}

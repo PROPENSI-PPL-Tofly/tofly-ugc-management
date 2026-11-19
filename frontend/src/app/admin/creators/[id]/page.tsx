@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CreatorContentBoard } from "@/components/creator-detail/creator-content-board";
 import { CreatorProfilePanel } from "@/components/creator-detail/creator-profile";
 import { ExtendContractTrigger } from "@/components/creator-detail/extend-contract-trigger";
+import { UpcomingPeriodActions } from "@/components/creator-detail/upcoming-period-actions";
 import { PeriodSummary, PeriodTabs } from "@/components/creator-detail/period-tabs";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
@@ -75,7 +76,13 @@ export default async function CreatorDetailPage({
             periods={view.periods}
             selected={view.selected}
             back={state.back}
-            action={<ExtendContractTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />}
+            action={
+              <>
+                {/* At most one shows: a renewal still to start is changed, otherwise one is added. */}
+                <UpcomingPeriodActions creatorId={id} creatorName={view.creator.name} periods={view.periods} />
+                <ExtendContractTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />
+              </>
+            }
           />
           {view.selected ? (
             <PeriodSummary period={view.selected} earnings={view.earnings} creatorName={view.creator.name} />

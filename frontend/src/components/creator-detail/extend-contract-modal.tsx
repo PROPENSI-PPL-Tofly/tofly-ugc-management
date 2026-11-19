@@ -16,10 +16,12 @@ import {
 import {
   earlyEndWarning,
   extensionDefaults,
+  periodTerms,
   validateContractExtension,
   type PreviousPeriod,
 } from "@/lib/contract-extension";
 import type { ContractRequest } from "@/lib/contracts";
+import type { CreatorPeriod } from "@/lib/creator-detail";
 import {
   CONTRACT_TYPE_LABELS,
   localCalendarDay,
@@ -33,6 +35,30 @@ import { formatContractWindow, formatRupiah } from "@/lib/format";
 
 const NO_ERRORS: CreatorFormErrors = {};
 
+/** The words of the form's two jobs: adding a renewal, or changing one that has not started. */
+const WORDING = {
+  extend: {
+    legend: "Periode Baru",
+    fixedRateHint:
+      "Rate tetap untuk periode baru ini, terisi dari periode sebelumnya. Tidak ada biaya default untuk tiap konten.",
+    submit: "Perpanjang Kontrak",
+    discard: "Batalkan perpanjangan kontrak?",
+    confirmTitle: "Perpanjang kontrak?",
+    confirmMessage:
+      "Kontrak dan invoice periode sebelumnya tidak berubah. Deadline Evergreen periode baru ter-generate.",
+    confirmLabel: "Perpanjang",
+  },
+  edit: {
+    legend: "Kontrak & Jadwal",
+    fixedRateHint: "Rate tetap untuk periode ini. Tidak ada biaya default untuk tiap konten.",
+    submit: "Simpan Perubahan",
+    discard: "Batalkan perubahan periode?",
+    confirmTitle: "Simpan perubahan periode?",
+    confirmMessage: "Jadwal Evergreen periode ini di-generate ulang.",
+    confirmLabel: "Simpan",
+  },
+} as const;
+
 /**
  * "Perpanjang Kontrak" (PBI-30, 30.3): a new period for a creator who already has one, with the
  * same terms and Evergreen calendar as Tambah Creator but without who the creator is, which does
@@ -42,6 +68,7 @@ const NO_ERRORS: CreatorFormErrors = {};
 export function ExtendContractModal({
   creatorName,
   previous,
+  editing,
   onClose,
   onSubmit,
   loading = false,
@@ -49,8 +76,10 @@ export function ExtendContractModal({
   formError,
 }: {
   creatorName: string;
-  /** The creator's newest period, which the new one follows. */
+  /** The period the new or changed one follows. */
   previous: PreviousPeriod;
+  /** A renewal still "Belum Dimulai", to change instead of adding a new one (AC 8). */
+  editing?: CreatorPeriod;
   onClose: () => void;
   onSubmit: (request: ContractRequest) => void;
   loading?: boolean;
@@ -60,7 +89,8 @@ export function ExtendContractModal({
   formError?: string;
 }) {
   const today = localCalendarDay(new Date());
-  const [initial] = useState(() => extensionDefaults(previous, today));
+  const wording = editing ? WORDING.edit : WORDING.extend;
+  const [initial] = useState(() => (editing ? periodTerms(editing) : extensionDefaults(previous, today)));
   const [terms, setTerms] = useState<ContractTermsInput>(initial);
   const [confirming, setConfirming] = useState(false);
 
@@ -80,7 +110,7 @@ export function ExtendContractModal({
   const { requestClose, confirmDialog } = useDiscardGuard({
     isDirty,
     onDiscard: onClose,
-    title: "Batalkan perpanjangan kontrak?",
+    title: wording.discard,
   });
 
   function patch(changes: Partial<ContractTermsInput>) {
@@ -99,7 +129,11 @@ export function ExtendContractModal({
   return (
     <>
       <Modal
-        title={`Perpanjang Kontrak — ${creatorName}`}
+        title={
+          editing
+            ? `Ubah Periode ${editing.periodNumber} — ${creatorName}`
+            : `Perpanjang Kontrak — ${creatorName}`
+        }
         onClose={requestClose}
         footer={
           <>
@@ -111,7 +145,7 @@ export function ExtendContractModal({
               onClick={() => setConfirming(true)}
               disabled={loading || !isValid || remaining > 0}
             >
-              Perpanjang Kontrak
+              {wording.submit}
             </Button>
           </>
         }
@@ -119,7 +153,7 @@ export function ExtendContractModal({
         <p className="mb-3 text-xs text-muted">Kolom bertanda * wajib diisi.</p>
 
         <fieldset className="mb-4 border-t border-rule pt-3">
-          <legend className="pr-2 text-[13px] font-bold text-ink">Periode Baru</legend>
+          <legend className="pr-2 text-[13px] font-bold text-ink">{wording.legend}</legend>
           <ContractTermsFields
             terms={terms}
             today={today}
@@ -130,7 +164,7 @@ export function ExtendContractModal({
               markTouched(field);
             }}
             onBlur={markTouched}
-            fixedRateHint="Rate tetap untuk periode baru ini, terisi dari periode sebelumnya. Tidak ada biaya default untuk tiap konten."
+            fixedRateHint={wording.fixedRateHint}
           />
         </fieldset>
 
@@ -152,9 +186,10 @@ export function ExtendContractModal({
 
       {confirming ? (
         <ConfirmDialog
-          title="Perpanjang kontrak?"
-          message="Kontrak dan invoice periode sebelumnya tidak berubah. Deadline Evergreen periode baru ter-generate."
-          warning={earlyEndWarning(previous.earlyEndReason) ?? undefined}
+          title={wording.confirmTitle}
+          message={wording.confirmMessage}
+          // The warning weighs renewing a creator ended for cause; a change made that choice already.
+          warning={editing ? undefined : (earlyEndWarning(previous.earlyEndReason) ?? undefined)}
           details={[
             ["Creator", creatorName],
             ["Periode", formatContractWindow(request.contractStart, request.contractEnd)],
@@ -162,7 +197,7 @@ export function ExtendContractModal({
             ["Konten", `${request.quota} konten, tiap ${request.interval} hari`],
             ["Fixed Rate", formatRupiah(request.fixedRate)],
           ]}
-          confirmLabel="Perpanjang"
+          confirmLabel={wording.confirmLabel}
           cancelLabel="Batal"
           confirmVariant="accent"
           onConfirm={() => {
