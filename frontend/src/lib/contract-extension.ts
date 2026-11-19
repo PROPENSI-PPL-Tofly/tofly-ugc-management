@@ -2,7 +2,7 @@
 // form opens with and what it accepts. Kept apart from the modal so each rule is testable
 // without rendering, and so the edit of a "Belum Dimulai" period reads the same rules.
 
-import { validateCreatorForm, type CreatorFormErrors, type CreatorFormInput } from "./creator-form";
+import { validateContractTerms, type ContractTermsInput, type CreatorFormErrors } from "./creator-form";
 import type { CreatorPeriod } from "./creator-detail";
 import { shiftDay } from "./deadline-period";
 import { formatDate } from "./format";
@@ -17,10 +17,7 @@ export const EARLY_END_REASON_LABELS: Record<EarlyEndReason, string> = {
 };
 
 /** The terms a new period is given: Tambah Creator's contract half, without who the creator is. */
-export type ContractTermsInput = Pick<
-  CreatorFormInput,
-  "contractStart" | "contractEnd" | "interval" | "quota" | "fixedRate" | "contractType"
->;
+export type { ContractTermsInput };
 
 /** What the form reads of the period it extends. */
 export type PreviousPeriod = Pick<CreatorPeriod, "status" | "type" | "endDate" | "daysBetween"> & {
@@ -54,15 +51,6 @@ export function extensionDefaults(previous: PreviousPeriod, today: string): Cont
   };
 }
 
-const TERM_FIELDS = [
-  "contractStart",
-  "contractEnd",
-  "interval",
-  "quota",
-  "fixedRate",
-  "contractType",
-] as const;
-
 /**
  * Tambah Creator's contract rules (AC 2), plus the one only a renewal has: the new period starts
  * after the previous one ends, so two periods never overlap.
@@ -72,14 +60,7 @@ export function validateContractExtension(
   previousEnd: string,
   today: Date = new Date(),
 ): CreatorFormErrors {
-  const all = validateCreatorForm(
-    { ...input, name: "x", email: "x@x.co", instagramUsername: "", tiktokUsername: "" },
-    today,
-  );
-  const errors: CreatorFormErrors = {};
-  for (const field of TERM_FIELDS) {
-    if (all[field]) errors[field] = all[field];
-  }
+  const errors = validateContractTerms(input, today);
 
   if (!errors.contractStart && input.contractStart !== "" && input.contractStart <= previousEnd) {
     errors.contractStart = `Tanggal mulai harus setelah akhir kontrak sebelumnya (${formatDate(previousEnd)})`;
