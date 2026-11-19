@@ -16,7 +16,7 @@ import type {
   CreatorPeriod,
   CreatorProfile,
 } from "./creator-detail";
-import type { ContractPeriod } from "./creators";
+import { EARLY_END_REASONS, type ContractPeriod, type EarlyEndReason } from "./creators";
 import type { RawInvoiceDetail } from "./invoice-api";
 import { jakartaDay } from "./format";
 import { readConnections } from "./social-connection";
@@ -38,6 +38,8 @@ export type RawCreatorPeriod = Pick<
   | "status"
   | "contentQuota"
   | "daysBetween"
+  | "fixedRate"
+  | "earlyEndReason"
   | "remainingEvergreenQuota"
   | "progress"
   | "performance"
@@ -165,6 +167,11 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
     daysBetween: period.daysBetween,
+    fixedRate: period.fixedRate,
+    // Only a reason the app knows reaches the renewal's warning; anything else reads as none.
+    earlyEndReason: (EARLY_END_REASONS as readonly unknown[]).includes(period.earlyEndReason)
+      ? (period.earlyEndReason as EarlyEndReason)
+      : null,
     progress: period.progress,
     performance: period.performance,
   };

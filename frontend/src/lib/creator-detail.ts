@@ -15,6 +15,7 @@ import {
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "./content-labels";
 import type { ContentType } from "./contents";
 import type { ContractType } from "./creator-form";
+import type { EarlyEndReason } from "./creators";
 import type { Platform } from "./platform-links";
 import {
   parseFilters,
@@ -172,6 +173,10 @@ export interface CreatorPeriod {
   remainingEvergreenQuota: number;
   /** The default interval between deadlines, in days. */
   daysBetween: number;
+  /** In rupiah; Perpanjang Kontrak opens with the previous period's (PBI-30 AC 2). */
+  fixedRate: number;
+  /** Why the contract was ended early (PBI-37), or null when it was not. */
+  earlyEndReason: EarlyEndReason | null;
   /** API-calculated completed-content progress for this contract period. */
   progress: ContractPeriod["progress"];
   /** API-calculated on-time rate, revisions and productivity band for this period. */

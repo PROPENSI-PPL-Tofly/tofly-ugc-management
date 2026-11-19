@@ -6,6 +6,7 @@ import {
   creatorDetailAfterTabChange,
   creatorDatabaseHref,
   creatorDetailAfterFilterChange,
+  creatorDetailAfterTabChange,
   creatorDetailBase,
   creatorDetailHref,
   isCreatorDetailFiltered,
@@ -306,15 +307,17 @@ describe("creatorDetailAfterContractChange", () => {
 });
 
 describe("creatorDetailAfterTabChange", () => {
-  it("keeps the search and type/overdue picks while resetting the status, sort and page", () => {
+  // A tab names its own statuses and order: the old tab's would filter the new one to nothing.
+  it("keeps the search, type and overdue picks, and starts the new tab bare on its first page", () => {
     const state: CreatorDetailParams = {
       ...BARE,
-      q: "review",
-      type: ["evergreen"],
-      status: ["draft_review"],
-      overdue: "overdue",
+      contract: CONTRACT,
+      q: "promo",
+      type: ["specific"],
+      overdue: "yes",
+      status: ["scheduled"],
       sort: "desc",
-      page: 5,
+      page: 3,
     };
 
     expect(creatorDetailAfterTabChange(state, "done")).toEqual({

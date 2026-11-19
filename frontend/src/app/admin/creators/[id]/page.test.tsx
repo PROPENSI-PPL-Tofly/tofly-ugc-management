@@ -41,6 +41,8 @@ const NEWEST: CreatorPeriod = {
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  fixedRate: 2_500_000,
+  earlyEndReason: null,
   progress: { submitted: 0, total: 19, percent: 0 },
   performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
@@ -56,6 +58,8 @@ const OLDEST: CreatorPeriod = {
   evergreenCount: 3,
   remainingEvergreenQuota: 0,
   daysBetween: 7,
+  fixedRate: 2_500_000,
+  earlyEndReason: null,
   progress: { submitted: 3, total: 3, percent: 100 },
   performance: { onTimeRate: 100, avgRevisions: 0, productivity: "good", productivityLabel: "Baik" },
 };
@@ -252,6 +256,33 @@ describe("Creator Detail page", () => {
     expect(screen.getByText("Kontrak").nextElementSibling).toHaveTextContent("Aktif");
     // The open period is still the older one, on the panels below.
     expect(screen.getAllByText("Periode 1 · Berakhir").length).toBeGreaterThan(0);
+  });
+
+  // PBI-30 AC 1: the renewal is offered on the Periode Kontrak panel, for this creator.
+  it("offers Perpanjang Kontrak on the Periode Kontrak panel while the contract runs", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "+ Perpanjang Kontrak" })).toBeInTheDocument();
+  });
+
+  it("offers no renewal while the next period is still to start", async () => {
+    const next: CreatorPeriod = { ...NEWEST, contractId: "33333333-3333-4333-8333-333333333333", periodNumber: 3, status: "upcoming" };
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [next, NEWEST, OLDEST] }));
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "+ Perpanjang Kontrak" })).not.toBeInTheDocument();
+  });
+
+  // PBI-30 AC 8-9: a renewal still to start is changed or deleted from the same panel.
+  it("offers to change or delete the next period while it has not started", async () => {
+    const next: CreatorPeriod = { ...NEWEST, contractId: "33333333-3333-4333-8333-333333333333", periodNumber: 3, status: "upcoming" };
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [next, NEWEST, OLDEST] }));
+
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Periode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hapus Periode" })).toBeInTheDocument();
   });
 
   it("still shows the profile of a creator without any contract", async () => {

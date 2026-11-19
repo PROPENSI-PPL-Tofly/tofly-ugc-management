@@ -19,6 +19,8 @@ function period(overrides: Partial<CreatorPeriod> = {}): CreatorPeriod {
     evergreenCount: 18,
     remainingEvergreenQuota: 1,
     daysBetween: 14,
+    fixedRate: 2_500_000,
+    earlyEndReason: null,
     progress: { submitted: 0, total: 19, percent: 0 },
     performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     ...overrides,
@@ -62,6 +64,23 @@ describe("PeriodTabs", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 
     expect(screen.getByRole("heading", { level: 2, name: "Periode Kontrak" })).toBeInTheDocument();
+  });
+
+  // PBI-30: "+ Perpanjang Kontrak" sits in the panel's header, given by the page.
+  it("puts the action it is given in its header, beside the title", () => {
+    render(
+      <PeriodTabs
+        creatorId={CREATOR}
+        periods={PERIODS}
+        selected={NEWEST}
+        action={<button type="button">+ Perpanjang Kontrak</button>}
+      />,
+    );
+
+    const heading = screen.getByRole("heading", { level: 2, name: "Periode Kontrak" });
+    expect(heading.closest("div")?.parentElement).toContainElement(
+      screen.getByRole("button", { name: "+ Perpanjang Kontrak" }),
+    );
   });
 
   it("lays the periods out oldest to newest, as the prototype does", () => {

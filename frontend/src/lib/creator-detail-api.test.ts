@@ -24,6 +24,7 @@ function period(id: string, extra: Partial<RawCreatorPeriod> = {}): RawCreatorPe
     status: "active",
     contentQuota: 6,
     daysBetween: 14,
+    fixedRate: 2_500_000,
     remainingEvergreenQuota: 4,
     progress: { submitted: 0, total: 6, percent: 0 },
     performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
@@ -56,6 +57,7 @@ const RAW: RawCreatorDetail = {
       status: "expired",
       contentQuota: 3,
       daysBetween: 7,
+      fixedRate: 1_000_000,
       remainingEvergreenQuota: 0,
     }),
     period(NEWEST),
@@ -300,6 +302,9 @@ describe("toCreatorDetailView", () => {
       evergreenCount: 3,
       remainingEvergreenQuota: 0,
       daysBetween: 7,
+      // Perpanjang Kontrak opens with the previous period's rate (PBI-30 AC 2).
+      fixedRate: 1_000_000,
+      earlyEndReason: null,
       progress: { submitted: 0, total: 6, percent: 0 },
       performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     });
@@ -330,8 +335,8 @@ describe("toCreatorDetailView", () => {
       ],
     } as unknown as RawCreatorDetail;
 
-    // The period's own progress and performance are carried for Creator Detail to show; the
-    // fixed rate and the counts the progress already holds are not.
+    // The period's own progress, performance and fixed rate are carried for Creator Detail to
+    // show; the counts the progress already holds are not.
     expect(toCreatorDetailView(answered, CONTENTS, BARE).selected).toEqual({
       contractId: NEWEST,
       periodNumber: 2,
@@ -343,9 +348,45 @@ describe("toCreatorDetailView", () => {
       evergreenCount: 2,
       remainingEvergreenQuota: 4,
       daysBetween: 14,
+      fixedRate: 400000,
+      earlyEndReason: null,
       progress: { submitted: 2, total: 4, percent: 50 },
       performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
     });
+  });
+
+  // PBI-37 ends a contract early for a reason; PBI-30 AC 3 warns about it on renewal.
+  it.each([
+    ["Pelanggaran Kontrak", "violation"],
+    ["Fraud", "fraud"],
+    ["Lainnya", "other"],
+  ] as const)("reads a contract ended early for %s", (_label, earlyEndReason) => {
+    const raw = { ...RAW, contractHistory: [period(NEWEST, { earlyEndReason })] };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEndReason).toBe(earlyEndReason);
+  });
+
+  it.each([
+    ["not sent, as before PBI-37", undefined],
+    ["null for a contract not ended early", null],
+    ["a reason from another world", "bored"],
+  ])("reads no early end when the reason is %s", (_label, earlyEndReason) => {
+    const raw = {
+      ...RAW,
+      contractHistory: [period(NEWEST, { earlyEndReason } as unknown as Partial<RawCreatorPeriod>)],
+    };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEndReason).toBeNull();
+  });
+
+  // The invoice card's Total Pendapatan: a floored total is one the penalties ate, so Rp0.
+  it.each([
+    ["the invoice's total", false, 3_000_000],
+    ["nothing when the penalties floored the total", true, 0],
+  ])("reads the period's earnings as %s", (_label, floored, amount) => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], { total: 3_000_000, floored, invoiceStatus: "accruing" });
+
+    expect(view.earnings).toEqual({ amount, status: "accruing" });
   });
 
   it("keeps each period's own measurements apart", () => {

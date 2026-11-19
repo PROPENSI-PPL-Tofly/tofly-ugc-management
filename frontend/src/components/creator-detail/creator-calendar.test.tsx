@@ -13,6 +13,8 @@ const PERIOD: CreatorPeriod = {
   evergreenCount: 3,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  fixedRate: 2_500_000,
+  earlyEndReason: null,
   progress: { submitted: 0, total: 4, percent: 0 },
   performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };

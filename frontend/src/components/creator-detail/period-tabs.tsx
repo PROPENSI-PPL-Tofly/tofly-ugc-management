@@ -123,6 +123,7 @@ export function PeriodTabs({
   periods,
   selected,
   back,
+  action,
 }: Readonly<{
   creatorId: string;
   /** Newest first, as the page's view carries them. */
@@ -131,6 +132,8 @@ export function PeriodTabs({
   selected: CreatorPeriod | null;
   /** The Creator Database view to return to, which every period's link keeps. */
   back?: string;
+  /** A control for the panel's header, such as "+ Perpanjang Kontrak" (PBI-30). */
+  action?: ReactNode;
 }>) {
   const newest = periods[0];
   const bare = back ? { ...DEFAULT_CREATOR_DETAIL_PARAMS, back } : DEFAULT_CREATOR_DETAIL_PARAMS;
@@ -144,7 +147,11 @@ export function PeriodTabs({
 
   return (
     <Panel>
-      <PanelHead title="Periode Kontrak" hint="Pilih periode untuk melihat ringkasan dan content plan-nya." />
+      <PanelHead
+        title="Periode Kontrak"
+        hint="Pilih periode untuk melihat ringkasan dan content plan-nya."
+        action={action}
+      />
 
       {selected ? (
         <div className="px-5 pb-5">

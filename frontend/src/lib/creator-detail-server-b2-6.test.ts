@@ -26,6 +26,7 @@ const DETAIL: RawCreatorDetail = {
     status: "active",
     contentQuota: 6,
     daysBetween: 14,
+    fixedRate: 2_500_000,
     remainingEvergreenQuota: 2,
     progress: { submitted: 3, total: 6, percent: 50 },
     performance: { onTimeRate: 80, avgRevisions: 1.5, productivity: "good", productivityLabel: "Baik" },
