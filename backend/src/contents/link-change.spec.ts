@@ -48,6 +48,8 @@ function content(
     }[];
     invoice?: 'running' | 'finalized' | 'paid' | null;
     accounts?: social_platform[];
+    /** The contract period's start day; by default one that started before CLOCK. */
+    periodStart?: string;
   } = {},
 ): LinkedContent {
   return {
@@ -65,6 +67,7 @@ function content(
       submitted_at: day(link.submittedAt),
     })),
     contracts: {
+      start_date: day(overrides.periodStart ?? '2026-09-01'),
       invoice:
         overrides.invoice === undefined || overrides.invoice === null
           ? null
@@ -134,6 +137,71 @@ describe('link actors', () => {
 
     expect(local.submittedBy(content())).toBe(CREATOR_USER);
     expect(local.eventActor(content()).actor_user_id).toBeNull();
+  });
+});
+
+// PBI-30.2 (AC 8.2.2): a creator cannot hand in links for content of a period that has not
+// started. Judged on the clock the change was given, so a test never depends on the real date.
+describe('a contract period that has not started', () => {
+  const PERIOD_NOT_STARTED = {
+    status: 409,
+    body: {
+      code: 'PERIOD_NOT_STARTED',
+      message: 'Periode kontrak konten ini belum dimulai',
+    },
+  };
+  // 23:59:59.999 WIB on 10 October, then 00:00 WIB on the 11th (still the 10th in UTC).
+  const LAST_MOMENT: LinkClock = {
+    now: new Date('2026-10-10T16:59:59.999Z'),
+    today: '2026-10-10',
+  };
+  const JAKARTA_MIDNIGHT: LinkClock = {
+    now: new Date('2026-10-10T17:00:00.000Z'),
+    today: '2026-10-11',
+  };
+  const REEL_LINK = [{ platform: 'instagram' as const, url: REEL }];
+
+  it("refuses a creator's links until Jakarta reaches the start date", () => {
+    expect(
+      refusal(() =>
+        new SubmitLinks(REEL_LINK).plan(
+          content({ periodStart: '2026-10-11' }),
+          creator,
+          LAST_MOMENT,
+        ),
+      ),
+    ).toEqual(PERIOD_NOT_STARTED);
+  });
+
+  it("takes a creator's links from Jakarta midnight on the start date", () => {
+    const plan = new SubmitLinks(REEL_LINK).plan(
+      content({ periodStart: '2026-10-11' }),
+      creator,
+      JAKARTA_MIDNIGHT,
+    );
+
+    expect(plan.result.status).toBe('link_submitted');
+  });
+
+  it("refuses a creator's replacement link before the start date too", () => {
+    expect(
+      refusal(() =>
+        new ReplaceLink(
+          { platform: 'instagram', url: OTHER_REEL },
+          NO_PERFORMANCE_COLUMNS,
+        ).plan(linked({ periodStart: '2026-10-11' }), creator, LAST_MOMENT),
+      ),
+    ).toEqual(PERIOD_NOT_STARTED);
+  });
+
+  it('leaves an admin as before: their links are not held to the start date', () => {
+    const plan = new SubmitLinks(REEL_LINK).plan(
+      content({ periodStart: '2026-10-11' }),
+      admin,
+      LAST_MOMENT,
+    );
+
+    expect(plan.result.status).toBe('link_submitted');
   });
 });
 
