@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   type CreatorContentRow,
@@ -20,18 +20,15 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock("@/lib/url-query", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/url-query")>();
-  return {
-    ...actual,
-    useUrlQuery: () => ({
-      query: "",
-      replaceQuery: (query: string) => replace(query ? `${PAGE}?${query}` : PAGE, { scroll: false }),
-      replaceQuietly: vi.fn(),
-      pending: false,
-    }),
-  };
-});
+vi.mock("@/lib/url-query", () => ({
+  useUrlQuery: () => ({
+    query: "",
+    replaceQuery: (query: string) => replace(query ? `${PAGE}?${query}` : PAGE, { scroll: false }),
+    replaceQuietly: vi.fn(),
+    pending: false,
+  }),
+  latestQuery: () => "",
+}));
 
 // The panel and the modal are tested where they live. Here each is a stand-in that shows what
 // it was handed and offers the presses the board has to answer.
@@ -181,13 +178,17 @@ describe("CreatorContentBoard", () => {
 
   it("toggles the deadline sort from asc to desc and back", () => {
     renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "asc" });
-    fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    });
     // "desc" is not the default, so it goes out in the query.
     expect(replace).toHaveBeenCalledWith(expect.stringContaining("sort=desc"), { scroll: false });
 
     replace.mockClear();
     renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "desc" });
-    fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    });
     // "asc" is the default, so it is left out of the query entirely.
     const [path] = replace.mock.calls[0] as [string, object];
     expect(path).not.toContain("sort=desc");

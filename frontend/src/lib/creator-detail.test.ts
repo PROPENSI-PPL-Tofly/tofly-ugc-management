@@ -6,7 +6,6 @@ import {
   creatorDetailAfterTabChange,
   creatorDatabaseHref,
   creatorDetailAfterFilterChange,
-  creatorDetailAfterTabChange,
   creatorDetailBase,
   creatorDetailHref,
   isCreatorDetailFiltered,
