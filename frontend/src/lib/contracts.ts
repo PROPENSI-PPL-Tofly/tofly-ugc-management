@@ -27,6 +27,9 @@ const INVALID = "Data periode tidak valid";
 const CLASHED =
   "Periode bertabrakan dengan periode lain atau sudah dimulai. Muat ulang halaman lalu coba lagi.";
 const STARTED = "Periode sudah dimulai dan tidak bisa dihapus. Muat ulang halaman.";
+const LAST_PERIOD = "Ini satu-satunya periode creator, jadi tidak bisa dihapus.";
+/** The longest errors.contents line shown in place of the generic message. */
+const MAX_REASON_LENGTH = 300;
 
 /** The fields a period's form shows a message under; nothing else from a 422 is kept. */
 const PERIOD_FIELDS = [
@@ -59,8 +62,20 @@ function toBody(request: ContractRequest): string {
   });
 }
 
-async function fieldErrors(response: Response): Promise<CreatorFormErrors> {
-  return readFieldErrors(await response.json().catch(() => null), PERIOD_FIELDS);
+/**
+ * A refused save: each field's message, and the line the form shows. That line names the Specific
+ * content an edit would strand (errors.contents) when the server sends one as short text.
+ */
+async function refused(response: Response): Promise<SaveContractResult> {
+  const body: unknown = await response.json().catch(() => null);
+  const contents = (body as { errors?: { contents?: unknown } } | null)?.errors?.contents;
+  const reason = typeof contents === "string" && contents.length <= MAX_REASON_LENGTH ? contents : INVALID;
+  return { ok: false, message: reason, errors: readFieldErrors(body, PERIOD_FIELDS) };
+}
+
+async function conflictCode(response: Response): Promise<unknown> {
+  const body: unknown = await response.json().catch(() => null);
+  return (body as { code?: unknown } | null)?.code;
 }
 
 async function save(method: "POST" | "PUT", path: string | null, request: ContractRequest): Promise<SaveContractResult> {
@@ -80,7 +95,7 @@ async function save(method: "POST" | "PUT", path: string | null, request: Contra
 
   if (response.ok) return { ok: true };
   if (response.status === 409) return { ok: false, message: CLASHED, errors: {} };
-  if (response.status === 422) return { ok: false, message: INVALID, errors: await fieldErrors(response) };
+  if (response.status === 422) return refused(response);
   return failed;
 }
 
@@ -112,6 +127,8 @@ export async function deleteContract(creatorId: string, contractId: string): Pro
   }
 
   if (response.ok) return { ok: true };
-  if (response.status === 409) return { ok: false, message: STARTED };
+  if (response.status === 409) {
+    return { ok: false, message: (await conflictCode(response)) === "LAST_PERIOD" ? LAST_PERIOD : STARTED };
+  }
   return failed;
 }
