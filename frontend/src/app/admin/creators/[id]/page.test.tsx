@@ -74,6 +74,7 @@ function viewOf(overrides: Partial<CreatorDetailView> = {}): CreatorDetailView {
       accessRevokeDate: null,
     },
     periods: [NEWEST, OLDEST],
+    current: NEWEST,
     selected: NEWEST,
     rows: [
       {
@@ -246,7 +247,25 @@ describe("Creator Detail page", () => {
     });
   });
 
-  it("describes the latest contract in the profile even while an older period is open", async () => {
+  it("describes the current contract, not a newer renewal that has not started", async () => {
+    const renewal: CreatorPeriod = {
+      ...NEWEST,
+      contractId: "33333333-3333-4333-8333-333333333333",
+      periodNumber: 3,
+      type: "probation",
+      startDate: "2027-01-01",
+      endDate: "2027-06-30",
+      status: "upcoming",
+    };
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [renewal, NEWEST, OLDEST], current: NEWEST }));
+
+    await renderPage();
+
+    expect(screen.getByText("Tipe", { selector: "dt" }).nextElementSibling).toHaveTextContent("Regular");
+    expect(screen.getByText("Kontrak").nextElementSibling).toHaveTextContent("Aktif");
+  });
+
+  it("describes the current contract in the profile even while an older period is open", async () => {
     vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ selected: OLDEST }));
 
     await renderPage({ contract: FIRST });

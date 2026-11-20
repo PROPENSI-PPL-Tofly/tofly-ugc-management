@@ -121,6 +121,7 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
   return {
     creator: { id: CREATOR, name: "Rangga Pratama", email: "rangga@example.com", socials: {}, accessRevokeDate: null },
     periods: selected ? [selected] : [],
+    current: selected,
     selected,
     rows: Array.from({ length: shown }, (_, index) => row((page - 1) * 10 + index + 1)),
     page,

@@ -229,6 +229,8 @@ export interface CreatorDetailView {
   creator: CreatorProfile;
   /** Newest first, as the tabs are laid out. */
   periods: CreatorPeriod[];
+  /** The period the profile describes: the current one, whichever period is open. */
+  current: CreatorPeriod | null;
   /** The period whose content is on show; null for a creator without a contract. */
   selected: CreatorPeriod | null;
   rows: CreatorContentRow[];

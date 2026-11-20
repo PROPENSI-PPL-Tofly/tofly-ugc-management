@@ -69,8 +69,8 @@ export default async function CreatorDetailPage({
 
       {view ? (
         <div className="flex flex-col gap-4">
-          {/* The profile describes the creator's latest contract, whichever period is open. */}
-          <CreatorProfilePanel creator={view.creator} current={view.periods[0] ?? null} today={today} connections={view.connections} />
+          {/* The profile describes the creator's current contract, whichever period is open. */}
+          <CreatorProfilePanel creator={view.creator} current={view.current} today={today} connections={view.connections} />
           <PeriodTabs
             creatorId={id}
             periods={view.periods}

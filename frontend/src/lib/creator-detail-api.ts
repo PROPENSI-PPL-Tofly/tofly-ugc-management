@@ -43,7 +43,8 @@ export type RawCreatorPeriod = Pick<
   | "remainingEvergreenQuota"
   | "progress"
   | "performance"
->;
+> &
+  Partial<Pick<ContractPeriod, "isCurrent">>;
 
 /** The invoice card needs only the endpoint's total, floor and status. */
 export type RawPeriodInvoice = Pick<RawInvoiceDetail, "total" | "floored" | "invoiceStatus">;
@@ -202,8 +203,13 @@ export function toCreatorDetailView(
   calendar: readonly RawContentListItem[] = [],
   invoice: RawPeriodInvoice | null = null,
 ): CreatorDetailView {
-  // The tabs and the profile read the periods newest first.
+  // The tabs read the periods newest first.
   const periods = raw.contractHistory.map(toPeriod).reverse();
+  // The profile describes the period the API calls current (the one Creator Database shows), so
+  // a renewal that has not started never stands in for the running contract.
+  const currentId =
+    raw.contractHistory.find((period) => period.isCurrent)?.id ??
+    raw.contractHistory.find((period) => period.status === "active")?.id;
   const open = openContractId(raw, state);
   // An empty table is still one page: the pagination stays on show and needs a page to name.
   const totalPages = Math.max(1, contents?.totalPages ?? 1);
@@ -211,6 +217,7 @@ export function toCreatorDetailView(
   return {
     creator: toProfile(raw),
     periods,
+    current: periods.find((period) => period.contractId === currentId) ?? periods[0] ?? null,
     selected: periods.find((period) => period.contractId === open) ?? null,
     rows: contents ? contents.items.map(toRow) : [],
     // The API answers a page past the end with the number it was asked for; the page shown is
