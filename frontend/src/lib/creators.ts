@@ -12,6 +12,10 @@ import type { ContractType, CreatorFormErrors, CreatorFormInput } from "./creato
 export const PAGE_SIZE = 10;
 
 export type ContractStatus = "active" | "expired" | "upcoming" | "none";
+
+/** Why a contract was ended early, as PBI-37 stores it on the contract. */
+export const EARLY_END_REASONS = ["violation", "fraud", "other"] as const;
+export type EarlyEndReason = (typeof EARLY_END_REASONS)[number];
 /** Where a content is in its lifecycle, as the API reports it. */
 export type ContentStatus =
   | "pending"
@@ -96,6 +100,8 @@ export interface ContractPeriod {
   contentQuota: number;
   /** In rupiah. */
   fixedRate: number;
+  /** Set once PBI-37 ends the contract early; not sent by APIs from before it. */
+  earlyEndReason?: EarlyEndReason | null;
   /** Evergreen contents the period can still take before its quota is full; never below 0. */
   remainingEvergreenQuota: number;
   type: ContractType;
@@ -220,11 +226,18 @@ const FORM_ERROR_FIELDS: (keyof CreatorFormErrors)[] = [
   "deadlines",
 ];
 
-/** The server's per-field messages, narrowed to text for fields the form can show them under. */
-function formErrors(body: unknown): CreatorFormErrors {
+/**
+ * A 422's per-field messages, narrowed to text for the fields a form can show them under; any
+ * other key or a message that is not text is dropped (OWASP A05). Shared by every form that
+ * saves a creator or a contract period.
+ */
+export function readFieldErrors(
+  body: unknown,
+  fields: readonly (keyof CreatorFormErrors)[],
+): CreatorFormErrors {
   const raw = (body as { errors?: Record<string, unknown> } | null)?.errors ?? {};
   const errors: CreatorFormErrors = {};
-  for (const field of FORM_ERROR_FIELDS) {
+  for (const field of fields) {
     const message = raw[field];
     if (typeof message === "string") {
       errors[field] = message;
@@ -264,5 +277,5 @@ export async function createCreator(request: NewCreatorRequest): Promise<CreateC
   }
 
   const body: unknown = await response.json().catch(() => null);
-  return { ok: false, message: "Data creator tidak valid", errors: formErrors(body) };
+  return { ok: false, message: "Data creator tidak valid", errors: readFieldErrors(body, FORM_ERROR_FIELDS) };
 }

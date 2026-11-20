@@ -164,6 +164,22 @@ describe("currentAndHistory", () => {
     expect(currentAndHistory([first, third, second])).toEqual({ current: third, history: [second, first] });
   });
 
+  // PBI-30: a renewal waiting to start is the newest period, but the one running is still "this
+  // period"; the renewal sits at the top of the history until it starts.
+  it("keeps the running period on top while a newer renewal has not started", () => {
+    const first = invoice({ periodNumber: 1 });
+    const renewal = invoice({ periodNumber: 2, notStarted: true });
+
+    expect(currentAndHistory([first, renewal])).toEqual({ current: first, history: [renewal] });
+  });
+
+  it("puts the newest period on top when none has started", () => {
+    const first = invoice({ periodNumber: 1, notStarted: true });
+    const second = invoice({ periodNumber: 2, notStarted: true });
+
+    expect(currentAndHistory([first, second])).toEqual({ current: second, history: [first] });
+  });
+
   it("has no current invoice and no history when the creator has none", () => {
     expect(currentAndHistory([])).toEqual({ current: null, history: [] });
   });

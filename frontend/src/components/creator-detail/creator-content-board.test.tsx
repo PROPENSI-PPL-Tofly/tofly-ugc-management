@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   type CreatorContentRow,
@@ -95,6 +95,8 @@ const PERIOD: CreatorPeriod = {
   evergreenCount: 18,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  fixedRate: 2_500_000,
+  earlyEndReason: null,
   progress: { submitted: 0, total: 19, percent: 0 },
   performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
@@ -119,6 +121,7 @@ function viewOf(total: number, page = 1, selected: CreatorPeriod | null = PERIOD
   return {
     creator: { id: CREATOR, name: "Rangga Pratama", email: "rangga@example.com", socials: {}, accessRevokeDate: null },
     periods: selected ? [selected] : [],
+    current: selected,
     selected,
     rows: Array.from({ length: shown }, (_, index) => row((page - 1) * 10 + index + 1)),
     page,
@@ -162,6 +165,25 @@ describe("CreatorContentBoard", () => {
       screen.getByRole("heading", { level: 2, name: "Jadwal Konten" }),
     );
     expect(screen.queryByRole("heading", { name: "Content Plan" })).toBeNull();
+  });
+
+  it("toggles the deadline sort from asc to desc and back", async () => {
+    const first = renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "asc" });
+    fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    // "desc" is not the default, so it goes out in the query.
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(expect.stringContaining("sort=desc"), { scroll: false }),
+    );
+    first.unmount();
+
+    replace.mockClear();
+    renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "desc" });
+    fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    // "asc" is the default, so it is left out of the query entirely.
+    await waitFor(() => {
+      const [path] = replace.mock.calls[0] as [string, object];
+      expect(path).not.toContain("sort=desc");
+    });
   });
 
   it("offers the type and status filters over the table", () => {

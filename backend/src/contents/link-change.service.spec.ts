@@ -34,6 +34,8 @@ function stored(overrides: Partial<LinkedContent> = {}): LinkedContent {
     video_submitted_at: null,
     content_links: [],
     contracts: {
+      // A period that started before NOW; PBI-30.2's test moves it later.
+      start_date: new Date('2026-09-01T00:00:00.000Z'),
       invoice: null,
       creators: {
         user_id: CREATOR_USER,
@@ -311,6 +313,36 @@ describe('LinkChangeService', () => {
         transaction.content_links.createMany.mock.calls[0][0].data[0],
       ).toMatchObject({ submitted_at: TODAY });
       expect(result.submittedAt).toBe('2026-10-10');
+    });
+
+    it("refuses a creator's link before the period starts on the transaction's clock, writing nothing and syncing nothing (PBI-30.2)", async () => {
+      // NOW is 10 Oct, 09.30 WIB; the period starts on the 11th.
+      const notStarted = stored();
+      notStarted.contracts.start_date = new Date('2026-10-11T00:00:00.000Z');
+      transaction.contents.findFirst.mockResolvedValue(notStarted);
+      const linksSaved = vi.fn();
+      const service = new LinkChangeService(prisma, undefined, linksSaved);
+
+      expect(
+        await refusal(
+          service.submit(CONTENT_ID, creator, [
+            { platform: 'tiktok', url: VIDEO },
+          ]),
+        ),
+      ).toEqual({
+        status: 409,
+        body: {
+          code: 'PERIOD_NOT_STARTED',
+          message: 'Periode kontrak konten ini belum dimulai',
+        },
+      });
+      // The read carries the period's start day for the check.
+      const { select } = transaction.contents.findFirst.mock.calls[0][0];
+      expect(select.contracts.select.start_date).toBe(true);
+      expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+      expect(transaction.content_links.createMany).not.toHaveBeenCalled();
+      expect(transaction.content_events.createMany).not.toHaveBeenCalled();
+      expect(linksSaved).not.toHaveBeenCalled();
     });
 
     it('lets any other database failure through untouched', async () => {

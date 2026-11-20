@@ -12,6 +12,10 @@ const INPUT = {
   link: 'https://drive.google.com/d/1',
   notes: 'Cek menit 0:10',
 };
+/** A period that began long ago, so a test about anything else never meets the start-date rule. */
+const LONG_STARTED = new Date('2000-01-01T00:00:00Z');
+/** PBI-30.2: a period starting 2 December 2026, which Jakarta reaches at 17:00 UTC on the 1st. */
+const STARTS_2_DEC = new Date('2026-12-02T00:00:00Z');
 
 // Explicitly lists committed statuses as defined by PBI-6.
 const COMMITTED = [
@@ -25,6 +29,8 @@ const COMMITTED = [
 function stub(
   options: {
     content?: { id: string; status: string } | null;
+    /** The start day of the content's contract period. */
+    periodStart?: Date;
     updated?: number;
     creator?: {
       first_name: string;
@@ -35,13 +41,14 @@ function stub(
 ) {
   const transaction = {
     contents: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue(
-          options.content === undefined
-            ? { id: CONTENT_ID, status: 'scheduled' }
-            : options.content,
-        ),
+      findFirst: vi.fn().mockResolvedValue(
+        options.content === null
+          ? null
+          : {
+              ...(options.content ?? { id: CONTENT_ID, status: 'scheduled' }),
+              contracts: { start_date: options.periodStart ?? LONG_STARTED },
+            },
+      ),
       updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
     },
     submissions: {
@@ -103,8 +110,51 @@ describe('DraftSubmissionService.submit', () => {
         status: { in: COMMITTED },
         contracts: { creator_id: CREATOR_ID },
       },
-      select: { id: true, status: true },
+      // Also the period's start day, to refuse a draft before the period starts (PBI-30.2).
+      select: {
+        id: true,
+        status: true,
+        contracts: { select: { start_date: true } },
+      },
     });
+  });
+
+  it('returns 409 PERIOD_NOT_STARTED before Jakarta reaches the start date and saves nothing (AC 8.2.2)', async () => {
+    const { transaction, service } = stub({ periodStart: STARTS_2_DEC });
+
+    // 23:59:59.999 WIB on 1 December.
+    const error = await failure(
+      service.submit(
+        CONTENT_ID,
+        CREATOR_ID,
+        INPUT,
+        new Date('2026-12-01T16:59:59.999Z'),
+      ),
+    );
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toEqual({
+      code: 'PERIOD_NOT_STARTED',
+      message: 'Periode kontrak konten ini belum dimulai',
+    });
+    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+    expect(transaction.submissions.create).not.toHaveBeenCalled();
+    expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts the draft from Jakarta midnight on the start date', async () => {
+    const { transaction, service } = stub({ periodStart: STARTS_2_DEC });
+
+    // 00:00 WIB on 2 December, still 1 December in UTC.
+    const result = await service.submit(
+      CONTENT_ID,
+      CREATOR_ID,
+      INPUT,
+      new Date('2026-12-01T17:00:00Z'),
+    );
+
+    expect(result.status).toBe('draft_review');
+    expect(transaction.submissions.create).toHaveBeenCalledTimes(1);
   });
 
   it('hands in a first draft: the content goes to review and the link is saved with the note', async () => {

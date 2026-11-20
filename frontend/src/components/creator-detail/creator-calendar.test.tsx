@@ -13,6 +13,8 @@ const PERIOD: CreatorPeriod = {
   evergreenCount: 3,
   remainingEvergreenQuota: 1,
   daysBetween: 14,
+  fixedRate: 2_500_000,
+  earlyEndReason: null,
   progress: { submitted: 0, total: 4, percent: 0 },
   performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
 };
@@ -68,6 +70,13 @@ describe("CreatorCalendar", () => {
     expect(screen.getByRole("heading", { level: 4, name: "November 2026" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bulan Berikutnya" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Hari Ini" }));
+    expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();
+  });
+
+  it("steps back a month on Bulan Sebelumnya", () => {
+    renderCalendar("2026-09-20");
+    fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bulan Sebelumnya" }));
     expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();
   });
 

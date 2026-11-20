@@ -183,15 +183,17 @@ export function creatorNextStep(invoice: Pick<CreatorInvoice, "status" | "notSta
 }
 
 /**
- * The latest contract's invoice for the top of the page, and the earlier ones for the history
- * below it, latest first. Ordered here by period rather than trusted to the answer's order.
+ * The newest contract that has started for the top of the page (the newest of all when none has),
+ * and the rest for the history below it, latest first, so a renewal waiting to start never hides
+ * the period being billed (PBI-30). Ordered here by period rather than trusted to the answer's order.
  */
 export function currentAndHistory(invoices: readonly CreatorInvoice[]): {
   current: CreatorInvoice | null;
   history: CreatorInvoice[];
 } {
-  const [current = null, ...history] = [...invoices].sort((a, b) => b.periodNumber - a.periodNumber);
-  return { current, history };
+  const sorted = [...invoices].sort((a, b) => b.periodNumber - a.periodNumber);
+  const current = sorted.find((invoice) => !invoice.notStarted) ?? sorted[0] ?? null;
+  return { current, history: sorted.filter((invoice) => invoice !== current) };
 }
 
 /** The longest comment a thread takes (13.2, proposed), counted as it is sent. */
