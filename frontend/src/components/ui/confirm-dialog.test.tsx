@@ -19,6 +19,36 @@ describe("ConfirmDialog", () => {
     return { onConfirm, onCancel };
   }
 
+  // PBI-30 AC 3: renewing a contract ended for cause carries a warning above the facts.
+  it("shows a warning beside the question only when it is given one", () => {
+    const { rerender } = render(
+      <ConfirmDialog
+        title="Perpanjang kontrak?"
+        message="Kontrak dan invoice periode sebelumnya tidak berubah."
+        warning="Kontrak sebelumnya diakhiri lebih awal karena Fraud."
+        confirmLabel="Perpanjang"
+        cancelLabel="Batal"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Kontrak sebelumnya diakhiri lebih awal karena Fraud.");
+
+    rerender(
+      <ConfirmDialog
+        title="Perpanjang kontrak?"
+        message="Kontrak dan invoice periode sebelumnya tidak berubah."
+        confirmLabel="Perpanjang"
+        cancelLabel="Batal"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("alertdialog")).not.toHaveTextContent("diakhiri lebih awal");
+  });
+
   it("asks its question as an alertdialog with the consequence spelled out", () => {
     renderDialog();
     const dialog = screen.getByRole("alertdialog", { name: "Batalkan penambahan creator?" });

@@ -2,6 +2,7 @@ import type { RawContentList } from "./content-list-api";
 import { DEFAULT_CREATOR_DETAIL_PARAMS, type CreatorDetailParams } from "./creator-detail";
 import {
   openContractId,
+  toCreatorCalendarQuery,
   toCreatorContentsQuery,
   toCreatorDetailView,
   type RawCreatorDetail,
@@ -23,6 +24,7 @@ function period(id: string, extra: Partial<RawCreatorPeriod> = {}): RawCreatorPe
     status: "active",
     contentQuota: 6,
     daysBetween: 14,
+    fixedRate: 2_500_000,
     remainingEvergreenQuota: 4,
     progress: { submitted: 0, total: 6, percent: 0 },
     performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
@@ -55,6 +57,7 @@ const RAW: RawCreatorDetail = {
       status: "expired",
       contentQuota: 3,
       daysBetween: 7,
+      fixedRate: 1_000_000,
       remainingEvergreenQuota: 0,
     }),
     period(NEWEST),
@@ -87,8 +90,49 @@ const CONTENTS: RawContentList = {
 const BARE: CreatorDetailParams = DEFAULT_CREATOR_DETAIL_PARAMS;
 
 describe("openContractId", () => {
-  it("is the newest contract when the address names none", () => {
+  // PBI-30 display: the switcher selects the active period first, the next Belum Dimulai
+  // second, and the most recent as the last resort (AC 2).
+  it("is the active contract when the address names none", () => {
+    // RAW has NEWEST as active; the old behaviour also picked it, so this passes either way.
     expect(openContractId(RAW, BARE)).toBe(NEWEST);
+  });
+
+  it("prefers the active period even when a newer one has not started yet", () => {
+    const raw = {
+      ...RAW,
+      contractHistory: [
+        period(OLDEST, { periodNumber: 1, status: "expired" }),
+        period(MIDDLE, { periodNumber: 2, status: "active" }),
+        period(NEWEST, { periodNumber: 3, status: "upcoming", startDate: "2027-01-01" }),
+      ],
+    };
+
+    expect(openContractId(raw, BARE)).toBe(MIDDLE);
+  });
+
+  it("picks the next Belum Dimulai period when none is active", () => {
+    const raw = {
+      ...RAW,
+      contractHistory: [
+        period(OLDEST, { periodNumber: 1, status: "expired" }),
+        period(MIDDLE, { periodNumber: 2, status: "upcoming", startDate: "2026-12-01" }),
+        period(NEWEST, { periodNumber: 3, status: "upcoming", startDate: "2027-06-01" }),
+      ],
+    };
+
+    expect(openContractId(raw, BARE)).toBe(MIDDLE);
+  });
+
+  it("falls back to the most recent period when none is active or upcoming", () => {
+    const raw = {
+      ...RAW,
+      contractHistory: [
+        period(OLDEST, { periodNumber: 1, status: "expired" }),
+        period(MIDDLE, { periodNumber: 2, status: "expired" }),
+      ],
+    };
+
+    expect(openContractId(raw, BARE)).toBe(MIDDLE);
   });
 
   it("is the contract the address names, when it is this creator's", () => {
@@ -102,7 +146,7 @@ describe("openContractId", () => {
     expect(openContractId(raw, { ...BARE, contract: lower.toUpperCase() })).toBe(lower);
   });
 
-  it("falls back to the newest when the named contract is not this creator's", () => {
+  it("falls back to the active period when the named contract is not this creator's", () => {
     expect(openContractId(RAW, { ...BARE, contract: SOMEONE_ELSES })).toBe(NEWEST);
   });
 
@@ -180,7 +224,67 @@ describe("toCreatorContentsQuery", () => {
   });
 });
 
+describe("toCreatorCalendarQuery", () => {
+  it("asks for the contract's contents in deadline order, one page at a time", () => {
+    const query = toCreatorCalendarQuery(NEWEST, 2);
+
+    expect(query.get("contract")).toBe(NEWEST);
+    expect(query.get("sort")).toBe("deadline_asc");
+    expect(query.get("pageSize")).toBe("50");
+    expect(query.get("page")).toBe("2");
+  });
+
+  it("sends no filters beyond the contract, the sort and the page", () => {
+    const query = toCreatorCalendarQuery(MIDDLE, 1);
+
+    expect([...query.keys()].sort()).toEqual(["contract", "page", "pageSize", "sort"]);
+  });
+});
+
 describe("toCreatorDetailView", () => {
+  describe("current", () => {
+    // A renewal waiting to start is the newest period, but the running one is still current.
+    const RENEWED: RawCreatorDetail = {
+      ...RAW,
+      contractHistory: [
+        period(MIDDLE, { periodNumber: 1, type: "probation", status: "active", isCurrent: true }),
+        period(NEWEST, { periodNumber: 2, status: "upcoming", startDate: "2027-05-10", isCurrent: false }),
+      ],
+    };
+
+    it("is the period the API marks current, not the newest one", () => {
+      const view = toCreatorDetailView(RENEWED, CONTENTS, BARE);
+
+      expect(view.current?.contractId).toBe(MIDDLE);
+      expect(view.current?.status).toBe("active");
+      expect(view.current?.type).toBe("probation");
+    });
+
+    it("stays the current period whichever period the address opens", () => {
+      expect(toCreatorDetailView(RENEWED, CONTENTS, { ...BARE, contract: NEWEST }).current?.contractId).toBe(MIDDLE);
+    });
+
+    it("is the active period when the API marks none", () => {
+      const raw: RawCreatorDetail = {
+        ...RAW,
+        contractHistory: [
+          period(MIDDLE, { periodNumber: 1, status: "active" }),
+          period(NEWEST, { periodNumber: 2, status: "upcoming" }),
+        ],
+      };
+
+      expect(toCreatorDetailView(raw, CONTENTS, BARE).current?.contractId).toBe(MIDDLE);
+    });
+
+    it("is the newest period when none is marked or active", () => {
+      expect(toCreatorDetailView(RAW, CONTENTS, BARE).current?.contractId).toBe(NEWEST);
+    });
+
+    it("is nothing for a creator without a contract", () => {
+      expect(toCreatorDetailView({ ...RAW, contractHistory: [] }, null, BARE).current).toBeNull();
+    });
+  });
+
   it("names the creator with the accounts they have", () => {
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).creator).toEqual({
       id: "creator-1",
@@ -241,6 +345,9 @@ describe("toCreatorDetailView", () => {
       evergreenCount: 3,
       remainingEvergreenQuota: 0,
       daysBetween: 7,
+      // Perpanjang Kontrak opens with the previous period's rate (PBI-30 AC 2).
+      fixedRate: 1_000_000,
+      earlyEndReason: null,
       progress: { submitted: 0, total: 6, percent: 0 },
       performance: { onTimeRate: null, avgRevisions: 0, productivity: "no_data", productivityLabel: "Belum Ada Data" },
     });
@@ -271,8 +378,8 @@ describe("toCreatorDetailView", () => {
       ],
     } as unknown as RawCreatorDetail;
 
-    // The period's own progress and performance are carried for Creator Detail to show; the
-    // fixed rate and the counts the progress already holds are not.
+    // The period's own progress, performance and fixed rate are carried for Creator Detail to
+    // show; the counts the progress already holds are not.
     expect(toCreatorDetailView(answered, CONTENTS, BARE).selected).toEqual({
       contractId: NEWEST,
       periodNumber: 2,
@@ -284,9 +391,45 @@ describe("toCreatorDetailView", () => {
       evergreenCount: 2,
       remainingEvergreenQuota: 4,
       daysBetween: 14,
+      fixedRate: 400000,
+      earlyEndReason: null,
       progress: { submitted: 2, total: 4, percent: 50 },
       performance: { onTimeRate: 0, avgRevisions: 2.33, productivity: "risk", productivityLabel: "Berisiko" },
     });
+  });
+
+  // PBI-37 ends a contract early for a reason; PBI-30 AC 3 warns about it on renewal.
+  it.each([
+    ["Pelanggaran Kontrak", "violation"],
+    ["Fraud", "fraud"],
+    ["Lainnya", "other"],
+  ] as const)("reads a contract ended early for %s", (_label, earlyEndReason) => {
+    const raw = { ...RAW, contractHistory: [period(NEWEST, { earlyEndReason })] };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEndReason).toBe(earlyEndReason);
+  });
+
+  it.each([
+    ["not sent, as before PBI-37", undefined],
+    ["null for a contract not ended early", null],
+    ["a reason from another world", "bored"],
+  ])("reads no early end when the reason is %s", (_label, earlyEndReason) => {
+    const raw = {
+      ...RAW,
+      contractHistory: [period(NEWEST, { earlyEndReason } as unknown as Partial<RawCreatorPeriod>)],
+    };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEndReason).toBeNull();
+  });
+
+  // The invoice card's Total Pendapatan: a floored total is one the penalties ate, so Rp0.
+  it.each([
+    ["the invoice's total", false, 3_000_000],
+    ["nothing when the penalties floored the total", true, 0],
+  ])("reads the period's earnings as %s", (_label, floored, amount) => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], { total: 3_000_000, floored, invoiceStatus: "accruing" });
+
+    expect(view.earnings).toEqual({ amount, status: "accruing" });
   });
 
   it("keeps each period's own measurements apart", () => {
@@ -336,7 +479,8 @@ describe("toCreatorDetailView", () => {
     },
   );
 
-  it("opens the newest period when the address names none", () => {
+  it("opens the active period when the address names none", () => {
+    // RAW's NEWEST is active, so the active period is the newest here.
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).selected?.contractId).toBe(NEWEST);
   });
 
@@ -347,7 +491,7 @@ describe("toCreatorDetailView", () => {
     expect(view.selected?.periodNumber).toBe(2);
   });
 
-  it("opens the newest period when the named contract is not this creator's", () => {
+  it("opens the active period when the named contract is not this creator's", () => {
     const view = toCreatorDetailView(RAW, CONTENTS, { ...BARE, contract: SOMEONE_ELSES });
 
     expect(view.selected?.contractId).toBe(NEWEST);
@@ -411,6 +555,26 @@ describe("toCreatorDetailView", () => {
     expect(view.total).toBe(0);
     expect(view.totalPages).toBe(1);
     expect(view.page).toBe(1);
+  });
+
+  it("carries the period's earnings and invoice status when the invoice is known", () => {
+    const invoice = { total: 2_500_000, floored: false, invoiceStatus: "finalized" as const };
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], invoice);
+
+    expect(view.earnings).toEqual({ amount: 2_500_000, status: "finalized" });
+  });
+
+  it("holds the earnings at zero when the penalty floored the total", () => {
+    const invoice = { total: 500_000, floored: true, invoiceStatus: "paid" as const };
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], invoice);
+
+    expect(view.earnings).toEqual({ amount: 0, status: "paid" });
+  });
+
+  it("carries no earnings when the invoice endpoint was unavailable", () => {
+    const view = toCreatorDetailView(RAW, CONTENTS, BARE, [], null);
+
+    expect(view.earnings).toBeNull();
   });
 });
 

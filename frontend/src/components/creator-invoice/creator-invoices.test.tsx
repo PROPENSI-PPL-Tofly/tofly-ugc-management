@@ -88,6 +88,26 @@ describe("CreatorInvoices", () => {
     expect(history).toHaveTextContent("Rp1.200.000");
   });
 
+  it("lists the invoices of every period in the history (AC 11)", () => {
+    const THIRD = aCreatorInvoice({
+      contractId: "5a5a5a5a-0000-4000-8000-000000000003",
+      periodNumber: 3,
+      periodStart: "2026-12-01",
+      periodEnd: "2027-05-31",
+      status: "accruing",
+      totalAmount: 800000,
+    });
+    render(<CreatorInvoices invoices={[EARLIER, CURRENT, THIRD]} />);
+
+    const current = panel("Invoice Periode Ini");
+    expect(current).toHaveTextContent("Periode 3");
+
+    const history = panel("Riwayat Invoice");
+    expect(within(history).getAllByRole("row")).toHaveLength(3);
+    expect(history).toHaveTextContent("Periode 1");
+    expect(history).toHaveTextContent("Periode 2");
+  });
+
   it("says there is no invoice yet when the creator has none, and lists no history", () => {
     render(<CreatorInvoices invoices={[]} />);
 

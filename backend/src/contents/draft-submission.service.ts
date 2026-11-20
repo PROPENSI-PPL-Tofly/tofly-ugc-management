@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
+import { StartedPeriodSpecification } from '../creators/started-period.specification.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import { nextDraftStatus, type DraftSubmission } from './draft-submission.js';
+import { periodNotStarted } from './period-not-started.js';
 
 export interface SubmittedDraft {
   contentId: string;
@@ -28,8 +30,16 @@ export interface DraftSubmissionTransaction {
         status: { in: content_status[] };
         contracts: { creator_id: string };
       };
-      select: { id: true; status: true };
-    }) => Promise<{ id: string; status: content_status } | null>;
+      select: {
+        id: true;
+        status: true;
+        contracts: { select: { start_date: true } };
+      };
+    }) => Promise<{
+      id: string;
+      status: content_status;
+      contracts: { start_date: Date };
+    } | null>;
     updateMany: (args: {
       where: { id: string; status: content_status };
       data: { status: 'draft_review' };
@@ -103,11 +113,16 @@ export class DraftSubmissionService implements DraftSubmitter {
     private readonly prisma: DraftSubmissionClient,
   ) {}
 
-  /** Submit/Resubmit Draft (PRD 3.16): saves the link and moves the content on together. */
+  /**
+   * Submit/Resubmit Draft (PRD 3.16): saves the link and moves the content on together.
+   * `now` decides whether the content's period has started; it is the moment of the request
+   * unless a test pins it.
+   */
   async submit(
     contentId: string,
     creatorId: string,
     input: DraftSubmission,
+    now: Date = new Date(),
   ): Promise<SubmittedDraft> {
     return this.prisma.$transaction(async (transaction) => {
       // Scoped to the caller's own committed contents: another creator's content and an
@@ -118,13 +133,22 @@ export class DraftSubmissionService implements DraftSubmitter {
           status: { in: [...COMMITTED_STATUSES] },
           contracts: { creator_id: creatorId },
         },
-        select: { id: true, status: true },
+        select: {
+          id: true,
+          status: true,
+          contracts: { select: { start_date: true } },
+        },
       });
       if (!content) {
         throw new NotFoundException({
           code: 'CONTENT_NOT_FOUND',
           message: 'Konten tidak ditemukan',
         });
+      }
+      // PBI-30.2 (AC 8.2.2): the creator's own content, but its period has not started yet.
+      const started = new StartedPeriodSpecification(now);
+      if (!started.isSatisfiedBy(content.contracts)) {
+        throw periodNotStarted();
       }
 
       const status = nextDraftStatus(content.status);

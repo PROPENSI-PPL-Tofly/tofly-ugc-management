@@ -66,6 +66,8 @@ export const LINKED_CONTENT_SELECT = {
   },
   contracts: {
     select: {
+      // PBI-30.2: a creator's change waits for the period's start (CreatorLinkActor).
+      start_date: true,
       invoice: { select: { status: true } },
       creators: {
         select: {
