@@ -341,18 +341,28 @@ function checkDeadlines(
   return deadlines;
 }
 
+/** The contract half of a creator: what Tambah Creator and a new period (PBI-30) both ask for. */
+export type ContractTerms = Pick<
+  NewCreator,
+  | 'contractType'
+  | 'contractStart'
+  | 'contractEnd'
+  | 'interval'
+  | 'quota'
+  | 'fixedRate'
+  | 'deadlines'
+>;
+
 /**
- * Validates the Add Creator body once, at the edge, and hands the service values it can save
- * without checking anything again.
+ * The contract fields of a form body, checked by the same rules wherever a contract is made, so
+ * a new period can never accept what Tambah Creator refuses. Records each problem in `errors`
+ * under the form's field name.
  */
-export function checkNewCreator(input: unknown, today: Date): NewCreator {
-  // Spreading null or undefined yields {}, so a missing or null body gets the same per-field
-  // 422 as a form left blank instead of a TypeError; a bare string only yields index keys.
-  const body: Record<string, unknown> = { ...(input as object) };
-  const errors: NewCreatorErrors = {};
-  const name = checkName(body.name, errors);
-  const email = checkEmail(body.email, errors);
-  const socialAccounts = checkSocial(body, errors);
+export function checkContractTerms(
+  body: Record<string, unknown>,
+  today: Date,
+  errors: NewCreatorErrors,
+): ContractTerms {
   const contractType = checkContractType(body.contractType, errors);
   const contract = checkContract(
     body.contractStart,
@@ -372,6 +382,30 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
     errors,
   );
 
+  return {
+    contractType,
+    ...contract,
+    interval,
+    quota,
+    fixedRate,
+    deadlines,
+  };
+}
+
+/**
+ * Validates the Add Creator body once, at the edge, and hands the service values it can save
+ * without checking anything again.
+ */
+export function checkNewCreator(input: unknown, today: Date): NewCreator {
+  // Spreading null or undefined yields {}, so a missing or null body gets the same per-field
+  // 422 as a form left blank instead of a TypeError; a bare string only yields index keys.
+  const body: Record<string, unknown> = { ...(input as object) };
+  const errors: NewCreatorErrors = {};
+  const name = checkName(body.name, errors);
+  const email = checkEmail(body.email, errors);
+  const socialAccounts = checkSocial(body, errors);
+  const terms = checkContractTerms(body, today, errors);
+
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
       message: 'Data creator tidak valid',
@@ -383,11 +417,6 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
     ...name,
     email,
     socialAccounts,
-    contractType,
-    ...contract,
-    interval,
-    quota,
-    fixedRate,
-    deadlines,
+    ...terms,
   };
 }
