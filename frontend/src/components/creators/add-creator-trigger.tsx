@@ -1,19 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import type { CreatorFormErrors } from "@/lib/creator-form";
-import { createCreator, type NewCreatorRequest } from "@/lib/creators";
+import { createCreator } from "@/lib/creators";
 import { AddCreatorModal } from "./add-creator-modal";
+import { useFormSave } from "./use-form-save";
 
-interface SaveFailure {
-  message?: string;
-  errors: CreatorFormErrors;
-}
-
-const NO_FAILURE: SaveFailure = { errors: {} };
+const NO_ERRORS: CreatorFormErrors = {};
 
 /**
  * Owns the open/closed state for AddCreatorModal, kept separate from CreatorTable's
@@ -29,51 +24,30 @@ export function AddCreatorTrigger({
   existingEmails?: string[];
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<SaveFailure>(NO_FAILURE);
   const { show: confirm, toast } = useToast();
-
-  // Stable, so the modal's discard guard is not rebuilt on every render.
-  const close = useCallback(() => {
-    setOpen(false);
-    setFailure(NO_FAILURE);
-  }, []);
-
-  async function save(request: NewCreatorRequest) {
-    setSaving(true);
-    const result = await createCreator(request);
-    setSaving(false);
-
-    if (result.ok) {
-      close();
+  const form = useFormSave(
+    createCreator,
+    (request) => {
       confirm(`Creator ${request.name.trim()} berhasil ditambahkan.`);
       router.refresh();
-      return;
-    }
-
-    // Field messages are shown under their inputs; the general message only when none are.
-    const hasFieldErrors = Object.keys(result.errors).length > 0;
-    setFailure({
-      errors: result.errors,
-      message: hasFieldErrors ? undefined : result.message,
-    });
-  }
+    },
+    NO_ERRORS,
+  );
 
   return (
     <>
-      <Button variant="accent" onClick={() => setOpen(true)}>
+      <Button variant="accent" onClick={form.openForm}>
         + Tambah Creator
       </Button>
 
-      {open ? (
+      {form.open ? (
         <AddCreatorModal
-          onClose={close}
-          onSubmit={save}
-          loading={saving}
+          onClose={form.close}
+          onSubmit={form.submit}
+          loading={form.saving}
           existingEmails={existingEmails}
-          serverErrors={failure.errors}
-          formError={failure.message}
+          serverErrors={form.serverErrors}
+          formError={form.formError}
         />
       ) : null}
 

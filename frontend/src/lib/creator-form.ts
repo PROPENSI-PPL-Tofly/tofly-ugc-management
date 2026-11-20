@@ -186,7 +186,6 @@ export function validateCreatorForm(
   existingEmails: string[] = [],
 ): CreatorFormErrors {
   const errors: CreatorFormErrors = {};
-  const todayDay = localCalendarDay(today);
 
   const name = textProblem(input.name, MAX_NAME_LENGTH, "Nama wajib diisi", "Nama");
   if (name) errors.name = name;
@@ -198,6 +197,35 @@ export function validateCreatorForm(
   } else if (existingEmails.includes(input.email)) {
     errors.email = "Email sudah terdaftar";
   }
+
+  Object.assign(errors, validateContractTerms(input, today));
+
+  // Both usernames are optional; only one longer than the API stores is a problem.
+  for (const field of ["instagramUsername", "tiktokUsername"] as const) {
+    if (input[field].trim().length > MAX_USERNAME_LENGTH) {
+      errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
+    }
+  }
+
+  return errors;
+}
+
+/** A contract's terms, without who the creator is: what Tambah Creator and a renewal both set. */
+export type ContractTermsInput = Pick<
+  CreatorFormInput,
+  "contractStart" | "contractEnd" | "interval" | "quota" | "fixedRate" | "contractType"
+>;
+
+/**
+ * The rules of a contract's terms alone, one source for Tambah Creator and Perpanjang Kontrak
+ * (PBI-30 AC 2: "the same rules"), so the two forms can never disagree on a contract.
+ */
+export function validateContractTerms(
+  input: ContractTermsInput,
+  today: Date = new Date(),
+): CreatorFormErrors {
+  const errors: CreatorFormErrors = {};
+  const todayDay = localCalendarDay(today);
 
   checkContractDates(input, todayDay, errors);
 
@@ -213,13 +241,6 @@ export function validateCreatorForm(
 
   const fixedRate = fixedRateProblem(input.fixedRate);
   if (fixedRate) errors.fixedRate = fixedRate;
-
-  // Both usernames are optional; only one longer than the API stores is a problem.
-  for (const field of ["instagramUsername", "tiktokUsername"] as const) {
-    if (input[field].trim().length > MAX_USERNAME_LENGTH) {
-      errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
-    }
-  }
 
   if (input.contractType === "") {
     errors.contractType = "Jenis kontrak wajib dipilih";
