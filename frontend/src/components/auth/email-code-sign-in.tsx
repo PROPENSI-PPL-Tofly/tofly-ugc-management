@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ALERT, FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import { EMAIL_FORMAT, MAX_EMAIL_LENGTH } from "@/lib/creator-form";
+import { ACCESS_CLOSED } from "@/lib/login-errors";
 import {
   requestCode,
   verifyCode,
@@ -27,7 +28,7 @@ const CODE_FORMAT = new RegExp(`^\\d{${CODE_LENGTH}}$`);
 const VERIFY_PROBLEM: Record<Exclude<CodeVerifyOutcome["kind"], "signed_in" | "wrong">, string> = {
   invalid: INCOMPLETE_CODE,
   expired: "Kode sudah kedaluwarsa. Kirim ulang kode.",
-  denied: "Akses ditolak. Hubungi Admin untuk meminta akses.",
+  denied: ACCESS_CLOSED,
   failed: "Gagal masuk. Silakan coba lagi.",
 };
 
