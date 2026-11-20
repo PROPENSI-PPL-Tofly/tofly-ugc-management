@@ -162,6 +162,16 @@ describe('SuperAdminBootstrap.onApplicationBootstrap', () => {
     expect(tx.users.create).toHaveBeenCalled();
   });
 
+  // Most environments leave it unset once their first Super Admin exists.
+  it('starts without touching the database when SUPER_ADMIN_EMAIL is not set', async () => {
+    vi.stubEnv('SUPER_ADMIN_EMAIL', undefined);
+    const { prisma, log, bootstrap } = setup();
+
+    await expect(bootstrap.onApplicationBootstrap()).resolves.toBeUndefined();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
   // A typo in the config must not keep the whole backend from starting; it is logged instead.
   it('logs an invalid SUPER_ADMIN_EMAIL and lets the app start', async () => {
     vi.stubEnv('SUPER_ADMIN_EMAIL', 'not-an-email');
