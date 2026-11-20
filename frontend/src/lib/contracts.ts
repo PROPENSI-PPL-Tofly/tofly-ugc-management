@@ -132,3 +132,43 @@ export async function deleteContract(creatorId: string, contractId: string): Pro
   }
   return failed;
 }
+
+/** A period's Specific content, as Hapus Periode names it: the first names and how many in all. */
+export interface PeriodSpecifics {
+  names: string[];
+  total: number;
+}
+
+/** The most Specific content one read names; the dialog counts the rest. */
+const SPECIFICS_PAGE_SIZE = 50;
+
+/**
+ * The Specific content an admin added to a period, nearest deadline first, for the delete dialog
+ * to name what goes with it. Null when it cannot be read, so the dialog can say so. Only text names
+ * and a whole count are kept (OWASP A05).
+ */
+export async function fetchPeriodSpecifics(contractId: string): Promise<PeriodSpecifics | null> {
+  if (!isUuid(contractId)) return null;
+
+  const query = new URLSearchParams({
+    contract: contractId,
+    type: "specific",
+    sort: "deadline_asc",
+    pageSize: String(SPECIFICS_PAGE_SIZE),
+    page: "1",
+  });
+
+  try {
+    const response = await apiFetch(`/api/contents?${query}`, { method: "GET" });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { items?: unknown; total?: unknown } | null;
+    const items = Array.isArray(body?.items) ? body.items : [];
+    const names = items
+      .map((item) => (item as { name?: unknown } | null)?.name)
+      .filter((name): name is string => typeof name === "string");
+    const total = Number.isInteger(body?.total) ? (body?.total as number) : names.length;
+    return { names, total };
+  } catch {
+    return null;
+  }
+}

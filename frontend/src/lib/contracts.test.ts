@@ -249,6 +249,7 @@ describe("fetchPeriodSpecifics", () => {
     });
     expect(fetchSpy).toHaveBeenCalledWith(
       `/api/contents?contract=${CONTRACT}&type=specific&sort=deadline_asc&pageSize=50&page=1`,
+      { method: "GET" },
     );
   });
 

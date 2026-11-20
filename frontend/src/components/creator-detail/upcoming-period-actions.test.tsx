@@ -145,10 +145,12 @@ describe("UpcomingPeriodActions", () => {
   });
 
   describe("Hapus Periode", () => {
-    it("asks first, naming the period and what goes with it (AC 9)", () => {
+    it("asks first, naming the period and what goes with it (AC 9)", async () => {
       renderActions();
 
-      fireEvent.click(screen.getByRole("button", { name: "Hapus Periode" }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Hapus Periode" }));
+      });
 
       const confirm = screen.getByRole("alertdialog", { name: "Hapus Periode 2?" });
       expect(confirm).toHaveTextContent(
