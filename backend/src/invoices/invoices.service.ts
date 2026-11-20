@@ -146,10 +146,24 @@ function matches(
   }
 
   return (
-    !filters.contract ||
-    invoiceContractStatus(contract, today, row.access_revoke_date) ===
-      filters.contract
+    endsInRange(contract, filters) &&
+    (!filters.contract ||
+      invoiceContractStatus(contract, today, row.access_revoke_date) ===
+        filters.contract)
   );
+}
+
+/**
+ * PBI-30.2: a row is one period's invoice, so the contract-end range is judged on that period's
+ * own end. The roster query only narrows to creators with some period ending in the range; a
+ * renewed creator's other periods would otherwise ride along. ISO days compare as strings.
+ */
+function endsInRange(
+  contract: PickedCreator['contract'],
+  { contractEndFrom: from, contractEndTo: to }: InvoiceFilters,
+): boolean {
+  const end = contract.end_date.toISOString().slice(0, 10);
+  return (!from || end >= from) && (!to || end <= to);
 }
 
 /** Keep the requested page within the available range. */
