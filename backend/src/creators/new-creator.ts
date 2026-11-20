@@ -40,7 +40,7 @@ export const DEFAULT_BUFFER_DAYS = 5;
 // characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
 // the domain. Every run is anchored by a literal dot, so the pattern cannot backtrack
 // exponentially; the length cap is checked first regardless.
-const EMAIL_FORMAT =
+export const EMAIL_FORMAT =
   /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 /** A creator as POST /creators saves it: already validated, already in the database's terms. */

@@ -8,6 +8,7 @@ import { requireLoginCodeSecretInProduction } from './auth/email/login-code-conf
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
 import { GoogleAuthModule } from './auth/google/google-auth.module.js';
 import { SessionModule } from './auth/session/session.module.js';
+import { SuperAdminModule } from './auth/super-admin/super-admin.module.js';
 import { EmailRequestModule } from './auth/email/email-request.module.js';
 import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
@@ -57,6 +58,7 @@ export function validate(
     RateFormulaModule,
     MeModule,
     SessionModule,
+    SuperAdminModule,
     GoogleAuthModule,
     EmailVerifyModule,
     SocialModule,
