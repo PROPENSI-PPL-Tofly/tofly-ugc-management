@@ -242,6 +242,49 @@ describe("toCreatorCalendarQuery", () => {
 });
 
 describe("toCreatorDetailView", () => {
+  describe("current", () => {
+    // A renewal waiting to start is the newest period, but the running one is still current.
+    const RENEWED: RawCreatorDetail = {
+      ...RAW,
+      contractHistory: [
+        period(MIDDLE, { periodNumber: 1, type: "probation", status: "active", isCurrent: true }),
+        period(NEWEST, { periodNumber: 2, status: "upcoming", startDate: "2027-05-10", isCurrent: false }),
+      ],
+    };
+
+    it("is the period the API marks current, not the newest one", () => {
+      const view = toCreatorDetailView(RENEWED, CONTENTS, BARE);
+
+      expect(view.current?.contractId).toBe(MIDDLE);
+      expect(view.current?.status).toBe("active");
+      expect(view.current?.type).toBe("probation");
+    });
+
+    it("stays the current period whichever period the address opens", () => {
+      expect(toCreatorDetailView(RENEWED, CONTENTS, { ...BARE, contract: NEWEST }).current?.contractId).toBe(MIDDLE);
+    });
+
+    it("is the active period when the API marks none", () => {
+      const raw: RawCreatorDetail = {
+        ...RAW,
+        contractHistory: [
+          period(MIDDLE, { periodNumber: 1, status: "active" }),
+          period(NEWEST, { periodNumber: 2, status: "upcoming" }),
+        ],
+      };
+
+      expect(toCreatorDetailView(raw, CONTENTS, BARE).current?.contractId).toBe(MIDDLE);
+    });
+
+    it("is the newest period when none is marked or active", () => {
+      expect(toCreatorDetailView(RAW, CONTENTS, BARE).current?.contractId).toBe(NEWEST);
+    });
+
+    it("is nothing for a creator without a contract", () => {
+      expect(toCreatorDetailView({ ...RAW, contractHistory: [] }, null, BARE).current).toBeNull();
+    });
+  });
+
   it("names the creator with the accounts they have", () => {
     expect(toCreatorDetailView(RAW, CONTENTS, BARE).creator).toEqual({
       id: "creator-1",
