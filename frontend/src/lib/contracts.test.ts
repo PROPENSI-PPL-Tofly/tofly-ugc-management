@@ -1,4 +1,4 @@
-import { createContract, deleteContract, updateContract, type ContractRequest } from "./contracts";
+import { createContract, deleteContract, fetchPeriodSpecifics, updateContract, type ContractRequest } from "./contracts";
 
 const CREATOR = "11111111-1111-4111-8111-111111111111";
 const CONTRACT = "22222222-2222-4222-8222-222222222222";
@@ -232,6 +232,53 @@ describe("deleteContract", () => {
     const fetchSpy = respond(204);
 
     await expect(deleteContract(creatorId, contractId)).resolves.toEqual({ ok: false, message: DELETE_FAILED });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("fetchPeriodSpecifics", () => {
+  it("reads the period's Specific content, nearest deadline first, through the same-origin proxy", async () => {
+    const fetchSpy = respond(200, {
+      items: [{ name: "Tofly x komunitas lari" }, { name: "Review sepatu" }],
+      total: 2,
+    });
+
+    await expect(fetchPeriodSpecifics(CONTRACT)).resolves.toEqual({
+      names: ["Tofly x komunitas lari", "Review sepatu"],
+      total: 2,
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `/api/contents?contract=${CONTRACT}&type=specific&sort=deadline_asc&pageSize=50&page=1`,
+    );
+  });
+
+  it("is none for a period without Specific content", async () => {
+    respond(200, { items: [], total: 0 });
+
+    await expect(fetchPeriodSpecifics(CONTRACT)).resolves.toEqual({ names: [], total: 0 });
+  });
+
+  // OWASP A05: only text names and a whole count reach the dialog.
+  it("keeps only text names and reads a missing count as the names it has", async () => {
+    respond(200, { items: [{ name: "Review sepatu" }, { name: 7 }, null], total: "lots" });
+
+    await expect(fetchPeriodSpecifics(CONTRACT)).resolves.toEqual({ names: ["Review sepatu"], total: 1 });
+  });
+
+  it.each([
+    ["a server error", () => respond(500)],
+    ["a body that is not JSON", () => vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("<html>", { status: 200 }))],
+    ["a network failure", () => vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"))],
+  ])("is unknown on %s", async (_label, arrange) => {
+    arrange();
+
+    await expect(fetchPeriodSpecifics(CONTRACT)).resolves.toBeNull();
+  });
+
+  it("refuses a contract id that is not a UUID without calling the API", async () => {
+    const fetchSpy = respond(200, { items: [], total: 0 });
+
+    await expect(fetchPeriodSpecifics("../invoices")).resolves.toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { CreatorPeriod } from "@/lib/creator-detail";
-import type { DeleteContractResult, SaveContractResult } from "@/lib/contracts";
+import type { DeleteContractResult, PeriodSpecifics, SaveContractResult } from "@/lib/contracts";
 import { UpcomingPeriodActions } from "./upcoming-period-actions";
 
 const refresh = vi.fn();
@@ -11,9 +11,11 @@ vi.mock("next/navigation", () => ({
 // The API is stubbed: contracts.test covers the requests themselves.
 const updateContract = vi.fn<(...args: unknown[]) => Promise<SaveContractResult>>();
 const deleteContract = vi.fn<(...args: unknown[]) => Promise<DeleteContractResult>>();
+const fetchPeriodSpecifics = vi.fn<(...args: unknown[]) => Promise<PeriodSpecifics | null>>();
 vi.mock("@/lib/contracts", () => ({
   updateContract: (...args: unknown[]) => updateContract(...args),
   deleteContract: (...args: unknown[]) => deleteContract(...args),
+  fetchPeriodSpecifics: (...args: unknown[]) => fetchPeriodSpecifics(...args),
 }));
 
 const CREATOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -60,6 +62,8 @@ describe("UpcomingPeriodActions", () => {
     refresh.mockReset();
     updateContract.mockReset();
     deleteContract.mockReset();
+    fetchPeriodSpecifics.mockReset();
+    fetchPeriodSpecifics.mockResolvedValue({ names: [], total: 0 });
   });
 
   afterEach(() => {
@@ -152,6 +156,48 @@ describe("UpcomingPeriodActions", () => {
       );
       expect(within(confirm).getByText("1 Jan – 31 Mar 2027")).toBeInTheDocument();
       expect(deleteContract).not.toHaveBeenCalled();
+    });
+
+    // The user's decision (2026-11-20): Specific content the admin added goes with the period, so
+    // the dialog names it before anything is deleted.
+    it("names the period's Specific content that goes with it", async () => {
+      fetchPeriodSpecifics.mockResolvedValue({ names: ["Tofly x komunitas lari", "Review sepatu"], total: 2 });
+      renderActions();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Hapus Periode" }));
+      });
+
+      const confirm = screen.getByRole("alertdialog", { name: "Hapus Periode 2?" });
+      expect(fetchPeriodSpecifics).toHaveBeenCalledWith(NEXT_ID);
+      expect(confirm).toHaveTextContent(
+        "Slot Evergreen, invoice kosong dan 2 konten Specific periode ini ikut terhapus. Penghapusan tercatat di Log Aktivitas.",
+      );
+      expect(within(confirm).getByText("Tofly x komunitas lari, Review sepatu")).toBeInTheDocument();
+    });
+
+    it("names the first five and counts the rest", async () => {
+      fetchPeriodSpecifics.mockResolvedValue({ names: ["A", "B", "C", "D", "E", "F", "G"], total: 9 });
+      renderActions();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Hapus Periode" }));
+      });
+
+      expect(within(screen.getByRole("alertdialog")).getByText("A, B, C, D, E dan 4 lainnya")).toBeInTheDocument();
+    });
+
+    it("says Specific content may go with it when the list cannot be read", async () => {
+      fetchPeriodSpecifics.mockResolvedValue(null);
+      renderActions();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Hapus Periode" }));
+      });
+
+      expect(screen.getByRole("alertdialog")).toHaveTextContent(
+        "Slot Evergreen, invoice kosong dan konten Specific periode ini (kalau ada) ikut terhapus.",
+      );
     });
 
     it("deletes nothing when the admin backs out", () => {
