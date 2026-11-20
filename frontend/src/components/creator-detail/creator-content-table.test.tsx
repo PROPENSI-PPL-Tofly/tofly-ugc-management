@@ -331,6 +331,20 @@ describe("CreatorContentTable", () => {
       expect(screen.queryByRole("table")).toBeNull();
     });
 
+    it("names the tab's own emptiness when a specific tab has nothing", () => {
+      render(
+        <CreatorContentTable
+          rows={[]}
+          filtered={false}
+          tab="action"
+          onOpen={vi.fn()}
+          onReset={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByText("Belum ada konten pada periode kontrak ini.")).toBeNull();
+    });
+
     it("says nothing matches when a filter hid them all, and how to get them back", () => {
       const { onReset } = renderTable([], { filtered: true });
 

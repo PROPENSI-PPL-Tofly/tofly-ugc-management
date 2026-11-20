@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   DEFAULT_CREATOR_DETAIL_PARAMS,
   type CreatorContentRow,
@@ -164,6 +164,25 @@ describe("CreatorContentBoard", () => {
       screen.getByRole("heading", { level: 2, name: "Jadwal Konten" }),
     );
     expect(screen.queryByRole("heading", { name: "Content Plan" })).toBeNull();
+  });
+
+  it("toggles the deadline sort from asc to desc and back", async () => {
+    const first = renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "asc" });
+    fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    // "desc" is not the default, so it goes out in the query.
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(expect.stringContaining("sort=desc"), { scroll: false }),
+    );
+    first.unmount();
+
+    replace.mockClear();
+    renderBoard(viewOf(3), { ...DEFAULT_CREATOR_DETAIL_PARAMS, sort: "desc" });
+    fireEvent.click(screen.getByRole("button", { name: /Urutkan deadline/ }));
+    // "asc" is the default, so it is left out of the query entirely.
+    await waitFor(() => {
+      const [path] = replace.mock.calls[0] as [string, object];
+      expect(path).not.toContain("sort=desc");
+    });
   });
 
   it("offers the type and status filters over the table", () => {

@@ -73,6 +73,13 @@ describe("CreatorCalendar", () => {
     expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();
   });
 
+  it("steps back a month on Bulan Sebelumnya", () => {
+    renderCalendar("2026-09-20");
+    fireEvent.click(screen.getByRole("button", { name: "Bulan Berikutnya" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bulan Sebelumnya" }));
+    expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();
+  });
+
   it("marks outside-period days and explains why Hari Ini is unavailable after the contract", () => {
     renderCalendar("2027-01-10");
     expect(screen.getByRole("heading", { level: 4, name: "September 2026" })).toBeInTheDocument();

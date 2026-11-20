@@ -93,7 +93,8 @@ type Reply = Response | Error;
 function backend({
   detail = answer(200, DETAIL),
   contents = answer(200, CONTENTS),
-}: { detail?: Reply; contents?: Reply | Reply[] } = {}) {
+  invoice = answer(404, {}),
+}: { detail?: Reply; contents?: Reply | Reply[]; invoice?: Reply } = {}) {
   const queue = Array.isArray(contents) ? [...contents] : [contents];
 
   vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
@@ -105,7 +106,7 @@ function backend({
       : forCalendar
         ? answer(200, CONTENTS)
         : url.pathname.startsWith("/invoices/")
-          ? answer(404, {})
+          ? invoice
           : detail;
     if (reply instanceof Error) throw reply;
     return reply.clone();
@@ -410,5 +411,34 @@ describe("fetchCreatorDetail", () => {
       "BACKEND_URL is not configured",
     );
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("reads every calendar page when the period spans more than one", async () => {
+    const paged = (page: number, totalPages: number) =>
+      new Response(
+        JSON.stringify({ ...CONTENTS, items: [{ ...CONTENTS.items[0], id: `c-${page}` }], page, totalPages }),
+        { status: 200 },
+      );
+
+    vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.startsWith("/invoices/")) return new Response("{}", { status: 404 });
+      if (url.pathname === "/contents" && url.searchParams.has("pageSize")) {
+        const page = Number(url.searchParams.get("page"));
+        return page <= 1 ? paged(1, 2).clone() : paged(2, 2).clone();
+      }
+      if (url.pathname === "/contents") return answer(200, CONTENTS).clone();
+      return answer(200, DETAIL).clone();
+    });
+
+    const view = await fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
+    expect(view?.calendar).toHaveLength(2);
+  });
+
+  it("leaves the earnings empty when the invoice endpoint throws", async () => {
+    backend({ invoice: new TypeError("fetch failed") });
+
+    const view = await fetchCreatorDetail(CREATOR, DEFAULT_CREATOR_DETAIL_PARAMS);
+    expect(view?.earnings).toBeNull();
   });
 });
