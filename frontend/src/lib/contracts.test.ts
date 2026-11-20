@@ -149,6 +149,34 @@ describe("updateContract", () => {
     });
   });
 
+  // The user's decision on 30.1: an edit that would leave Specific content outside the period is
+  // refused with errors.contents; the admin is told which content to move first.
+  it("says which Specific content an edit would strand, from errors.contents", async () => {
+    const reason =
+      'Konten "Tofly x komunitas lari" (deadline 1 Agu 2027) di luar periode baru (15 Mei 2027 – 30 Jun 2027); pindahkan atau hapus dulu';
+    respond(422, { message: "Data periode tidak valid", errors: { contents: reason } });
+
+    await expect(updateContract(CREATOR, CONTRACT, REQUEST)).resolves.toEqual({
+      ok: false,
+      message: reason,
+      errors: {},
+    });
+  });
+
+  // OWASP A05: only a short line of text stands in for the generic message.
+  it.each([
+    ["not text", { contents: 42 }],
+    ["too long to be a reason", { contents: "x".repeat(301) }],
+  ])("keeps the generic message when errors.contents is %s", async (_label, errors) => {
+    respond(422, { errors });
+
+    await expect(updateContract(CREATOR, CONTRACT, REQUEST)).resolves.toEqual({
+      ok: false,
+      message: "Data periode tidak valid",
+      errors: {},
+    });
+  });
+
   it("refuses a contract id that is not a UUID without calling the API", async () => {
     const fetchSpy = respond(200);
 
@@ -175,6 +203,16 @@ describe("deleteContract", () => {
     await expect(deleteContract(CREATOR, CONTRACT)).resolves.toEqual({
       ok: false,
       message: "Periode sudah dimulai dan tidak bisa dihapus. Muat ulang halaman.",
+    });
+  });
+
+  // The user's decision on 30.1: a creator's only period is never deleted (409 LAST_PERIOD).
+  it("says the creator's only period cannot be deleted when the server answers LAST_PERIOD", async () => {
+    respond(409, { code: "LAST_PERIOD", message: "whatever the server says" });
+
+    await expect(deleteContract(CREATOR, CONTRACT)).resolves.toEqual({
+      ok: false,
+      message: "Ini satu-satunya periode creator, jadi tidak bisa dihapus.",
     });
   });
 
