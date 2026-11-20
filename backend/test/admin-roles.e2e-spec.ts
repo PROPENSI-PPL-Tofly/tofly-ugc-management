@@ -20,6 +20,10 @@ describe('Admin roles and status (e2e)', () => {
   let prisma: PrismaService;
 
   async function cleanUp() {
+    // A creator row holds its user, so it goes first.
+    await prisma.creators.deleteMany({
+      where: { users: { email: { startsWith: MARKER } } },
+    });
     await prisma.users.deleteMany({ where: { email: { startsWith: MARKER } } });
   }
 
