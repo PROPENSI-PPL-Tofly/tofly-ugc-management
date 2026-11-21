@@ -162,6 +162,14 @@ describe('AuditLogger', () => {
     'fileContent',
     'file_content',
     'base64',
+    'codeHash',
+    'code_hash',
+    'apiKey',
+    'api_key',
+    'authorization',
+    'cookie',
+    'sessionId',
+    'session_id',
   ])('never stores %s, at any depth', async (key) => {
     const { create, tx } = stubTransaction();
 
