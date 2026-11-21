@@ -44,7 +44,8 @@ describe("Pengguna Admin's table", () => {
     );
 
     const row = within(screen.getByRole("table")).getAllByRole("row")[1];
-    expect(within(row).getByText("nameless@example.com")).toBeInTheDocument();
+    // The name cell falls back to the email, and the email cell carries it too.
+    expect(within(row).getAllByText("nameless@example.com")).toHaveLength(2);
     expect(within(row).getByText("Super Admin")).toBeInTheDocument();
     expect(within(row).getByText("Nonaktif")).toBeInTheDocument();
   });
