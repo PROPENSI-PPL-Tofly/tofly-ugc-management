@@ -468,7 +468,7 @@ describe("the timeline", () => {
       }),
     );
 
-    expect(await screen.findByText("Konten diubah")).toBeInTheDocument();
+    expect(await screen.findByText("Diubah Admin")).toBeInTheDocument();
     expect(screen.getByText("Deadline 20 Nov 2026 → 25 Nov 2026")).toBeInTheDocument();
   });
 });

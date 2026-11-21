@@ -37,7 +37,7 @@ describe("the journey of a link (AC 12)", () => {
   });
 
   it("says a replaced link took the place of another (AC 9)", () => {
-    expect(describeJourney([replacedLinkEvent()])[0].title).toBe("Link Instagram diganti");
+    expect(describeJourney([replacedLinkEvent()])[0].title).toBe("Link Instagram diganti oleh kreator");
   });
 
   it("keeps the link itself on the step, whatever the platform", () => {

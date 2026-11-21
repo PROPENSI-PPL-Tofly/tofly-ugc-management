@@ -417,7 +417,7 @@ describe("invoiceActivity", () => {
       expect(entry.text).toBe("bima.admin@tofly.id menambah penyesuaian: Koreksi kelebihan tagihan (−Rp75.000)");
     });
 
-    it("says Admin when the API names no one, as the creator's answer never does", () => {
+    it("says Admin when the API names no one", () => {
       const [entry] = invoiceActivity(invoice({ adjustments: [UNNAMED] }));
 
       expect(entry.text).toBe("Admin menambah penyesuaian: Pembulatan (+Rp1)");

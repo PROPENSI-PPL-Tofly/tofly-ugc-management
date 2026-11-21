@@ -55,16 +55,22 @@ describe("InvoiceActivity", () => {
     expect(items[2]).toHaveTextContent("4 Des 2026, 10.00 WIB");
   });
 
-  // PBI-23, 23.11: the prototype's one log, where the creator's answer names no Admin.
-  it("tells the creator an adjustment was added, by Admin, with its reason and amount", () => {
+  // PBI-23 AC 25: the prototype's one log, naming the Admin for the creator too.
+  it("tells the creator which Admin added an adjustment, with its reason and amount", () => {
     renderActivity({
       adjustments: [
-        { id: "adj-1", amount: 50000, reason: "Reimbursement ongkir produk", createdAt: "2026-12-02T02:00:00Z" },
+        {
+          id: "adj-1",
+          amount: 50000,
+          reason: "Reimbursement ongkir produk",
+          createdAt: "2026-12-02T02:00:00Z",
+          actorName: "Sinta Dewi",
+        },
       ],
     });
 
     const [item] = within(screen.getByRole("list", { name: "Aktivitas & komentar" })).getAllByRole("listitem");
-    expect(item).toHaveTextContent("Admin menambah penyesuaian: Reimbursement ongkir produk (+Rp50.000)");
+    expect(item).toHaveTextContent("Sinta Dewi menambah penyesuaian: Reimbursement ongkir produk (+Rp50.000)");
     expect(item).toHaveTextContent("2 Des 2026");
   });
 

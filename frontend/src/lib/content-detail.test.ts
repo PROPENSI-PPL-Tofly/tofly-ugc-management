@@ -200,8 +200,8 @@ describe("describeJourney", () => {
     ]);
 
     expect(steps.map((step) => [step.title, step.linkLabel, step.noteBy])).toEqual([
-      ["Angka TikTok diisi manual", null, null],
-      ["Angka performa diisi manual", null, null],
+      ["Angka performa TikTok diisi manual oleh Admin", null, null],
+      ["Angka performa diisi manual oleh Admin", null, null],
     ]);
   });
 
@@ -258,7 +258,7 @@ describe("describeJourney", () => {
       }),
     ]);
 
-    expect(step.title).toBe("Konten diubah");
+    expect(step.title).toBe("Diubah Admin");
     expect(step.changes).toEqual([
       "Deadline 20 Nov 2026 → 25 Nov 2026",
       "Nama Promo Lebaran → Promo Ramadan",
@@ -310,6 +310,63 @@ describe("describeJourney", () => {
 
     expect(proposed.title).toBe("Diajukan kreator");
     expect(added.title).toBe("Ditambahkan Admin");
+  });
+
+  // PBI-23 AC 25 (client note from UAT, 11 Nov), in the prototype's words for each step.
+  describe("the acting Admin in a step's title", () => {
+    const SINTA = { name: "Sinta Dewi", role: "admin" } as const;
+    const BY_EMAIL = { name: "bima.admin@tofly.id", role: "admin" } as const;
+    const titleOf = (overrides: Partial<RawContentEvent> & Pick<RawContentEvent, "type">) =>
+      describeJourney([event({ id: "step", actor: SINTA, ...overrides })])[0].title;
+
+    it("names who added the content", () => {
+      expect(titleOf({ type: "scheduled" })).toBe("Ditambahkan Sinta Dewi");
+    });
+
+    it("reads the email when the account has no name", () => {
+      expect(titleOf({ type: "scheduled", actor: BY_EMAIL })).toBe("Ditambahkan bima.admin@tofly.id");
+    });
+
+    it("names who edited the content", () => {
+      expect(titleOf({ type: "content_updated" })).toBe("Diubah Sinta Dewi");
+    });
+
+    it("names who typed the numbers, with and without a platform", () => {
+      expect(titleOf({ type: "performance_entered", payload: { platform: "instagram" } })).toBe(
+        "Angka performa Instagram diisi manual oleh Sinta Dewi",
+      );
+      expect(titleOf({ type: "performance_entered" })).toBe("Angka performa diisi manual oleh Sinta Dewi");
+    });
+
+    it("names the Admin who replaced a link", () => {
+      expect(
+        titleOf({ type: "link_submitted", payload: { platform: "tiktok", replaced: true } }),
+      ).toBe("Link TikTok diganti oleh Sinta Dewi");
+    });
+
+    it("says Admin on a replaced link when no account is behind it", () => {
+      expect(
+        titleOf({
+          type: "link_submitted",
+          actor: ADMIN,
+          payload: { platform: "tiktok", replaced: true },
+        }),
+      ).toBe("Link TikTok diganti oleh Admin");
+    });
+
+    it("says kreator on a link the creator replaced, as the prototype does", () => {
+      expect(
+        titleOf({
+          type: "link_submitted",
+          actor: CREATOR,
+          payload: { platform: "instagram", replaced: true },
+        }),
+      ).toBe("Link Instagram diganti oleh kreator");
+    });
+
+    it("keeps a first link's title without a name", () => {
+      expect(titleOf({ type: "link_submitted", payload: { platform: "tiktok" } })).toBe("Link TikTok dikirim");
+    });
   });
 
   it("counts a draft's version from the oldest when the API sends none", () => {

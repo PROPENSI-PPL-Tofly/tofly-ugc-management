@@ -50,7 +50,7 @@ describe("toCreatorInvoices", () => {
     });
   });
 
-  it("lists the adjustments with what the creator reads, without who recorded them", () => {
+  it("lists the adjustments with what the creator reads, never the Admin's id", () => {
     expect(only(RAW_MY_PAID).adjustments).toEqual([
       {
         id: "adadadad-0000-4000-8000-000000000001",
@@ -61,9 +61,22 @@ describe("toCreatorInvoices", () => {
     ]);
   });
 
-  // PBI-23, 23.10: the Admin who recorded an adjustment is on the Admin's reads only (OWASP A01:2025).
-  it("drops an adjustment's Admin name, even if an answer ever carries one", () => {
-    const named = { ...RAW_MY_PAID.adjustments![0], actorName: "Sinta Dewi" };
+  // PBI-23 AC 25: the creator's activity names the Admin who recorded an adjustment.
+  it("keeps an adjustment's Admin name, trimmed, and never the Admin's id", () => {
+    const named = { ...RAW_MY_PAID.adjustments![0], actorName: "  Sinta Dewi  " };
+
+    const [line] = only({ ...RAW_MY_PAID, adjustments: [named] }).adjustments;
+
+    expect(line).toHaveProperty("actorName", "Sinta Dewi");
+    expect(line).not.toHaveProperty("actorId");
+  });
+
+  it.each([
+    ["null", null],
+    ["blank", "   "],
+    ["not text", 42],
+  ])("names no one on an adjustment when the name is %s", (_label, actorName) => {
+    const named = { ...RAW_MY_PAID.adjustments![0], actorName };
 
     expect(only({ ...RAW_MY_PAID, adjustments: [named] }).adjustments[0]).not.toHaveProperty("actorName");
   });
