@@ -5,10 +5,14 @@ import {
   AUDIT_CATEGORY_LABELS,
   AUDIT_LOG_PAGE_SIZE,
   actionsInCategories,
+  auditActorLabel,
+  auditChanges,
+  auditTimeLabel,
   buildAuditLogQuery,
   keepActionsInCategories,
   parseAuditLogParams,
 } from "./audit-log";
+import { EMPTY } from "./format";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_ADMIN_ID = "22222222-2222-4222-8222-222222222222";
@@ -242,5 +246,94 @@ describe("buildAuditLogQuery", () => {
     };
 
     expect(parseAuditLogParams(buildAuditLogQuery(state))).toEqual(state);
+  });
+});
+
+describe("auditActorLabel", () => {
+  it.each([
+    ["super_admin", "Sinta (Super Admin)"],
+    ["admin", "Sinta (Admin)"],
+    ["creator", "Sinta (Creator)"],
+  ] as const)("names a person with their role: %s", (role, label) => {
+    expect(auditActorLabel({ name: "Sinta", role })).toBe(label);
+  });
+
+  it("shows Sistem alone for an entry no person made", () => {
+    expect(auditActorLabel({ name: "Sistem", role: "system" })).toBe("Sistem");
+  });
+});
+
+describe("auditTimeLabel", () => {
+  it("shows the moment in WIB", () => {
+    expect(auditTimeLabel("2026-11-21T03:00:00.000Z")).toBe("21 Nov 2026, 10.00 WIB");
+  });
+
+  // 18.30 UTC is already the next day in Jakarta.
+  it("uses Jakarta's day, not UTC's", () => {
+    expect(auditTimeLabel("2026-11-20T18:30:00.000Z")).toBe("21 Nov 2026, 01.30 WIB");
+  });
+
+  it("shows the dash for a moment that cannot be read", () => {
+    expect(auditTimeLabel("not-a-date")).toBe(EMPTY);
+  });
+});
+
+describe("auditChanges", () => {
+  it("lists only the fields that changed", () => {
+    expect(auditChanges({ buffer: 3, name: "A" }, { buffer: 5, name: "A" })).toEqual([
+      { field: "buffer", from: "3", to: "5" },
+    ]);
+  });
+
+  it("shows the dash for a field that had no value before", () => {
+    expect(auditChanges({}, { note: "baru" })).toEqual([
+      { field: "note", from: EMPTY, to: "baru" },
+    ]);
+  });
+
+  it("shows the dash for a field that no longer has a value", () => {
+    expect(auditChanges({ note: "lama" }, { note: null })).toEqual([
+      { field: "note", from: "lama", to: EMPTY },
+    ]);
+  });
+
+  it("shows the dash for an empty string", () => {
+    expect(auditChanges({ note: "" }, { note: "isi" })).toEqual([
+      { field: "note", from: EMPTY, to: "isi" },
+    ]);
+  });
+
+  it("keeps false and 0 as real values", () => {
+    expect(auditChanges({ active: true, days: 1 }, { active: false, days: 0 })).toEqual([
+      { field: "active", from: "true", to: "false" },
+      { field: "days", from: "1", to: "0" },
+    ]);
+  });
+
+  it("lists every field of an entry with only new values", () => {
+    expect(auditChanges(null, { name: "Sinta" })).toEqual([
+      { field: "name", from: EMPTY, to: "Sinta" },
+    ]);
+  });
+
+  it("lists every field of an entry with only old values", () => {
+    expect(auditChanges({ name: "Sinta" }, null)).toEqual([
+      { field: "name", from: "Sinta", to: EMPTY },
+    ]);
+  });
+
+  it("lists nothing for an entry without values", () => {
+    expect(auditChanges(null, null)).toEqual([]);
+  });
+
+  // jsonb does not keep key order, so a reordered object is not a change.
+  it("does not count a nested object with its keys reordered as a change", () => {
+    expect(auditChanges({ tier: { a: 1, b: 2 } }, { tier: { b: 2, a: 1 } })).toEqual([]);
+  });
+
+  it("shows a nested value that changed as text", () => {
+    expect(auditChanges({ tier: { a: 1 } }, { tier: { a: 2 } })).toEqual([
+      { field: "tier", from: '{"a":1}', to: '{"a":2}' },
+    ]);
   });
 });
