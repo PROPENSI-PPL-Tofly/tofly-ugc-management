@@ -27,51 +27,6 @@ vi.mock("@/lib/content-detail", async (importOriginal) => ({
     fetchContentDetail(id, role),
 }));
 
-// The modals are stubbed: what they do inside is their own tests' business. These stand-ins
-// show what the board handed them and expose the two ways a modal hands control back.
-interface StubProps {
-  content: {
-    id: string;
-    name: string;
-    deadline: string;
-    brief?: string;
-    revisionNotes?: string | null;
-  };
-  onClose: () => void;
-  onSubmitted: () => void;
-  action?: string;
-}
-
-function StubModal({ label, props }: Readonly<{ label: string; props: StubProps }>) {
-  return (
-    <div role="dialog" aria-label={label}>
-      <p>{`${props.content.id}|${props.content.name}|${props.content.deadline}`}</p>
-      <p>{`action:${props.action ?? "-"}`}</p>
-      <p>{`brief:${props.content.brief ?? "-"}|notes:${props.content.revisionNotes ?? "-"}`}</p>
-      <button
-        type="button"
-        onClick={() => {
-          props.onSubmitted();
-          props.onClose();
-        }}
-      >
-        stub-submitted
-      </button>
-      <button type="button" onClick={props.onClose}>
-        stub-cancel
-      </button>
-    </div>
-  );
-}
-
-vi.mock("@/components/my-task/submit-draft-modal", () => ({
-  SubmitDraftModal: (props: StubProps) => <StubModal label="draft-modal" props={props} />,
-}));
-
-vi.mock("@/components/my-task/submit-video-modal", () => ({
-  SubmitVideoModal: (props: StubProps) => <StubModal label="video-modal" props={props} />,
-}));
-
 function task(overrides: Partial<MyTask> = {}): MyTask {
   return {
     platforms: [],
@@ -96,154 +51,19 @@ describe("MyTaskBoard", () => {
     window.history.pushState({}, "", "/creator/tasks");
   });
 
-  it("lets the creator press the actions the table shows", () => {
-    render(<MyTaskBoard tasks={[task()]} />);
-
-    expect(screen.getByRole("button", { name: /Submit Draft/ })).toBeEnabled();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("opens the draft modal on the task picked for Submit Draft", () => {
-    render(<MyTaskBoard tasks={[task()]} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
-
-    const modal = screen.getByRole("dialog", { name: "draft-modal" });
-    expect(modal).toHaveTextContent("content-1|Evg_1_RanggaPratama_12102026|2026-10-12");
-    expect(modal).toHaveTextContent("action:submit_draft");
-  });
-
-  it("opens the same draft modal as a resubmit for Resubmit Draft", () => {
-    render(
-      <MyTaskBoard tasks={[task({ status: "draft_revision", actions: ["resubmit_draft"] })]} />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Resubmit Draft/ }));
-
-    expect(screen.getByRole("dialog", { name: "draft-modal" })).toHaveTextContent(
-      "action:resubmit_draft",
-    );
-  });
-
-  it("opens the video modal for Submit Link Video, and only that one", () => {
-    render(
-      <MyTaskBoard tasks={[task({ status: "draft_approved", actions: ["submit_video"] })]} />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Submit Link Video/ }));
-
-    expect(screen.getByRole("dialog", { name: "video-modal" })).toHaveTextContent(
-      "content-1|Evg_1_RanggaPratama_12102026|2026-10-12",
-    );
-    expect(screen.queryByRole("dialog", { name: "draft-modal" })).not.toBeInTheDocument();
-  });
-
-  it("opens the modal for the row that was pressed", () => {
+  // A draft or a link is handed in from Detail Konten, not from a button on the row.
+  it("puts no hand-in buttons on the rows", () => {
     render(
       <MyTaskBoard
         tasks={[
-          task({ id: "a", name: "Pertama" }),
-          task({ id: "b", name: "Kedua", deadline: "2026-10-20" }),
+          task(),
+          task({ id: "b", status: "draft_revision", actions: ["resubmit_draft"] }),
+          task({ id: "c", status: "draft_approved", actions: ["submit_video"] }),
         ]}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Submit Draft: Kedua" }));
-
-    expect(screen.getByRole("dialog", { name: "draft-modal" })).toHaveTextContent(
-      "b|Kedua|2026-10-20",
-    );
-  });
-
-  // After a hand-in the row's status and buttons change on the server; refreshing re-runs the
-  // page's fetch so the table shows them, and the pressed button is gone.
-  it("refreshes the list and closes after a successful hand-in", () => {
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
-
-    fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
-
-    expect(refresh).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("hands the modals the brief and the admin's revision notes", () => {
-    render(
-      <MyTaskBoard
-        tasks={[
-          task({
-            status: "draft_revision",
-            actions: ["resubmit_draft"],
-            brief: "Tunjukkan kemasan",
-            revisionNotes: "Perjelas intro",
-          }),
-        ]}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Resubmit Draft/ }));
-
-    expect(screen.getByRole("dialog", { name: "draft-modal" })).toHaveTextContent(
-      "brief:Tunjukkan kemasan|notes:Perjelas intro",
-    );
-  });
-
-  it.each<[string, Partial<MyTask>, string]>([
-    ["Submit Draft", {}, "Draft terkirim. Admin akan meninjaunya."],
-    [
-      "Resubmit Draft",
-      { status: "draft_revision", actions: ["resubmit_draft"] },
-      "Draft terkirim. Admin akan meninjaunya.",
-    ],
-    [
-      "Submit Link Video",
-      { status: "draft_approved", actions: ["submit_video"] },
-      "Link video terkirim. Konten ini selesai.",
-    ],
-  ])("confirms a %s hand-in with a toast", (label, overrides, message) => {
-    render(<MyTaskBoard tasks={[task(overrides)]} />);
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }));
-
-    fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
-
-    expect(screen.getByRole("status")).toHaveTextContent(message);
-  });
-
-  it("puts focus on the task list after a hand-in, since the pressed button may be gone", () => {
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
-
-    fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
-
-    expect(screen.getByRole("tabpanel", { name: "Daftar Tugas Saya" })).toHaveFocus();
-  });
-
-  it("shows no toast when the creator cancels", () => {
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
-
-    fireEvent.click(screen.getByRole("button", { name: "stub-cancel" }));
-
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
-
-  it("lets the creator dismiss the toast", () => {
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
-    fireEvent.click(screen.getByRole("button", { name: "stub-submitted" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Tutup notifikasi" }));
-
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
-
-  it("closes without refreshing when the creator cancels", () => {
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(screen.getByRole("button", { name: /Submit Draft/ }));
-
-    fireEvent.click(screen.getByRole("button", { name: "stub-cancel" }));
-
-    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /^(Submit|Resubmit|Detail)/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -294,17 +114,10 @@ describe("MyTaskBoard", () => {
     expect(replace).toHaveBeenCalledWith("/creator/tasks", { scroll: false });
   });
 
-  it("keeps the Aksi column on Selesai, with each finished content's Detail button, as the prototype does", () => {
-    render(<MyTaskBoard tasks={[task({ status: "link_submitted", actions: [] })]} tab="done" />);
+  it.each(["action", "done"] as const)("has no Aksi column on the %s tab", (tab) => {
+    render(<MyTaskBoard tasks={[task()]} tab={tab} />);
 
-    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Detail: / })).toBeInTheDocument();
-  });
-
-  it("keeps the Aksi column on every other tab", () => {
-    render(<MyTaskBoard tasks={[task()]} tab="action" />);
-
-    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
   });
 
   it("names the region the tabs switch", () => {
@@ -416,130 +229,78 @@ describe("MyTaskBoard content detail panel", () => {
     expect(fetchContentDetail).toHaveBeenCalledWith("content-1", "creator");
   });
 
-  it("opens the link modal from a sent content's panel, closing the panel", async () => {
+  it("opens a sent link's form from its card's pencil, inside the panel", async () => {
     fetchContentDetail.mockResolvedValue({
       ...panelDetail(),
       status: "link_submitted" as const,
       waitingOn: null,
       creatorActions: [],
-      links: [{ platform: "instagram", url: "https://www.instagram.com/reel/C8abc12345/" }],
+      links: [
+        {
+          platform: "instagram",
+          url: "https://www.instagram.com/reel/C8abc12345/",
+          submittedAt: "2026-10-18",
+          performance: {
+            platform: "instagram",
+            url: "https://www.instagram.com/reel/C8abc12345/",
+            views: null,
+            likes: null,
+            comments: null,
+            shares: null,
+            state: "waiting",
+            lastSyncedAt: null,
+            manualAt: null,
+          },
+        },
+      ],
     });
     render(<MyTaskBoard tasks={[task()]} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Tambah / Ganti Link" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ubah link Instagram" }));
 
-    expect(await screen.findByRole("dialog", { name: "video-modal" })).toHaveTextContent("content-1");
+    expect(await screen.findByRole("textbox", { name: "Link Instagram" })).toBeInTheDocument();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
-  it("hands the panel's submit action back to the row's submit modal", async () => {
+  it("opens the submit form inside the panel instead of closing it for another dialog", async () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
 
-    expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: /Detail Konten|Evg_1/ })).toBeNull();
+    expect(await screen.findByRole("textbox", { name: "Link TikTok" })).toBeInTheDocument();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: "Evg_1_RanggaPratama_12102026" })).toBeInTheDocument();
   });
 
   // A link can name a content the open tab or page does not list; its button has to work too.
-  it("opens the submit modal for a content the list does not hold, from what the panel shows", async () => {
+  it("hands in a content the list does not hold, since the panel brings everything it needs", async () => {
     window.history.pushState({}, "", "/creator/tasks?tab=done&content=content-9");
     fetchContentDetail.mockResolvedValue({
       ...panelDetail(),
       id: "content-9",
       name: "Konten dari tautan",
-      deadline: "2099-12-31",
-      brief: "Brief dari panel",
       status: "draft_approved" as const,
     });
 
     render(<MyTaskBoard tasks={[task()]} tab="done" />);
     fireEvent.click(await screen.findByRole("button", { name: "Submit Link Video" }));
 
-    const modal = await screen.findByRole("dialog", { name: "video-modal" });
-    expect(modal).toHaveTextContent("content-9|Konten dari tautan|2099-12-31");
-    expect(modal).toHaveTextContent("brief:Brief dari panel|notes:-");
-    expect(window.location.search).toBe("?tab=done");
+    expect(await screen.findByRole("textbox", { name: "Link Instagram" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Konten dari tautan" })).toBeInTheDocument();
   });
 
-  it("hands a resubmit from such a link the admin's latest revision note", async () => {
-    window.history.pushState({}, "", "/creator/tasks?content=content-9");
-    fetchContentDetail.mockResolvedValue({
-      ...panelDetail(),
-      id: "content-9",
-      name: "Konten dari tautan",
-      status: "draft_revision" as const,
-      creatorActions: ["resubmit_draft"] as const,
-      // Newest first, as the API sends them.
-      events: [
-        {
-          id: "e3",
-          type: "revision_requested" as const,
-          at: "2026-10-09T03:00:00.000Z",
-          actor: { name: "Admin", role: "admin" as const },
-          payload: { note: "Perbaiki hook" },
-        },
-        {
-          id: "e2",
-          type: "draft_submitted" as const,
-          at: "2026-10-08T03:00:00.000Z",
-          actor: { name: "Rangga Pratama", role: "creator" as const },
-          payload: { version: 2, link: "https://drive.google.com/file/d/x" },
-        },
-        {
-          id: "e1",
-          type: "revision_requested" as const,
-          at: "2026-10-07T03:00:00.000Z",
-          actor: { name: "Admin", role: "admin" as const },
-          payload: { note: "Catatan lama" },
-        },
-      ],
-    });
+  it("keeps ?content= in the address while a hand-in is open, since the panel has not closed", async () => {
+    window.history.pushState({}, "", "/creator/tasks?content=content-1");
+    fetchContentDetail.mockResolvedValue(panelDetail());
 
     render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Resubmit Draft" }));
-
-    const modal = await screen.findByRole("dialog", { name: "draft-modal" });
-    expect(modal).toHaveTextContent("action:resubmit_draft");
-    expect(modal).toHaveTextContent("notes:Perbaiki hook");
-  });
-
-  it("hands such a resubmit no note when the admin's request carried none", async () => {
-    window.history.pushState({}, "", "/creator/tasks?content=content-9");
-    fetchContentDetail.mockResolvedValue({
-      ...panelDetail(),
-      id: "content-9",
-      status: "draft_revision" as const,
-      creatorActions: ["resubmit_draft"] as const,
-      events: [
-        {
-          id: "e1",
-          type: "revision_requested" as const,
-          at: "2026-10-09T03:00:00.000Z",
-          actor: { name: "Admin", role: "admin" as const },
-        },
-      ],
-    });
-
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Resubmit Draft" }));
-
-    expect(await screen.findByRole("dialog", { name: "draft-modal" })).toHaveTextContent("notes:-");
-  });
-
-  it("keeps the row's own facts when the list does hold the content", async () => {
-    fetchContentDetail.mockResolvedValue({ ...panelDetail(), name: "Nama dari panel" });
-    render(<MyTaskBoard tasks={[task({ brief: "Brief dari baris" })]} />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Evg_1_RanggaPratama_12102026" }));
     fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
 
-    const modal = await screen.findByRole("dialog", { name: "video-modal" });
-    expect(modal).toHaveTextContent("content-1|Evg_1_RanggaPratama_12102026|2026-10-12");
-    expect(modal).toHaveTextContent("brief:Brief dari baris");
+    expect(await screen.findByRole("textbox", { name: "Link TikTok" })).toBeInTheDocument();
+    expect(window.location.search).toBe("?content=content-1");
   });
 
   it("opens the panel straight from a ?content= link, the way a notification would", async () => {
@@ -564,17 +325,6 @@ describe("MyTaskBoard content detail panel", () => {
     });
     expect(window.location.pathname).toBe("/creator/tasks");
     expect(window.location.search).toBe("?status=scheduled&page=2");
-  });
-
-  it("drops ?content= too when a command in the panel hands over to the submit modal", async () => {
-    window.history.pushState({}, "", "/creator/tasks?content=content-1");
-    fetchContentDetail.mockResolvedValue(panelDetail());
-
-    render(<MyTaskBoard tasks={[task()]} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Submit Link (H-1)" }));
-
-    expect(await screen.findByRole("dialog", { name: "video-modal" })).toBeInTheDocument();
-    expect(window.location.search).toBe("");
   });
 
   it("puts the opened content in the address, so the panel can be shared or reopened as a link", async () => {
@@ -622,7 +372,7 @@ describe("MyTaskBoard content detail panel", () => {
     });
   });
 
-  it("closes the panel from Tutup without opening any modal", async () => {
+  it("closes the panel from Tutup", async () => {
     fetchContentDetail.mockResolvedValue(panelDetail());
     render(<MyTaskBoard tasks={[task()]} />);
 
@@ -699,12 +449,26 @@ describe("MyTaskBoard as a calendar", () => {
     expect(query.get("view")).toBe("calendar");
   });
 
-  it("hands a submit action from the panel to the submit modal, as the table does", async () => {
+  it("opens a hand-in inside the panel, as the table does", async () => {
+    fetchContentDetail.mockResolvedValue({
+      id: "content-1",
+      name: "Evg_1_RanggaPratama_12102026",
+      type: "evergreen" as const,
+      brief: "",
+      deadline: "2099-12-31",
+      status: "scheduled" as const,
+      creatorName: "Rangga Pratama",
+      tags: [],
+      waitingOn: "creator" as const,
+      latestSubmissionId: null,
+      creatorActions: ["submit_draft"] as const,
+      events: [],
+    });
     render(<MyTaskBoard tasks={[task()]} calendarToday={TODAY} />);
 
     fireEvent.click(screen.getByRole("button", { name: CHIP }));
     fireEvent.click(await screen.findByRole("button", { name: "Submit Draft" }));
 
-    expect(await screen.findByRole("dialog", { name: "draft-modal" })).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: "Link File Draft" })).toBeInTheDocument();
   });
 });

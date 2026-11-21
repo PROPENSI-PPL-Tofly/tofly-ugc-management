@@ -7,7 +7,7 @@ import { formatDeduction, formatRupiah } from "./format";
 import type { AdjustmentLine } from "./invoice-adjustment";
 import type { InvoicePayment } from "./invoice-payment-api";
 import type { PeriodState } from "./deadline-period";
-import { calendarDay, oneOf, pageNumber, single, type SearchParams } from "./search-params";
+import { oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
 /** The table shows ten creators a page, as the prototype pages it. */
 export const INVOICE_PAGE_SIZE = 10;
@@ -175,9 +175,11 @@ export function parseInvoiceParams(params: SearchParams): InvoiceParams {
     q: single(params.q).trim().slice(0, MAX_INVOICE_SEARCH_LENGTH).trim(),
     contract: oneOf(["all", ...CONTRACT_STATUSES], single(params.contract), "all"),
     status: oneOf(["all", ...INVOICE_STATUSES], single(params.status), "all"),
-    period: oneOf(["all", "month", "next30", "last90", "custom"] as const, single(params.period), "all"),
-    from: calendarDay(single(params.from)),
-    to: calendarDay(single(params.to)),
+    // The contract-end period filter is gone: an old link that still names one narrows nothing,
+    // since nothing on the page would say it was there or offer to clear it.
+    period: "all",
+    from: "",
+    to: "",
     sort: oneOf(INVOICE_SORT_KEYS, single(params.sort), "action"),
     order: oneOf(["asc", "desc"] as const, single(params.order), "asc"),
     page: pageNumber(params.page),

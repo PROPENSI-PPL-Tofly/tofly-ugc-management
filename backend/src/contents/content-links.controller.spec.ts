@@ -1,10 +1,11 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { ContentLinksController } from './content-links.controller.js';
-import { AdminLinkActor, CreatorLinkActor } from './link-change.js';
+import { CreatorLinkActor } from './link-change.js';
 import { LinkChangeService } from './link-change.service.js';
 
 const CONTENT_ID = '7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f';
@@ -144,28 +145,18 @@ describe('ContentLinksController', () => {
       );
     });
 
-    it('replaces as the signed-in admin when the admin guard let them in', async () => {
-      await replace('admin', 'instagram', { url: REEL });
+    // Only the creator adds or changes their links: the route takes the creator guard alone.
+    it('is guarded for the creator only, as adding a link is', () => {
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        ContentLinksController.prototype.replace,
+      ) as unknown[];
 
-      expect(links.replace).toHaveBeenCalledWith(
-        CONTENT_ID,
-        new AdminLinkActor(ADMIN_USER),
-        { platform: 'instagram', url: REEL },
-      );
-    });
-
-    it('replaces as an admin with no account under the local sign-in stand-in', async () => {
-      await replace('local-admin', 'instagram', { url: REEL });
-
-      expect(links.replace).toHaveBeenCalledWith(
-        CONTENT_ID,
-        new AdminLinkActor(null),
-        { platform: 'instagram', url: REEL },
-      );
+      expect(guards).toEqual([DevCreatorGuard]);
     });
 
     it('answers 404 for a platform the app does not know', async () => {
-      const response = await replace('admin', 'youtube', { url: REEL });
+      const response = await replace('creator', 'youtube', { url: REEL });
 
       expect(response.status).toBe(404);
       expect(response.body).toEqual({

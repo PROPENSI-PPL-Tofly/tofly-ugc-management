@@ -7,7 +7,6 @@ import {
   DECISION_CONFIRMATIONS,
 } from "@/components/content-detail/content-detail-panel";
 import { AddContentModal } from "@/components/contents/add-content-modal";
-import { useVideoLinksModal } from "@/components/my-task/use-video-links-modal";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -52,7 +51,6 @@ export function CreatorContentBoard({
   today?: string;
 }>) {
   const router = useRouter();
-  const { openLinks, linksModal } = useVideoLinksModal("admin");
   const [openContentId, setOpenContentId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const { show: confirm, toast } = useToast();
@@ -191,16 +189,9 @@ export function CreatorContentBoard({
             setOpenContentId(null);
             confirmAndRefresh(DECISION_CONFIRMATIONS[decision]);
           }}
-          ports={{
-            onManageLinks: (detail) => {
-              setOpenContentId(null);
-              openLinks(detail);
-            },
-          }}
         />
       ) : null}
 
-      {linksModal}
       {toast}
     </>
   );

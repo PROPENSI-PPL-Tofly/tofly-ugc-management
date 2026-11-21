@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -21,110 +21,53 @@ import {
 } from "@/lib/content-edit";
 import { formatDate } from "@/lib/format";
 
-// Ubah and Hapus for scheduled content in the admin's Content Detail panel (PBI-25, 25.2): the
-// "⋯" menu in the panel's header that offers them, and the edit form that opens in the panel
-// itself rather than in a dialog over it.
+// Ubah and Hapus for scheduled content in the admin's Content Detail panel (PBI-25, 25.2): a pencil
+// and a bin in the panel's header, and the edit form that opens in the panel itself rather than in
+// a dialog over it.
 
-const MENU_ITEM =
-  "block w-full cursor-pointer whitespace-nowrap border-none bg-transparent px-3 py-2 text-left text-[13px] hover:bg-surface-2 focus:bg-surface-2 focus:outline-none";
+const ICON_BUTTON =
+  "grid size-8 cursor-pointer place-items-center rounded-(--radius-control) border-none bg-transparent text-muted hover:bg-surface-2 hover:text-ink max-sm:size-11";
 
-/**
- * The header's "⋯": Ubah and Hapus behind one button, as the prototype draws them. Escape and a
- * press elsewhere close the menu; Escape is kept from the panel, which would otherwise close too.
- */
-export function ManageMenu({
+/** A pencil, drawn in the text colour so it follows the button's hover. */
+export function PencilIcon({ className = "size-4" }: Readonly<{ className?: string }>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function BinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="size-4">
+      <path d="M3 6h18" />
+      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+/** Ubah and Hapus in the panel's header, one press each: a pencil, and a bin in red. */
+export function ManageButtons({
   onEdit,
   onDelete,
 }: Readonly<{ onEdit: () => void; onDelete: () => void }>) {
-  const [open, setOpen] = useState(false);
-  const wrapper = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
-  const firstItem = useRef<HTMLButtonElement>(null);
-  const menuId = useId();
-
-  // Focus moves into the menu as it opens, so arrows and Escape work at once.
-  useEffect(() => {
-    if (open) firstItem.current?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (event: MouseEvent) => {
-      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [open]);
-
-  // On the toggle and on the menu itself, both real controls, rather than on a plain wrapper.
-  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (!open) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      setOpen(false);
-      button.current?.focus();
-      return;
-    }
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      const items = Array.from(
-        wrapper.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
-      );
-      const at = items.indexOf(document.activeElement as HTMLElement);
-      const step = event.key === "ArrowDown" ? 1 : -1;
-      items[(at + step + items.length) % items.length]?.focus();
-    }
-  }
-
-  function choose(action: () => void) {
-    setOpen(false);
-    action();
-  }
-
   return (
-    <div ref={wrapper} className="relative">
-      <button
-        ref={button}
-        type="button"
-        aria-label="Aksi lain"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen(!open)}
-        onKeyDown={onKeyDown}
-        className="grid size-8 cursor-pointer place-items-center rounded-(--radius-control) border-none bg-transparent text-lg leading-none text-muted hover:bg-surface-2 hover:text-ink max-sm:size-11"
-      >
-        <span aria-hidden="true">⋯</span>
+    <div className="flex items-center gap-0.5">
+      <button type="button" aria-label="Ubah konten" title="Ubah" onClick={onEdit} className={ICON_BUTTON}>
+        <PencilIcon />
       </button>
-
-      {open ? (
-        <div
-          id={menuId}
-          role="menu"
-          aria-label="Aksi konten"
-          onKeyDown={onKeyDown}
-          className="absolute right-0 top-full z-10 mt-1 min-w-36 overflow-hidden rounded-(--radius-control) border border-rule bg-surface py-1 shadow-whisper"
-        >
-          <button
-            ref={firstItem}
-            type="button"
-            role="menuitem"
-            className={MENU_ITEM}
-            onClick={() => choose(onEdit)}
-          >
-            Ubah
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={`${MENU_ITEM} text-red-ink`}
-            onClick={() => choose(onDelete)}
-          >
-            Hapus
-          </button>
-        </div>
-      ) : null}
+      <button
+        type="button"
+        aria-label="Hapus konten"
+        title="Hapus"
+        onClick={onDelete}
+        className={`${ICON_BUTTON} hover:text-red-ink`}
+      >
+        <BinIcon />
+      </button>
     </div>
   );
 }
@@ -332,7 +275,7 @@ export function EditForm({
       {asking ? (
         <ConfirmDialog
           title="Simpan Perubahan Konten?"
-          message={`${creatorFirstName} langsung melihat perubahan ini di Task Saya.`}
+          message={`${creatorFirstName} langsung melihat perubahan ini di Tugas Saya.`}
           details={[["Konten", detail.name], ...changes]}
           confirmLabel="Simpan"
           cancelLabel="Batal"

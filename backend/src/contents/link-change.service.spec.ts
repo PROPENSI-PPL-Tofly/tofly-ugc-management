@@ -425,4 +425,42 @@ describe('LinkChangeService', () => {
       ).toMatchObject({ code: 'VIDEO_LINK_TAKEN' });
     });
   });
+
+  // A saved link starts a sync of its content (backgrounded by the module), so the first numbers
+  // come without waiting for the daily run; a refused change saved nothing to sync.
+  describe('after the links are saved', () => {
+    it('tells the listener once the submit has committed', async () => {
+      transaction.contents.findFirst.mockResolvedValue(stored());
+      const linksSaved = vi.fn();
+      const service = new LinkChangeService(prisma, undefined, linksSaved);
+
+      await service.submit(CONTENT_ID, creator, [{ platform: 'instagram', url: REEL }]);
+
+      expect(linksSaved).toHaveBeenCalledExactlyOnceWith(CONTENT_ID);
+      expect(linksSaved.mock.invocationCallOrder[0]).toBeGreaterThan(
+        transaction.content_events.createMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('tells the listener after a replaced link too, whoever replaced it', async () => {
+      transaction.contents.findFirst.mockResolvedValue(LINKED);
+      const linksSaved = vi.fn();
+      const service = new LinkChangeService(prisma, { views: null }, linksSaved);
+
+      await service.replace(CONTENT_ID, admin, { platform: 'instagram', url: OTHER_REEL });
+
+      expect(linksSaved).toHaveBeenCalledExactlyOnceWith(CONTENT_ID);
+    });
+
+    it('tells nobody when the change is refused', async () => {
+      transaction.contents.findFirst.mockResolvedValue(null);
+      const linksSaved = vi.fn();
+      const service = new LinkChangeService(prisma, undefined, linksSaved);
+
+      await expect(
+        service.submit(CONTENT_ID, creator, [{ platform: 'instagram', url: REEL }]),
+      ).rejects.toMatchObject({ status: 404 });
+      expect(linksSaved).not.toHaveBeenCalled();
+    });
+  });
 });

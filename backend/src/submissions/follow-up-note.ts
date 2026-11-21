@@ -1,4 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
+import { checkedImageIds } from './revise-submission.js';
 import {
   revisionNoteLength,
   revisionNoteText,
@@ -20,6 +21,8 @@ export interface FollowUpRequest {
    * allowlist as the note; absent for plain text, which needs no formatting kept.
    */
   noteHtml?: string;
+  /** The screenshots the follow-up goes out with (PBI-34), each once; absent when there are none. */
+  imageIds?: string[];
 }
 
 /** Whether the note came from the rich text editor rather than as plain words. */
@@ -27,16 +30,21 @@ function isFormatted(note: string): boolean {
   return /<[a-z][^>]*>/i.test(note);
 }
 
-// 422 with the reason under `note`, the field the admin's form (33.2) shows it beside.
-function invalidFollowUp(reason: string): UnprocessableEntityException {
+// 422 with the reason under `note`, the field the admin's form (33.2) shows it beside; a refused
+// screenshot list goes under `imageIds`.
+function invalidFollowUp(
+  reason: string,
+  field: 'note' | 'imageIds' = 'note',
+): UnprocessableEntityException {
   return new UnprocessableEntityException({
     message: 'Data catatan susulan tidak valid',
-    errors: { note: reason },
+    errors: { [field]: reason },
   });
 }
 
 export function checkFollowUp(input: unknown): FollowUpRequest {
-  const note = (input as { note?: unknown } | null | undefined)?.note;
+  const body = input as { note?: unknown; imageIds?: unknown } | null | undefined;
+  const note = body?.note;
   if (typeof note !== 'string') {
     throw invalidFollowUp('Catatan susulan harus berupa teks');
   }
@@ -54,7 +62,14 @@ export function checkFollowUp(input: unknown): FollowUpRequest {
     );
   }
 
-  return formatted
-    ? { note: trimmed, noteHtml: sanitizeRevisionNote(note.trim()) }
-    : { note: trimmed };
+  // Under `imageIds`, as the revision note refuses its own, with this endpoint's message.
+  const imageIds = checkedImageIds(body?.imageIds, (reason) =>
+    invalidFollowUp(reason, 'imageIds'),
+  );
+
+  return {
+    note: trimmed,
+    ...(formatted && { noteHtml: sanitizeRevisionNote(note.trim()) }),
+    ...(imageIds.length > 0 && { imageIds }),
+  };
 }

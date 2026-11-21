@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { filterPill } from "@/test/filters";
 import {
   FilteredEmpty,
   FilterBar,
   FilterRadio,
   FilterSelect,
+  PillSelect,
   OVERDUE_OPTIONS,
   PeriodFilter,
   ResetFilters,
@@ -53,50 +55,27 @@ describe("SearchBox", () => {
   });
 });
 
+// Every one-choice filter is the same pill and popup as the multi-selects (SingleSelect).
 describe("FilterSelect", () => {
-  it("labels a native select with visible text and hands back the picked value", () => {
+  it("is drawn as the multi-select's pill and hands back the picked value", () => {
     const onChange = vi.fn();
     render(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={onChange} />);
 
-    const select = screen.getByRole("combobox", { name: "Overdue" });
-    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+    expect(filterPill("Overdue")).toHaveTextContent("Overdue: Semua");
+    fireEvent.click(filterPill("Overdue"));
+    expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
       "Semua",
       "Overdue",
       "Tidak overdue",
     ]);
 
-    fireEvent.change(select, { target: { value: "yes" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Overdue" }));
     expect(onChange).toHaveBeenCalledWith("yes");
   });
-});
 
-// The approved design marks a filter in use where it is chosen: the select stands out and, on a
-// phone, its name carries an "Aktif" tag, so the folded bar needs no chips to say what is on.
-describe("FilterSelect", () => {
-  // Inside the open phone card each name sits over its own full-width select, as approved; a
-  // name beside the select wrapped and left the selects ragged.
-  it("stacks its name over the select on a phone, side by side from sm up", () => {
-    render(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
-
-    const label = screen.getByRole("combobox", { name: "Overdue" }).closest("label");
-    expect(label).toHaveClass("max-sm:flex-col", "max-sm:items-stretch", "items-center");
-  });
-
-  it("marks a choice other than the first as active, and says so on a phone", () => {
-    render(<FilterSelect label="Overdue" value="yes" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
-
-    const select = screen.getByRole("combobox", { name: "Overdue" });
-    expect(select).toHaveAttribute("data-active", "true");
-    const tag = screen.getByText("Aktif");
-    expect(tag).toHaveClass("sm:hidden");
-    expect(select).toHaveAccessibleName("Overdue");
-  });
-
-  it("leaves the first choice plain", () => {
-    render(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
-
-    expect(screen.getByRole("combobox", { name: "Overdue" })).not.toHaveAttribute("data-active");
-    expect(screen.queryByText("Aktif")).not.toBeInTheDocument();
+  it("is the very control PillSelect and FilterRadio are", () => {
+    expect(PillSelect).toBe(FilterSelect);
+    expect(FilterRadio).toBe(FilterSelect);
   });
 });
 
@@ -124,7 +103,8 @@ describe("PeriodFilter", () => {
   it("offers the named periods and hides the custom days until they are asked for", () => {
     const onChange = renderPeriod("all");
 
-    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+    fireEvent.click(filterPill("Periode"));
+    expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
       "Semua periode",
       "Bulan ini",
       "30 hari ke depan",
@@ -133,9 +113,7 @@ describe("PeriodFilter", () => {
     ]);
     expect(screen.queryByLabelText("Deadline mulai")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Periode" }), {
-      target: { value: "custom" },
-    });
+    fireEvent.click(screen.getByRole("radio", { name: "Pilih tanggal…" }));
     // The period goes back on its own, for the bar to apply with its days in one change.
     expect(onPeriod).toHaveBeenCalledExactlyOnceWith("custom");
     expect(onChange).not.toHaveBeenCalled();
@@ -365,7 +343,7 @@ describe("on a phone, every filter control is a 44px press", () => {
     expectPhoneTarget(screen.getByRole("searchbox", { name: "Cari" }));
 
     rerender(<FilterSelect label="Overdue" value="all" options={OVERDUE_OPTIONS} onChange={vi.fn()} />);
-    expectPhoneTarget(screen.getByRole("combobox", { name: "Overdue" }));
+    expectPhoneTarget(filterPill("Overdue"));
 
     rerender(<ResetFilters onReset={vi.fn()} disabled={false} />);
     expectPhoneTarget(screen.getByRole("button", { name: "Reset" }));
@@ -389,7 +367,7 @@ describe("on a phone, every filter control is a 44px press", () => {
     for (const day of days) expectPhoneTarget(day);
   });
 
-  it("covers each Tipe choice, where the label is what a finger presses", () => {
+  it("covers the Tipe pill, the one press that opens its choices", () => {
     render(
       <FilterRadio
         label="Tipe"
@@ -402,7 +380,7 @@ describe("on a phone, every filter control is a 44px press", () => {
       />,
     );
 
-    for (const radio of screen.getAllByRole("radio")) expectPhoneTarget(radio.closest("label"));
+    expectPhoneTarget(filterPill("Tipe"));
   });
 
   it("covers the Filter button", () => {

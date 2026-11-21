@@ -10,6 +10,8 @@ import { day } from './days.js';
 // Rows created here carry this marker so the cleanup never touches anything else in the
 // database, seeded or not.
 const MARKER = 'e2e-content-history';
+// The admin signInAsAdmin signs in, named by email wherever they acted.
+const ADMIN_EMAIL = `${MARKER}-signed-in-admin@example.com`;
 
 describe('Content history read back into the detail (e2e)', () => {
   let app: INestApplication<App>;
@@ -71,7 +73,7 @@ describe('Content history read back into the detail (e2e)', () => {
     await app.close();
   });
 
-  it('keeps the approval in the timeline once the link is in, naming the admin only as Admin', async () => {
+  it('keeps the approval in the timeline once the link is in, naming the admin by email to both sides', async () => {
     const { id } = await admin
       .post('/contents')
       .send({
@@ -121,10 +123,15 @@ describe('Content history read back into the detail (e2e)', () => {
         note: 'Versi pertama.',
       });
       expect(byType('draft_approved').actor).toEqual({
-        name: null,
+        name: ADMIN_EMAIL,
         role: 'admin',
       });
-      expect(JSON.stringify(body)).not.toContain('@example.com');
+      // A creator's own steps keep their name, never the creator's email.
+      expect(byType('draft_submitted').actor).toEqual({
+        name: `${MARKER} Dewi`,
+        role: 'creator',
+      });
+      expect(JSON.stringify(body)).not.toContain(`${MARKER}-dewi@example.com`);
     }
 
     const stored = await prisma.content_events.findMany({
@@ -135,6 +142,7 @@ describe('Content history read back into the detail (e2e)', () => {
         expect.objectContaining({ actor_name: 'Admin' }),
       ]),
     );
+    // The email is read from the account each time, never copied into the stored row.
     expect(stored.every((event) => !event.actor_name.includes('@'))).toBe(true);
   });
 
@@ -167,7 +175,7 @@ describe('Content history read back into the detail (e2e)', () => {
         event.actor,
       ]),
     ).toEqual([
-      ['proposal_approved', { name: null, role: 'admin' }],
+      ['proposal_approved', { name: ADMIN_EMAIL, role: 'admin' }],
       ['scheduled', { name: `${MARKER} Dewi`, role: 'creator' }],
     ]);
   });

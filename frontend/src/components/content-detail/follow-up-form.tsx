@@ -1,7 +1,12 @@
 "use client";
 
-import { useId, useState } from "react";
-import { RichNoteEditor, type RichNote } from "@/components/revision-note/rich-note-editor";
+import { useId, useMemo, useState } from "react";
+import {
+  RevisionNoteField,
+  type RevisionNoteValue,
+} from "@/components/revision-note/revision-note-field";
+import { screenshotUploader } from "@/lib/revision-note-images-api";
+import type { ScreenshotUploader } from "@/lib/revision-note-uploads";
 import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -10,16 +15,21 @@ import { DecisionError } from "@/lib/decisions";
 import { MAX_FOLLOW_UP_LENGTH } from "@/lib/follow-ups";
 
 /** Saves one follow-up for a round; the API by default, a stub in tests (Dependency Inversion). */
-export type AddFollowUp = (submissionId: string, note: string) => Promise<FollowUp>;
+export type AddFollowUp = (
+  submissionId: string,
+  note: string,
+  imageIds?: readonly string[],
+) => Promise<FollowUp>;
 
 export const FOLLOW_UP_SAVED = "Catatan susulan terkirim ke kreator.";
 
 const MISSING = "Catatan susulan wajib diisi sebelum dikirim.";
-const EMPTY_NOTE: RichNote = { html: "", text: "", length: 0 };
+const EMPTY_NOTE: RevisionNoteValue = { html: "", text: "", length: 0, uploading: false, imageIds: [] };
 
 /**
  * "Tambah Catatan Susulan": a closed button under the latest revision note that opens into the
- * same rich text editor the revision was written in (AC 2, PBI-34), without screenshots. Saving
+ * same rich text editor the revision was written in (AC 2, PBI-34), screenshots included: they are
+ * placed in the text and go out with it by id, held back while one is still uploading. Saving
  * keeps the panel open, so the admin sees the new entry join the list (`onAdded`) and a toast
  * confirms it. A 409 means the creator already answered with a new draft: the round is closed,
  * and the panel takes over (`onRoundClosed`) to say why and read the content again.
@@ -27,16 +37,23 @@ const EMPTY_NOTE: RichNote = { html: "", text: "", length: 0 };
 export function FollowUpForm({
   submissionId,
   add,
+  uploader,
   onAdded,
   onRoundClosed,
 }: Readonly<{
   submissionId: string;
   add: AddFollowUp;
+  /** Where the screenshots go; the round's own routes (34.1) by default, a stub in tests. */
+  uploader?: ScreenshotUploader;
   onAdded: (followUp: FollowUp) => void;
   onRoundClosed: (message: string) => void;
 }>) {
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState<RichNote>(EMPTY_NOTE);
+  const [note, setNote] = useState<RevisionNoteValue>(EMPTY_NOTE);
+  const screenshots = useMemo(
+    () => uploader ?? screenshotUploader(submissionId),
+    [uploader, submissionId],
+  );
   // Not flagged while the note is still being started, only once the admin moved on.
   const [left, setLeft] = useState(false);
   const [sending, setSending] = useState(false);
@@ -51,6 +68,8 @@ export function FollowUpForm({
   const blank = note.text.trim() === "";
   const missing = left && blank;
   const tooLong = note.length > MAX_FOLLOW_UP_LENGTH;
+  // Kirim waits while a screenshot is still on its way, as the revision note's does.
+  const waiting = note.uploading;
 
   function close() {
     setOpen(false);
@@ -64,7 +83,10 @@ export function FollowUpForm({
     setSending(true);
     setError(null);
     try {
-      const saved = await add(submissionId, note.html);
+      const saved =
+        note.imageIds.length > 0
+          ? await add(submissionId, note.html, note.imageIds)
+          : await add(submissionId, note.html);
       onAdded(saved);
       close();
       show(FOLLOW_UP_SAVED);
@@ -93,9 +115,10 @@ export function FollowUpForm({
 
           <div className="flex flex-col gap-1 text-[13px]">
             <span className={`font-semibold text-ink ${REQUIRED_MARK}`}>Catatan susulan</span>
-            <RichNoteEditor
+            <RevisionNoteField
               label="Catatan susulan"
               max={MAX_FOLLOW_UP_LENGTH}
+              uploader={screenshots}
               placeholder="mis. Tambahan: logo muncul di detik 3."
               disabled={sending}
               autoFocus
@@ -119,7 +142,7 @@ export function FollowUpForm({
             <Button
               variant="accent"
               onClick={() => void submit()}
-              disabled={sending || blank || tooLong}
+              disabled={sending || blank || tooLong || waiting}
               aria-busy={sending}
             >
               Kirim Catatan Susulan

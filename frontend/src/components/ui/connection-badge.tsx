@@ -1,6 +1,7 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
+import { placeBubble, useBubbleFollow } from "./info-tip";
 import {
   connectionLabel,
   connectionTooltip,
@@ -26,9 +27,27 @@ export function ConnectionBadge({
 }>) {
   const tipId = useId();
   const label = connectionLabel(connection);
+  const bubble = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  useBubbleFollow(bubble, "start", open);
+
+  function openSoon() {
+    setOpen(true);
+    requestAnimationFrame(() => {
+      if (bubble.current) placeBubble(bubble.current);
+    });
+  }
 
   return (
-    <span className="group relative inline-flex align-middle">
+    // The bubble is placed on the screen layer, as InfoTip's is, so a scrolling table (Creator
+    // Database) cannot cut it off at its edge.
+    <span
+      className="group relative inline-flex align-middle"
+      onPointerEnter={openSoon}
+      onPointerLeave={() => setOpen(false)}
+      onFocus={openSoon}
+      onBlur={() => setOpen(false)}
+    >
       <button
         type="button"
         aria-label={`${platform} ${label}`}
@@ -43,8 +62,9 @@ export function ConnectionBadge({
       {/* A sibling, not a child: inside the button it would also be read as its name. */}
       <span
         // No role="tooltip": aria-describedby already reads it, and the role stays InfoTip's.
+        ref={bubble}
         id={tipId}
-        className="pointer-events-none invisible absolute top-full left-0 z-10 mt-1.5 w-max max-w-[260px] whitespace-normal rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+        className="pointer-events-none invisible fixed z-50 w-max max-w-[260px] whitespace-normal rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
       >
         {connectionTooltip(connection)}
       </span>

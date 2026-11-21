@@ -12,12 +12,26 @@ import { ContentCreationService } from './contents.service.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { DraftSubmissionService } from './draft-submission.service.js';
 import { CLEARED_PERFORMANCE } from '../performance/link-performance.js';
+import { PerformanceSyncModule } from '../performance/sync/performance-sync.module.js';
+import { LINKS_SAVED } from './links-saved.js';
 import {
   LINK_PERFORMANCE_COLUMNS,
   LinkChangeService,
 } from './link-change.service.js';
 
 describe('ContentsModule', () => {
+  // A saved link syncs its content in the background, through 27.4's service.
+  it('imports the performance sync and hands link changes a listener for saved links', () => {
+    const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, ContentsModule) as unknown[];
+    const providers = Reflect.getMetadata(
+      MODULE_METADATA.PROVIDERS,
+      ContentsModule,
+    ) as { provide?: unknown }[];
+
+    expect(imports).toContain(PerformanceSyncModule);
+    expect(providers.some((provider) => provider.provide === LINKS_SAVED)).toBe(true);
+  });
+
   it('registers the edit and delete controller and service (PBI-25)', () => {
     const controllers = Reflect.getMetadata(
       MODULE_METADATA.CONTROLLERS,

@@ -15,9 +15,13 @@ afterAll(() => {
 
 // A mock uploader whose answers the test gives when it chooses.
 function fakeUploader() {
-  const calls: { signal: AbortSignal; resolve: (stored: StoredImage) => void }[] = [];
+  const calls: {
+    signal: AbortSignal;
+    resolve: (stored: StoredImage) => void;
+    reject: (error: unknown) => void;
+  }[] = [];
   const upload = vi.fn<ScreenshotUploader["upload"]>(
-    (_file, { signal }) => new Promise((resolve) => calls.push({ signal, resolve })),
+    (_file, { signal }) => new Promise((resolve, reject) => calls.push({ signal, resolve, reject })),
   );
   const remove = vi.fn<ScreenshotUploader["remove"]>().mockResolvedValue(undefined);
   const list = vi.fn<ScreenshotUploader["list"]>().mockResolvedValue([]);
@@ -54,6 +58,76 @@ async function pasteInto(data: { files: File[]; types: string[]; plain?: string 
 }
 
 describe("RevisionNoteField", () => {
+  // A screenshot lands in the text where the cursor was, once it is stored: the tile under the
+  // text still shows its progress and lets it go, but the image itself reads in the note.
+  describe("screenshots in the text", () => {
+    it("places a pasted screenshot in the text once its upload is done, and not before", async () => {
+      const { uploader, calls } = fakeUploader();
+      const { last } = renderField(uploader);
+      await pasteInto({ files: [shot()], types: ["Files"] });
+      const box = screen.getByRole("textbox", { name: "Catatan revisi" });
+      expect(box.querySelector("img[data-image-id]")).toBeNull();
+
+      await act(async () => calls[0].resolve({ imageId: "img-1", url: "/api/revision-note-images/img-1" }));
+
+      await waitFor(() => expect(box.querySelector('img[data-image-id="img-1"]')).not.toBeNull());
+      await waitFor(() => expect(last()?.html).toContain('<img data-image-id="img-1">'));
+    });
+
+    // The image reads in the text, so no tile repeats it under the editor.
+    it("shows no tile under the editor for an image the text holds", async () => {
+      const { uploader, calls } = fakeUploader();
+      renderField(uploader);
+      await pasteInto({ files: [shot()], types: ["Files"] });
+      expect(screen.getByText("Mengunggah 0%")).toBeInTheDocument();
+
+      await act(async () => calls[0].resolve({ imageId: "img-1", url: "/api/revision-note-images/img-1" }));
+
+      const box = screen.getByRole("textbox", { name: "Catatan revisi" });
+      await waitFor(() => expect(box.querySelector("img[data-image-id]")).not.toBeNull());
+      await waitFor(() => expect(screen.queryByRole("list")).toBeNull());
+    });
+
+    it("deletes the image for good from the × on it in the text", async () => {
+      const { uploader, calls } = fakeUploader();
+      const { last } = renderField(uploader);
+      await pasteInto({ files: [shot()], types: ["Files"] });
+      await act(async () => calls[0].resolve({ imageId: "img-1", url: "/api/revision-note-images/img-1" }));
+      const box = screen.getByRole("textbox", { name: "Catatan revisi" });
+      await waitFor(() => expect(box.querySelector("img[data-image-id]")).not.toBeNull());
+
+      await act(async () => {
+        fireEvent.click(within(box).getByRole("button", { name: "Hapus gambar" }));
+      });
+
+      await waitFor(() => expect(box.querySelector("img[data-image-id]")).toBeNull());
+      expect(uploader.remove).toHaveBeenCalledExactlyOnceWith("img-1");
+      expect(last()?.html ?? "").not.toContain("img-1");
+      expect(last()?.imageIds).toEqual([]);
+    });
+
+    it("keeps a failed upload as a tile with its retry, since nothing is in the text to hold it", async () => {
+      const { uploader, calls } = fakeUploader();
+      renderField(uploader);
+      await pasteInto({ files: [shot()], types: ["Files"] });
+
+      await act(async () => calls[0].reject(new Error("network")));
+
+      expect(await screen.findByText("Gagal diunggah")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+    });
+
+    it("leaves the images a closed form left on the server as tiles, not in the text", async () => {
+      const { uploader } = fakeUploader();
+      uploader.list.mockResolvedValue([{ imageId: "img-9", url: "/api/revision-note-images/img-9" }]);
+      renderField(uploader);
+
+      await screen.findByRole("button", { name: "Hapus gambar" });
+      const box = screen.getByRole("textbox", { name: "Catatan revisi" });
+      expect(box.querySelector("img[data-image-id]")).toBeNull();
+    });
+  });
+
   it("puts the editor and Tambah Gambar together", async () => {
     renderField(fakeUploader().uploader);
 

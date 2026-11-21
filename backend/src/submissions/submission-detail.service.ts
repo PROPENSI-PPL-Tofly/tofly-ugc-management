@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { joinName } from '../creators/evergreen.js';
-import { ADMIN_ACTOR_NAME } from '../contents/content-event-actors.js';
+import { adminName } from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { FollowUpDto } from './follow-up.service.js';
 import { submissionNotFound } from './review-errors.js';
@@ -25,7 +25,12 @@ interface SubmissionDetailRow {
     submissions: {
       revision_notes: string | null;
       updated_at: Date;
-      revision_followups: { id: string; body: string; created_at: Date }[];
+      revision_followups: {
+        id: string;
+        body: string;
+        created_at: Date;
+        users: { email: string };
+      }[];
     }[];
   };
 }
@@ -85,7 +90,12 @@ export interface SubmissionDetailClient {
                 updated_at: true;
                 revision_followups: {
                   orderBy: [{ created_at: 'asc' }, { id: 'asc' }];
-                  select: { id: true; body: true; created_at: true };
+                  select: {
+                    id: true;
+                    body: true;
+                    created_at: true;
+                    users: { select: { email: true } };
+                  };
                 };
               };
             };
@@ -140,7 +150,12 @@ export class SubmissionDetailService {
                 updated_at: true,
                 revision_followups: {
                   orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-                  select: { id: true, body: true, created_at: true },
+                  select: {
+                    id: true,
+                    body: true,
+                    created_at: true,
+                    users: { select: { email: true } },
+                  },
                 },
               },
             },
@@ -168,7 +183,7 @@ export class SubmissionDetailService {
           id: followUp.id,
           note: followUp.body,
           at: followUp.created_at.toISOString(),
-          actor: { name: ADMIN_ACTOR_NAME },
+          actor: { name: adminName(followUp.users) },
         })),
       })),
     };

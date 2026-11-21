@@ -58,72 +58,10 @@ describe("actionsFor (managing a sent content's links)", () => {
     ],
   });
 
-  it("offers the creator to add or replace a link, and hands over the content", () => {
-    const onManageLinks = vi.fn();
-
-    const [command, ...rest] = actionsFor({
-      role: "creator",
-      detail: sent,
-      state: idle,
-      ports: ports({ onManageLinks }),
-    });
-
-    expect(rest).toEqual([]);
-    expect(command).toMatchObject({ kind: "manage_links", label: "Tambah / Ganti Link" });
-    expect(command.canRun()).toBe(true);
-    command.run();
-    expect(onManageLinks).toHaveBeenCalledWith(sent);
-  });
-
-  it("offers the admin to replace only, since adding a link is the creator's", () => {
-    const [command] = actionsFor({
-      role: "admin",
-      detail: sent,
-      state: idle,
-      ports: ports({ onManageLinks: vi.fn() }),
-    });
-
-    expect(command).toMatchObject({ kind: "manage_links", label: "Ganti Link" });
-  });
-
-  it("offers the admin nothing when no link names a platform to replace", () => {
-    expect(
-      actionsFor({
-        role: "admin",
-        detail: {
-          ...sent,
-          links: [{ platform: null, url: "https://example.com/old", submittedAt: "2026-10-01" }],
-        },
-        state: idle,
-        ports: ports({ onManageLinks: vi.fn() }),
-      }),
-    ).toEqual([]);
-  });
-
-  it("still offers the creator a link when the answer lists none", () => {
-    expect(
-      actionsFor({
-        role: "creator",
-        detail: { ...sent, links: undefined },
-        state: idle,
-        ports: ports({ onManageLinks: vi.fn() }),
-      }),
-    ).toHaveLength(1);
-  });
-
-  it("offers nothing where the touchpoint hosts no link modal", () => {
-    expect(actionsFor({ role: "creator", detail: sent, state: idle, ports: ports() })).toEqual([]);
-  });
-
-  it("offers nothing before the first link is sent", () => {
-    const commands = actionsFor({
-      role: "creator",
-      detail: { ...sent, status: "draft_approved", waitingOn: "creator" },
-      state: idle,
-      ports: ports({ onManageLinks: vi.fn() }),
-    });
-
-    expect(commands).toEqual([]);
+  // A sent link is changed from its own card in Content Detail (a pencil, and a + for a platform
+  // still missing), so the step offers no link command of its own, to the creator or the admin.
+  it.each(["creator", "admin"] as const)("offers the %s no link command once the link is sent", (role) => {
+    expect(actionsFor({ role, detail: sent, state: idle, ports: ports() })).toEqual([]);
   });
 });
 

@@ -32,3 +32,11 @@ export function screenshotRefusal(file: ScreenshotFile, alreadyAdded: number): s
   if (alreadyAdded >= SCREENSHOT_MAX_COUNT) return SCREENSHOT_TOO_MANY;
   return null;
 }
+
+/**
+ * Where the browser opens a stored screenshot through, from its id alone: the app's own route,
+ * which answers with a short-lived signed link. A note places an image by id, never by address.
+ */
+export function noteImageSrc(imageId: string): string {
+  return `/api/revision-note-images/${imageId}`;
+}

@@ -18,7 +18,7 @@ function renderTabs(active: Key = "all", counts = COUNTS) {
   const onSelect = vi.fn();
   render(
     <StatusTabs
-      label="Tab Task Saya"
+      label="Tab Tugas Saya"
       panelId="task-list"
       tabs={TABS}
       active={active}
@@ -37,18 +37,19 @@ describe("StatusTabs", () => {
   it("steps aside on a phone, where the tabs are a choice in the filters", () => {
     renderTabs();
 
-    expect(screen.getByRole("tablist", { name: "Tab Task Saya" })).toHaveClass("max-sm:hidden");
+    expect(screen.getByRole("tablist", { name: "Tab Tugas Saya" })).toHaveClass("max-sm:hidden");
   });
 
-  it("names its tab list and offers each tab in order, counting only those that count", () => {
+  // Every tab shows its count on every list.
+  it("names its tab list and offers each tab in order, every one with its count", () => {
     renderTabs();
 
-    expect(screen.getByRole("tablist", { name: "Tab Task Saya" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Tab Tugas Saya" })).toBeInTheDocument();
     expect(tabs().map((node) => node.textContent)).toEqual([
-      "Semua",
+      "Semua9",
       "Perlu Dikerjakan4",
       "Menunggu Admin2",
-      "Selesai",
+      "Selesai3",
     ]);
   });
 
@@ -80,66 +81,38 @@ describe("StatusTabs", () => {
     expect(plain.className).toContain("text-muted");
   });
 
-  it("turns the urgent counter red past zero and hides it at zero", () => {
+  // The tab holding what still needs doing (Perlu Dikerjakan, Perlu Approval) is told apart in red,
+  // whatever its count; every other counter is grey.
+  it("draws the urgent tab's counter red and every other one grey", () => {
     renderTabs("all", { ...COUNTS, todo: 4 });
+
     expect(screen.getByTestId("count-todo").className).toContain("bg-red");
-  });
-
-  it("hides the urgent counter at zero, so an empty queue does not cry wolf", () => {
-    renderTabs("all", { ...COUNTS, todo: 0 });
-    expect(screen.queryByTestId("count-todo")).not.toBeInTheDocument();
-  });
-
-  describe("counting every tab", () => {
-    function renderEvery(counts = COUNTS) {
-      render(
-        <StatusTabs
-          label="Tab konten"
-          panelId="list"
-          tabs={TABS}
-          active="all"
-          counts={counts}
-          onSelect={vi.fn()}
-          countEvery
-        />,
-      );
+    for (const key of ["all", "wait", "done"]) {
+      expect(screen.getByTestId(`count-${key}`).className).toContain("bg-surface-2");
     }
+  });
 
-    it("gives every tab its count, the ones that do not count otherwise included", () => {
-      renderEvery();
+  it("keeps the urgent counter red at zero too, and shows the zero", () => {
+    renderTabs("all", { ...COUNTS, todo: 0 });
 
-      expect(screen.getByTestId("count-all")).toHaveTextContent("9");
-      expect(screen.getByTestId("count-done")).toHaveTextContent("3");
-    });
+    const badge = screen.getByTestId("count-todo");
+    expect(badge).toHaveTextContent("0");
+    expect(badge.className).toContain("bg-red");
+  });
 
-    it("keeps the urgent counter red past zero and every other one grey", () => {
-      renderEvery();
+  it("shows a zero on every other tab, in grey", () => {
+    renderTabs("all", { ...COUNTS, wait: 0, done: 0 });
 
-      expect(screen.getByTestId("count-todo").className).toContain("bg-red");
-      for (const key of ["all", "wait", "done"]) {
-        expect(screen.getByTestId(`count-${key}`).className).toContain("bg-surface-2");
-      }
-    });
-
-    it("shows an empty urgent queue as a grey zero, not a red badge", () => {
-      renderEvery({ ...COUNTS, todo: 0 });
-
-      const badge = screen.getByTestId("count-todo");
+    for (const key of ["wait", "done"]) {
+      const badge = screen.getByTestId(`count-${key}`);
       expect(badge).toHaveTextContent("0");
       expect(badge.className).toContain("bg-surface-2");
-    });
-  });
-
-  it("keeps a counting tab grey with zero included", () => {
-    renderTabs("all", { ...COUNTS, wait: 0 });
-    const badge = screen.getByTestId("count-wait");
-    expect(badge).toHaveTextContent("0");
-    expect(badge.className).toContain("bg-surface-2");
+    }
   });
 
   it("hands the pressed tab back", () => {
     const onSelect = renderTabs();
-    fireEvent.click(screen.getByRole("tab", { name: "Selesai" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Selesai/ }));
     expect(onSelect).toHaveBeenCalledWith("done");
   });
 

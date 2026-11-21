@@ -76,7 +76,7 @@ describe("Content Plan page", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Content Plan" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Semua" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Semua/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("count-action")).toHaveTextContent("3");
     expect(screen.getByTestId("count-waiting")).toHaveTextContent("12");
   });
@@ -144,7 +144,7 @@ describe("Content Plan page", () => {
     await renderPage();
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Semua" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^Semua/ })).toBeInTheDocument();
     expect(screen.getByText("Evg_1_Salsa_15Sep2026")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Creator:/ })).toHaveTextContent(
       "Creator: Semua",
@@ -209,14 +209,12 @@ describe("Content Plan's list band", () => {
     fetchCreators.mockResolvedValue([{ id: "id-1", name: "Salsa Wijaya" }]);
   });
 
-  it("titles the plan in the ink band with the contents it holds and the open tab", async () => {
+  it("gives the plan no title band, since the page's title already names its one list", async () => {
     fetchPlan.mockResolvedValue(planOf({ total: 12, counts: { all: 42, action: 3, waiting: 12, done: 27 } }));
 
     await renderPage({ tab: "waiting" });
 
-    const band = screen.getByRole("heading", { level: 2, name: "Konten" }).closest("[data-tone]") as HTMLElement;
-    expect(band).toHaveAttribute("data-tone", "ink");
-    expect(band.querySelector("[data-count]")).toHaveTextContent("12 konten");
-    expect(band).toHaveTextContent("Menunggu Kreator");
+    expect(screen.queryByRole("heading", { level: 2, name: "Konten" })).toBeNull();
+    expect(document.querySelector("[data-tone]")).toBeNull();
   });
 });

@@ -15,7 +15,7 @@ function filesUnder(directory: string): string[] {
 }
 
 describe("the admin's creator pages", () => {
-  it("are the Creator Database and the Creator Detail page, and no other", () => {
+  it("are the Kreator and the Creator Detail page, and no other", () => {
     const pages = filesUnder("app/admin/creators").filter((file) => file.endsWith("/page.tsx"));
 
     expect(pages.sort()).toEqual([

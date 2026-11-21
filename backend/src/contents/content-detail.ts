@@ -52,6 +52,8 @@ export interface DetailFollowUp {
   note: string;
   /** The follow-up's sanitized formatting, when it was written with any. */
   noteHtml?: string;
+  /** The screenshots it went out with (PBI-34); absent when it has none. */
+  images?: NoteImage[];
   // ISO instant the follow-up was saved.
   at: string;
   actor: { name: string };

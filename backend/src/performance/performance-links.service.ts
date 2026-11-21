@@ -7,6 +7,7 @@ import {
   toPerformanceLinkItem,
   type PerformanceLinkItem,
   type PerformanceLinkRow,
+  stateFilter,
   type PerformanceLinksFilters,
 } from './performance-links.js';
 
@@ -32,6 +33,42 @@ export interface PerformanceLinksClient {
   };
 }
 
+const CREATOR_NAME_PARTS = ['first_name', 'middle_name', 'last_name'] as const;
+
+/**
+ * One searched word (I3.2): in the content's name or in any part of the creator's, whatever the
+ * case. Every word must match, so "rani kopi" finds Rani's "Review Kopi" and a full name split
+ * across first and last name still finds its creator. Searched in the database, so the count and
+ * the page are the search's own. Prisma sends the word as a parameter, with % and _ escaped.
+ */
+function wordMatch(word: string): Prisma.content_linksWhereInput {
+  const contains = { contains: word, mode: 'insensitive' } as const;
+  return {
+    OR: [
+      { contents: { name: contains } },
+      ...CREATOR_NAME_PARTS.map((part) => ({
+        contents: { contracts: { creators: { [part]: contains } } },
+      })),
+    ],
+  };
+}
+
+/** Past this many words a search stops narrowing: each word is four ILIKEs no index serves. */
+export const MAX_SEARCH_WORDS = 5;
+
+/**
+ * The words a search is made of: each once, whatever its case (the match ignores it), and no
+ * more than MAX_SEARCH_WORDS. Unbounded, a 100-character search of 50 one-letter words was 200
+ * ILIKEs run twice (count and page), 9-12 s on 10,000 links; capped it is about 25 ms.
+ */
+function searchWords(q: string): string[] {
+  const seen = new Map<string, string>();
+  for (const word of q.split(/\s+/)) {
+    if (!seen.has(word.toLowerCase())) seen.set(word.toLowerCase(), word);
+  }
+  return [...seen.values()].slice(0, MAX_SEARCH_WORDS);
+}
+
 /**
  * Every submitted Instagram or TikTok link, newest first (PBI-27, AC 22-23). A link kept from
  * before platforms were recorded has no platform to be measured on, so it is not listed.
@@ -51,6 +88,15 @@ export class PerformanceLinksService {
       platform: filters.platforms ? { in: filters.platforms } : { not: null },
       ...(filters.creators && {
         contents: { contracts: { creator_id: { in: filters.creators } } },
+      }),
+      // One AND for the search's words and the Status Data filter: two spread `AND` keys would
+      // overwrite each other. Its own key apart from the creator's `contents`, which a state's
+      // account check also uses.
+      ...((filters.q || filters.states) && {
+        AND: [
+          ...(filters.q ? searchWords(filters.q).map(wordMatch) : []),
+          ...(filters.states ? [stateFilter(filters.states)] : []),
+        ],
       }),
     };
     const [total, rows] = await Promise.all([

@@ -16,7 +16,8 @@ import type { PerformanceMetrics, SourceLink } from '../ports.js';
  */
 export type SyncScope =
   | { kind: 'all' }
-  | { kind: 'content'; contentId: string }
+  // platform: the Refresh button on one link card syncs only that link (SCRUM-282).
+  | { kind: 'content'; contentId: string; platform?: social_platform }
   | { kind: 'links'; linkIds: readonly string[] }
   | { kind: 'contract'; contractId: string };
 
@@ -53,9 +54,10 @@ const RUNNING_INVOICE = {
 export function syncableLinks(
   scope: SyncScope,
 ): Prisma.content_linksWhereInput {
+  const onePlatform = scope.kind === 'content' ? scope.platform : undefined;
   return {
     ...(scope.kind === 'links' && { id: { in: [...scope.linkIds] } }),
-    platform: { not: null },
+    platform: onePlatform ?? { not: null },
     contents: {
       status: 'link_submitted',
       ...(scope.kind === 'content' && { id: scope.contentId }),

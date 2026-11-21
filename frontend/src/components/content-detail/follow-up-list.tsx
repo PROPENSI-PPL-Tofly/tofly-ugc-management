@@ -1,6 +1,6 @@
 import type { FollowUp } from "@/lib/content-detail";
 import { formatTimestamp } from "@/lib/format";
-import { RichNote } from "./rich-note";
+import { RevisionNote } from "./revision-note";
 
 /**
  * The follow-ups under a revision note, oldest first, each labelled and timed. The note above
@@ -22,11 +22,8 @@ export function FollowUpList({ followUps }: Readonly<{ followUps: readonly Follo
               {formatTimestamp(followUp.at)}
             </time>
           </p>
-          {followUp.noteHtml ? (
-            <RichNote html={followUp.noteHtml} />
-          ) : (
-            <p className="whitespace-pre-line">{followUp.note}</p>
-          )}
+          {/* Read as a revision note is: its formatting, and its screenshots where they were placed. */}
+          <RevisionNote note={followUp.note} noteHtml={followUp.noteHtml} images={followUp.images} />
         </li>
       ))}
     </ol>

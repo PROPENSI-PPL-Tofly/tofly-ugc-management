@@ -1,134 +1,45 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ContentTags } from "@/components/contents/content-tags";
-import { Button } from "@/components/ui/button";
-import type { Variant } from "@/components/ui/button-classes";
 import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
+import { ContentNameButton } from "@/components/contents/content-row-buttons";
+import { ContentTags } from "@/components/contents/content-tags";
+import { DueDate, badgeTags } from "@/components/contents/due-date";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlatformIcons } from "@/components/ui/platform-icon";
-import { StatusDot } from "@/components/ui/pill";
-import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
-import type { DeadlineSort } from "@/lib/content-plan";
-import { formatDate, formatTimestamp } from "@/lib/format";
-import { taskStatusLabel, type MyTask, type MyTaskAction } from "@/lib/my-tasks";
-import { creatorActionLabel } from "@/lib/panel-actions";
+import { Pill, StatusDot } from "@/components/ui/pill";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
+import { CONTENT_STATUS_TONES, CONTENT_TYPE_LABELS, CONTENT_TYPE_TONES } from "@/lib/content-labels";
+import type { DeadlineSort } from "@/lib/content-plan";
+import { formatTimestamp } from "@/lib/format";
+import { taskStatusLabel, type MyTask } from "@/lib/my-tasks";
 
-// From lg up this is a plain table. Below it (where the sidebar leaves too little width for four
-// columns) each row stacks into a card so the deadline, status and action stay on screen instead
-// of behind a sideways scroll: the header row is visually hidden, and the deadline and status
-// cells print their column name from data-label.
+// Laid out as the admin's Content Plan: from lg up a plain table, below it each row stacks into a
+// card so the deadline and status stay on screen instead of behind a sideways scroll. The header
+// row is visually hidden there, and each cell prints its column name from data-label.
 const HEAD = "px-5 py-3 font-semibold";
-
-/** Column widths from lg up: Nama Konten, Deadline, Status, Aksi; without Aksi on Selesai. */
-const COLUMNS = ["w-[30%]", "w-[13%]", "w-[29%]", "w-[28%]"];
-const COLUMNS_WITHOUT_ACTIONS = ["w-[46%]", "w-[20%]", "w-[34%]"];
 const CELL = "px-5 py-3 align-middle max-lg:block max-lg:px-0 max-lg:py-1";
 const LABELLED =
-  "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
+  "max-lg:flex max-lg:items-center max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-xs max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
 
 /**
- * Each button takes the tone of the state it answers, the same colours as the status dots:
- * a first draft is the plain primary step (blue), a resubmit answers a revision request
- * (amber), and the video link follows an approval (green). Inside the H-1 window the link may
- * skip the approval, but that is the fallback, so there it stays neutral.
- */
-function actionVariant(task: MyTask, action: MyTaskAction): Variant {
-  if (action === "submit_draft") return "accent";
-  if (action === "resubmit_draft") return "attention";
-  return task.status === "draft_approved" ? "positive" : "default";
-}
-
-/** What an action-less row says instead of a button; nothing once the work is done. */
-function idleText(task: MyTask): string | null {
-  return task.status === "draft_review" ? "Menunggu review admin" : null;
-}
-
-function ActionCell({
-  task,
-  now,
-  onAction,
-  onDetail,
-}: Readonly<{
-  task: MyTask;
-  now: Date;
-  onAction?: (task: MyTask, action: MyTaskAction) => void;
-  onDetail?: (task: MyTask) => void;
-}>) {
-  if (task.actions.length === 0 && onDetail) {
-    return (
-      // Nothing to do: a Detail button, as the prototype ends such a row, bordered like the
-      // Creator Database's, lifted above the row-wide name button so one press opens it once.
-      <div className="relative z-10">
-        <Button
-          variant="default"
-          className="whitespace-nowrap"
-          aria-label={`Detail: ${task.name}`}
-          aria-haspopup="dialog"
-          onClick={() => onDetail(task)}
-        >
-          Detail
-        </Button>
-      </div>
-    );
-  }
-
-  if (task.actions.length === 0) {
-    const idle = idleText(task);
-    return idle ? <span className="text-xs text-muted">{idle}</span> : null;
-  }
-
-  return (
-    // Above the row-wide name button, so a press on an action is the action alone.
-    <div className="relative z-10 flex flex-wrap gap-2">
-      {task.actions.map((action) => {
-        // Worded as the detail panel words it: the link of a draft still in review is the H-1
-        // route, or a late one, not the planned step after an approval.
-        const label = creatorActionLabel(action, task, now);
-
-        return (
-          <Button
-            key={action}
-            variant={actionVariant(task, action)}
-            // Full width and 44 px tall on a phone, well above WCAG 2.5.8's 24 px.
-            className="whitespace-nowrap max-lg:min-h-11 max-lg:w-full"
-            // Every row repeats the same labels, so each button names its task for a screen
-            // reader, keeping the visible label at the front.
-            aria-label={`${label}: ${task.name}`}
-            disabled={!onAction}
-            onClick={() => onAction?.(task, action)}
-          >
-            {label}
-          </Button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * Task Saya's table (PRD 3.16). Rows arrive in display order with the actions the backend
- * allows today; the table only renders them. What an action does (the Submit Draft and Submit
- * Link Video modals) is the page's business, reached through `onAction`; without it the
- * buttons show but cannot be pressed.
+ * Task Saya's table (PRD 3.16), drawn as the admin's Content Plan: the type as a badge, a missed
+ * deadline in red, the other tags beside the status, the platforms in a column of their own. Rows
+ * arrive in display order; they carry no buttons, since a row opens Detail Konten (`onDetail`),
+ * where the creator hands in a draft or a link.
  */
 export function MyTaskTable({
   tasks,
-  onAction,
   onDetail,
   emptyMessage = "Belum ada tugas untuk kamu.",
   emptyAction,
   emptyHint = "Tugas baru muncul di sini begitu admin menjadwalkannya.",
   sort = "asc",
   onSortToggle,
-  hideActions = false,
-  now = new Date(),
 }: Readonly<{
   tasks: MyTask[];
-  onAction?: (task: MyTask, action: MyTaskAction) => void;
-  /** Opens the row's content detail panel; every row can show its journey. */
-  onDetail?: (task: MyTask) => void;
+  /** Opens the row's content detail panel; every row can show its journey and hand in from it. */
+  onDetail: (task: MyTask) => void;
   /** What an empty list means, e.g. that a status filter matched nothing. */
   emptyMessage?: string;
   /** The way out of an empty list, e.g. clearing the filter that emptied it. */
@@ -139,10 +50,6 @@ export function MyTaskTable({
   sort?: DeadlineSort;
   /** Turns the deadline order over; given, the Deadline header becomes its button. */
   onSortToggle?: () => void;
-  /** Leaves out the Aksi column, for a list that never has anything to do (Selesai). */
-  hideActions?: boolean;
-  /** The moment the buttons are worded for; a test pins it. */
-  now?: Date;
 }>) {
   if (tasks.length === 0) {
     return (
@@ -157,19 +64,15 @@ export function MyTaskTable({
   return (
     <ScrollFrame>
       {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
-      <table role="table" className="w-full text-[13px] max-lg:block lg:table-fixed">
+      <table role="table" className="w-full text-[13px] max-lg:block">
         <caption className="sr-only">Daftar Tugas Saya</caption>
-        {/* Fixed widths, as in the prototype: a page of short names or no buttons keeps the
-            columns where they were. Hidden below lg, where the rows are cards. */}
-        <colgroup className="max-lg:hidden">
-          {(hideActions ? COLUMNS_WITHOUT_ACTIONS : COLUMNS).map((width) => (
-            <col key={width} className={width} />
-          ))}
-        </colgroup>
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-left text-muted">
             <th role="columnheader" scope="col" className={HEAD}>
               Nama Konten
+            </th>
+            <th role="columnheader" scope="col" className={HEAD}>
+              Tipe
             </th>
             {onSortToggle ? (
               // Below lg the board offers its own sort button; the header's leaves that width.
@@ -182,48 +85,29 @@ export function MyTaskTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Status
             </th>
-            {hideActions ? null : (
-              <th role="columnheader" scope="col" className={HEAD}>
-                Aksi
-              </th>
-            )}
+            <th role="columnheader" scope="col" className={HEAD}>
+              Platform
+            </th>
           </tr>
         </thead>
         {/* Below lg the cards sit apart on the page colour, 12 px between them, so one task never
             reads as the end of the one above it. */}
         <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3 max-lg:bg-paper max-lg:p-3">
           {tasks.map((task) => (
-            // A press anywhere on the row opens its detail, as in the prototype: the name's button
-            // is stretched over the row (relative here), so the press lands on a real button and
-            // the keyboard and screen readers reach it the same way.
+            // A press anywhere on the row opens its detail, as in the Content Plan; the name is the
+            // same door as a real button, for the keyboard and for screen readers.
             <tr
               key={task.id}
               role="row"
-              className={`border-b border-rule lg:last:border-none max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3 lg:h-16 ${
-                onDetail ? "relative cursor-pointer transition-colors hover:bg-surface-2" : ""
-              }`}
+              onClick={() => {
+                // Dragging across a name to copy it ends in a click here: copying, not opening.
+                if (window.getSelection()?.toString()) return;
+                onDetail(task);
+              }}
+              className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
             >
-              <td role="cell" className={`${CELL} wrap-anywhere max-lg:font-semibold`}>
-                {/* Reads as plain text; its ::after covers the row, and a keyboard focus rings the row. */}
-                {onDetail ? (
-                  <button
-                    type="button"
-                    aria-haspopup="dialog"
-                    onClick={() => onDetail(task)}
-                    className="cursor-pointer border-none bg-transparent p-0 text-left text-inherit after:absolute after:inset-0 focus-visible:outline-none! focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-focus"
-                  >
-                    {task.name}
-                  </button>
-                ) : (
-                  task.name
-                )}
-                {task.platforms.length ? (
-                  <div className="mt-1">
-                    <PlatformIcons platforms={task.platforms} />
-                  </div>
-                ) : null}
-                {/* The type as quiet text, as the admin's Content Plan shows it: a fact, not a judgment. */}
-                <span className="block text-xs font-normal text-muted">{CONTENT_TYPE_LABELS[task.type]}</span>
+              <td role="cell" className={`${CELL} wrap-anywhere max-lg:pb-2 max-lg:text-sm max-lg:font-semibold`}>
+                <ContentNameButton onOpen={() => onDetail(task)}>{task.name}</ContentNameButton>
                 {/* PBI-33 AC 5: words, not a colour, say the admin added to the revision note. */}
                 {task.revisionNotesUpdatedAt ? (
                   <span className="block text-xs font-normal text-muted">
@@ -232,23 +116,22 @@ export function MyTaskTable({
                   </span>
                 ) : null}
               </td>
+              <td role="cell" data-label="Tipe" className={`${CELL} ${LABELLED}`}>
+                <Pill tone={CONTENT_TYPE_TONES[task.type]}>{CONTENT_TYPE_LABELS[task.type]}</Pill>
+              </td>
               <td role="cell" data-label="Deadline" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
-                {formatDate(task.deadline)}
+                <DueDate deadline={task.deadline} tags={task.tags} />
               </td>
               <td role="cell" data-label="Status" className={`${CELL} ${LABELLED}`}>
-                {/* The tags sit beside the status, apart from it, as in the admin's views. */}
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>
-                    {taskStatusLabel(task.status)}
-                  </StatusDot>
-                  <ContentTags tags={task.tags} />
-                </div>
+                {/* The tags sit beside the status they qualify, as on Content Plan. */}
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <StatusDot tone={CONTENT_STATUS_TONES[task.status]}>{taskStatusLabel(task.status)}</StatusDot>
+                  <ContentTags tags={badgeTags(task.tags)} />
+                </span>
               </td>
-              {hideActions ? null : (
-                <td className={`${CELL} max-lg:pt-2 max-lg:empty:hidden`}>
-                  <ActionCell task={task} now={now} onAction={onAction} onDetail={onDetail} />
-                </td>
-              )}
+              <td role="cell" data-label="Platform" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
+                <PlatformIcons platforms={task.platforms} />
+              </td>
             </tr>
           ))}
         </tbody>

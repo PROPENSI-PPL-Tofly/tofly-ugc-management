@@ -84,6 +84,8 @@ describe("RevisionNote", () => {
       const link = screen.getByRole("link", { name: "Contoh" });
       expect(link).toHaveAttribute("href", "https://example.com/contoh");
       expect(link).toHaveAttribute("target", "_blank");
+      // Blue as every link in the app, so it reads as one before it is pressed.
+      expect(link).toHaveClass("text-accent-deep", "underline");
       expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow");
     });
 
@@ -110,6 +112,85 @@ describe("RevisionNote", () => {
       expect(container.textContent).toContain("Klik");
       expect(container.textContent).toContain("Judul");
       expect(container.textContent).not.toContain("alert(2)");
+    });
+  });
+
+  // A screenshot the admin placed in the text reads where it was placed, not in a row under it.
+  describe("screenshots placed in the text", () => {
+    function inline(...ids: string[]) {
+      return ids.map((id) => `<img data-image-id="${id}">`).join("");
+    }
+
+    it("shows the image between the words it was placed between, as a thumbnail that opens", () => {
+      const { container } = render(
+        <RevisionNote
+          note="Atas Bawah"
+          noteHtml={`<p>Atas</p>${inline(FIRST.id)}<p>Bawah</p>`}
+          images={[FIRST]}
+        />,
+      );
+
+      const thumbnail = screen.getByRole("button", { name: "Buka gambar 1" });
+      expect(picture(thumbnail)).toHaveAttribute("src", FIRST.url);
+      const words = container.querySelectorAll("p");
+      expect(words[0].compareDocumentPosition(thumbnail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(words[1].compareDocumentPosition(thumbnail) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    });
+
+    it("does not show a placed image a second time under the note", () => {
+      render(<RevisionNote note="Atas" noteHtml={`<p>Atas</p>${inline(FIRST.id)}`} images={[FIRST]} />);
+
+      expect(screen.getAllByRole("button", { name: /^Buka gambar/ })).toHaveLength(1);
+    });
+
+    it("still shows an image the text does not place under it, numbered after the others", () => {
+      render(
+        <RevisionNote note="Atas" noteHtml={`<p>Atas</p>${inline(FIRST.id)}`} images={[FIRST, SECOND]} />,
+      );
+
+      expect(screen.getAllByRole("button", { name: /^Buka gambar/ })).toHaveLength(2);
+      expect(picture(thumbnail(2))).toHaveAttribute("src", SECOND.url);
+    });
+
+    it("opens the placed image in the one overlay, counted among every image of the note", () => {
+      render(
+        <RevisionNote note="Atas" noteHtml={`<p>Atas</p>${inline(SECOND.id)}`} images={[FIRST, SECOND]} />,
+      );
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Buka gambar 2" })[0]);
+
+      const overlay = screen.getByRole("dialog", { name: "Gambar 2 dari 2" });
+      expect(picture(overlay)).toHaveAttribute("src", SECOND.url);
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    });
+
+    it("says a placed image failed instead of a broken picture", () => {
+      render(<RevisionNote note="Atas" noteHtml={`<p>Atas</p>${inline(FIRST.id)}`} images={[FIRST]} />);
+
+      fireEvent.error(picture(thumbnail(1)));
+
+      expect(screen.getByText("Gambar gagal dimuat")).toBeInTheDocument();
+    });
+
+    it("draws nothing for an image the note does not hold, whatever address it names", () => {
+      const { container } = render(
+        <RevisionNote
+          note="Atas"
+          noteHtml={`<p>Atas</p>${inline("7d0c5f1e-3b1a-4c2e-9f4d-2a6b8c0d1e2f")}<img src="https://evil.example/x.png">`}
+          images={[FIRST]}
+        />,
+      );
+
+      expect(container.querySelectorAll("img")).toHaveLength(1);
+      expect(container.querySelector('img[src^="https://evil"]')).toBeNull();
+    });
+
+    it("draws no image in a note that holds none, such as a follow-up", () => {
+      const { container } = render(
+        <RevisionNote note="Atas" noteHtml={`<p>Atas</p>${inline(FIRST.id)}`} />,
+      );
+
+      expect(container.querySelector("img")).toBeNull();
     });
   });
 

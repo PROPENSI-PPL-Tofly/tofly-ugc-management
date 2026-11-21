@@ -121,12 +121,20 @@ export function ScreenshotButton({ screenshots, disabled = false }: Readonly<Par
   );
 }
 
-// Each screenshot's tile, while it uploads, after it fails, and once it is stored.
-export function ScreenshotTiles({ screenshots, disabled = false }: Readonly<PartProps>) {
-  if (screenshots.uploads.length === 0) return null;
+// Each screenshot's tile, while it uploads, after it fails, and once it is stored. A stored image
+// the text places is read there, so it has no tile; the text losing it brings its tile back.
+export function ScreenshotTiles({
+  screenshots,
+  disabled = false,
+  placed,
+}: Readonly<PartProps & { placed?: ReadonlySet<string> }>) {
+  const tiles = screenshots.uploads.filter(
+    (upload) => !(upload.status === "done" && placed?.has(upload.imageId)),
+  );
+  if (tiles.length === 0) return null;
   return (
     <ul className="flex flex-wrap gap-2 px-3 pb-2.5">
-      {screenshots.uploads.map((upload) => (
+      {tiles.map((upload) => (
         <Tile
           key={upload.id}
           upload={upload}

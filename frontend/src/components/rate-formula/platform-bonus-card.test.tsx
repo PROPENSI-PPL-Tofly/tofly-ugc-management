@@ -28,9 +28,9 @@ describe("PlatformBonusCard", () => {
     setup();
 
     expect(screen.getByRole("group", { name: "Bonus performa Instagram" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Instagram tier 1 minimum Views")).toHaveValue("10000");
-    expect(screen.getByLabelText("Instagram tier 1 bonus (Rp)")).toHaveValue("150000");
-    expect(screen.getByLabelText("Instagram tier 2 minimum Views")).toHaveValue("40000");
+    expect(screen.getByLabelText("Instagram tier 1 minimum Views")).toHaveValue("10.000");
+    expect(screen.getByLabelText("Instagram tier 1 bonus (Rp)")).toHaveValue("150.000");
+    expect(screen.getByLabelText("Instagram tier 2 minimum Views")).toHaveValue("40.000");
     expect(screen.getByText("2/5 tier")).toBeInTheDocument();
   });
 

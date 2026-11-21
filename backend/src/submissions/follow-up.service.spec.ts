@@ -3,6 +3,7 @@ import { FollowUpService, type FollowUpClient } from './follow-up.service.js';
 const SUBMISSION = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
 const CONTENT = '11111111-1111-4111-8111-111111111111';
 const ADMIN = '22222222-2222-4222-8222-222222222222';
+const ADMIN_EMAIL = 'sinta.admin@tofly.id';
 const SAVED_AT = new Date(Date.UTC(2026, 10, 9, 4, 0, 0));
 
 interface RoundRow {
@@ -26,7 +27,11 @@ function openRound(overrides: Partial<RoundRow> = {}): RoundRow {
 // A fake database: it records what the service writes, inside the transaction or outside it.
 function fakeClient(
   round: RoundRow | null,
-  admin: { id: string } | null = { id: ADMIN },
+  admin: { id: string; email: string } | null = {
+    id: ADMIN,
+    email: ADMIN_EMAIL,
+  },
+  held: { id: string; content_type: string }[] = [],
 ) {
   const inTransaction: string[] = [];
   const followUpCreate = vi.fn((args: { data: Record<string, unknown> }) => {
@@ -38,7 +43,10 @@ function fakeClient(
     return Promise.resolve({});
   });
   const usersFind = vi.fn().mockResolvedValue(admin);
+  const imagesFind = vi.fn().mockResolvedValue(held);
+  const imagesUpdate = vi.fn().mockResolvedValue({ count: held.length });
   const transaction = {
+    revision_note_images: { findMany: imagesFind, updateMany: imagesUpdate },
     revision_followups: { create: followUpCreate },
     content_events: { create: eventCreate },
     users: { findUnique: usersFind },
@@ -52,16 +60,20 @@ function fakeClient(
   return {
     service: new FollowUpService(client as unknown as FollowUpClient),
     client,
+    usersFind,
     followUpCreate,
     eventCreate,
     inTransaction,
+    imagesFind,
+    imagesUpdate,
   };
 }
 
 describe('FollowUpService.add', () => {
-  // Positive (AC 4): the follow-up is kept and answered in the shape the admin's form reads.
-  it('keeps the follow-up and answers with it', async () => {
-    const { service, followUpCreate } = fakeClient(openRound());
+  // Positive (AC 4): the follow-up is kept and answered in the shape the admin's form reads,
+  // signed by the email of the admin who wrote it.
+  it("keeps the follow-up and answers with it, by the admin's email", async () => {
+    const { service, followUpCreate, usersFind } = fakeClient(openRound());
 
     await expect(
       service.add(SUBMISSION, 'Intro juga dipotong ya.', ADMIN),
@@ -69,7 +81,11 @@ describe('FollowUpService.add', () => {
       id: 'fu-1',
       note: 'Intro juga dipotong ya.',
       at: SAVED_AT.toISOString(),
-      actor: { name: 'Admin' },
+      actor: { name: ADMIN_EMAIL },
+    });
+    expect(usersFind).toHaveBeenCalledWith({
+      where: { id: ADMIN },
+      select: { id: true, email: true },
     });
     expect(followUpCreate).toHaveBeenCalledWith({
       data: {
@@ -194,5 +210,92 @@ describe('FollowUpService.add', () => {
       status: 401,
     });
     expect(followUpCreate).not.toHaveBeenCalled();
+  });
+
+  // PBI-34 with PBI-33: screenshots go with the follow-up as they go with a revision note — named
+  // by id, held back from the unsent pool, and kept in the event so the timeline can show them.
+  describe('with screenshots', () => {
+    const IMAGE = '3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f';
+    const OTHER = '4d3c2b1a-9f8e-4e7d-8c6b-5f4e3d2c1b0a';
+    const HTML = `<p>Lihat</p><img data-image-id="${IMAGE}">`;
+
+    it('marks the named images sent and records them, in the order named, in the same transaction', async () => {
+      const held = [
+        { id: OTHER, content_type: 'image/jpeg' },
+        { id: IMAGE, content_type: 'image/png' },
+      ];
+      const { service, eventCreate, imagesFind, imagesUpdate, inTransaction } =
+        fakeClient(openRound(), { id: ADMIN, email: ADMIN_EMAIL }, held);
+
+      await service.add(SUBMISSION, 'Lihat', ADMIN, HTML, [IMAGE, OTHER]);
+
+      expect(imagesFind).toHaveBeenCalledWith({
+        where: { id: { in: [IMAGE, OTHER] }, submission_id: SUBMISSION, sent_at: null },
+        select: { id: true, content_type: true },
+      });
+      expect(imagesUpdate).toHaveBeenCalledWith({
+        where: { id: { in: [IMAGE, OTHER] }, submission_id: SUBMISSION },
+        data: { sent_at: expect.any(Date) },
+      });
+      expect(eventCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          event_data: expect.objectContaining({
+            images: [
+              { id: IMAGE, content_type: 'image/png' },
+              { id: OTHER, content_type: 'image/jpeg' },
+            ],
+          }),
+        }),
+      });
+      expect(inTransaction).toEqual(['revision_followups', 'content_events']);
+    });
+
+    it('answers with the images, opened through the app route', async () => {
+      const { service } = fakeClient(openRound(), { id: ADMIN, email: ADMIN_EMAIL }, [
+        { id: IMAGE, content_type: 'image/png' },
+      ]);
+
+      await expect(
+        service.add(SUBMISSION, 'Lihat', ADMIN, HTML, [IMAGE]),
+      ).resolves.toMatchObject({
+        images: [
+          {
+            id: IMAGE,
+            url: `/api/revision-note-images/${IMAGE}`,
+            contentType: 'image/png',
+          },
+        ],
+      });
+    });
+
+    // Review on 34.1: an image of another draft, or one already sent, is not this note's to send.
+    it('refuses an image the draft does not hold unsent, keeping nothing', async () => {
+      const { service, followUpCreate, eventCreate } = fakeClient(
+        openRound(),
+        { id: ADMIN, email: ADMIN_EMAIL },
+        [],
+      );
+
+      await expect(
+        service.add(SUBMISSION, 'Lihat', ADMIN, HTML, [IMAGE]),
+      ).rejects.toMatchObject({
+        status: 422,
+        response: { errors: { imageIds: 'Gambar tidak ditemukan pada catatan ini' } },
+      });
+      expect(followUpCreate).not.toHaveBeenCalled();
+      expect(eventCreate).not.toHaveBeenCalled();
+    });
+
+    it('touches no image for a follow-up that names none', async () => {
+      const { service, imagesFind, imagesUpdate, eventCreate } = fakeClient(openRound());
+
+      await service.add(SUBMISSION, 'Intro juga dipotong ya.', ADMIN);
+
+      expect(imagesFind).not.toHaveBeenCalled();
+      expect(imagesUpdate).not.toHaveBeenCalled();
+      expect(eventCreate.mock.calls[0]).toEqual([
+        { data: expect.not.objectContaining({ event_data: expect.objectContaining({ images: expect.anything() }) }) },
+      ]);
+    });
   });
 });

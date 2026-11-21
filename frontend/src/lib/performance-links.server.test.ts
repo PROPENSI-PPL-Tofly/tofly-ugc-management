@@ -63,6 +63,15 @@ describe("fetchPerformanceLinks", () => {
     );
   });
 
+  // I3.2 (SCRUM-279): Performa Konten's search goes to the admin's list, encoded.
+  it("asks the endpoint for the searched words", async () => {
+    mockedGet.mockResolvedValue(new Response(JSON.stringify(answer()), { status: 200 }));
+
+    await fetchPerformanceLinks(parsePerformanceLinksParams({ q: "rani & kopi" }));
+
+    expect(mockedGet).toHaveBeenCalledWith(`${PERFORMANCE_LINKS_PATH}?q=rani+%26+kopi&page=1`);
+  });
+
   it("reads the API's page answer into the list's rows", async () => {
     mockedGet.mockResolvedValue(new Response(JSON.stringify(answer()), { status: 200 }));
 
@@ -85,6 +94,7 @@ describe("fetchPerformanceLinks", () => {
           state: "synced",
           lastSyncedAt: "2026-11-01T17:00:00.000Z",
           manualAt: null,
+          manualBy: null,
         },
       ],
       page: 2,
@@ -126,6 +136,15 @@ describe("fetchMyPerformanceLinks", () => {
     mockedGet.mockResolvedValue(new Response(JSON.stringify(answer()), { status: 200 }));
 
     await fetchMyPerformanceLinks(parsePerformanceLinksParams({ creator: CREATOR_A }));
+
+    expect(mockedGet).toHaveBeenCalledWith(`${MY_PERFORMANCE_LINKS_PATH}?page=1`);
+  });
+
+  // I3.2 (SCRUM-279) is Performa Konten's search: the creator's own page has no search box.
+  it("never sends a search the creator's page does not offer", async () => {
+    mockedGet.mockResolvedValue(new Response(JSON.stringify(answer()), { status: 200 }));
+
+    await fetchMyPerformanceLinks(parsePerformanceLinksParams({ q: "rani" }));
 
     expect(mockedGet).toHaveBeenCalledWith(`${MY_PERFORMANCE_LINKS_PATH}?page=1`);
   });

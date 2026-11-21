@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { RichNoteEditor } from "./rich-note-editor";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createRef } from "react";
+import { RichNoteEditor, type RichNoteEditorHandle } from "./rich-note-editor";
 
 function renderEditor(props: Partial<Parameters<typeof RichNoteEditor>[0]> = {}) {
   const onChange = vi.fn();
@@ -583,5 +584,100 @@ describe("RichNoteEditor counts as 34.1 does", () => {
     });
 
     expect(await screen.findByText("25/1000")).toBeInTheDocument();
+  });
+});
+
+// A link reads as one while it is written, blue and underlined, as it reads once the note is sent.
+describe("RichNoteEditor links", () => {
+  it("draws a link in the text blue and underlined", async () => {
+    renderEditor({ initialContent: '<p><a href="https://example.com">contoh</a></p>' });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box.className).toContain("[&_a]:text-accent-deep");
+    expect(box.className).toContain("[&_a]:underline");
+  });
+});
+
+// A screenshot placed in the text is an image node that names a stored image by id. The page shows
+// it through the app's own route, and the note carries the id and nothing else.
+describe("RichNoteEditor with screenshots in the text", () => {
+  const IMAGE = "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f";
+  const OTHER = "4d3c2b1a-9f8e-4e7d-8c6b-5f4e3d2c1b0a";
+
+  function renderWithHandle(props: Partial<Parameters<typeof RichNoteEditor>[0]> = {}) {
+    const handle = createRef<RichNoteEditorHandle>();
+    const { onChange } = renderEditor({ editorRef: handle, ...props });
+    return { handle, onChange, last: () => onChange.mock.lastCall?.[0] };
+  }
+
+  it("draws an image the note names, opened through the app's image route", async () => {
+    renderEditor({ initialContent: `<p>Atas</p><img data-image-id="${IMAGE}"><p>Bawah</p>` });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    const image = box.querySelector("img[data-image-id]");
+    expect(image).toHaveAttribute("src", `/api/revision-note-images/${IMAGE}`);
+    expect(image).toHaveAttribute("alt", "");
+  });
+
+  it("places an image at the cursor, and gives the form its id and no address", async () => {
+    const { handle, last } = renderWithHandle({ initialContent: "<p>Potong intro</p>" });
+    await screen.findByRole("textbox", { name: "Catatan revisi" });
+
+    act(() => handle.current?.insertImage(IMAGE));
+
+    await waitFor(() => expect(last()?.html).toContain(`<img data-image-id="${IMAGE}">`));
+    expect(last()?.html).not.toContain("src=");
+  });
+
+  // The editor's counter reads each non-text leaf as one character, a line break's too, so it is
+  // never looser than the server, which counts an image as none.
+  it("adds no words, and at most one character to the counter", async () => {
+    const { handle, last } = renderWithHandle({ initialContent: "<p>Potong intro</p>" });
+    await screen.findByRole("textbox", { name: "Catatan revisi" });
+
+    act(() => handle.current?.insertImage(IMAGE));
+
+    await waitFor(() => expect(last()?.html).toContain("data-image-id"));
+    expect(last()?.length).toBeLessThanOrEqual("Potong intro".length + 1);
+    expect(last()?.text.trim()).toBe("Potong intro");
+  });
+
+  it("takes an image out of the text by its id, and leaves the others", async () => {
+    const { handle, last } = renderWithHandle({
+      initialContent: `<p>A</p><img data-image-id="${IMAGE}"><img data-image-id="${OTHER}"><p>B</p>`,
+    });
+    await screen.findByRole("textbox", { name: "Catatan revisi" });
+
+    act(() => handle.current?.removeImage(IMAGE));
+
+    await waitFor(() => expect(last()?.html).not.toContain(IMAGE));
+    expect(last()?.html).toContain(OTHER);
+  });
+
+  it("lets an image be dragged to another place in the text", async () => {
+    renderEditor({ initialContent: `<p>A</p><img data-image-id="${IMAGE}">` });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    expect(box.querySelector("img[data-image-id]")).toHaveAttribute("draggable", "true");
+  });
+
+  it("offers a × on each image that hands its id to the form, and none while the text is locked", async () => {
+    const onRemoveImage = vi.fn();
+    renderEditor({ initialContent: `<p>A</p><img data-image-id="${IMAGE}">`, onRemoveImage });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    fireEvent.click(within(box).getByRole("button", { name: "Hapus gambar" }));
+
+    expect(onRemoveImage).toHaveBeenCalledExactlyOnceWith(IMAGE);
+  });
+
+  it("does not remove an image while the form is sending", async () => {
+    const onRemoveImage = vi.fn();
+    renderEditor({ initialContent: `<img data-image-id="${IMAGE}">`, onRemoveImage, disabled: true });
+
+    const box = await screen.findByRole("textbox", { name: "Catatan revisi" });
+    fireEvent.click(within(box).getByRole("button", { name: "Hapus gambar" }));
+
+    expect(onRemoveImage).not.toHaveBeenCalled();
   });
 });

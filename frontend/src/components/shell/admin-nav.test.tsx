@@ -11,7 +11,7 @@ describe("AdminNav", () => {
 
     render(<AdminNav />);
 
-    expect(screen.getByRole("link", { name: "Creator Database" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kreator" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -22,17 +22,17 @@ describe("AdminNav", () => {
 
     render(<AdminNav />);
 
-    expect(screen.getByRole("link", { name: "Creator Database" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kreator" })).not.toHaveAttribute(
       "aria-current",
     );
   });
 
-  it("lists Rate & Invoicing and marks it current on its page", () => {
+  it("lists Pembayaran and marks it current on its page", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/invoicing");
 
     render(<AdminNav />);
 
-    const link = screen.getByRole("link", { name: "Rate & Invoicing" });
+    const link = screen.getByRole("link", { name: "Pembayaran" });
     expect(link).toHaveAttribute("href", "/admin/invoicing");
     expect(link).toHaveAttribute("aria-current", "page");
   });
@@ -56,7 +56,7 @@ describe("AdminNav", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "Creator Database" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kreator" })).not.toHaveAttribute(
       "aria-current",
     );
   });
@@ -92,29 +92,29 @@ describe("AdminNav", () => {
     );
   });
 
-  it("marks Rate & Invoicing as current on its page", () => {
+  it("marks Pembayaran as current on its page", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/invoicing");
 
     render(<AdminNav />);
 
-    expect(screen.getByRole("link", { name: "Rate & Invoicing" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Pembayaran" })).toHaveAttribute(
       "aria-current",
       "page",
     );
   });
 
-  it("links Rate & Invoicing to its page", () => {
+  it("links Pembayaran to its page", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators");
 
     render(<AdminNav />);
 
-    expect(screen.getByRole("link", { name: "Rate & Invoicing" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Pembayaran" })).toHaveAttribute(
       "href",
       "/admin/invoicing",
     );
   });
 
-  // The approved design replaces the phone's sideways-scrolling row (where "Rate & Invoicing"
+  // The approved design replaces the phone's sideways-scrolling row (where "Pembayaran"
   // sat cut off at the edge) with equal tiles at the foot of the screen, one per place, so with
   // Performa Konten there are four: every place is in sight, nothing to scroll to, no edge to fade.
   it("lays the places out as four equal tiles on a phone, none of them cut off", () => {
@@ -139,10 +139,10 @@ describe("AdminNav", () => {
       expect(icon).toHaveAttribute("aria-hidden", "true");
     }
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Creator Database",
+      "Kreator",
       "Content Plan",
       "Performa Konten",
-      "Rate & Invoicing",
+      "Pembayaran",
     ]);
   });
 

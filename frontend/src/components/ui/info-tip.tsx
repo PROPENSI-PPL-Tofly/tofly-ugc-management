@@ -1,61 +1,57 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 
 /** How far an open bubble stays from the edge of the area it opens in, and from its icon, in pixels. */
 const EDGE_MARGIN = 8;
 const ICON_GAP = 6;
 
-/** The nearest ancestor that scrolls or clips, whose edges a bubble inside it must keep within. */
-function boundingArea(bubble: HTMLElement): DOMRect | null {
-  for (let node = bubble.parentElement; node; node = node.parentElement) {
-    const { overflowX, overflowY } = getComputedStyle(node);
-    if ([overflowX, overflowY].some((value) => value !== "visible")) {
-      return node.getBoundingClientRect();
-    }
-  }
-  return null;
-}
-
 /**
- * Near the bottom of the window the bubble opens above its icon instead, when there is room
- * there; it ends as far above the icon as it would start below it.
+ * Places an open bubble on the screen layer against its icon: 6px below it, lined up with the
+ * icon's left edge (or its right edge for `end`), and kept 8px inside the window. Near the bottom
+ * of the window it opens above the icon instead, when there is room there. Fixed to the screen,
+ * no scrolling table or sheet it sits in can cut it off.
  */
-function flip(bubble: HTMLElement, box: DOMRect) {
+export function placeBubble(bubble: HTMLElement, align: "start" | "end" = "start") {
   const icon = (bubble.parentElement as HTMLElement).getBoundingClientRect();
+  const box = bubble.getBoundingClientRect();
+  const width = document.documentElement.clientWidth;
+  const height = document.documentElement.clientHeight;
+
+  const wanted = align === "start" ? icon.left : icon.right - box.width;
+  const left = Math.max(EDGE_MARGIN, Math.min(wanted, width - EDGE_MARGIN - box.width));
+
+  const below = icon.bottom + ICON_GAP;
   const above = icon.top - ICON_GAP - box.height;
-  if (box.bottom <= document.documentElement.clientHeight - EDGE_MARGIN || above < EDGE_MARGIN) return;
-  bubble.style.transform = `translateY(${above - box.top}px)`;
-  bubble.dataset.above = "";
+  const flip = below + box.height > height - EDGE_MARGIN && above >= EDGE_MARGIN;
+
+  bubble.style.left = `${left}px`;
+  bubble.style.top = `${flip ? above : below}px`;
+  if (flip) bubble.dataset.above = "";
+  else delete bubble.dataset.above;
 }
 
 /**
- * Moves an open bubble back inside its scrolling area and the window: pulled left by its
- * overhang past the right edge, or pushed right by its overhang past the left, never past the
- * other edge. It is moved by the edge it hangs from alone; setting the other as well
- * over-constrains it, and the browser then keeps `left` whatever the alignment.
+ * Fixed to the screen, an open bubble would stay put while its icon scrolls away: while `open`,
+ * it is placed again on every scroll and resize.
  */
-function fit(bubble: HTMLElement, align: "start" | "end") {
-  bubble.style.left = "";
-  bubble.style.right = "";
-  bubble.style.transform = "";
-  delete bubble.dataset.above;
-
-  const box = bubble.getBoundingClientRect();
-  flip(bubble, box);
-  const area = boundingArea(bubble);
-  const right = Math.min(document.documentElement.clientWidth, area?.right ?? Infinity) - EDGE_MARGIN;
-  const left = Math.max(0, area?.left ?? 0) + EDGE_MARGIN;
-
-  const pull = Math.min(box.right - right, box.left - left);
-  const push = Math.min(left - box.left, right - box.right);
-  let shift = 0;
-  if (pull > 0) shift = -pull;
-  else if (push > 0) shift = push;
-  if (shift === 0) return;
-
-  if (align === "start") bubble.style.left = `${shift}px`;
-  else bubble.style.right = `${-shift}px`;
+export function useBubbleFollow(
+  bubble: RefObject<HTMLElement | null>,
+  align: "start" | "end",
+  open: boolean,
+) {
+  useEffect(() => {
+    if (!open) return;
+    function follow() {
+      if (bubble.current) placeBubble(bubble.current, align);
+    }
+    document.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      document.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [bubble, align, open]);
 }
 
 /**
@@ -66,8 +62,8 @@ function fit(bubble: HTMLElement, align: "start" | "end") {
  * with, so one near the right edge of a dialog does not run off it.
  *
  * Closed, the bubble takes no room: laid out but invisible, it once widened a creator's invoice
- * sheet on a phone so the sheet scrolled sideways. Opened, it is measured and moved back inside
- * the area it opens in, wherever the icon sits.
+ * sheet on a phone so the sheet scrolled sideways. Opened, it is placed on the screen layer
+ * against its icon, and follows it while the page scrolls.
  */
 export function InfoTip({
   text,
@@ -82,15 +78,19 @@ export function InfoTip({
   const tipId = useId();
   const root = useRef<HTMLSpanElement>(null);
   const bubble = useRef<HTMLSpanElement>(null);
-  // Open by focus or a tap; hover needs no state, CSS shows the bubble under a pointer.
+  // Open by focus or a tap; CSS shows the bubble under a pointer, which is tracked only so the
+  // bubble can follow its icon while the page scrolls.
   const [shown, setShown] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   // Measured a frame after it opens, once hover, focus or a tap has shown it.
   function fitSoon() {
     requestAnimationFrame(() => {
-      if (bubble.current) fit(bubble.current, align);
+      if (bubble.current) placeBubble(bubble.current, align);
     });
   }
+
+  useBubbleFollow(bubble, align, shown || hovered);
 
   function show() {
     setShown(true);
@@ -108,7 +108,15 @@ export function InfoTip({
   }, [shown]);
 
   return (
-    <span ref={root} className="group relative inline-flex align-middle" onPointerEnter={fitSoon}>
+    <span
+      ref={root}
+      className="group relative inline-flex align-middle"
+      onPointerEnter={() => {
+        setHovered(true);
+        fitSoon();
+      }}
+      onPointerLeave={() => setHovered(false)}
+    >
       {/* The icon is 16px; the ::before around it widens the press to 24px, 44px under a finger. */}
       <button
         type="button"
@@ -134,7 +142,7 @@ export function InfoTip({
         // The bubble takes its own presses, so a tap on it neither shuts it nor reaches what
         // lies beneath; the strip above it bridges the 6px gap, so a pointer crossing from the
         // icon to the bubble never leaves the tip (below it once the bubble opens above).
-        className={`absolute top-full z-10 mt-1.5 w-max before:absolute before:inset-x-0 before:-top-1.5 before:h-1.5 before:content-[''] data-above:before:top-auto data-above:before:-bottom-1.5 max-w-[260px] rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink group-hover:block ${shown ? "block" : "hidden"} ${align === "end" ? "right-0" : "left-0"}`}
+        className={`fixed z-50 w-max before:absolute before:inset-x-0 before:-top-1.5 before:h-1.5 before:content-[''] data-above:before:top-auto data-above:before:-bottom-1.5 max-w-[260px] rounded-(--radius-control) bg-ink px-3 py-2 text-left text-xs font-normal leading-snug text-accent-ink group-hover:block ${shown ? "block" : "hidden"}`}
       >
         {text}
       </span>

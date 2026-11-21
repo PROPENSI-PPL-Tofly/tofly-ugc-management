@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import {
   DRAFT_LINK_NOT_DRIVE,
   isGoogleDriveLink,
@@ -43,13 +43,36 @@ export interface SubmitDraftModalProps {
   action?: DraftAction;
 }
 
-export function SubmitDraftModal({
-  content,
-  onClose,
+export interface DraftHandIn {
+  /** The two fields and any whole-submission failure, with no summary of the content. */
+  fields: ReactNode;
+  /** Batal and the send button; Batal calls what it is given, so the caller can ask first. */
+  renderActions: (onCancel: () => void) => ReactNode;
+  /** Whether anything typed would be lost by leaving. */
+  dirty: boolean;
+  /** While the request is in flight nothing may close the form. */
+  submitting: boolean;
+  wording: { title: string; submit: string };
+}
+
+/**
+ * The draft hand-in's state, fields and buttons (PRD 3.16), apart from the frame it sits in: the
+ * Submit Draft modal wraps them in a dialog, and Content Detail shows them inside its own panel.
+ */
+export function useDraftHandIn({
+  contentId,
   onSubmitted,
+  onClose,
   submitDraftAction = submitDraft,
   action = "submit_draft",
-}: SubmitDraftModalProps) {
+}: {
+  contentId: string;
+  onSubmitted: () => void;
+  /** Leaves the form: called once a submission went through. */
+  onClose: () => void;
+  submitDraftAction?: DraftSubmitter;
+  action?: DraftAction;
+}): DraftHandIn {
   const wording = WORDING[action];
   const linkErrorId = useId();
   const linkHintId = useId();
@@ -81,12 +104,6 @@ export function SubmitDraftModal({
   const notDrive = trimmedDraftLink !== "" && !isGoogleDriveLink(trimmedDraftLink);
   const shownLinkError = notDrive ? DRAFT_LINK_NOT_DRIVE : draftLinkError;
 
-  const { requestClose, confirmDialog } = useDiscardGuard({
-    isDirty: draftLink !== "" || adminNotes !== "",
-    onDiscard: onClose,
-    title: "Batalkan pengiriman draft?",
-  });
-
   async function handleSubmit() {
     const trimmedLink = draftLink.trim();
 
@@ -108,7 +125,7 @@ export function SubmitDraftModal({
     setIsSubmitting(true);
 
     try {
-      const result = await submitDraftAction(content.id, {
+      const result = await submitDraftAction(contentId, {
         link: trimmedLink,
         notes: trimmedNotes || null,
       });
@@ -135,113 +152,132 @@ export function SubmitDraftModal({
 
   const cannotSend = isSubmitting || notDrive;
 
-  return (
-    <>
-    <Modal
-      title={wording.title}
-      onClose={isSubmitting ? () => undefined : requestClose}
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={requestClose}
-            disabled={isSubmitting}
-          >
-            Batal
-          </Button>
+  const fields = (
+    <div className="flex flex-col gap-4">
+      <label className="flex flex-col gap-1.5">
+        <span className={`text-sm text-ink ${REQUIRED_MARK}`}>Link File Draft</span>
 
-          <Button
-            type="button"
-            variant="accent"
-            onClick={handleSubmit}
-            disabled={cannotSend}
-          >
-            {isSubmitting ? "Mengirim..." : wording.submit}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <TaskSummary content={content} />
+        <input
+          ref={linkRef}
+          type="url"
+          required
+          aria-label="Link File Draft"
+          maxLength={MAX_DRAFT_LINK_LENGTH}
+          placeholder="https://drive.google.com/file/d/…"
+          aria-invalid={shownLinkError ? true : undefined}
+          aria-describedby={shownLinkError ? linkErrorId : linkHintId}
+          value={draftLink}
+          onChange={(event) => {
+            setDraftLink(event.target.value);
+            // The message described the old value; a new one is checked again on submit.
+            setDraftLinkError("");
+          }}
+          // Enter sends from the link as the button would, and nothing the button would not.
+          // The notes keep Enter for a new line.
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            if (!cannotSend) void handleSubmit();
+          }}
+          className={FIELD}
+        />
 
-        <label className="flex flex-col gap-1.5">
-          <span className={`text-sm text-ink ${REQUIRED_MARK}`}>Link File Draft</span>
+        {/* Show a field-specific error directly below the draft link. */}
+        {shownLinkError ? (
+          <p id={linkErrorId} className={FIELD_ERROR}>
+            {shownLinkError}
+          </p>
+        ) : (
+          <p id={linkHintId} className="text-xs text-muted">
+            Tempel link Google Drive yang bisa dibuka admin.
+          </p>
+        )}
+      </label>
 
-          <input
-            ref={linkRef}
-            type="url"
-            required
-            aria-label="Link File Draft"
-            maxLength={MAX_DRAFT_LINK_LENGTH}
-            placeholder="https://drive.google.com/file/d/…"
-            aria-invalid={shownLinkError ? true : undefined}
-            aria-describedby={shownLinkError ? linkErrorId : linkHintId}
-            value={draftLink}
-            onChange={(event) => {
-              setDraftLink(event.target.value);
-              // The message described the old value; a new one is checked again on submit.
-              setDraftLinkError("");
-            }}
-            // Enter sends from the link as the button would, and nothing the button would not.
-            // The notes keep Enter for a new line.
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (!cannotSend) void handleSubmit();
-            }}
-            className={FIELD}
-          />
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm text-ink">
+          Catatan untuk Admin (opsional)
+        </span>
 
-          {/* Show a field-specific error directly below the draft link. */}
-          {shownLinkError ? (
-            <p id={linkErrorId} className={FIELD_ERROR}>
-              {shownLinkError}
-            </p>
-          ) : (
-            <p id={linkHintId} className="text-xs text-muted">
-              Tempel link Google Drive yang bisa dibuka admin.
-            </p>
-          )}
-        </label>
+        <textarea
+          aria-label="Catatan untuk Admin"
+          aria-invalid={adminNotesError ? true : undefined}
+          aria-describedby={adminNotesError ? `${notesErrorId} ${notesCountId}` : notesCountId}
+          rows={3}
+          maxLength={MAX_DRAFT_NOTES_LENGTH}
+          value={adminNotes}
+          onChange={(event) => {
+            setAdminNotes(event.target.value);
+            setAdminNotesError("");
+          }}
+          className={`resize-y ${FIELD}`}
+        />
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink">
-            Catatan untuk Admin (opsional)
-          </span>
+        <CharLimit id={notesCountId} length={adminNotes.length} max={MAX_DRAFT_NOTES_LENGTH} />
 
-          <textarea
-            aria-label="Catatan untuk Admin"
-            aria-invalid={adminNotesError ? true : undefined}
-            aria-describedby={adminNotesError ? `${notesErrorId} ${notesCountId}` : notesCountId}
-            rows={3}
-            maxLength={MAX_DRAFT_NOTES_LENGTH}
-            value={adminNotes}
-            onChange={(event) => {
-              setAdminNotes(event.target.value);
-              setAdminNotesError("");
-            }}
-            className={`resize-y ${FIELD}`}
-          />
-
-          <CharLimit id={notesCountId} length={adminNotes.length} max={MAX_DRAFT_NOTES_LENGTH} />
-
-          {adminNotesError ? (
-            <p id={notesErrorId} className={FIELD_ERROR}>
-              {adminNotesError}
-            </p>
-          ) : null}
-        </label>
-
-        {/* General failures are announced to assistive technology as an alert. */}
-        {submissionError ? (
-          <p role="alert" className={FIELD_ERROR}>
-            {submissionError}
+        {adminNotesError ? (
+          <p id={notesErrorId} className={FIELD_ERROR}>
+            {adminNotesError}
           </p>
         ) : null}
-      </div>
-    </Modal>
-    {confirmDialog}
+      </label>
+
+      {/* General failures are announced to assistive technology as an alert. */}
+      {submissionError ? (
+        <p role="alert" className={FIELD_ERROR}>
+          {submissionError}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  return {
+    fields,
+    renderActions: (onCancel) => (
+      <>
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+          Batal
+        </Button>
+
+        <Button type="button" variant="accent" onClick={handleSubmit} disabled={cannotSend}>
+          {isSubmitting ? "Mengirim..." : wording.submit}
+        </Button>
+      </>
+    ),
+    dirty: draftLink !== "" || adminNotes !== "",
+    submitting: isSubmitting,
+    wording,
+  };
+}
+
+export function SubmitDraftModal({
+  content,
+  onClose,
+  onSubmitted,
+  submitDraftAction = submitDraft,
+  action = "submit_draft",
+}: SubmitDraftModalProps) {
+  const form = useDraftHandIn({ contentId: content.id, onSubmitted, onClose, submitDraftAction, action });
+
+  const { requestClose, confirmDialog } = useDiscardGuard({
+    isDirty: form.dirty,
+    onDiscard: onClose,
+    title: "Batalkan pengiriman draft?",
+  });
+
+  return (
+    <>
+      <Modal
+        title={form.wording.title}
+        onClose={form.submitting ? () => undefined : requestClose}
+        footer={form.renderActions(requestClose)}
+      >
+        <div className="flex flex-col gap-4">
+          <TaskSummary content={content} />
+          {form.fields}
+        </div>
+      </Modal>
+      {confirmDialog}
     </>
   );
 }

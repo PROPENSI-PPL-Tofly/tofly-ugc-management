@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { filterPill, pickFilter } from "@/test/filters";
 import type { ContentPlanParams } from "@/lib/content-plan";
 import { DEFAULT_CONTENT_PLAN_PARAMS } from "@/lib/content-plan";
 import { ContentPlanFilters } from "./content-plan-filters";
@@ -49,6 +50,15 @@ afterEach(() => {
 });
 
 describe("ContentPlanFilters", () => {
+  it("shows Overdue in use as a chip that clears it", () => {
+    searchParams = new URLSearchParams({ overdue: "yes" });
+    renderFilters();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Overdue: Overdue" }));
+
+    expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan", { scroll: false });
+  });
+
   it("offers the search box, the three multi-selects, and Overdue as a pill, with no Periode filter", () => {
     renderFilters();
 
@@ -56,8 +66,8 @@ describe("ContentPlanFilters", () => {
     expect(screen.getByRole("button", { name: /^Creator:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Tipe:/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Status:/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("Overdue").closest("label")).toHaveClass("rounded-full");
-    expect(screen.queryByLabelText("Periode")).not.toBeInTheDocument();
+    expect(filterPill("Overdue")).toHaveClass("rounded-full");
+    expect(screen.queryByRole("button", { name: /^Periode:/ })).not.toBeInTheDocument();
   });
 
   it("sends the search to the URL once typing pauses, dropping the old page", () => {
@@ -74,13 +84,13 @@ describe("ContentPlanFilters", () => {
 
   it("narrows by overdue and clears it back to all", () => {
     let view = renderFilters();
-    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "yes" } });
+    pickFilter("Overdue", "Overdue");
     expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan?overdue=yes", {
       scroll: false,
     });
 
     view = view.rerenderWith(new URLSearchParams({ overdue: "yes" }));
-    fireEvent.change(screen.getByLabelText("Overdue"), { target: { value: "all" } });
+    pickFilter("Overdue", "Semua");
     expect(mockReplace).toHaveBeenLastCalledWith("/admin/content-plan", { scroll: false });
     view.unmount();
   });
@@ -290,9 +300,9 @@ describe("ContentPlanFilters", () => {
       searchParams = new URLSearchParams({ tab: "action" });
       renderFilters({ tab: "action" });
 
-      const choice = screen.getByRole("combobox", { name: "Tampilkan" });
-      expect(choice).toHaveValue("action");
-      expect(Array.from(choice.querySelectorAll("option")).map((option) => option.textContent)).toEqual([
+      expect(filterPill("Tampilkan")).toHaveTextContent("Tampilkan: Perlu Approval (3)");
+      fireEvent.click(filterPill("Tampilkan"));
+      expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
         "Semua (58)",
         "Perlu Approval (3)",
         "Menunggu Kreator (10)",
@@ -313,7 +323,7 @@ describe("ContentPlanFilters", () => {
 
       searchParams = new URLSearchParams(query);
       renderFilters({ creator: ["id-1"], status: ["scheduled"], sort: "asc" });
-      fireEvent.change(screen.getByRole("combobox", { name: "Tampilkan" }), { target: { value: "waiting" } });
+      pickFilter("Tampilkan", "Menunggu Kreator (10)");
 
       expect(mockReplace).toHaveBeenCalledExactlyOnceWith(...pressed);
     });

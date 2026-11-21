@@ -100,4 +100,12 @@ describe("ConnectionBadge", () => {
 
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
+
+  it("puts its tooltip on the screen layer, so a scrolling table cannot cut it off", () => {
+    render(<ConnectionBadge platform="Instagram" connection={CONNECTED} />);
+
+    const badge = screen.getByRole("button", { name: "Instagram Terhubung" });
+    expect(document.getElementById(badge.getAttribute("aria-describedby") as string)).toHaveClass("fixed");
+  });
 });
+

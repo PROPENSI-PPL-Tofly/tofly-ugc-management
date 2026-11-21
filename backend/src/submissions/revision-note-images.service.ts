@@ -65,16 +65,46 @@ function isSerializationCollision(error: unknown): boolean {
   );
 }
 
+/** A follow-up may still be written: the content waits on this draft's revision, no newer draft yet. */
+function followUpRoundOpen(submission: {
+  id: string;
+  contents: { status: string; submissions: { id: string }[] };
+}): boolean {
+  return (
+    submission.contents.status === 'draft_revision' &&
+    submission.contents.submissions[0]?.id === submission.id
+  );
+}
+
 /** The database operations this service uses. */
 export interface NoteImagesClient {
   submissions: {
     findUnique(args: {
       where: { id: string };
-      select: { id: true; revision_notes: true };
-    }): Promise<{ id: string; revision_notes: string | null } | null>;
+      select: {
+        id: true;
+        revision_notes: true;
+        contents: {
+          select: {
+            status: true;
+            submissions: {
+              orderBy: [{ created_at: 'desc' }, { id: 'desc' }];
+              take: 1;
+              select: { id: true };
+            };
+          };
+        };
+      };
+    }): Promise<{
+      id: string;
+      revision_notes: string | null;
+      contents: { status: string; submissions: { id: string }[] };
+    } | null>;
   };
   revision_note_images: {
-    count(args: { where: { submission_id: string } }): Promise<number>;
+    count(args: {
+      where: { submission_id: string; sent_at: null };
+    }): Promise<number>;
     create(args: {
       data: {
         submission_id: string;
@@ -147,16 +177,34 @@ export class RevisionNoteImagesService {
   ): Promise<RevisionNoteImageDto> {
     const submission = await this.prisma.submissions.findUnique({
       where: { id: submissionId },
-      select: { id: true, revision_notes: true },
+      select: {
+        id: true,
+        revision_notes: true,
+        contents: {
+          select: {
+            status: true,
+            submissions: {
+              orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+              take: 1,
+              select: { id: true },
+            },
+          },
+        },
+      },
     });
     if (!submission) throw submissionNotFound();
-    // Once the note has gone out, its images belong to the history (review).
-    if (submission.revision_notes !== null) throw noteAlreadySent();
+    // Once the note has gone out, its images belong to the history (review). Only a follow-up
+    // may still take screenshots, and only while its round is open: the content waits on the
+    // creator's revision of this very draft, as FollowUpService reads it (OWASP A01).
+    if (submission.revision_notes !== null && !followUpRoundOpen(submission)) {
+      throw noteAlreadySent();
+    }
 
-    // Five screenshots to a note (AC 4): refused before the bytes are taken, then counted
-    // again inside the transaction below where two uploads cannot pass the guard together.
+    // Five screenshots to a note (AC 4), counted among those still to go out, so what a revision
+    // note already sent does not use up a follow-up's room: refused before the bytes are taken,
+    // then counted again inside the transaction below where two uploads cannot pass together.
     const held = await this.prisma.revision_note_images.count({
-      where: { submission_id: submissionId },
+      where: { submission_id: submissionId, sent_at: null },
     });
     if (held >= MAX_NOTE_IMAGES) throw imageLimitReached();
 
@@ -258,7 +306,7 @@ export class RevisionNoteImagesService {
     const saved = await this.prisma.$transaction(
       async (transaction) => {
         const held = await transaction.revision_note_images.count({
-          where: { submission_id: submissionId },
+          where: { submission_id: submissionId, sent_at: null },
         });
         if (held >= MAX_NOTE_IMAGES) throw imageLimitReached();
 

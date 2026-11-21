@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   checkPerformanceLinksQuery,
+  LINK_PERFORMANCE_SELECT,
+  stateFilter,
   linkPerformanceOf,
   toPerformanceLinkItem,
   type PerformanceLinkRow,
@@ -23,6 +25,7 @@ function row(overrides: Partial<PerformanceLinkRow> = {}): PerformanceLinkRow {
     data_state: 'synced',
     last_synced_at: new Date('2026-11-01T19:00:00.000Z'),
     manual_at: null,
+    manual_users: null,
     contents: {
       id: CONTENT_ID,
       name: 'Review Kopi',
@@ -60,7 +63,39 @@ describe('checkPerformanceLinksQuery', () => {
     ).toEqual({ creators: [CREATOR_A, CREATOR_B], platforms: ['tiktok'] });
   });
 
+  it('narrows by one or more data states, each kept once', () => {
+    expect(
+      checkPerformanceLinksQuery({ state: ['synced', 'manual', 'synced'] }),
+    ).toEqual({ states: ['synced', 'manual'] });
+    expect(checkPerformanceLinksQuery({ state: 'not_found' })).toEqual({
+      states: ['not_found'],
+    });
+  });
+
+  // I3.2: the search box of Performa Konten, read as every other list's search (SCRUM-279).
   it.each([
+    ['trimmed', '  rani kopi  ', 'rani kopi'],
+    ['exactly 100 characters', 'a'.repeat(100), 'a'.repeat(100)],
+    ['with % and _ kept as plain text', '50%_off', '50%_off'],
+  ])('searches by the text it is given, %s', (_label, q, searched) => {
+    expect(checkPerformanceLinksQuery({ q })).toEqual({ q: searched });
+  });
+
+  it('does not search for spaces alone', () => {
+    expect(checkPerformanceLinksQuery({ q: '   ' })).toEqual({});
+  });
+
+  it.each([
+    [
+      'a search longer than 100 characters',
+      { q: 'a'.repeat(101) },
+      'q must be 100 characters or fewer',
+    ],
+    [
+      'a search given twice',
+      { q: ['rani', 'kopi'] },
+      'q must be a single text value',
+    ],
     [
       'a creator that is not an id',
       { creator: 'rani' },
@@ -75,6 +110,16 @@ describe('checkPerformanceLinksQuery', () => {
       'a platform given as an object',
       { platform: { a: 1 } },
       'platform must be instagram or tiktok',
+    ],
+    [
+      'a state the list does not know',
+      { state: 'done' },
+      'state must be one of waiting, not_connected, synced, not_found, sync_failed, manual',
+    ],
+    [
+      'more states than any filter needs',
+      { state: Array.from({ length: 51 }, () => 'synced') },
+      'state takes at most 50 values',
     ],
     [
       'more creators than any filter needs',
@@ -105,6 +150,7 @@ describe('linkPerformanceOf', () => {
       state: 'synced',
       lastSyncedAt: '2026-11-01T19:00:00.000Z',
       manualAt: null,
+      manualBy: null,
     });
   });
 
@@ -128,15 +174,26 @@ describe('linkPerformanceOf', () => {
     ).toBe('not_connected');
   });
 
-  it('gives the time an admin filled the numbers in', () => {
+  it('gives the time an admin filled the numbers in, and that admin by email', () => {
     expect(
       linkPerformanceOf(
         row({
           data_state: 'manual',
           manual_at: new Date('2026-11-02T03:00:00.000Z'),
+          manual_users: { email: 'sinta.admin@tofly.id' },
         }),
       ),
-    ).toMatchObject({ state: 'manual', manualAt: '2026-11-02T03:00:00.000Z' });
+    ).toMatchObject({
+      state: 'manual',
+      manualAt: '2026-11-02T03:00:00.000Z',
+      manualBy: 'sinta.admin@tofly.id',
+    });
+  });
+
+  it('reads the columns that name the admin who typed the numbers', () => {
+    expect(LINK_PERFORMANCE_SELECT.manual_users).toEqual({
+      select: { email: true },
+    });
   });
 });
 
@@ -149,6 +206,83 @@ describe('toPerformanceLinkItem', () => {
       creatorId: CREATOR_A,
       creatorName: 'Rani Putri',
       ...linkPerformanceOf(row()),
+    });
+  });
+});
+
+// The state a row shows is derived (effectiveState): a stored waiting or synced reads as not
+// connected while its creator's account on that platform is not, and a stored not connected
+// reads as waiting once it is. The filter has to match what the row shows, so it holds the same
+// rule as a query: the stored states that can show the picked one, and the account behind it.
+describe('stateFilter', () => {
+  const connected = (platform: string) => ({
+    platform,
+    contents: {
+      contracts: {
+        creators: {
+          social_accounts: {
+            some: { platform, is_connected: true, platform_user_id: { not: null } },
+          },
+        },
+      },
+    },
+  });
+  const notConnected = (platform: string) => ({
+    platform,
+    contents: {
+      contracts: {
+        creators: {
+          social_accounts: {
+            none: { platform, is_connected: true, platform_user_id: { not: null } },
+          },
+        },
+      },
+    },
+  });
+
+  it.each(['not_found', 'sync_failed', 'manual'] as const)(
+    'matches a stored %s as it is, whether or not the account is connected',
+    (state) => {
+      expect(stateFilter([state])).toEqual({ OR: [{ data_state: state }] });
+    },
+  );
+
+  it('matches Tersinkron only on a connected account, which is where a synced link stays synced', () => {
+    expect(stateFilter(['synced'])).toEqual({
+      OR: [
+        {
+          data_state: 'synced',
+          OR: [connected('instagram'), connected('tiktok')],
+        },
+      ],
+    });
+  });
+
+  it('matches Menunggu on a connected account, whether stored waiting or still not connected', () => {
+    expect(stateFilter(['waiting'])).toEqual({
+      OR: [
+        {
+          data_state: { in: ['waiting', 'not_connected'] },
+          OR: [connected('instagram'), connected('tiktok')],
+        },
+      ],
+    });
+  });
+
+  it('matches Belum Terhubung on an account that is not connected, stored waiting, synced or not connected', () => {
+    expect(stateFilter(['not_connected'])).toEqual({
+      OR: [
+        {
+          data_state: { in: ['waiting', 'synced', 'not_connected'] },
+          OR: [notConnected('instagram'), notConnected('tiktok')],
+        },
+      ],
+    });
+  });
+
+  it('matches any of several picked states', () => {
+    expect(stateFilter(['manual', 'sync_failed'])).toEqual({
+      OR: [{ data_state: 'manual' }, { data_state: 'sync_failed' }],
     });
   });
 });

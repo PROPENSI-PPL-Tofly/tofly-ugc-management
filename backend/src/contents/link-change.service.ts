@@ -1,3 +1,4 @@
+import { LINKS_SAVED, type LinksSaved } from './links-saved.js';
 import {
   ConflictException,
   Inject,
@@ -168,6 +169,10 @@ export class LinkChangeService implements LinkChanger {
     @Optional()
     @Inject(LINK_PERFORMANCE_COLUMNS)
     private readonly performanceColumns: PerformanceColumns = NO_PERFORMANCE_COLUMNS,
+    // Told once a change has committed, so its content syncs without waiting for the daily run.
+    @Optional()
+    @Inject(LINKS_SAVED)
+    private readonly linksSaved?: LinksSaved,
   ) {}
 
   submit(
@@ -190,7 +195,18 @@ export class LinkChangeService implements LinkChanger {
     );
   }
 
-  private run(
+  private async run(
+    contentId: string,
+    actor: LinkActor,
+    change: LinkChange,
+  ): Promise<ContentLinksResult> {
+    const result = await this.change(contentId, actor, change);
+    // Only once committed: a refused or rolled-back change saved nothing to sync.
+    this.linksSaved?.(contentId);
+    return result;
+  }
+
+  private change(
     contentId: string,
     actor: LinkActor,
     change: LinkChange,

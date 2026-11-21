@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
@@ -21,7 +21,6 @@ import {
   type VideoPlatform,
 } from "@/lib/video-links";
 import { saveVideoLinks, type VideoLinksSaver } from "@/lib/video-links-api";
-import { PerformanceLockReminder } from "@/components/performance/performance-lock-reminder";
 import { TaskSummary, type TaskContent } from "./task-summary";
 
 export interface SubmitVideoModalProps {
@@ -47,9 +46,6 @@ export interface SubmitVideoModalProps {
   // Allows the save behavior to be replaced during testing.
   saveLinksAction?: VideoLinksSaver;
 
-  // Whether to remind that the numbers lock at Finalize (PBI-28 AC 13). It speaks of the
-  // creator's own bonus, so an admin replacing a link is not shown it.
-  lockReminder?: boolean;
 }
 
 /**
@@ -78,23 +74,50 @@ function confirmation(firstLink: boolean, { added, replaced }: LinkChanges) {
   };
 }
 
-export function SubmitVideoModal({
-  content,
+export interface VideoLinksHandIn {
+  /** The first-link line, a field per platform and any failure of the whole save. */
+  fields: ReactNode;
+  /** Batal and the send button; Batal calls what it is given, so the caller can ask first. */
+  renderActions: (onCancel: () => void) => ReactNode;
+  /** The question before a save goes out, and the open-state dialog; render it beside the frame. */
+  confirmation: ReactNode;
+  /** Whether anything typed would be lost by leaving. */
+  dirty: boolean;
+  /** While the request is in flight nothing may close the form. */
+  submitting: boolean;
+}
+
+/**
+ * The video links' state, fields and buttons, apart from the frame they sit in: the Kirim Link
+ * Video modal wraps them in a dialog, and Content Detail shows them inside its own panel.
+ */
+export function useVideoLinksHandIn({
+  contentId,
   platforms = VIDEO_PLATFORMS,
   links = [],
+  only,
   onClose,
   onSubmitted,
   onPartlySaved,
   saveLinksAction = saveVideoLinks,
-  lockReminder = true,
-}: SubmitVideoModalProps) {
-  // The links the server holds: those the modal opened with, plus any a partial save added.
+}: {
+  contentId: string;
+  /** Shows one platform's field alone, for a link changed or added from its own card. */
+  only?: VideoPlatform;
+  platforms?: readonly VideoPlatform[];
+  links?: readonly SentLink[];
+  onClose: () => void;
+  onSubmitted: () => void;
+  onPartlySaved?: () => void;
+  saveLinksAction?: VideoLinksSaver;
+}): VideoLinksHandIn {
+  // The links the server holds: those the form opened with, plus any a partial save added.
   const [sent, setSent] = useState<LinkDraft>(() => draftFromLinks(links));
 
   // A sent link keeps its field even if its platform is no longer on file, so it can be replaced.
-  const shown = VIDEO_PLATFORMS.filter(
-    (platform) => platforms.includes(platform) || sent[platform] !== "",
-  );
+  const shown = only
+    ? [only]
+    : VIDEO_PLATFORMS.filter((platform) => platforms.includes(platform) || sent[platform] !== "");
 
   // Stores the current value of every platform's field.
   const [draft, setDraft] = useState<LinkDraft>(sent);
@@ -113,12 +136,6 @@ export function SubmitVideoModal({
   const problems = linkProblems(shown, draft, sent);
   const changes = linkChanges(shown, sent, draft);
   const firstLink = links.length === 0 && VIDEO_PLATFORMS.every((platform) => sent[platform] === "");
-
-  const { requestClose, confirmDialog } = useDiscardGuard({
-    isDirty: isLinkDraftDirty(sent, draft),
-    onDiscard: onClose,
-    title: "Batalkan pengiriman link video?",
-  });
 
   const cannotSend =
     isSubmitting || Object.keys(serverErrors).length > 0 || !canSendLinks(shown, draft, sent);
@@ -142,7 +159,7 @@ export function SubmitVideoModal({
     setIsSubmitting(true);
 
     try {
-      const result = await saveLinksAction(content.id, changes);
+      const result = await saveLinksAction(contentId, changes);
 
       // Notify the parent and close only after a successful save.
       if (result.ok) {
@@ -177,68 +194,100 @@ export function SubmitVideoModal({
 
   const question = confirmation(firstLink, changes);
 
+  const fields = (
+    <div className="flex flex-col gap-4">
+      {firstLink ? <p className="text-[12.5px] text-muted">Isi minimal satu link.</p> : null}
+
+      {shown.map((platform) => (
+        <LinkField
+          key={platform}
+          platform={platform}
+          value={draft[platform]}
+          error={problems[platform] ?? serverErrors[platform] ?? ""}
+          disabled={isSubmitting}
+          onChange={(value) => change(platform, value)}
+          // Enter asks to send as the button would, and nothing the button would not.
+          onEnter={() => {
+            if (!cannotSend) setConfirming(true);
+          }}
+        />
+      ))}
+
+      {/* General failures are announced to assistive technology as an alert. */}
+      {submissionError ? (
+        <p role="alert" className={FIELD_ERROR}>
+          {submissionError}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  return {
+    fields,
+    renderActions: (onCancel) => (
+      <>
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+          Batal
+        </Button>
+        <Button type="button" variant="accent" onClick={() => setConfirming(true)} disabled={cannotSend}>
+          {isSubmitting ? "Mengirim..." : "Kirim Link"}
+        </Button>
+      </>
+    ),
+    confirmation: confirming ? (
+      <ConfirmDialog
+        title={question.title}
+        message={question.message}
+        confirmLabel="Ya, Kirim"
+        cancelLabel="Periksa Lagi"
+        confirmVariant="accent"
+        onConfirm={() => void handleSubmit()}
+        onCancel={() => setConfirming(false)}
+      />
+    ) : null,
+    dirty: isLinkDraftDirty(sent, draft),
+    submitting: isSubmitting,
+  };
+}
+
+export function SubmitVideoModal({
+  content,
+  platforms = VIDEO_PLATFORMS,
+  links = [],
+  onClose,
+  onSubmitted,
+  onPartlySaved,
+  saveLinksAction = saveVideoLinks,
+}: SubmitVideoModalProps) {
+  const form = useVideoLinksHandIn({
+    contentId: content.id,
+    platforms,
+    links,
+    onClose,
+    onSubmitted,
+    onPartlySaved,
+    saveLinksAction,
+  });
+
+  const { requestClose, confirmDialog } = useDiscardGuard({
+    isDirty: form.dirty,
+    onDiscard: onClose,
+    title: "Batalkan pengiriman link video?",
+  });
+
   return (
     <>
       <Modal
         title="Kirim Link Video"
-        onClose={isSubmitting ? () => undefined : requestClose}
-        footer={
-          <>
-            <Button type="button" variant="ghost" onClick={requestClose} disabled={isSubmitting}>
-              Batal
-            </Button>
-            <Button
-              type="button"
-              variant="accent"
-              onClick={() => setConfirming(true)}
-              disabled={cannotSend}
-            >
-              {isSubmitting ? "Mengirim..." : "Kirim Link"}
-            </Button>
-          </>
-        }
+        onClose={form.submitting ? () => undefined : requestClose}
+        footer={form.renderActions(requestClose)}
       >
         <div className="flex flex-col gap-4">
           <TaskSummary content={content} />
-
-          {lockReminder ? <PerformanceLockReminder /> : null}
-
-          {firstLink ? <p className="text-[12.5px] text-muted">Isi minimal satu link.</p> : null}
-
-          {shown.map((platform) => (
-            <LinkField
-              key={platform}
-              platform={platform}
-              value={draft[platform]}
-              error={problems[platform] ?? serverErrors[platform] ?? ""}
-              disabled={isSubmitting}
-              onChange={(value) => change(platform, value)}
-              // Enter asks to send as the button would, and nothing the button would not.
-              onEnter={() => {
-                if (!cannotSend) setConfirming(true);
-              }}
-            />
-          ))}
-
-          {/* General failures are announced to assistive technology as an alert. */}
-          {submissionError ? (
-            <p role="alert" className={FIELD_ERROR}>
-              {submissionError}
-            </p>
-          ) : null}
+          {form.fields}
         </div>
       </Modal>
-      {confirming ? (
-        <ConfirmDialog
-          title={question.title}
-          message={question.message}
-          confirmLabel="Ya, Kirim"
-          cancelLabel="Periksa Lagi"
-          confirmVariant="accent"
-          onConfirm={() => void handleSubmit()}
-          onCancel={() => setConfirming(false)}
-        />
-      ) : null}
+      {form.confirmation}
       {confirmDialog}
     </>
   );

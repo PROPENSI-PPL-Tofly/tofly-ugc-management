@@ -53,6 +53,43 @@ describe('sanitizeRevisionNote', () => {
   });
 });
 
+// A screenshot placed in the text names its image by id and nothing else: the browser opens it
+// through the app's own route (34.1), so a note can never point at an address of its own making.
+describe('sanitizeRevisionNote with a screenshot in the text', () => {
+  const IMAGE = '3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f';
+
+  it('keeps an image named by its id, between the words it was placed between', () => {
+    expect(
+      sanitizeRevisionNote(
+        `<p>Sebelum</p><img data-image-id="${IMAGE}"><p>Sesudah</p>`,
+      ),
+    ).toBe(`<p>Sebelum</p><img data-image-id="${IMAGE}" /><p>Sesudah</p>`);
+  });
+
+  it('drops every other attribute, so no address, handler or style reaches the page', () => {
+    expect(
+      sanitizeRevisionNote(
+        `<img data-image-id="${IMAGE}" src="https://evil.example/x.png" onerror="steal()" style="width:9999px" alt="x">`,
+      ),
+    ).toBe(`<img data-image-id="${IMAGE}" />`);
+  });
+
+  it.each([
+    ['no id', '<img src="https://evil.example/x.png">'],
+    ['an id that is not a uuid', '<img data-image-id="../../etc/passwd">'],
+    ['an empty id', '<img data-image-id="">'],
+  ])('drops an image with %s', (_case, html) => {
+    expect(sanitizeRevisionNote(`<p>Teks</p>${html}`)).toBe('<p>Teks</p>');
+  });
+
+  it('adds nothing to the note\'s words or its length', () => {
+    const html = `<p>Potong intro</p><img data-image-id="${IMAGE}">`;
+
+    expect(revisionNoteText(html)).toBe('Potong intro');
+    expect(revisionNoteLength(html)).toBe('Potong intro'.length);
+  });
+});
+
 describe('revisionNoteText', () => {
   it('reads the words without any formatting', () => {
     expect(

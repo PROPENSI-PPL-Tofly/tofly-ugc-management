@@ -94,6 +94,15 @@ describe('MyPerformanceLinksController (PBI-27 AC 20)', () => {
     );
   });
 
+  it('passes the checked data states on', async () => {
+    await get('?state=synced&state=manual');
+
+    expect(links.list).toHaveBeenCalledExactlyOnceWith(
+      { page: 1, pageSize: 10 },
+      { creators: [CREATOR], states: ['synced', 'manual'] },
+    );
+  });
+
   // OWASP Top 10:2025 A01 (Broken Access Control): whose links is the creator the guard
   // resolved; a creator named in the address is never read, so no address reaches another
   // creator's numbers.
@@ -119,7 +128,7 @@ describe('MyPerformanceLinksController (PBI-27 AC 20)', () => {
     },
   );
 
-  it.each(['?page=0', '?page=x', '?platform=youtube'])(
+  it.each(['?page=0', '?page=x', '?platform=youtube', '?state=done'])(
     'answers 400 for %s before reading anything',
     async (query) => {
       expect((await get(query)).status).toBe(400);

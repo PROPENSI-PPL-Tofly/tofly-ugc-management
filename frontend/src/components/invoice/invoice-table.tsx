@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import { SortableTh } from "@/components/ui/sortable-th";
@@ -189,14 +190,15 @@ function finalCell(row: InvoiceRow) {
  *
  * What the board adds is optional, so the table stays one table: `sort` turns four headers
  * into sort buttons, `summary` adds a footer with what every creator the filters keep is owed,
- * and `action` adds a column of per-row actions (Rincian now, Finalize with PBI-12).
+ * and `onOpen` makes each row open its invoice (Rincian): a press anywhere on the row, or on the
+ * creator's name, which is the same door for the keyboard. There is no Rincian button.
  */
 export function InvoiceTable({
   rows,
   amount,
   sort,
   summary,
-  action,
+  onOpen,
 }: Readonly<{
   rows: readonly InvoiceRow[];
   /** Draws one money cell; the plain amounts when it is not given. */
@@ -204,10 +206,10 @@ export function InvoiceTable({
   sort?: InvoiceTableSort;
   /** Every creator the filters keep, across pages: how many and what they are owed together. */
   summary?: { total: number; count: number };
-  /** Draws the actions of one row. */
-  action?: (row: InvoiceRow) => ReactNode;
+  /** Opens one row's invoice in full (Rincian). */
+  onOpen?: (row: InvoiceRow) => void;
 }>) {
-  const columns = action ? [...COLUMNS, ["actions", "w-[9%]"] as const] : COLUMNS;
+  const columns = COLUMNS;
 
   return (
     // relative: the scroll region is the containing block of anything absolutely placed inside
@@ -246,12 +248,6 @@ export function InvoiceTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Status Invoice
             </th>
-            {action ? (
-              <th role="columnheader" scope="col" className={HEAD}>
-                {/* The prototype heads this column with nothing; the name stays for a screen reader. */}
-                <span className="sr-only">Aksi</span>
-              </th>
-            ) : null}
           </tr>
         </thead>
         <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3 max-lg:bg-paper max-lg:p-3">
@@ -266,11 +262,26 @@ export function InvoiceTable({
               <tr
                 key={row.contractId}
                 role="row"
-                className="border-b border-rule transition-colors lg:last:border-b-0 lg:hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
+                onClick={
+                  onOpen
+                    ? () => {
+                        // Dragging across a name to copy it ends in a click here: copying, not opening.
+                        if (window.getSelection()?.toString()) return;
+                        onOpen(row);
+                      }
+                    : undefined
+                }
+                className={`border-b border-rule transition-colors lg:last:border-b-0 lg:hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3 ${
+                  onOpen ? "cursor-pointer" : ""
+                }`}
               >
                 <td className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>
                   <strong className="block truncate max-lg:whitespace-normal" title={invoiceTitle(row)}>
-                    {invoiceTitle(row)}
+                    {onOpen ? (
+                      <ContentNameButton onOpen={() => onOpen(row)}>{invoiceTitle(row)}</ContentNameButton>
+                    ) : (
+                      invoiceTitle(row)
+                    )}
                   </strong>
                   <p className="mt-1">
                     <StatusDot tone={CONTRACT_TONES[row.contractStatus]}>
@@ -307,14 +318,6 @@ export function InvoiceTable({
                     {INVOICE_STATUS_LABELS[row.invoiceStatus]}
                   </Pill>
                 </td>
-                {action ? (
-                  // A full-width target on a phone, well above WCAG 2.5.8's 24 px.
-                  <td
-                    className={`${CELL} text-right max-lg:pt-2 max-lg:[&_button]:min-h-11 max-lg:[&_button]:w-full`}
-                  >
-                    {action(row)}
-                  </td>
-                ) : null}
               </tr>
             ))
           )}

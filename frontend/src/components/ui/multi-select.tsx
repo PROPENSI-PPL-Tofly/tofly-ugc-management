@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { PHONE_TARGET } from "./touch-target";
 
 export interface MultiSelectOption {
@@ -25,6 +25,70 @@ const POPUP =
 
 /** How far a popup stays from the edge of the window, in pixels. */
 const WINDOW_MARGIN = 8;
+
+
+/**
+ * What every filter popup does, the multi-select's and the single one's alike: a press anywhere
+ * but on it closes it, Escape sends it away and hands focus back to its pill, and it is pulled back
+ * inside a narrow window before it is painted.
+ */
+function usePopup(
+  open: boolean,
+  setOpen: (open: boolean) => void,
+  {
+    rootRef,
+    triggerRef,
+    popupRef,
+  }: {
+    rootRef: RefObject<HTMLElement | null>;
+    triggerRef: RefObject<HTMLButtonElement | null>;
+    popupRef: RefObject<HTMLDivElement | null>;
+  },
+) {
+  // The popup follows the pointer and the keyboard: a click anywhere but on it closes it,
+  // and Escape sends it away without hunting for the trigger again.
+  useEffect(() => {
+    if (!open) return;
+
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      // The popup held focus and is about to unmount; without this a keyboard user is dropped
+      // to the top of the page. A click outside keeps focus where the press landed instead.
+      triggerRef.current?.focus();
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, setOpen, rootRef, triggerRef]);
+
+  // The popup opens from the trigger's left edge. On a narrow window that can carry it past
+  // the right edge, so it is measured before it is painted and pulled back by the overhang,
+  // though never further than the left edge allows. It runs after every render, not only on
+  // opening: a pick adds a chip, the chip can wrap the trigger onto another row, and an
+  // offset measured for the old place would then push the popup off the other side.
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    if (!popup) return;
+
+    popup.style.left = "";
+    const box = popup.getBoundingClientRect();
+    const overhang = box.right - (document.documentElement.clientWidth - WINDOW_MARGIN);
+    const pull = Math.min(overhang, box.left - WINDOW_MARGIN);
+    if (pull > 0) popup.style.left = `${-pull}px`;
+  });
+
+}
 
 /**
  * A multi-select whose choices read as chips: the popup holds the checkboxes, and each pick
@@ -57,48 +121,7 @@ export function MultiSelect({
     return selected.length === 1 ? labelFor(selected[0]) : `${selected.length} dipilih`;
   }
 
-  // The popup follows the pointer and the keyboard: a click anywhere but on it closes it,
-  // and Escape sends it away without hunting for the trigger again.
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      // The popup held focus and is about to unmount; without this a keyboard user is dropped
-      // to the top of the page. A click outside keeps focus where the press landed instead.
-      triggerRef.current?.focus();
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  // The popup opens from the trigger's left edge. On a narrow window that can carry it past
-  // the right edge, so it is measured before it is painted and pulled back by the overhang,
-  // though never further than the left edge allows. It runs after every render, not only on
-  // opening: a pick adds a chip, the chip can wrap the trigger onto another row, and an
-  // offset measured for the old place would then push the popup off the other side.
-  useLayoutEffect(() => {
-    const popup = popupRef.current;
-    if (!popup) return;
-
-    popup.style.left = "";
-    const box = popup.getBoundingClientRect();
-    const overhang = box.right - (document.documentElement.clientWidth - WINDOW_MARGIN);
-    const pull = Math.min(overhang, box.left - WINDOW_MARGIN);
-    if (pull > 0) popup.style.left = `${-pull}px`;
-  });
+  usePopup(open, setOpen, { rootRef, triggerRef, popupRef });
 
   function toggle(value: string) {
     onChange(
@@ -152,6 +175,88 @@ export function MultiSelect({
                   type="checkbox"
                   checked={selected.includes(option.value)}
                   onChange={() => toggle(option.value)}
+                  className={CHECKBOX}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+export interface SingleSelectOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * One choice out of a few, drawn as the very same pill and popup as the multi-select beside it
+ * ("Overdue: Semua"), so every filter in the app looks one way. The first option is the "all" one
+ * and is set apart above the rest, as the multi-select's Semua is; the choices are radios, since
+ * only one can hold. A pick closes the popup.
+ */
+export function SingleSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: Readonly<{
+  label: string;
+  value: string;
+  options: readonly SingleSelectOption[];
+  onChange: (value: string) => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const name = useId();
+  usePopup(open, setOpen, { rootRef, triggerRef, popupRef });
+
+  const chosen = options.find((option) => option.value === value) ?? options[0];
+
+  function choose(next: string) {
+    setOpen(false);
+    triggerRef.current?.focus();
+    if (next !== value) onChange(next);
+  }
+
+  return (
+    <div ref={rootRef} className="flex flex-wrap items-center gap-2 max-sm:w-full">
+      <span className="relative inline-flex max-sm:w-full">
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-haspopup="true"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen(!open)}
+          className={`${TRIGGER} ${open ? "border-ink" : "border-rule"}`}
+        >
+          <span className="text-muted">{label}:</span>{" "}
+          <b className="max-w-48 truncate font-semibold">{chosen?.label}</b>
+          <span aria-hidden="true" className={`${CARET} max-sm:ml-auto`} />
+        </button>
+
+        {open ? (
+          <div ref={popupRef} id={listId} role="radiogroup" aria-label={label} className={POPUP}>
+            {options.map((option, index) => (
+              <label
+                key={option.value}
+                // The "all" choice sits apart above the rest, as the multi-select's Semua does.
+                className={`${OPTION} ${index === 0 ? "mb-1 border-b border-rule pb-2" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name={name}
+                  checked={option.value === chosen?.value}
+                  // A click, not a change: pressing the choice already held still closes the popup.
+                  readOnly
+                  onClick={() => choose(option.value)}
                   className={CHECKBOX}
                 />
                 {option.label}

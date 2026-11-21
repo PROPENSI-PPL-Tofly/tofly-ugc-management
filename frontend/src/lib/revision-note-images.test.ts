@@ -4,6 +4,7 @@ import {
   SCREENSHOT_TOO_LARGE,
   SCREENSHOT_TOO_MANY,
   SCREENSHOT_TYPE_INVALID,
+  noteImageSrc,
   screenshotRefusal,
 } from "./revision-note-images";
 
@@ -54,5 +55,13 @@ describe("screenshotRefusal", () => {
   it("names the format before the size and the size before the count", () => {
     expect(screenshotRefusal(file("application/pdf", 8 * MB), 5)).toBe(SCREENSHOT_TYPE_INVALID);
     expect(screenshotRefusal(file("image/png", 8 * MB), 5)).toBe(SCREENSHOT_TOO_LARGE);
+  });
+});
+
+describe("noteImageSrc", () => {
+  it("opens an image through the app's own route, from its id alone", () => {
+    expect(noteImageSrc("3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f")).toBe(
+      "/api/revision-note-images/3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+    );
   });
 });

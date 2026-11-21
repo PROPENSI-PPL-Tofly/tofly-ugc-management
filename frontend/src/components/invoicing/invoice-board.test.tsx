@@ -72,7 +72,7 @@ describe("InvoiceBoard", () => {
     load.mockResolvedValue(BREAKDOWN);
   });
 
-  it("draws the Rate & Invoicing table with its money cells as breakdown triggers", () => {
+  it("draws the Pembayaran table with its money cells as breakdown triggers", () => {
     render(<InvoiceBoard rows={[ROW]} />);
 
     expect(screen.getByRole("table")).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("InvoiceBoard", () => {
 
   it("confirms a move made in Rincian with a toast and reads the invoices again", async () => {
     render(<InvoiceBoard rows={[ROW]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rangga Pratama" }));
     fireEvent.click(await screen.findByRole("button", { name: "+ Tambah Penyesuaian" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Nominal (Rp)" }), { target: { value: "50000" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Alasan" }), { target: { value: "Ongkir" } });
@@ -146,10 +146,11 @@ describe("InvoiceBoard", () => {
     });
   });
 
-  it("offers a Rincian button per row that opens the whole invoice", async () => {
+  it("opens the whole invoice from a row, with no Rincian button", async () => {
     render(<InvoiceBoard rows={[ROW]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Rincian invoice Rangga Pratama" }));
+    expect(screen.queryByRole("button", { name: /^Rincian/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Rangga Pratama" }));
 
     expect(await screen.findByRole("dialog", { name: "Rincian Invoice" })).toBeInTheDocument();
   });

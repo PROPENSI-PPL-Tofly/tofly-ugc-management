@@ -27,11 +27,11 @@ describe("Creator Detail not-found screen", () => {
     expect(screen.queryByText(new RegExp(TYPED))).toBeNull();
   });
 
-  it("offers the way back to the Creator Database, in the page itself", () => {
+  it("offers the way back to the Kreator, in the page itself", () => {
     render(<CreatorNotFound />);
 
     expect(
-      within(screen.getByRole("main")).getByRole("link", { name: "Kembali ke Creator Database" }),
+      within(screen.getByRole("main")).getByRole("link", { name: "Kembali ke Kreator" }),
     ).toHaveAttribute("href", "/admin/creators");
   });
 });

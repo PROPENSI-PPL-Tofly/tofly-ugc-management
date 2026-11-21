@@ -29,7 +29,7 @@ import { periodRange } from "./deadline-period";
 export const MAX_FILTER_VALUES = 50;
 
 /** The longest search the API takes. */
-const MAX_SEARCH_LENGTH = 100;
+export const MAX_SEARCH_LENGTH = 100;
 
 /** What an id looks like to the API: 8-4-4-4-12 hexadecimal, and nothing more. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

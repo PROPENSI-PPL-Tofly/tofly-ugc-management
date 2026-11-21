@@ -8,7 +8,7 @@ vi.mock("@/lib/creator-invoice-actions.server", () => ({ addInvoiceComment: vi.f
 
 const ADMIN_COMMENT = {
   id: "c-1",
-  authorName: "Budi",
+  authorName: "budi.admin@tofly.id",
   authorRole: "admin" as const,
   text: "Bukti transfer sudah aku upload, mohon dicek ya.",
   createdAt: "2026-12-04T03:00:00Z",
@@ -50,7 +50,7 @@ describe("InvoiceActivity", () => {
     expect(items[0]).toHaveTextContent("Invoice difinalisasi Admin");
     expect(items[0]).toHaveTextContent("1 Des 2026");
     expect(items[1]).toHaveTextContent("Admin mengirim bukti bayar");
-    expect(items[2]).toHaveTextContent("Admin");
+    expect(items[2]).toHaveTextContent("budi.admin@tofly.id");
     expect(items[2]).toHaveTextContent("Bukti transfer sudah aku upload, mohon dicek ya.");
     expect(items[2]).toHaveTextContent("4 Des 2026, 10.00 WIB");
   });

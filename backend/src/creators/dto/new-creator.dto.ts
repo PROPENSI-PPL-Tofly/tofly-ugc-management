@@ -13,8 +13,8 @@ export interface NewCreator {
   /** How many Evergreen contents the contract commits to; one per deadline. */
   quota: number;
   fixedRate: number;
-  socialPlatform: 'instagram' | 'tiktok';
-  socialUsername: string;
+  /** One per platform the admin gave a username for; may be empty. */
+  socialAccounts: { platform: 'instagram' | 'tiktok'; username: string }[];
   /** Probation or regular; informational only, no rule reads it. */
   contractType: 'probation' | 'regular';
   /** One ISO calendar day per Evergreen content: auto-generated slots plus manual ones. */

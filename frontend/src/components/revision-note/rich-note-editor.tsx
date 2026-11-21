@@ -3,7 +3,16 @@
 // The revision note's editor (PBI-34, subtask 34.2), on Tiptap as the prototype simulates it.
 // Only the formatting AC 1 names is switched on, so the toolbar is the editor's whole vocabulary.
 
-import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount, Placeholder } from "@tiptap/extensions";
@@ -11,6 +20,7 @@ import { Fragment, Slice } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
+import { NOTE_IMAGE_REMOVE, NoteImage } from "./note-image-node";
 
 /** What the form reads from the editor on every change. */
 export interface RichNote {
@@ -20,7 +30,19 @@ export interface RichNote {
   length: number;
 }
 
+/** What a form can ask of the editor: place a stored screenshot in the text, or take it out. */
+export interface RichNoteEditorHandle {
+  /** Places the image at the cursor, without taking focus from wherever the writer is. */
+  insertImage: (imageId: string) => void;
+  /** Takes every place the image holds out of the text. */
+  removeImage: (imageId: string) => void;
+}
+
 export interface RichNoteEditorProps {
+  /** Where the handle goes; the screenshots' form uses it to place each upload in the text. */
+  editorRef?: Ref<RichNoteEditorHandle>;
+  /** Called with the id when the writer presses × on an image in the text. */
+  onRemoveImage?: (imageId: string) => void;
   label: string;
   max: number;
   initialContent?: string;
@@ -133,7 +155,7 @@ function pasteAsPlainText(view: EditorView, event: ClipboardEvent): boolean {
 }
 
 // The text area's look: Tiptap's base rules, the lists, and the placeholder on an empty note.
-const EDITOR_CLASS = `${EDITOR_TEXT} min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc [&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:text-muted [&_.is-editor-empty]:before:content-[attr(data-placeholder)]`;
+const EDITOR_CLASS = `${EDITOR_TEXT} [&_a]:text-accent-deep [&_a]:underline min-h-[150px] max-h-[55vh] overflow-auto px-3 py-2.5 text-[13px] leading-normal text-ink outline-none [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-1.5 [&_ul]:ml-5 [&_ul]:list-disc [&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:text-muted [&_.is-editor-empty]:before:content-[attr(data-placeholder)]`;
 
 function noteOf(editor: Editor): RichNote {
   return {
@@ -144,6 +166,8 @@ function noteOf(editor: Editor): RichNote {
 }
 
 export function RichNoteEditor({
+  editorRef,
+  onRemoveImage,
   label,
   max,
   initialContent = "",
@@ -181,6 +205,7 @@ export function RichNoteEditor({
     injectCSS: false,
     extensions: [
       FORMATTING,
+      NoteImage,
       CharacterCount.configure({ limit: max }),
       Placeholder.configure({ placeholder }),
     ],
@@ -213,6 +238,30 @@ export function RichNoteEditor({
     onUpdate: ({ editor: changed }) => onChange?.(noteOf(changed)),
   });
 
+  useImperativeHandle(
+    editorRef,
+    () => ({
+      insertImage: (imageId) => {
+        // With a paragraph after it, so the cursor lands there and the next words typed or pasted
+        // go on below the image instead of replacing it.
+        editor?.commands.insertContent([{ type: "noteImage", attrs: { imageId } }, { type: "paragraph" }]);
+      },
+      removeImage: (imageId) => {
+        if (!editor) return;
+        // From the end, so a removal never moves the places still to be visited.
+        const places: number[] = [];
+        editor.state.doc.descendants((node, position) => {
+          if (node.type.name === "noteImage" && node.attrs.imageId === imageId) places.push(position);
+        });
+        if (places.length === 0) return;
+        const { tr } = editor.state;
+        for (const position of places.reverse()) tr.delete(position, position + 1);
+        editor.view.dispatch(tr);
+      },
+    }),
+    [editor],
+  );
+
   const attributesKey = JSON.stringify(fieldAttributes);
   useEffect(() => {
     if (!editor) return;
@@ -230,6 +279,7 @@ export function RichNoteEditor({
       max={max}
       countId={countId}
       acceptsFiles={onFiles !== undefined}
+      onRemoveImage={onRemoveImage}
       label={label}
       toolbarEnd={toolbarEnd}
       attachments={attachments}
@@ -244,6 +294,7 @@ interface ReadyEditorProps {
   max: number;
   countId: string;
   acceptsFiles: boolean;
+  onRemoveImage?: (imageId: string) => void;
   label: string;
   toolbarEnd: ReactNode;
   attachments: ReactNode;
@@ -257,11 +308,23 @@ function ReadyEditor({
   max,
   countId,
   acceptsFiles,
+  onRemoveImage,
   label,
   toolbarEnd,
   attachments,
   footer,
 }: Readonly<ReadyEditorProps>) {
+  const frame = useRef<HTMLDivElement>(null);
+
+  // An image's × asks its owner to delete it; the answer is whatever the form passes now.
+  useEffect(() => {
+    const element = frame.current;
+    if (!element || !onRemoveImage) return;
+    const listener = (event: Event) => onRemoveImage((event as CustomEvent<string>).detail);
+    element.addEventListener(NOTE_IMAGE_REMOVE, listener);
+    return () => element.removeEventListener(NOTE_IMAGE_REMOVE, listener);
+  }, [onRemoveImage]);
+
   // Locks the text as well as the toolbar while the form is sending.
   useEffect(() => {
     editor.setEditable(!disabled);
@@ -288,6 +351,7 @@ function ReadyEditor({
   return (
     <div className="flex flex-col gap-1">
       <div
+        ref={frame}
         className={`${FRAME} outline-offset-2 data-[dragging=true]:outline-2 data-[dragging=true]:outline-dashed data-[dragging=true]:outline-ink`}
         data-dragging={dragging}
         onDragEnter={(event) => {

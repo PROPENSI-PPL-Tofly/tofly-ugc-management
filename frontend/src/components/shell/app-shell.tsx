@@ -24,10 +24,13 @@ const MENUS: Record<Role, ReactNode> = {
 export function AppShell({
   role = "admin",
   title,
+  action,
   children,
 }: Readonly<{
   role?: Role;
   title: string;
+  /** The page's own control, such as Tambah Creator, beside the title it acts on. */
+  action?: ReactNode;
   children: ReactNode;
 }>) {
   const theme = FRAME_THEMES[role];
@@ -74,8 +77,9 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col max-md:pb-28">
-        <header className="px-4 pb-4 pt-6 md:px-8 md:pt-8">
+        <header className="flex flex-wrap items-center gap-3 px-4 pb-4 pt-6 md:px-8 md:pt-8">
           <h1 className="text-[22px]">{title}</h1>
+          {action ? <div className="ml-auto shrink-0">{action}</div> : null}
         </header>
         <main className="flex-1 px-4 pb-10 md:px-8">{children}</main>
       </div>

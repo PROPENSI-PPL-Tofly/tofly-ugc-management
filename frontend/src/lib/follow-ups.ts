@@ -14,12 +14,17 @@ export const MAX_FOLLOW_UP_LENGTH = 1000;
  * answered with a new draft is refused with a 409 (DecisionError keeps the status). The id is
  * encoded so a crafted value cannot climb out of /submissions/ (OWASP A01).
  */
-export async function addFollowUp(submissionId: string, note: string): Promise<FollowUp> {
+export async function addFollowUp(
+  submissionId: string,
+  note: string,
+  imageIds: readonly string[] = [],
+): Promise<FollowUp> {
   return sendAndRead<FollowUp>(
     `/api/submissions/${encodeURIComponent(submissionId)}/followups`,
     "POST",
     "Catatan susulan gagal dikirim. Coba lagi.",
-    { note },
+    // The screenshots go out by name, exactly the ones the editor holds, as a revision note's do.
+    imageIds.length > 0 ? { note, imageIds } : { note },
   );
 }
 

@@ -9,7 +9,7 @@ import {
   overdueFilter,
   pickFilters,
 } from "@/components/filters/filter-controls";
-import { FilterChips, pickedChips } from "@/components/ui/filter-chips";
+import { FilterChips, choiceChip, pickedChips } from "@/components/ui/filter-chips";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { TabChoice } from "@/components/ui/tab-choice";
 import { CONTENT_STATUS_LABELS, CONTENT_TYPE_LABELS } from "@/lib/content-labels";
@@ -166,6 +166,9 @@ export function ContentPlanFilters({
                 ),
               )
             : []),
+          ...(state.tab === "done"
+            ? []
+            : choiceChip("Overdue", param("overdue"), OVERDUE_OPTIONS, () => setParam("overdue", "all"))),
         ]}
         canReset={isFilteredNow}
         resetDisabled={pending}

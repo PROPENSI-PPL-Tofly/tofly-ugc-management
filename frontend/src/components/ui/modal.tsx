@@ -226,7 +226,7 @@ export function Modal({
         <div className={`flex flex-col gap-3.5 p-5 ${layout.body}`}>{children}</div>
 
         {footer ? (
-          <div className="flex flex-wrap justify-end gap-2 border-t border-rule px-5 py-4">
+          <div data-modal-footer="" className="flex flex-wrap justify-end gap-2 border-t border-rule px-5 py-4">
             {footer}
           </div>
         ) : null}

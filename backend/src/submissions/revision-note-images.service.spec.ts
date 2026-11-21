@@ -25,12 +25,18 @@ function store() {
   };
 }
 
+/** The content a draft belongs to: what it waits on, and the newest draft it holds. */
+function content(status: string, latest = SUBMISSION_ID) {
+  return { status, submissions: [{ id: latest }] };
+}
+
 function client(overrides: Record<string, unknown> = {}) {
   const prisma = {
     submissions: {
       findUnique: vi.fn().mockResolvedValue({
         id: SUBMISSION_ID,
         revision_notes: null,
+        contents: content('draft_review'),
       }),
     },
     revision_note_images: {
@@ -113,25 +119,67 @@ describe('RevisionNoteImagesService.upload', () => {
     );
   });
 
-  it('refuses an upload once the note has been sent (review)', async () => {
-    const prisma = client({
-      submissions: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: SUBMISSION_ID,
-          revision_notes: 'Mohon perbaiki bagian pembuka.',
-        }),
-      },
+  // A note that has gone out belongs to the history, so no more images go on it; but while its
+  // round is open a follow-up may still be written, and it takes screenshots of its own.
+  describe('once the note has been sent', () => {
+    function sentNote(status: string, latest = SUBMISSION_ID) {
+      return client({
+        submissions: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: SUBMISSION_ID,
+            revision_notes: 'Mohon perbaiki bagian pembuka.',
+            contents: content(status, latest),
+          }),
+        },
+      });
+    }
+
+    it('takes an image for a follow-up while the round is open, on the latest draft', async () => {
+      const files = store();
+      const prisma = sentNote('draft_revision');
+
+      await expect(
+        service(prisma, files).upload(SUBMISSION_ID, IMAGE, ADMIN_USER_ID),
+      ).resolves.toMatchObject({ id: IMAGE_ID, sent: false });
+      expect(files.put).toHaveBeenCalledTimes(1);
     });
 
-    await expect(
-      service(prisma, store()).upload(SUBMISSION_ID, IMAGE, ADMIN_USER_ID),
-    ).rejects.toMatchObject({
-      status: 409,
-      response: {
-        code: 'NOTE_SENT',
-        message: 'Catatan revisi sudah dikirim',
-      },
+    it.each([
+      ['the content is no longer waiting on the revision', 'draft_review', SUBMISSION_ID],
+      [
+        'the creator has answered with a newer draft',
+        'draft_revision',
+        '99999999-9999-4999-8999-999999999999',
+      ],
+    ])('refuses an upload when %s (review)', async (_why, status, latest) => {
+      const files = store();
+
+      await expect(
+        service(sentNote(status, latest), files).upload(SUBMISSION_ID, IMAGE, ADMIN_USER_ID),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: {
+          code: 'NOTE_SENT',
+          message: 'Catatan revisi sudah dikirim',
+        },
+      });
+      expect(files.put).not.toHaveBeenCalled();
     });
+  });
+
+  // The five a note may hold are the ones still to go out: the images already sent with the
+  // revision note do not use up a follow-up's room.
+  it('counts only the images not yet sent against the five (follow-ups)', async () => {
+    const prisma = client();
+
+    await service(prisma, store()).upload(SUBMISSION_ID, IMAGE, ADMIN_USER_ID);
+
+    expect(prisma.revision_note_images.count).toHaveBeenCalledTimes(2);
+    for (const call of prisma.revision_note_images.count.mock.calls) {
+      expect(call[0]).toEqual({
+        where: { submission_id: SUBMISSION_ID, sent_at: null },
+      });
+    }
   });
 
   it('counts again when two uploads collide in the serializable transaction (review)', async () => {

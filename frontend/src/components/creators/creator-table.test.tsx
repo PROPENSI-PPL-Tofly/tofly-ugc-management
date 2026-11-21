@@ -33,9 +33,13 @@ describe("CreatorTable", () => {
 
     expect(within(row).getByText("rangga@example.com")).toBeInTheDocument();
 
-    expect(within(row).getByText("Instagram @rangga.creates")).toBeInTheDocument();
+    // Each handle after its platform's coloured logo, not the platform's name in words.
+    const instagram = within(row).getByText("@rangga.creates").parentElement!;
+    expect(within(instagram).getByRole("img", { name: "Instagram" })).toBeInTheDocument();
+    expect(instagram).not.toHaveTextContent("Instagram @");
 
-    expect(within(row).getByText("TikTok @ranggacreates")).toBeInTheDocument();
+    const tiktok = within(row).getByText("@ranggacreates").parentElement!;
+    expect(within(tiktok).getByRole("img", { name: "TikTok" })).toBeInTheDocument();
 
     expect(within(row).getByText("Kontrak aktif")).toBeInTheDocument();
 
@@ -76,7 +80,6 @@ describe("CreatorTable", () => {
       "Tepat waktu",
       "Rata-rata revisi",
       "Produktivitas",
-      "Aksi",
     ]);
   });
 
@@ -97,7 +100,7 @@ describe("CreatorTable", () => {
       .getAllByRole("columnheader")
       .filter((cell) => !cell.textContent?.startsWith("Produktivitas"));
 
-    expect(others).toHaveLength(6);
+    expect(others).toHaveLength(5);
     for (const cell of others) expect(within(cell).queryByRole("button")).toBeNull();
   });
 
@@ -110,8 +113,8 @@ describe("CreatorTable", () => {
 
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveClass("group-hover:block");
-    // Its right edge meets the icon's, so it hangs back over the table, not past its scroll edge.
-    expect(tooltip).toHaveClass("right-0");
+    // On the screen layer, so the table's scroll edge cannot cut it off.
+    expect(tooltip).toHaveClass("fixed");
 
     // The heading is not a row: pressing the ⓘ opens no creator's page.
     fireEvent.click(info);
@@ -208,23 +211,14 @@ describe("CreatorTable", () => {
   it("leaves out socials the creator has not connected", () => {
     render(<CreatorTable creators={[creator({ socials: {} })]} total={1} />);
 
-    expect(screen.queryByText(/Instagram @/)).toBeNull();
-    expect(screen.queryByText(/TikTok @/)).toBeNull();
+    expect(screen.queryByText(/^@/)).toBeNull();
+    expect(screen.queryByRole("img", { name: "Instagram" })).toBeNull();
   });
 
-  it("flags revoked access next to the identity", () => {
-    render(
-      <CreatorTable
-        creators={[
-          creator({
-            accessRevokeDate: "2026-09-04",
-          }),
-        ]}
-        total={1}
-      />,
-    );
+  it("says nothing of a revoked access in the roster", () => {
+    render(<CreatorTable creators={[creator({ accessRevokeDate: "2026-09-04" })]} total={1} />);
 
-    expect(screen.getByText("Akses dicabut 4 Sep 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/Akses dicabut/)).toBeNull();
   });
 
   it("shows the other productivity bands with their own tone", () => {
@@ -338,7 +332,7 @@ describe("CreatorTable", () => {
       expect(screen.getByRole("table")).toHaveClass("max-lg:block");
       expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-lg:sr-only");
       expect(screen.getAllByRole("row")[1]).toHaveClass("max-lg:block");
-      expect(cells()).toHaveLength(7);
+      expect(cells()).toHaveLength(6);
     });
 
     // Client feedback: consecutive creators read as one continuous panel split by hairlines.
@@ -361,7 +355,6 @@ describe("CreatorTable", () => {
         "Tepat waktu",
         "Rata-rata revisi",
         "Produktivitas",
-        null,
       ]);
     });
 
@@ -390,48 +383,29 @@ describe("CreatorTable", () => {
       }
     });
 
-    it("gives Detail a full-width touch target at least 44px tall", () => {
-      render(<CreatorTable creators={[creator()]} total={1} />);
-
-      const link = screen.getByRole("link", { name: "Detail Rangga Pratama" });
-      expect(link).toHaveClass("max-lg:w-full");
-      expect(link).toHaveClass("max-lg:min-h-11");
-    });
   });
 
   // PBI-4: the Creator Detail page takes the place of the Detail dialog and of the creator's
   // own Content Plan page, so a row has one way in.
   describe("opening a creator", () => {
-    it("offers the creator's name and a Detail link, both to the creator's own page", () => {
+    // The row and the creator's name are the way in; there is no Detail button any more.
+    it("offers the creator's name as the one link to their own page, with no Detail button", () => {
       render(<CreatorTable creators={[creator({ id: "creator-123" })]} total={1} />);
 
       const row = screen.getAllByRole("row")[1];
 
-      expect(within(row).getAllByRole("link")).toHaveLength(2);
+      expect(within(row).getAllByRole("link")).toHaveLength(1);
       expect(within(row).getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
         "href",
         "/admin/creators/creator-123",
       );
-      expect(within(row).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
-        "href",
-        "/admin/creators/creator-123",
-      );
+      expect(within(row).queryByRole("link", { name: /^Detail/ })).toBeNull();
     });
 
-    it("offers a Detail button in the last column, as the prototype does", () => {
+    it("opens the creator's page once when the name is pressed, not again through the row", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
 
-      const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
-
-      expect(within(cells.at(-1)!).getByRole("link", { name: "Detail Rangga Pratama" })).toHaveTextContent(
-        "Detail",
-      );
-    });
-
-    it("opens the creator's page once when its Detail button is pressed, not again through the row", () => {
-      render(<CreatorTable creators={[creator()]} total={1} />);
-
-      const link = screen.getByRole("link", { name: "Detail Rangga Pratama" });
+      const link = screen.getByRole("link", { name: "Rangga Pratama" });
       // The link's own navigation is the browser's; here only the row's share is watched.
       link.addEventListener("click", (event) => event.preventDefault());
 
@@ -449,7 +423,7 @@ describe("CreatorTable", () => {
         />,
       );
 
-      expect(screen.getByRole("link", { name: "Detail Rangga Pratama" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Rangga Pratama" })).toHaveAttribute(
         "href",
         "/admin/creators/creator-123?return=q%3Dnadia%26page%3D2",
       );
@@ -563,26 +537,27 @@ describe("CreatorTable", () => {
     it("puts each account's badge next to its username", () => {
       render(<CreatorTable creators={[creator({ socialConnections: connected })]} total={1} />);
 
-      const instagram = screen.getByText("Instagram @rangga.creates").parentElement!;
-      const tiktok = screen.getByText("TikTok @ranggacreates").parentElement!;
+      const instagram = screen.getByText("@rangga.creates").parentElement!;
+      const tiktok = screen.getByText("@ranggacreates").parentElement!;
       expect(
         within(instagram).getByRole("button", { name: "Instagram Terhubung" }),
       ).toBeInTheDocument();
-      expect(
-        within(tiktok).getByRole("button", { name: "TikTok Belum terhubung" }),
-      ).toBeInTheDocument();
+      // An account not connected carries no badge in the roster; Creator Detail still says so.
+      expect(within(tiktok).queryByRole("button", { name: /Belum terhubung/ })).toBeNull();
     });
 
-    it("shows every account as Belum terhubung while the backend sends no connections (19.3)", () => {
+    it("shows no Belum terhubung badge while the backend sends no connections (19.3)", () => {
       render(<CreatorTable creators={[creator()]} total={1} />);
 
-      expect(screen.getByRole("button", { name: "Instagram Belum terhubung" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "TikTok Belum terhubung" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Belum terhubung/ })).toBeNull();
     });
 
     it("gives no badge to a platform the creator has no username for", () => {
       render(
-        <CreatorTable creators={[creator({ socials: { instagram: "rangga.creates" } })]} total={1} />,
+        <CreatorTable
+          creators={[creator({ socials: { instagram: "rangga.creates" }, socialConnections: connected })]}
+          total={1}
+        />,
       );
 
       expect(screen.getByRole("button", { name: /^Instagram / })).toBeInTheDocument();
@@ -597,7 +572,7 @@ describe("CreatorTable", () => {
         />,
       );
 
-      const line = screen.getByText("Instagram @a.very.long.instagram.handle").parentElement!;
+      const line = screen.getByText("@a.very.long.instagram.handle").parentElement!;
       expect(line).toHaveClass("whitespace-nowrap");
       expect(line).not.toHaveClass("flex-wrap");
     });

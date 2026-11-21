@@ -217,13 +217,13 @@ describe("Creator dashboard page", () => {
       expect(within(upcoming()).queryByRole("listitem")).not.toBeInTheDocument();
     });
 
-    it("counts the whole list in its heading and leads to all of it on Task Saya when it shows only part", async () => {
+    it("counts the whole list in its heading and leads to all of it on Tugas Saya when it shows only part", async () => {
       mockedFetch.mockResolvedValue(dashboard({ upcoming: { items: [task()], total: 8 } }));
 
       await renderPage();
 
       expect(within(upcoming()).getByRole("heading")).toHaveTextContent("8");
-      const all = within(upcoming()).getByRole("link", { name: "Lihat semua 8 di Task Saya" });
+      const all = within(upcoming()).getByRole("link", { name: "Lihat semua 8 di Tugas Saya" });
       const query = new URL(all.getAttribute("href") ?? "", "http://x").searchParams;
       expect(Object.fromEntries(query)).toEqual({
         status: "scheduled,draft_review,draft_revision,draft_approved",
@@ -234,14 +234,14 @@ describe("Creator dashboard page", () => {
       });
     });
 
-    it("leads to every overdue task on Task Saya when it shows only part of them", async () => {
+    it("leads to every overdue task on Tugas Saya when it shows only part of them", async () => {
       mockedFetch.mockResolvedValue(
         dashboard({ overdue: { items: [task({ tags: ["overdue"] })], total: 6 } }),
       );
 
       await renderPage();
 
-      const all = screen.getByRole("link", { name: "Lihat semua 6 di Task Saya" });
+      const all = screen.getByRole("link", { name: "Lihat semua 6 di Tugas Saya" });
       const query = new URL(all.getAttribute("href") ?? "", "http://x").searchParams;
       expect(Object.fromEntries(query)).toEqual({
         status: "scheduled,draft_review,draft_revision,draft_approved",
@@ -322,7 +322,7 @@ describe("Creator dashboard page", () => {
         await renderPage();
 
         expect(within(late()).getByRole("navigation", { name: "Halaman task overdue" })).toBeInTheDocument();
-        expect(within(late()).getByRole("link", { name: "Lihat semua 9 di Task Saya" })).toBeInTheDocument();
+        expect(within(late()).getByRole("link", { name: "Lihat semua 9 di Tugas Saya" })).toBeInTheDocument();
       });
 
       it("draws no pager for a single overdue task", async () => {

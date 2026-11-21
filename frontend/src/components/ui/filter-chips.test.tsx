@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { expectPhoneTarget } from "@/test/touch-target";
-import { FilterChips, pickedChips, type FilterChip } from "./filter-chips";
+import { FilterChips, choiceChip, pickedChips, type FilterChip } from "./filter-chips";
 
 const remove = vi.fn();
 
@@ -158,5 +158,28 @@ describe("pickedChips", () => {
 
   it("collects nothing when nothing is picked", () => {
     expect(pickedChips("Creator", [], options, remove)).toEqual([]);
+  });
+});
+
+// A one-choice filter in use gets its chip too, so every pick on the bar reads the same way.
+describe("choiceChip", () => {
+  const OPTIONS = [
+    { value: "all", label: "Semua" },
+    { value: "yes", label: "Overdue" },
+  ];
+
+  it("names a choice other than the first as a chip that clears it", () => {
+    const onClear = vi.fn();
+    const [chip, ...rest] = choiceChip("Overdue", "yes", OPTIONS, onClear);
+
+    expect(rest).toEqual([]);
+    expect(chip).toMatchObject({ filterLabel: "Overdue", valueLabel: "Overdue" });
+    chip.onRemove();
+    expect(onClear).toHaveBeenCalledOnce();
+  });
+
+  it("draws no chip while the first, all-inclusive choice holds, or for a value it does not offer", () => {
+    expect(choiceChip("Overdue", "all", OPTIONS, vi.fn())).toEqual([]);
+    expect(choiceChip("Overdue", "bogus", OPTIONS, vi.fn())).toEqual([]);
   });
 });

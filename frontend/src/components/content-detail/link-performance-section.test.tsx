@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { PHONE_TARGET } from "@/components/ui/touch-target";
 import type { LinkPerformance } from "@/lib/link-performance";
 import type { ContentLink } from "@/lib/platform-links";
 import { LinkPerformanceSection } from "./link-performance-section";
@@ -131,20 +132,10 @@ describe("LinkPerformanceSection: Sinkronkan Sekarang (AC 12, 13)", () => {
   });
 
   // PBI-28 AC 13, as the prototype's "Link & Performa" puts it for a creator (review #160).
-  it.each([
-    ["reminds a creator", "creator", true],
-    ["does not remind an admin", "admin", false],
-  ] as const)("%s, above the cards, that the numbers lock at Finalize", (_, role, reminded) => {
+  it.each(["creator", "admin"] as const)("says nothing to a %s of the numbers locking at Finalize", (role) => {
     show([SYNCED, NOT_CONNECTED], { role });
 
-    const note = screen.queryByRole("note");
-    expect(note !== null).toBe(reminded);
-    if (note) {
-      expect(note).toHaveTextContent(
-        "Angka performa dikunci saat invoice difinalisasi. Views yang masuk setelah itu tidak mengubah bonusmu.",
-      );
-      expect(note.compareDocumentPosition(card("Instagram")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    }
+    expect(screen.queryByText(/dikunci saat invoice difinalisasi/)).toBeNull();
   });
 
   it("is not offered to a creator, who only reads the numbers (AC 20)", () => {
@@ -156,11 +147,73 @@ describe("LinkPerformanceSection: Sinkronkan Sekarang (AC 12, 13)", () => {
   });
 });
 
+// SCRUM-282: a Refresh button on each card syncs only that card's link, like Sinkronkan Sekarang.
+describe("LinkPerformanceSection: Refresh on each link card (SCRUM-282)", () => {
+  it("syncs only that card's link, with every sync button disabled while it runs, then toasts and reloads", async () => {
+    let finish: (value: { ok: true; toast: string }) => void = () => undefined;
+    const syncLink = vi.fn(() => new Promise<{ ok: true; toast: string }>((resolve) => (finish = resolve)));
+    const props = show([SYNCED, NOT_CONNECTED], { syncLink });
+
+    fireEvent.click(within(card("TikTok")).getByRole("button", { name: "Sinkronkan TikTok" }));
+
+    expect(syncLink).toHaveBeenCalledWith(CONTENT, "tiktok");
+    expect(props.sync).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Sinkronkan Sekarang" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan Instagram" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan TikTok" })).toBeDisabled();
+
+    finish({ ok: true, toast: "Data performa TikTok diperbarui" });
+    expect(await screen.findByText("Data performa TikTok diperbarui")).toBeInTheDocument();
+    expect(props.onChanged).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Sinkronkan TikTok" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan Sekarang" })).toBeEnabled();
+  });
+
+  it("toasts the reason that link's sync did not run, and reloads nothing", async () => {
+    const props = show([SYNCED], {
+      syncLink: vi.fn().mockResolvedValue({ ok: false, message: "Konten ini sedang disinkronkan. Tunggu sebentar." }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sinkronkan Instagram" }));
+
+    expect(await screen.findByText("Konten ini sedang disinkronkan. Tunggu sebentar.")).toBeInTheDocument();
+    expect(props.onChanged).not.toHaveBeenCalled();
+  });
+
+  it("keeps every card's Refresh disabled while Sinkronkan Sekarang runs", () => {
+    show([SYNCED, NOT_CONNECTED], { sync: vi.fn(() => new Promise<{ ok: true; toast: string }>(() => undefined)) });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sinkronkan Sekarang" }));
+
+    expect(screen.getByRole("button", { name: "Sinkronkan Instagram" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sinkronkan TikTok" })).toBeDisabled();
+  });
+
+  it("is not offered to a creator, who only reads the numbers (AC 20)", () => {
+    show([SYNCED, NOT_CONNECTED], { role: "creator" });
+
+    expect(screen.queryByRole("button", { name: /^Sinkronkan (Instagram|TikTok)$/ })).toBeNull();
+  });
+
+  // Button already makes it 44px tall on a phone; the icon alone leaves it narrow, so it widens too.
+  it("is at least 44px wide on a phone, as Button makes it tall", () => {
+    show([SYNCED]);
+
+    expect(screen.getByRole("button", { name: "Sinkronkan Instagram" })).toHaveClass("max-sm:min-w-11", PHONE_TARGET);
+  });
+});
+
 describe("LinkPerformanceSection: manual input (AC 14-18)", () => {
   it("offers Isi Manual only on a link the platform cannot read", () => {
     show([SYNCED, NOT_CONNECTED]);
 
     expect(within(card("Instagram")).queryByRole("button", { name: "Isi Manual" })).toBeNull();
+    expect(within(card("TikTok")).getByRole("button", { name: "Isi Manual" })).toBeInTheDocument();
+  });
+
+  it("offers Isi Manual on a link still waiting for its first numbers", () => {
+    show([link("tiktok", measured({ state: "waiting" }))]);
+
     expect(within(card("TikTok")).getByRole("button", { name: "Isi Manual" })).toBeInTheDocument();
   });
 
@@ -172,7 +225,27 @@ describe("LinkPerformanceSection: manual input (AC 14-18)", () => {
     const form = within(card("TikTok"));
     expect(form.getByRole("textbox", { name: "Views" })).toHaveValue("900");
     expect(form.getByRole("textbox", { name: "Likes" })).toHaveValue("");
-    expect(form.getByText(/Kolom kosong tetap "belum ada data", bukan 0/)).toBeInTheDocument();
+  });
+
+  it("groups each number by thousands, as it starts and as it is typed", () => {
+    show([link("tiktok", measured({ state: "sync_failed", views: 12400 }))]);
+    fireEvent.click(screen.getByRole("button", { name: "Isi Manual" }));
+
+    const form = within(card("TikTok"));
+    expect(form.getByRole("textbox", { name: "Views" })).toHaveValue("12.400");
+    fireEvent.change(form.getByRole("textbox", { name: "Likes" }), { target: { value: "1500" } });
+    expect(form.getByRole("textbox", { name: "Likes" })).toHaveValue("1.500");
+  });
+
+  it("hints an empty field with Belum ada angka, and puts no help line under the form", () => {
+    show([link("tiktok", measured({ state: "sync_failed", views: 900 }))]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Isi Manual" }));
+
+    const form = within(card("TikTok"));
+    expect(form.getByRole("textbox", { name: "Likes" })).toHaveAttribute("placeholder", "Belum ada angka");
+    expect(form.queryByText(/Kosongkan/)).toBeNull();
+    expect(form.queryByText(/Angka bulat 0/)).toBeNull();
   });
 
   it("puts each refused field's message under it, and asks nothing yet", () => {
@@ -282,5 +355,80 @@ describe("LinkPerformanceSection: manual input (AC 14-18)", () => {
 
     expect(screen.queryByRole("textbox", { name: "Views" })).toBeNull();
     expect(props.save).not.toHaveBeenCalled();
+  });
+
+  it("gives every card's link one width, the state and the hand-in day on the line under it", () => {
+    show([link("instagram", measured({ state: "synced" })), link("tiktok", measured({ state: "sync_failed" }))]);
+
+    for (const platform of ["Instagram", "TikTok"] as const) {
+      const chip = within(card(platform)).getAllByRole("link")[0];
+      expect(chip).toHaveClass("w-full");
+      expect(chip.closest("[data-link-row]")).not.toContainElement(within(card(platform)).getByText(/^Dikirim/));
+    }
+  });
+});
+
+
+// Only the creator adds or changes a link, from the cards themselves: a pencil on each card, and a
+// + under them for a platform with no link yet. The form opens in place; the panel draws it.
+describe("LinkPerformanceSection: changing links (creator only)", () => {
+  const onEditLink = vi.fn();
+  const renderLinkForm = (platform: string) => <p data-testid="link-form">{`form:${platform}`}</p>;
+
+  beforeEach(() => {
+    onEditLink.mockReset();
+  });
+
+  it("gives the creator a pencil on each card that opens that link's form", () => {
+    show([SYNCED], { role: "creator", onEditLink, renderLinkForm });
+
+    const pencil = within(card("Instagram")).getByRole("button", { name: "Ubah link Instagram" });
+    expect(pencil.querySelector("svg")).not.toBeNull();
+    fireEvent.click(pencil);
+
+    expect(onEditLink).toHaveBeenCalledExactlyOnceWith("instagram");
+  });
+
+  it("offers a + under the cards for each platform still without a link", () => {
+    show([SYNCED], { role: "creator", onEditLink, renderLinkForm });
+
+    const add = screen.getByRole("button", { name: "Tambah link TikTok" });
+    expect(screen.queryByRole("button", { name: "Tambah link Instagram" })).toBeNull();
+    // Under the cards, not inside one.
+    expect(card("Instagram")).not.toContainElement(add);
+    fireEvent.click(add);
+
+    expect(onEditLink).toHaveBeenCalledExactlyOnceWith("tiktok");
+  });
+
+  it("offers no + once every platform has a link", () => {
+    show([SYNCED, NOT_CONNECTED], { role: "creator", onEditLink, renderLinkForm });
+
+    expect(screen.queryByRole("button", { name: /^Tambah link/ })).toBeNull();
+  });
+
+  it("opens the form inside the card being changed, in place of its link", () => {
+    show([SYNCED, NOT_CONNECTED], { role: "creator", onEditLink, renderLinkForm, editingLink: "instagram" });
+
+    const instagram = within(card("Instagram"));
+    expect(instagram.getByTestId("link-form")).toHaveTextContent("form:instagram");
+    expect(instagram.queryByRole("link", { name: /instagram\.com/ })).toBeNull();
+    expect(instagram.queryByRole("button", { name: "Ubah link Instagram" })).toBeNull();
+    expect(within(card("TikTok")).queryByTestId("link-form")).toBeNull();
+  });
+
+  it("opens the form for a new platform under the cards, in place of its +", () => {
+    show([SYNCED], { role: "creator", onEditLink, renderLinkForm, editingLink: "tiktok" });
+
+    expect(screen.getByTestId("link-form")).toHaveTextContent("form:tiktok");
+    expect(card("Instagram")).not.toContainElement(screen.getByTestId("link-form"));
+    expect(screen.queryByRole("button", { name: "Tambah link TikTok" })).toBeNull();
+  });
+
+  it("gives an admin neither a pencil nor a +", () => {
+    show([SYNCED], { role: "admin", onEditLink, renderLinkForm });
+
+    expect(screen.queryByRole("button", { name: /^Ubah link/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Tambah link/ })).toBeNull();
   });
 });

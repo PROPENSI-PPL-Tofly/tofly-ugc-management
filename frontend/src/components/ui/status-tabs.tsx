@@ -26,9 +26,8 @@ export interface StatusTabDef<K extends string> {
 }
 
 /**
- * A list's tabs grouped by whose turn it is, shared by the admin Content Plan and Task Saya.
- * Only the urgent counter turns red, and only past zero — a red badge on an empty queue would
- * cry wolf; the number itself carries the meaning, so colour is never the only signal.
+ * A list's tabs grouped by whose turn it is, shared by the admin Content Plan, Creator Detail and
+ * Tugas Saya. Every tab shows its count; the urgent tab's (Perlu Dikerjakan, Perlu Approval) is red.
  *
  * Keyboard as the WAI-ARIA tab pattern expects: the list is one Tab stop (the selected tab),
  * the arrows move between tabs with wrap-around, Home and End jump to either end. Moving
@@ -41,7 +40,6 @@ export function StatusTabs<K extends string>({
   active,
   counts,
   onSelect,
-  countEvery = false,
 }: Readonly<{
   /** The tab list's accessible name. */
   label: string;
@@ -51,11 +49,6 @@ export function StatusTabs<K extends string>({
   active: K;
   counts: Readonly<Record<K, number>>;
   onSelect: (tab: K) => void;
-  /**
-   * Count every tab, zero included, as one creator's Content Plan does: the urgent counter is
-   * red only past zero, so an empty queue reads as a calm grey 0.
-   */
-  countEvery?: boolean;
 }>) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   // On a phone the row scrolls sideways: its edge fades where more tabs sit off-screen, and
@@ -89,9 +82,10 @@ export function StatusTabs<K extends string>({
       {tabs.map((def, index) => {
         const count = counts[def.key];
         const selected = active === def.key;
-        // The urgent tab shows its count only when there is one; a counting tab always does.
-        const showCount = countEvery || (def.urgent ? count > 0 : def.counter);
-        const red = def.urgent && count > 0;
+        // Every tab shows its count; the urgent one (what still needs doing) is told apart in red,
+        // zero included, and the number itself carries the meaning, so colour is never the only
+        // signal.
+        const red = def.urgent;
 
         return (
           <button
@@ -109,14 +103,9 @@ export function StatusTabs<K extends string>({
             className={selected ? TAB_ON : TAB}
           >
             {def.label}
-            {showCount ? (
-              <span
-                data-testid={`count-${def.key}`}
-                className={red ? COUNT_RED : COUNT_GREY}
-              >
-                {count}
-              </span>
-            ) : null}
+            <span data-testid={`count-${def.key}`} className={red ? COUNT_RED : COUNT_GREY}>
+              {count}
+            </span>
           </button>
         );
       })}

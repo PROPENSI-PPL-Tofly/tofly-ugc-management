@@ -131,7 +131,7 @@ describe("PeriodTabs", () => {
     expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
   });
 
-  it("carries the Creator Database view to return to onto every period's link", () => {
+  it("carries the Kreator view to return to onto every period's link", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} back="q=nadia" />);
 
     const [first, second] = tabs();

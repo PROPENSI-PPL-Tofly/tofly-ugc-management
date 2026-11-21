@@ -30,9 +30,9 @@ describe("RateFormulaModal", () => {
     setup();
 
     expect(screen.getByRole("dialog", { name: "Atur Formula Rate" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Penalti per Hari (Rp)*")).toHaveValue("50000");
+    expect(screen.getByLabelText("Penalti per Hari (Rp)*")).toHaveValue("50.000");
     expect(screen.getByLabelText("Maks Hari Penalti*")).toHaveValue("3");
-    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("100000");
+    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("100.000");
     expect(screen.getByRole("group", { name: "Bonus performa Instagram" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Bonus performa TikTok" })).toBeInTheDocument();
   });
@@ -105,13 +105,13 @@ describe("RateFormulaModal", () => {
     expect(simpan()).toBeEnabled();
   });
 
-  it("keeps an amount past ten digits as typed and refuses it out loud", () => {
+  it("keeps every digit of an amount past ten digits, grouped, and refuses it out loud", () => {
     setup();
 
     type("Bonus Specific (Rp)*", "123456789012");
     fireEvent.blur(screen.getByLabelText("Bonus Specific (Rp)*"));
 
-    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("123456789012");
+    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("123.456.789.012");
     expect(screen.getByText("Bonus Specific maksimal 10 digit")).toBeInTheDocument();
     expect(simpan()).toBeDisabled();
   });
@@ -206,8 +206,8 @@ describe("RateFormulaModal", () => {
 
     type("TikTok tier 1 bonus (Rp)", "75000");
 
-    expect(screen.getByLabelText("Instagram tier 1 bonus (Rp)")).toHaveValue("150000");
-    expect(screen.getByLabelText("TikTok tier 1 bonus (Rp)")).toHaveValue("75000");
+    expect(screen.getByLabelText("Instagram tier 1 bonus (Rp)")).toHaveValue("150.000");
+    expect(screen.getByLabelText("TikTok tier 1 bonus (Rp)")).toHaveValue("75.000");
   });
 
   it("adds and removes tiers", () => {
@@ -282,7 +282,7 @@ describe("RateFormulaModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lanjut mengisi" }));
 
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("5000");
+    expect(screen.getByLabelText("Bonus Specific (Rp)*")).toHaveValue("5.000");
   });
 
   it("closes once the discard is confirmed", () => {

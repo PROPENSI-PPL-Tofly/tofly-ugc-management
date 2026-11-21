@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { filterPill, pickFilter } from "@/test/filters";
 import { TabChoice, tabChoiceOptions } from "./tab-choice";
 import type { StatusTabDef } from "./status-tabs";
 
@@ -25,9 +26,9 @@ describe("TabChoice", () => {
   it("offers the tabs as one Tampilkan choice, on the open tab", () => {
     render(<TabChoice tabs={TABS} counts={COUNTS} active="action" onSelect={vi.fn()} />);
 
-    const choice = screen.getByRole("combobox", { name: "Tampilkan" });
-    expect(choice).toHaveValue("action");
-    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+    expect(filterPill("Tampilkan")).toHaveTextContent("Tampilkan: Perlu Dikerjakan (3)");
+    fireEvent.click(filterPill("Tampilkan"));
+    expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
       "Semua (5)",
       "Perlu Dikerjakan (3)",
       "Selesai (0)",
@@ -38,15 +39,15 @@ describe("TabChoice", () => {
     const onSelect = vi.fn();
     render(<TabChoice tabs={TABS} counts={COUNTS} active="all" onSelect={onSelect} />);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Tampilkan" }), { target: { value: "done" } });
+    pickFilter("Tampilkan", "Selesai (0)");
 
     expect(onSelect).toHaveBeenCalledExactlyOnceWith("done");
   });
 
-  it("marks a tab other than Semua as a filter in use", () => {
+  it("says on its pill which tab is open", () => {
     render(<TabChoice tabs={TABS} counts={COUNTS} active="done" onSelect={vi.fn()} />);
 
-    expect(screen.getByRole("combobox", { name: "Tampilkan" })).toHaveAttribute("data-active", "true");
+    expect(filterPill("Tampilkan")).toHaveTextContent("Tampilkan: Selesai (0)");
   });
 
   // From sm up the tabs stay a row above the list; the choice is for a phone's folded bar.

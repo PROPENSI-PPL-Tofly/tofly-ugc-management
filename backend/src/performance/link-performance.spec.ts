@@ -151,7 +151,8 @@ describe('canEnterManually (AC 14)', () => {
     ['not_connected', true],
     ['not_found', true],
     ['sync_failed', true],
-    ['waiting', false],
+    // Still waiting for its first numbers: an admin may type them rather than wait.
+    ['waiting', true],
     ['synced', false],
     // Already filled by hand: correcting it again is allowed.
     ['manual', true],

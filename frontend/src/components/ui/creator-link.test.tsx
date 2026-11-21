@@ -32,6 +32,23 @@ describe("CreatorLink", () => {
       expect(screen.queryByText(DRIVE)).not.toBeInTheDocument();
     });
 
+    it("cuts a long label to one line with an ellipsis, keeping the whole address in its title", () => {
+      render(<CreatorLink link={DRIVE} label="instagram.com/p/DRLilgjkxfu/?utm_source=ig_web_copy_link" look="chip" />);
+
+      const link = screen.getByRole("link");
+      expect(screen.getByText(/utm_source/)).toHaveClass("truncate", "min-w-0");
+      expect(link).toHaveAttribute("title", DRIVE);
+    });
+
+    it("draws a field the full width of its row, so every link in a list is one length", () => {
+      render(<CreatorLink link={DRIVE} label="instagram.com/reel/Promoakhirbulan/" look="field" />);
+
+      const link = screen.getByRole("link");
+      expect(link).toHaveClass("w-full", "border");
+      expect(screen.getByText("instagram.com/reel/Promoakhirbulan/")).toHaveClass("truncate");
+      expect(link).toHaveAttribute("title", DRIVE);
+    });
+
     it("keeps the arrow out of what a screen reader announces", () => {
       render(<CreatorLink link={DRIVE} label="Buka draft v2" look="chip" />);
 
