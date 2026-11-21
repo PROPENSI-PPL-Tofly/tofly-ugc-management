@@ -105,3 +105,91 @@ export async function reactivateAdmin(id: string): Promise<AdminSaveOutcome> {
     CHANGE_FAILED,
   );
 }
+
+/** One confirmation covers the role change and the deactivation for this long (AC 11). */
+export const CONFIRMATION_MINUTES = 15;
+
+/** The two changes the AC sends through an email code. */
+export type SensitiveAction = "role_change" | "deactivate";
+
+export type ConfirmationRequest =
+  | { kind: "sent"; confirmationId: string; message: string }
+  | { kind: "limited"; message: string }
+  | { kind: "failed"; message: string };
+
+export type ConfirmationVerify =
+  | { kind: "confirmed"; expiresAt: string }
+  | { kind: "wrong"; attemptsLeft?: number }
+  | { kind: "expired" }
+  | { kind: "limited"; message: string }
+  | { kind: "failed" };
+
+interface ConfirmationBody {
+  confirmationId?: unknown;
+  expiresAt?: unknown;
+  code?: unknown;
+  attemptsLeft?: unknown;
+  retryAfterMinutes?: unknown;
+}
+
+/** Sends the code and returns the id it will be verified under. */
+export async function requestConfirmation(
+  action: SensitiveAction,
+): Promise<ConfirmationRequest> {
+  const response = await send("/api/admin/users/confirmations", "POST", { action });
+  const body = (await readBody(response)) as ConfirmationBody | null;
+
+  if (response.ok && typeof body?.confirmationId === "string" && body.confirmationId !== "") {
+    return {
+      kind: "sent",
+      confirmationId: body.confirmationId,
+      message: "Kode dikirim ke email kamu.",
+    };
+  }
+
+  if (response.status === 429) {
+    const minutes = body?.retryAfterMinutes;
+    return {
+      kind: "limited",
+      message:
+        Number.isInteger(minutes) && Number(minutes) > 0
+          ? `Terlalu sering meminta kode. Coba lagi dalam ${String(minutes)} menit.`
+          : "Terlalu sering meminta kode. Coba lagi nanti.",
+    };
+  }
+
+  return { kind: "failed", message: "Kode gagal dikirim. Coba lagi." };
+}
+
+/** Checks the six digits and reports how long the confirmation then lasts. */
+export async function verifyConfirmation(
+  confirmationId: string,
+  code: string,
+): Promise<ConfirmationVerify> {
+  const response = await send(
+    `/api/admin/users/confirmations/${encodeURIComponent(confirmationId)}/verify`,
+    "POST",
+    { code },
+  );
+  const body = (await readBody(response)) as ConfirmationBody | null;
+
+  if (response.ok && typeof body?.expiresAt === "string") {
+    return { kind: "confirmed", expiresAt: body.expiresAt };
+  }
+
+  if (response.status === 422 && body?.code === "CODE_WRONG") {
+    return Number.isInteger(body.attemptsLeft)
+      ? { kind: "wrong", attemptsLeft: Number(body.attemptsLeft) }
+      : { kind: "wrong" };
+  }
+
+  if (response.status === 410) {
+    return { kind: "expired" };
+  }
+
+  if (response.status === 429) {
+    return { kind: "limited", message: "Terlalu banyak percobaan. Coba lagi nanti." };
+  }
+
+  return { kind: "failed" };
+}
