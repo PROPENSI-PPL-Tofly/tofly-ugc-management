@@ -125,10 +125,37 @@ const ACTOR_ROLE_LABELS: Record<Exclude<AuditActorRole, "system">, string> = {
   creator: "Creator",
 };
 
-// Who acted: the name with its role, or "Sistem" alone when no person did.
-export function auditActorLabel(actor: { name: string; role: AuditActorRole }): string {
-  if (actor.role === "system") return "Sistem";
-  return `${actor.name} (${ACTOR_ROLE_LABELS[actor.role]})`;
+// The Sprint 4 prototype's words. admin_changed, invoice_line_corrected, invoice_acknowledged and
+// payment_confirmed have no agreed wording yet, so they show their key rather than a made-up label.
+const AUDIT_ACTION_LABELS: Partial<Record<AuditAction, string>> = {
+  admin_added: "Tambah Admin",
+  admin_deactivated: "Nonaktifkan Admin",
+  admin_reactivated: "Aktifkan Admin",
+  creator_added: "Tambah Creator",
+  creator_changed: "Ubah Data Creator",
+  contract_extended: "Perpanjang Kontrak",
+  period_changed: "Ubah Periode",
+  period_deleted: "Hapus Periode",
+  contract_ended_early: "Akhiri Kontrak Lebih Awal",
+  manual_performance_saved: "Isi Angka Manual",
+  invoice_finalized: "Finalize Invoice",
+  payment_proof_uploaded: "Upload Bukti Bayar",
+  invoice_cancelled: "Batalkan Invoice",
+  rate_formula_changed: "Ubah Formula Rate",
+  buffer_changed: "Ubah Buffer Deadline",
+};
+
+export function auditActionLabel(action: AuditAction): string {
+  return AUDIT_ACTION_LABELS[action] ?? action;
+}
+
+// Who acted, as the row's two lines: the name over its role; "Sistem" has no role.
+export function auditActorLines(actor: { name: string; role: AuditActorRole }): {
+  name: string;
+  role: string | null;
+} {
+  if (actor.role === "system") return { name: "Sistem", role: null };
+  return { name: actor.name, role: ACTOR_ROLE_LABELS[actor.role] };
 }
 
 export function auditTimeLabel(occurredAt: string): string {
@@ -167,4 +194,20 @@ export function auditChanges(
   return [...fields]
     .map((field) => ({ field, from: shownValue(before[field]), to: shownValue(after[field]) }))
     .filter(({ from, to }) => from !== to);
+}
+
+export type AuditChangeView =
+  | { kind: "none" }
+  | { kind: "single"; change: AuditChange }
+  | { kind: "expandable"; changes: AuditChange[] };
+
+// SCRUM-297: one change reads on the row as old and new; several open from it.
+export function auditChangeView(
+  oldValues: Record<string, unknown> | null,
+  newValues: Record<string, unknown> | null,
+): AuditChangeView {
+  const changes = auditChanges(oldValues, newValues);
+  if (changes.length === 0) return { kind: "none" };
+  if (changes.length === 1) return { kind: "single", change: changes[0] };
+  return { kind: "expandable", changes };
 }
