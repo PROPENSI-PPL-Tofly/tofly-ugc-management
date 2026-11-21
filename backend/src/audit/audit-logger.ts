@@ -48,9 +48,10 @@ export interface AuditActorReader {
   };
 }
 
-// AC 19 (OWASP A09:2025): tokens, sign-in codes, passwords and file contents never reach the log.
+// AC 19 (OWASP A09:2025): tokens, sign-in codes and their hashes, passwords, credentials, session
+// ids and file contents never reach the log.
 const FORBIDDEN_KEY =
-  /token|secret|password|file_?content|base64|code$|(^|_)otp$/i;
+  /token|secret|password|file_?content|base64|code$|code_?hash|api_?key|authorization|cookie|session_?id|(^|_)otp$/i;
 
 function safeValue(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
