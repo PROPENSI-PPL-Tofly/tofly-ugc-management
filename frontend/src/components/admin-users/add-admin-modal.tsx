@@ -14,6 +14,10 @@ import {
 import type { AdminRole } from "@/lib/admin-users";
 import { AdminUserFields } from "./admin-user-fields";
 
+// One object, not a fresh `{}` each render: useFieldErrors tracks identity to know when the
+// backend's answer changed, and a new empty object each time would look like a new answer.
+const NO_ERRORS: AdminFormErrors = {};
+
 /**
  * Tambah Admin: the three fields, checked here before anything is sent. The backend's answer
  * comes back through `serverErrors`, which useFieldErrors keeps on the field it named until the
@@ -23,7 +27,7 @@ export function AddAdminModal({
   onClose,
   onSubmit,
   saving = false,
-  serverErrors = {},
+  serverErrors = NO_ERRORS,
   formError,
 }: {
   onClose: () => void;

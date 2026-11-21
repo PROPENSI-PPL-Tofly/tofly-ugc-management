@@ -14,7 +14,7 @@ vi.mock("@/lib/admin-users-api", async (importOriginal) => {
 });
 
 function renderActions(
-  user = adminUser(),
+  user = adminUser({ id: "u1" }),
   withConfirmation = (_action: string, run: (id: string) => void) => run("c1"),
   onChanged = vi.fn(),
 ) {
@@ -36,23 +36,23 @@ describe("the Pengguna Admin row actions", () => {
   });
 
   it("shuts deactivation on the caller's own row and says why", async () => {
-    renderActions(adminUser({ isSelf: true }));
+    renderActions(adminUser({ id: "u1", isSelf: true }));
 
     expect(screen.getByRole("button", { name: "Ubah" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Nonaktifkan" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Nonaktifkan" })).toBeDisabled();
     const tip = screen.getByRole("button", {
       name: "Super Admin tidak bisa menonaktifkan dirinya sendiri",
     });
     fireEvent.click(tip);
-    expect(
-      await screen.findByText("Super Admin tidak bisa menonaktifkan dirinya sendiri"),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Super Admin tidak bisa menonaktifkan dirinya sendiri",
+    );
     expect(deactivateAdmin).not.toHaveBeenCalled();
   });
 
   it("confirms a deactivation, then sends the id the code confirmed", async () => {
     const withConfirmation = vi.fn((_action: string, run: (id: string) => void) => run("c1"));
-    const { onChanged } = renderActions(adminUser(), withConfirmation);
+    const { onChanged } = renderActions(adminUser({ id: "u1" }), withConfirmation);
 
     fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
     const dialog = await screen.findByRole("alertdialog");
@@ -65,7 +65,7 @@ describe("the Pengguna Admin row actions", () => {
 
   it("reactivates an inactive admin without a code or a dialog", async () => {
     const withConfirmation = vi.fn();
-    const { onChanged } = renderActions(adminUser({ isActive: false }), withConfirmation);
+    const { onChanged } = renderActions(adminUser({ id: "u1", isActive: false }), withConfirmation);
 
     fireEvent.click(screen.getByRole("button", { name: "Aktifkan" }));
 
@@ -76,7 +76,7 @@ describe("the Pengguna Admin row actions", () => {
 
   it("asks for the code before sending a changed role", async () => {
     const withConfirmation = vi.fn((_action: string, run: (id: string) => void) => run("c1"));
-    renderActions(adminUser(), withConfirmation);
+    renderActions(adminUser({ id: "u1" }), withConfirmation);
 
     fireEvent.click(screen.getByRole("button", { name: "Ubah" }));
     fireEvent.change(await screen.findByLabelText(/Peran/), {
@@ -96,7 +96,7 @@ describe("the Pengguna Admin row actions", () => {
 
   it("does not ask for a code when only the name changed", async () => {
     const withConfirmation = vi.fn();
-    renderActions(adminUser(), withConfirmation);
+    renderActions(adminUser({ id: "u1" }), withConfirmation);
 
     fireEvent.click(screen.getByRole("button", { name: "Ubah" }));
     fireEvent.change(await screen.findByLabelText(/Nama/), { target: { value: "Rangga P" } });
