@@ -33,7 +33,7 @@ export async function currentRole(): Promise<Role | null> {
   }
 
   const { role } = (await response.json()) as { role?: unknown };
-  if (role !== "admin" && role !== "creator") {
+  if (role !== "admin" && role !== "creator" && role !== "super_admin") {
     throw new Error("The session answer named no known role");
   }
   return role;
