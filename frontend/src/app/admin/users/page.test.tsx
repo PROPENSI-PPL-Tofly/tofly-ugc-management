@@ -166,3 +166,21 @@ describe("Pengguna Admin page states", () => {
     await expect(renderPage()).rejects.toThrow(NotFound);
   });
 });
+
+describe("Pengguna Admin search", () => {
+  beforeEach(() => {
+    vi.mocked(currentRole).mockReset();
+    vi.mocked(currentRole).mockResolvedValue("super_admin");
+    vi.mocked(fetchAdminUsers).mockReset();
+    vi.mocked(fetchAdminUsers).mockResolvedValue({
+      kind: "loaded",
+      list: listResponse({ items: [adminUser()], total: 1 }),
+    });
+  });
+
+  it("shows the search the address carries in its box", async () => {
+    await renderPage({ q: "rangga" });
+
+    expect(screen.getByRole("searchbox", { name: /cari admin/i })).toHaveValue("rangga");
+  });
+});
