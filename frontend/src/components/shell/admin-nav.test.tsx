@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
 import { AdminNav } from "./admin-nav";
+import { AdminRoleProvider } from "./admin-role";
 import { expectPhoneTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
@@ -154,5 +155,33 @@ describe("AdminNav", () => {
     render(<AdminNav />);
 
     for (const link of screen.getAllByRole("link")) expectPhoneTarget(link);
+  });
+});
+
+describe("the Super Admin's extra place", () => {
+  function renderAs(role: "admin" | "super_admin") {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+    render(
+      <AdminRoleProvider role={role}>
+        <AdminNav />
+      </AdminRoleProvider>,
+    );
+  }
+
+  it("keeps the four everyday places for an Admin and no Super Admin door", () => {
+    renderAs("admin");
+
+    expect(screen.getAllByRole("link")).toHaveLength(4);
+    expect(screen.queryByRole("link", { name: "Pengguna Admin" })).toBeNull();
+  });
+
+  it("adds Pengguna Admin beside them for a Super Admin", () => {
+    renderAs("super_admin");
+
+    expect(screen.getByRole("link", { name: "Pengguna Admin" })).toHaveAttribute(
+      "href",
+      "/admin/users",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(5);
   });
 });
