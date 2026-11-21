@@ -81,7 +81,20 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('CreatorOnboardingService', () => {
-  const prisma = { creators: { create: vi.fn() } };
+  const prisma = {
+    creators: { create: vi.fn() },
+    users: {
+      findUnique: vi.fn().mockResolvedValue({
+        name: 'Rani',
+        email: 'rani@example.com',
+        admin_role: 'admin',
+      }),
+    },
+    audit_logs: { create: vi.fn().mockResolvedValue({}) },
+    $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) =>
+      work(prisma),
+    ),
+  };
   let service: CreatorOnboardingService;
 
   beforeEach(async () => {
@@ -272,5 +285,63 @@ describe('CreatorOnboardingService', () => {
     prisma.creators.create.mockRejectedValue(failure);
 
     await expect(service.onboard(INPUT, NOW)).rejects.toBe(failure);
+  });
+
+  // PBI-23 (SCRUM-295): "Creator & Kontrak" in Log Aktivitas (OWASP A09:2025).
+  describe('Log Aktivitas', () => {
+    it('records the new creator and first contract, by the admin, in one transaction', async () => {
+      prisma.creators.create.mockResolvedValue(CREATED);
+
+      await service.onboard(INPUT, NOW, ADMIN_USER_ID);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+        data: {
+          actor_user_id: ADMIN_USER_ID,
+          actor_name: 'Rani',
+          actor_role: 'admin',
+          category: 'creator_kontrak',
+          action: 'creator_added',
+          target_type: 'creator',
+          target_id: 'creator-1',
+          target_label: 'Rangga Pratama',
+          creator_id: 'creator-1',
+          old_values: undefined,
+          new_values: {
+            name: 'Rangga Pratama',
+            email: 'rangga@example.com',
+            socialAccounts: INPUT.socialAccounts,
+            contract: {
+              contractId: 'contract-1',
+              startDate: '2026-09-12',
+              endDate: '2026-11-12',
+              contractType: 'probation',
+              interval: 14,
+              quota: 2,
+              fixedRate: 1500000,
+            },
+          },
+          note: null,
+        },
+      });
+    });
+
+    it('records nothing for an email already registered', async () => {
+      prisma.creators.create.mockRejectedValue(uniqueViolation());
+
+      await rejection(service.onboard(INPUT, NOW, ADMIN_USER_ID));
+
+      expect(prisma.audit_logs.create).not.toHaveBeenCalled();
+    });
+
+    it('fails the onboarding when its entry cannot be written, so nothing is kept', async () => {
+      prisma.creators.create.mockResolvedValue(CREATED);
+      const failure = new Error('log failed');
+      prisma.audit_logs.create.mockRejectedValueOnce(failure);
+
+      await expect(service.onboard(INPUT, NOW, ADMIN_USER_ID)).rejects.toBe(
+        failure,
+      );
+    });
   });
 });

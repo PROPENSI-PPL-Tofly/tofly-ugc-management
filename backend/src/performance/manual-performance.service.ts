@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type {
   invoice_status,
@@ -20,6 +21,12 @@ import {
   lockContractOfContent,
   type ContractLockClient,
 } from '../invoices/contract-lock.js';
+import {
+  AuditLogger,
+  type AuditActorReader,
+  type AuditWriter,
+} from '../audit/audit-logger.js';
+import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   canEnterManually,
@@ -50,6 +57,10 @@ export const MANUAL_LINK_SELECT = {
           invoice: { select: { status: true } },
           creators: {
             select: {
+              id: true,
+              first_name: true,
+              middle_name: true,
+              last_name: true,
               social_accounts: CONNECTION_SELECT,
             },
           },
@@ -68,6 +79,10 @@ export interface ManualLinkRow extends LinkMetrics {
     contracts: {
       invoice: { status: invoice_status } | null;
       creators: {
+        id: string;
+        first_name: string;
+        middle_name: string | null;
+        last_name: string | null;
         social_accounts: AccountConnection[];
       };
     };
@@ -105,7 +120,9 @@ export interface ManualPerformanceTransaction extends ContractLockClient {
 /** The slice of Prisma this service touches, so tests stub exactly that. */
 export interface ManualPerformanceClient {
   $transaction<T>(
-    work: (transaction: ManualPerformanceTransaction) => Promise<T>,
+    work: (
+      transaction: ManualPerformanceTransaction & AuditWriter & AuditActorReader,
+    ) => Promise<T>,
   ): Promise<T>;
 }
 
@@ -128,6 +145,9 @@ export class ManualPerformanceService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: ManualPerformanceClient,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
   ) {}
 
   save(
@@ -204,6 +224,19 @@ export class ManualPerformanceService {
             after: { ...metrics, state: 'manual' },
           },
         },
+      });
+
+      // In this transaction, so numbers are never saved without their entry (OWASP A09:2025).
+      const creator = row.contents.contracts.creators;
+      await this.audit.recordBy(transaction, adminUserId, {
+        action: 'manual_performance_saved',
+        target: {
+          id: row.id,
+          label: `Link ${platform} ${joinName(creator)}`,
+        },
+        creatorId: creator.id,
+        oldValues: { platform, ...metricsOf(row) },
+        newValues: { platform, ...metrics },
       });
 
       // The card names who typed the numbers, as every later read of the link does.

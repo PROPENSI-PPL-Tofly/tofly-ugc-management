@@ -69,7 +69,8 @@ export class ContractPeriodsController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('contractId', ParseUUIDPipe) contractId: string,
+    @Req() request: SignedIn,
   ): Promise<void> {
-    await this.periods.remove(id, contractId, new Date());
+    await this.periods.remove(id, contractId, new Date(), request.principal?.userId);
   }
 }
