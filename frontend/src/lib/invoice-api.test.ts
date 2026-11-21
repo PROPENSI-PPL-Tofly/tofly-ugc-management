@@ -622,6 +622,21 @@ describe("toInvoiceBreakdown", () => {
     });
   });
 
+  // PBI-23, 23.11
+  it("carries the Admin who finalized the invoice", () => {
+    expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, finalizedBy: "Sinta Dewi" }).finalizedBy).toBe(
+      "Sinta Dewi",
+    );
+  });
+
+  it.each([
+    ["null, on an invoice finalized before it was recorded", null],
+    ["missing, on an answer from before 23.10", undefined],
+    ["blank", "  "],
+  ])("names no finalizer when it is %s", (_label, finalizedBy) => {
+    expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, finalizedBy })).not.toHaveProperty("finalizedBy");
+  });
+
   it("reads a basis value that is missing or not a number as zero rather than NaN", () => {
     const odd = toInvoiceBreakdown({
       ...RAW_RANGGA_DETAIL,

@@ -242,12 +242,39 @@ describe("invoiceActivity", () => {
     );
 
     expect(entries.map((entry) => entry.text)).toEqual([
-      "Invoice difinalisasi Admin",
+      "Admin memfinalisasi invoice",
       "Kamu meng-acknowledge invoice",
       "Admin mengirim bukti bayar",
       "Kamu mengonfirmasi pembayaran diterima",
     ]);
     expect(entries.every((entry) => entry.kind === "event")).toBe(true);
+  });
+
+  // PBI-23, 23.11 (client note from UAT, 11 Nov): the acting Admin's name replaces "Admin".
+  it("names the Admin who finalized and the Admin who sent the proof, each their own", () => {
+    const base = invoice();
+    const entries = invoiceActivity(
+      invoice({
+        status: "payment_uploaded",
+        breakdown: { ...base.breakdown, finalizedBy: "Sinta Dewi" },
+        reachedAt: {
+          ...NONE_REACHED,
+          finalized: "2026-12-01T02:00:00Z",
+          payment_uploaded: "2026-12-04T02:00:00Z",
+        },
+        proof: {
+          url: "/api/me/invoices/c/payment-proof",
+          fileName: "bukti.pdf",
+          uploadedAt: "2026-12-04T02:00:00Z",
+          uploadedBy: "bima.admin@tofly.id",
+        },
+      }),
+    );
+
+    expect(entries.map((entry) => entry.text)).toEqual([
+      "Sinta Dewi memfinalisasi invoice",
+      "bima.admin@tofly.id mengirim bukti bayar",
+    ]);
   });
 
   it("weaves the comments in among the steps, oldest first", () => {

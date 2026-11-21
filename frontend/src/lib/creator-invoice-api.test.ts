@@ -69,6 +69,19 @@ describe("toCreatorInvoices", () => {
     });
   });
 
+  // PBI-23, 23.11: the creator's activity names the Admin who sent the proof.
+  it("keeps who sent the proof", () => {
+    const proof = RAW_MY_PAID.paymentProof!;
+
+    expect(only({ ...RAW_MY_PAID, paymentProof: { ...proof, uploadedBy: "Sinta Dewi" } }).proof?.uploadedBy).toBe(
+      "Sinta Dewi",
+    );
+  });
+
+  it("keeps who finalized the invoice", () => {
+    expect(only({ ...RAW_MY_PAID, finalizedBy: "Sinta Dewi" }).breakdown.finalizedBy).toBe("Sinta Dewi");
+  });
+
   it("has no proof before the admin uploads one", () => {
     expect(only(RAW_MY_RUNNING).proof).toBeNull();
   });
