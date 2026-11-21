@@ -68,6 +68,11 @@ export interface AdminUsersClient {
 
 const ADMINS = { is_admin: true } as const;
 
+/** Prisma hands "contains" to ILIKE unescaped; a typed _, % or backslash means only itself. */
+export function likeLiteral(text: string): string {
+  return text.replace(/[\\%_]/g, '\\$&');
+}
+
 export function adminNotFound(): NotFoundException {
   return new NotFoundException({
     code: 'ADMIN_NOT_FOUND',
@@ -126,8 +131,8 @@ export class AdminUsersService {
       ? {
           ...ADMINS,
           OR: [
-            { name: { contains: q, mode: 'insensitive' } },
-            { email: { contains: q, mode: 'insensitive' } },
+            { name: { contains: likeLiteral(q), mode: 'insensitive' } },
+            { email: { contains: likeLiteral(q), mode: 'insensitive' } },
           ],
         }
       : ADMINS;
