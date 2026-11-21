@@ -231,6 +231,8 @@ model users {
   name                   String?
   /// PBI-23: a deactivated Admin cannot sign in and every session of theirs is refused.
   is_active              Boolean                  @default(true)
+  /// PBI-23: when a session last started for this user (Google or email code); null if never.
+  last_signed_in_at      DateTime?                @db.Timestamptz(6)
   created_at             DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
   creators               creators?
