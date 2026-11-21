@@ -114,6 +114,16 @@ describe("Performa Konten page", () => {
     expect(screen.queryByText("Belum ada link yang dikirim")).not.toBeInTheDocument();
   });
 
+  it("keeps the filter in the retry link, and offers no sync, when a filtered list fails", async () => {
+    mockedLinks.mockRejectedValue(new PerformanceLinksError(502));
+
+    await renderPage({ platform: "tiktok" });
+
+    const retry = within(screen.getByRole("alert")).getByRole("link", { name: "Muat ulang" });
+    expect(retry).toHaveAttribute("href", "/admin/performance?platform=tiktok");
+    expect(screen.queryByRole("button", { name: "Sinkronkan Sekarang" })).toBeNull();
+  });
+
   it("offers a loading line while the page is still rendering", () => {
     render(<Loading />);
 
