@@ -158,6 +158,10 @@ describe('AuditLogger', () => {
     'code',
     'loginCode',
     'sign_in_code',
+    'signInCode',
+    'authCode',
+    'otp_code',
+    'verification_code',
     'otp',
     'fileContent',
     'file_content',
@@ -187,6 +191,27 @@ describe('AuditLogger', () => {
       nested: [{ role: 'admin' }],
     });
   });
+
+  // A code that is no credential is part of the record, so it must not vanish silently.
+  it.each(['statusCode', 'errorCode', 'postalCode'])(
+    'keeps %s, at any depth',
+    async (key) => {
+      const { create, tx } = stubTransaction();
+
+      await logger.record(tx, {
+        actor: ADMIN,
+        action: 'admin_changed',
+        target: { label: 'Rani' },
+        oldValues: { [key]: 'lama' },
+        newValues: { nested: [{ [key]: 'baru' }] },
+      });
+
+      expect(savedData(create).old_values).toEqual({ [key]: 'lama' });
+      expect(savedData(create).new_values).toEqual({
+        nested: [{ [key]: 'baru' }],
+      });
+    },
+  );
 
   it('keeps a file name but never the bytes of the file', async () => {
     const { create, tx } = stubTransaction();
