@@ -119,6 +119,19 @@ export function buildAuditLogQuery(state: AuditLogState): Record<string, string>
 
 export type AuditActorRole = "super_admin" | "admin" | "creator" | "system";
 
+// One row of the table. The fields follow the audit_logs columns (SCRUM-295).
+export interface AuditLogRow {
+  id: string;
+  occurredAt: string;
+  actor: { name: string; role: AuditActorRole };
+  category: AuditCategory;
+  action: AuditAction;
+  targetLabel: string;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+  note: string | null;
+}
+
 const ACTOR_ROLE_LABELS: Record<Exclude<AuditActorRole, "system">, string> = {
   super_admin: "Super Admin",
   admin: "Admin",
