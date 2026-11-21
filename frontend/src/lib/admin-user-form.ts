@@ -2,8 +2,22 @@
 // email on a new admin, and a role. The words live here so both forms and their tests read the
 // same ones, and so an edit cannot re-judge the email it does not let anyone change.
 
-import type { AdminRole } from "./admin-users";
+import type { AdminRole, AdminUser } from "./admin-users";
 import { EMAIL_FORMAT, MAX_EMAIL_LENGTH, MAX_NAME_LENGTH } from "./creator-form";
+
+/** Why the screen shuts these on the caller's own row (AC 6 and AC 10), beside the control. */
+export const SELF_ROLE_REASON = "Peran sendiri tidak bisa diubah";
+export const SELF_DEACTIVATE_REASON = "Super Admin tidak bisa menonaktifkan dirinya sendiri";
+
+/** Whether the role select may be changed: never on the caller's own row. */
+export function canChangeRole(user: Pick<AdminUser, "isSelf">): boolean {
+  return !user.isSelf;
+}
+
+/** Whether the row may be deactivated: never on the caller's own row, and only while active. */
+export function canDeactivate(user: Pick<AdminUser, "isSelf" | "isActive">): boolean {
+  return !user.isSelf && user.isActive;
+}
 
 export type AdminFormMode = "create" | "edit";
 
@@ -48,4 +62,45 @@ export function validateAdminForm(
   }
 
   return errors;
+}
+
+/** A refusal the form shows: the line above it, and the field that carries the fix. */
+export interface AdminRefusal {
+  message: string;
+  errors: AdminFormErrors;
+}
+
+/**
+ * The backend's codes in the form's words. The two the ACs name are pinned to their fields
+ * ("Email sudah dipakai", "Minimal harus ada satu Super Admin"); the rest are one line.
+ */
+export function adminRefusal(code: unknown): AdminRefusal | null {
+  switch (code) {
+    case "EMAIL_TAKEN":
+      return {
+        message: "Email sudah dipakai",
+        errors: { email: "Email sudah dipakai" },
+      };
+
+    case "LAST_SUPER_ADMIN":
+      return {
+        message: "Minimal harus ada satu Super Admin",
+        errors: { role: "Minimal harus ada satu Super Admin" },
+      };
+
+    case "SELF_ROLE":
+      return {
+        message: SELF_ROLE_REASON,
+        errors: { role: SELF_ROLE_REASON },
+      };
+
+    case "SELF_DEACTIVATE":
+      return { message: SELF_DEACTIVATE_REASON, errors: {} };
+
+    case "FORBIDDEN":
+      return { message: "Hanya Super Admin yang bisa mengelola admin", errors: {} };
+
+    default:
+      return null;
+  }
 }
