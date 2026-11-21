@@ -127,3 +127,17 @@ describe("the admin list's rows", () => {
     expect(() => toAdminUserList(answer)).toThrow();
   });
 });
+
+describe("the admin answer's field set", () => {
+  it("carries the six facts and ignores anything else the API adds", () => {
+    const list = toAdminUserList({
+      items: [{ ...API_USER, nickname: "rangga", isSelf: false }],
+      page: 1,
+      pageSize: 10,
+      total: 1,
+    });
+
+    expect(list.items[0]).not.toHaveProperty("nickname");
+    expect(list.items[0].isSelf).toBeUndefined();
+  });
+});
