@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Pill, type Tone } from "@/components/ui/pill";
@@ -9,6 +10,7 @@ import {
   auditActionLabel,
   auditActorLines,
   auditChangeView,
+  auditTargetHref,
   auditTimeLabel,
   type AuditCategory,
   type AuditChange,
@@ -106,6 +108,7 @@ export function AuditLogTable({ rows }: Readonly<{ rows: AuditLogRow[] }>) {
         <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3">
           {rows.map((row) => {
             const actor = auditActorLines(row.actor);
+            const targetHref = auditTargetHref(row);
             return (
               <tr
                 key={row.id}
@@ -128,7 +131,13 @@ export function AuditLogTable({ rows }: Readonly<{ rows: AuditLogRow[] }>) {
                   {auditActionLabel(row.action)}
                 </td>
                 <td role="cell" data-label="Target" className={`${CELL} ${LABELLED} wrap-anywhere`}>
-                  {row.targetLabel}
+                  {targetHref ? (
+                    <Link href={targetHref} className="font-semibold text-accent-deep hover:underline">
+                      {row.targetLabel}
+                    </Link>
+                  ) : (
+                    row.targetLabel
+                  )}
                 </td>
                 <td role="cell" data-label="Perubahan" className={`${CELL} ${LABELLED}`}>
                   <ChangeCell row={row} />

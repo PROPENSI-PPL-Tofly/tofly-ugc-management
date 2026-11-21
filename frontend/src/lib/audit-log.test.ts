@@ -308,6 +308,13 @@ describe("auditTargetHref", () => {
     expect(auditTargetHref({ targetType, creator: null })).toBeNull();
   });
 
+  it.each(["admin", "rate_formula", "buffer"] as const)(
+    "has no link for a %s even when the entry names a creator",
+    (targetType) => {
+      expect(auditTargetHref({ targetType, creator })).toBeNull();
+    },
+  );
+
   // Entries outlive their targets (SCRUM-295), so a creator that is gone must not become a 404.
   it.each(["creator", "contract", "content_link", "invoice"] as const)(
     "has no link for a %s whose creator is gone",

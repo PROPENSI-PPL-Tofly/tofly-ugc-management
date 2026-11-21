@@ -4,6 +4,7 @@
 
 import { isUuid } from "./creator-detail";
 import { EMPTY, formatTimestamp } from "./format";
+import { INVOICE_PATH } from "./invoice";
 import { calendarDay, list, listOf, pageNumber, single, type SearchParams } from "./search-params";
 
 // PBI-23 AC 17: rows per page.
@@ -127,6 +128,15 @@ export function auditLogHref(state: AuditLogState): string {
 
 export type AuditActorRole = "super_admin" | "admin" | "creator" | "system";
 
+export type AuditTargetType =
+  | "admin"
+  | "creator"
+  | "contract"
+  | "content_link"
+  | "invoice"
+  | "rate_formula"
+  | "buffer";
+
 // One row of the table. The fields follow the audit_logs columns (SCRUM-295).
 export interface AuditLogRow {
   id: string;
@@ -134,7 +144,10 @@ export interface AuditLogRow {
   actor: { name: string; role: AuditActorRole };
   category: AuditCategory;
   action: AuditAction;
+  targetType: AuditTargetType;
   targetLabel: string;
+  // The creator the entry concerns, null when it has none or the creator no longer exists.
+  creator: { id: string; name: string } | null;
   oldValues: Record<string, unknown> | null;
   newValues: Record<string, unknown> | null;
   note: string | null;
@@ -154,10 +167,10 @@ const ACTOR_ROLE_LABELS: Record<Exclude<AuditActorRole, "system">, string> = {
   creator: "Creator",
 };
 
-// The Sprint 4 prototype's words. admin_changed, invoice_line_corrected, invoice_acknowledged and
-// payment_confirmed have no agreed wording yet, so they show their key rather than a made-up label.
-const AUDIT_ACTION_LABELS: Partial<Record<AuditAction, string>> = {
+// The Sprint 4 prototype's words, and the team's where it has none for an action.
+const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   admin_added: "Tambah Admin",
+  admin_changed: "Ubah Admin",
   admin_deactivated: "Nonaktifkan Admin",
   admin_reactivated: "Aktifkan Admin",
   creator_added: "Tambah Creator",
@@ -168,14 +181,31 @@ const AUDIT_ACTION_LABELS: Partial<Record<AuditAction, string>> = {
   contract_ended_early: "Akhiri Kontrak Lebih Awal",
   manual_performance_saved: "Isi Angka Manual",
   invoice_finalized: "Finalize Invoice",
+  invoice_line_corrected: "Koreksi Invoice",
+  invoice_acknowledged: "Konfirmasi Invoice",
   payment_proof_uploaded: "Upload Bukti Bayar",
+  payment_confirmed: "Konfirmasi Pembayaran",
   invoice_cancelled: "Batalkan Invoice",
   rate_formula_changed: "Ubah Formula Rate",
   buffer_changed: "Ubah Buffer Deadline",
 };
 
 export function auditActionLabel(action: AuditAction): string {
-  return AUDIT_ACTION_LABELS[action] ?? action;
+  return AUDIT_ACTION_LABELS[action];
+}
+
+// PBI-23 AC 16: where a target lives. A creator that is gone has no page, so its entry stays text;
+// Admin targets wait for "Pengguna Admin" (23.3), and the settings have no page of their own.
+export function auditTargetHref({
+  targetType,
+  creator,
+}: Pick<AuditLogRow, "targetType" | "creator">): string | null {
+  if (!creator || !isUuid(creator.id)) return null;
+  if (targetType === "invoice") {
+    return `${INVOICE_PATH}?${new URLSearchParams({ q: creator.name })}`;
+  }
+  const onCreatorPage = targetType === "creator" || targetType === "contract" || targetType === "content_link";
+  return onCreatorPage ? `/admin/creators/${creator.id}` : null;
 }
 
 // Who acted, as the row's two lines: the name over its role; "Sistem" has no role.
