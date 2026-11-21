@@ -4,6 +4,7 @@ import {
   CONNECTION_SELECT,
   LINK_PERFORMANCE_SELECT,
 } from '../performance/performance-links.js';
+import { ADMIN_ACCOUNT_SELECT } from './content-event-actors.js';
 import { LINKS_AS_HANDED_IN } from './content-links.js';
 import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
 import {
@@ -69,7 +70,7 @@ const CONTENT_DETAIL_SELECT = {
       creator_notes: true,
     },
   },
-  // The stored history, newest first, with the email of the admin behind each admin event. Never
+  // The stored history, newest first, with the name of the admin behind each admin event. Never
   // the account id itself: the panel has no use for it.
   content_events: {
     orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }],
@@ -80,7 +81,7 @@ const CONTENT_DETAIL_SELECT = {
       actor_role: true,
       occurred_at: true,
       event_data: true,
-      users: { select: { email: true } },
+      users: { select: ADMIN_ACCOUNT_SELECT },
     },
   },
 } as const;

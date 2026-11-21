@@ -20,7 +20,7 @@ export type CommentAuthorRole = 'admin' | 'creator';
 /** One comment, oldest first in a thread. */
 export interface InvoiceCommentDto {
   id: string;
-  /** The admin by their account's email; the contract's creator by name. */
+  /** The admin by their account's name, else its email; the contract's creator by name. */
   authorName: string;
   authorRole: CommentAuthorRole;
   text: string;
