@@ -145,6 +145,7 @@ describe('ManualPerformanceService', () => {
           contracts: {
             invoice: { status: 'running' },
             creators: {
+              ...CREATOR,
               social_accounts: [
                 {
                   platform: 'tiktok',
@@ -298,6 +299,7 @@ describe('ManualPerformanceService', () => {
           contracts: {
             invoice: null,
             creators: {
+              ...CREATOR,
               social_accounts: [
                 {
                   platform: 'instagram',
@@ -325,7 +327,7 @@ describe('ManualPerformanceService', () => {
           contents: {
             contracts: {
               invoice: { status },
-              creators: { social_accounts: [] },
+              creators: { ...CREATOR, social_accounts: [] },
             },
           },
         }),
