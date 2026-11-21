@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdminGuard } from '../../auth/admin.guard.js';
 import { PrismaModule } from '../../prisma/prisma.module.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { PerformanceLinksSyncController } from './performance-links-sync.controller.js';
 import {
   ContentPerformanceSyncController,
   InternalPerformanceSyncController,
@@ -20,6 +21,7 @@ import { syncSources } from './sync-sources.js';
   controllers: [
     InternalPerformanceSyncController,
     ContentPerformanceSyncController,
+    PerformanceLinksSyncController,
   ],
   providers: [
     AdminGuard,

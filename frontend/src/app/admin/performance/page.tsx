@@ -1,5 +1,6 @@
 import { PerformanceBoard } from "@/components/performance/performance-board";
 import { PerformanceFilters } from "@/components/performance/performance-filters";
+import { PageSyncButton } from "@/components/performance/page-sync-button";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
@@ -44,7 +45,16 @@ export default async function PerformancePage({
   const query = buildPerformanceLinksQuery(state);
 
   return (
-    <AppShell role="admin" title="Performa Konten">
+    <AppShell
+      role="admin"
+      title="Performa Konten"
+      action={
+        // The rows on screen, as filtered: never the whole list (SCRUM-285).
+        result && result.items.length > 0 ? (
+          <PageSyncButton linkIds={result.items.map((item) => item.linkId)} />
+        ) : undefined
+      }
+    >
       {result === null ? (
         <>
           <PerformanceFilters creators={creators} />

@@ -1,6 +1,7 @@
 // The calls behind a link's performance card (PBI-27, 27.5), kept out of the component. 27.1's
 // PUT /contents/:id/links/:platform/performance saves an admin's numbers; 27.4's
-// POST /contents/:id/performance-sync serves "Sinkronkan Sekarang".
+// POST /contents/:id/performance-sync serves "Sinkronkan Sekarang", and SCRUM-285's
+// POST /performance/links/sync the same button for one page of "Performa Konten".
 
 import { apiFetch } from "./api-client";
 import type { ManualErrors, ManualValues, MetricName } from "./link-performance";
@@ -22,6 +23,7 @@ export type ManualPerformanceSaver = (
 ) => Promise<ManualSaveResult>;
 export type ContentPerformanceSyncer = (contentId: string) => Promise<SyncResult>;
 export type LinkPerformanceSyncer = (contentId: string, platform: Platform) => Promise<SyncResult>;
+export type PagePerformanceSyncer = (linkIds: readonly string[]) => Promise<SyncResult>;
 
 interface ErrorBody {
   message?: unknown;
@@ -128,3 +130,52 @@ export const syncLinkPerformance: LinkPerformanceSyncer = (contentId, platform) 
     updated: `Data performa ${PLATFORM_LABELS[platform]} diperbarui`,
     notUpdated: `Link ${PLATFORM_LABELS[platform]} gagal disinkronkan`,
   });
+
+interface PageSyncReport {
+  updated: number;
+  notUpdated: number;
+  busy: number;
+  /** Links whose invoice is finalized: their numbers are locked, which is no failure. */
+  locked: number;
+}
+
+function isPageSyncReport(body: unknown): body is PageSyncReport {
+  const report = body as Partial<PageSyncReport> | null;
+  return (
+    typeof report?.updated === "number" &&
+    typeof report.notUpdated === "number" &&
+    typeof report.busy === "number" &&
+    typeof report.locked === "number"
+  );
+}
+
+/**
+ * How a page's sync went, in one line: all of it, or how much and what is still syncing. Locked
+ * links are named apart, so a page of finalized invoices never reads as a failed sync.
+ */
+function pageToast({ updated, notUpdated, busy, locked }: PageSyncReport): string {
+  const total = updated + notUpdated + busy;
+  if (total === 0) return "Semua link di halaman ini sudah terkunci";
+  const parts = [
+    updated === total ? `Data performa ${updated} link diperbarui` : `${updated} dari ${total} link diperbarui`,
+  ];
+  if (busy > 0) parts.push(`${busy} masih disinkronkan`);
+  if (locked > 0) parts.push(`${locked} sudah terkunci`);
+  return parts.join(", ");
+}
+
+export const syncPagePerformance: PagePerformanceSyncer = async (linkIds) => {
+  let response: Response;
+  try {
+    response = await apiFetch("/api/performance/links/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ linkIds }),
+    });
+  } catch {
+    return { ok: false, message: SYNC_FAILED };
+  }
+  // A refused page is the page's own ids gone wrong, nothing an admin can act on but a retry.
+  const body: unknown = response.ok ? await bodyOf(response) : null;
+  return isPageSyncReport(body) ? { ok: true, toast: pageToast(body) } : { ok: false, message: SYNC_FAILED };
+};

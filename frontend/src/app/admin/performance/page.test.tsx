@@ -75,6 +75,26 @@ describe("Performa Konten page", () => {
     expect(screen.getByRole("navigation", { name: "Menu admin" })).toBeInTheDocument();
   });
 
+  it("offers Sinkronkan Sekarang for the page's links beside the page title (SCRUM-285)", async () => {
+    mockedLinks.mockResolvedValue(answered());
+
+    await renderPage();
+
+    // The list lost its "Link Konten" band in #210, so the page's own control sits in the header,
+    // as Tambah Creator does on Kreator.
+    const header = screen.getByRole("banner");
+    expect(within(header).getByRole("heading", { level: 1, name: "Performa Konten" })).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Sinkronkan Sekarang" })).toBeInTheDocument();
+  });
+
+  it("offers no sync when the page shows no link", async () => {
+    mockedLinks.mockResolvedValue(EMPTY);
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "Sinkronkan Sekarang" })).toBeNull();
+  });
+
   it("says no link has been sent when the list holds nothing (AC 23)", async () => {
     mockedLinks.mockResolvedValue(EMPTY);
 
@@ -92,6 +112,16 @@ describe("Performa Konten page", () => {
     expect(alert).toHaveTextContent("Performa Konten tidak bisa dimuat.");
     expect(within(alert).getByRole("link", { name: "Muat ulang" })).toBeInTheDocument();
     expect(screen.queryByText("Belum ada link yang dikirim")).not.toBeInTheDocument();
+  });
+
+  it("keeps the filter in the retry link, and offers no sync, when a filtered list fails", async () => {
+    mockedLinks.mockRejectedValue(new PerformanceLinksError(502));
+
+    await renderPage({ platform: "tiktok" });
+
+    const retry = within(screen.getByRole("alert")).getByRole("link", { name: "Muat ulang" });
+    expect(retry).toHaveAttribute("href", "/admin/performance?platform=tiktok");
+    expect(screen.queryByRole("button", { name: "Sinkronkan Sekarang" })).toBeNull();
   });
 
   it("offers a loading line while the page is still rendering", () => {

@@ -255,6 +255,58 @@ describe('performance sync (e2e)', () => {
     });
   });
 
+  describe('POST /performance/links/sync (the page\'s "Sinkronkan Sekarang", SCRUM-285)', () => {
+    it('syncs only the links asked for, and counts one that is no longer synced as locked (AC 4)', async () => {
+      const shown = await content(ada);
+      const elsewhere = await content(ada);
+      const notDelivered = await content(budi, 'draft_review');
+
+      const response = await as(app, admin)
+        .post('/performance/links/sync')
+        .send({
+          linkIds: [
+            shown.content_links[0].id,
+            notDelivered.content_links[0].id,
+          ],
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        updated: 1,
+        notUpdated: 0,
+        busy: 0,
+        locked: 1,
+      });
+      expect(await linkOf(shown.id)).toMatchObject({
+        ...METRICS,
+        data_state: 'synced',
+      });
+      // A link on another page, and one whose content is not delivered, keep what they held.
+      expect((await linkOf(elsewhere.id)).data_state).toBe('waiting');
+      expect((await linkOf(notDelivered.id)).data_state).toBe('waiting');
+    });
+
+    it('refuses a creator with 403: only an admin syncs (OWASP A01)', async () => {
+      const made = await content(ada);
+
+      const response = await as(app, creator)
+        .post('/performance/links/sync')
+        .send({ linkIds: [made.content_links[0].id] });
+
+      expect(response.status).toBe(403);
+      expect((await linkOf(made.id)).data_state).toBe('waiting');
+    });
+
+    it('refuses an id that is not a uuid with 400 before any read (OWASP A05)', async () => {
+      const response = await as(app, admin)
+        .post('/performance/links/sync')
+        .send({ linkIds: ["1' OR '1'='1"] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe('INVALID_LINK_IDS');
+    });
+  });
+
   describe('syncContract (the last sync before Finalize)', () => {
     it("syncs only that contract's delivered links, isolating a failing one (AC 4, 6)", async () => {
       const contract = await newCreator('contract');

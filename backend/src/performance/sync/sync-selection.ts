@@ -10,11 +10,15 @@ import type { PerformanceMetrics, SourceLink } from '../ports.js';
 // Which links a performance sync reads (PBI-27, 27.4), without Prisma or a clock, so the daily
 // run, "Sinkronkan Sekarang" and Finalize's last sync agree on one rule.
 
-/** Every link, one content's ("Sinkronkan", AC 12) or one contract's (the last sync before Finalize). */
+/**
+ * Every link, one content's ("Sinkronkan", AC 12), the links one page of "Performa Konten" shows
+ * (SCRUM-285) or one contract's (the last sync before Finalize).
+ */
 export type SyncScope =
   | { kind: 'all' }
   // platform: the Refresh button on one link card syncs only that link (SCRUM-282).
   | { kind: 'content'; contentId: string; platform?: social_platform }
+  | { kind: 'links'; linkIds: readonly string[] }
   | { kind: 'contract'; contractId: string };
 
 /** The columns a sync reads per link. No token: the sources open their own accounts. */
@@ -52,6 +56,7 @@ export function syncableLinks(
 ): Prisma.content_linksWhereInput {
   const onePlatform = scope.kind === 'content' ? scope.platform : undefined;
   return {
+    ...(scope.kind === 'links' && { id: { in: [...scope.linkIds] } }),
     platform: onePlatform ?? { not: null },
     contents: {
       status: 'link_submitted',

@@ -49,6 +49,8 @@ export const CONTRACT_DEADLINE_MS = 20_000;
 export const LEASE_MS: Readonly<Record<SyncScope['kind'], number>> = {
   all: 30 * 60_000,
   content: 2 * 60_000,
+  // A full page may hold a different creator on every row (SCRUM-285).
+  links: 15 * 60_000,
   contract: 60_000,
 };
 
@@ -113,6 +115,17 @@ export interface SyncRunReport {
   failed: number;
   skipped: number;
   durationMs: number;
+}
+
+/**
+ * What the page's "Sinkronkan Sekarang" answers (SCRUM-285): links updated, not updated, held by
+ * another sync, and locked (their invoice is finalized, so their numbers no longer change).
+ */
+export interface PageSyncReport {
+  updated: number;
+  notUpdated: number;
+  busy: number;
+  locked: number;
 }
 
 interface RunResult extends SyncRunReport {
@@ -199,6 +212,25 @@ export class PerformanceSyncService {
     }
     return {
       notUpdated: result.notUpdated.map(({ platform }) => ({ platform })),
+    };
+  }
+
+  /**
+   * The links one page of "Performa Konten" shows (SCRUM-285). A link whose content another sync
+   * holds is counted busy rather than refusing the page, and one the read leaves out (its invoice
+   * is finalized) is counted locked, which is no failure (AC 4, 5, 13).
+   */
+  async syncLinks(linkIds: readonly string[]): Promise<PageSyncReport> {
+    const result = await this.run(
+      { kind: 'links', linkIds },
+      GROUP_DEADLINE_MS,
+    );
+    const read = result.processed + result.skipped;
+    return {
+      updated: result.succeeded,
+      notUpdated: result.failed,
+      busy: result.skipped,
+      locked: linkIds.length - read,
     };
   }
 
@@ -377,7 +409,9 @@ export class PerformanceSyncService {
     outcomes: readonly LinkOutcome[],
   ): Promise<void> {
     const replaced = outcomes.filter(
-      (outcome): outcome is LinkOutcome & { replacedManual: ManualReplacement } =>
+      (
+        outcome,
+      ): outcome is LinkOutcome & { replacedManual: ManualReplacement } =>
         outcome.synced && outcome.replacedManual !== undefined,
     );
     if (replaced.length === 0) return;

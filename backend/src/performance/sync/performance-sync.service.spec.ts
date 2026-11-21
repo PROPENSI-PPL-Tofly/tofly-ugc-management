@@ -1,8 +1,10 @@
 import { ConflictException, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { PerformanceSource, SourceResult } from '../ports.js';
+import { MAX_PAGE_SIZE } from '../../creators/paging.js';
 import {
   CONTRACT_DEADLINE_MS,
+  GROUP_CONCURRENCY,
   GROUP_DEADLINE_MS,
   LEASE_MS,
   PerformanceSyncService,
@@ -864,6 +866,89 @@ describe('PerformanceSyncService', () => {
     });
   });
 
+  describe('syncLinks (the page\'s "Sinkronkan Sekarang" on Performa Konten, SCRUM-285)', () => {
+    it('syncs only the links the page shows, one source call per creator per platform, and counts them', async () => {
+      const s = stub([
+        row('a-tt-1', 'c1'),
+        row('a-tt-2', 'c2'),
+        row('b-ig-1', 'c3', 'instagram', CREATOR_B),
+      ]);
+      const tiktok = syncing('tiktok');
+      const instagram = syncing('instagram');
+      const service = new PerformanceSyncService(
+        s.client,
+        [tiktok, instagram],
+        log(),
+        clock(),
+      );
+
+      expect(await service.syncLinks(['a-tt-1', 'a-tt-2', 'b-ig-1'])).toEqual({
+        updated: 3,
+        notUpdated: 0,
+        busy: 0,
+        locked: 0,
+      });
+      expect(s.findMany.mock.calls[0][0].where.id).toEqual({
+        in: ['a-tt-1', 'a-tt-2', 'b-ig-1'],
+      });
+      expect(tiktok.read).toHaveBeenCalledTimes(1);
+      expect(instagram.read).toHaveBeenCalledTimes(1);
+      const [query] = s.queryRaw.mock.calls[0] as [Prisma.Sql];
+      expect(query.values[0]).toEqual(
+        new Date(STARTED.getTime() + LEASE_MS.links),
+      );
+    });
+
+    it('counts a link whose content another sync holds as busy and still syncs the rest (AC 13)', async () => {
+      const s = stub([row('a-tt-1', 'c1'), row('a-tt-2', 'c2')], {
+        leasedElsewhere: ['c2'],
+      });
+      const tiktok = syncing('tiktok');
+      const service = new PerformanceSyncService(
+        s.client,
+        [tiktok],
+        log(),
+        clock(),
+      );
+
+      expect(await service.syncLinks(['a-tt-1', 'a-tt-2'])).toEqual({
+        updated: 1,
+        notUpdated: 0,
+        busy: 1,
+        locked: 0,
+      });
+      expect(tiktok.read.mock.calls[0][1]).toEqual([
+        expect.objectContaining({ id: 'a-tt-1' }),
+      ]);
+    });
+
+    it('counts a link the platform could not read as not updated, and one whose numbers are locked apart (AC 4, 5)', async () => {
+      // b-tt-9 is on the page but its invoice is finalized, so the read leaves it out: its
+      // numbers are locked, which is no failure, so it is counted apart and never synced.
+      const s = stub([row('a-tt-1', 'c1'), row('a-ig-1', 'c1', 'instagram')]);
+      const instagram = source('instagram', async (_, links) => ({
+        outcome: 'read',
+        readings: links.map((link) => ({
+          linkId: link.id,
+          outcome: 'not_found',
+        })),
+      }));
+      const service = new PerformanceSyncService(
+        s.client,
+        [syncing('tiktok'), instagram],
+        log(),
+        clock(),
+      );
+
+      expect(await service.syncLinks(['a-tt-1', 'a-ig-1', 'b-tt-9'])).toEqual({
+        updated: 1,
+        notUpdated: 1,
+        busy: 0,
+        locked: 1,
+      });
+    });
+  });
+
   describe('syncContract (the last sync before Finalize)', () => {
     it("syncs one contract's links within Finalize's 20 s and names every link it left as it was", async () => {
       const s = stub([row('a-tt-1', 'c1'), row('a-tt-2', 'c2')], {
@@ -917,9 +1002,15 @@ describe('PerformanceSyncService', () => {
     expect(LEASE_MS).toEqual({
       all: 30 * 60_000,
       content: 2 * 60_000,
+      links: 15 * 60_000,
       contract: 60_000,
     });
     expect(LEASE_MS.content).toBeGreaterThan(GROUP_DEADLINE_MS);
+    // A full page can hold a different creator on every row: its groups run GROUP_CONCURRENCY
+    // at a time, each up to its deadline.
+    expect(LEASE_MS.links).toBeGreaterThan(
+      Math.ceil(MAX_PAGE_SIZE / GROUP_CONCURRENCY) * GROUP_DEADLINE_MS,
+    );
     expect(LEASE_MS.contract).toBeGreaterThan(CONTRACT_DEADLINE_MS);
   });
 });
