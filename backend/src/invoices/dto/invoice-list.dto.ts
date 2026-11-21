@@ -57,6 +57,11 @@ export interface InvoiceSnapshotDto {
   floored: boolean;
   finalizedAt: string;
   /**
+   * The total at the moment of Finalize (PBI-23, AC 25). `total` moves with a later adjustment; this
+   * never does. Absent from a snapshot saved before it was kept.
+   */
+  finalizedTotal?: number;
+  /**
    * The formula the breakdown was calculated with, null if none was saved then. Absent from a
    * snapshot saved before the formula was kept with it.
    */
