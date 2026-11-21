@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AdminUsersModule } from './admin-users/admin-users.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { EmailVerifyModule } from './auth/email/email-verify.module.js';
 import { requireLoginCodeSecretInProduction } from './auth/email/login-code-config.js';
@@ -61,6 +62,7 @@ export function validate(
     MeModule,
     SessionModule,
     SuperAdminModule,
+    AdminUsersModule,
     GoogleAuthModule,
     EmailVerifyModule,
     SocialModule,
