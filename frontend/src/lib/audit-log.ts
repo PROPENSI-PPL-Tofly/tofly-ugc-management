@@ -161,6 +161,13 @@ export interface AuditLogList {
   totalPages: number;
 }
 
+// What the page loads: one page of rows, and who the Aktor and Creator filters can offer.
+export interface AuditLogLoaded {
+  list: AuditLogList;
+  actors: { value: string; label: string }[];
+  creators: { value: string; label: string }[];
+}
+
 const ACTOR_ROLE_LABELS: Record<Exclude<AuditActorRole, "system">, string> = {
   super_admin: "Super Admin",
   admin: "Admin",
