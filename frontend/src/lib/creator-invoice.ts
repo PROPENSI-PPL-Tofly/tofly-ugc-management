@@ -3,8 +3,8 @@
 // invoice has walked, and what the creator is asked to do next. Pure module: no React and no
 // next/headers, so the server page, the client components and the tests all share it.
 //
-// The amounts and the breakdown are the backend's. Only the activity's Finalize line adds them up,
-// for the total of that moment; everything else shows what the admin froze as it came.
+// The amounts and the breakdown are the backend's. Only the activity's Finalize line on a snapshot
+// older than finalizedTotal adds them up; everything else shows what the admin froze as it came.
 
 import { ADMIN_LABEL } from "./admin-actor";
 import type { AdjustmentLine } from "./invoice-adjustment";
@@ -242,11 +242,14 @@ function actingAdmin(invoice: CreatorInvoice, step: keyof ReachedAt): string {
 }
 
 /**
- * The total as it stood at a moment. The API keeps only the latest total, which a later adjustment
- * moves, so a history line rebuilds its own from the frozen parts and the adjustments made by then,
- * held at zero as the backend holds it.
+ * The total the Finalize line shows: the one the backend froze. A snapshot from before it was kept
+ * has only the latest total, which a later adjustment moves, so that line rebuilds its own from the
+ * frozen parts and the adjustments made by then, held at zero as the backend holds it.
  */
-function totalAt(invoice: CreatorInvoice, at: string): string {
+function totalAtFinalize(invoice: CreatorInvoice, at: string): string {
+  const { finalizedTotal } = invoice.breakdown;
+  if (finalizedTotal !== undefined) return formatRupiah(finalizedTotal);
+
   const moment = Date.parse(at);
   const adjusted = invoice.adjustments
     .filter((adjustment) => Date.parse(adjustment.createdAt) <= moment)
@@ -276,7 +279,7 @@ export function invoiceActivity(
     const at = invoice.reachedAt[step];
     if (at === null) return [];
     const words = texts[step];
-    const text = typeof words === "string" ? words : words(actingAdmin(invoice, step), totalAt(invoice, at));
+    const text = typeof words === "string" ? words : words(actingAdmin(invoice, step), totalAtFinalize(invoice, at));
     return [{ kind: "event" as const, id: step, text, at }];
   });
   const adjustments: ActivityEntry[] = invoice.adjustments.map((adjustment) => ({

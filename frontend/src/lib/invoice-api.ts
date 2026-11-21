@@ -85,7 +85,11 @@ export interface RawInvoiceRow extends RawInvoicePayment {
   /** The manual adjustments recorded against this invoice, oldest first. */
   adjustments: RawAdjustment[];
   /** The frozen breakdown of a finalized invoice; null while it still runs. */
-  snapshot: { finalizedAt: string } | null;
+  snapshot: {
+    finalizedAt: string;
+    /** The total at Finalize (PBI-23, AC 25); absent from an older snapshot. Read by frozenTotal. */
+    finalizedTotal?: unknown;
+  } | null;
 }
 
 export interface RawInvoiceList {
@@ -260,6 +264,11 @@ function tierRules(formula: RawRateFormula | null): BonusTierRule[] {
   });
 }
 
+/** The total Finalize froze, or undefined for anything that cannot be an amount owed. */
+function frozenTotal(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
 /**
  * One creator's invoice as the breakdown popups read it. The amounts are the backend's: this
  * only renames, so a popup's total always matches the table cell that opened it.
@@ -270,9 +279,12 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
   const [period] = fixedRate.lines;
   const cap = raw.formula?.maxPenaltyDays ?? 0;
   const finalizedBy = readActorName(raw.finalizedBy);
+  const finalizedTotal = frozenTotal(raw.snapshot?.finalizedTotal);
 
   return {
     ...(finalizedBy && { finalizedBy }),
+    // A frozen Rp0 is a real total, so this asks for undefined rather than for a truthy value.
+    ...(finalizedTotal !== undefined && { finalizedTotal }),
     creatorName: raw.creatorName,
     fixed: {
       period: {
