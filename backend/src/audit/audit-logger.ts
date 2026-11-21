@@ -34,6 +34,20 @@ export interface AuditWriter {
   };
 }
 
+// Who an action's user is, read on the action's own transaction.
+export interface AuditActorReader {
+  users: {
+    findUnique(args: {
+      where: { id: string };
+      select: { name: true; email: true; admin_role: true };
+    }): Promise<{
+      name: string | null;
+      email: string;
+      admin_role: 'admin' | 'super_admin' | null;
+    } | null>;
+  };
+}
+
 // AC 19 (OWASP A09:2025): tokens, sign-in codes, passwords and file contents never reach the log.
 const FORBIDDEN_KEY =
   /token|secret|password|file_?content|base64|code$|(^|_)otp$/i;
@@ -63,6 +77,26 @@ function safeValues(
 // Writes on the transaction of the action it records, so the two land or fail together.
 @Injectable()
 export class AuditLogger {
+  // The person as they are now, by name or else email; "Sistem" when no user is behind the action.
+  async actorOf(
+    tx: AuditActorReader,
+    userId: string | null | undefined,
+  ): Promise<AuditActor> {
+    if (!userId) return SYSTEM_ACTOR;
+
+    const user = await tx.users.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true, admin_role: true },
+    });
+    if (!user) return SYSTEM_ACTOR;
+
+    return {
+      userId,
+      name: user.name ?? user.email,
+      role: user.admin_role ?? 'creator',
+    };
+  }
+
   async record(tx: AuditWriter, entry: AuditEntry): Promise<void> {
     const { category, targetType } = AUDIT_ACTIONS[entry.action];
 

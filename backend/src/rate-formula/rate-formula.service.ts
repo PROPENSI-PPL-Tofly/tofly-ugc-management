@@ -1,9 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type {
   performance_metric,
   Prisma,
   social_platform,
 } from '@prisma/client';
+import {
+  AuditLogger,
+  type AuditActorReader,
+  type AuditWriter,
+} from '../audit/audit-logger.js';
 import { SOCIAL_PLATFORMS } from '../creators/new-creator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { PerformanceBonusTier, RateFormula } from './rate-formula.js';
@@ -99,8 +104,20 @@ export interface RateFormulaTables {
  */
 export interface RateFormulaClient extends RateFormulaTables {
   $transaction(
-    work: (tx: RateFormulaTables) => Promise<unknown>,
+    work: (
+      tx: RateFormulaTables & AuditWriter & AuditActorReader,
+    ) => Promise<unknown>,
   ): Promise<unknown>;
+}
+
+// What Log Aktivitas keeps of a formula: its terms, not when it was saved.
+function auditValues(view: RateFormulaView): Record<string, unknown> {
+  return {
+    specificBonus: view.specificBonus,
+    latePenaltyPerDay: view.latePenaltyPerDay,
+    maxPenaltyDays: view.maxPenaltyDays,
+    performanceBonus: view.performanceBonus,
+  };
 }
 
 function unconfiguredBonus(): StoredPerformanceBonus {
@@ -125,6 +142,9 @@ const UNCONFIGURED = {
 export class RateFormulaService {
   constructor(
     @Inject(PrismaService) private readonly client: RateFormulaClient,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
   ) {}
 
   /** The saved formula, or an unconfigured one: never zeros standing in for amounts nobody set. */
@@ -162,6 +182,7 @@ export class RateFormulaService {
     );
 
     return (await this.client.$transaction(async (tx) => {
+      const before = await this.readFrom(tx);
       await tx.rate_formula.upsert({
         where: { id: true },
         create: { id: true, ...amounts },
@@ -172,7 +193,16 @@ export class RateFormulaService {
       await tx.performance_bonus_metrics.deleteMany({});
       await tx.performance_bonus_metrics.createMany({ data: metrics });
       await tx.performance_bonus_tiers.createMany({ data: tiers });
-      return this.readFrom(tx);
+      const after = await this.readFrom(tx);
+      // In this transaction, so a formula is never saved without its entry (PBI-23, OWASP A09:2025).
+      await this.audit.record(tx, {
+        actor: await this.audit.actorOf(tx, adminUserId),
+        action: 'rate_formula_changed',
+        target: { label: 'Formula Rate' },
+        oldValues: auditValues(before),
+        newValues: auditValues(after),
+      });
+      return after;
     })) as RateFormulaView;
   }
 
