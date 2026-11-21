@@ -24,6 +24,7 @@ import {
 import { periodRange } from "./deadline-period";
 import { DATA_STATE_LABELS, type DataState } from "./link-performance";
 import { readActorName } from "./admin-actor";
+import type { AdjustmentLine } from "./invoice-adjustment";
 import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -47,7 +48,7 @@ export interface RawAdjustment {
   amount: number;
   reason: string;
   actorId: string;
-  /** The Admin who recorded it (PBI-23, 23.10), on GET only; read through readActorName. */
+  /** The Admin who recorded it (PBI-23, 23.10), on live reads; read through readActorName. */
   actorName?: unknown;
   /** ISO instant. */
   createdAt: string;
@@ -150,6 +151,18 @@ function pendingBonus(bonus: RawInvoiceComponent, rawTotal: number): PendingBonu
   return { amount, totalAmount: Math.max(0, frozen), floored: frozen < 0 };
 }
 
+/** One adjustment for the page, for the Admin and the creator alike: named, never by the Admin's id. */
+export function toAdjustmentLine(raw: Omit<RawAdjustment, "actorId">): AdjustmentLine {
+  const actorName = readActorName(raw.actorName);
+  return {
+    id: raw.id,
+    amount: raw.amount,
+    reason: raw.reason,
+    createdAt: raw.createdAt,
+    ...(actorName && { actorName }),
+  };
+}
+
 function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
   const { fixedRate, additionalContent, performanceBonus, penalty } = raw.components;
 
@@ -174,16 +187,7 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
     pendingBonus: isWaiting(performanceBonus) ? pendingBonus(performanceBonus, raw.rawTotal) : null,
     invoiceStatus: raw.invoiceStatus,
     // An answer that predates the field simply lists none.
-    adjustments: (raw.adjustments ?? []).map((adjustment) => {
-      const actorName = readActorName(adjustment.actorName);
-      return {
-        id: adjustment.id,
-        amount: adjustment.amount,
-        reason: adjustment.reason,
-        createdAt: adjustment.createdAt,
-        ...(actorName && { actorName }),
-      };
-    }),
+    adjustments: (raw.adjustments ?? []).map(toAdjustmentLine),
     frozenAt: raw.snapshot?.finalizedAt ?? null,
     ...paymentOf(raw),
   };

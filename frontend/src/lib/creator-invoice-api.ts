@@ -11,7 +11,12 @@
 import type { CreatorInvoice, InvoiceComment, PaymentProof } from "./creator-invoice";
 import { INVOICE_STATUSES } from "./invoice";
 import { readActorName } from "./admin-actor";
-import { toInvoiceBreakdown, type RawInvoiceComponent, type RawInvoiceDetail } from "./invoice-api";
+import {
+  toAdjustmentLine,
+  toInvoiceBreakdown,
+  type RawInvoiceComponent,
+  type RawInvoiceDetail,
+} from "./invoice-api";
 import { isSameSitePath } from "./safe-href";
 
 /** The proof the admin uploaded: a short-lived link to the file in Storage. */
@@ -148,13 +153,8 @@ function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
     // The bonus alone stays null while it waits: "Menunggu data", never a zero.
     bonusAmount: performanceBonus.amount,
     penaltyAmount: penalty.amount ?? 0,
-    // Who recorded an adjustment is the admin's business; the creator reads what and why.
-    adjustments: (raw.adjustments ?? []).map(({ id, amount, reason, createdAt }) => ({
-      id,
-      amount,
-      reason,
-      createdAt,
-    })),
+    // The creator reads what, why and which Admin by name (PBI-23 AC 25), never the Admin's id.
+    adjustments: (raw.adjustments ?? []).map(toAdjustmentLine),
     totalAmount: raw.total,
     floored: raw.floored,
     breakdown: toInvoiceBreakdown(raw),

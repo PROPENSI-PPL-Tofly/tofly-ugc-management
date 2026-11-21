@@ -34,7 +34,7 @@ export interface AdjustmentLine {
   reason: string;
   /** ISO instant the admin added it; the actor stays the server's record. */
   createdAt: string;
-  /** The Admin who added it (PBI-23, 23.10), on the Admin's reads only; absent for the creator. */
+  /** The Admin who added it (PBI-23, 23.10), for the Admin and the creator; absent if unnamed. */
   actorName?: string;
 }
 
