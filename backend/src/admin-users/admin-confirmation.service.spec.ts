@@ -16,7 +16,9 @@ const NOW = new Date('2026-11-21T10:00:00.000Z');
 const USER = 'user-super';
 const SESSION = 'session-cookie-id';
 const CODE = '482193';
-const hash = (subject: string, code: string) => `h(${subject}|${code})`;
+// A stand-in HMAC that, like the real one, does not carry the code in the clear.
+const hash = (subject: string, code: string) =>
+  `h(${subject}|${[...code].reverse().join('')})`;
 const HASH = hash(`confirm:${USER}`, CODE);
 
 function minutes(n: number): Date {
@@ -73,7 +75,12 @@ describe('AdminConfirmationService.request', () => {
     await expect(service.request(USER)).resolves.toEqual({ validMinutes: 10 });
 
     expect(codes.create).toHaveBeenCalledWith({
-      data: { user_id: USER, code_hash: HASH, created_at: NOW, expires_at: minutes(10) },
+      data: {
+        user_id: USER,
+        code_hash: HASH,
+        created_at: NOW,
+        expires_at: minutes(10),
+      },
       select: { id: true },
     });
     expect(sender.send).toHaveBeenCalledWith(
@@ -166,7 +173,13 @@ describe('AdminConfirmationService.verify', () => {
     expect(codes.findFirst).toHaveBeenCalledWith({
       where: { user_id: USER },
       orderBy: { created_at: 'desc' },
-      select: { id: true, code_hash: true, expires_at: true, attempts: true, used_at: true },
+      select: {
+        id: true,
+        code_hash: true,
+        expires_at: true,
+        attempts: true,
+        used_at: true,
+      },
     });
     expect(codes.updateMany).toHaveBeenCalledWith({
       where: { id: 'code-1', used_at: null },
@@ -176,7 +189,9 @@ describe('AdminConfirmationService.verify', () => {
   });
 
   it('counts a wrong code and says how many tries are left', async () => {
-    const { codes, sessions, service } = setup({ latest: { ...LIVE, attempts: 1 } });
+    const { codes, sessions, service } = setup({
+      latest: { ...LIVE, attempts: 1 },
+    });
 
     const error = await refusal(service.verify(USER, SESSION, '000000'));
 
@@ -243,7 +258,9 @@ describe('AdminConfirmationService.verify', () => {
     const { sessions, service } = setup({ latest: LIVE });
     sessions.confirm.mockResolvedValue(false);
 
-    await expect(refusal(service.verify(USER, SESSION, CODE))).resolves.toMatchObject({
+    await expect(
+      refusal(service.verify(USER, SESSION, CODE)),
+    ).resolves.toMatchObject({
       status: 401,
     });
   });
