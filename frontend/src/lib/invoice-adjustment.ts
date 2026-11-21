@@ -34,6 +34,8 @@ export interface AdjustmentLine {
   reason: string;
   /** ISO instant the admin added it; the actor stays the server's record. */
   createdAt: string;
+  /** The Admin who added it (PBI-23, 23.10), for the Admin and the creator; absent if unnamed. */
+  actorName?: string;
 }
 
 /** One message per field that needs fixing; a field without one is fine. */

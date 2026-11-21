@@ -27,7 +27,7 @@ function openRound(overrides: Partial<RoundRow> = {}): RoundRow {
 // A fake database: it records what the service writes, inside the transaction or outside it.
 function fakeClient(
   round: RoundRow | null,
-  admin: { id: string; email: string } | null = {
+  admin: { id: string; name?: string | null; email: string } | null = {
     id: ADMIN,
     email: ADMIN_EMAIL,
   },
@@ -85,7 +85,7 @@ describe('FollowUpService.add', () => {
     });
     expect(usersFind).toHaveBeenCalledWith({
       where: { id: ADMIN },
-      select: { id: true, email: true },
+      select: { id: true, name: true, email: true },
     });
     expect(followUpCreate).toHaveBeenCalledWith({
       data: {
@@ -94,6 +94,19 @@ describe('FollowUpService.add', () => {
         author_user_id: ADMIN,
       },
     });
+  });
+
+  // PBI-23, 23.10: signed by the admin's name once the account has one.
+  it("answers with the admin's name when the account has one", async () => {
+    const { service } = fakeClient(openRound(), {
+      id: ADMIN,
+      name: 'Sinta Dewi',
+      email: ADMIN_EMAIL,
+    });
+
+    await expect(
+      service.add(SUBMISSION, 'Intro juga dipotong ya.', ADMIN),
+    ).resolves.toMatchObject({ actor: { name: 'Sinta Dewi' } });
   });
 
   // AC 6: the timeline records it, by "Admin" only, at the follow-up's own time.

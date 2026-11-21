@@ -211,6 +211,27 @@ describe('InvoiceCommandService', () => {
         expect(update.data.snapshot).toMatchObject({ total: 0, floored: true });
       });
 
+      // PBI-23 AC 25: the Finalize line of the activity keeps the total it was frozen at.
+      it('moves the total but never the total kept from Finalize', async () => {
+        prisma.invoices.upsert.mockResolvedValue({
+          ...frozen,
+          snapshot: { ...frozen.snapshot, finalizedTotal: 2_500 },
+        });
+        prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
+
+        const saved = await service.addAdjustment(
+          'contract-1',
+          input,
+          'admin-1',
+        );
+
+        const [update] = prisma.invoices.updateMany.mock.calls[0];
+        expect(update.data.snapshot).toMatchObject({
+          total: 2_500 + saved.amount,
+          finalizedTotal: 2_500,
+        });
+      });
+
       it('refuses when the invoice moved on before the snapshot was written', async () => {
         prisma.invoices.upsert.mockResolvedValue(frozen);
         prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
@@ -325,6 +346,7 @@ describe('InvoiceCommandService', () => {
           penalty: { amount: 0, status: 'calculated' },
           rawTotal: 1_024_999.5,
           total: 1_024_999.5,
+          finalizedTotal: 1_024_999.5,
           floored: false,
           finalizedAt: expect.any(String),
         },
@@ -345,6 +367,39 @@ describe('InvoiceCommandService', () => {
           // Who finalized, from the session (13.1: every move keeps its actor).
           finalized_by: 'admin-9',
         },
+      });
+    });
+
+    // PBI-23 AC 25: finalizedAt is taken before the last sync (up to 20 s), the adjustments are read
+    // after the lock, so only the frozen total itself can say what Finalize froze.
+    it('keeps an adjustment saved during the last sync in the total kept from Finalize', async () => {
+      prisma.invoice_adjustments.findMany.mockResolvedValue([
+        adjustmentRow('before', '10000'),
+        {
+          ...adjustmentRow('during-sync', '50000'),
+          created_at: new Date(TODAY.getTime() + 5_000),
+        },
+      ]);
+
+      const { snapshot } = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(snapshot).toMatchObject({
+        total: 1_060_000,
+        finalizedTotal: 1_060_000,
+      });
+    });
+
+    it('keeps zero as the total from Finalize when the adjustments take it below zero', async () => {
+      prisma.invoice_adjustments.findMany.mockResolvedValue([
+        adjustmentRow('large-cut', '-2000000'),
+      ]);
+
+      const { snapshot } = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(snapshot).toMatchObject({
+        total: 0,
+        floored: true,
+        finalizedTotal: 0,
       });
     });
 

@@ -124,6 +124,10 @@ export interface InvoiceBreakdown {
     lockedOn?: string | null;
   };
   penalty: { lines: PenaltyLine[]; total: number };
+  /** The Admin who finalized it (PBI-23, 23.10); absent when the API names no one. */
+  finalizedBy?: string;
+  /** The total at Finalize (PBI-23, AC 25), unmoved by later adjustments; absent on older invoices. */
+  finalizedTotal?: number;
 }
 
 export type BreakdownTone = "plain" | "danger";

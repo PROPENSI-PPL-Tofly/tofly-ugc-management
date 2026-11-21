@@ -1,10 +1,14 @@
 import { jakartaDay } from '../../creators/evergreen.js';
 import { creatorMaySignIn, type BegunInvoice } from './creator-access.js';
-import type { Principal, WhitelistResolver } from './ports.js';
+import type { AdminRole, Principal, WhitelistResolver } from './ports.js';
+
+const ADMIN_ROLES: readonly unknown[] = ['admin', 'super_admin'] satisfies AdminRole[];
 
 type WhitelistUserRecord = {
   id: string;
   is_admin: boolean;
+  admin_role: string | null;
+  is_active: boolean;
   creators: {
     id: string;
     access_revoke_date: Date | null;
@@ -18,6 +22,8 @@ type WhitelistPrismaClient = {
       select: {
         id: true;
         is_admin: true;
+        admin_role: true;
+        is_active: true;
         creators: {
           select: {
             id: true;
@@ -55,6 +61,8 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       select: {
         id: true,
         is_admin: true,
+        admin_role: true,
+        is_active: true,
         creators: {
           select: {
             id: true,
@@ -69,9 +77,15 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
     }
 
     if (user.is_admin) {
+      // PBI-23 (OWASP A01): a deactivated Admin is refused, and a role the app does not know is
+      // never read as one it does; the database already ties every Admin to a role.
+      if (!user.is_active || !ADMIN_ROLES.includes(user.admin_role)) {
+        return null;
+      }
       return {
         userId: user.id,
         role: 'admin',
+        adminRole: user.admin_role as AdminRole,
       };
     }
 

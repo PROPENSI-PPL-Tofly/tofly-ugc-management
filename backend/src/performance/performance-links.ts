@@ -3,6 +3,11 @@ import type {
   Prisma,
   social_platform,
 } from '@prisma/client';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminLabel,
+  type AdminAccount,
+} from '../contents/content-event-actors.js';
 import { joinName } from '../creators/evergreen.js';
 import { isSocialPlatform } from '../contents/link-rules.js';
 import { SOCIAL_PLATFORMS } from '../creators/new-creator.js';
@@ -150,7 +155,7 @@ export interface StoredLinkPerformance extends LinkMetrics {
   last_synced_at: Date | null;
   manual_at: Date | null;
   /** The admin who typed the numbers in, when one did. */
-  manual_users?: { email: string } | null;
+  manual_users?: AdminAccount | null;
 }
 
 export const LINK_PERFORMANCE_SELECT = {
@@ -163,7 +168,7 @@ export const LINK_PERFORMANCE_SELECT = {
   data_state: true,
   last_synced_at: true,
   manual_at: true,
-  manual_users: { select: { email: true } },
+  manual_users: { select: ADMIN_ACCOUNT_SELECT },
 } as const;
 
 export interface PerformanceLinkRow extends StoredLinkPerformance {
@@ -238,7 +243,7 @@ export function performanceOf(
     ),
     lastSyncedAt: link.last_synced_at?.toISOString() ?? null,
     manualAt: link.manual_at?.toISOString() ?? null,
-    manualBy: link.manual_users?.email ?? null,
+    manualBy: adminLabel(link.manual_users),
   };
 }
 

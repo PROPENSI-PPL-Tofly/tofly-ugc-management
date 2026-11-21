@@ -21,11 +21,10 @@ export interface AdminRequest {
   principal?: Principal;
 }
 
-function forbidden(): ForbiddenException {
-  return new ForbiddenException({
-    code: 'FORBIDDEN',
-    message: 'Halaman ini hanya untuk Admin',
-  });
+export function forbidden(
+  message = 'Halaman ini hanya untuk Admin',
+): ForbiddenException {
+  return new ForbiddenException({ code: 'FORBIDDEN', message });
 }
 
 /**
@@ -75,7 +74,8 @@ export class AdminGuard implements CanActivate {
     if (current?.role !== 'admin') {
       throw unauthenticated();
     }
-    request.principal = principal;
+    // The whitelist's answer, so the route sees the Admin role as it is now (PBI-23).
+    request.principal = current;
     return true;
   }
 }

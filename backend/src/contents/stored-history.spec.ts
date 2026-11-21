@@ -112,6 +112,29 @@ describe('fromStoredHistory follow-up notes', () => {
     });
   });
 
+  // PBI-23, 23.10: the admin's name once the account has one, the email until then.
+  it('names the admin by the account name when it has one', () => {
+    const [event] = fromStoredHistory([
+      {
+        ...followUp('fu-1', '2026-11-09T04:00:00.000Z', 'Intro juga dipotong ya.'),
+        users: { name: 'Sinta Dewi', email: ADMIN_EMAIL },
+      },
+    ]);
+
+    expect(event.actor).toEqual({ name: 'Sinta Dewi', role: 'admin' });
+  });
+
+  it('names no one on an admin step with no account behind it', () => {
+    const [event] = fromStoredHistory([
+      {
+        ...followUp('fu-1', '2026-11-09T04:00:00.000Z', 'Intro juga dipotong ya.'),
+        users: null,
+      },
+    ]);
+
+    expect(event.actor).toEqual({ name: null, role: 'admin' });
+  });
+
   // A creator's step keeps the name it stored, never the creator's email.
   it("names a creator's step by the name it stored", () => {
     const [event] = fromStoredHistory([
