@@ -90,6 +90,10 @@ describe('AdminConfirmationService.request', () => {
         text: expect.stringContaining(CODE),
       }),
     );
+    // The email names every change the code guards, adding a Super Admin included.
+    expect(sender.send.mock.calls[0][0].text).toContain(
+      'mengubah role, menambah Super Admin, atau menonaktifkan Admin',
+    );
     expect(JSON.stringify(codes.create.mock.calls)).not.toContain(CODE);
   });
 

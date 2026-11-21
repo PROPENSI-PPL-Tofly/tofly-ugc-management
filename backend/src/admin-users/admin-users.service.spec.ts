@@ -576,6 +576,25 @@ describe('AdminUsersService.update, the role', () => {
     ).resolves.toMatchObject({ role: 'admin' });
   });
 
+  // A, B and C are Super Admins; A demotes B while B demotes A. Once A's change commits, B's
+  // request, already past the guard, must not go on to demote A (review on part 2).
+  it('refuses a Super Admin who lost the role while waiting for the lock', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, 'user-sinta', 'user-third');
+    targetIs(users, SUPER_ROW);
+
+    const error = await refusal(
+      service.update('user-sinta', { name: 'Sinta Dewi', role: 'admin' }, ACTOR, true),
+    );
+
+    expect((error as HttpException).getStatus()).toBe(403);
+    expect((error as HttpException).getResponse()).toEqual({
+      code: 'FORBIDDEN',
+      message: 'Halaman ini hanya untuk Super Admin',
+    });
+    expect(users.update).not.toHaveBeenCalled();
+  });
+
   // Every Super Admin row is locked, in id order, before the target is read, so two Super Admins
   // demoting each other wait for one another instead of both passing the count or deadlocking.
   it('locks the active Super Admins and the target before reading the target', async () => {
@@ -654,6 +673,18 @@ describe('AdminUsersService.deactivate', () => {
       code: 'LAST_SUPER_ADMIN',
       message: 'Minimal harus ada satu Super Admin',
     });
+  });
+
+  it('refuses a Super Admin who lost the role while waiting for the lock', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, 'user-third');
+    targetIs(users, ROW);
+
+    const error = await refusal(service.deactivate('user-sinta', ACTOR, true));
+
+    expect((error as HttpException).getStatus()).toBe(403);
+    expect(users.update).not.toHaveBeenCalled();
+    expect(tx.app_sessions.deleteMany).not.toHaveBeenCalled();
   });
 
   it('changes and records nothing for an Admin already deactivated', async () => {
