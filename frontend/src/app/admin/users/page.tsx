@@ -1,5 +1,6 @@
 import { AdminUserTable } from "@/components/admin-users/admin-user-table";
 import { AppShell } from "@/components/shell/app-shell";
+import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
 import {
@@ -8,6 +9,7 @@ import {
   parseAdminUserPage,
 } from "@/lib/admin-users";
 import { fetchAdminUsers } from "@/lib/admin-users.server";
+import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +26,17 @@ export default async function AdminUsersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const { page } = parseAdminUserPage(params);
+  const { page, invalid } = parseAdminUserPage(params);
   const filters = parseAdminUserFilters(params);
 
   const outcome = await fetchAdminUsers(page, filters);
+
+  // A stale page (the role changed under it) must not draw an empty list as if there were
+  // nobody: the backend's refusal is the same not-found an Admin's typed address gets.
+  if (outcome.kind === "refused") {
+    notFound();
+  }
+
   const result = outcome.kind === "loaded" ? outcome.list : null;
 
   // The view without its page, for the page links; with it, for a retry and the way back.
@@ -37,10 +46,24 @@ export default async function AdminUsersPage({
 
   return (
     <AppShell role="super_admin" title="Pengguna Admin">
+      {invalid !== null ? (
+        // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
+        <p
+          role="status"
+          className="mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink"
+        >
+          {`Halaman "${invalid}" tidak dikenal, menampilkan halaman pertama.`}
+        </p>
+      ) : null}
+
       <Panel>
         {result ? (
           <>
-            <AdminUserTable users={result.items} />
+            <AdminUserTable
+              users={result.items}
+              total={result.total}
+              filtered={filters.q !== ""}
+            />
             <Pagination
               basePath="/admin/users"
               noun="admin"
@@ -52,9 +75,7 @@ export default async function AdminUsersPage({
             />
           </>
         ) : (
-          <p className="px-5 py-10 text-center text-[13px] text-muted">
-            Data admin tidak bisa dimuat.
-          </p>
+          <LoadError title="Data admin tidak bisa dimuat." retryHref={retryHref} />
         )}
       </Panel>
     </AppShell>
