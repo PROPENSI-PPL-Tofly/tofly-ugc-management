@@ -358,6 +358,20 @@ describe("describeJourney", () => {
     expect(step.noteBy).toBe("Catatan sinta.admin@tofly.id");
   });
 
+  // PBI-23, 23.11: the note is signed with the Admin's name once the API sends it.
+  it("signs an admin's note with the name the API sends", () => {
+    const [step] = describeJourney([
+      event({
+        id: "e-signed",
+        type: "revision_requested",
+        actor: { name: "Sinta Dewi", role: "admin" },
+        payload: { note: "Tolong perbaiki intro." },
+      }),
+    ]);
+
+    expect(step.noteBy).toBe("Catatan Sinta Dewi");
+  });
+
   it("signs a creator's note generically when the API sends no name", () => {
     const [step] = describeJourney([
       event({ id: "a", type: "draft_submitted", actor: { name: null, role: "creator" }, payload: { note: "Sudah diperbaiki." } }),
