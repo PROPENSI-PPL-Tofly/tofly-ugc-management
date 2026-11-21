@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { adminUser, listResponse } from "@/components/admin-users/admin.fixture";
 import { fetchAdminUsers } from "@/lib/admin-users.server";
 import { currentRole } from "@/lib/session.server";
@@ -211,5 +211,26 @@ describe("Pengguna Admin gate", () => {
 
     await expect(renderPage()).rejects.toThrow(NotFound);
     expect(fetchAdminUsers).not.toHaveBeenCalled();
+  });
+});
+
+describe("Pengguna Admin's way to add someone", () => {
+  beforeEach(() => {
+    vi.mocked(currentRole).mockReset();
+    vi.mocked(currentRole).mockResolvedValue("super_admin");
+    vi.mocked(fetchAdminUsers).mockReset();
+    vi.mocked(fetchAdminUsers).mockResolvedValue({
+      kind: "loaded",
+      list: listResponse({ items: [adminUser()], total: 1 }),
+    });
+  });
+
+  it("starts Tambah Admin from the page header", async () => {
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tambah Admin" }));
+
+    expect(await screen.findByRole("dialog", { name: "Tambah Admin" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Email/)).toBeInTheDocument();
   });
 });
