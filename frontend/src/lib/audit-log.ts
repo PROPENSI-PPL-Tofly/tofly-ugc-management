@@ -2,6 +2,15 @@
 // so the filters, the table and the tests share one vocabulary. The keys are the ones the backend
 // stores (SCRUM-295), so a filter value reaches the API unchanged.
 
+import { isUuid } from "./creator-detail";
+import { calendarDay, list, listOf, pageNumber, single, type SearchParams } from "./search-params";
+
+// PBI-23 AC 17: rows per page.
+export const AUDIT_LOG_PAGE_SIZE = 20;
+
+// The actor filter's value for entries no person made ("Sistem"), which have no user id.
+export const SYSTEM_ACTOR = "system";
+
 export const AUDIT_CATEGORIES = [
   "akses_admin",
   "creator_kontrak",
@@ -57,4 +66,52 @@ export function keepActionsInCategories(
 ): AuditAction[] {
   const offered = new Set(actionsInCategories(categories));
   return actions.filter((action) => offered.has(action));
+}
+
+// The list's state as it lives in the URL.
+export interface AuditLogState {
+  page: number;
+  // Calendar days, or empty for no limit.
+  from: string;
+  to: string;
+  actor: string[];
+  category: AuditCategory[];
+  action: AuditAction[];
+  creator: string[];
+}
+
+function once<T>(values: readonly T[]): T[] {
+  return [...new Set(values)];
+}
+
+// The URL's values, every one checked, so a typed or stale address can only reach the API with
+// real days, ids, categories and actions (OWASP A05:2025). Anything else reads as no filter.
+export function parseAuditLogParams(params: SearchParams): AuditLogState {
+  const from = calendarDay(single(params.from));
+  const to = calendarDay(single(params.to));
+  const reversed = from !== "" && to !== "" && from > to;
+  const category = once(listOf(AUDIT_CATEGORIES, params.category));
+
+  return {
+    page: pageNumber(params.page),
+    from: reversed ? "" : from,
+    to: reversed ? "" : to,
+    actor: once(list(params.actor).filter((actor) => actor === SYSTEM_ACTOR || isUuid(actor))),
+    category,
+    action: keepActionsInCategories(once(listOf(actionsInCategories([]), params.action)), category),
+    creator: once(list(params.creator).filter(isUuid)),
+  };
+}
+
+// The non-default parts of the state, in a stable order, so the bare list stays at the bare address.
+export function buildAuditLogQuery(state: AuditLogState): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (state.from) query.from = state.from;
+  if (state.to) query.to = state.to;
+  if (state.actor.length > 0) query.actor = state.actor.join(",");
+  if (state.category.length > 0) query.category = state.category.join(",");
+  if (state.action.length > 0) query.action = state.action.join(",");
+  if (state.creator.length > 0) query.creator = state.creator.join(",");
+  if (state.page > 1) query.page = String(state.page);
+  return query;
 }
