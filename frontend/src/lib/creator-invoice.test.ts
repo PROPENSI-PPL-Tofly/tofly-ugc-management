@@ -337,6 +337,37 @@ describe("invoiceActivity", () => {
         }),
       ).toBe("Admin memfinalisasi invoice · Rp0");
     });
+
+    // PBI-23 AC 25: the backend's frozen total wins; the sums above are for older snapshots only.
+    describe("when the snapshot kept the total from Finalize", () => {
+      const frozenAt = (finalizedTotal: number) => ({ ...invoice().breakdown, finalizedTotal });
+
+      it("shows it, with an adjustment saved during the last sync that the clock would miss", () => {
+        expect(
+          finalizedText({
+            breakdown: frozenAt(600000),
+            adjustments: [adjustment("during-sync", 50000, "2026-12-02T02:00:05Z")],
+            totalAmount: 600000,
+          }),
+        ).toBe("Admin memfinalisasi invoice · Rp600.000");
+      });
+
+      it("keeps it when a later adjustment moves the invoice's total", () => {
+        expect(
+          finalizedText({
+            breakdown: frozenAt(550000),
+            adjustments: [adjustment("after", -75000, "2026-12-03T02:00:00Z")],
+            totalAmount: 475000,
+          }),
+        ).toBe("Admin memfinalisasi invoice · Rp550.000");
+      });
+
+      it("shows a frozen Rp0 as Rp0, not as a missing total", () => {
+        expect(finalizedText({ breakdown: frozenAt(0), totalAmount: 100000 })).toBe(
+          "Admin memfinalisasi invoice · Rp0",
+        );
+      });
+    });
   });
 
   it("weaves the comments in among the steps, oldest first", () => {

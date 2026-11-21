@@ -668,6 +668,33 @@ describe("toInvoiceBreakdown", () => {
     expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, finalizedBy })).not.toHaveProperty("finalizedBy");
   });
 
+  // PBI-23 AC 25: what Finalize froze, which a later adjustment never moves.
+  describe("the total kept from Finalize", () => {
+    const frozenWith = (finalizedTotal: unknown) => {
+      const snapshot = { finalizedAt: "2026-10-18T03:00:00.000Z", finalizedTotal };
+      return toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, snapshot });
+    };
+
+    it.each([1060000, 0, 1024999.5])("carries %s", (total) => {
+      expect(frozenWith(total)).toHaveProperty("finalizedTotal", total);
+    });
+
+    it.each([
+      ["missing, on a snapshot from before it was kept", undefined],
+      ["null", null],
+      ["negative", -1],
+      ["not a number", Number.NaN],
+      ["infinite", Number.POSITIVE_INFINITY],
+      ["text", "1060000"],
+    ])("reads none when it is %s", (_label, total) => {
+      expect(frozenWith(total)).not.toHaveProperty("finalizedTotal");
+    });
+
+    it("reads none on an invoice still running", () => {
+      expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, snapshot: null })).not.toHaveProperty("finalizedTotal");
+    });
+  });
+
   it("reads a basis value that is missing or not a number as zero rather than NaN", () => {
     const odd = toInvoiceBreakdown({
       ...RAW_RANGGA_DETAIL,

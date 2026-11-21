@@ -102,6 +102,12 @@ describe("toCreatorInvoices", () => {
     expect(only({ ...RAW_MY_PAID, finalizedBy: "Sinta Dewi" }).breakdown.finalizedBy).toBe("Sinta Dewi");
   });
 
+  it("keeps the total frozen at Finalize", () => {
+    const snapshot = { finalizedAt: "2026-09-02T02:00:00Z", finalizedTotal: 1060000 };
+
+    expect(only({ ...RAW_MY_PAID, snapshot }).breakdown).toHaveProperty("finalizedTotal", 1060000);
+  });
+
   it("has no proof before the admin uploads one", () => {
     expect(only(RAW_MY_RUNNING).proof).toBeNull();
   });
