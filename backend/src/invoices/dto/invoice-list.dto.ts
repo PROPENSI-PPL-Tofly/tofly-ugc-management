@@ -39,8 +39,8 @@ export interface InvoiceAdjustmentDto {
   reason: string;
   actorId: string;
   /**
-   * The admin who recorded it, by name else email (PBI-23, 23.10). On the admin's reads only:
-   * never frozen into a snapshot, and never sent to the creator.
+   * The admin who recorded it, by name else email (PBI-23, 23.10, AC 25). On live reads, for the
+   * admin and the creator alike; never frozen into a snapshot.
    */
   actorName?: string;
   createdAt: string;

@@ -263,7 +263,7 @@ export function adjustmentDto(row: {
   };
 }
 
-/** An adjustment's columns with the account that recorded it, for the admin's reads. */
+/** An adjustment's columns with the account that recorded it, for live reads. */
 export const INVOICE_ADJUSTMENT_READ_SELECT = {
   ...INVOICE_ADJUSTMENT_SELECT,
   users: { select: ADMIN_ACCOUNT_SELECT },
