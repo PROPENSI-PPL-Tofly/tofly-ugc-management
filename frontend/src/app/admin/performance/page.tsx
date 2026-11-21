@@ -45,7 +45,16 @@ export default async function PerformancePage({
   const query = buildPerformanceLinksQuery(state);
 
   return (
-    <AppShell role="admin" title="Performa Konten">
+    <AppShell
+      role="admin"
+      title="Performa Konten"
+      action={
+        // The rows on screen, as filtered: never the whole list (SCRUM-285).
+        result && result.items.length > 0 ? (
+          <PageSyncButton linkIds={result.items.map((item) => item.linkId)} />
+        ) : undefined
+      }
+    >
       {result === null ? (
         <>
           <PerformanceFilters creators={creators} />
@@ -62,12 +71,6 @@ export default async function PerformancePage({
         // One panel, untitled as the admin's other lists are; unclipped, so the filter popups and the
         // state tips hang past its edge. The pagination sits once, below the rows.
         <Panel clip={false}>
-          {result.items.length > 0 && (
-            // The rows on screen, as filtered: never the whole list (SCRUM-285).
-            <div className="flex justify-end border-b border-rule px-5 py-3">
-              <PageSyncButton linkIds={result.items.map((item) => item.linkId)} />
-            </div>
-          )}
           <PerformanceFilters creators={creators} />
           {result.items.length === 0 ? (
             <p className="px-5 py-14 text-center text-[13px] text-muted">
