@@ -81,3 +81,88 @@ describe("Pengguna Admin page", () => {
     expect(fetchAdminUsers).toHaveBeenCalledWith(1, { q: "rangga" });
   });
 });
+
+describe("Pengguna Admin page states", () => {
+  beforeEach(() => {
+    vi.mocked(currentRole).mockReset();
+    vi.mocked(currentRole).mockResolvedValue("super_admin");
+    vi.mocked(fetchAdminUsers).mockReset();
+  });
+
+  it("falls back to the first page and names the junk it was given", async () => {
+    vi.mocked(fetchAdminUsers).mockResolvedValue({
+      kind: "loaded",
+      list: listResponse({ items: [], total: 0 }),
+    });
+
+    await renderPage({ page: "abc" });
+
+    expect(fetchAdminUsers).toHaveBeenCalledWith(1, { q: "" });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      'Halaman "abc" tidak dikenal, menampilkan halaman pertama.',
+    );
+  });
+
+  it("says the list is empty before a single admin was added", async () => {
+    vi.mocked(fetchAdminUsers).mockResolvedValue({
+      kind: "loaded",
+      list: listResponse({ items: [], total: 0 }),
+    });
+
+    await renderPage();
+
+    expect(screen.getByText("Belum ada admin yang terdaftar.")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("keeps an empty search apart from an empty roster", async () => {
+    vi.mocked(fetchAdminUsers).mockResolvedValue({
+      kind: "loaded",
+      list: listResponse({ items: [], total: 0 }),
+    });
+
+    await renderPage({ q: "zzz" });
+
+    expect(
+      screen.getByText("Tidak ada admin yang cocok dengan pencarian."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset filter" })).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada admin yang terdaftar.")).toBeNull();
+  });
+
+  it("offers the way back to the first page when the page is past the end", async () => {
+    vi.mocked(fetchAdminUsers).mockResolvedValue({
+      kind: "loaded",
+      list: listResponse({ items: [], page: 9, total: 4 }),
+    });
+
+    await renderPage({ page: "9" });
+
+    expect(screen.getByText("Tidak ada admin di halaman ini.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ke halaman pertama" })).toHaveAttribute(
+      "href",
+      "/admin/users",
+    );
+  });
+
+  it("explains a failed load and retries the same search and page", async () => {
+    vi.mocked(fetchAdminUsers).mockResolvedValue({ kind: "unavailable" });
+
+    await renderPage({ q: "rangga", page: "2" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Data admin tidak bisa dimuat.");
+    expect(screen.getByRole("link", { name: "Muat ulang" })).toHaveAttribute(
+      "href",
+      "/admin/users?q=rangga&page=2",
+    );
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  // A stale page (the role changed under it) must not draw an empty list as if there were
+  // nobody: the backend's refusal is the same not-found an Admin's typed address gets.
+  it("reads the backend's refusal as not found", async () => {
+    vi.mocked(fetchAdminUsers).mockResolvedValue({ kind: "refused" });
+
+    await expect(renderPage()).rejects.toThrow(NotFound);
+  });
+});
