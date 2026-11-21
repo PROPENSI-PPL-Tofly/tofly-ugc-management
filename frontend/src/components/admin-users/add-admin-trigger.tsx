@@ -4,12 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import type { AdminFormErrors } from "@/lib/admin-user-form";
+import { NO_ADMIN_ERRORS, formLine, type AdminFailure } from "@/lib/admin-user-form";
 import type { AdminRole } from "@/lib/admin-users";
 import { createAdmin } from "@/lib/admin-users-api";
 import { AddAdminModal } from "./add-admin-modal";
-
-const NO_ERRORS: AdminFormErrors = {};
 
 /**
  * Owns Tambah Admin's open state, kept out of the row-scoped actions: adding someone is not a
@@ -20,9 +18,7 @@ export function AddAdminTrigger() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<{ message: string; errors: AdminFormErrors } | null>(
-    null,
-  );
+  const [failure, setFailure] = useState<AdminFailure | null>(null);
   const { show, toast } = useToast();
 
   function close() {
@@ -62,10 +58,8 @@ export function AddAdminTrigger() {
           onClose={close}
           onSubmit={(values) => void save(values)}
           saving={saving}
-          serverErrors={failure?.errors ?? NO_ERRORS}
-          formError={
-            failure && Object.keys(failure.errors).length === 0 ? failure.message : undefined
-          }
+          serverErrors={failure?.errors ?? NO_ADMIN_ERRORS}
+          formError={formLine(failure)}
         />
       ) : null}
       {toast}

@@ -6,10 +6,12 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ALERT } from "@/components/ui/form-classes";
 import { InfoTip } from "@/components/ui/info-tip";
 import {
+  NO_ADMIN_ERRORS,
+  formLine,
   canChangeRole,
   canDeactivate,
   SELF_DEACTIVATE_REASON,
-  type AdminFormErrors,
+  type AdminFailure,
 } from "@/lib/admin-user-form";
 import { adminUserDisplayName, type AdminRole, type AdminUser } from "@/lib/admin-users";
 import {
@@ -20,11 +22,6 @@ import {
   type SensitiveAction,
 } from "@/lib/admin-users-api";
 import { EditAdminModal } from "./edit-admin-modal";
-
-interface Failure {
-  message: string;
-  errors: AdminFormErrors;
-}
 
 const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
@@ -45,7 +42,7 @@ export function AdminRowActions({
   const [editing, setEditing] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<Failure | null>(null);
+  const [failure, setFailure] = useState<AdminFailure | null>(null);
 
   function apply(result: AdminSaveOutcome, message: string, close: () => void) {
     setSaving(false);
@@ -142,8 +139,8 @@ export function AdminRowActions({
           onClose={() => setEditing(false)}
           onSubmit={saveEdit}
           saving={saving}
-          serverErrors={failure?.errors ?? {}}
-          formError={failure?.errors && Object.keys(failure.errors).length === 0 ? failure.message : undefined}
+          serverErrors={failure?.errors ?? NO_ADMIN_ERRORS}
+          formError={formLine(failure)}
         />
       ) : null}
 

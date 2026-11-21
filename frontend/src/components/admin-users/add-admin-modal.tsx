@@ -7,16 +7,13 @@ import { ALERT } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import {
   EMPTY_ADMIN_FORM,
+  NO_ADMIN_ERRORS,
   validateAdminForm,
   type AdminFormErrors,
   type AdminFormValues,
 } from "@/lib/admin-user-form";
 import type { AdminRole } from "@/lib/admin-users";
 import { AdminUserFields } from "./admin-user-fields";
-
-// One object, not a fresh `{}` each render: useFieldErrors tracks identity to know when the
-// backend's answer changed, and a new empty object each time would look like a new answer.
-const NO_ERRORS: AdminFormErrors = {};
 
 /**
  * Tambah Admin: the three fields, checked here before anything is sent. The backend's answer
@@ -27,7 +24,7 @@ export function AddAdminModal({
   onClose,
   onSubmit,
   saving = false,
-  serverErrors = NO_ERRORS,
+  serverErrors = NO_ADMIN_ERRORS,
   formError,
 }: {
   onClose: () => void;

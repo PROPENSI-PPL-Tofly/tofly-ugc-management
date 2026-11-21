@@ -104,3 +104,17 @@ export function adminRefusal(code: unknown): AdminRefusal | null {
       return null;
   }
 }
+
+/** One empty object for every form's default, so useFieldErrors sees no change to answer. */
+export const NO_ADMIN_ERRORS: AdminFormErrors = {};
+
+/** A refusal the API sent back, kept until the Super Admin edits the field it named. */
+export interface AdminFailure {
+  message: string;
+  errors: AdminFormErrors;
+}
+
+/** A refusal about the whole action, rather than about one of its fields. */
+export function formLine(failure: AdminFailure | null): string | undefined {
+  return failure && Object.keys(failure.errors).length === 0 ? failure.message : undefined;
+}
