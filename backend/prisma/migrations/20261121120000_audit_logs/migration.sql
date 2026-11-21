@@ -35,6 +35,11 @@ alter table audit_logs enable row level security;
 
 revoke all on audit_logs from anon, authenticated;
 
+-- The app does not own this table (an owner could turn the trigger off), so row level security
+-- needs a policy for what hand-off-ownership.sql grants it: reading and adding, nothing else.
+create policy audit_logs_read on audit_logs for select using (true);
+create policy audit_logs_add on audit_logs for insert with check (true);
+
 -- PBI-23 AC 18 (OWASP A09:2025): entries can only be added. A statement trigger also covers
 -- TRUNCATE, and refuses an UPDATE or DELETE even when it matches no row.
 create function audit_logs_append_only() returns trigger
