@@ -192,8 +192,21 @@ describe('linkPerformanceOf', () => {
 
   it('reads the columns that name the admin who typed the numbers', () => {
     expect(LINK_PERFORMANCE_SELECT.manual_users).toEqual({
-      select: { email: true },
+      select: { name: true, email: true },
     });
+  });
+
+  // PBI-23, 23.10
+  it('names the admin who typed the numbers by the account name when it has one', () => {
+    expect(
+      linkPerformanceOf(
+        row({
+          data_state: 'manual',
+          manual_at: new Date('2026-11-02T03:00:00.000Z'),
+          manual_users: { name: 'Sinta Dewi', email: 'sinta.admin@tofly.id' },
+        }),
+      ).manualBy,
+    ).toBe('Sinta Dewi');
   });
 });
 
