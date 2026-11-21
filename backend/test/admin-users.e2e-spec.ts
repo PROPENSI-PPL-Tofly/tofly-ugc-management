@@ -9,12 +9,37 @@ import {
   type SessionStarter,
 } from '../src/auth/google/ports.js';
 import { PrismaWhitelistResolver } from '../src/auth/google/prisma-whitelist-resolver.js';
+import {
+  EMAIL_SENDER,
+  type EmailMessage,
+  type EmailSender,
+} from '../src/email/email-sender.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signIn } from './sessions.js';
 
 // SCRUM-246 (PBI-23) against the real schema: "Pengguna Admin" for Super Admins only, adding an
 // Admin who can sign in at once, "Email sudah dipakai" for any user's address, rename and
-// reactivate with their Log Aktivitas entries, and the last sign-in (OWASP A01, A09:2025).
+// reactivate with their Log Aktivitas entries, and the last sign-in (OWASP A01, A09:2025). A role
+// change, a new Super Admin and a deactivation wait for the code emailed to the Super Admin, and
+// end the target's sessions (OWASP A01, A07:2025). Only the outgoing email is faked.
+
+/** Keeps what the app sends instead of sending it. */
+class OutboxSender implements EmailSender {
+  readonly sent: EmailMessage[] = [];
+
+  send(message: EmailMessage): Promise<void> {
+    this.sent.push(message);
+    return Promise.resolve();
+  }
+
+  /** The six digits of the last code sent to `to`. */
+  lastCode(to: string): string {
+    const message = this.sent.filter((sent) => sent.to === to).at(-1);
+    const code = /: (\d{6})/.exec(message?.text ?? '')?.[1];
+    if (!code) throw new Error(`no code was sent to ${to}`);
+    return code;
+  }
+}
 
 const MARKER = 'e2e-admin-users';
 const email = (name: string) => `${MARKER}-${name}@example.com`;
@@ -24,6 +49,16 @@ describe('/admin-users (e2e)', () => {
   let prisma: PrismaService;
   let superCookie: string;
   let superId: string;
+  const outbox = new OutboxSender();
+
+  /** Asks for a code by email for this session and enters it, as the confirmation modal does. */
+  async function confirm(cookie: string, to: string) {
+    await as(app, cookie).post('/admin-users/confirmation').expect(200);
+    await as(app, cookie)
+      .post('/admin-users/confirmation/verify')
+      .send({ code: outbox.lastCode(to) })
+      .expect(200);
+  }
 
   async function cleanUp() {
     await prisma.creators.deleteMany({
@@ -41,9 +76,13 @@ describe('/admin-users (e2e)', () => {
   beforeAll(async () => {
     vi.stubEnv('DEV_AUTH_ENABLED', '');
     vi.stubEnv('SUPER_ADMIN_EMAIL', '');
+    vi.stubEnv('LOGIN_CODE_SECRET', 'e2e-login-code-secret-of-at-least-32-chars');
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(EMAIL_SENDER)
+      .useValue(outbox)
+      .compile();
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     await app.init();
@@ -249,6 +288,166 @@ describe('/admin-users (e2e)', () => {
         .patch(`/admin-users/${user.id}`)
         .send({ name: 'Bukan Admin' })
         .expect(404);
+    });
+  });
+
+  describe('Ubah role, Tambah Super Admin and Nonaktifkan, after the email code', () => {
+    it('changes a role only after this session enters the emailed code, then ends their sessions', async () => {
+      const admin = await makeUser('promote', { name: 'Rina' });
+      const adminCookie = await signIn(app, { userId: admin.id, role: 'admin' });
+
+      const refused = await as(app, superCookie)
+        .patch(`/admin-users/${admin.id}`)
+        .send({ name: 'Rina', role: 'super_admin' })
+        .expect(403);
+      expect(refused.body.code).toBe('CONFIRMATION_REQUIRED');
+
+      await as(app, superCookie)
+        .post('/admin-users/confirmation')
+        .expect(200)
+        .expect((response) => expect(response.body).toEqual({ validMinutes: 10 }));
+      const code = outbox.lastCode(email('super'));
+      // OWASP A02: only the HMAC is kept.
+      const stored = await prisma.admin_confirmation_codes.findMany({
+        where: { user_id: superId },
+      });
+      expect(JSON.stringify(stored)).not.toContain(code);
+      const wrong = code === '000000' ? '111111' : '000000';
+      await as(app, superCookie)
+        .post('/admin-users/confirmation/verify')
+        .send({ code: wrong })
+        .expect(422)
+        .expect((response) => expect(response.body.code).toBe('CONFIRMATION_WRONG'));
+      await as(app, superCookie)
+        .post('/admin-users/confirmation/verify')
+        .send({ code })
+        .expect(200);
+
+      const response = await as(app, superCookie)
+        .patch(`/admin-users/${admin.id}`)
+        .send({ name: 'Rina', role: 'super_admin' })
+        .expect(200);
+
+      expect(response.body).toMatchObject({ role: 'super_admin' });
+      // The new role applies on the next sign-in; the open session is gone.
+      await as(app, adminCookie).get('/creators').expect(401);
+      const [entry] = await prisma.audit_logs.findMany({
+        where: { target_id: admin.id, action: 'admin_changed' },
+      });
+      expect(entry).toMatchObject({
+        old_values: { role: 'admin' },
+        new_values: { role: 'super_admin' },
+      });
+      // The used code cannot confirm again.
+      await as(app, superCookie)
+        .post('/admin-users/confirmation/verify')
+        .send({ code })
+        .expect(422);
+    });
+
+    it('confirms only the session that entered the code', async () => {
+      const otherCookie = await signIn(app, { userId: superId, role: 'admin' });
+      const admin = await makeUser('other-session');
+
+      await as(app, otherCookie)
+        .patch(`/admin-users/${admin.id}`)
+        .send({ name: 'Lain', role: 'super_admin' })
+        .expect(403);
+      await as(app, otherCookie)
+        .post('/admin-users')
+        .send({ name: 'Super Baru', email: email('new-super'), role: 'super_admin' })
+        .expect(403);
+      await expect(
+        prisma.users.findUnique({ where: { email: email('new-super') } }),
+      ).resolves.toBeNull();
+    });
+
+    it('deactivates an Admin after the code, ending their open session at once', async () => {
+      const admin = await makeUser('deactivate', { name: 'Dodi' });
+      const adminCookie = await signIn(app, { userId: admin.id, role: 'admin' });
+      await as(app, adminCookie).get('/creators').expect(200);
+      const cookie = await signIn(app, { userId: superId, role: 'admin' });
+      await confirm(cookie, email('super'));
+
+      await as(app, cookie)
+        .post(`/admin-users/${admin.id}/deactivate`)
+        .expect(200)
+        .expect((response) => expect(response.body.status).toBe('inactive'));
+
+      await as(app, adminCookie).get('/creators').expect(401);
+      await expect(
+        prisma.app_sessions.count({ where: { userId: admin.id } }),
+      ).resolves.toBe(0);
+      await expect(
+        new PrismaWhitelistResolver(prisma).resolve(email('deactivate')),
+      ).resolves.toBeNull();
+      const [entry] = await prisma.audit_logs.findMany({
+        where: { target_id: admin.id, action: 'admin_deactivated' },
+      });
+      expect(entry).toMatchObject({
+        old_values: { status: 'active' },
+        new_values: { status: 'inactive' },
+      });
+    });
+
+    it('refuses your own deactivation and your own role, even after the code', async () => {
+      await as(app, superCookie)
+        .post(`/admin-users/${superId}/deactivate`)
+        .expect(409)
+        .expect((response) => expect(response.body.code).toBe('CANNOT_DEACTIVATE_SELF'));
+      const refused = await as(app, superCookie)
+        .patch(`/admin-users/${superId}`)
+        .send({ name: 'Super Gunta', role: 'admin' })
+        .expect(422);
+      expect(refused.body.errors).toEqual({
+        role: 'Kamu tidak bisa mengubah role akunmu sendiri.',
+      });
+    });
+
+    // Two Super Admins demoting each other at once: the row locks make the second one see the
+    // first one's change, so one active Super Admin is always left.
+    it('keeps one active Super Admin when the last two demote each other at once', async () => {
+      const first = await makeUser('race-a', { admin_role: 'super_admin' });
+      const second = await makeUser('race-b', { admin_role: 'super_admin' });
+      const firstCookie = await signIn(app, { userId: first.id, role: 'admin' });
+      const secondCookie = await signIn(app, { userId: second.id, role: 'admin' });
+      await confirm(firstCookie, email('race-a'));
+      await confirm(secondCookie, email('race-b'));
+      // Every other Super Admin (this suite's actor and the one promoted above) steps aside.
+      const others = await prisma.users.findMany({
+        where: {
+          admin_role: 'super_admin',
+          is_active: true,
+          id: { notIn: [first.id, second.id] },
+        },
+        select: { id: true },
+      });
+      await prisma.users.updateMany({
+        where: { id: { in: others.map((other) => other.id) } },
+        data: { is_active: false },
+      });
+      try {
+        const [one, two] = await Promise.all([
+          as(app, firstCookie)
+            .patch(`/admin-users/${second.id}`)
+            .send({ name: 'B', role: 'admin' }),
+          as(app, secondCookie)
+            .patch(`/admin-users/${first.id}`)
+            .send({ name: 'A', role: 'admin' }),
+        ]);
+
+        expect([one.status, two.status].filter((status) => status === 200)).toHaveLength(1);
+        await expect(
+          prisma.users.count({
+            where: { id: { in: [first.id, second.id] }, admin_role: 'super_admin' },
+          }),
+        ).resolves.toBe(1);
+      } finally {
+        await prisma.users.updateMany({
+          where: { id: { in: others.map((other) => other.id) } },
+          data: { is_active: true },
+        });
+      }
     });
   });
 
