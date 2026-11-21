@@ -9,6 +9,7 @@ import {
   auditActorLines,
   auditChangeView,
   auditChanges,
+  auditTargetHref,
   auditTimeLabel,
   buildAuditLogQuery,
   keepActionsInCategories,
@@ -269,18 +270,55 @@ describe("auditActionLabel", () => {
     ["invoice_cancelled", "Batalkan Invoice"],
     ["rate_formula_changed", "Ubah Formula Rate"],
     ["buffer_changed", "Ubah Buffer Deadline"],
-  ] as const)("names %s as the prototype does", (action, label) => {
+    ["admin_changed", "Ubah Admin"],
+    ["invoice_line_corrected", "Koreksi Invoice"],
+    ["invoice_acknowledged", "Konfirmasi Invoice"],
+    ["payment_confirmed", "Konfirmasi Pembayaran"],
+  ] as const)("names %s", (action, label) => {
     expect(auditActionLabel(action)).toBe(label);
   });
 
-  // Their wording is still open with the team, so no label is made up for them.
-  it.each([
-    "admin_changed",
-    "invoice_line_corrected",
-    "invoice_acknowledged",
-    "payment_confirmed",
-  ] as const)("shows %s by its key until it has agreed wording", (action) => {
-    expect(auditActionLabel(action)).toBe(action);
+  it("has a label for every action", () => {
+    for (const action of actionsInCategories([])) {
+      expect(auditActionLabel(action)).not.toBe(action);
+    }
+  });
+});
+
+describe("auditTargetHref", () => {
+  const creator = { id: CREATOR_ID, name: "Salsa Amelia" };
+
+  // PBI-23 AC 16: the target links to where it lives.
+  it.each(["creator", "contract", "content_link"] as const)("opens Creator Detail for a %s", (targetType) => {
+    expect(auditTargetHref({ targetType, creator })).toBe(`/admin/creators/${CREATOR_ID}`);
+  });
+
+  // Rincian Invoice has no address of its own, so the list opens on that creator.
+  it("opens Rate & Invoicing on the creator for an invoice", () => {
+    expect(auditTargetHref({ targetType: "invoice", creator })).toBe("/admin/invoicing?q=Salsa+Amelia");
+  });
+
+  it("escapes the creator's name in the address", () => {
+    expect(auditTargetHref({ targetType: "invoice", creator: { id: CREATOR_ID, name: "A&B=C" } })).toBe(
+      "/admin/invoicing?q=A%26B%3DC",
+    );
+  });
+
+  it.each(["admin", "rate_formula", "buffer"] as const)("has no link for a %s", (targetType) => {
+    expect(auditTargetHref({ targetType, creator: null })).toBeNull();
+  });
+
+  // Entries outlive their targets (SCRUM-295), so a creator that is gone must not become a 404.
+  it.each(["creator", "contract", "content_link", "invoice"] as const)(
+    "has no link for a %s whose creator is gone",
+    (targetType) => {
+      expect(auditTargetHref({ targetType, creator: null })).toBeNull();
+    },
+  );
+
+  // OWASP A05:2025: only a real id reaches a path.
+  it("has no link for a creator id that is not a real id", () => {
+    expect(auditTargetHref({ targetType: "creator", creator: { id: "../auth", name: "X" } })).toBeNull();
   });
 });
 

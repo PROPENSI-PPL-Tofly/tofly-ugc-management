@@ -10,7 +10,9 @@ function entry(overrides: Partial<AuditLogRow> = {}): AuditLogRow {
     actor: { name: "Rina Wijaya", role: "super_admin" },
     category: "pengaturan",
     action: "buffer_changed",
+    targetType: "buffer",
     targetLabel: "Buffer Deadline",
+    creator: null,
     oldValues: { days: 7 },
     newValues: { days: 5 },
     note: null,
@@ -51,6 +53,28 @@ describe("AuditLogTable", () => {
     expect(category).toHaveTextContent("Pengaturan");
     expect(action).toHaveTextContent("Ubah Buffer Deadline");
     expect(target).toHaveTextContent("Buffer Deadline");
+  });
+
+  // PBI-23 AC 16.
+  it("links a target to where it lives", () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    render(
+      <AuditLogTable
+        rows={[entry({ targetType: "contract", targetLabel: "Salsa Amelia", creator: { id, name: "Salsa Amelia" } })]}
+      />,
+    );
+
+    expect(within(cellsOf()[4]).getByRole("link", { name: "Salsa Amelia" })).toHaveAttribute(
+      "href",
+      `/admin/creators/${id}`,
+    );
+  });
+
+  it("shows a target with nowhere to go as plain text", () => {
+    render(<AuditLogTable rows={[entry()]} />);
+
+    expect(within(cellsOf()[4]).queryByRole("link")).not.toBeInTheDocument();
+    expect(cellsOf()[4]).toHaveTextContent("Buffer Deadline");
   });
 
   it("labels each cell for the phone layout", () => {
