@@ -3,8 +3,8 @@
 // invoice has walked, and what the creator is asked to do next. Pure module: no React and no
 // next/headers, so the server page, the client components and the tests all share it.
 //
-// The amounts and the breakdown are the backend's. Nothing here adds them up again, so the
-// creator reads exactly what the admin froze.
+// The amounts and the breakdown are the backend's. Only the activity's Finalize line adds them up,
+// for the total of that moment; everything else shows what the admin froze as it came.
 
 import { ADMIN_LABEL } from "./admin-actor";
 import type { AdjustmentLine } from "./invoice-adjustment";
@@ -219,12 +219,12 @@ export type ActivityEntry =
   | { kind: "event"; id: string; text: string; at: string }
   | { kind: "comment"; id: string; author: string; text: string; at: string };
 
-/** How a step reads: fixed words, or words around the Admin who acted. */
-export type ActivityText = Record<keyof ReachedAt, string | ((admin: string) => string)>;
+/** How a step reads: fixed words, or words around the Admin who acted and the total at that step. */
+export type ActivityText = Record<keyof ReachedAt, string | ((admin: string, total: string) => string)>;
 
 /** The two steps an Admin takes, in the prototype's words, for the creator and the Admin alike. */
 export const ADMIN_STEP_TEXT = {
-  finalized: (admin: string) => `${admin} memfinalisasi invoice`,
+  finalized: (admin: string, total: string) => `${admin} memfinalisasi invoice · ${total}`,
   payment_uploaded: (admin: string) => `${admin} mengirim bukti bayar`,
 };
 
@@ -239,6 +239,20 @@ const EVENT_TEXT: ActivityText = {
 function actingAdmin(invoice: CreatorInvoice, step: keyof ReachedAt): string {
   const named = step === "finalized" ? invoice.breakdown.finalizedBy : invoice.proof?.uploadedBy;
   return named ?? ADMIN_LABEL;
+}
+
+/**
+ * The total as it stood at a moment. The API keeps only the latest total, which a later adjustment
+ * moves, so a history line rebuilds its own from the frozen parts and the adjustments made by then,
+ * held at zero as the backend holds it.
+ */
+function totalAt(invoice: CreatorInvoice, at: string): string {
+  const moment = Date.parse(at);
+  const adjusted = invoice.adjustments
+    .filter((adjustment) => Date.parse(adjustment.createdAt) <= moment)
+    .reduce((sum, adjustment) => sum + adjustment.amount, 0);
+  const { fixedAmount, extraAmount, bonusAmount, penaltyAmount } = invoice;
+  return formatRupiah(Math.max(0, fixedAmount + extraAmount + (bonusAmount ?? 0) - penaltyAmount + adjusted));
 }
 
 /** An adjustment's line in the prototype's words, its minus right against the Rp. */
@@ -262,7 +276,7 @@ export function invoiceActivity(
     const at = invoice.reachedAt[step];
     if (at === null) return [];
     const words = texts[step];
-    const text = typeof words === "string" ? words : words(actingAdmin(invoice, step));
+    const text = typeof words === "string" ? words : words(actingAdmin(invoice, step), totalAt(invoice, at));
     return [{ kind: "event" as const, id: step, text, at }];
   });
   const adjustments: ActivityEntry[] = invoice.adjustments.map((adjustment) => ({
