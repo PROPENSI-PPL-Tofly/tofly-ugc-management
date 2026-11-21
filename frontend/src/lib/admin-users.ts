@@ -35,6 +35,9 @@ export function parseAdminUserFilters(params: SearchParams): AdminUserFilters {
 /** Ten rows a page, the PBI's own count. */
 export const ADMIN_USERS_PAGE_SIZE = 10;
 
+/** The list's one address, shared by the page, its empty states and the menu. */
+export const ADMIN_USERS_PATH = "/admin/users";
+
 /** The API's query: its own `search` name, the page, and the fixed page size. */
 export function buildAdminUsersQuery(filters: AdminUserFilters, page: number): string {
   const query = new URLSearchParams();

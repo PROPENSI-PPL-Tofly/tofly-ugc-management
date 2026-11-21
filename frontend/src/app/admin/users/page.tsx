@@ -5,6 +5,7 @@ import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
 import {
+  ADMIN_USERS_PATH,
   adminUserQuery,
   parseAdminUserFilters,
   parseAdminUserPage,
@@ -51,7 +52,7 @@ export default async function AdminUsersPage({
   // The view without its page, for the page links; with it, for a retry and the way back.
   const query = adminUserQuery(filters, 1);
   const returnTo = new URLSearchParams(adminUserQuery(filters, page)).toString();
-  const retryHref = returnTo ? `/admin/users?${returnTo}` : "/admin/users";
+  const retryHref = returnTo ? `${ADMIN_USERS_PATH}?${returnTo}` : ADMIN_USERS_PATH;
 
   return (
     <AppShell role="super_admin" title="Pengguna Admin">
@@ -75,7 +76,7 @@ export default async function AdminUsersPage({
               filtered={filters.q !== ""}
             />
             <Pagination
-              basePath="/admin/users"
+              basePath={ADMIN_USERS_PATH}
               noun="admin"
               query={query}
               page={result.page}

@@ -1,5 +1,6 @@
 "use client";
 
+import { ADMIN_USERS_PATH } from "@/lib/admin-users";
 import { useAdminRole } from "./admin-role";
 import { FRAME_THEMES } from "./frame-theme";
 import { ShellNav, type Place } from "./shell-nav";
@@ -14,7 +15,7 @@ const EVERYDAY: Place[] = [
 
 // Runs Tofly itself: who is an admin and what they changed. Super Admin only (AC 3).
 const SUPER_ADMIN_ONLY: Place[] = [
-  { href: "/admin/users", label: "Pengguna Admin", icon: "shield" },
+  { href: ADMIN_USERS_PATH, label: "Pengguna Admin", icon: "shield" },
 ];
 
 /** The places an admin can go; a Super Admin gets the Super Admin door beside them. */

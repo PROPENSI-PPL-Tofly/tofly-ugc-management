@@ -8,6 +8,7 @@ import { buttonClasses } from "@/components/ui/button-classes";
 import { useUrlQuery } from "@/lib/url-query";
 import { formatJakartaDay, formatTimestamp } from "@/lib/format";
 import {
+  ADMIN_USERS_PATH,
   ROLE_LABELS,
   STATUS_LABELS,
   adminUserDisplayName,
@@ -54,7 +55,7 @@ function EmptyRoster({
         title="Tidak ada admin di halaman ini."
         hint="Daftar admin lebih pendek dari nomor halaman yang diminta."
         action={
-          <Link href="/admin/users" className={LINK_BUTTON}>
+          <Link href={ADMIN_USERS_PATH} className={LINK_BUTTON}>
             Ke halaman pertama
           </Link>
         }
