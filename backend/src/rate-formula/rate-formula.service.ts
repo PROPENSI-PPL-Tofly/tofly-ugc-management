@@ -105,7 +105,11 @@ export interface RateFormulaTables {
 export interface RateFormulaClient extends RateFormulaTables {
   $transaction(
     work: (
-      tx: RateFormulaTables & AuditWriter & AuditActorReader,
+      tx: RateFormulaTables &
+        AuditWriter &
+        AuditActorReader & {
+          $executeRaw(query: TemplateStringsArray): Promise<number>;
+        },
     ) => Promise<unknown>,
   ): Promise<unknown>;
 }
@@ -182,6 +186,9 @@ export class RateFormulaService {
     );
 
     return (await this.client.$transaction(async (tx) => {
+      // One save at a time, released with the transaction, so each entry's old values are what the
+      // save before it wrote (PBI-23, OWASP A09:2025).
+      await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('rate_formula'))`;
       const before = await this.readFrom(tx);
       await tx.rate_formula.upsert({
         where: { id: true },
