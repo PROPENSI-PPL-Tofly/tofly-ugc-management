@@ -57,3 +57,125 @@ export function adminUserQuery(
   if (page > 1) query.page = String(page);
   return query;
 }
+
+/** The two admin roles the PBI introduces. */
+export type AdminRole = "super_admin" | "admin";
+
+/** Aktiv or Nonaktif, as the list's status column reads. */
+export type AdminStatus = "active" | "inactive";
+
+export interface AdminUser {
+  id: string;
+  /** Empty for an admin who signed in before PBI-23; the list then reads the email. */
+  name: string;
+  email: string;
+  role: AdminRole;
+  isActive: boolean;
+  lastSignInAt: string | null;
+  createdAt: string;
+  /** The caller's own row, whose role and deactivation the screen shuts (23.4). */
+  isSelf?: boolean;
+}
+
+export interface AdminUserListResponse {
+  items: AdminUser[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export const ROLE_LABELS: Record<AdminRole, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+};
+
+export const STATUS_LABELS: Record<AdminStatus, string> = {
+  active: "Aktif",
+  inactive: "Nonaktif",
+};
+
+export function adminUserStatus(user: Pick<AdminUser, "isActive">): AdminStatus {
+  return user.isActive ? "active" : "inactive";
+}
+
+/** The name a row is read by: the email when no name was ever set. */
+export function adminUserDisplayName(user: Pick<AdminUser, "name" | "email">): string {
+  return user.name.trim() || user.email;
+}
+
+function isAdminRole(value: unknown): value is AdminRole {
+  return value === "super_admin" || value === "admin";
+}
+
+function readAdminUser(raw: unknown): AdminUser {
+  if (raw === null || typeof raw !== "object") {
+    throw new Error("The admin list named no admin");
+  }
+
+  const row = raw as Record<string, unknown>;
+  const { id, email, role, isActive, lastSignInAt, createdAt } = row;
+
+  if (typeof id !== "string" || id === "") {
+    throw new Error("An admin row carried no id");
+  }
+  if (typeof email !== "string" || email === "") {
+    throw new Error("An admin row carried no email");
+  }
+  if (!isAdminRole(role)) {
+    throw new Error("An admin row carried an unknown role");
+  }
+  if (typeof isActive !== "boolean") {
+    throw new Error("An admin row carried no status");
+  }
+  if (lastSignInAt !== null && typeof lastSignInAt !== "string") {
+    throw new Error("An admin row carried an unreadable sign-in");
+  }
+  if (typeof createdAt !== "string") {
+    throw new Error("An admin row carried no date added");
+  }
+
+  return {
+    id,
+    name: typeof row.name === "string" ? row.name : "",
+    email,
+    role,
+    isActive,
+    lastSignInAt,
+    createdAt,
+    ...(row.isSelf === true ? { isSelf: true } : {}),
+  };
+}
+
+/**
+ * The API's answer as the table's rows. A row with a field this screen cannot draw is refused
+ * whole, rather than drawn half-read with an empty cell nobody can explain.
+ */
+export function toAdminUserList(raw: unknown): AdminUserListResponse {
+  if (raw === null || typeof raw !== "object") {
+    throw new Error("The admin list was not an answer");
+  }
+
+  const answer = raw as Record<string, unknown>;
+  const { items, page, pageSize, total } = answer;
+
+  if (!Array.isArray(items)) {
+    throw new Error("The admin answer carried no list");
+  }
+  if (
+    typeof page !== "number" ||
+    typeof pageSize !== "number" ||
+    pageSize <= 0 ||
+    typeof total !== "number"
+  ) {
+    throw new Error("The admin answer carried no page");
+  }
+
+  return {
+    items: items.map(readAdminUser),
+    page,
+    pageSize,
+    total,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
