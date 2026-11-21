@@ -152,6 +152,37 @@ describe("toInvoiceList", () => {
     ]);
   });
 
+  // PBI-23, 23.11: the Admin's reads name who recorded each adjustment.
+  describe("the Admin who recorded an adjustment", () => {
+    const adjustmentNamed = (actorName: unknown) => {
+      const adjustment = {
+        id: "22222222-2222-4222-8222-222222222222",
+        amount: -75000,
+        reason: "Koreksi kelebihan tagihan",
+        actorId: "33333333-3333-4333-8333-333333333333",
+        actorName,
+        createdAt: "2026-10-18T03:00:00.000Z",
+      };
+      return toInvoiceList({ ...RAW, items: [{ ...RAW_RANGGA, adjustments: [adjustment] }] }).rows[0].adjustments[0];
+    };
+
+    it("keeps the name, trimmed, and never the Admin's id", () => {
+      const line = adjustmentNamed("  Sinta Dewi  ");
+
+      expect(line).toHaveProperty("actorName", "Sinta Dewi");
+      expect(line).not.toHaveProperty("actorId");
+    });
+
+    it.each([
+      ["null", null],
+      ["missing, on an answer from before 23.10", undefined],
+      ["blank", "   "],
+      ["not text", 42],
+    ])("names no one when it is %s", (_label, actorName) => {
+      expect(adjustmentNamed(actorName)).not.toHaveProperty("actorName");
+    });
+  });
+
   it("says the invoice is waiting for data while a fee or penalty is", () => {
     const waiting = {
       ...RAW_RANGGA,

@@ -313,4 +313,84 @@ describe("invoiceActivity", () => {
       "Rangga Pratama",
     ]);
   });
+
+  // PBI-23, 23.11, in the prototype's words:
+  // `Admin menambah penyesuaian: ${label} (${amount>0?'+':''}${fmtMoney(amount)})`
+  describe("an adjustment", () => {
+    const ADDITION = {
+      id: "adj-1",
+      amount: 50000,
+      reason: "Reimbursement ongkir produk",
+      createdAt: "2026-12-02T02:00:00Z",
+      actorName: "Sinta Dewi",
+    };
+    const DEDUCTION = {
+      id: "adj-2",
+      amount: -75000,
+      reason: "Koreksi kelebihan tagihan",
+      createdAt: "2026-12-03T02:00:00Z",
+      actorName: "bima.admin@tofly.id",
+    };
+    const UNNAMED = {
+      id: "adj-3",
+      amount: 1,
+      reason: "Pembulatan",
+      createdAt: "2026-12-04T02:00:00Z",
+    };
+
+    it("names the Admin who added it, with its reason and a plus on what it adds", () => {
+      expect(invoiceActivity(invoice({ adjustments: [ADDITION] }))).toEqual([
+        {
+          kind: "event",
+          id: "adj-1",
+          text: "Sinta Dewi menambah penyesuaian: Reimbursement ongkir produk (+Rp50.000)",
+          at: "2026-12-02T02:00:00Z",
+        },
+      ]);
+    });
+
+    it("writes a deduction with the prototype's minus, right against the Rp", () => {
+      const [entry] = invoiceActivity(invoice({ adjustments: [DEDUCTION] }));
+
+      expect(entry.text).toBe("bima.admin@tofly.id menambah penyesuaian: Koreksi kelebihan tagihan (−Rp75.000)");
+    });
+
+    it("says Admin when the API names no one, as the creator's answer never does", () => {
+      const [entry] = invoiceActivity(invoice({ adjustments: [UNNAMED] }));
+
+      expect(entry.text).toBe("Admin menambah penyesuaian: Pembulatan (+Rp1)");
+    });
+
+    it("gives each adjustment its own line, by its own Admin", () => {
+      const entries = invoiceActivity(invoice({ adjustments: [ADDITION, DEDUCTION] }));
+
+      expect(entries.map((entry) => entry.id)).toEqual(["adj-1", "adj-2"]);
+    });
+
+    it("takes its place by time, also when it was added after Finalize", () => {
+      const entries = invoiceActivity(
+        invoice({
+          status: "finalized",
+          reachedAt: { ...NONE_REACHED, finalized: "2026-12-02T12:00:00Z" },
+          adjustments: [DEDUCTION, ADDITION],
+        }),
+      );
+
+      expect(entries.map((entry) => entry.id)).toEqual(["adj-1", "finalized", "adj-2"]);
+    });
+
+    it("comes after a step and before a comment of the same moment", () => {
+      const at = ADDITION.createdAt;
+      const entries = invoiceActivity(
+        invoice({
+          status: "finalized",
+          reachedAt: { ...NONE_REACHED, finalized: at },
+          adjustments: [ADDITION],
+          comments: [{ ...COMMENT, createdAt: at }],
+        }),
+      );
+
+      expect(entries.map((entry) => entry.id)).toEqual(["finalized", "adj-1", "c-1"]);
+    });
+  });
 });

@@ -209,6 +209,25 @@ describe("ADMIN_EVENT_TEXT", () => {
     ]);
   });
 
+  it("names the Admin who added an adjustment, beside the steps in time order", () => {
+    const adjustment = {
+      id: "22222222-2222-4222-8222-222222222222",
+      amount: -75000,
+      reason: "Koreksi kelebihan tagihan",
+      createdAt: "2026-09-21T05:00:00.000Z",
+      actorName: "Bima Santoso",
+    };
+    const view = adminInvoiceView(
+      { ...ROW, invoiceStatus: "finalized", frozenAt: "2026-09-21T02:00:00.000Z", adjustments: [adjustment] },
+      { ...BREAKDOWN, finalizedBy: "Sinta Dewi" },
+    );
+
+    expect(invoiceActivity(view, ADMIN_EVENT_TEXT).map((entry) => entry.text)).toEqual([
+      "Sinta Dewi memfinalisasi invoice",
+      "Bima Santoso menambah penyesuaian: Koreksi kelebihan tagihan (−Rp75.000)",
+    ]);
+  });
+
   it("words the two creator steps as they were", () => {
     expect(ADMIN_EVENT_TEXT.creator_acked).toBe("Creator meng-acknowledge invoice");
     expect(ADMIN_EVENT_TEXT.paid).toBe("Creator mengonfirmasi pembayaran diterima");

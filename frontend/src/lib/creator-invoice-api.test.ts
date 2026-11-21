@@ -61,6 +61,13 @@ describe("toCreatorInvoices", () => {
     ]);
   });
 
+  // PBI-23, 23.10: the Admin who recorded an adjustment is on the Admin's reads only (OWASP A01:2025).
+  it("drops an adjustment's Admin name, even if an answer ever carries one", () => {
+    const named = { ...RAW_MY_PAID.adjustments![0], actorName: "Sinta Dewi" };
+
+    expect(only({ ...RAW_MY_PAID, adjustments: [named] }).adjustments[0]).not.toHaveProperty("actorName");
+  });
+
   it("keeps the payment proof with its link, file name and upload moment", () => {
     expect(only(RAW_MY_PAID).proof).toEqual({
       url: "https://files.tofly.test/proofs/rangga-1.pdf?token=abc",
