@@ -279,10 +279,30 @@ describe("InvoiceRincian", () => {
 
     expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toHaveAttribute("aria-selected", "true");
     const activity = within(screen.getByRole("list", { name: "Aktivitas invoice" }));
-    expect(activity.getByText("Invoice difinalisasi")).toBeInTheDocument();
+    expect(activity.getByText("Admin memfinalisasi invoice · Rp350.000")).toBeInTheDocument();
     expect(activity.getByText("30 Agu 2026")).toBeInTheDocument();
     expect(screen.getByText("Utas komentar")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Total invoice" })).toBeNull();
+  });
+
+  // PBI-23, 23.11
+  it("lists who added an adjustment in the activity and counts it on the tab", () => {
+    const adjustment = {
+      id: "22222222-2222-4222-8222-222222222222",
+      amount: 50000,
+      reason: "Reimbursement ongkir produk",
+      createdAt: "2026-08-31T03:00:00.000Z",
+      actorName: "Sinta Dewi",
+    };
+    setup({
+      row: { ...ROW, invoiceStatus: "finalized", frozenAt: "2026-08-30T03:00:00.000Z", adjustments: [adjustment] },
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Aktivitas & Komentar (2)" }));
+
+    const activity = within(screen.getByRole("list", { name: "Aktivitas invoice" }));
+    expect(activity.getByText("Sinta Dewi menambah penyesuaian: Reimbursement ongkir produk (+Rp50.000)")).toBeInTheDocument();
+    expect(activity.getByText("31 Agu 2026")).toBeInTheDocument();
   });
 
   it("says a running invoice has no activity yet, above its thread", () => {
