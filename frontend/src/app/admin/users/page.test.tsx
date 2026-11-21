@@ -192,3 +192,24 @@ describe("Pengguna Admin search", () => {
     expect(screen.getByRole("searchbox", { name: /cari admin/i })).toHaveValue("rangga");
   });
 });
+
+describe("Pengguna Admin gate", () => {
+  beforeEach(() => {
+    vi.mocked(currentRole).mockReset();
+    vi.mocked(fetchAdminUsers).mockReset();
+  });
+
+  it("gives an Admin the not-found page instead of the list, and asks for none", async () => {
+    vi.mocked(currentRole).mockResolvedValue("admin");
+
+    await expect(renderPage()).rejects.toThrow(NotFound);
+    expect(fetchAdminUsers).not.toHaveBeenCalled();
+  });
+
+  it("gives a signed-out visitor the not-found page too", async () => {
+    vi.mocked(currentRole).mockResolvedValue(null);
+
+    await expect(renderPage()).rejects.toThrow(NotFound);
+    expect(fetchAdminUsers).not.toHaveBeenCalled();
+  });
+});
