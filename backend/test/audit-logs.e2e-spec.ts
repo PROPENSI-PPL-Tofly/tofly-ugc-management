@@ -50,7 +50,7 @@ describe('audit_logs (e2e)', () => {
         const id = await addRow(tx);
         await tx.$executeRaw`update audit_logs set action = 'changed' where id = ${id}::uuid`;
       }),
-    ).rejects.toThrow(/audit_logs is append-only/);
+    ).rejects.toThrow(/audit_logs is append-only|permission denied/);
   });
 
   it('refuses to delete a row', async () => {
@@ -59,7 +59,7 @@ describe('audit_logs (e2e)', () => {
         const id = await addRow(tx);
         await tx.$executeRaw`delete from audit_logs where id = ${id}::uuid`;
       }),
-    ).rejects.toThrow(/audit_logs is append-only/);
+    ).rejects.toThrow(/audit_logs is append-only|permission denied/);
   });
 
   it('refuses to empty the table', async () => {
@@ -68,6 +68,44 @@ describe('audit_logs (e2e)', () => {
         await addRow(tx);
         await tx.$executeRaw`truncate audit_logs`;
       }),
-    ).rejects.toThrow(/audit_logs is append-only/);
+    ).rejects.toThrow(/audit_logs is append-only|permission denied/);
+  });
+
+  // Where the app connects as its own role, as in CI, staging and production. An owner could turn
+  // the trigger off, so the app role must not own the table (OWASP A09:2025).
+  describe.runIf(process.env.MIGRATOR_DB_URL)('from the app role', () => {
+    it('does not own the table or its trigger function', async () => {
+      const [row] = await prisma.$queryRaw<
+        { owns_table: boolean; owns_function: boolean }[]
+      >`
+        select
+          pg_get_userbyid(c.relowner) = current_user as owns_table,
+          pg_get_userbyid(p.proowner) = current_user as owns_function
+        from pg_class c, pg_proc p
+        where c.oid = 'public.audit_logs'::regclass
+          and p.oid = 'public.audit_logs_append_only'::regproc`;
+
+      expect(row).toEqual({ owns_table: false, owns_function: false });
+    });
+
+    it('cannot turn the append-only trigger off', async () => {
+      await expect(
+        inRollback(async (tx) => {
+          await tx.$executeRaw`alter table audit_logs disable trigger audit_logs_append_only`;
+        }),
+      ).rejects.toThrow(/must be owner/);
+    });
+
+    it.each([
+      ['update', Prisma.sql`update audit_logs set action = 'changed'`],
+      ['delete', Prisma.sql`delete from audit_logs`],
+      ['truncate', Prisma.sql`truncate audit_logs`],
+    ])('has no %s privilege', async (_name, statement) => {
+      await expect(
+        inRollback(async (tx) => {
+          await tx.$executeRaw(statement);
+        }),
+      ).rejects.toThrow(/permission denied/);
+    });
   });
 });
