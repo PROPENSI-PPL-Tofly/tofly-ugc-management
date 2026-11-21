@@ -331,6 +331,10 @@ describe("auditChanges", () => {
     expect(auditChanges({ tier: { a: 1, b: 2 } }, { tier: { b: 2, a: 1 } })).toEqual([]);
   });
 
+  it("compares the objects inside a list regardless of their key order", () => {
+    expect(auditChanges({ tiers: [{ a: 1, b: 2 }] }, { tiers: [{ b: 2, a: 1 }] })).toEqual([]);
+  });
+
   it("shows a nested value that changed as text", () => {
     expect(auditChanges({ tier: { a: 1 } }, { tier: { a: 2 } })).toEqual([
       { field: "tier", from: '{"a":1}', to: '{"a":2}' },

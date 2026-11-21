@@ -3,6 +3,7 @@
 // stores (SCRUM-295), so a filter value reaches the API unchanged.
 
 import { isUuid } from "./creator-detail";
+import { EMPTY, formatTimestamp } from "./format";
 import { calendarDay, list, listOf, pageNumber, single, type SearchParams } from "./search-params";
 
 // PBI-23 AC 17: rows per page.
@@ -114,4 +115,56 @@ export function buildAuditLogQuery(state: AuditLogState): Record<string, string>
   if (state.creator.length > 0) query.creator = state.creator.join(",");
   if (state.page > 1) query.page = String(state.page);
   return query;
+}
+
+export type AuditActorRole = "super_admin" | "admin" | "creator" | "system";
+
+const ACTOR_ROLE_LABELS: Record<Exclude<AuditActorRole, "system">, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  creator: "Creator",
+};
+
+// Who acted: the name with its role, or "Sistem" alone when no person did.
+export function auditActorLabel(actor: { name: string; role: AuditActorRole }): string {
+  if (actor.role === "system") return "Sistem";
+  return `${actor.name} (${ACTOR_ROLE_LABELS[actor.role]})`;
+}
+
+export function auditTimeLabel(occurredAt: string): string {
+  return formatTimestamp(occurredAt);
+}
+
+export interface AuditChange {
+  field: string;
+  from: string;
+  to: string;
+}
+
+// jsonb does not keep key order, so objects are compared and shown with their keys sorted.
+function withSortedKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withSortedKeys);
+  if (typeof value !== "object" || value === null) return value;
+  const entries = Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
+  return Object.fromEntries(entries.map(([key, item]) => [key, withSortedKeys(item)]));
+}
+
+function shownValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return EMPTY;
+  if (typeof value === "object") return JSON.stringify(withSortedKeys(value));
+  return String(value);
+}
+
+// The fields an entry really changed, old values' fields first.
+export function auditChanges(
+  oldValues: Record<string, unknown> | null,
+  newValues: Record<string, unknown> | null,
+): AuditChange[] {
+  const before = oldValues ?? {};
+  const after = newValues ?? {};
+  const fields = new Set([...Object.keys(before), ...Object.keys(after)]);
+
+  return [...fields]
+    .map((field) => ({ field, from: shownValue(before[field]), to: shownValue(after[field]) }))
+    .filter(({ from, to }) => from !== to);
 }
