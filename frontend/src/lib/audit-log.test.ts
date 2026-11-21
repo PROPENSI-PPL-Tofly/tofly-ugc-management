@@ -5,7 +5,9 @@ import {
   AUDIT_CATEGORY_LABELS,
   AUDIT_LOG_PAGE_SIZE,
   actionsInCategories,
-  auditActorLabel,
+  auditActionLabel,
+  auditActorLines,
+  auditChangeView,
   auditChanges,
   auditTimeLabel,
   buildAuditLogQuery,
@@ -249,17 +251,77 @@ describe("buildAuditLogQuery", () => {
   });
 });
 
-describe("auditActorLabel", () => {
+describe("auditActionLabel", () => {
+  // The Sprint 4 prototype's words for the actions it names one to one.
   it.each([
-    ["super_admin", "Sinta (Super Admin)"],
-    ["admin", "Sinta (Admin)"],
-    ["creator", "Sinta (Creator)"],
-  ] as const)("names a person with their role: %s", (role, label) => {
-    expect(auditActorLabel({ name: "Sinta", role })).toBe(label);
+    ["admin_added", "Tambah Admin"],
+    ["admin_deactivated", "Nonaktifkan Admin"],
+    ["admin_reactivated", "Aktifkan Admin"],
+    ["creator_added", "Tambah Creator"],
+    ["creator_changed", "Ubah Data Creator"],
+    ["contract_extended", "Perpanjang Kontrak"],
+    ["period_changed", "Ubah Periode"],
+    ["period_deleted", "Hapus Periode"],
+    ["contract_ended_early", "Akhiri Kontrak Lebih Awal"],
+    ["manual_performance_saved", "Isi Angka Manual"],
+    ["invoice_finalized", "Finalize Invoice"],
+    ["payment_proof_uploaded", "Upload Bukti Bayar"],
+    ["invoice_cancelled", "Batalkan Invoice"],
+    ["rate_formula_changed", "Ubah Formula Rate"],
+    ["buffer_changed", "Ubah Buffer Deadline"],
+  ] as const)("names %s as the prototype does", (action, label) => {
+    expect(auditActionLabel(action)).toBe(label);
   });
 
-  it("shows Sistem alone for an entry no person made", () => {
-    expect(auditActorLabel({ name: "Sistem", role: "system" })).toBe("Sistem");
+  // Their wording is still open with the team, so no label is made up for them.
+  it.each([
+    "admin_changed",
+    "invoice_line_corrected",
+    "invoice_acknowledged",
+    "payment_confirmed",
+  ] as const)("shows %s by its key until it has agreed wording", (action) => {
+    expect(auditActionLabel(action)).toBe(action);
+  });
+});
+
+describe("auditActorLines", () => {
+  it.each([
+    ["super_admin", "Super Admin"],
+    ["admin", "Admin"],
+    ["creator", "Creator"],
+  ] as const)("puts a person's name over their role: %s", (role, label) => {
+    expect(auditActorLines({ name: "Sinta", role })).toEqual({ name: "Sinta", role: label });
+  });
+
+  it("shows Sistem with no role for an entry no person made", () => {
+    expect(auditActorLines({ name: "Sistem", role: "system" })).toEqual({
+      name: "Sistem",
+      role: null,
+    });
+  });
+});
+
+describe("auditChangeView", () => {
+  it("has nothing to show for an entry without a change", () => {
+    expect(auditChangeView(null, null)).toEqual({ kind: "none" });
+  });
+
+  it("shows one changed field on the row, as old and new", () => {
+    expect(auditChangeView({ days: 7 }, { days: 5 })).toEqual({
+      kind: "single",
+      change: { field: "days", from: "7", to: "5" },
+    });
+  });
+
+  // SCRUM-297: several changed fields open from the row.
+  it("offers several changed fields to expand", () => {
+    expect(auditChangeView({ a: 1, b: 2, c: 3 }, { a: 9, b: 8, c: 3 })).toEqual({
+      kind: "expandable",
+      changes: [
+        { field: "a", from: "1", to: "9" },
+        { field: "b", from: "2", to: "8" },
+      ],
+    });
   });
 });
 
