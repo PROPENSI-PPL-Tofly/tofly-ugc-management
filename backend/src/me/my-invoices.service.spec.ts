@@ -169,8 +169,8 @@ describe('MyInvoicesService', () => {
     expect(JSON.stringify(item)).not.toContain(ADMIN);
   });
 
-  // PBI-32 shows the creator "Disesuaikan Admin": the adjustment's author stays the admin's.
-  it("leaves out the name of the admin who recorded an adjustment", async () => {
+  // PBI-23 AC 25: invoice activity names the acting Admin for the creator too, never by id.
+  it('keeps the name of the admin who recorded an adjustment, without their id', async () => {
     const { service } = stubs([
       view('earlier', {
         invoiceStatus: 'finalized',
@@ -181,8 +181,10 @@ describe('MyInvoicesService', () => {
 
     const [item] = (await service.list(CREATOR, TODAY)).items;
 
-    expect(item.adjustments).toEqual([ADJUSTMENT_FOR_CREATOR]);
-    expect(JSON.stringify(item)).not.toContain('Sinta Dewi');
+    expect(item.adjustments).toEqual([
+      { ...ADJUSTMENT_FOR_CREATOR, actorName: 'Sinta Dewi' },
+    ]);
+    expect(JSON.stringify(item)).not.toContain(ADMIN);
   });
 
   it('answers no invoices for a creator with none', async () => {

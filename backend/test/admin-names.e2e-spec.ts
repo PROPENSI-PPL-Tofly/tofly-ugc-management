@@ -229,14 +229,14 @@ describe('Admin names in history (e2e)', () => {
     ]);
   });
 
-  // OWASP A01: the id is never sent, and who recorded an adjustment stays on the Admin's side.
-  it("sends the creator neither the Admin's id nor who recorded an adjustment", async () => {
+  // PBI-23 AC 25 and OWASP A01: the creator reads who recorded an adjustment, never their id.
+  it("names the Admin on the creator's adjustment without sending the Admin's id", async () => {
     const { invoice, raw } = await creatorRead();
 
     expect(raw).not.toContain(adminId);
     expect(invoice.adjustments).toHaveLength(1);
     expect(invoice.adjustments[0]).not.toHaveProperty('actorId');
-    expect(invoice.adjustments[0]).not.toHaveProperty('actorName');
+    expect(invoice.adjustments[0].actorName).toBe(ADMIN_NAME);
   });
 
   // PBI-23: accounts are never hard-deleted, so the names on finalized invoices stay.
