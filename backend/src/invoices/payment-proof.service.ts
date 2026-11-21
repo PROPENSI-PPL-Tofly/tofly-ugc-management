@@ -20,6 +20,8 @@ import type {
 } from './dto/invoice-payment.dto.js';
 import { invoiceState, notAwaitingProof } from './invoice-lifecycle.js';
 import type { CheckedProof } from './payment-proof-file.js';
+import { AuditLogger } from '../audit/audit-logger.js';
+import { joinName } from '../creators/evergreen.js';
 
 /** The database operations this service uses. */
 export type PaymentProofClient = Pick<
@@ -73,6 +75,9 @@ export class PaymentProofService implements PaymentProofReader {
     @Optional()
     @Inject(PROOF_KEY_FACTORY)
     private readonly newObjectKey: () => string = randomUUID,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
   ) {}
 
   /**
@@ -88,7 +93,18 @@ export class PaymentProofService implements PaymentProofReader {
   ): Promise<UploadedPaymentProofDto> {
     const contract = await this.prisma.contracts.findUnique({
       where: { id: contractId },
-      select: { id: true, invoice: { select: { id: true, status: true } } },
+      select: {
+        id: true,
+        creators: {
+          select: {
+            id: true,
+            first_name: true,
+            middle_name: true,
+            last_name: true,
+          },
+        },
+        invoice: { select: { id: true, status: true } },
+      },
     });
     if (!contract) {
       throw new NotFoundException({
@@ -123,7 +139,7 @@ export class PaymentProofService implements PaymentProofReader {
           });
           if (moved.count !== 1) throw notAwaitingProof();
 
-          return tx.invoice_payment_proofs.create({
+          const record = await tx.invoice_payment_proofs.create({
             data: {
               invoice_id: invoiceId,
               object_key: objectKey,
@@ -134,6 +150,22 @@ export class PaymentProofService implements PaymentProofReader {
             },
             select: { file_name: true, uploaded_at: true },
           });
+
+          // The file's name only, never its contents (PBI-23 AC 19, OWASP A09:2025).
+          await this.audit.recordBy(tx, uploadedBy, {
+            action: 'payment_proof_uploaded',
+            target: {
+              id: invoiceId,
+              label: `Invoice ${joinName(contract.creators)}`,
+            },
+            creatorId: contract.creators.id,
+            oldValues: { status: 'creator_acked' },
+            newValues: {
+              status: 'payment_uploaded',
+              fileName: proof.fileName,
+            },
+          });
+          return record;
         },
         { isolationLevel: 'ReadCommitted' },
       );
