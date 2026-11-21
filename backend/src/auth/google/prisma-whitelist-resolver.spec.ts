@@ -27,6 +27,8 @@ describe('PrismaWhitelistResolver', () => {
       select: {
         id: true,
         is_admin: true,
+        admin_role: true,
+        is_active: true,
         creators: {
           select: {
             id: true,
@@ -44,6 +46,8 @@ describe('PrismaWhitelistResolver', () => {
     const user = {
       id: '11111111-1111-1111-1111-111111111111',
       is_admin: true,
+      admin_role: 'admin',
+      is_active: true,
       creators: null,
     };
 
@@ -64,6 +68,7 @@ describe('PrismaWhitelistResolver', () => {
     const expected: Principal = {
       userId: user.id,
       role: 'admin',
+      adminRole: 'admin',
     };
 
     expect(principal).toEqual(expected);
@@ -73,6 +78,8 @@ describe('PrismaWhitelistResolver', () => {
       select: {
         id: true,
         is_admin: true,
+        admin_role: true,
+        is_active: true,
         creators: {
           select: {
             id: true,
@@ -114,6 +121,8 @@ describe('PrismaWhitelistResolver', () => {
       select: {
         id: true,
         is_admin: true,
+        admin_role: true,
+        is_active: true,
         creators: {
           select: {
             id: true,
@@ -166,6 +175,8 @@ describe('PrismaWhitelistResolver', () => {
       select: {
         id: true,
         is_admin: true,
+        admin_role: true,
+        is_active: true,
         creators: {
           select: {
             id: true,
@@ -313,6 +324,8 @@ describe('PrismaWhitelistResolver', () => {
       select: {
         id: true,
         is_admin: true,
+        admin_role: true,
+        is_active: true,
         creators: {
           select: {
             id: true,
@@ -366,6 +379,8 @@ describe('PrismaWhitelistResolver', () => {
       select: {
         id: true,
         is_admin: true,
+        admin_role: true,
+        is_active: true,
         creators: {
           select: {
             id: true,
@@ -426,6 +441,8 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
   const SELECT = {
     id: true,
     is_admin: true,
+    admin_role: true,
+    is_active: true,
     creators: { select: { id: true, access_revoke_date: true } },
   };
 
@@ -581,5 +598,55 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
     const { resolver } = resolverFor(null);
 
     await expect(resolver.resolveUser('user-gone')).resolves.toBeNull();
+  });
+
+  // SCRUM-245 (PBI-23): two Admin roles, and an Admin can be deactivated.
+  describe('Admin roles and status', () => {
+    const admin = (extra: Record<string, unknown>) => ({
+      id: 'admin-1',
+      is_admin: true,
+      admin_role: 'admin',
+      is_active: true,
+      creators: null,
+      ...extra,
+    });
+
+    it('carries the Admin role on the principal', async () => {
+      const { resolver } = resolverFor(admin({}));
+
+      await expect(resolver.resolveUser('admin-1')).resolves.toEqual({
+        userId: 'admin-1',
+        role: 'admin',
+        adminRole: 'admin',
+      });
+    });
+
+    it('carries the Super Admin role on the principal', async () => {
+      const { resolver } = resolverFor(admin({ admin_role: 'super_admin' }));
+
+      await expect(resolver.resolveUser('admin-1')).resolves.toEqual({
+        userId: 'admin-1',
+        role: 'admin',
+        adminRole: 'super_admin',
+      });
+    });
+
+    // OWASP A01: a deactivated Admin is refused at sign-in and on the next request of any session.
+    it.each([['an Admin', 'admin'], ['a Super Admin', 'super_admin']])(
+      'refuses %s who was deactivated, at sign-in and on each request',
+      async (_label, role) => {
+        const { resolver } = resolverFor(admin({ admin_role: role, is_active: false }));
+
+        await expect(resolver.resolveUser('admin-1')).resolves.toBeNull();
+        await expect(resolver.resolve('admin@tofly.id')).resolves.toBeNull();
+      },
+    );
+
+    // OWASP A01: fail closed. An admin row without a known role is never given one by guessing.
+    it.each([[null], ['owner'], [undefined]])('refuses an admin whose role is %s', async (role) => {
+      const { resolver } = resolverFor(admin({ admin_role: role }));
+
+      await expect(resolver.resolveUser('admin-1')).resolves.toBeNull();
+    });
   });
 });

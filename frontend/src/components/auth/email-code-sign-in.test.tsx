@@ -273,7 +273,7 @@ describe("EmailCodeSignIn: entering the code", () => {
     [{ kind: "wrong" }, "Kode salah."],
     [{ kind: "invalid" }, "Masukkan 6 digit kode."],
     [{ kind: "expired" }, "Kode sudah kedaluwarsa. Kirim ulang kode."],
-    [{ kind: "denied" }, "Akses ditolak. Hubungi Admin untuk meminta akses."],
+    [{ kind: "denied" }, "Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan."],
     [{ kind: "failed" }, "Gagal masuk. Silakan coba lagi."],
   ] as const)("announces %o and clears the boxes for another try", async (outcome, message) => {
     vi.mocked(verifyCode).mockResolvedValueOnce(outcome);

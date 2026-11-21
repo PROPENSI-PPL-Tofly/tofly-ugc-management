@@ -1,4 +1,4 @@
-import { LOGIN_ERROR_MESSAGES, loginErrorMessage } from "./login-errors";
+import { ACCESS_CLOSED, LOGIN_ERROR_MESSAGES, loginErrorMessage } from "./login-errors";
 
 describe("loginErrorMessage", () => {
   it("explains a failed sign-in and asks to try again", () => {
@@ -15,10 +15,12 @@ describe("loginErrorMessage", () => {
   // PRD 3.1: an email the whitelist refuses is told to contact the Admin. That covers one never
   // added and a creator whose access was revoked (flow 4.10), so it must not claim either. The
   // Google screen always offers the account chooser, so trying another account is a real way out.
-  it("tells a refused email to ask the Admin for access or use another Google account", () => {
-    expect(loginErrorMessage("not_authorized")).toBe(
-      "Email ini tidak punya akses ke Tofly. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
-    );
+  // PBI-23 AC: one message for everyone without access (an email that is not registered, a
+  // deactivated Admin, a creator whose access is closed), the same on the Google and email-code
+  // paths, so the page never tells which of them the address is (OWASP A07).
+  it("tells a refused account it has no access, in the one wording PBI-23 sets", () => {
+    expect(loginErrorMessage("not_authorized")).toBe("Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.");
+    expect(ACCESS_CLOSED).toBe("Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.");
   });
 
   // A revoked creator was registered once, so "not registered" would be untrue for them.

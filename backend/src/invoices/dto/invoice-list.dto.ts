@@ -38,6 +38,11 @@ export interface InvoiceAdjustmentDto {
   amount: number;
   reason: string;
   actorId: string;
+  /**
+   * The admin who recorded it, by name else email (PBI-23, 23.10, AC 25). On live reads, for the
+   * admin and the creator alike; never frozen into a snapshot.
+   */
+  actorName?: string;
   createdAt: string;
 }
 
@@ -51,6 +56,11 @@ export interface InvoiceSnapshotDto {
   total: number;
   floored: boolean;
   finalizedAt: string;
+  /**
+   * The total at the moment of Finalize (PBI-23, AC 25). `total` moves with a later adjustment; this
+   * never does. Absent from a snapshot saved before it was kept.
+   */
+  finalizedTotal?: number;
   /**
    * The formula the breakdown was calculated with, null if none was saved then. Absent from a
    * snapshot saved before the formula was kept with it.
@@ -104,6 +114,11 @@ export interface InvoiceView
    * its snapshot, or null when that snapshot predates keeping it.
    */
   formula: RateFormula | null;
+  /**
+   * The admin who finalized it, by name else email (PBI-23, 23.10); null before Finalize and on
+   * an invoice finalized before the admin was recorded.
+   */
+  finalizedBy: string | null;
 }
 
 /** The admin's view of one invoice: the breakdown popups and the Rincian panel. */

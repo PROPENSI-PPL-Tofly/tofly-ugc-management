@@ -1,4 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminName,
+  type AdminAccount,
+} from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceCommentInput } from './comment-request.js';
 import type {
@@ -38,8 +43,8 @@ const COMMENT_SELECT = {
   author_role: true,
   text: true,
   created_at: true,
-  // The author's account: an admin is named by its email.
-  users: { select: { email: true } },
+  // The author's account: an admin is named by it (PBI-23, 23.10).
+  users: { select: ADMIN_ACCOUNT_SELECT },
 } as const;
 
 const OLDEST_FIRST = [{ created_at: 'asc' }, { id: 'asc' }] as const;
@@ -49,19 +54,19 @@ interface CommentRow {
   author_role: string;
   text: string;
   created_at: Date;
-  users: { email: string };
+  users: AdminAccount;
 }
 
 /**
  * Only the contract's own creator can write as a creator on it, so the creator's name comes from
- * the contract, not from the author's user row. An admin is named by their own account's email,
- * so every comment can be traced to the admin who wrote it.
+ * the contract, not from the author's user row. An admin is named by their own account, so every
+ * comment can be traced to the admin who wrote it.
  */
 function toDto(row: CommentRow, creator: string): InvoiceCommentDto {
   const authorRole = row.author_role as CommentAuthorRole;
   return {
     id: row.id,
-    authorName: authorRole === 'admin' ? row.users.email : creator,
+    authorName: authorRole === 'admin' ? adminName(row.users) : creator,
     authorRole,
     text: row.text,
     createdAt: row.created_at.toISOString(),

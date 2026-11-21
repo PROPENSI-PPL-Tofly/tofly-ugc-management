@@ -1,5 +1,9 @@
 import type { social_platform } from '@prisma/client';
-import { adminName, type AdminAccount } from './content-event-actors.js';
+import {
+  adminLabel,
+  adminName,
+  type AdminAccount,
+} from './content-event-actors.js';
 import type {
   ContentChanges,
   ContentEvent,
@@ -244,13 +248,13 @@ function toSteps(rows: StoredEventRow[]): ContentEvent[] {
   });
 }
 
-// A creator by the name the row stored, an admin by email, the system by no name at all.
+// A creator by the name the row stored, an admin by account, the system by no name at all.
 function actorName(
   row: StoredEventRow,
   role: 'admin' | 'system' | 'creator',
 ): string | null {
   if (role === 'creator') return row.actor_name;
-  if (role === 'admin') return row.users?.email ?? null;
+  if (role === 'admin') return adminLabel(row.users);
   return null;
 }
 

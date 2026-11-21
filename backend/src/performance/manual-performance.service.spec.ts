@@ -177,8 +177,20 @@ describe('ManualPerformanceService', () => {
     });
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER },
-      select: { email: true },
+      select: { name: true, email: true },
     });
+  });
+
+  // PBI-23, 23.10: the card names the admin as every later read of the link does.
+  it('answers with the name of the admin who typed the numbers', async () => {
+    transaction.users.findUnique.mockResolvedValue({
+      name: 'Sinta Dewi',
+      email: ADMIN_EMAIL,
+    });
+
+    const saved = await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW);
+
+    expect(saved.manualBy).toBe('Sinta Dewi');
   });
 
   // Corner: the local stand-in for sign-in has no admin account, so the numbers name no one.

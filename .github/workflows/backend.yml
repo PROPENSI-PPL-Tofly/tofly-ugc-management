@@ -408,7 +408,7 @@ jobs:
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
             --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,$SOCIAL_SECRETS,LOGIN_CODE_SECRET=$LOGIN_SECRET:latest$SMTP_SECRETS" \
-            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},TIKTOK_CLIENT_KEY=${{ vars.TIKTOK_CLIENT_KEY }},TIKTOK_REDIRECT_URI=${{ vars.TIKTOK_REDIRECT_URI }},INSTAGRAM_APP_ID=${{ vars.INSTAGRAM_APP_ID }},INSTAGRAM_REDIRECT_URI=${{ vars.INSTAGRAM_REDIRECT_URI }},SMTP_HOST=${{ vars.SMTP_HOST }},SMTP_PORT=${{ vars.SMTP_PORT }},EMAIL_FROM=${{ vars.EMAIL_FROM }}" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},TIKTOK_CLIENT_KEY=${{ vars.TIKTOK_CLIENT_KEY }},TIKTOK_REDIRECT_URI=${{ vars.TIKTOK_REDIRECT_URI }},INSTAGRAM_APP_ID=${{ vars.INSTAGRAM_APP_ID }},INSTAGRAM_REDIRECT_URI=${{ vars.INSTAGRAM_REDIRECT_URI }},SMTP_HOST=${{ vars.SMTP_HOST }},SMTP_PORT=${{ vars.SMTP_PORT }},EMAIL_FROM=${{ vars.EMAIL_FROM }},SUPER_ADMIN_EMAIL=${{ vars.SUPER_ADMIN_EMAIL }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --timeout 600 \
