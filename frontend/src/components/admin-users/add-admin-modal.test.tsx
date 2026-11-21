@@ -68,3 +68,14 @@ describe("Tambah Admin", () => {
     expect(screen.getByRole("button", { name: "Simpan" })).toBeDisabled();
   });
 });
+
+describe("Tambah Admin's way out", () => {
+  it("closes on Escape without sending anything", () => {
+    const { onClose, onSubmit } = renderModal();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});

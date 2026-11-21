@@ -141,3 +141,25 @@ describe("the confirmation before a sensitive action", () => {
     expect(screen.getByRole("button", { name: "Kirim ulang kode" })).toBeInTheDocument();
   });
 });
+
+describe("the confirmation's incomplete answer", () => {
+  beforeEach(() => {
+    vi.mocked(requestConfirmation).mockReset();
+    vi.mocked(verifyConfirmation).mockReset();
+    codeIsSent();
+  });
+
+  it("will not check a code that is not six digits", async () => {
+    render(<Harness run={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    const first = await screen.findByLabelText("Digit 1 dari 6");
+    fireEvent.change(first, { target: { value: "123" } });
+    const button = screen.getByRole("button", { name: "Konfirmasi" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Masukkan 6 digit kode.");
+    expect(verifyConfirmation).not.toHaveBeenCalled();
+  });
+});

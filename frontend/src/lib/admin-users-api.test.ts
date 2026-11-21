@@ -202,3 +202,40 @@ describe("the email confirmation", () => {
     await expect(verifyConfirmation("c1", "123456")).resolves.toEqual({ kind: "failed" });
   });
 });
+
+describe("the api's edge answers", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("shows a 4xx's own message when it named no code", async () => {
+    answers(400, { message: "Email tidak valid" });
+
+    await expect(createAdmin(NEW_ADMIN)).resolves.toEqual({
+      ok: false,
+      message: "Email tidak valid",
+      errors: {},
+    });
+  });
+
+  it("says to wait when the code request was limited without a count", async () => {
+    answers(429, {});
+
+    await expect(requestConfirmation("deactivate")).resolves.toEqual({
+      kind: "limited",
+      message: "Terlalu sering meminta kode. Coba lagi nanti.",
+    });
+  });
+
+  it("keeps an unnumbered wrong code from looking like a counted one", async () => {
+    answers(422, { code: "CODE_WRONG" });
+
+    await expect(verifyConfirmation("c1", "000000")).resolves.toEqual({ kind: "wrong" });
+  });
+
+  it("does not mistake a server error for a wrong code", async () => {
+    answers(500, { code: "CODE_WRONG" });
+
+    await expect(verifyConfirmation("c1", "000000")).resolves.toEqual({ kind: "failed" });
+  });
+});
