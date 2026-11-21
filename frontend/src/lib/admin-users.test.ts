@@ -9,7 +9,6 @@ import {
   parseAdminUserFilters,
   parseAdminUserPage,
   toAdminUserList,
-  type AdminUser,
 } from "./admin-users";
 
 describe("the admin list's address", () => {
