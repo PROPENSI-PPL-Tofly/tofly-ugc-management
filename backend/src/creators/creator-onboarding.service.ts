@@ -199,8 +199,7 @@ export class CreatorOnboardingService implements CreatorOnboarder {
           data: onboardingData(input, now, adminUserId ?? null),
           select: ONBOARDED_SELECT,
         });
-        await this.audit.record(tx, {
-          actor: await this.audit.actorOf(tx, adminUserId),
+        await this.audit.recordBy(tx, adminUserId, {
           action: 'creator_added',
           target: { id: created.id, label: input.name.trim() },
           creatorId: created.id,

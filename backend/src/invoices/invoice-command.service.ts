@@ -327,8 +327,7 @@ export class InvoiceCommandService implements InvoiceCommands {
         }
 
         // Under the same lock, so an invoice is never frozen without its entry (OWASP A09:2025).
-        await this.audit.record(tx, {
-          actor: await this.audit.actorOf(tx, finalizedBy),
+        await this.audit.recordBy(tx, finalizedBy, {
           action: 'invoice_finalized',
           target: {
             id: invoice.id,

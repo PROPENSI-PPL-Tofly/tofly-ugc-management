@@ -278,8 +278,7 @@ export class ContractPeriodsService implements PeriodKeeper {
     adminUserId: string | undefined,
     values: { oldValues?: Record<string, unknown>; newValues?: Record<string, unknown> },
   ): Promise<void> {
-    await this.audit.record(tx, {
-      actor: await this.audit.actorOf(tx, adminUserId),
+    await this.audit.recordBy(tx, adminUserId, {
       action,
       target: { id: contractId, label: joinName(creator) },
       creatorId,

@@ -195,8 +195,7 @@ export class RateFormulaService {
       await tx.performance_bonus_tiers.createMany({ data: tiers });
       const after = await this.readFrom(tx);
       // In this transaction, so a formula is never saved without its entry (PBI-23, OWASP A09:2025).
-      await this.audit.record(tx, {
-        actor: await this.audit.actorOf(tx, adminUserId),
+      await this.audit.recordBy(tx, adminUserId, {
         action: 'rate_formula_changed',
         target: { label: 'Formula Rate' },
         oldValues: auditValues(before),

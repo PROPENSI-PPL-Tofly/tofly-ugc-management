@@ -98,6 +98,15 @@ export class AuditLogger {
     };
   }
 
+  // The entry of an action by this user, read and written on the action's own transaction.
+  async recordBy(
+    tx: AuditWriter & AuditActorReader,
+    userId: string | null | undefined,
+    entry: Omit<AuditEntry, 'actor'>,
+  ): Promise<void> {
+    await this.record(tx, { ...entry, actor: await this.actorOf(tx, userId) });
+  }
+
   async record(tx: AuditWriter, entry: AuditEntry): Promise<void> {
     const { category, targetType } = AUDIT_ACTIONS[entry.action];
 
