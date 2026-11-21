@@ -117,6 +117,7 @@ describe('MyInvoicesService', () => {
       fileName: 'transfer.pdf',
       url: '/api/me/invoices/earlier/payment-proof',
       uploadedAt: '2026-10-07T03:00:00.000Z',
+      uploadedBy: 'Sinta Dewi',
     };
     proofs.forContracts.mockResolvedValue(new Map([['earlier', proof]]));
     comments.forContracts.mockResolvedValue(new Map([['earlier', [COMMENT]]]));

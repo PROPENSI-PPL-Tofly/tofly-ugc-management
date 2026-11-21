@@ -161,6 +161,8 @@ describe('InvoicesService', () => {
     /** When the creator acknowledged and confirmed receipt (13.1); absent reads as null. */
     acknowledged_at?: Date | null;
     paid_at?: Date | null;
+    /** The admin who finalized it (PBI-23, 23.10); null on one from before it was recorded. */
+    finalizer?: { name: string | null; email: string } | null;
   }
 
   // The creator's two moves on an invoice (13.1).
@@ -280,6 +282,7 @@ describe('InvoicesService', () => {
         fileName: 'transfer.pdf',
         url: '/api/invoices/nadia-c/payment-proof',
         uploadedAt: '2026-10-20T03:00:00.000Z',
+        uploadedBy: 'Sinta Dewi',
       };
       proofs.forContracts.mockResolvedValue(new Map([['nadia-c', proof]]));
 
@@ -1005,6 +1008,7 @@ describe('InvoicesService', () => {
         fileName: 'transfer.pdf',
         url: '/api/invoices/renewal/payment-proof',
         uploadedAt: '2026-10-20T03:00:00.000Z',
+        uploadedBy: 'Sinta Dewi',
       };
       proofs.forContracts.mockResolvedValue(new Map([['renewal', proof]]));
 
@@ -1017,6 +1021,51 @@ describe('InvoicesService', () => {
       await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
         paymentProof: null,
       });
+    });
+
+    // PBI-23, 23.10: the invoice's activity names who finalized it.
+    it.each([
+      ['by name', { name: 'Sinta Dewi', email: 'sinta@tofly.id' }, 'Sinta Dewi'],
+      ['by email while the account has no name', { name: null, email: 'sinta@tofly.id' }, 'sinta@tofly.id'],
+      ['as no one on an invoice finalized before it was recorded', null, null],
+    ])('answers the admin who finalized it %s', async (_label, finalizer, finalizedBy) => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+      pipeline = { 'contract-1': 'finalized' };
+      persist([
+        {
+          id: 'invoice-1',
+          contract_id: 'contract-1',
+          snapshot: snapshotOf(5_500_000),
+          adjustments: [],
+          finalizer,
+        },
+      ]);
+
+      await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
+        finalizedBy,
+      });
+    });
+
+    it('answers no finalizer for a contract without a saved invoice', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+
+      await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
+        finalizedBy: null,
+      });
+    });
+
+    it('reads the finalizer by name and email only, in the one lifecycle query', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+
+      await service.detail('creator-1', TODAY);
+
+      expect(prisma.invoices.findMany).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          select: expect.objectContaining({
+            finalizer: { select: { name: true, email: true } },
+          }),
+        }),
+      );
     });
 
     it('answers when the creator acknowledged and confirmed receipt, or null before', async () => {
@@ -1279,6 +1328,26 @@ describe('InvoicesService', () => {
           contracts: expect.any(Object),
         }),
       });
+    });
+
+    it('names the admin who finalized each of the creator\'s invoices', async () => {
+      prisma.creators.findUnique.mockResolvedValue(renewed);
+      pipeline = { first: 'finalized' };
+      persist([
+        {
+          id: 'first-i',
+          contract_id: 'first',
+          snapshot: snapshotOf(4_800_000),
+          adjustments: [],
+          finalizer: { name: 'Sinta Dewi', email: 'sinta@tofly.id' },
+        },
+      ]);
+
+      const invoices = await service.forCreator('creator-1', TODAY);
+
+      expect(
+        invoices.find(({ contract }) => contract.id === 'first')?.finalizedBy,
+      ).toBe('Sinta Dewi');
     });
 
     it("answers every one of the creator's contracts, newest period first, each with its status, period, formula and the creator's moves", async () => {
