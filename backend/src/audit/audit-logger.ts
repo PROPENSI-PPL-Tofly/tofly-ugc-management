@@ -88,7 +88,8 @@ export class AuditLogger {
       where: { id: userId },
       select: { name: true, email: true, admin_role: true },
     });
-    if (!user) return SYSTEM_ACTOR;
+    // A person acted, so the entry keeps pointing at them and never reads as "Sistem".
+    if (!user) return { userId, name: 'Admin', role: 'admin' };
 
     return {
       userId,
