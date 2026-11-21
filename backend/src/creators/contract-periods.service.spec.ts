@@ -45,6 +45,10 @@ const NEXT = {
   id: NEXT_ID,
   start_date: day('2026-12-01'),
   end_date: day('2027-01-31'),
+  contract_type: 'probation',
+  days_between: 7,
+  content_quota: 3,
+  fixed_rate: 1_000_000,
   contents: [] as { name: string; deadline: Date }[],
 };
 
@@ -117,6 +121,14 @@ function setup(contracts: unknown[] | null) {
       delete: vi.fn().mockResolvedValue({}),
     },
     contents: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
+    users: {
+      findUnique: vi.fn().mockResolvedValue({
+        name: 'Rani',
+        email: 'rani@example.com',
+        admin_role: 'admin',
+      }),
+    },
+    audit_logs: { create: vi.fn().mockResolvedValue({}) },
   };
   const prisma = {
     $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
@@ -420,5 +432,101 @@ describe('ContractPeriodsService.remove', () => {
       message: 'Periode satu-satunya creator tidak bisa dihapus',
     });
     expect(tx.contracts.delete).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-23 (SCRUM-295): "Creator & Kontrak" in Log Aktivitas (OWASP A09:2025).
+describe('ContractPeriodsService in Log Aktivitas', () => {
+  const NEW_VALUES = {
+    startDate: '2026-12-01',
+    endDate: '2027-01-31',
+    contractType: 'regular',
+    interval: 14,
+    quota: 2,
+    fixedRate: 1_500_000,
+  };
+  const OLD_VALUES = {
+    startDate: '2026-12-01',
+    endDate: '2027-01-31',
+    contractType: 'probation',
+    interval: 7,
+    quota: 3,
+    fixedRate: 1_000_000,
+  };
+  const ENTRY = {
+    actor_user_id: ADMIN_ID,
+    actor_name: 'Rani',
+    actor_role: 'admin',
+    category: 'creator_kontrak',
+    target_type: 'contract',
+    target_id: NEXT_ID,
+    target_label: 'Rangga Pratama',
+    creator_id: CREATOR_ID,
+    note: null,
+  };
+
+  it('records a new period with its terms', async () => {
+    const { tx, service } = setup([CURRENT]);
+
+    await service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID);
+
+    expect(tx.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        ...ENTRY,
+        action: 'contract_extended',
+        old_values: undefined,
+        new_values: NEW_VALUES,
+      },
+    });
+  });
+
+  it('records a changed period with its old and new terms', async () => {
+    const { tx, service } = setup([CURRENT, NEXT]);
+
+    await service.update(CREATOR_ID, NEXT_ID, TERMS, NOW, ADMIN_ID);
+
+    expect(tx.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        ...ENTRY,
+        action: 'period_changed',
+        old_values: OLD_VALUES,
+        new_values: NEW_VALUES,
+      },
+    });
+  });
+
+  it('records a deleted period with the terms it had, by the admin who deleted it', async () => {
+    const { tx, service } = setup([CURRENT, NEXT]);
+
+    await service.remove(CREATOR_ID, NEXT_ID, NOW, ADMIN_ID);
+
+    expect(tx.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        ...ENTRY,
+        action: 'period_deleted',
+        old_values: OLD_VALUES,
+        new_values: undefined,
+      },
+    });
+  });
+
+  it('records nothing for a refused delete', async () => {
+    const { tx, service } = setup([NEXT]);
+
+    await rejection(service.remove(CREATOR_ID, NEXT_ID, NOW, ADMIN_ID));
+
+    expect(tx.audit_logs.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['create', (service: ContractPeriodsService) => service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID)],
+    ['update', (service: ContractPeriodsService) => service.update(CREATOR_ID, NEXT_ID, TERMS, NOW, ADMIN_ID)],
+    ['remove', (service: ContractPeriodsService) => service.remove(CREATOR_ID, NEXT_ID, NOW, ADMIN_ID)],
+  ])('fails the %s when its entry cannot be written, so it rolls back', async (name, act) => {
+    const { tx, service } = setup(name === 'create' ? [CURRENT] : [CURRENT, NEXT]);
+    const failure = new Error('log failed');
+    tx.audit_logs.create.mockRejectedValue(failure);
+
+    await expect(act(service)).rejects.toBe(failure);
   });
 });
