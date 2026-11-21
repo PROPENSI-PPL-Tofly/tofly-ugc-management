@@ -3,9 +3,16 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AuditAction } from '../audit/audit-actions.js';
+import {
+  AuditLogger,
+  type AuditActorReader,
+  type AuditWriter,
+} from '../audit/audit-logger.js';
 import { lockContractRow } from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -28,6 +35,10 @@ const CREATOR_PERIODS = {
       id: true,
       start_date: true,
       end_date: true,
+      contract_type: true,
+      days_between: true,
+      content_quota: true,
+      fixed_rate: true,
       contents: {
         where: { type: 'specific' },
         select: { name: true, deadline: true },
@@ -56,7 +67,9 @@ type SavedRow = Prisma.contractsGetPayload<{ select: typeof SAVED_SELECT }>;
 type PeriodsTransaction = Pick<
   Prisma.TransactionClient,
   '$queryRaw' | 'creators' | 'contracts' | 'contents'
->;
+> &
+  AuditWriter &
+  AuditActorReader;
 
 /** The slice of the database client periods touch; tests hand in a stub of just that. */
 export interface PeriodsClient {
@@ -86,6 +99,29 @@ function contractColumns(terms: ContractTerms) {
   };
 }
 
+// A period's terms as Log Aktivitas keeps them: plain days and numbers, never a Prisma Decimal.
+function termsForLog(terms: ContractTerms): Record<string, unknown> {
+  return {
+    startDate: toDay(terms.contractStart),
+    endDate: toDay(terms.contractEnd),
+    contractType: terms.contractType,
+    interval: terms.interval,
+    quota: terms.quota,
+    fixedRate: terms.fixedRate,
+  };
+}
+
+function storedTermsForLog(period: PeriodRow): Record<string, unknown> {
+  return {
+    startDate: toDay(period.start_date),
+    endDate: toDay(period.end_date),
+    contractType: period.contract_type,
+    interval: period.days_between,
+    quota: period.content_quota,
+    fixedRate: Number(period.fixed_rate),
+  };
+}
+
 function toSaved(row: SavedRow): SavedPeriod {
   return {
     contractId: row.id,
@@ -110,7 +146,12 @@ export interface PeriodKeeper {
     now: Date,
     adminUserId?: string,
   ): Promise<SavedPeriod>;
-  remove(creatorId: string, contractId: string, now: Date): Promise<void>;
+  remove(
+    creatorId: string,
+    contractId: string,
+    now: Date,
+    adminUserId?: string,
+  ): Promise<void>;
 }
 
 /**
@@ -121,7 +162,12 @@ export interface PeriodKeeper {
  */
 @Injectable()
 export class ContractPeriodsService implements PeriodKeeper {
-  constructor(@Inject(PrismaService) private readonly prisma: PeriodsClient) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PeriodsClient,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
+  ) {}
 
   create(
     creatorId: string,
@@ -142,6 +188,9 @@ export class ContractPeriodsService implements PeriodKeeper {
           contents: { create: this.schedule(creator, terms, now, adminUserId) },
         },
         select: SAVED_SELECT,
+      });
+      await this.log(tx, 'contract_extended', creator, creatorId, row.id, adminUserId, {
+        newValues: termsForLog(terms),
       });
       return toSaved(row);
     });
@@ -184,19 +233,27 @@ export class ContractPeriodsService implements PeriodKeeper {
         },
         select: SAVED_SELECT,
       });
+      await this.log(tx, 'period_changed', creator, creatorId, contractId, adminUserId, {
+        oldValues: storedTermsForLog(period),
+        newValues: termsForLog(terms),
+      });
       return toSaved(row);
     });
   }
 
   /**
    * Deletes a period that has not started; its contents, their history and its empty invoice
-   * cascade with it. "Log Aktivitas" (AC 9) waits on the audit log store (PBI-23, 23.5): the
-   * deletion is to be recorded here, inside this transaction, once that store exists.
+   * cascade with it. The deletion is recorded in "Log Aktivitas" (AC 9) inside this transaction.
    */
-  remove(creatorId: string, contractId: string, now: Date): Promise<void> {
+  remove(
+    creatorId: string,
+    contractId: string,
+    now: Date,
+    adminUserId?: string,
+  ): Promise<void> {
     return this.prisma.$transaction(async (tx) => {
       const creator = await this.lockCreator(tx, creatorId);
-      await this.lockUnstarted(tx, creator, contractId, now, 'dihapus');
+      const period = await this.lockUnstarted(tx, creator, contractId, now, 'dihapus');
 
       if (creator.contracts.length === 1) {
         throw new ConflictException({
@@ -205,6 +262,28 @@ export class ContractPeriodsService implements PeriodKeeper {
         });
       }
       await tx.contracts.delete({ where: { id: contractId } });
+      await this.log(tx, 'period_deleted', creator, creatorId, contractId, adminUserId, {
+        oldValues: storedTermsForLog(period),
+      });
+    });
+  }
+
+  // On the write's own transaction, so a period never changes without its entry (OWASP A09:2025).
+  private async log(
+    tx: PeriodsTransaction,
+    action: AuditAction,
+    creator: CreatorPeriods,
+    creatorId: string,
+    contractId: string,
+    adminUserId: string | undefined,
+    values: { oldValues?: Record<string, unknown>; newValues?: Record<string, unknown> },
+  ): Promise<void> {
+    await this.audit.record(tx, {
+      actor: await this.audit.actorOf(tx, adminUserId),
+      action,
+      target: { id: contractId, label: joinName(creator) },
+      creatorId,
+      ...values,
     });
   }
 

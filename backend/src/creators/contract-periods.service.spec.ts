@@ -369,6 +369,10 @@ describe('ContractPeriodsService.update', () => {
             id: true,
             start_date: true,
             end_date: true,
+            contract_type: true,
+            days_between: true,
+            content_quota: true,
+            fixed_rate: true,
             contents: {
               where: { type: 'specific' },
               select: { name: true, deadline: true },
