@@ -207,4 +207,68 @@ describe('AuditLogger', () => {
       start: '2027-01-01T00:00:00.000Z',
     });
   });
+
+  describe('actorOf', () => {
+    function usersReturning(user: unknown) {
+      const findUnique = vi.fn().mockResolvedValue(user);
+      return { findUnique, tx: { users: { findUnique } } };
+    }
+
+    it.each([undefined, null])(
+      'is "Sistem" when no user is behind the action (%s), reading nothing',
+      async (userId) => {
+        const { findUnique, tx } = usersReturning(null);
+
+        await expect(logger.actorOf(tx, userId)).resolves.toBe(SYSTEM_ACTOR);
+        expect(findUnique).not.toHaveBeenCalled();
+      },
+    );
+
+    it('names an Admin with their name and role', async () => {
+      const { tx } = usersReturning({
+        name: 'Rani',
+        email: 'rani@example.com',
+        admin_role: 'super_admin',
+      });
+
+      await expect(logger.actorOf(tx, ADMIN.userId)).resolves.toEqual(ADMIN);
+    });
+
+    it('names a user without a name by their email', async () => {
+      const { tx } = usersReturning({
+        name: null,
+        email: 'rani@example.com',
+        admin_role: 'admin',
+      });
+
+      await expect(logger.actorOf(tx, ADMIN.userId)).resolves.toEqual({
+        userId: ADMIN.userId,
+        name: 'rani@example.com',
+        role: 'admin',
+      });
+    });
+
+    it('reads a user without an Admin role as a creator', async () => {
+      const { tx } = usersReturning({
+        name: null,
+        email: 'rangga@example.com',
+        admin_role: null,
+      });
+
+      await expect(logger.actorOf(tx, ADMIN.userId)).resolves.toMatchObject({
+        role: 'creator',
+      });
+    });
+
+    // A person acted, so the entry must still point at them and never read as "Sistem".
+    it('keeps the id of a user who cannot be read, under "Admin"', async () => {
+      const { tx } = usersReturning(null);
+
+      await expect(logger.actorOf(tx, ADMIN.userId)).resolves.toEqual({
+        userId: ADMIN.userId,
+        name: 'Admin',
+        role: 'admin',
+      });
+    });
+  });
 });
