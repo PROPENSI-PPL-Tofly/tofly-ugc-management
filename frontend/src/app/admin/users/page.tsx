@@ -1,4 +1,5 @@
 import { AdminUserTable } from "@/components/admin-users/admin-user-table";
+import { AdminUserFilters } from "@/components/admin-users/admin-user-filters";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
@@ -57,6 +58,7 @@ export default async function AdminUsersPage({
       ) : null}
 
       <Panel>
+        <AdminUserFilters />
         {result ? (
           <>
             <AdminUserTable

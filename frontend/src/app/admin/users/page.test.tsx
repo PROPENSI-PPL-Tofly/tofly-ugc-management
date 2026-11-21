@@ -10,10 +10,12 @@ class NotFound extends Error {}
 vi.mock("@/lib/admin-users.server", () => ({ fetchAdminUsers: vi.fn() }));
 vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
 
+let pageSearchParams = new URLSearchParams();
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/admin/users",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => pageSearchParams,
   notFound: () => {
     throw new NotFound();
   },
@@ -25,6 +27,12 @@ vi.mock("next/link", async (importOriginal) => {
 });
 
 async function renderPage(params: Record<string, string | string[] | undefined> = {}) {
+  pageSearchParams = new URLSearchParams(
+    Object.entries(params).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? (value[0] ?? "") : (value ?? ""),
+    ]),
+  );
   render(await AdminUsersPage({ searchParams: Promise.resolve(params) }));
 }
 
