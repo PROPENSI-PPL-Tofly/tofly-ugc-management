@@ -27,10 +27,10 @@ describe("Pengguna Admin's table", () => {
     );
 
     const rows = within(screen.getByRole("table")).getAllByRole("row");
-    // The header plus one row per admin.
+    // The header plus one row per admin: six facts and one actions cell.
     expect(rows).toHaveLength(3);
     for (const row of rows.slice(1)) {
-      expect(within(row).getAllByRole("cell")).toHaveLength(6);
+      expect(within(row).getAllByRole("cell")).toHaveLength(7);
     }
   });
 

@@ -17,6 +17,10 @@ import {
   type AdminStatus,
   type AdminUser,
 } from "@/lib/admin-users";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { AdminRowActions } from "./admin-row-actions";
+import { useAdminConfirmation } from "./use-admin-confirmation";
 import Link from "next/link";
 
 const HEAD = "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";
@@ -95,6 +99,9 @@ export function AdminUserTable({
   filtered?: boolean;
 }) {
   const { replaceQuery } = useUrlQuery();
+  const router = useRouter();
+  const { show, toast } = useToast();
+  const { withConfirmation, prompt } = useAdminConfirmation();
 
   if (users.length === 0) {
     return (
@@ -107,8 +114,9 @@ export function AdminUserTable({
   }
 
   return (
-    <ScrollFrame>
-      <table role="table" className="w-full border-collapse max-lg:block">
+    <>
+      <ScrollFrame>
+        <table role="table" className="w-full border-collapse max-lg:block">
         <caption className="sr-only">Daftar admin beserta peran dan statusnya</caption>
 
         <thead role="rowgroup" className="max-lg:sr-only">
@@ -118,6 +126,9 @@ export function AdminUserTable({
                 {column}
               </th>
             ))}
+            <th role="columnheader" scope="col" className={HEAD}>
+              <span className="sr-only">Aksi</span>
+            </th>
           </tr>
         </thead>
 
@@ -143,11 +154,22 @@ export function AdminUserTable({
                 <td className={`${CELL} whitespace-nowrap text-ink-2`}>
                   {formatJakartaDay(user.createdAt)}
                 </td>
+                <AdminRowActions
+                  user={user}
+                  withConfirmation={withConfirmation}
+                  onChanged={(message) => {
+                    show(message);
+                    router.refresh();
+                  }}
+                />
               </tr>
             );
           })}
         </tbody>
-      </table>
-    </ScrollFrame>
+        </table>
+      </ScrollFrame>
+      {prompt}
+      {toast}
+    </>
   );
 }

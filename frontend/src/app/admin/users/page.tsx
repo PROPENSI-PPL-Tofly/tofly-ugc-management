@@ -1,5 +1,6 @@
 import { AdminUserTable } from "@/components/admin-users/admin-user-table";
 import { AdminUserFilters } from "@/components/admin-users/admin-user-filters";
+import { AddAdminTrigger } from "@/components/admin-users/add-admin-trigger";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
@@ -55,7 +56,7 @@ export default async function AdminUsersPage({
   const retryHref = returnTo ? `${ADMIN_USERS_PATH}?${returnTo}` : ADMIN_USERS_PATH;
 
   return (
-    <AppShell role="super_admin" title="Pengguna Admin">
+    <AppShell role="super_admin" title="Pengguna Admin" action={<AddAdminTrigger />}>
       {invalid !== null ? (
         // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
         <p
