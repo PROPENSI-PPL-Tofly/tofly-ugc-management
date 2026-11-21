@@ -9,6 +9,8 @@ import { calendarDay, list, listOf, pageNumber, single, type SearchParams } from
 // PBI-23 AC 17: rows per page.
 export const AUDIT_LOG_PAGE_SIZE = 20;
 
+export const AUDIT_LOG_PATH = "/admin/log-aktivitas";
+
 // The actor filter's value for entries no person made ("Sistem"), which have no user id.
 export const SYSTEM_ACTOR = "system";
 
@@ -117,6 +119,12 @@ export function buildAuditLogQuery(state: AuditLogState): Record<string, string>
   return query;
 }
 
+// The list's own address for this state, so a retry keeps the filters and the page.
+export function auditLogHref(state: AuditLogState): string {
+  const search = new URLSearchParams(buildAuditLogQuery(state)).toString();
+  return search ? `${AUDIT_LOG_PATH}?${search}` : AUDIT_LOG_PATH;
+}
+
 export type AuditActorRole = "super_admin" | "admin" | "creator" | "system";
 
 // One row of the table. The fields follow the audit_logs columns (SCRUM-295).
@@ -130,6 +138,14 @@ export interface AuditLogRow {
   oldValues: Record<string, unknown> | null;
   newValues: Record<string, unknown> | null;
   note: string | null;
+}
+
+export interface AuditLogList {
+  items: AuditLogRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 const ACTOR_ROLE_LABELS: Record<Exclude<AuditActorRole, "system">, string> = {
