@@ -214,6 +214,17 @@ describe('SuperAdminBootstrap.onApplicationBootstrap', () => {
     expect(JSON.stringify(log.warn.mock.calls)).not.toContain('dev@tofly.id');
   });
 
+  it('logs a thrown value that is no Error as unknown and lets the app start', async () => {
+    vi.stubEnv('SUPER_ADMIN_EMAIL', 'dev@tofly.id');
+    const { prisma, log, bootstrap } = setup();
+    prisma.users.findFirst.mockRejectedValue('dev@tofly.id');
+
+    await expect(bootstrap.onApplicationBootstrap()).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(
+      'First Super Admin was not set (unknown error)',
+    );
+  });
+
   it('logs an invalid SUPER_ADMIN_EMAIL and lets the app start', async () => {
     vi.stubEnv('SUPER_ADMIN_EMAIL', 'not-an-email');
     const { prisma, log, bootstrap } = setup();
