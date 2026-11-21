@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type {
   performance_metric,
@@ -201,13 +202,18 @@ export class RateFormulaService {
       await tx.performance_bonus_metrics.createMany({ data: metrics });
       await tx.performance_bonus_tiers.createMany({ data: tiers });
       const after = await this.readFrom(tx);
-      // In this transaction, so a formula is never saved without its entry (PBI-23, OWASP A09:2025).
-      await this.audit.recordBy(tx, adminUserId, {
-        action: 'rate_formula_changed',
-        target: { label: 'Formula Rate' },
-        oldValues: auditValues(before),
-        newValues: auditValues(after),
-      });
+      const oldValues = auditValues(before);
+      const newValues = auditValues(after);
+      // In this transaction, so a changed formula is never saved without its entry (PBI-23, OWASP
+      // A09:2025). A save that changed nothing is not a change to record.
+      if (!isDeepStrictEqual(oldValues, newValues)) {
+        await this.audit.recordBy(tx, adminUserId, {
+          action: 'rate_formula_changed',
+          target: { label: 'Formula Rate' },
+          oldValues,
+          newValues,
+        });
+      }
       return after;
     })) as RateFormulaView;
   }
