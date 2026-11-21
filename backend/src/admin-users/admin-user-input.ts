@@ -16,8 +16,10 @@ export interface NewAdmin {
   role: AdminRole;
 }
 
-export interface AdminRename {
+/** "Ubah Admin": the name, and the role when the form sends one. */
+export interface AdminChange {
   name: string;
+  role?: AdminRole;
 }
 
 type Errors = Partial<Record<'name' | 'email' | 'role', string>>;
@@ -63,10 +65,25 @@ export function checkNewAdmin(input: unknown): NewAdmin {
   return { name, email, role };
 }
 
-/** "Ubah Admin" changes the name; the email never changes (a new address is a new Admin). */
-export function checkAdminRename(input: unknown): AdminRename {
+/** "Ubah Admin" changes the name and the role; the email never changes (a new address is a new Admin). */
+export function checkAdminChange(input: unknown): AdminChange {
+  const body = bodyOf(input);
   const errors: Errors = {};
-  const name = checkName(bodyOf(input).name, errors);
+  const name = checkName(body.name, errors);
+  const role = body.role === undefined ? undefined : checkRole(body.role, errors);
   refuseIfAny(errors);
-  return { name };
+  return role === undefined ? { name } : { name, role };
+}
+
+/** The six digits of an email confirmation code. */
+export function checkConfirmationCode(input: unknown): string {
+  const code = bodyOf(input).code;
+  const digits = typeof code === 'string' ? code.trim() : '';
+  if (!/^\d{6}$/.test(digits)) {
+    throw new UnprocessableEntityException({
+      message: 'Kode tidak valid',
+      errors: { code: 'Kode harus 6 angka' },
+    });
+  }
+  return digits;
 }

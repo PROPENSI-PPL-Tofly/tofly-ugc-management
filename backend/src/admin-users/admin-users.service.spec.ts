@@ -529,7 +529,7 @@ describe('AdminUsersService.update, the role', () => {
 
   it('lets the Super Admin rename themselves', async () => {
     const { users, service } = setup();
-    users.findUnique.mockResolvedValue({ ...SUPER_ROW, id: ACTOR, name: 'Gunta', ...ACTOR_ROW });
+    users.findUnique.mockResolvedValue({ ...SUPER_ROW, id: ACTOR, ...ACTOR_ROW });
     users.update.mockResolvedValue({ ...SUPER_ROW, id: ACTOR, name: 'Gunta S.' });
 
     await expect(

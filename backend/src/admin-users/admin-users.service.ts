@@ -3,6 +3,8 @@
 // A09:2025). Accounts are never deleted, so names on finalized invoices stay.
 
 import {
+  ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -19,7 +21,7 @@ import {
 import type { AdminRole } from '../auth/google/ports.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { AdminRename, NewAdmin } from './admin-user-input.js';
+import type { AdminChange, NewAdmin } from './admin-user-input.js';
 import type {
   AdminUserDto,
   AdminUserListResponse,
@@ -58,6 +60,7 @@ export interface AdminUsersTable {
 
 export type AdminUsersTransaction = { users: AdminUsersTable } & AuditWriter &
   AuditActorReader & {
+    app_sessions: { deleteMany(args: { where: { userId: string } }): Promise<unknown> };
     $queryRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<unknown>;
   };
 
@@ -86,6 +89,24 @@ function emailTaken(): UnprocessableEntityException {
     errors: { email: 'Email sudah dipakai' },
   });
 }
+
+/** A role change, making someone Super Admin and a deactivation wait for the email code (AC). */
+function confirmationRequired(): ForbiddenException {
+  return new ForbiddenException({
+    code: 'CONFIRMATION_REQUIRED',
+    message: 'Konfirmasi dengan kode yang dikirim ke email kamu dulu.',
+  });
+}
+
+function invalidRole(message: string): UnprocessableEntityException {
+  return new UnprocessableEntityException({
+    message: 'Data admin tidak valid',
+    errors: { role: message },
+  });
+}
+
+const OWN_ROLE = 'Kamu tidak bisa mengubah role akunmu sendiri.';
+const LAST_SUPER_ADMIN = 'Minimal harus ada satu Super Admin';
 
 function isDuplicate(error: unknown): boolean {
   return (
@@ -165,7 +186,13 @@ export class AdminUsersService {
   }
 
   /** "Tambah Admin": the new Admin can sign in at once, with Google or an email code (PBI-39). */
-  async create(input: NewAdmin, actorId: string): Promise<AdminUserDto> {
+  async create(
+    input: NewAdmin,
+    actorId: string,
+    confirmed = false,
+  ): Promise<AdminUserDto> {
+    // Adding a Super Admin is making someone Super Admin, so it waits for the code too.
+    if (input.role === 'super_admin' && !confirmed) throw confirmationRequired();
     try {
       const row = await this.prisma.$transaction(async (tx) => {
         // Any user's email, a creator's or a deactivated Admin's too: one address, one account.
@@ -200,25 +227,98 @@ export class AdminUsersService {
     }
   }
 
-  /** "Ubah Admin": the name. The email never changes; a new address is a new Admin. */
-  async rename(
+  /**
+   * "Ubah Admin": the name, and the role. The email never changes; a new address is a new Admin.
+   * A role change needs this session's email-code confirmation, never applies to the Super Admin's
+   * own role, never leaves no active Super Admin, and ends the Admin's sessions so the new role
+   * applies on their next sign-in (OWASP A01:2025).
+   */
+  async update(
     id: string,
-    { name }: AdminRename,
+    change: AdminChange,
     actorId: string,
+    confirmed: boolean,
   ): Promise<AdminUserDto> {
+    // The actor passed SuperAdminGuard, so any other role for themselves is a change.
+    if (id === actorId && change.role !== undefined && change.role !== 'super_admin') {
+      throw invalidRole(OWN_ROLE);
+    }
     const row = await this.prisma.$transaction(async (tx) => {
-      const target = await this.lockAdmin(tx, id);
-      if (target.name === name) return target;
-      const renamed = await tx.users.update({
+      const supers =
+        change.role === undefined ? [] : await this.lockSuperAdmins(tx, id);
+      const target =
+        change.role === undefined
+          ? await this.lockAdmin(tx, id)
+          : await this.readAdmin(tx, id);
+      const renames = target.name !== change.name;
+      const role = change.role ?? target.admin_role!;
+      const changesRole = role !== target.admin_role;
+      if (!renames && !changesRole) return target;
+
+      if (changesRole) {
+        if (!confirmed) throw confirmationRequired();
+        if (this.isLastActiveSuperAdmin(target, supers)) {
+          throw invalidRole(LAST_SUPER_ADMIN);
+        }
+      }
+      const updated = await tx.users.update({
         where: { id },
-        data: { name },
+        data: changesRole ? { name: change.name, admin_role: role } : { name: change.name },
         select: ADMIN_USER_SELECT,
       });
-      await this.record(tx, actorId, 'admin_changed', renamed, {
-        oldValues: { name: target.name },
-        newValues: { name },
+      if (changesRole) await tx.app_sessions.deleteMany({ where: { userId: id } });
+      await this.record(tx, actorId, 'admin_changed', updated, {
+        oldValues: {
+          ...(renames && { name: target.name }),
+          ...(changesRole && { role: target.admin_role }),
+        },
+        newValues: {
+          ...(renames && { name: change.name }),
+          ...(changesRole && { role }),
+        },
       });
-      return renamed;
+      return updated;
+    });
+    return adminUserDto(row, actorId);
+  }
+
+  /**
+   * "Nonaktifkan": after the email code, ends the Admin's sessions at once and blocks sign-in. Never
+   * the Super Admin themselves, and never the last active Super Admin (OWASP A01:2025).
+   */
+  async deactivate(
+    id: string,
+    actorId: string,
+    confirmed: boolean,
+  ): Promise<AdminUserDto> {
+    if (id === actorId) {
+      throw new ConflictException({
+        code: 'CANNOT_DEACTIVATE_SELF',
+        message: 'Kamu tidak bisa mengubah status akunmu sendiri.',
+      });
+    }
+    if (!confirmed) throw confirmationRequired();
+    const row = await this.prisma.$transaction(async (tx) => {
+      const supers = await this.lockSuperAdmins(tx, id);
+      const target = await this.readAdmin(tx, id);
+      if (!target.is_active) return target;
+      if (this.isLastActiveSuperAdmin(target, supers)) {
+        throw new ConflictException({
+          code: 'LAST_SUPER_ADMIN',
+          message: LAST_SUPER_ADMIN,
+        });
+      }
+      const deactivated = await tx.users.update({
+        where: { id },
+        data: { is_active: false },
+        select: ADMIN_USER_SELECT,
+      });
+      await tx.app_sessions.deleteMany({ where: { userId: id } });
+      await this.record(tx, actorId, 'admin_deactivated', deactivated, {
+        oldValues: { status: 'active' },
+        newValues: { status: 'inactive' },
+      });
+      return deactivated;
     });
     return adminUserDto(row, actorId);
   }
@@ -251,6 +351,40 @@ export class AdminUsersService {
     id: string,
   ): Promise<TargetRow> {
     await tx.$queryRaw`select id from users where id = ${id}::uuid for update`;
+    return this.readAdmin(tx, id);
+  }
+
+  /**
+   * Locks every active Super Admin and the target, in id order, before anything is read, so two
+   * Super Admins demoting or deactivating each other wait for one another instead of both seeing
+   * a second Super Admin, and cannot deadlock. Answers the active Super Admins as the lock found
+   * them.
+   */
+  protected async lockSuperAdmins(
+    tx: AdminUsersTransaction,
+    id: string,
+  ): Promise<string[]> {
+    const rows = (await tx.$queryRaw`
+      select id, (admin_role = 'super_admin' and is_active) as active_super
+      from users
+      where (admin_role = 'super_admin' and is_active) or id = ${id}::uuid
+      order by id for update`) as { id: string; active_super: boolean }[];
+    return rows.filter((row) => row.active_super).map((row) => row.id);
+  }
+
+  /** Whether taking this Admin's Super Admin access away would leave no active Super Admin. */
+  protected isLastActiveSuperAdmin(target: TargetRow, supers: string[]): boolean {
+    return (
+      target.admin_role === 'super_admin' &&
+      target.is_active &&
+      !supers.some((superId) => superId !== target.id)
+    );
+  }
+
+  protected async readAdmin(
+    tx: AdminUsersTransaction,
+    id: string,
+  ): Promise<TargetRow> {
     const target = (await tx.users.findUnique({
       where: { id },
       select: { ...ADMIN_USER_SELECT, is_admin: true },
