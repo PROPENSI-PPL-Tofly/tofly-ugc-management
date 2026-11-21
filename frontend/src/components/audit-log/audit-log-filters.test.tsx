@@ -98,7 +98,7 @@ describe("AuditLogFilters", () => {
 
     openPill("Aktor");
 
-    expect(offered()).toEqual(["Rina Wijaya", "Sistem"]);
+    expect(offered()).toEqual(["Semua", "Rina Wijaya", "Sistem"]);
   });
 
   it("writes a picked actor to the address", () => {
@@ -115,7 +115,7 @@ describe("AuditLogFilters", () => {
 
     openPill("Kategori");
 
-    expect(offered()).toEqual(["Akses Admin", "Creator & Kontrak", "Invoice & Pembayaran", "Pengaturan"]);
+    expect(offered()).toEqual(["Semua", "Akses Admin", "Creator & Kontrak", "Invoice & Pembayaran", "Pengaturan"]);
   });
 
   it("narrows the actions by the picked category", () => {
@@ -123,7 +123,7 @@ describe("AuditLogFilters", () => {
 
     openPill("Aksi");
 
-    expect(offered()).toEqual(["Ubah Formula Rate", "Ubah Buffer Deadline"]);
+    expect(offered()).toEqual(["Semua", "Ubah Formula Rate", "Ubah Buffer Deadline"]);
   });
 
   it("offers every action while no category is picked", () => {
@@ -131,7 +131,8 @@ describe("AuditLogFilters", () => {
 
     openPill("Aksi");
 
-    expect(offered()).toHaveLength(19);
+    // "Semua" and the 19 actions.
+    expect(offered()).toHaveLength(20);
   });
 
   // One navigation, so no address with a hidden action on it is ever opened.
@@ -178,6 +179,31 @@ describe("AuditLogFilters", () => {
     for (const value of ["1 Nov 2026", "10 Nov 2026", "Pengaturan", "Ubah Buffer Deadline", "Salsa Amelia"]) {
       expect(screen.getAllByText(value, { exact: false }).length).toBeGreaterThan(0);
     }
+  });
+
+  it.each([
+    ["Dari: 1 Nov 2026", { from: "2026-11-01" }, "from", ""],
+    ["Sampai: 10 Nov 2026", { to: "2026-11-10" }, "to", ""],
+    ["Aktor: Sistem", { actor: `${ADMIN_ID},system` }, "actor", ADMIN_ID],
+    ["Aksi: Ubah Buffer Deadline", { action: "admin_added,buffer_changed" }, "action", "admin_added"],
+    ["Creator: Salsa Amelia", { creator: CREATOR_ID }, "creator", ""],
+  ])("takes off only the chip %s", (chip, values, key, left) => {
+    renderBar(values);
+
+    fireEvent.click(screen.getByRole("button", { name: `Hapus filter ${chip}` }));
+
+    expect(hook.current.setParam).toHaveBeenCalledWith(key, left);
+  });
+
+  it("drops the actions of a category whose chip is taken off, in the same change", () => {
+    renderBar({ category: "akses_admin,pengaturan", action: "admin_added,buffer_changed" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus filter Kategori: Akses Admin" }));
+
+    expect(hook.current.setParams).toHaveBeenCalledWith({
+      category: "pengaturan",
+      action: "buffer_changed",
+    });
   });
 
   it("offers no reset while nothing is filtered", () => {
