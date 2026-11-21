@@ -104,6 +104,11 @@ export interface InvoiceView
    * its snapshot, or null when that snapshot predates keeping it.
    */
   formula: RateFormula | null;
+  /**
+   * The admin who finalized it, by name else email (PBI-23, 23.10); null before Finalize and on
+   * an invoice finalized before the admin was recorded.
+   */
+  finalizedBy: string | null;
 }
 
 /** The admin's view of one invoice: the breakdown popups and the Rincian panel. */

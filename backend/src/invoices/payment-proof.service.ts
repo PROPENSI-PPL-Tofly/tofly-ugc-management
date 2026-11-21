@@ -8,6 +8,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminName,
+} from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   FILE_STORE,
@@ -15,7 +19,7 @@ import {
   type OpenedFile,
 } from '../storage/file-store.js';
 import type {
-  PaymentProofDto,
+  SavedPaymentProofDto,
   UploadedPaymentProofDto,
 } from './dto/invoice-payment.dto.js';
 import { invoiceState, notAwaitingProof } from './invoice-lifecycle.js';
@@ -35,7 +39,7 @@ export interface PaymentProofReader {
   forContracts(
     contractIds: readonly string[],
     audience: ProofAudience,
-  ): Promise<Map<string, PaymentProofDto>>;
+  ): Promise<Map<string, SavedPaymentProofDto>>;
 }
 
 /** Nest token for a fixed object-key factory; nothing provides it outside tests. */
@@ -186,7 +190,7 @@ export class PaymentProofService implements PaymentProofReader {
   async forContracts(
     contractIds: readonly string[],
     audience: ProofAudience,
-  ): Promise<Map<string, PaymentProofDto>> {
+  ): Promise<Map<string, SavedPaymentProofDto>> {
     if (contractIds.length === 0) return new Map();
 
     // Only the columns shown: no object key, and never the file.
@@ -196,6 +200,7 @@ export class PaymentProofService implements PaymentProofReader {
         file_name: true,
         uploaded_at: true,
         invoices: { select: { contract_id: true } },
+        users: { select: ADMIN_ACCOUNT_SELECT },
       },
     });
 
@@ -206,6 +211,7 @@ export class PaymentProofService implements PaymentProofReader {
           fileName: proof.file_name,
           url: proofUrl(proof.invoices.contract_id, audience),
           uploadedAt: proof.uploaded_at.toISOString(),
+          uploadedBy: adminName(proof.users),
         },
       ]),
     );

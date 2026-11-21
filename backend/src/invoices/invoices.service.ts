@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminLabel,
+} from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceConfirmationFields } from './dto/invoice-confirmation.dto.js';
 import type {
@@ -103,6 +107,7 @@ interface SavedListing {
 /** A saved invoice with its adjustments, snapshot and the creator's moves, for one invoice view. */
 interface SavedLifecycle extends SavedInvoice {
   confirmations: InvoiceConfirmationFields;
+  finalizedBy: string | null;
 }
 
 /** Neither of the creator's moves: no saved invoice, or one they have not moved yet. */
@@ -311,6 +316,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         formula: lifecycle?.snapshot
           ? (lifecycle.snapshot.formula ?? null)
           : formula,
+        finalizedBy: lifecycle?.finalizedBy ?? null,
       };
     });
   }
@@ -407,6 +413,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         snapshot: true,
         acknowledged_at: true,
         paid_at: true,
+        finalizer: { select: ADMIN_ACCOUNT_SELECT },
         adjustments: {
           select: INVOICE_ADJUSTMENT_SELECT,
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
@@ -421,6 +428,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         adjustments: invoice.adjustments.map(adjustmentDto),
         snapshot: savedSnapshot(invoice.snapshot),
         confirmations: confirmationsOf(invoice),
+        finalizedBy: adminLabel(invoice.finalizer),
       });
     }
 
