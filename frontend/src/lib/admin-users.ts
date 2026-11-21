@@ -31,3 +31,29 @@ export function parseAdminUserPage(params: SearchParams): {
 export function parseAdminUserFilters(params: SearchParams): AdminUserFilters {
   return { q: single(params.q).trim() };
 }
+
+/** Ten rows a page, the PBI's own count. */
+export const ADMIN_USERS_PAGE_SIZE = 10;
+
+/** The API's query: its own `search` name, the page, and the fixed page size. */
+export function buildAdminUsersQuery(filters: AdminUserFilters, page: number): string {
+  const query = new URLSearchParams();
+  if (filters.q) query.set("search", filters.q);
+  query.set("page", String(page));
+  query.set("pageSize", String(ADMIN_USERS_PAGE_SIZE));
+  return query.toString();
+}
+
+/**
+ * The page's own address, for its page links and its retry: the app's `q`, the page only when
+ * it is not the first, and no defaults.
+ */
+export function adminUserQuery(
+  filters: AdminUserFilters,
+  page: number,
+): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (filters.q) query.q = filters.q;
+  if (page > 1) query.page = String(page);
+  return query;
+}
