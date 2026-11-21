@@ -242,7 +242,7 @@ describe("invoiceActivity", () => {
     );
 
     expect(entries.map((entry) => entry.text)).toEqual([
-      "Admin memfinalisasi invoice",
+      "Admin memfinalisasi invoice · Rp550.000",
       "Kamu meng-acknowledge invoice",
       "Admin mengirim bukti bayar",
       "Kamu mengonfirmasi pembayaran diterima",
@@ -272,9 +272,71 @@ describe("invoiceActivity", () => {
     );
 
     expect(entries.map((entry) => entry.text)).toEqual([
-      "Sinta Dewi memfinalisasi invoice",
+      "Sinta Dewi memfinalisasi invoice · Rp550.000",
       "bima.admin@tofly.id mengirim bukti bayar",
     ]);
+  });
+
+  // The prototype logs `Admin memfinalisasi invoice · ${fmtMoney(p.snapshot.total)}` once, at
+  // Finalize, so an adjustment added afterwards moves the invoice's total but never this line.
+  describe("the total on the finalized step", () => {
+    const FINALIZED_AT = "2026-12-02T02:00:00Z";
+    const adjustment = (id: string, amount: number, createdAt: string) => ({
+      id,
+      amount,
+      reason: "Penyesuaian",
+      createdAt,
+    });
+    const finalizedText = (overrides: Partial<CreatorInvoice>) =>
+      invoiceActivity(
+        invoice({ status: "finalized", reachedAt: { ...NONE_REACHED, finalized: FINALIZED_AT }, ...overrides }),
+      ).find((entry) => entry.id === "finalized")?.text;
+
+    it("counts an adjustment added before Finalize", () => {
+      expect(
+        finalizedText({
+          adjustments: [adjustment("before", 50000, "2026-12-01T02:00:00Z")],
+          totalAmount: 600000,
+        }),
+      ).toBe("Admin memfinalisasi invoice · Rp600.000");
+    });
+
+    it("counts an adjustment saved at the very moment of Finalize", () => {
+      expect(
+        finalizedText({ adjustments: [adjustment("same", 50000, FINALIZED_AT)], totalAmount: 600000 }),
+      ).toBe("Admin memfinalisasi invoice · Rp600.000");
+    });
+
+    it("keeps the total it was finalized at when an adjustment comes one second later", () => {
+      expect(
+        finalizedText({
+          adjustments: [adjustment("after", -75000, "2026-12-02T02:00:01Z")],
+          totalAmount: 475000,
+        }),
+      ).toBe("Admin memfinalisasi invoice · Rp550.000");
+    });
+
+    it("counts a measured performance bonus", () => {
+      expect(finalizedText({ bonusAmount: 100000, totalAmount: 650000 })).toBe(
+        "Admin memfinalisasi invoice · Rp650.000",
+      );
+    });
+
+    it("says Rp0 when the penalty used the whole pay up", () => {
+      expect(finalizedText({ penaltyAmount: 900000, totalAmount: 0, floored: true })).toBe(
+        "Admin memfinalisasi invoice · Rp0",
+      );
+    });
+
+    it("stays at Rp0 when a later adjustment lifts a floored invoice above zero", () => {
+      expect(
+        finalizedText({
+          penaltyAmount: 900000,
+          adjustments: [adjustment("after", 300000, "2026-12-03T02:00:00Z")],
+          totalAmount: 100000,
+        }),
+      ).toBe("Admin memfinalisasi invoice · Rp0");
+    });
   });
 
   it("weaves the comments in among the steps, oldest first", () => {

@@ -47,7 +47,7 @@ describe("InvoiceActivity", () => {
 
     const items = within(screen.getByRole("list", { name: "Aktivitas & komentar" })).getAllByRole("listitem");
     expect(items).toHaveLength(3);
-    expect(items[0]).toHaveTextContent("Admin memfinalisasi invoice");
+    expect(items[0]).toHaveTextContent("Admin memfinalisasi invoice · Rp550.000");
     expect(items[0]).toHaveTextContent("1 Des 2026");
     expect(items[1]).toHaveTextContent("Admin mengirim bukti bayar");
     expect(items[2]).toHaveTextContent("budi.admin@tofly.id");

@@ -174,7 +174,7 @@ describe("ADMIN_EVENT_TEXT", () => {
     );
 
     expect(invoiceActivity(view, ADMIN_EVENT_TEXT).map((entry) => entry.text)).toEqual([
-      "Admin memfinalisasi invoice",
+      "Admin memfinalisasi invoice · Rp2.500.000",
       "Creator meng-acknowledge invoice",
     ]);
   });
@@ -202,7 +202,7 @@ describe("ADMIN_EVENT_TEXT", () => {
     );
 
     expect(invoiceActivity(view, ADMIN_EVENT_TEXT).map((entry) => entry.text)).toEqual([
-      "Sinta Dewi memfinalisasi invoice",
+      "Sinta Dewi memfinalisasi invoice · Rp2.500.000",
       "Creator meng-acknowledge invoice",
       "Bima Santoso mengirim bukti bayar",
       "Creator mengonfirmasi pembayaran diterima",
@@ -223,7 +223,7 @@ describe("ADMIN_EVENT_TEXT", () => {
     );
 
     expect(invoiceActivity(view, ADMIN_EVENT_TEXT).map((entry) => entry.text)).toEqual([
-      "Sinta Dewi memfinalisasi invoice",
+      "Sinta Dewi memfinalisasi invoice · Rp2.500.000",
       "Bima Santoso menambah penyesuaian: Koreksi kelebihan tagihan (−Rp75.000)",
     ]);
   });

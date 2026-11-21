@@ -279,7 +279,7 @@ describe("InvoiceRincian", () => {
 
     expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toHaveAttribute("aria-selected", "true");
     const activity = within(screen.getByRole("list", { name: "Aktivitas invoice" }));
-    expect(activity.getByText("Admin memfinalisasi invoice")).toBeInTheDocument();
+    expect(activity.getByText("Admin memfinalisasi invoice · Rp350.000")).toBeInTheDocument();
     expect(activity.getByText("30 Agu 2026")).toBeInTheDocument();
     expect(screen.getByText("Utas komentar")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Total invoice" })).toBeNull();
