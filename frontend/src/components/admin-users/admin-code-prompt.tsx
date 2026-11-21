@@ -63,9 +63,12 @@ export function AdminCodePrompt({
     }
   }, [action]);
 
-  // One code per opening; a later one is the resend button's work.
+  // One code per opening; a later one is the resend button's work. The request is queued a tick
+  // after mounting so the opening render settles before it flips the prompt's busy state.
   useEffect(() => {
-    void ask();
+    queueMicrotask(() => {
+      void ask();
+    });
   }, [ask]);
 
   async function submit(event: FormEvent) {
