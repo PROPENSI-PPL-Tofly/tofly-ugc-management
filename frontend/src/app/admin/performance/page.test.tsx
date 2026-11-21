@@ -75,13 +75,16 @@ describe("Performa Konten page", () => {
     expect(screen.getByRole("navigation", { name: "Menu admin" })).toBeInTheDocument();
   });
 
-  it("offers Sinkronkan Sekarang for the page's links in the list's band (SCRUM-285)", async () => {
+  it("offers Sinkronkan Sekarang for the page's links beside the page title (SCRUM-285)", async () => {
     mockedLinks.mockResolvedValue(answered());
 
     await renderPage();
 
-    const band = screen.getByRole("heading", { level: 2, name: "Link Konten" }).parentElement as HTMLElement;
-    expect(within(band).getByRole("button", { name: "Sinkronkan Sekarang" })).toBeInTheDocument();
+    // The list lost its "Link Konten" band in #210, so the page's own control sits in the header,
+    // as Tambah Creator does on Kreator.
+    const header = screen.getByRole("banner");
+    expect(within(header).getByRole("heading", { level: 1, name: "Performa Konten" })).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Sinkronkan Sekarang" })).toBeInTheDocument();
   });
 
   it("offers no sync when the page shows no link", async () => {
