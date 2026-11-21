@@ -72,6 +72,14 @@ function fakeClient(
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       createMany: vi.fn().mockResolvedValue({ count: tierRows.length }),
     },
+    users: {
+      findUnique: vi.fn().mockResolvedValue({
+        name: 'Rani',
+        email: 'rani@example.com',
+        admin_role: 'super_admin',
+      }),
+    },
+    audit_logs: { create: vi.fn().mockResolvedValue({}) },
     $transaction: vi.fn(async (work: (tx: unknown) => Promise<unknown>) =>
       work(client),
     ),
@@ -258,6 +266,97 @@ describe('RateFormulaService', () => {
       const service = new RateFormulaService(client);
 
       await expect(service.replace(FORMULA, ADMIN_USER_ID)).rejects.toBe(failure);
+    });
+
+    // PBI-23 (SCRUM-295): "Pengaturan" in Log Aktivitas (OWASP A09:2025).
+    describe('Log Aktivitas', () => {
+      it('records the old and new formula and who saved it, after the formula is written', async () => {
+        const client = saved();
+        client.rate_formula.findUnique.mockResolvedValueOnce({
+          ...FORMULA_ROW,
+          specific_bonus: 90000,
+        });
+        const service = new RateFormulaService(client);
+
+        await service.replace(FORMULA, ADMIN_USER_ID);
+
+        expect(client.$transaction).toHaveBeenCalledTimes(1);
+        expect(client.users.findUnique).toHaveBeenCalledWith({
+          where: { id: ADMIN_USER_ID },
+          select: { name: true, email: true, admin_role: true },
+        });
+        expect(client.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+          data: {
+            actor_user_id: ADMIN_USER_ID,
+            actor_name: 'Rani',
+            actor_role: 'super_admin',
+            category: 'pengaturan',
+            action: 'rate_formula_changed',
+            target_type: 'rate_formula',
+            target_id: null,
+            target_label: 'Formula Rate',
+            creator_id: null,
+            old_values: {
+              specificBonus: 90000,
+              latePenaltyPerDay: 50000,
+              maxPenaltyDays: 3,
+              performanceBonus: FORMULA.performanceBonus,
+            },
+            new_values: {
+              specificBonus: 100000,
+              latePenaltyPerDay: 50000,
+              maxPenaltyDays: 3,
+              performanceBonus: FORMULA.performanceBonus,
+            },
+            note: null,
+          },
+        });
+        expect(
+          client.audit_logs.create.mock.invocationCallOrder[0],
+        ).toBeGreaterThan(
+          client.performance_bonus_tiers.createMany.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('names an Admin who has no name by their email', async () => {
+        const client = saved();
+        client.users.findUnique.mockResolvedValue({
+          name: null,
+          email: 'rani@example.com',
+          admin_role: 'admin',
+        });
+        const service = new RateFormulaService(client);
+
+        await service.replace(FORMULA, ADMIN_USER_ID);
+
+        expect(client.audit_logs.create.mock.calls[0][0].data).toMatchObject({
+          actor_name: 'rani@example.com',
+          actor_role: 'admin',
+        });
+      });
+
+      it('records "Sistem" behind the local development stand-in', async () => {
+        const client = saved();
+        const service = new RateFormulaService(client);
+
+        await service.replace(FORMULA, undefined);
+
+        expect(client.users.findUnique).not.toHaveBeenCalled();
+        expect(client.audit_logs.create.mock.calls[0][0].data).toMatchObject({
+          actor_user_id: null,
+          actor_name: 'Sistem',
+          actor_role: 'system',
+        });
+      });
+
+      it('fails the save when the entry cannot be written, so the formula rolls back', async () => {
+        const client = saved();
+        const failure = new Error('log failed');
+        client.audit_logs.create.mockRejectedValue(failure);
+        const service = new RateFormulaService(client);
+
+        await expect(service.replace(FORMULA, ADMIN_USER_ID)).rejects.toBe(failure);
+      });
     });
   });
 });
