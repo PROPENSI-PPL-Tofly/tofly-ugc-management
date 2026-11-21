@@ -23,6 +23,10 @@ export interface SessionRepository {
     where: { idHash: string };
     data: { idleExpiresAt: Date };
   }): Promise<unknown>;
+  updateMany(args: {
+    where: { idHash: string };
+    data: { confirmedUntil: Date };
+  }): Promise<{ count: number }>;
   deleteMany(args: { where: { idHash: string } }): Promise<unknown>;
 }
 
@@ -139,6 +143,30 @@ export class AppSessionService {
       await this.sessions.deleteMany({ where: { idHash: sessionIdHash(id) } });
     }
     response.clearCookie(this.cookie.name, this.cookie.options);
+  }
+
+  /**
+   * Records that this session's Admin confirmed with an email code (PBI-23): a role change or a
+   * deactivation is let through until `until`. Only the session the id names, never the user's
+   * others. Answers false when the id names no session.
+   */
+  async confirm(id: unknown, until: Date): Promise<boolean> {
+    if (!validId(id)) return false;
+    const { count } = await this.sessions.updateMany({
+      where: { idHash: sessionIdHash(id) },
+      data: { confirmedUntil: until },
+    });
+    return count === 1;
+  }
+
+  /** Whether this session confirmed with an email code and the 15 minutes have not passed. */
+  async isConfirmed(id: unknown): Promise<boolean> {
+    if (!validId(id)) return false;
+    const row = (await this.sessions.findUnique({
+      where: { idHash: sessionIdHash(id) },
+    })) as { confirmedUntil?: Date | null } | null;
+    const until = row?.confirmedUntil;
+    return until instanceof Date && until.getTime() > this.now().getTime();
   }
 
   cookieName(): string {
