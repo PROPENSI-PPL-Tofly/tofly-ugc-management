@@ -1,4 +1,8 @@
-import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  HttpException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AdminUsersService } from './admin-users.service.js';
 
@@ -49,6 +53,7 @@ function setup() {
   const tx = {
     users,
     audit_logs: { create: vi.fn().mockResolvedValue({}) },
+    app_sessions: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
     $queryRaw: vi.fn().mockResolvedValue([]),
   };
   const prisma = {
@@ -274,13 +279,13 @@ describe('AdminUsersService.create', () => {
   });
 });
 
-describe('AdminUsersService.rename', () => {
+describe('AdminUsersService.update, the name', () => {
   it('changes the name under a row lock and records the old and new name', async () => {
     const { tx, users, service } = setup();
     targetIs(users, ROW);
     users.update.mockResolvedValue({ ...ROW, name: 'Sinta D.' });
 
-    await expect(service.rename('user-sinta', { name: 'Sinta D.' }, ACTOR)).resolves.toEqual({
+    await expect(service.update('user-sinta', { name: 'Sinta D.' }, ACTOR, false)).resolves.toEqual({
       ...DTO,
       name: 'Sinta D.',
     });
@@ -311,7 +316,7 @@ describe('AdminUsersService.rename', () => {
     targetIs(users, { ...ROW, name: null });
     users.update.mockResolvedValue(ROW);
 
-    await service.rename('user-sinta', { name: 'Sinta Dewi' }, ACTOR);
+    await service.update('user-sinta', { name: 'Sinta Dewi' }, ACTOR, false);
 
     expect(tx.audit_logs.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ old_values: { name: null } }),
@@ -322,7 +327,7 @@ describe('AdminUsersService.rename', () => {
     const { tx, users, service } = setup();
     targetIs(users, ROW);
 
-    await expect(service.rename('user-sinta', { name: 'Sinta Dewi' }, ACTOR)).resolves.toEqual(DTO);
+    await expect(service.update('user-sinta', { name: 'Sinta Dewi' }, ACTOR, false)).resolves.toEqual(DTO);
     expect(users.update).not.toHaveBeenCalled();
     expect(tx.audit_logs.create).not.toHaveBeenCalled();
   });
@@ -334,7 +339,7 @@ describe('AdminUsersService.rename', () => {
     const { users, service } = setup();
     targetIs(users, row);
 
-    const error = await refusal(service.rename('user-x', { name: 'A' }, ACTOR));
+    const error = await refusal(service.update('user-x', { name: 'A' }, ACTOR, false));
 
     expect(error).toBeInstanceOf(NotFoundException);
     expect((error as NotFoundException).getResponse()).toEqual({
@@ -397,5 +402,279 @@ describe('AdminUsersService.reactivate', () => {
     expect(tx.audit_logs.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ target_label: 'sinta@tofly.id' }),
     });
+  });
+});
+
+const SUPER_ROW = { ...ROW, admin_role: 'super_admin' as const };
+const CONFIRMATION_REQUIRED = {
+  code: 'CONFIRMATION_REQUIRED',
+  message: 'Konfirmasi dengan kode yang dikirim ke email kamu dulu.',
+};
+
+/** The Super Admins still active, as the lock taken before a role change or deactivation sees them. */
+function activeSupers(tx: ReturnType<typeof setup>['tx'], ...ids: string[]) {
+  tx.$queryRaw.mockResolvedValueOnce(
+    [...ids, 'user-sinta'].map((id) => ({ id, active_super: ids.includes(id) })),
+  );
+}
+
+describe('AdminUsersService.create, as Super Admin', () => {
+  const INPUT = { name: 'Bima', email: 'bima@tofly.id', role: 'super_admin' as const };
+
+  // AC: "Changing a role (including making someone Super Admin) ... first ask ... for an email code."
+  it('asks for the email code before adding a Super Admin', async () => {
+    const { users, service } = setup();
+
+    const error = await refusal(service.create(INPUT, ACTOR, false));
+
+    expect((error as HttpException).getStatus()).toBe(403);
+    expect((error as HttpException).getResponse()).toEqual(CONFIRMATION_REQUIRED);
+    expect(users.create).not.toHaveBeenCalled();
+  });
+
+  it('adds a Super Admin once this session confirmed', async () => {
+    const { users, service } = setup();
+    users.create.mockResolvedValue(SUPER_ROW);
+
+    await expect(service.create(INPUT, ACTOR, true)).resolves.toMatchObject({
+      role: 'super_admin',
+    });
+  });
+});
+
+describe('AdminUsersService.update, the role', () => {
+  it('changes the role, ends the Admin\'s sessions and records it, once confirmed', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR);
+    targetIs(users, ROW);
+    users.update.mockResolvedValue(SUPER_ROW);
+
+    await expect(
+      service.update('user-sinta', { name: 'Sinta Dewi', role: 'super_admin' }, ACTOR, true),
+    ).resolves.toMatchObject({ role: 'super_admin' });
+
+    expect(users.update).toHaveBeenCalledWith({
+      where: { id: 'user-sinta' },
+      data: { name: 'Sinta Dewi', admin_role: 'super_admin' },
+      select: expect.objectContaining({ id: true }),
+    });
+    // AC: "A role change ends the target's sessions, so the new role applies on their next sign-in."
+    expect(tx.app_sessions.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-sinta' } });
+    expect(tx.audit_logs.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'admin_changed',
+        old_values: { role: 'admin' },
+        new_values: { role: 'super_admin' },
+      }),
+    });
+  });
+
+  it('records the name and the role together when both change', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR);
+    targetIs(users, ROW);
+    users.update.mockResolvedValue({ ...SUPER_ROW, name: 'Sinta D.' });
+
+    await service.update('user-sinta', { name: 'Sinta D.', role: 'super_admin' }, ACTOR, true);
+
+    expect(tx.audit_logs.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        old_values: { name: 'Sinta Dewi', role: 'admin' },
+        new_values: { name: 'Sinta D.', role: 'super_admin' },
+      }),
+    });
+  });
+
+  it('asks for the email code before changing a role, changing nothing', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR);
+    targetIs(users, ROW);
+
+    const error = await refusal(
+      service.update('user-sinta', { name: 'Sinta Dewi', role: 'super_admin' }, ACTOR, false),
+    );
+
+    expect((error as HttpException).getResponse()).toEqual(CONFIRMATION_REQUIRED);
+    expect(users.update).not.toHaveBeenCalled();
+    expect(tx.app_sessions.deleteMany).not.toHaveBeenCalled();
+  });
+
+  // The form sends the role it shows; the same role is no role change and needs no code.
+  it('renames without a code when the role sent is the one the Admin has', async () => {
+    const { tx, users, service } = setup();
+    targetIs(users, ROW);
+    users.update.mockResolvedValue({ ...ROW, name: 'Sinta D.' });
+
+    await service.update('user-sinta', { name: 'Sinta D.', role: 'admin' }, ACTOR, false);
+
+    expect(users.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { name: 'Sinta D.' } }),
+    );
+    expect(tx.app_sessions.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses a change to the Super Admin\'s own role', async () => {
+    const { users, service } = setup();
+    targetIs(users, { ...SUPER_ROW, id: ACTOR });
+
+    const error = await refusal(
+      service.update(ACTOR, { name: 'Gunta', role: 'admin' }, ACTOR, true),
+    );
+
+    expect((error as HttpException).getResponse()).toEqual({
+      message: 'Data admin tidak valid',
+      errors: { role: 'Kamu tidak bisa mengubah role akunmu sendiri.' },
+    });
+  });
+
+  it('lets the Super Admin rename themselves', async () => {
+    const { users, service } = setup();
+    users.findUnique.mockResolvedValue({ ...SUPER_ROW, id: ACTOR, name: 'Gunta', ...ACTOR_ROW });
+    users.update.mockResolvedValue({ ...SUPER_ROW, id: ACTOR, name: 'Gunta S.' });
+
+    await expect(
+      service.update(ACTOR, { name: 'Gunta S.', role: 'super_admin' }, ACTOR, false),
+    ).resolves.toMatchObject({ name: 'Gunta S.', isSelf: true });
+  });
+
+  it('refuses to demote the last active Super Admin', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, 'user-sinta');
+    targetIs(users, SUPER_ROW);
+
+    const error = await refusal(
+      service.update('user-sinta', { name: 'Sinta Dewi', role: 'admin' }, ACTOR, true),
+    );
+
+    expect((error as HttpException).getResponse()).toEqual({
+      message: 'Data admin tidak valid',
+      errors: { role: 'Minimal harus ada satu Super Admin' },
+    });
+    expect(users.update).not.toHaveBeenCalled();
+  });
+
+  it('demotes a Super Admin while another one stays active', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR, 'user-sinta');
+    targetIs(users, SUPER_ROW);
+    users.update.mockResolvedValue(ROW);
+
+    await expect(
+      service.update('user-sinta', { name: 'Sinta Dewi', role: 'admin' }, ACTOR, true),
+    ).resolves.toMatchObject({ role: 'admin' });
+  });
+
+  // A deactivated Super Admin does not count towards the active ones, so demoting them is safe.
+  it('demotes a deactivated Super Admin whatever the count', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx);
+    targetIs(users, { ...SUPER_ROW, is_active: false });
+    users.update.mockResolvedValue({ ...ROW, is_active: false });
+
+    await expect(
+      service.update('user-sinta', { name: 'Sinta Dewi', role: 'admin' }, ACTOR, true),
+    ).resolves.toMatchObject({ role: 'admin' });
+  });
+
+  // Every Super Admin row is locked, in id order, before the target is read, so two Super Admins
+  // demoting each other wait for one another instead of both passing the count or deadlocking.
+  it('locks the active Super Admins and the target before reading the target', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR);
+    targetIs(users, ROW);
+    users.update.mockResolvedValue(SUPER_ROW);
+
+    await service.update('user-sinta', { name: 'Sinta Dewi', role: 'super_admin' }, ACTOR, true);
+
+    const [query] = tx.$queryRaw.mock.calls[0] as [TemplateStringsArray];
+    expect(query.join('?')).toMatch(/order by id for update/);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      users.findUnique.mock.invocationCallOrder[0],
+    );
+  });
+});
+
+describe('AdminUsersService.deactivate', () => {
+  it('blocks the Admin, ends their sessions at once and records it, once confirmed', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR);
+    targetIs(users, ROW);
+    users.update.mockResolvedValue({ ...ROW, is_active: false });
+
+    await expect(service.deactivate('user-sinta', ACTOR, true)).resolves.toMatchObject({
+      status: 'inactive',
+    });
+
+    expect(users.update).toHaveBeenCalledWith({
+      where: { id: 'user-sinta' },
+      data: { is_active: false },
+      select: expect.objectContaining({ is_active: true }),
+    });
+    expect(tx.app_sessions.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-sinta' } });
+    expect(tx.audit_logs.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'admin_deactivated',
+        old_values: { status: 'active' },
+        new_values: { status: 'inactive' },
+      }),
+    });
+  });
+
+  it('refuses to deactivate the Super Admin themselves, before asking for a code', async () => {
+    const { users, service } = setup();
+
+    const error = await refusal(service.deactivate(ACTOR, ACTOR, false));
+
+    expect((error as HttpException).getStatus()).toBe(409);
+    expect((error as HttpException).getResponse()).toEqual({
+      code: 'CANNOT_DEACTIVATE_SELF',
+      message: 'Kamu tidak bisa mengubah status akunmu sendiri.',
+    });
+    expect(users.update).not.toHaveBeenCalled();
+  });
+
+  it('asks for the email code first', async () => {
+    const { users, service } = setup();
+
+    const error = await refusal(service.deactivate('user-sinta', ACTOR, false));
+
+    expect((error as HttpException).getResponse()).toEqual(CONFIRMATION_REQUIRED);
+    expect(users.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses to deactivate the last active Super Admin', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, 'user-sinta');
+    targetIs(users, SUPER_ROW);
+
+    const error = await refusal(service.deactivate('user-sinta', ACTOR, true));
+
+    expect((error as HttpException).getStatus()).toBe(409);
+    expect((error as HttpException).getResponse()).toEqual({
+      code: 'LAST_SUPER_ADMIN',
+      message: 'Minimal harus ada satu Super Admin',
+    });
+  });
+
+  it('changes and records nothing for an Admin already deactivated', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR);
+    targetIs(users, { ...ROW, is_active: false });
+
+    await expect(service.deactivate('user-sinta', ACTOR, true)).resolves.toMatchObject({
+      status: 'inactive',
+    });
+    expect(users.update).not.toHaveBeenCalled();
+    expect(tx.audit_logs.create).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for an id that is no Admin', async () => {
+    const { tx, users, service } = setup();
+    activeSupers(tx, ACTOR);
+    targetIs(users, null);
+
+    await expect(refusal(service.deactivate('user-x', ACTOR, true))).resolves.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

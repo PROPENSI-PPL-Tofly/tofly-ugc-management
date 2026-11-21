@@ -7,6 +7,8 @@ import { GUARDS_METADATA, HTTP_CODE_METADATA } from '@nestjs/common/constants';
 import type { AdminRequest } from '../auth/admin.guard.js';
 import { SuperAdminGuard } from '../auth/super-admin.guard.js';
 import { AdminUsersController } from './admin-users.controller.js';
+import type { AppSessionService } from '../auth/session/session.service.js';
+import type { AdminConfirmationService } from './admin-confirmation.service.js';
 import type { AdminUsersService } from './admin-users.service.js';
 
 // SCRUM-246 (PBI-23): "Pengguna Admin" answers Super Admins only (AC 3, OWASP A01:2025).
@@ -16,18 +18,33 @@ const SUPER: Pick<AdminRequest, 'principal'> = {
 };
 const ID = '0b8f2a8e-4a39-4f4e-9d61-2f1f6f1c0a11';
 
-function setup() {
+const COOKIE = '__session';
+
+function setup(confirmed = false) {
   const service = {
     list: vi.fn().mockResolvedValue({ items: [] }),
     create: vi.fn().mockResolvedValue({ id: 'new' }),
-    rename: vi.fn().mockResolvedValue({ id: ID }),
+    update: vi.fn().mockResolvedValue({ id: ID }),
     reactivate: vi.fn().mockResolvedValue({ id: ID }),
+    deactivate: vi.fn().mockResolvedValue({ id: ID }),
+  };
+  const sessions = {
+    cookieName: vi.fn(() => COOKIE),
+    isConfirmed: vi.fn().mockResolvedValue(confirmed),
+  };
+  const confirmation = {
+    request: vi.fn().mockResolvedValue({ validMinutes: 10 }),
+    verify: vi.fn().mockResolvedValue({ confirmedUntil: 'later' }),
   };
   const controller = new AdminUsersController(
     service as unknown as AdminUsersService,
+    sessions as unknown as AppSessionService,
+    confirmation as unknown as AdminConfirmationService,
   );
-  return { service, controller };
+  return { service, sessions, confirmation, controller };
 }
+
+const SIGNED_IN = { ...SUPER, cookies: { [COOKIE]: 'opaque-id' } };
 
 describe('AdminUsersController', () => {
   it('is guarded by SuperAdminGuard', () => {
@@ -59,17 +76,19 @@ describe('AdminUsersController', () => {
     );
   });
 
-  it('adds an Admin from a checked body', async () => {
-    const { service, controller } = setup();
+  it('adds an Admin from a checked body, saying whether this session confirmed', async () => {
+    const { service, sessions, controller } = setup(true);
 
     await controller.create(
       { name: 'Sinta', email: 'Sinta@Tofly.id', role: 'admin' },
-      SUPER,
+      SIGNED_IN,
     );
 
+    expect(sessions.isConfirmed).toHaveBeenCalledWith('opaque-id');
     expect(service.create).toHaveBeenCalledWith(
       { name: 'Sinta', email: 'sinta@tofly.id', role: 'admin' },
       'user-super',
+      true,
     );
   });
 
@@ -82,12 +101,54 @@ describe('AdminUsersController', () => {
     expect(service.create).not.toHaveBeenCalled();
   });
 
-  it('renames an Admin', async () => {
+  it('changes an Admin\'s name and role, saying whether this session confirmed', async () => {
     const { service, controller } = setup();
 
-    await controller.rename(ID, { name: ' Sinta D. ' }, SUPER);
+    await controller.update(ID, { name: ' Sinta D. ', role: 'super_admin' }, SIGNED_IN);
 
-    expect(service.rename).toHaveBeenCalledWith(ID, { name: 'Sinta D.' }, 'user-super');
+    expect(service.update).toHaveBeenCalledWith(
+      ID,
+      { name: 'Sinta D.', role: 'super_admin' },
+      'user-super',
+      false,
+    );
+  });
+
+  it('deactivates an Admin, answering 200', async () => {
+    const { service, controller } = setup(true);
+
+    await controller.deactivate(ID, SIGNED_IN);
+
+    expect(service.deactivate).toHaveBeenCalledWith(ID, 'user-super', true);
+    expect(
+      Reflect.getMetadata(HTTP_CODE_METADATA, AdminUsersController.prototype.deactivate),
+    ).toBe(200);
+  });
+
+  it('emails a confirmation code to the signed-in Super Admin', async () => {
+    const { confirmation, controller } = setup();
+
+    await expect(controller.requestConfirmation(SIGNED_IN)).resolves.toEqual({
+      validMinutes: 10,
+    });
+    expect(confirmation.request).toHaveBeenCalledWith('user-super');
+  });
+
+  it('checks a confirmation code for this session', async () => {
+    const { confirmation, controller } = setup();
+
+    await controller.verifyConfirmation({ code: '482193' }, SIGNED_IN);
+
+    expect(confirmation.verify).toHaveBeenCalledWith('user-super', 'opaque-id', '482193');
+  });
+
+  it('refuses a code that is not six digits before checking it', async () => {
+    const { confirmation, controller } = setup();
+
+    await expect(
+      controller.verifyConfirmation({ code: 'abc' }, SIGNED_IN),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(confirmation.verify).not.toHaveBeenCalled();
   });
 
   it('reactivates an Admin, answering 200', async () => {
@@ -105,8 +166,11 @@ describe('AdminUsersController', () => {
   it.each([
     ['list', (c: AdminUsersController) => c.list(1, undefined, {})],
     ['create', (c: AdminUsersController) => c.create({ name: 'A', email: 'a@t.id', role: 'admin' }, {})],
-    ['rename', (c: AdminUsersController) => c.rename(ID, { name: 'A' }, {})],
+    ['update', (c: AdminUsersController) => c.update(ID, { name: 'A' }, {})],
     ['reactivate', (c: AdminUsersController) => c.reactivate(ID, {})],
+    ['deactivate', (c: AdminUsersController) => c.deactivate(ID, {})],
+    ['request a code', (c: AdminUsersController) => c.requestConfirmation({})],
+    ['verify a code', (c: AdminUsersController) => c.verifyConfirmation({ code: '482193' }, {})],
   ])('answers 401 to %s with no signed-in Admin', async (_label, act) => {
     const { controller } = setup();
 
