@@ -97,6 +97,20 @@ describe('AdminConfirmationService.request', () => {
     expect(JSON.stringify(codes.create.mock.calls)).not.toContain(CODE);
   });
 
+  // The app builds it with the real clock and the login code generator.
+  it('dates a code from the real clock and makes six random digits by default', async () => {
+    const { prisma, codes, sender, sessions } = setup();
+    const service = new AdminConfirmationService(prisma as never, sender, hash, sessions);
+    const before = Date.now();
+
+    await service.request(USER);
+
+    const [{ data }] = codes.create.mock.calls[0] as [{ data: { expires_at: Date } }];
+    expect(data.expires_at.getTime()).toBeGreaterThanOrEqual(before + 10 * 60_000);
+    expect(data.expires_at.getTime()).toBeLessThanOrEqual(Date.now() + 10 * 60_000);
+    expect(sender.send.mock.calls[0][0].text).toMatch(/: \d{6}\n/);
+  });
+
   // One request at a time per Super Admin, so two at once cannot both take the last slot.
   it('counts the last hour under a per-user lock in one transaction', async () => {
     const { tx, codes, service } = setup();

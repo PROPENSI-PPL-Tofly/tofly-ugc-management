@@ -92,6 +92,15 @@ describe('AdminUsersController', () => {
     );
   });
 
+  // SuperAdminGuard lets no request without a session through; if one came, it is unconfirmed.
+  it('reads a request with no session cookie as unconfirmed', async () => {
+    const { sessions, controller } = setup();
+
+    await controller.deactivate(ID, SUPER);
+
+    expect(sessions.isConfirmed).toHaveBeenCalledWith('');
+  });
+
   it('refuses a body with wrong fields before the service runs', async () => {
     const { service, controller } = setup();
 
