@@ -241,11 +241,17 @@ function actingAdmin(invoice: CreatorInvoice, step: keyof ReachedAt): string {
   return named ?? ADMIN_LABEL;
 }
 
+/** An adjustment's line in the prototype's words, its minus right against the Rp. */
+function adjustmentText({ actorName, reason, amount }: AdjustmentLine): string {
+  const moved = amount < 0 ? `−${formatRupiah(-amount)}` : `+${formatRupiah(amount)}`;
+  return `${actorName ?? ADMIN_LABEL} menambah penyesuaian: ${reason} (${moved})`;
+}
+
 /**
  * The invoice's story, oldest first, as the prototype's activity tab tells it: every step it
- * reached woven together with the comments. A step comes before a comment written at the same
- * moment. An admin is named as the API names them, by name else email, as the Content Detail
- * timeline does (PBI-23, 23.11).
+ * reached and every adjustment woven together with the comments. At the same moment a step comes
+ * first, then an adjustment, then a comment. An admin is named as the API names them, by name else
+ * email, as the Content Detail timeline does (PBI-23, 23.11).
  */
 export function invoiceActivity(
   invoice: CreatorInvoice,
@@ -259,6 +265,12 @@ export function invoiceActivity(
     const text = typeof words === "string" ? words : words(actingAdmin(invoice, step));
     return [{ kind: "event" as const, id: step, text, at }];
   });
+  const adjustments: ActivityEntry[] = invoice.adjustments.map((adjustment) => ({
+    kind: "event",
+    id: adjustment.id,
+    text: adjustmentText(adjustment),
+    at: adjustment.createdAt,
+  }));
   const comments: ActivityEntry[] = invoice.comments.map((comment) => ({
     kind: "comment",
     id: comment.id,
@@ -267,8 +279,8 @@ export function invoiceActivity(
     at: comment.createdAt,
   }));
 
-  // A stable sort keeps every step ahead of a comment at the same moment.
-  return [...events, ...comments].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  // A stable sort keeps this order among entries of the same moment.
+  return [...events, ...adjustments, ...comments].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 
 /** A refusal of one of the creator's moves, worded for the creator. */

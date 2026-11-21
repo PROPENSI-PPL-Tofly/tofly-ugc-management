@@ -47,6 +47,8 @@ export interface RawAdjustment {
   amount: number;
   reason: string;
   actorId: string;
+  /** The Admin who recorded it (PBI-23, 23.10), on GET only; read through readActorName. */
+  actorName?: unknown;
   /** ISO instant. */
   createdAt: string;
 }
@@ -172,12 +174,16 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
     pendingBonus: isWaiting(performanceBonus) ? pendingBonus(performanceBonus, raw.rawTotal) : null,
     invoiceStatus: raw.invoiceStatus,
     // An answer that predates the field simply lists none.
-    adjustments: (raw.adjustments ?? []).map((adjustment) => ({
-      id: adjustment.id,
-      amount: adjustment.amount,
-      reason: adjustment.reason,
-      createdAt: adjustment.createdAt,
-    })),
+    adjustments: (raw.adjustments ?? []).map((adjustment) => {
+      const actorName = readActorName(adjustment.actorName);
+      return {
+        id: adjustment.id,
+        amount: adjustment.amount,
+        reason: adjustment.reason,
+        createdAt: adjustment.createdAt,
+        ...(actorName && { actorName }),
+      };
+    }),
     frozenAt: raw.snapshot?.finalizedAt ?? null,
     ...paymentOf(raw),
   };
