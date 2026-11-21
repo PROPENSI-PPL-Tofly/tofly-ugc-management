@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { SESSION_STARTER } from '../google/ports.js';
 import { PrismaWhitelistResolver } from '../google/prisma-whitelist-resolver.js';
 import { ACCESS_CHECK } from './access-check.js';
+import { RecordingSessionStarter } from './recording-session-starter.js';
 import { sessionConfig } from './session-config.js';
 import { SESSION_COOKIE, sessionCookie } from './session-cookie.js';
 import { SessionController } from './session.controller.js';
@@ -43,15 +44,9 @@ export const SESSION_CONFIG = 'SESSION_CONFIG';
     },
     {
       provide: SESSION_STARTER,
-      useFactory: (sessions: AppSessionService) => ({
-        start: async (
-          response: Parameters<AppSessionService['start']>[0],
-          principal: Parameters<AppSessionService['start']>[1],
-        ) => {
-          await sessions.start(response, principal);
-        },
-      }),
-      inject: [AppSessionService],
+      useFactory: (sessions: AppSessionService, prisma: PrismaService) =>
+        new RecordingSessionStarter(sessions, prisma.users),
+      inject: [AppSessionService, PrismaService],
     },
   ],
   exports: [AppSessionService, SESSION_STARTER, ACCESS_CHECK],

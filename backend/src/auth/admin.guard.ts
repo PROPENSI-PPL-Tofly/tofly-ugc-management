@@ -36,6 +36,9 @@ export function forbidden(
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
+  /** What a signed-in user who is not allowed here reads; a stricter guard names its own pages. */
+  protected readonly forbiddenMessage: string = 'Halaman ini hanya untuk Admin';
+
   constructor(
     @Optional()
     @Inject(AppSessionService)
@@ -68,7 +71,7 @@ export class AdminGuard implements CanActivate {
       throw unauthenticated();
     }
     if (principal.role !== 'admin') {
-      throw forbidden();
+      throw forbidden(this.forbiddenMessage);
     }
     const current = await this.access?.resolveUser(principal.userId);
     if (current?.role !== 'admin') {

@@ -30,6 +30,7 @@ describe('superAdminEmail', () => {
 
 function setup({
   superAdmins = 0,
+  activeSuperAdmin = null as { id: string } | null,
   existing = null as { id: string; creators: { id: string } | null } | null,
   createError = null as unknown,
 } = {}) {
@@ -44,6 +45,7 @@ function setup({
     },
   };
   const prisma = {
+    users: { findFirst: vi.fn().mockResolvedValue(activeSuperAdmin) },
     $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) =>
       work(tx),
     ),
@@ -61,15 +63,36 @@ describe('SuperAdminBootstrap.ensure', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('leaves roles alone once any Super Admin exists, whoever it is', async () => {
+  // After the first start this is the only answer, so it costs one read and no transaction.
+  it('leaves roles alone once an active Super Admin exists, without opening a transaction', async () => {
+    const { prisma, bootstrap } = setup({ activeSuperAdmin: { id: 'user-9' } });
+
+    await expect(bootstrap.ensure('dev@tofly.id')).resolves.toBe('exists');
+    expect(prisma.users.findFirst).toHaveBeenCalledWith({
+      where: { admin_role: 'super_admin', is_active: true },
+      select: { id: true },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  // Another instance starting at the same time set one between the read and the transaction.
+  it('leaves roles alone when an active Super Admin appeared before the transaction', async () => {
     const { tx, bootstrap } = setup({ superAdmins: 1 });
 
     await expect(bootstrap.ensure('dev@tofly.id')).resolves.toBe('exists');
     expect(tx.users.count).toHaveBeenCalledWith({
-      where: { admin_role: 'super_admin' },
+      where: { admin_role: 'super_admin', is_active: true },
     });
     expect(tx.users.update).not.toHaveBeenCalled();
     expect(tx.users.create).not.toHaveBeenCalled();
+  });
+
+  // A deactivated Super Admin cannot sign in, so they leave the environment without one.
+  it('sets the configured address when the only Super Admin is deactivated', async () => {
+    const { tx, bootstrap } = setup();
+
+    await expect(bootstrap.ensure('dev@tofly.id')).resolves.toBe('created');
+    expect(tx.users.create).toHaveBeenCalled();
   });
 
   it('makes an existing Admin the first Super Admin, active again if deactivated', async () => {
@@ -173,6 +196,35 @@ describe('SuperAdminBootstrap.onApplicationBootstrap', () => {
   });
 
   // A typo in the config must not keep the whole backend from starting; it is logged instead.
+  // A database that is briefly away must not keep an instance from starting (review on #225).
+  it('logs a database error by its class only and lets the app start', async () => {
+    vi.stubEnv('SUPER_ADMIN_EMAIL', 'dev@tofly.id');
+    const { prisma, log, bootstrap } = setup();
+    prisma.users.findFirst.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dev@tofly.id timed out', {
+        code: 'P2028',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(bootstrap.onApplicationBootstrap()).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(
+      'First Super Admin was not set (PrismaClientKnownRequestError)',
+    );
+    expect(JSON.stringify(log.warn.mock.calls)).not.toContain('dev@tofly.id');
+  });
+
+  it('logs a thrown value that is no Error as unknown and lets the app start', async () => {
+    vi.stubEnv('SUPER_ADMIN_EMAIL', 'dev@tofly.id');
+    const { prisma, log, bootstrap } = setup();
+    prisma.users.findFirst.mockRejectedValue('dev@tofly.id');
+
+    await expect(bootstrap.onApplicationBootstrap()).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(
+      'First Super Admin was not set (unknown error)',
+    );
+  });
+
   it('logs an invalid SUPER_ADMIN_EMAIL and lets the app start', async () => {
     vi.stubEnv('SUPER_ADMIN_EMAIL', 'not-an-email');
     const { prisma, log, bootstrap } = setup();
