@@ -28,8 +28,11 @@ export function superAdminEmail(raw: string | undefined): string | null {
   return email;
 }
 
+/** A Super Admin who can still sign in; a deactivated one leaves the environment without one. */
+const ACTIVE_SUPER_ADMIN = { admin_role: 'super_admin', is_active: true } as const;
+
 type BootstrapUsers = {
-  count(args: { where: { admin_role: 'super_admin' } }): Promise<number>;
+  count(args: { where: typeof ACTIVE_SUPER_ADMIN }): Promise<number>;
   findUnique(args: {
     where: { email: string };
     select: { id: true; creators: { select: { id: true } } };
@@ -44,6 +47,12 @@ type BootstrapUsers = {
 };
 
 type BootstrapClient = {
+  users: {
+    findFirst(args: {
+      where: typeof ACTIVE_SUPER_ADMIN;
+      select: { id: true };
+    }): Promise<{ id: string } | null>;
+  };
   $transaction<T>(
     work: (tx: { users: BootstrapUsers }) => Promise<T>,
   ): Promise<T>;
@@ -66,7 +75,10 @@ export class SuperAdminBootstrap implements OnApplicationBootstrap {
     private readonly log: BootstrapLog = new Logger(SuperAdminBootstrap.name),
   ) {}
 
-  /** A wrong address is logged, never fatal: the rest of the app still has to start. */
+  /**
+   * A wrong address or a database that is briefly away is logged, never fatal: the rest of the app
+   * still has to start, and the next start tries again.
+   */
   async onApplicationBootstrap(): Promise<void> {
     let email: string | null;
     try {
@@ -75,13 +87,28 @@ export class SuperAdminBootstrap implements OnApplicationBootstrap {
       this.log.warn(`${INVALID}; no Super Admin was set`);
       return;
     }
-    await this.ensure(email ?? undefined);
+    try {
+      await this.ensure(email ?? undefined);
+    } catch (error) {
+      // A database error can quote the address, so only its class reaches the log (OWASP A09).
+      const reason = error instanceof Error ? error.name : 'unknown error';
+      this.log.warn(`First Super Admin was not set (${reason})`);
+    }
   }
 
   /** Makes the configured address the first Super Admin, unless one already exists. */
   async ensure(raw: string | undefined): Promise<BootstrapOutcome> {
     const email = superAdminEmail(raw);
     if (email === null) return 'unset';
+    // Every start after the first ends here: one read, no transaction on the single connection.
+    if (
+      await this.prisma.users.findFirst({
+        where: ACTIVE_SUPER_ADMIN,
+        select: { id: true },
+      })
+    ) {
+      return 'exists';
+    }
 
     let outcome: BootstrapOutcome;
     try {
@@ -109,7 +136,8 @@ export class SuperAdminBootstrap implements OnApplicationBootstrap {
     users: BootstrapUsers,
     email: string,
   ): Promise<BootstrapOutcome> {
-    if ((await users.count({ where: { admin_role: 'super_admin' } })) > 0) {
+    // Asked again inside the transaction, for an instance that started at the same moment.
+    if ((await users.count({ where: ACTIVE_SUPER_ADMIN })) > 0) {
       return 'exists';
     }
 
