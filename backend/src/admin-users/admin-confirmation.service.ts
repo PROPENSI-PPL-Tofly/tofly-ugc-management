@@ -92,7 +92,7 @@ export function confirmationEmail(to: string, code: string): EmailMessage {
     text: [
       `Kode konfirmasi Tofly kamu: ${code}`,
       '',
-      'Kode ini dipakai untuk mengubah role atau menonaktifkan Admin di Pengguna Admin.',
+      'Kode ini dipakai untuk mengubah role, menambah Super Admin, atau menonaktifkan Admin di Pengguna Admin.',
       `Kode berlaku selama ${CODE_LIFETIME_MINUTES} menit. Jangan bagikan kode ini kepada siapa pun.`,
       '',
       'Kalau kamu tidak meminta kode ini, segera hubungi tim Tofly.',

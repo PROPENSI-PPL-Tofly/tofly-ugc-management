@@ -18,6 +18,7 @@ import {
   type AuditActorReader,
   type AuditWriter,
 } from '../audit/audit-logger.js';
+import { forbidden } from '../auth/admin.guard.js';
 import type { AdminRole } from '../auth/google/ports.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -260,6 +261,7 @@ export class AdminUsersService {
         if (this.isLastActiveSuperAdmin(target, supers)) {
           throw invalidRole(LAST_SUPER_ADMIN);
         }
+        this.refuseUnlessStillSuperAdmin(actorId, supers);
       }
       const updated = await tx.users.update({
         where: { id },
@@ -308,6 +310,7 @@ export class AdminUsersService {
           message: LAST_SUPER_ADMIN,
         });
       }
+      this.refuseUnlessStillSuperAdmin(actorId, supers);
       const deactivated = await tx.users.update({
         where: { id },
         data: { is_active: false },
@@ -370,6 +373,17 @@ export class AdminUsersService {
       where (admin_role = 'super_admin' and is_active) or id = ${id}::uuid
       order by id for update`) as { id: string; active_super: boolean }[];
     return rows.filter((row) => row.active_super).map((row) => row.id);
+  }
+
+  /**
+   * SuperAdminGuard read the actor's role when the request came in. Another Super Admin may have
+   * demoted or deactivated them while this request waited for the lock, so the rows the lock found
+   * decide (OWASP A01:2025).
+   */
+  protected refuseUnlessStillSuperAdmin(actorId: string, supers: string[]): void {
+    if (!supers.includes(actorId)) {
+      throw forbidden('Halaman ini hanya untuk Super Admin');
+    }
   }
 
   /** Whether taking this Admin's Super Admin access away would leave no active Super Admin. */

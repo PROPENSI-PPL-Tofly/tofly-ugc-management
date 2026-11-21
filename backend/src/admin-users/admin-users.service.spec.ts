@@ -567,7 +567,7 @@ describe('AdminUsersService.update, the role', () => {
   // A deactivated Super Admin does not count towards the active ones, so demoting them is safe.
   it('demotes a deactivated Super Admin whatever the count', async () => {
     const { tx, users, service } = setup();
-    activeSupers(tx);
+    activeSupers(tx, ACTOR);
     targetIs(users, { ...SUPER_ROW, is_active: false });
     users.update.mockResolvedValue({ ...ROW, is_active: false });
 
