@@ -1,9 +1,12 @@
 import { apiFetch } from "./api-client";
 import {
+  CONFIRMATION_MINUTES,
   createAdmin,
   deactivateAdmin,
   reactivateAdmin,
+  requestConfirmation,
   updateAdmin,
+  verifyConfirmation,
 } from "./admin-users-api";
 
 vi.mock("./api-client", () => ({ apiFetch: vi.fn() }));
@@ -129,5 +132,73 @@ describe("saving an admin", () => {
       message: "Hanya Super Admin yang bisa mengelola admin",
       errors: {},
     });
+  });
+});
+
+describe("the email confirmation", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("asks for a code for the action and keeps the id it will be checked by", async () => {
+    answers(201, { confirmationId: "c1" });
+
+    await expect(requestConfirmation("role_change")).resolves.toEqual({
+      kind: "sent",
+      confirmationId: "c1",
+      message: "Kode dikirim ke email kamu.",
+    });
+
+    expect(sent()).toEqual({
+      path: "/api/admin/users/confirmations",
+      method: "POST",
+      body: { action: "role_change" },
+    });
+    expect(CONFIRMATION_MINUTES).toBe(15);
+  });
+
+  it("says how long a resend waits when the backend limits it", async () => {
+    answers(429, { retryAfterMinutes: 5 });
+
+    await expect(requestConfirmation("deactivate")).resolves.toEqual({
+      kind: "limited",
+      message: "Terlalu sering meminta kode. Coba lagi dalam 5 menit.",
+    });
+  });
+
+  it("reads a right code as confirmed until the expiry the backend names", async () => {
+    answers(200, { expiresAt: "2026-11-21T05:15:00.000Z" });
+
+    await expect(verifyConfirmation("c1", "123456")).resolves.toEqual({
+      kind: "confirmed",
+      expiresAt: "2026-11-21T05:15:00.000Z",
+    });
+
+    expect(sent()).toEqual({
+      path: "/api/admin/users/confirmations/c1/verify",
+      method: "POST",
+      body: { code: "123456" },
+    });
+  });
+
+  it("reads a wrong code and how many tries are left", async () => {
+    answers(422, { code: "CODE_WRONG", attemptsLeft: 2 });
+
+    await expect(verifyConfirmation("c1", "000000")).resolves.toEqual({
+      kind: "wrong",
+      attemptsLeft: 2,
+    });
+  });
+
+  it("reads an expired code apart from a wrong one", async () => {
+    answers(410, { code: "CODE_EXPIRED" });
+
+    await expect(verifyConfirmation("c1", "123456")).resolves.toEqual({ kind: "expired" });
+  });
+
+  it("reads anything else as failed, without the body's own words", async () => {
+    answers(500, { message: "SES error" });
+
+    await expect(verifyConfirmation("c1", "123456")).resolves.toEqual({ kind: "failed" });
   });
 });
