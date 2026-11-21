@@ -21,6 +21,7 @@ function adjustmentRow(id: string, amount: string) {
     reason: `Reason ${id}`,
     actor_user_id: 'admin-1',
     created_at: new Date('2026-09-10T02:00:00.000Z'),
+    users: { name: 'Sinta Dewi', email: 'sinta@tofly.id' },
   };
 }
 
@@ -718,6 +719,30 @@ describe('InvoicesService', () => {
     // summary need the final amount of every invoice the filters keep, so their snapshots and
     // adjustment sums are read; content only where there is no snapshot, and adjustment rows for
     // the page alone.
+    // PBI-23, 23.10: the table's rows feed the Rincian panel, which stays open after a move.
+    it('names the admin who recorded each adjustment on the page, in its one query', async () => {
+      prisma.creators.findMany.mockResolvedValue([row()]);
+      persist([
+        {
+          id: 'invoice-1',
+          contract_id: 'contract-1',
+          snapshot: null,
+          adjustments: [adjustmentRow('adj-1', '25000')],
+        },
+      ]);
+
+      const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+      expect(items[0].adjustments[0].actorName).toBe('Sinta Dewi');
+      expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          select: expect.objectContaining({
+            users: { select: { name: true, email: true } },
+          }),
+        }),
+      );
+    });
+
     describe('reading only what the listing needs', () => {
       it('reads the saved invoices of only the creators the filters keep, without their adjustment rows', async () => {
         persist([]);
@@ -1052,6 +1077,25 @@ describe('InvoicesService', () => {
       await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
         finalizedBy: null,
       });
+    });
+
+    // PBI-23, 23.10: the admin's Rincian names who recorded each adjustment.
+    it('names the admin who recorded each adjustment', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+      persist([
+        {
+          id: 'invoice-1',
+          contract_id: 'contract-1',
+          snapshot: null,
+          adjustments: [adjustmentRow('adj-1', '25000')],
+        },
+      ]);
+
+      const detail = await service.detail('creator-1', TODAY);
+
+      expect(detail?.adjustments).toEqual([
+        expect.objectContaining({ id: 'adj-1', actorName: 'Sinta Dewi' }),
+      ]);
     });
 
     it('reads the finalizer by name and email only, in the one lifecycle query', async () => {
