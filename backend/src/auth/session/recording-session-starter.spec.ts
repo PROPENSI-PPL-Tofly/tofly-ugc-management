@@ -49,6 +49,13 @@ describe('RecordingSessionStarter', () => {
     await expect(starter.start(response, ADMIN)).resolves.toBeUndefined();
   });
 
+  it('keeps the sign-in when the write fails with something that is no Error', async () => {
+    const { users, starter } = setup();
+    users.update.mockRejectedValue('row locked');
+
+    await expect(starter.start(response, ADMIN)).resolves.toBeUndefined();
+  });
+
   it('reads the clock when no clock is given', async () => {
     const sessions = { start: vi.fn().mockResolvedValue({ id: 'opaque' }) };
     const users = { update: vi.fn().mockResolvedValue({}) };
