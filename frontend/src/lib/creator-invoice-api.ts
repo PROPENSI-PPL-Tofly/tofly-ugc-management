@@ -10,6 +10,7 @@
 
 import type { CreatorInvoice, InvoiceComment, PaymentProof } from "./creator-invoice";
 import { INVOICE_STATUSES } from "./invoice";
+import { readActorName } from "./admin-actor";
 import { toInvoiceBreakdown, type RawInvoiceComponent, type RawInvoiceDetail } from "./invoice-api";
 import { isSameSitePath } from "./safe-href";
 
@@ -18,6 +19,8 @@ export interface RawPaymentProof {
   url: string;
   fileName: string;
   uploadedAt: string;
+  /** The Admin who sent it (PBI-23, 23.10). */
+  uploadedBy?: string | null;
 }
 
 export interface RawInvoiceComment {
@@ -94,7 +97,13 @@ function safeLink(url: string): string | null {
 
 function toProof(raw: RawPaymentProof | null | undefined): PaymentProof | null {
   if (!raw) return null;
-  return { url: safeLink(raw.url), fileName: raw.fileName, uploadedAt: raw.uploadedAt };
+  const uploadedBy = readActorName(raw.uploadedBy);
+  return {
+    url: safeLink(raw.url),
+    fileName: raw.fileName,
+    uploadedAt: raw.uploadedAt,
+    ...(uploadedBy && { uploadedBy }),
+  };
 }
 
 /**

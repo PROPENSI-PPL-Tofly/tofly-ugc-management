@@ -6,6 +6,7 @@
 // The amounts and the breakdown are the backend's. Nothing here adds them up again, so the
 // creator reads exactly what the admin froze.
 
+import { ADMIN_LABEL } from "./admin-actor";
 import type { AdjustmentLine } from "./invoice-adjustment";
 import type { InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
@@ -25,6 +26,8 @@ export interface PaymentProof {
   fileName: string;
   /** ISO instant. */
   uploadedAt: string;
+  /** The Admin who sent it (PBI-23, 23.10); absent when the API names no one. */
+  uploadedBy?: string;
 }
 
 /** One message in an invoice's thread, from the admin or the creator (13.2). */
@@ -216,28 +219,45 @@ export type ActivityEntry =
   | { kind: "event"; id: string; text: string; at: string }
   | { kind: "comment"; id: string; author: string; text: string; at: string };
 
+/** How a step reads: fixed words, or words around the Admin who acted. */
+export type ActivityText = Record<keyof ReachedAt, string | ((admin: string) => string)>;
+
+/** The two steps an Admin takes, in the prototype's words, for the creator and the Admin alike. */
+export const ADMIN_STEP_TEXT = {
+  finalized: (admin: string) => `${admin} memfinalisasi invoice`,
+  payment_uploaded: (admin: string) => `${admin} mengirim bukti bayar`,
+};
+
 /** Each step past Berjalan as the creator reads it in the activity. */
-const EVENT_TEXT: Record<keyof ReachedAt, string> = {
-  finalized: "Invoice difinalisasi Admin",
+const EVENT_TEXT: ActivityText = {
+  ...ADMIN_STEP_TEXT,
   creator_acked: "Kamu meng-acknowledge invoice",
-  payment_uploaded: "Admin mengirim bukti bayar",
   paid: "Kamu mengonfirmasi pembayaran diterima",
 };
+
+/** Who took a step: the finalizer, or the proof's sender. */
+function actingAdmin(invoice: CreatorInvoice, step: keyof ReachedAt): string {
+  const named = step === "finalized" ? invoice.breakdown.finalizedBy : invoice.proof?.uploadedBy;
+  return named ?? ADMIN_LABEL;
+}
 
 /**
  * The invoice's story, oldest first, as the prototype's activity tab tells it: every step it
  * reached woven together with the comments. A step comes before a comment written at the same
- * moment. An admin is named by their email, as the API names them and the Content Detail timeline
- * does.
+ * moment. An admin is named as the API names them, by name else email, as the Content Detail
+ * timeline does (PBI-23, 23.11).
  */
 export function invoiceActivity(
   invoice: CreatorInvoice,
   /** How each step reads; the creator's words unless the admin's are handed in. */
-  texts: Record<keyof ReachedAt, string> = EVENT_TEXT,
+  texts: ActivityText = EVENT_TEXT,
 ): ActivityEntry[] {
   const events: ActivityEntry[] = (Object.keys(texts) as (keyof ReachedAt)[]).flatMap((step) => {
     const at = invoice.reachedAt[step];
-    return at === null ? [] : [{ kind: "event" as const, id: step, text: texts[step], at }];
+    if (at === null) return [];
+    const words = texts[step];
+    const text = typeof words === "string" ? words : words(actingAdmin(invoice, step));
+    return [{ kind: "event" as const, id: step, text, at }];
   });
   const comments: ActivityEntry[] = invoice.comments.map((comment) => ({
     kind: "comment",

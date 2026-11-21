@@ -23,6 +23,7 @@ import {
 } from "./invoice";
 import { periodRange } from "./deadline-period";
 import { DATA_STATE_LABELS, type DataState } from "./link-performance";
+import { readActorName } from "./admin-actor";
 import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -105,6 +106,8 @@ export interface RawRateFormula {
 
 /** One creator's invoice as GET /invoices/:creatorId answers it, for the breakdown popups. */
 export interface RawInvoiceDetail extends RawInvoiceRow {
+  /** The Admin who finalized it (PBI-23, 23.10); null when not finalized or not recorded. */
+  finalizedBy?: string | null;
   /** 1 for the first contract, counting up with every renewal. */
   periodNumber: number;
   /** Null while no admin has saved a formula. */
@@ -256,8 +259,10 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
   // The fixed rate pays the contract period, so its one line names the contract, not a content.
   const [period] = fixedRate.lines;
   const cap = raw.formula?.maxPenaltyDays ?? 0;
+  const finalizedBy = readActorName(raw.finalizedBy);
 
   return {
+    ...(finalizedBy && { finalizedBy }),
     creatorName: raw.creatorName,
     fixed: {
       period: {

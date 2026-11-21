@@ -124,6 +124,8 @@ export interface InvoiceBreakdown {
     lockedOn?: string | null;
   };
   penalty: { lines: PenaltyLine[]; total: number };
+  /** The Admin who finalized it (PBI-23, 23.10); absent when the API names no one. */
+  finalizedBy?: string;
 }
 
 export type BreakdownTone = "plain" | "danger";

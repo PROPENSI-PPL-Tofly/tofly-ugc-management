@@ -211,7 +211,7 @@ function noteSignature(event: RawContentEvent): string | null {
     return null;
   }
   if (event.actor.role === "admin") {
-    // The admin's email when the API names one; the role alone when no account is behind it.
+    // The admin as the API names them; the role alone when no account is behind it.
     return `Catatan ${event.actor.name ?? "Admin"}`;
   }
   return `Catatan ${event.actor.name ?? "kreator"}`;
