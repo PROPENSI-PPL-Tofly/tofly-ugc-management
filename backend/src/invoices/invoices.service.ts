@@ -21,14 +21,14 @@ import {
   type InvoiceRosterRepository,
 } from './invoice-roster.repository.js';
 import {
-  adjustmentDto,
   creatorName,
-  INVOICE_ADJUSTMENT_SELECT,
+  INVOICE_ADJUSTMENT_READ_SELECT,
   INVOICE_SELECT,
   type InvoiceContractRow,
   invoiceContractStatus,
   type InvoiceCreatorRow,
   listedContracts,
+  namedAdjustmentDto,
   periodNumber,
   type SavedInvoice,
   savedSnapshot,
@@ -415,7 +415,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         paid_at: true,
         finalizer: { select: ADMIN_ACCOUNT_SELECT },
         adjustments: {
-          select: INVOICE_ADJUSTMENT_SELECT,
+          select: INVOICE_ADJUSTMENT_READ_SELECT,
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         },
       },
@@ -425,7 +425,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     for (const invoice of persisted) {
       result.set(invoice.contract_id, {
-        adjustments: invoice.adjustments.map(adjustmentDto),
+        adjustments: invoice.adjustments.map(namedAdjustmentDto),
         snapshot: savedSnapshot(invoice.snapshot),
         confirmations: confirmationsOf(invoice),
         finalizedBy: adminLabel(invoice.finalizer),
@@ -489,7 +489,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     const rows = await this.prisma.invoice_adjustments.findMany({
       where: { invoice_id: { in: ids } },
-      select: { ...INVOICE_ADJUSTMENT_SELECT, invoice_id: true },
+      select: { ...INVOICE_ADJUSTMENT_READ_SELECT, invoice_id: true },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     });
 
@@ -497,7 +497,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     for (const row of rows) {
       const list = byInvoice.get(row.invoice_id) ?? [];
-      list.push(adjustmentDto(row));
+      list.push(namedAdjustmentDto(row));
       byInvoice.set(row.invoice_id, list);
     }
 

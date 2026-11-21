@@ -3,6 +3,11 @@
 // database, and the service is left with loading rows and paging.
 
 import { Prisma } from '@prisma/client';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminName,
+  type AdminAccount,
+} from '../contents/content-event-actors.js';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { jakartaDay } from '../creators/evergreen.js';
 import { effectiveState } from '../performance/link-performance.js';
@@ -256,6 +261,19 @@ export function adjustmentDto(row: {
     actorId: row.actor_user_id,
     createdAt: row.created_at.toISOString(),
   };
+}
+
+/** An adjustment's columns with the account that recorded it, for the admin's reads. */
+export const INVOICE_ADJUSTMENT_READ_SELECT = {
+  ...INVOICE_ADJUSTMENT_SELECT,
+  users: { select: ADMIN_ACCOUNT_SELECT },
+} satisfies Prisma.invoice_adjustmentsSelect;
+
+/** An adjustment as a read answers it, naming who recorded it; never what a snapshot stores. */
+export function namedAdjustmentDto(
+  row: Parameters<typeof adjustmentDto>[0] & { users: AdminAccount },
+): InvoiceAdjustmentDto {
+  return { ...adjustmentDto(row), actorName: adminName(row.users) };
 }
 
 /** What the manual adjustments add up to, as a decimal so amounts never drift. */

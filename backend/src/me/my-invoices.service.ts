@@ -23,7 +23,10 @@ import {
 // uploaded and the comment thread (13.1). The creator reads the same numbers the admin froze.
 
 /** An adjustment as the creator reads it: what and why, not which admin recorded it. */
-export type CreatorAdjustmentDto = Omit<InvoiceAdjustmentDto, 'actorId'>;
+export type CreatorAdjustmentDto = Omit<
+  InvoiceAdjustmentDto,
+  'actorId' | 'actorName'
+>;
 
 export type CreatorSnapshotDto = Omit<InvoiceSnapshotDto, 'adjustments'> & {
   adjustments: CreatorAdjustmentDto[];
