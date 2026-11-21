@@ -271,12 +271,29 @@ describe('RateFormulaService', () => {
 
     // PBI-23 (SCRUM-295): "Pengaturan" in Log Aktivitas (OWASP A09:2025).
     describe('Log Aktivitas', () => {
-      it('records the old and new formula and who saved it, after the formula is written', async () => {
+      // A store whose formula before this save differs from what the save writes.
+      function changed() {
         const client = saved();
         client.rate_formula.findUnique.mockResolvedValueOnce({
           ...FORMULA_ROW,
           specific_bonus: 90000,
         });
+        return client;
+      }
+
+      it('records nothing when the saved formula is the same as before', async () => {
+        const client = saved();
+        const service = new RateFormulaService(client);
+
+        await expect(service.replace(FORMULA, ADMIN_USER_ID)).resolves.toMatchObject({
+          configured: true,
+        });
+
+        expect(client.audit_logs.create).not.toHaveBeenCalled();
+      });
+
+      it('records the old and new formula and who saved it, after the formula is written', async () => {
+        const client = changed();
         const service = new RateFormulaService(client);
 
         await service.replace(FORMULA, ADMIN_USER_ID);
@@ -335,7 +352,7 @@ describe('RateFormulaService', () => {
       });
 
       it('names an Admin who has no name by their email', async () => {
-        const client = saved();
+        const client = changed();
         client.users.findUnique.mockResolvedValue({
           name: null,
           email: 'rani@example.com',
@@ -352,7 +369,7 @@ describe('RateFormulaService', () => {
       });
 
       it('records "Sistem" behind the local development stand-in', async () => {
-        const client = saved();
+        const client = changed();
         const service = new RateFormulaService(client);
 
         await service.replace(FORMULA, undefined);
@@ -366,7 +383,7 @@ describe('RateFormulaService', () => {
       });
 
       it('fails the save when the entry cannot be written, so the formula rolls back', async () => {
-        const client = saved();
+        const client = changed();
         const failure = new Error('log failed');
         client.audit_logs.create.mockRejectedValue(failure);
         const service = new RateFormulaService(client);
