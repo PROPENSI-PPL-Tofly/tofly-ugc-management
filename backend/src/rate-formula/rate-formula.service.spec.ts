@@ -80,6 +80,7 @@ function fakeClient(
       }),
     },
     audit_logs: { create: vi.fn().mockResolvedValue({}) },
+    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (work: (tx: unknown) => Promise<unknown>) =>
       work(client),
     ),
@@ -315,6 +316,21 @@ describe('RateFormulaService', () => {
           client.audit_logs.create.mock.invocationCallOrder[0],
         ).toBeGreaterThan(
           client.performance_bonus_tiers.createMany.mock.invocationCallOrder[0],
+        );
+      });
+
+      // Two Admins saving at once would otherwise both read the same formula as their old values.
+      it('takes the formula lock before it reads the old values', async () => {
+        const client = saved();
+        const service = new RateFormulaService(client);
+
+        await service.replace(FORMULA, ADMIN_USER_ID);
+
+        expect(client.$executeRaw).toHaveBeenCalledTimes(1);
+        const [statement] = client.$executeRaw.mock.calls[0] as [string[]];
+        expect(statement.join('')).toContain('pg_advisory_xact_lock');
+        expect(client.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+          client.rate_formula.findUnique.mock.invocationCallOrder[0],
         );
       });
 
