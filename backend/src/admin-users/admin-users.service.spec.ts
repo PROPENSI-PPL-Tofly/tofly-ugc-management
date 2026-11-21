@@ -145,6 +145,25 @@ describe('AdminUsersService.list', () => {
     expect(users.count).toHaveBeenCalledWith({ where });
   });
 
+  // Prisma passes "contains" to ILIKE as it is, so a typed "_" or "%" would match anything.
+  it('searches for a typed _, % or \\ as that character, not a wildcard', async () => {
+    const { users, service } = setup();
+
+    await service.list({ page: 1, pageSize: 10 }, 'a_b%c\\d', ACTOR);
+
+    expect(users.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          is_admin: true,
+          OR: [
+            { name: { contains: 'a\\_b\\%c\\\\d', mode: 'insensitive' } },
+            { email: { contains: 'a\\_b\\%c\\\\d', mode: 'insensitive' } },
+          ],
+        },
+      }),
+    );
+  });
+
   it('marks the signed-in Super Admin, an inactive Admin, and one who never signed in', async () => {
     const { users, service } = setup();
     users.findMany.mockResolvedValue([
