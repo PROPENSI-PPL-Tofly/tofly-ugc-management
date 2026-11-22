@@ -49,6 +49,10 @@ describe('checkNewAdmin', () => {
     ['a name over 100 characters', { name: 'n'.repeat(101) }, { name: 'Nama maksimal 100 karakter' }],
     ['a blank name', { name: '   ' }, { name: 'Nama wajib diisi' }],
     ['a name that is not text', { name: 42 }, { name: 'Nama wajib diisi' }],
+    // The name shows in the Pengguna Admin table and in Log Aktivitas, one line each.
+    ['a name over two lines', { name: 'Sinta\nDewi' }, { name: 'Nama berisi karakter yang tidak diizinkan' }],
+    ['a name with a tab', { name: 'Sinta\tDewi' }, { name: 'Nama berisi karakter yang tidak diizinkan' }],
+    ['a name with a carriage return', { name: 'Sinta\rDewi' }, { name: 'Nama berisi karakter yang tidak diizinkan' }],
     ['an email that is no address', { email: 'sinta' }, { email: 'Format email tidak valid' }],
     ['an email over 254 characters', { email: `${'a'.repeat(250)}@t.id` }, { email: 'Format email tidak valid' }],
     ['a role the app does not know', { role: 'owner' }, { role: 'Role wajib dipilih' }],
@@ -86,6 +90,7 @@ describe('checkAdminRename', () => {
   it.each([
     ['no name', {}, 'Nama wajib diisi'],
     ['a name over 100 characters', { name: 'n'.repeat(101) }, 'Nama maksimal 100 karakter'],
+    ['a name over two lines', { name: 'Bima\nSantoso' }, 'Nama berisi karakter yang tidak diizinkan'],
   ])('refuses %s', (_label, body, message) => {
     expect(errorsOf(() => checkAdminRename(body))).toEqual({
       message: 'Data admin tidak valid',
