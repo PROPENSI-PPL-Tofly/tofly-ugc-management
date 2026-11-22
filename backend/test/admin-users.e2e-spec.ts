@@ -184,6 +184,20 @@ describe('/admin-users (e2e)', () => {
       ).resolves.toMatchObject({ is_admin: false, admin_role: null });
     });
 
+    it('refuses a name over two lines, and stores nothing', async () => {
+      const response = await as(app, superCookie)
+        .post('/admin-users')
+        .send({ name: 'Sinta\nDewi', email: email('two-lines'), role: 'admin' })
+        .expect(422);
+
+      expect(response.body.errors).toEqual({
+        name: 'Nama berisi karakter yang tidak diizinkan',
+      });
+      await expect(
+        prisma.users.findUnique({ where: { email: email('two-lines') } }),
+      ).resolves.toBeNull();
+    });
+
     it('names every wrong field', async () => {
       const response = await as(app, superCookie)
         .post('/admin-users')
@@ -238,6 +252,21 @@ describe('/admin-users (e2e)', () => {
 
     it('answers 400 for a page below 1', async () => {
       await as(app, superCookie).get('/admin-users?page=0').expect(400);
+    });
+
+    // Both answered 500 in the #230 review: PostgreSQL cannot hold NUL, and 1e20 is no skip.
+    it('answers 400 for a NUL character in the search', async () => {
+      const response = await as(app, superCookie)
+        .get('/admin-users?q=a%00b')
+        .expect(400);
+
+      expect(response.body).toMatchObject({ code: 'INVALID_CHARACTERS' });
+    });
+
+    it('answers 400 for a page no list could reach', async () => {
+      await as(app, superCookie)
+        .get('/admin-users?page=99999999999999999999')
+        .expect(400);
     });
   });
 
