@@ -20,6 +20,10 @@ export interface AdminRename {
   name: string;
 }
 
+// Line breaks, tabs and the other control characters (Unicode Cc); the name shows on one line in
+// the Pengguna Admin table and in Log Aktivitas.
+const CONTROL_CHARACTER = /\p{Cc}/u;
+
 type Errors = Partial<Record<'name' | 'email' | 'role', string>>;
 
 function bodyOf(input: unknown): Record<string, unknown> {
@@ -33,6 +37,8 @@ function checkName(value: unknown, errors: Errors): string {
     errors.name = 'Nama wajib diisi';
   } else if (name.length > MAX_NAME_LENGTH) {
     errors.name = `Nama maksimal ${MAX_NAME_LENGTH} karakter`;
+  } else if (CONTROL_CHARACTER.test(name)) {
+    errors.name = 'Nama berisi karakter yang tidak diizinkan';
   }
   return name;
 }

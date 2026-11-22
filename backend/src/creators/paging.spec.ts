@@ -18,10 +18,30 @@ describe('checkPaging', () => {
 
   it.each([
     ['a page below 1', 0, 10, 'page must be 1 or greater'],
-    ['a page past the last it allows', MAX_PAGE + 1, 10, `page must be ${MAX_PAGE} or less`],
-    ['a page no number can hold exactly', 1e20, 10, `page must be ${MAX_PAGE} or less`],
-    ['a page size of 0', 1, 0, `pageSize must be between 1 and ${MAX_PAGE_SIZE}`],
-    ['a page size over the cap', 1, MAX_PAGE_SIZE + 1, `pageSize must be between 1 and ${MAX_PAGE_SIZE}`],
+    [
+      'a page past the last it allows',
+      MAX_PAGE + 1,
+      10,
+      `page must be ${MAX_PAGE} or less`,
+    ],
+    [
+      'a page no number can hold exactly',
+      1e20,
+      10,
+      `page must be ${MAX_PAGE} or less`,
+    ],
+    [
+      'a page size of 0',
+      1,
+      0,
+      `pageSize must be between 1 and ${MAX_PAGE_SIZE}`,
+    ],
+    [
+      'a page size over the cap',
+      1,
+      MAX_PAGE_SIZE + 1,
+      `pageSize must be between 1 and ${MAX_PAGE_SIZE}`,
+    ],
   ])('answers 400 for %s', (_label, page, pageSize, message) => {
     expect(() => checkPaging(page, pageSize)).toThrow(
       new BadRequestException(message),

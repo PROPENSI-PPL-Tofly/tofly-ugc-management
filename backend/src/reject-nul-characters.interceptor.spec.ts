@@ -57,14 +57,17 @@ describe('RejectNulCharactersInterceptor', () => {
     ['the search box', { q: 'a\u0000b' }],
     ['a repeated filter', { status: ['draft', '\u0000'] }],
     ['a query key', { ['q\u0000']: 'ok' }],
-  ])('refuses a NUL character in %s of the query string with 400', (_, query) => {
-    const handle = vi.fn(() => of('handled'));
+  ])(
+    'refuses a NUL character in %s of the query string with 400',
+    (_, query) => {
+      const handle = vi.fn(() => of('handled'));
 
-    expect(() =>
-      interceptor.intercept(contextWith(undefined, query), { handle }),
-    ).toThrow(BadRequestException);
-    expect(handle).not.toHaveBeenCalled();
-  });
+      expect(() =>
+        interceptor.intercept(contextWith(undefined, query), { handle }),
+      ).toThrow(BadRequestException);
+      expect(handle).not.toHaveBeenCalled();
+    },
+  );
 
   it('lets a clean query string through', () => {
     const handle = vi.fn(() => of('handled'));
