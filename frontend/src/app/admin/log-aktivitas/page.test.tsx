@@ -3,10 +3,18 @@ import type { AuditLogRow } from "@/lib/audit-log";
 import { jakartaDay } from "@/lib/format";
 import AuditLogPage, { metadata } from "./page";
 
-const { load, panel } = vi.hoisted(() => ({ load: vi.fn(), panel: vi.fn() }));
+const { load, panel, session } = vi.hoisted(() => ({
+  load: vi.fn(),
+  panel: vi.fn(),
+  session: vi.fn(),
+}));
 
 vi.mock("@/lib/audit-log.server", () => ({
   loadAuditLog: (state: unknown) => load(state),
+}));
+
+vi.mock("@/lib/session.server", () => ({
+  currentSession: () => session(),
 }));
 
 vi.mock("@/components/shell/app-shell", () => ({
@@ -39,6 +47,23 @@ describe("Log Aktivitas page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     load.mockResolvedValue(LOADED);
+    session.mockResolvedValue({ role: "admin", isSuperAdmin: true });
+  });
+
+  // PBI-23 AC 3 (OWASP A01:2025): a typed address opens nothing for a regular Admin.
+  it("tells a regular Admin the page is not theirs, loading no entry", async () => {
+    session.mockResolvedValue({ role: "admin", isSuperAdmin: false });
+
+    await renderPage();
+
+    expect(screen.getByRole("heading", { name: "Akses ditolak" })).toBeInTheDocument();
+    expect(screen.getByText("Halaman ini hanya untuk Super Admin.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Kembali ke Kreator" })).toHaveAttribute(
+      "href",
+      "/admin/creators",
+    );
+    expect(load).not.toHaveBeenCalled();
+    expect(panel).not.toHaveBeenCalled();
   });
 
   it("names the page", async () => {

@@ -1,11 +1,50 @@
 import { render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
 import { AdminNav } from "./admin-nav";
+import { SuperAdminProvider } from "./super-admin-context";
 import { expectPhoneTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
 describe("AdminNav", () => {
+  // PBI-23 AC 1 and 3: the Super Admin menu stays hidden from everyone else.
+  it("adds Log Aktivitas for a Super Admin, as a fifth equal tile on a phone", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/log-aktivitas");
+
+    render(
+      <SuperAdminProvider isSuperAdmin>
+        <AdminNav />
+      </SuperAdminProvider>,
+    );
+
+    const link = screen.getByRole("link", { name: "Log Aktivitas" });
+    expect(link).toHaveAttribute("href", "/admin/log-aktivitas");
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getAllByRole("link").at(-1)).toBe(link);
+    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-5");
+  });
+
+  it("hides Log Aktivitas from a regular Admin", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(
+      <SuperAdminProvider isSuperAdmin={false}>
+        <AdminNav />
+      </SuperAdminProvider>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Log Aktivitas" })).not.toBeInTheDocument();
+  });
+
+  it("hides Log Aktivitas when nothing says who is signed in", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    expect(screen.queryByRole("link", { name: "Log Aktivitas" })).not.toBeInTheDocument();
+  });
+
   it("marks the creator database as current on its own page and below it", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators/abc/content-plan");
 

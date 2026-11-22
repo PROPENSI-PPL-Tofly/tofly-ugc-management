@@ -1,15 +1,25 @@
 import { render, screen } from "@testing-library/react";
 import { redirect } from "next/navigation";
-import { currentRole } from "@/lib/session.server";
+import { useIsSuperAdmin } from "@/components/shell/super-admin-context";
+import { currentSession } from "@/lib/session.server";
 import AdminLayout from "./layout";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
+vi.mock("@/lib/session.server", () => ({ currentSession: vi.fn() }));
+
+function SuperAdminState() {
+  return <p>{useIsSuperAdmin() ? "Menu Super Admin" : "Menu Admin"}</p>;
+}
 
 async function renderLayout() {
   render(
     await AdminLayout({
-      children: <p>Data admin</p>,
+      children: (
+        <>
+          <p>Data admin</p>
+          <SuperAdminState />
+        </>
+      ),
       params: Promise.resolve({}),
     } as Parameters<typeof AdminLayout>[0]),
   );
@@ -21,18 +31,27 @@ describe("Admin area", () => {
   });
 
   it("shows its pages to a signed-in admin", async () => {
-    vi.mocked(currentRole).mockResolvedValue("admin");
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false });
 
     await renderLayout();
 
     expect(screen.getByText("Data admin")).toBeInTheDocument();
+    expect(screen.getByText("Menu Admin")).toBeInTheDocument();
     expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("tells its pages when the admin is a Super Admin", async () => {
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
+
+    await renderLayout();
+
+    expect(screen.getByText("Menu Super Admin")).toBeInTheDocument();
   });
 
   // Told why rather than bounced: a bookmarked page that silently turns into the login screen
   // reads like a broken link.
   it("tells a visitor who is not signed in to sign in first, without rendering the page", async () => {
-    vi.mocked(currentRole).mockResolvedValue(null);
+    vi.mocked(currentSession).mockResolvedValue(null);
 
     await renderLayout();
 
@@ -48,7 +67,7 @@ describe("Admin area", () => {
 
   // TC-09-06: no admin menu, no data, and a way back to the creator's own page.
   it("tells a signed-in creator the page is not theirs, without rendering it", async () => {
-    vi.mocked(currentRole).mockResolvedValue("creator");
+    vi.mocked(currentSession).mockResolvedValue({ role: "creator", isSuperAdmin: false });
 
     await renderLayout();
 
