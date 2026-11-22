@@ -1,6 +1,7 @@
 import { AccessDenied } from "@/components/shell/access-denied";
+import { SuperAdminProvider } from "@/components/shell/super-admin-context";
 import { homeFor } from "@/lib/session";
-import { currentRole } from "@/lib/session.server";
+import { currentSession } from "@/lib/session.server";
 
 // Every admin page renders per request behind the signed-in role, never from a static build.
 export const dynamic = "force-dynamic";
@@ -10,8 +11,8 @@ export const dynamic = "force-dynamic";
  * backend guards every admin endpoint as well; this decides what the browser is shown.
  */
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  const role = await currentRole();
-  if (role === null) {
+  const session = await currentSession();
+  if (session === null) {
     return (
       <AccessDenied
         title="Perlu masuk"
@@ -21,7 +22,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       />
     );
   }
-  if (role !== "admin") {
+  if (session.role !== "admin") {
     return (
       <AccessDenied
         reason="Halaman ini hanya untuk Admin."
@@ -30,5 +31,5 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       />
     );
   }
-  return children;
+  return <SuperAdminProvider isSuperAdmin={session.isSuperAdmin}>{children}</SuperAdminProvider>;
 }
