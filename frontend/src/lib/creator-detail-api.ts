@@ -9,12 +9,13 @@
 
 import { toContentListQuery, type RawContentList, type RawContentListItem } from "./content-list-api";
 import { DEFAULT_CONTENT_PLAN_PARAMS, type ContentPlanParams } from "./content-plan";
-import type {
-  CreatorContentRow,
-  CreatorDetailParams,
-  CreatorDetailView,
-  CreatorPeriod,
-  CreatorProfile,
+import {
+  defaultPeriodOf,
+  type CreatorContentRow,
+  type CreatorDetailParams,
+  type CreatorDetailView,
+  type CreatorPeriod,
+  type CreatorProfile,
 } from "./creator-detail";
 import { EARLY_END_REASONS, type ContractPeriod, type EarlyEndReason } from "./creators";
 import type { RawInvoiceDetail } from "./invoice-api";
@@ -73,21 +74,8 @@ export function openContractId(raw: RawCreatorDetail, state: CreatorDetailParams
   const found = raw.contractHistory.find((period) => period.id.toLowerCase() === named);
   if (found) return found.id;
 
-  // contractHistory arrives oldest first.
-  const periods = raw.contractHistory;
-
-  // Priority 1: the active period.
-  const active = periods.find((p) => p.status === "active");
-  if (active) return active.id;
-
-  // Priority 2: the next upcoming period (earliest start date).
-  const upcoming = periods
-    .filter((p) => p.status === "upcoming")
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
-  if (upcoming) return upcoming.id;
-
-  // Priority 3: the most recent period.
-  return periods.at(-1)?.id ?? null;
+  // The same default the period switcher links the bare address to.
+  return defaultPeriodOf(raw.contractHistory)?.id ?? null;
 }
 
 /**

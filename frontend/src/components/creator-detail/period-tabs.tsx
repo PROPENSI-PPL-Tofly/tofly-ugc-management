@@ -13,6 +13,7 @@ import {
   PERIOD_STATUS_TONES,
   creatorDetailAfterContractChange,
   creatorDetailHref,
+  defaultPeriodOf,
   periodProductivity,
   type CreatorPeriod,
   type PeriodEarnings,
@@ -116,7 +117,7 @@ export function PeriodSummary({
 /**
  * The creator's contract history: one tab per period, picking the one the summary and the Content
  * Plan below are about. Each tab is a link, so a period has an address of its own and opens in a new tab like any
- * other page. The newest period is the bare address, where the page opens by default.
+ * other page. The period the page opens by default is the bare address; every other is named.
  */
 export function PeriodTabs({
   creatorId,
@@ -135,13 +136,13 @@ export function PeriodTabs({
   /** A control for the panel's header, such as "+ Perpanjang Kontrak" (PBI-30). */
   action?: ReactNode;
 }>) {
-  const newest = periods[0];
+  const opensBare = defaultPeriodOf(periods);
   const bare = back ? { ...DEFAULT_CREATOR_DETAIL_PARAMS, back } : DEFAULT_CREATOR_DETAIL_PARAMS;
 
   function hrefOf(period: CreatorPeriod): string {
     return creatorDetailHref(
       creatorId,
-      period === newest ? bare : creatorDetailAfterContractChange(bare, period.contractId),
+      period === opensBare ? bare : creatorDetailAfterContractChange(bare, period.contractId),
     );
   }
 
