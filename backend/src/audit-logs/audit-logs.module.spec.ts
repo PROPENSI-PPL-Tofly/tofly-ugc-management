@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module.js';
 import { SuperAdminGuard } from '../auth/super-admin.guard.js';
+import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditLogsController } from './audit-logs.controller.js';
 import { AuditLogsModule } from './audit-logs.module.js';
@@ -15,7 +16,8 @@ describe('AuditLogsModule (SCRUM-296)', () => {
 
   it('serves the routes with the one AuditLogsService it holds', async () => {
     const module = await Test.createTestingModule({
-      imports: [AuditLogsModule],
+      // PrismaModule is global, as in the app; its client is stubbed so nothing connects.
+      imports: [PrismaModule, AuditLogsModule],
     })
       .overrideProvider(PrismaService)
       .useValue({})
