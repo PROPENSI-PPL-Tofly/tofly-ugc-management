@@ -5,7 +5,7 @@ import type {
   AuditCategory,
   AuditTargetType,
 } from '../audit/audit-actions.js';
-import type { AuditActor } from '../audit/audit-logger.js';
+import { safeValue, type AuditActor } from '../audit/audit-logger.js';
 import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuditLogQuery } from './audit-log-query.js';
@@ -48,6 +48,15 @@ const CREATOR_NAME_SELECT = {
 
 type StoredRow = Prisma.audit_logsGetPayload<{ select: typeof ROW_SELECT }>;
 
+// Only an object of fields is shown, and SCRUM-295's filter runs again on the way out, so an entry
+// written past AuditLogger still never shows a credential (AC 19, OWASP A09:2025, A10:2025).
+function shownValues(stored: Prisma.JsonValue): Record<string, unknown> | null {
+  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) {
+    return null;
+  }
+  return safeValue(stored) as Record<string, unknown>;
+}
+
 // The slice of Prisma this service reads, so a test stubs exactly that (DIP). No users: the actor
 // shown is the one stored with the entry.
 export type AuditLogsClient = Pick<PrismaService, 'audit_logs' | 'creators'>;
@@ -66,8 +75,8 @@ function toRow(row: StoredRow, creators: Map<string, string>): AuditLogRowDto {
     targetId: row.target_id,
     targetLabel: row.target_label,
     creator: creatorName ? { id: row.creator_id!, name: creatorName } : null,
-    oldValues: row.old_values as Record<string, unknown> | null,
-    newValues: row.new_values as Record<string, unknown> | null,
+    oldValues: shownValues(row.old_values),
+    newValues: shownValues(row.new_values),
     note: row.note,
   };
 }
