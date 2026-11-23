@@ -27,7 +27,10 @@ import type {
   OnboardedCreator,
 } from './dto/new-creator.dto.js';
 import { checkFilters } from './filters.js';
-import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
+import {
+  DeadlineBufferService,
+  type DeadlineBufferReader,
+} from '../deadline-buffer/deadline-buffer.service.js';
 import { checkNewCreator, type NewCreator } from './new-creator.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from './paging.js';
 
@@ -57,6 +60,8 @@ export class CreatorsController {
     @Inject(CreatorsService) private readonly creators: CreatorLister,
     @Inject(CreatorOnboardingService)
     private readonly onboarding: CreatorOnboarder,
+    @Inject(DeadlineBufferService)
+    private readonly buffer: DeadlineBufferReader,
   ) {}
 
   // The pipes turn anything that is not an integer into a 400 before this runs;
@@ -102,7 +107,8 @@ export class CreatorsController {
     const now = new Date();
     // The admin the guard signed in; absent only behind the local development stand-in.
     return this.onboarding.onboard(
-      onboardingInput(checkNewCreator(body, now, DEFAULT_BUFFER_DAYS)),
+      // The stored buffer (PBI-23 AC 22), read once for the request.
+      onboardingInput(checkNewCreator(body, now, await this.buffer.current())),
       now,
       request.principal?.userId,
     );

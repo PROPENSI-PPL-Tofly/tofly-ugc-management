@@ -127,6 +127,19 @@ describe('CreatorOnboardingService', () => {
     expect(prisma.creators.create).not.toHaveBeenCalled();
   });
 
+  // Built outside Nest (no DeadlineBufferModule), it keeps the AC 20 default of 5 days.
+  it('re-checks with 5 days when no stored buffer is wired in', async () => {
+    const standalone = new CreatorOnboardingService(prisma as never);
+
+    await expect(
+      standalone.onboard({ ...INPUT, deadlines: ['2026-10-10', '2026-11-08'] }, NOW),
+    ).rejects.toMatchObject({
+      response: {
+        errors: { deadlines: 'Deadline paling lambat 7 Nov 2026 (H-5 akhir kontrak)' },
+      },
+    });
+  });
+
   it('whitelists the email with the creator, contract and Evergreen contents in one write', async () => {
     prisma.creators.create.mockResolvedValue(CREATED);
 
