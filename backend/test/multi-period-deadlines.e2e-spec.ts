@@ -3,8 +3,8 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
-import { H5_BUFFER_DAYS, readableDay } from '../src/creators/evergreen.js';
-import { DEFAULT_BUFFER_DAYS } from '../src/creators/new-creator.js';
+import { readableDay } from '../src/creators/evergreen.js';
+import { DEFAULT_BUFFER_DAYS } from '../src/deadline-buffer/deadline-window.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signInAsAdmin } from './sessions.js';
 import { day } from './days.js';
@@ -26,7 +26,8 @@ const NEXT_START = 31;
 const NEXT_END = 120;
 /** The next period has not started, so its window opens at its start plus the buffer. */
 const NEXT_EARLIEST = NEXT_START + DEFAULT_BUFFER_DAYS;
-const NEXT_LATEST = NEXT_END - H5_BUFFER_DAYS;
+// One stored buffer draws both lines (PBI-23 AC 22); the suite runs with the default.
+const NEXT_LATEST = NEXT_END - DEFAULT_BUFFER_DAYS;
 
 describe('Deadlines in a period that has not started (e2e)', () => {
   let app: INestApplication<App>;
@@ -168,7 +169,7 @@ describe('Deadlines in a period that has not started (e2e)', () => {
 
       expect(intoNext.status).toBe(422);
       expect(intoNext.body.errors).toEqual({
-        deadline: `Deadline paling lambat ${readableDay(iso(30 - H5_BUFFER_DAYS))} (H-5 akhir kontrak)`,
+        deadline: `Deadline paling lambat ${readableDay(iso(30 - DEFAULT_BUFFER_DAYS))} (H-${DEFAULT_BUFFER_DAYS} akhir kontrak)`,
       });
     });
 

@@ -25,12 +25,6 @@ export const MAX_CONTENT_QUOTA = 100;
  */
 export const MAX_FIXED_RATE = 10_000_000;
 
-/**
- * Minimum days between max(today, contract start) and any new deadline (PRD 3.6). The PRD
- * makes this an admin-editable global setting; until that setting exists, its default holds.
- */
-export const DEFAULT_BUFFER_DAYS = 5;
-
 // PRD 3.4's format rules as one pattern: exactly one "@", dot-separated runs of allowed
 // characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
 // the domain. Every run is anchored by a literal dot, so the pattern cannot backtrack

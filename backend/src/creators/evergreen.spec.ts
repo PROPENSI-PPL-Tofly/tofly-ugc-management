@@ -3,7 +3,6 @@ import {
   evergreenName,
   jakartaDay,
   joinName,
-  latestDeadline,
   splitName,
 } from './evergreen.js';
 import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
@@ -76,21 +75,6 @@ describe('jakartaDay', () => {
 
   it('keeps the same day when UTC and WIB agree', () => {
     expect(jakartaDay(new Date('2026-09-12T10:00:00Z'))).toBe('2026-09-12');
-  });
-});
-
-// PBI-38 AC 14: no deadline falls later than the contract end minus the H-5 buffer.
-describe('latestDeadline', () => {
-  it('is five days before the contract end', () => {
-    expect(latestDeadline('2026-12-31')).toBe('2026-12-26');
-  });
-
-  it('counts back across a month end', () => {
-    expect(latestDeadline('2026-12-03')).toBe('2026-11-28');
-  });
-
-  it('counts back across a leap day', () => {
-    expect(latestDeadline('2028-03-02')).toBe('2028-02-26');
   });
 });
 
