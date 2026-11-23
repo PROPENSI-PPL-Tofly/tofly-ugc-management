@@ -23,7 +23,6 @@ const NO_ERRORS: CreatorFormErrors = {};
 
 /** How many Specific names the delete dialog lists before it only counts. */
 const NAMED_SPECIFICS = 5;
-const LOGGED = "Penghapusan tercatat di Log Aktivitas.";
 
 /**
  * What the delete dialog says goes with the period: the Specific content when there is some, and
@@ -31,10 +30,10 @@ const LOGGED = "Penghapusan tercatat di Log Aktivitas.";
  */
 function deleteMessage(specifics: PeriodSpecifics | null | undefined): string {
   if (specifics === undefined || specifics === null) {
-    return `Slot Evergreen, invoice kosong dan konten Specific periode ini (kalau ada) ikut terhapus. ${LOGGED}`;
+    return `Slot Evergreen, invoice kosong dan konten Specific periode ini (kalau ada) ikut terhapus.`;
   }
-  if (specifics.total === 0) return `Slot Evergreen dan invoice kosong periode ini ikut terhapus. ${LOGGED}`;
-  return `Slot Evergreen, invoice kosong dan ${specifics.total} konten Specific periode ini ikut terhapus. ${LOGGED}`;
+  if (specifics.total === 0) return `Slot Evergreen dan invoice kosong periode ini ikut terhapus.`;
+  return `Slot Evergreen, invoice kosong dan ${specifics.total} konten Specific periode ini ikut terhapus.`;
 }
 
 function specificNames({ names, total }: PeriodSpecifics): string {
@@ -47,18 +46,21 @@ function specificNames({ names, total }: PeriodSpecifics): string {
  * "Ubah Periode" and "Hapus Periode" on the Periode Kontrak panel (PBI-30 AC 8-9), offered only
  * while the newest renewal is "Belum Dimulai". A change opens the renewal's own form and has its
  * Evergreen schedule generated again; a delete asks first, naming what goes with the period,
- * the Specific content the admin added included.
- * The backend logs the delete in Log Aktivitas.
+ * the Specific content the admin added included. Offered only while that period is the open one,
+ * so the buttons above the switcher always act on the period it shows.
  */
 export function UpcomingPeriodActions({
   creatorId,
   creatorName,
   periods,
+  selected,
 }: Readonly<{
   creatorId: string;
   creatorName: string;
   /** Newest first, as the page's view carries them. */
   periods: readonly CreatorPeriod[];
+  /** The period the switcher has open. */
+  selected: CreatorPeriod | null;
 }>) {
   const router = useRouter();
   const { show: notify, toast } = useToast();
@@ -79,7 +81,7 @@ export function UpcomingPeriodActions({
     NO_ERRORS,
   );
 
-  if (editable === null) return toast;
+  if (editable === null || editable.period.contractId !== selected?.contractId) return toast;
   const { period, previous } = editable;
 
   function askDelete() {
