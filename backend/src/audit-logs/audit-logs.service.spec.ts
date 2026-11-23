@@ -195,5 +195,53 @@ describe('AuditLogsService (SCRUM-296)', () => {
 
       expect(item.creator).toBeNull();
     });
+
+    // AC 19: an entry written past AuditLogger (raw SQL, an older key list) still never shows a
+    // credential; SCRUM-295's own filter is applied again on the way out (OWASP A09:2025).
+    it('drops credentials from the stored values with the filter AuditLogger writes with', async () => {
+      prisma.audit_logs.findMany.mockResolvedValue([
+        {
+          ...ROW,
+          old_values: {
+            status: 'running',
+            token: 'stolen',
+            nested: { otp_code: '123456', statusCode: 200 },
+          },
+          new_values: {
+            authorization: 'Bearer x',
+            cookie: 'sid=1',
+            session_id: 's',
+            statusCode: 201,
+          },
+        },
+      ]);
+
+      const [item] = (await service.list({ page: 1, filter: everything }))
+        .items;
+
+      expect(item.oldValues).toEqual({
+        status: 'running',
+        nested: { statusCode: 200 },
+      });
+      expect(item.newValues).toEqual({ statusCode: 201 });
+    });
+
+    // jsonb takes any JSON; SCRUM-297 reads only an object of fields (OWASP A10:2025).
+    it.each([
+      ['a list', ['status']],
+      ['text', 'finalized'],
+      ['a number', 3],
+      ['nothing', null],
+    ])('answers %s stored as values as no values', async (_name, stored) => {
+      prisma.audit_logs.findMany.mockResolvedValue([
+        { ...ROW, old_values: stored, new_values: stored },
+      ]);
+
+      const [item] = (await service.list({ page: 1, filter: everything }))
+        .items;
+
+      expect(item.oldValues).toBeNull();
+      expect(item.newValues).toBeNull();
+    });
   });
 });
