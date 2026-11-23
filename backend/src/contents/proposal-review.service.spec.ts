@@ -17,7 +17,7 @@ interface Stored {
   status: string;
   name: string;
   deadline: Date;
-  contracts: { creator_id: string; end_date: Date };
+  contracts: { creator_id: string; start_date: Date; end_date: Date };
 }
 
 /**
@@ -78,6 +78,7 @@ const pending: Stored = {
   deadline: new Date('2026-12-26T00:00:00.000Z'),
   contracts: {
     creator_id: CREATOR,
+    start_date: new Date('2026-10-01T00:00:00.000Z'),
     end_date: new Date('2026-12-31T00:00:00.000Z'),
   },
 };
