@@ -64,8 +64,12 @@ function shownValues(stored: Prisma.JsonValue): Record<string, unknown> | null {
 // shown is the one stored with the entry.
 export type AuditLogsClient = Pick<PrismaService, 'audit_logs' | 'creators'>;
 
-function toRow(row: StoredRow, creators: Map<string, string>): AuditLogRowDto {
-  const creatorName = row.creator_id && creators.get(row.creator_id);
+type NamedCreator = { id: string; name: string };
+
+function toRow(
+  row: StoredRow,
+  creators: Map<string, NamedCreator>,
+): AuditLogRowDto {
   return {
     id: row.id,
     occurredAt: row.occurred_at.toISOString(),
@@ -77,7 +81,7 @@ function toRow(row: StoredRow, creators: Map<string, string>): AuditLogRowDto {
     targetType: row.target_type as AuditTargetType,
     targetId: row.target_id,
     targetLabel: row.target_label,
-    creator: creatorName ? { id: row.creator_id!, name: creatorName } : null,
+    creator: (row.creator_id && creators.get(row.creator_id)) || null,
     oldValues: shownValues(row.old_values),
     newValues: shownValues(row.new_values),
     note: row.note,
@@ -114,7 +118,9 @@ export class AuditLogsService {
       take: AUDIT_LOG_PAGE_SIZE,
       select: ROW_SELECT,
     });
-    const creators = await this.creatorNames(rows.map((row) => row.creator_id));
+    const creators = await this.namedCreators(
+      rows.map((row) => row.creator_id),
+    );
 
     return {
       items: rows.map((row) => toRow(row, creators)),
@@ -152,10 +158,13 @@ export class AuditLogsService {
     }
     const actors = [...latest].map(([value, { label }]) => ({ value, label }));
 
-    const names = await this.creatorNames(
+    const named = await this.namedCreators(
       creatorIds.map(({ creator_id }) => creator_id),
     );
-    const creators = [...names].map(([value, label]) => ({ value, label }));
+    const creators = [...named.values()].map(({ id, name }) => ({
+      value: id,
+      label: name,
+    }));
 
     return {
       actors: [...actors.sort(byLabel), SISTEM_OPTION],
@@ -163,10 +172,10 @@ export class AuditLogsService {
     };
   }
 
-  // Each creator's name as it is now; a creator who no longer exists is simply absent.
-  private async creatorNames(
+  // Each creator by id, named as they are now; a creator who no longer exists is simply absent.
+  private async namedCreators(
     ids: readonly (string | null)[],
-  ): Promise<Map<string, string>> {
+  ): Promise<Map<string, NamedCreator>> {
     const wanted = [...new Set(ids.filter((id): id is string => id !== null))];
     if (wanted.length === 0) return new Map();
 
@@ -174,6 +183,11 @@ export class AuditLogsService {
       where: { id: { in: wanted } },
       select: CREATOR_NAME_SELECT,
     });
-    return new Map(creators.map((creator) => [creator.id, joinName(creator)]));
+    return new Map(
+      creators.map((creator) => [
+        creator.id,
+        { id: creator.id, name: joinName(creator) },
+      ]),
+    );
   }
 }
