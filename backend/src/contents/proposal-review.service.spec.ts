@@ -105,6 +105,25 @@ describe('ProposalReviewService.approve', () => {
     expect(client.contents.updateMany).not.toHaveBeenCalled();
   });
 
+  // PBI-23 AC 22 (SCRUM-298): the H-5 line is H-N, drawn by the stored buffer.
+  it('refuses a proposal past the line the stored buffer draws, naming H-N', async () => {
+    const { client, current } = stubClient({
+      ...pending,
+      deadline: new Date('2026-12-23T00:00:00.000Z'),
+    });
+    const scheduling = { today: () => new Date(), bufferDays: async () => 9 };
+
+    const approving = new ProposalReviewService(client, notifier(), scheduling).approve(ID);
+
+    await expect(approving).rejects.toMatchObject({
+      response: {
+        code: 'PROPOSAL_PAST_LATEST_DEADLINE',
+        message: 'Deadline paling lambat 22 Des 2026 (H-9 akhir kontrak)',
+      },
+    });
+    expect(current()?.status).toBe('pending');
+  });
+
   it('moves a pending proposal to scheduled, guarded on it still being pending', async () => {
     const { client, current } = stubClient(pending);
 
