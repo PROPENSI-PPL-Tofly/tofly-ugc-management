@@ -123,6 +123,27 @@ export function periodNumber(
   );
 }
 
+/**
+ * The renewal still to start after the current period (PBI-30 AC 10), so Creator Database can
+ * name it beside the period it shows; null when none waits or the current one is itself to start.
+ */
+export function nextPeriod(
+  contracts: MetricsContract[],
+  current: MetricsContract,
+  today: Date,
+): { periodNumber: number; startDate: Date } | null {
+  const cutoff = jakartaMidnight(today).getTime();
+  // A current period still to start is itself what the row shows: nothing waits beside it.
+  if (atMidnight(current.startDate) > cutoff) return null;
+
+  const next = contracts
+    .filter((contract) => atMidnight(contract.startDate) > cutoff)
+    .sort((a, b) => atMidnight(a.startDate) - atMidnight(b.startDate))[0];
+  return next
+    ? { periodNumber: periodNumber(contracts, next), startDate: next.startDate }
+    : null;
+}
+
 /** Days left before the contract ends; zero on the final day, negative once it has ended. */
 export function daysRemaining(contract: MetricsContract, today: Date): number {
   return Math.round(

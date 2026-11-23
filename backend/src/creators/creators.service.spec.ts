@@ -260,6 +260,7 @@ describe('CreatorsService', () => {
             periodNumber: 1,
             contentQuota: 6,
             type: 'regular',
+            next: null,
           },
           progress: {
             submitted: 2,

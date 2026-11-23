@@ -8,6 +8,7 @@ import {
   contractStatus,
   currentContract,
   daysRemaining,
+  nextPeriod,
   periodNumber,
   type MetricsContract,
 } from './creator-metrics.js';
@@ -158,7 +159,23 @@ const NO_CONTRACT: ContractSummary = {
   periodNumber: 0,
   contentQuota: 0,
   type: null,
+  next: null,
 };
+
+/** The renewal still to start after the current period, its start as a calendar day. */
+function nextOf(
+  contracts: Parameters<typeof nextPeriod>[0],
+  current: Parameters<typeof nextPeriod>[1],
+  today: Date,
+): ContractSummary['next'] {
+  const next = nextPeriod(contracts, current, today);
+  return next
+    ? {
+        periodNumber: next.periodNumber,
+        startDate: calendarDay(next.startDate),
+      }
+    : null;
+}
 
 /** Creator-proposed content an admin has not accepted yet: not a commitment, so not counted. */
 function isProposal(status: content_status): boolean {
@@ -293,9 +310,7 @@ export class CreatorsService implements CreatorLister {
       });
     }
 
-    const [summary] = await this.withLatestSyncs([
-      this.toSummary(row, today),
-    ]);
+    const [summary] = await this.withLatestSyncs([this.toSummary(row, today)]);
 
     const periods = toContractPeriods(row.contracts, today);
     // Both lists keep the database order, so a period's index is its row's index.
@@ -413,6 +428,7 @@ export class CreatorsService implements CreatorLister {
             periodNumber: periodNumber(contracts, current),
             contentQuota: current.contentQuota,
             type: current.contractType,
+            next: nextOf(contracts, current, today),
           }
         : NO_CONTRACT,
 
