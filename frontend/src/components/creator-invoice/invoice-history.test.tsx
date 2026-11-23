@@ -30,7 +30,7 @@ describe("InvoiceHistory", () => {
 
   // PBI-30: a renewal's invoice exists from the day it is agreed, but nothing runs on it yet.
   it("words the invoice of a period that has not started as Belum Dimulai, not Berjalan", () => {
-    const next = aCreatorInvoice({ contractId: "c-2", periodNumber: 2, status: "running", notStarted: true });
+    const next = aCreatorInvoice({ contractId: "c-2", periodNumber: 2, status: "accruing", notStarted: true });
     render(<InvoiceHistory invoices={[next]} onOpen={vi.fn()} />);
 
     const [, row] = within(screen.getByRole("table", { name: "Riwayat Invoice" })).getAllByRole("row");
