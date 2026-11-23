@@ -184,8 +184,28 @@ describe('ContentDetailService', () => {
       expect.objectContaining({
         where: {
           id: '11111111-1111-1111-1111-111111111111',
-          contracts: { creator_id: 'creator-1' },
+          // Only content of a period that has started: 20 Sep 2026 is the day in Jakarta at NOW.
+          contracts: {
+            creator_id: 'creator-1',
+            start_date: { lte: new Date('2026-09-20T00:00:00.000Z') },
+          },
         },
+      }),
+    );
+  });
+
+  it('keeps an admin read unscoped by the period, so admins plan a period before it starts', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+
+    await service(prisma).getDetail(
+      '11111111-1111-1111-1111-111111111111',
+      NOW,
+    );
+
+    expect(prisma.contents.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: '11111111-1111-1111-1111-111111111111' },
       }),
     );
   });
