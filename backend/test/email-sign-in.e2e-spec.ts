@@ -55,7 +55,9 @@ describe('Email code sign-in (e2e)', () => {
       .useValue(outbox)
       .compile();
     app = module.createNestApplication();
-    await app.init();
+    // Listening once, on a port of its own: left unbound, supertest binds and closes the server
+    // around every request, and the concurrent requests below reset one another's sockets.
+    await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
 
     for (const [email, isAdmin] of [
@@ -113,7 +115,9 @@ describe('Email code sign-in (e2e)', () => {
   }
 
   function sessionId(setCookie: string[] | string | undefined): string {
-    const header = [setCookie ?? []].flat().find((c) => c.startsWith('__session='));
+    const header = [setCookie ?? []]
+      .flat()
+      .find((c) => c.startsWith('__session='));
     if (!header) throw new Error('no session cookie');
     return header.slice('__session='.length).split(';')[0];
   }
