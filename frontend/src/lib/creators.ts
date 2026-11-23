@@ -65,6 +65,8 @@ export interface CreatorSummary {
     contentQuota: number;
     /** The current contract's type; null without a contract. */
     type: ContractType | null;
+    /** A renewal still to start after the current period (PBI-30 AC 10); absent from older APIs. */
+    next?: { periodNumber: number; startDate: string } | null;
   };
   progress: {
     submitted: number;
