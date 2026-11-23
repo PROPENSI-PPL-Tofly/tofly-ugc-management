@@ -73,6 +73,25 @@ export function overlappingPeriod(
     : undefined;
 }
 
+/**
+ * Why a renewal must wait, or undefined when it may be added: a period that has not started is
+ * still the admin's to change or delete, so a new one is only added once every period has started.
+ * This one rule also keeps a renewal from filling a gap before a later period, which would number
+ * the periods differently from the order they were agreed in.
+ */
+export function waitingPeriod(
+  periods: readonly StoredPeriod[],
+  now: Date,
+): string | undefined {
+  const waiting = periods
+    .filter((period) => !periodHasStarted(period.startDate, now))
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())[0];
+
+  return waiting
+    ? `Periode ${readableDay(isoDay(waiting.startDate))} – ${readableDay(isoDay(waiting.endDate))} belum dimulai. Ubah atau hapus periode itu dulu sebelum menambah periode baru`
+    : undefined;
+}
+
 /** Specific content already scheduled in a period that has not started. */
 export interface ScheduledSpecific {
   name: string;

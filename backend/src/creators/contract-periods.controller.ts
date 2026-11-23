@@ -42,7 +42,12 @@ export class ContractPeriodsController {
   ): Promise<SavedPeriod> {
     const now = new Date();
     // The admin the guard signed in; absent only behind the local development stand-in.
-    return this.periods.create(id, checkNewPeriod(body, now), now, request.principal?.userId);
+    return this.periods.create(
+      id,
+      checkNewPeriod(body, now),
+      now,
+      request.principal?.userId,
+    );
   }
 
   /** Changes a period that has not started; its Evergreen schedule is generated again. */
@@ -54,6 +59,8 @@ export class ContractPeriodsController {
     @Req() request: SignedIn,
   ): Promise<SavedPeriod> {
     const now = new Date();
+    // A started period is refused as such before its body is judged by the rules for new dates.
+    await this.periods.assertEditable(id, contractId, now);
     return this.periods.update(
       id,
       contractId,
