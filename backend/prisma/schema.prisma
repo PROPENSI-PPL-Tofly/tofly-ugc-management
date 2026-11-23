@@ -245,6 +245,7 @@ model users {
   invoices_finalized     invoices[]               @relation("invoices_finalized_by")
   invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
   invoices_paid          invoices[]               @relation("invoices_paid_by")
+  deadline_buffer        deadline_buffer[]
   rate_formula           rate_formula[]
   revision_followups     revision_followups[]
 }
@@ -366,6 +367,17 @@ model invoice_adjustments {
 
 /// The one Atur Formula Rate row (PBI-8); its id can only be true.
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// The deadline buffer (PBI-23 AC 20-22, SCRUM-298): one row, whole days from 1 to 14, drawing both
+/// the earliest and the latest deadline line. Changed by a Super Admin only.
+model deadline_buffer {
+  id          Boolean  @id @default(true)
+  buffer_days Int      @default(5)
+  /// The Super Admin who saved it last; the API never answers it.
+  updated_by  String?  @db.Uuid
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  users       users?   @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
 model rate_formula {
   id                   Boolean  @id @default(true)
   specific_bonus       Decimal  @db.Decimal
