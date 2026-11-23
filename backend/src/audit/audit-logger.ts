@@ -54,7 +54,7 @@ export interface AuditActorReader {
 const FORBIDDEN_KEY =
   /token|secret|password|file_?content|base64|^code$|(login|sign_?in|otp|auth|verification)_?code|code_?hash|api_?key|authorization|cookie|session_?id|(^|_)otp$/i;
 
-function safeValue(value: unknown): unknown {
+export function safeValue(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
   if (value instanceof Uint8Array) return undefined;
   if (Array.isArray(value)) {
