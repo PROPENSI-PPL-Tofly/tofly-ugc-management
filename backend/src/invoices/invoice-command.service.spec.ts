@@ -46,6 +46,8 @@ describe('InvoiceCommandService', () => {
       create: vi.fn(),
       findMany: vi.fn(),
     },
+    users: { findUnique: vi.fn() },
+    audit_logs: { create: vi.fn() },
     $queryRaw: vi.fn(),
     // The transaction client is the same stub, so each test reads what ran inside it.
     $transaction: vi.fn(),
@@ -60,6 +62,12 @@ describe('InvoiceCommandService', () => {
     lastSync.beforeFinalize.mockResolvedValue(DONE);
     prisma.invoice_adjustments.findMany.mockResolvedValue([]);
     prisma.$queryRaw.mockResolvedValue([]);
+    prisma.users.findUnique.mockResolvedValue({
+      name: 'Rani',
+      email: 'rani@example.com',
+      admin_role: 'admin',
+    });
+    prisma.audit_logs.create.mockResolvedValue({});
     prisma.$transaction.mockImplementation(
       (work: (tx: typeof prisma) => Promise<unknown>) => work(prisma),
     );
@@ -309,7 +317,13 @@ describe('InvoiceCommandService', () => {
         end_date: day(-1),
         content_quota: 1,
         fixed_rate: new Prisma.Decimal('1000000'),
-        creators: { access_revoke_date: null },
+        creators: {
+          id: 'creator-1',
+          first_name: 'Rangga',
+          middle_name: null,
+          last_name: 'Pratama',
+          access_revoke_date: null,
+        },
         contents: [measured],
         ...overrides,
       };
@@ -899,6 +913,54 @@ describe('InvoiceCommandService', () => {
 
       expect(error).toBeInstanceOf(ConflictException);
       expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
+    });
+
+    // PBI-23 (SCRUM-295): "Invoice & Pembayaran" in Log Aktivitas (OWASP A09:2025).
+    describe('Log Aktivitas', () => {
+      it('records the status change and the frozen total, by the admin, after the invoice moved', async () => {
+        await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(prisma.users.findUnique).toHaveBeenCalledWith({
+          where: { id: 'admin-9' },
+          select: { name: true, email: true, admin_role: true },
+        });
+        expect(prisma.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+          data: {
+            actor_user_id: 'admin-9',
+            actor_name: 'Rani',
+            actor_role: 'admin',
+            category: 'invoice_pembayaran',
+            action: 'invoice_finalized',
+            target_type: 'invoice',
+            target_id: 'invoice-1',
+            target_label: 'Invoice Rangga Pratama',
+            creator_id: 'creator-1',
+            old_values: { status: 'running' },
+            new_values: { status: 'finalized', total: 1_024_999.5 },
+            note: null,
+          },
+        });
+        expect(
+          prisma.audit_logs.create.mock.invocationCallOrder[0],
+        ).toBeGreaterThan(prisma.invoices.updateMany.mock.invocationCallOrder[0]);
+      });
+
+      it('records nothing when another request finalized it first', async () => {
+        prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+        await rejection(service.finalize('contract-1', 'admin-9', TODAY));
+
+        expect(prisma.audit_logs.create).not.toHaveBeenCalled();
+      });
+
+      it('fails the finalize when its entry cannot be written, so the invoice rolls back', async () => {
+        const failure = new Error('log failed');
+        prisma.audit_logs.create.mockRejectedValue(failure);
+
+        await expect(
+          service.finalize('contract-1', 'admin-9', TODAY),
+        ).rejects.toBe(failure);
+      });
     });
   });
 });

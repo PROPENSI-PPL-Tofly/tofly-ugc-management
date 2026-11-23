@@ -141,7 +141,13 @@ describe('ContractPeriodsController', () => {
   });
 
   it('hands a delete to the service with the time the request arrived', async () => {
-    await expect(controller.remove(CREATOR_ID, CONTRACT_ID)).resolves.toBeUndefined();
-    expect(periods.remove).toHaveBeenCalledWith(CREATOR_ID, CONTRACT_ID, NOW);
+    await expect(controller.remove(CREATOR_ID, CONTRACT_ID, signedIn)).resolves.toBeUndefined();
+    expect(periods.remove).toHaveBeenCalledWith(CREATOR_ID, CONTRACT_ID, NOW, 'admin-1');
+  });
+
+  it('hands a delete behind the development stand-in with no admin', async () => {
+    await controller.remove(CREATOR_ID, CONTRACT_ID, {});
+
+    expect(periods.remove).toHaveBeenCalledWith(CREATOR_ID, CONTRACT_ID, NOW, undefined);
   });
 });

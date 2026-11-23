@@ -4,7 +4,8 @@
 -- policy, which only the owner passes; the app has to be that owner, and it should own nothing else.
 -- Each environment's role connects only to its own database, so one environment's credentials never
 -- reach the other's data. Prisma's own `_prisma_migrations` stays with `postgres`: the app has no
--- business rewriting migration history.
+-- business rewriting migration history. `audit_logs` and its trigger function stay with `postgres` too:
+-- an owner could turn the append-only trigger off, so the app only gets SELECT and INSERT (PBI-23).
 -- `postgres` must be a member of the app role (`grant <app_role> to postgres`) to give it objects and to
 -- keep altering them in later migrations; on a managed server `postgres` is not a superuser.
 -- Idempotent. Run as `postgres` after every `prisma migrate deploy`:
@@ -40,7 +41,7 @@ begin
         select 1 from pg_depend d
         where d.objid = c.oid and d.deptype in ('a', 'i') and c.relkind = 'S'
       )
-      and c.relname <> '_prisma_migrations'
+      and c.relname not in ('_prisma_migrations', 'audit_logs')
       and pg_get_userbyid(c.relowner) <> app_role
   loop
     execute format(
@@ -76,10 +77,14 @@ begin
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+      and p.proname <> 'audit_logs_append_only'
       and pg_get_userbyid(p.proowner) <> app_role
   loop
     execute format('alter routine %s owner to %I', item.signature, app_role);
   end loop;
+
+  execute format('revoke all on public.audit_logs from %I', app_role);
+  execute format('grant select, insert on public.audit_logs to %I', app_role);
 
   execute format('revoke create on schema public from %I', app_role);
 end
