@@ -55,6 +55,7 @@ export function ExtendContractTrigger({
         <ExtendContractModal
           creatorName={creatorName}
           previous={current}
+          periodNumber={current.periodNumber + 1}
           onClose={form.close}
           onSubmit={form.submit}
           loading={form.saving}

@@ -201,6 +201,7 @@ describe("ExtendContractModal", () => {
     const props = {
       creatorName: "Rani Kusuma",
       previous: PREVIOUS,
+      periodNumber: 2,
       onClose: vi.fn(),
       onSubmit: vi.fn(),
     };
@@ -265,6 +266,7 @@ describe("ExtendContractModal changing a period that has not started", () => {
       <ExtendContractModal
         creatorName="Rani Kusuma"
         previous={previous}
+        periodNumber={UPCOMING.periodNumber}
         editing={UPCOMING}
         onClose={onClose}
         onSubmit={onSubmit}

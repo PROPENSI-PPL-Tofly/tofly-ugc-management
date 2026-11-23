@@ -117,6 +117,7 @@ export function UpcomingPeriodActions({
         <ExtendContractModal
           creatorName={creatorName}
           previous={previous}
+          periodNumber={period.periodNumber}
           editing={period}
           onClose={form.close}
           onSubmit={form.submit}
