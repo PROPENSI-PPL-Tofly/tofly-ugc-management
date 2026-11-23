@@ -38,6 +38,7 @@ const defaultProps = {
     quota: 6,
     contractStart: "2026-06-10",
     contractEnd: "2026-12-07",
+    periodNumber: undefined as number | undefined,
     onClose: vi.fn(),
     onSaved: vi.fn(),
 };
@@ -54,6 +55,13 @@ function openModal(
 }
 
 describe("AddContentModal", () => {
+    // PBI-30: with a renewal on the page, the admin must see which period the content goes to.
+    it("names the period it adds to above its title", () => {
+        openModal({ periodNumber: 2 });
+
+        expect(screen.getByRole("dialog", { name: "Tambah Konten" })).toHaveTextContent("Periode 2");
+    });
+
     beforeEach(() => {
         mockedCreateContent.mockReset();
         defaultProps.onClose.mockReset();

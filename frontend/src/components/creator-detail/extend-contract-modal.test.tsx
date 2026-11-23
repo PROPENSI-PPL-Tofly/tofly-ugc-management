@@ -20,6 +20,7 @@ function renderModal(props: Partial<Parameters<typeof ExtendContractModal>[0]> =
     <ExtendContractModal
       creatorName="Rani Kusuma"
       previous={PREVIOUS}
+      periodNumber={2}
       onClose={onClose}
       onSubmit={onSubmit}
       {...props}
@@ -122,6 +123,7 @@ describe("ExtendContractModal", () => {
     const confirm = screen.getByRole("alertdialog", { name: "Perpanjang kontrak?" });
     expect(confirm).toHaveTextContent("Kontrak dan invoice periode sebelumnya tidak berubah.");
     expect(within(confirm).getByText("Rani Kusuma")).toBeInTheDocument();
+    expect(within(confirm).getByText("Periode 2")).toBeInTheDocument();
     expect(within(confirm).getByText("1 Jan – 31 Mar 2027")).toBeInTheDocument();
     expect(within(confirm).getByText("Regular")).toBeInTheDocument();
     expect(within(confirm).getByText("6 konten, tiap 14 hari")).toBeInTheDocument();
