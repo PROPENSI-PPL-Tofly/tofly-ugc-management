@@ -189,7 +189,7 @@ describe('ManualPerformanceService', () => {
       state: 'manual',
       lastSyncedAt: null,
       manualAt: NOW.toISOString(),
-      manualBy: ADMIN_EMAIL,
+      manualBy: 'Sinta',
     });
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER },
