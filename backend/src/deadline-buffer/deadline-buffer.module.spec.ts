@@ -1,6 +1,8 @@
 import { GLOBAL_MODULE_METADATA } from '@nestjs/common/constants.js';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module.js';
+import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
+import { SuperAdminGuard } from '../auth/super-admin.guard.js';
 import { ContentCreationService } from '../contents/contents.service.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -14,15 +16,23 @@ import { DeadlineBufferService } from './deadline-buffer.service.js';
 
 describe('DeadlineBufferModule (SCRUM-298)', () => {
   async function compiled() {
-    return Test.createTestingModule({
-      imports: [PrismaModule, DeadlineBufferModule],
-      providers: [ContentCreationService],
-    })
-      .overrideProvider(PrismaService)
-      .useValue({
-        deadline_buffer: { findUnique: async () => ({ buffer_days: 9 }) },
+    return (
+      Test.createTestingModule({
+        imports: [PrismaModule, DeadlineBufferModule],
+        providers: [ContentCreationService],
       })
-      .compile();
+        .overrideProvider(PrismaService)
+        .useValue({
+          deadline_buffer: { findUnique: async () => ({ buffer_days: 9 }) },
+        })
+        // The session store the guards read is global in the app (SessionModule); here they are
+        // stubbed, as their own specs and the end-to-end suite prove them.
+        .overrideGuard(SuperAdminGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(CreatorOrAdminGuard)
+        .useValue({ canActivate: () => true })
+        .compile()
+    );
   }
 
   it('is global, so every deadline rule reads the buffer without an import', () => {
