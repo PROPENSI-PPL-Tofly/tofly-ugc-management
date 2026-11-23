@@ -226,3 +226,29 @@ describe('specificOutsidePeriod', () => {
     expect(specificOutsidePeriod(terms, [], NOW)).toBeUndefined();
   });
 });
+
+// PBI-23 AC 22 (SCRUM-298): Perpanjang Kontrak and its edit take the stored buffer for both lines.
+describe('periods with the stored buffer', () => {
+  it('checks a new period by the stored buffer', () => {
+    expect(
+      errorsOf(() =>
+        checkNewPeriod({ ...BODY, deadlines: ['2026-12-20', '2026-12-09'] }, NOW, 9),
+      ),
+    ).toEqual({ deadlines: 'Deadline paling cepat 10 Des 2026' });
+  });
+
+  it('keeps Specific content inside the window the stored buffer draws', () => {
+    const terms = { contractStart: day('2026-12-01'), contractEnd: day('2027-01-31') };
+
+    expect(
+      specificOutsidePeriod(
+        terms,
+        [{ name: 'Promo', deadline: day('2027-01-23') }],
+        NOW,
+        9,
+      ),
+    ).toBe(
+      'Konten "Promo" (deadline 23 Jan 2027) di luar periode baru (10 Des 2026 – 22 Jan 2027); pindahkan atau hapus dulu',
+    );
+  });
+});

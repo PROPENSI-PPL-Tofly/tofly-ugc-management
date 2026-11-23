@@ -655,3 +655,44 @@ describe('checkNewCreator', () => {
     });
   });
 });
+
+// PBI-23 AC 22 (SCRUM-298): Tambah Creator takes the stored buffer, and it draws every line here.
+describe('checkNewCreator with the stored buffer', () => {
+  function errorsWith(input: unknown, bufferDays: number) {
+    try {
+      checkNewCreator(input, TODAY, bufferDays);
+      return {};
+    } catch (error) {
+      return (
+        (error as UnprocessableEntityException).getResponse() as {
+          errors: Record<string, string>;
+        }
+      ).errors;
+    }
+  }
+
+  it('names the stored buffer in the earliest contract end', () => {
+    expect(
+      errorsWith(body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' }), 9),
+    ).toMatchObject({
+      contractEnd: 'Akhir kontrak paling cepat 10 Okt 2026 (masa buffer 9 hari)',
+    });
+  });
+
+  it('opens the deadlines the stored buffer after the start', () => {
+    expect(
+      errorsWith(body({ deadlines: ['2026-10-09', '2026-10-13', '2026-10-20'] }), 9),
+    ).toEqual({ deadlines: 'Deadline paling cepat 10 Okt 2026' });
+  });
+
+  it('closes the deadlines the stored buffer before the end, naming H-N', () => {
+    expect(
+      errorsWith(body({ deadlines: ['2026-10-10', '2026-10-13', '2026-12-22'] }), 9),
+    ).toEqual({});
+    expect(
+      errorsWith(body({ deadlines: ['2026-10-10', '2026-10-13', '2026-12-23'] }), 9),
+    ).toEqual({
+      deadlines: 'Deadline paling lambat 22 Des 2026 (H-9 akhir kontrak)',
+    });
+  });
+});

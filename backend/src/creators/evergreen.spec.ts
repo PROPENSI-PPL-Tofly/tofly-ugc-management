@@ -221,3 +221,22 @@ describe('joinName', () => {
     ).toBe('Bagas');
   });
 });
+
+// PBI-23 AC 22 (SCRUM-298): onboarding re-checks the schedule against the same stored buffer.
+describe('checkSchedule with the stored buffer', () => {
+  const valid = {
+    contractStart: '2026-09-12',
+    contractEnd: '2026-11-12',
+    quota: 1,
+    deadlines: ['2026-11-03'],
+  };
+
+  it('closes the schedule the stored buffer before the end, naming H-N', () => {
+    expect(checkSchedule(valid, '2026-09-12', 9)).toEqual({});
+    expect(
+      checkSchedule({ ...valid, deadlines: ['2026-11-04'] }, '2026-09-12', 9),
+    ).toEqual({
+      deadlines: 'Deadline paling lambat 3 Nov 2026 (H-9 akhir kontrak)',
+    });
+  });
+});
