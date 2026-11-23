@@ -244,4 +244,106 @@ describe('AuditLogsService (SCRUM-296)', () => {
       expect(item.newValues).toBeNull();
     });
   });
+
+  describe('filterOptions', () => {
+    const RINA = 'aaaaaaaa-0000-4000-8000-000000000001';
+    const BIMO = 'aaaaaaaa-0000-4000-8000-000000000002';
+    const NADIA = 'bbbbbbbb-0000-4000-8000-000000000003';
+
+    function logHas(
+      actors: {
+        actor_user_id: string;
+        actor_name: string;
+        _max: { occurred_at: Date | null };
+      }[],
+      creatorIds: string[],
+    ): void {
+      prisma.audit_logs.groupBy.mockImplementation(
+        async ({ by }: { by: string[] }) =>
+          by.includes('creator_id')
+            ? creatorIds.map((creator_id) => ({ creator_id }))
+            : actors,
+      );
+    }
+
+    it('offers each person who has an entry under the name they last acted with, then Sistem', async () => {
+      logHas(
+        [
+          {
+            actor_user_id: RINA,
+            actor_name: 'Rina',
+            _max: { occurred_at: new Date('2026-10-01T00:00:00Z') },
+          },
+          {
+            actor_user_id: RINA,
+            actor_name: 'Rina Wijaya',
+            _max: { occurred_at: new Date('2026-11-01T00:00:00Z') },
+          },
+          {
+            actor_user_id: BIMO,
+            actor_name: 'Bimo Saputra',
+            _max: { occurred_at: new Date('2026-11-02T00:00:00Z') },
+          },
+          {
+            actor_user_id: RINA,
+            actor_name: 'Rina W.',
+            _max: { occurred_at: null },
+          },
+        ],
+        [],
+      );
+
+      const { actors } = await service.filterOptions();
+
+      expect(actors).toEqual([
+        { value: BIMO, label: 'Bimo Saputra' },
+        { value: RINA, label: 'Rina Wijaya' },
+        { value: 'system', label: 'Sistem' },
+      ]);
+      expect(prisma.audit_logs.groupBy).toHaveBeenCalledWith({
+        by: ['actor_user_id', 'actor_name'],
+        where: { actor_user_id: { not: null } },
+        _max: { occurred_at: true },
+      });
+    });
+
+    it('offers each creator an entry concerns, by name, leaving out a creator who is gone', async () => {
+      logHas([], [NADIA, CREATOR, GONE_CREATOR]);
+      prisma.creators.findMany.mockResolvedValue([
+        {
+          id: NADIA,
+          first_name: 'Nadia',
+          middle_name: null,
+          last_name: 'Putri',
+        },
+        {
+          id: CREATOR,
+          first_name: 'Rafi',
+          middle_name: null,
+          last_name: 'Kurniawan',
+        },
+      ]);
+
+      const { creators } = await service.filterOptions();
+
+      expect(creators).toEqual([
+        { value: NADIA, label: 'Nadia Putri' },
+        { value: CREATOR, label: 'Rafi Kurniawan' },
+      ]);
+      expect(prisma.audit_logs.groupBy).toHaveBeenCalledWith({
+        by: ['creator_id'],
+        where: { creator_id: { not: null } },
+      });
+    });
+
+    it('offers only Sistem and no creator while the log is empty', async () => {
+      logHas([], []);
+
+      expect(await service.filterOptions()).toEqual({
+        actors: [{ value: 'system', label: 'Sistem' }],
+        creators: [],
+      });
+      expect(prisma.creators.findMany).not.toHaveBeenCalled();
+    });
+  });
 });
