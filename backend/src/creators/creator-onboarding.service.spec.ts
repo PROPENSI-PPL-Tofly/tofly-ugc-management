@@ -1,6 +1,7 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
+import { CONTENT_SCHEDULING } from '../deadline-buffer/deadline-scheduling.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import type { NewCreator } from './dto/new-creator.dto.js';
@@ -96,16 +97,34 @@ describe('CreatorOnboardingService', () => {
     ),
   };
   let service: CreatorOnboardingService;
+  // The stored deadline buffer (SCRUM-298), as DeadlineBufferModule provides it.
+  const scheduling = { today: () => NOW, bufferDays: vi.fn() };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    scheduling.bufferDays.mockResolvedValue(5);
     const module = await Test.createTestingModule({
       providers: [
         CreatorOnboardingService,
         { provide: PrismaService, useValue: prisma },
+        { provide: CONTENT_SCHEDULING, useValue: scheduling },
       ],
     }).compile();
     service = module.get(CreatorOnboardingService);
+  });
+
+  // PBI-23 AC 22 (SCRUM-298): the re-check before saving uses the stored buffer too.
+  it('re-checks the schedule against the stored buffer before saving', async () => {
+    scheduling.bufferDays.mockResolvedValue(9);
+
+    await expect(
+      service.onboard({ ...INPUT, deadlines: ['2026-10-10', '2026-11-04'] }, NOW),
+    ).rejects.toMatchObject({
+      response: {
+        errors: { deadlines: 'Deadline paling lambat 3 Nov 2026 (H-9 akhir kontrak)' },
+      },
+    });
+    expect(prisma.creators.create).not.toHaveBeenCalled();
   });
 
   it('whitelists the email with the creator, contract and Evergreen contents in one write', async () => {
