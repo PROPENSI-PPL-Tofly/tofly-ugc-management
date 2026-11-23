@@ -32,3 +32,14 @@ export interface AuditLogListResponse {
   total: number;
   totalPages: number;
 }
+
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+// Who the Aktor and Creator filters can offer (SCRUM-297's AuditLogLoaded.actors/.creators).
+export interface AuditLogFilterOptions {
+  actors: FilterOption[];
+  creators: FilterOption[];
+}

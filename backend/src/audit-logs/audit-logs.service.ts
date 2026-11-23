@@ -9,9 +9,12 @@ import { safeValue, type AuditActor } from '../audit/audit-logger.js';
 import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuditLogQuery } from './audit-log-query.js';
+import { SYSTEM_ACTOR_FILTER } from './audit-log-specs.js';
 import type {
+  AuditLogFilterOptions,
   AuditLogListResponse,
   AuditLogRowDto,
+  FilterOption,
 } from './dto/audit-log.dto.js';
 
 // PBI-23 AC 17: rows a page, set here and never by the request.
@@ -81,6 +84,15 @@ function toRow(row: StoredRow, creators: Map<string, string>): AuditLogRowDto {
   };
 }
 
+function byLabel(a: FilterOption, b: FilterOption): number {
+  return a.label.localeCompare(b.label, 'id');
+}
+
+const SISTEM_OPTION: FilterOption = {
+  value: SYSTEM_ACTOR_FILTER,
+  label: 'Sistem',
+};
+
 /** "Log Aktivitas" (PBI-23, SCRUM-296): reads what SCRUM-295's AuditLogger wrote, never more. */
 @Injectable()
 export class AuditLogsService {
@@ -110,6 +122,44 @@ export class AuditLogsService {
       pageSize: AUDIT_LOG_PAGE_SIZE,
       total,
       totalPages,
+    };
+  }
+
+  /**
+   * Who the filters can offer, from the log itself: an Admin since deactivated still has entries to
+   * find. Each person is named as they last acted, as their entries are; "Sistem" always comes last.
+   */
+  async filterOptions(): Promise<AuditLogFilterOptions> {
+    const [actorNames, creatorIds] = await Promise.all([
+      this.prisma.audit_logs.groupBy({
+        by: ['actor_user_id', 'actor_name'],
+        where: { actor_user_id: { not: null } },
+        _max: { occurred_at: true },
+      }),
+      this.prisma.audit_logs.groupBy({
+        by: ['creator_id'],
+        where: { creator_id: { not: null } },
+      }),
+    ]);
+
+    const latest = new Map<string, { label: string; at: number }>();
+    for (const { actor_user_id, actor_name, _max } of actorNames) {
+      const at = _max.occurred_at?.getTime() ?? 0;
+      const known = latest.get(actor_user_id!);
+      if (!known || at > known.at) {
+        latest.set(actor_user_id!, { label: actor_name, at });
+      }
+    }
+    const actors = [...latest].map(([value, { label }]) => ({ value, label }));
+
+    const names = await this.creatorNames(
+      creatorIds.map(({ creator_id }) => creator_id),
+    );
+    const creators = [...names].map(([value, label]) => ({ value, label }));
+
+    return {
+      actors: [...actors.sort(byLabel), SISTEM_OPTION],
+      creators: creators.sort(byLabel),
     };
   }
 
