@@ -28,6 +28,16 @@ describe("InvoiceHistory", () => {
     expect(row).toHaveTextContent("Rp1.200.000");
   });
 
+  // PBI-30: a renewal's invoice exists from the day it is agreed, but nothing runs on it yet.
+  it("words the invoice of a period that has not started as Belum Dimulai, not Berjalan", () => {
+    const next = aCreatorInvoice({ contractId: "c-2", periodNumber: 2, status: "running", notStarted: true });
+    render(<InvoiceHistory invoices={[next]} onOpen={vi.fn()} />);
+
+    const [, row] = within(screen.getByRole("table", { name: "Riwayat Invoice" })).getAllByRole("row");
+    expect(row).toHaveTextContent("Belum Dimulai");
+    expect(row).not.toHaveTextContent("Berjalan");
+  });
+
   // Measured on this table's real markup in Edge at true 320–390 px: the table is 484 px wide,
   // every Rincian sits off-screen, and the page itself widened to 411 px, because the hidden
   // Aksi heading was laid out against the page rather than the table's scroll area. jsdom lays
