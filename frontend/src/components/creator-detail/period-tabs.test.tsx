@@ -167,6 +167,15 @@ describe("PeriodTabs", () => {
     expect(second).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
   });
 
+  it("links a renewal still to start by its contract, since the bare address opens the active period", () => {
+    const upcoming = period({ contractId: THIRD, periodNumber: 3, status: "upcoming", startDate: "2027-01-01" });
+    render(<PeriodTabs creatorId={CREATOR} periods={[upcoming, NEWEST, OLDEST]} selected={NEWEST} />);
+
+    const [, active, next] = tabs();
+    expect(active).toHaveAttribute("href", `/admin/creators/${CREATOR}`);
+    expect(next).toHaveAttribute("href", `/admin/creators/${CREATOR}?contract=${THIRD}`);
+  });
+
   it("carries the Kreator view to return to onto every period's link", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} back="q=nadia" />);
 
