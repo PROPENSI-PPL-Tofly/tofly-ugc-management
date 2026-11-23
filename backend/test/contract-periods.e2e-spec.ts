@@ -112,8 +112,16 @@ describe('Contract periods (e2e)', () => {
       startDate: iso(30),
       endDate: iso(90),
       contents: [
-        { id: expect.any(String), name: `Evg_1_Dewi Lestari_${ddmmyyyy(35)}`, deadline: iso(35) },
-        { id: expect.any(String), name: `Evg_2_Dewi Lestari_${ddmmyyyy(49)}`, deadline: iso(49) },
+        {
+          id: expect.any(String),
+          name: `Evg_1_Dewi Lestari_${ddmmyyyy(35)}`,
+          deadline: iso(35),
+        },
+        {
+          id: expect.any(String),
+          name: `Evg_2_Dewi Lestari_${ddmmyyyy(49)}`,
+          deadline: iso(49),
+        },
       ],
     });
 
@@ -121,7 +129,10 @@ describe('Contract periods (e2e)', () => {
       where: { id: body.contractId },
       include: {
         invoice: true,
-        contents: { include: { content_events: true }, orderBy: { deadline: 'asc' } },
+        contents: {
+          include: { content_events: true },
+          orderBy: { deadline: 'asc' },
+        },
       },
     });
     expect(saved).toMatchObject({
@@ -133,8 +144,18 @@ describe('Contract periods (e2e)', () => {
     });
     expect(Number(saved.fixed_rate)).toBe(1_750_000);
     expect(saved.contents.map((content) => content.content_events)).toEqual([
-      [expect.objectContaining({ event_type: 'Scheduled', actor_user_id: adminUserId })],
-      [expect.objectContaining({ event_type: 'Scheduled', actor_user_id: adminUserId })],
+      [
+        expect.objectContaining({
+          event_type: 'Scheduled',
+          actor_user_id: adminUserId,
+        }),
+      ],
+      [
+        expect.objectContaining({
+          event_type: 'Scheduled',
+          actor_user_id: adminUserId,
+        }),
+      ],
     ]);
 
     // [Auditability] the previous contract and invoice stay unchanged.
@@ -155,9 +176,13 @@ describe('Contract periods (e2e)', () => {
       .expect(422);
 
     expect(body.errors).toEqual({
-      contractStart: expect.stringMatching(/^Periode bertabrakan dengan kontrak /),
+      contractStart: expect.stringMatching(
+        /^Periode bertabrakan dengan kontrak /,
+      ),
     });
-    await expect(prisma.contracts.count({ where: { creator_id: creator.id } })).resolves.toBe(1);
+    await expect(
+      prisma.contracts.count({ where: { creator_id: creator.id } }),
+    ).resolves.toBe(1);
   });
 
   it('lets only one of two simultaneous overlapping periods through', async () => {
@@ -169,7 +194,38 @@ describe('Contract periods (e2e)', () => {
     ]).then((responses) => responses.map((response) => response.status).sort());
 
     expect(statuses).toEqual([201, 422]);
-    await expect(prisma.contracts.count({ where: { creator_id: creator.id } })).resolves.toBe(2);
+    await expect(
+      prisma.contracts.count({ where: { creator_id: creator.id } }),
+    ).resolves.toBe(2);
+  });
+
+  it('refuses a further period while the next one has not started, even one after it', async () => {
+    const creator = await creatorWithActivePeriod('waiting');
+    await admin
+      .post(`/creators/${creator.id}/contracts`)
+      .send(periodBody())
+      .expect(201);
+
+    const { body } = await admin
+      .post(`/creators/${creator.id}/contracts`)
+      .send(
+        periodBody({
+          contractStart: iso(100),
+          contractEnd: iso(160),
+          deadlines: [iso(110), iso(130)],
+        }),
+      )
+      .expect(409);
+
+    expect(body).toEqual({
+      code: 'UPCOMING_PERIOD_EXISTS',
+      message: expect.stringMatching(
+        / belum dimulai\. Ubah atau hapus periode itu dulu/,
+      ),
+    });
+    await expect(
+      prisma.contracts.count({ where: { creator_id: creator.id } }),
+    ).resolves.toBe(2);
   });
 
   it('edits a period that has not started: the Evergreen schedule is generated again, Specific content stays', async () => {
@@ -189,14 +245,23 @@ describe('Contract periods (e2e)', () => {
 
     const { body: edited } = await admin
       .put(`/creators/${creator.id}/contracts/${created.contractId}`)
-      .send(periodBody({ contractStart: iso(31), quota: 1, deadlines: [iso(37)], fixedRate: 2_000_000 }))
+      .send(
+        periodBody({
+          contractStart: iso(31),
+          quota: 1,
+          deadlines: [iso(37)],
+          fixedRate: 2_000_000,
+        }),
+      )
       .expect(200);
 
     expect(edited).toMatchObject({
       contractId: created.contractId,
       invoiceId: created.invoiceId,
       startDate: iso(31),
-      contents: [{ name: `Evg_1_Dewi Lestari_${ddmmyyyy(37)}`, deadline: iso(37) }],
+      contents: [
+        { name: `Evg_1_Dewi Lestari_${ddmmyyyy(37)}`, deadline: iso(37) },
+      ],
     });
     const contents = await prisma.contents.findMany({
       where: { contract_id: created.contractId },
@@ -206,7 +271,9 @@ describe('Contract periods (e2e)', () => {
       { id: edited.contents[0].id, type: 'evergreen' },
       { id: specific.id, type: 'specific' },
     ]);
-    const saved = await prisma.contracts.findUniqueOrThrow({ where: { id: created.contractId } });
+    const saved = await prisma.contracts.findUniqueOrThrow({
+      where: { id: created.contractId },
+    });
     expect(Number(saved.fixed_rate)).toBe(2_000_000);
     expect(saved.content_quota).toBe(1);
   });
@@ -218,7 +285,12 @@ describe('Contract periods (e2e)', () => {
       .send(periodBody())
       .expect(201);
     await prisma.contents.create({
-      data: { contract_id: created.contractId, name: 'Promo', type: 'specific', deadline: day(80) },
+      data: {
+        contract_id: created.contractId,
+        name: 'Promo',
+        type: 'specific',
+        deadline: day(80),
+      },
     });
 
     const { body } = await admin
@@ -226,19 +298,32 @@ describe('Contract periods (e2e)', () => {
       .send(periodBody({ contractEnd: iso(70) }))
       .expect(422);
 
-    expect(body.errors).toEqual({ contents: expect.stringMatching(/^Konten "Promo"/) });
+    expect(body.errors).toEqual({
+      contents: expect.stringMatching(/^Konten "Promo"/),
+    });
     await expect(
-      prisma.contents.count({ where: { contract_id: created.contractId, type: 'evergreen' } }),
+      prisma.contents.count({
+        where: { contract_id: created.contractId, type: 'evergreen' },
+      }),
     ).resolves.toBe(2);
   });
 
   it('refuses to edit or delete a period that has started', async () => {
     const creator = await creatorWithActivePeriod('started');
-    await admin.post(`/creators/${creator.id}/contracts`).send(periodBody()).expect(201);
+    await admin
+      .post(`/creators/${creator.id}/contracts`)
+      .send(periodBody())
+      .expect(201);
 
     const edit = await admin
       .put(`/creators/${creator.id}/contracts/${creator.periodOneId}`)
-      .send(periodBody({ contractStart: iso(0), contractEnd: iso(29), deadlines: [iso(6), iso(20)] }))
+      .send(
+        periodBody({
+          contractStart: iso(0),
+          contractEnd: iso(29),
+          deadlines: [iso(6), iso(20)],
+        }),
+      )
       .expect(409);
     expect(edit.body).toMatchObject({ code: 'PERIOD_STARTED' });
 
@@ -248,6 +333,23 @@ describe('Contract periods (e2e)', () => {
     expect(remove.body).toMatchObject({ code: 'PERIOD_STARTED' });
   });
 
+  it('names a started period as started, not by the date rules its old start no longer meets', async () => {
+    const creator = await creatorWithActivePeriod('started-body');
+
+    const { body } = await admin
+      .put(`/creators/${creator.id}/contracts/${creator.periodOneId}`)
+      .send(
+        periodBody({
+          contractStart: iso(-10),
+          contractEnd: iso(29),
+          deadlines: [iso(6), iso(20)],
+        }),
+      )
+      .expect(409);
+
+    expect(body).toMatchObject({ code: 'PERIOD_STARTED' });
+  });
+
   it('deletes a period that has not started, with its schedule and empty invoice', async () => {
     const creator = await creatorWithActivePeriod('delete');
     const { body: created } = await admin
@@ -255,12 +357,22 @@ describe('Contract periods (e2e)', () => {
       .send(periodBody())
       .expect(201);
 
-    await admin.delete(`/creators/${creator.id}/contracts/${created.contractId}`).expect(204);
+    await admin
+      .delete(`/creators/${creator.id}/contracts/${created.contractId}`)
+      .expect(204);
 
-    await expect(prisma.contracts.findUnique({ where: { id: created.contractId } })).resolves.toBeNull();
-    await expect(prisma.invoices.findUnique({ where: { id: created.invoiceId } })).resolves.toBeNull();
-    await expect(prisma.contents.count({ where: { contract_id: created.contractId } })).resolves.toBe(0);
-    await expect(prisma.contracts.count({ where: { creator_id: creator.id } })).resolves.toBe(1);
+    await expect(
+      prisma.contracts.findUnique({ where: { id: created.contractId } }),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.invoices.findUnique({ where: { id: created.invoiceId } }),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.contents.count({ where: { contract_id: created.contractId } }),
+    ).resolves.toBe(0);
+    await expect(
+      prisma.contracts.count({ where: { creator_id: creator.id } }),
+    ).resolves.toBe(1);
   });
 
   it("refuses to delete a creator's only period, even before it starts", async () => {
@@ -301,9 +413,13 @@ describe('Contract periods (e2e)', () => {
       .put(`/creators/${other.id}/contracts/${created.contractId}`)
       .send(periodBody({ fixedRate: 1 }))
       .expect(404);
-    await admin.delete(`/creators/${other.id}/contracts/${created.contractId}`).expect(404);
+    await admin
+      .delete(`/creators/${other.id}/contracts/${created.contractId}`)
+      .expect(404);
 
-    const saved = await prisma.contracts.findUniqueOrThrow({ where: { id: created.contractId } });
+    const saved = await prisma.contracts.findUniqueOrThrow({
+      where: { id: created.contractId },
+    });
     expect(Number(saved.fixed_rate)).toBe(1_750_000);
   });
 
@@ -312,19 +428,36 @@ describe('Contract periods (e2e)', () => {
       .post('/creators/00000000-0000-4000-8000-000000000000/contracts')
       .send(periodBody())
       .expect(404);
-    await admin.post('/creators/not-a-uuid/contracts').send(periodBody()).expect(400);
-    await admin.delete('/creators/00000000-0000-4000-8000-000000000000/contracts/1').expect(400);
+    await admin
+      .post('/creators/not-a-uuid/contracts')
+      .send(periodBody())
+      .expect(400);
+    await admin
+      .delete('/creators/00000000-0000-4000-8000-000000000000/contracts/1')
+      .expect(400);
   });
 
   it('is closed to creators and to requests that are not signed in', async () => {
     const creator = await creatorWithActivePeriod('self');
     const asCreator = as(
       app,
-      await signIn(app, { userId: creator.user_id, role: 'creator', creatorId: creator.id }),
+      await signIn(app, {
+        userId: creator.user_id,
+        role: 'creator',
+        creatorId: creator.id,
+      }),
     );
 
-    await asCreator.post(`/creators/${creator.id}/contracts`).send(periodBody()).expect(403);
-    await as(app, '').post(`/creators/${creator.id}/contracts`).send(periodBody()).expect(401);
-    await expect(prisma.contracts.count({ where: { creator_id: creator.id } })).resolves.toBe(1);
+    await asCreator
+      .post(`/creators/${creator.id}/contracts`)
+      .send(periodBody())
+      .expect(403);
+    await as(app, '')
+      .post(`/creators/${creator.id}/contracts`)
+      .send(periodBody())
+      .expect(401);
+    await expect(
+      prisma.contracts.count({ where: { creator_id: creator.id } }),
+    ).resolves.toBe(1);
   });
 });
