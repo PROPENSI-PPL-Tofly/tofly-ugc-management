@@ -27,6 +27,7 @@ import type {
   OnboardedCreator,
 } from './dto/new-creator.dto.js';
 import { checkFilters } from './filters.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 import { checkNewCreator, type NewCreator } from './new-creator.js';
 import { checkPaging, DEFAULT_PAGE_SIZE } from './paging.js';
 
@@ -101,7 +102,7 @@ export class CreatorsController {
     const now = new Date();
     // The admin the guard signed in; absent only behind the local development stand-in.
     return this.onboarding.onboard(
-      onboardingInput(checkNewCreator(body, now)),
+      onboardingInput(checkNewCreator(body, now, DEFAULT_BUFFER_DAYS)),
       now,
       request.principal?.userId,
     );

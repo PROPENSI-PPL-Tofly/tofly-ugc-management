@@ -5,6 +5,7 @@ import {
   periodHasStarted,
   specificOutsidePeriod,
 } from './contract-period.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 // 10:00 WIB on 18 November 2026.
 const NOW = new Date('2026-11-18T03:00:00Z');
@@ -41,7 +42,7 @@ function errorsOf(work: () => unknown): Record<string, string> {
 
 describe('checkNewPeriod', () => {
   it('turns a valid body into the contract to save, deadlines in date order', () => {
-    expect(checkNewPeriod(BODY, NOW)).toEqual({
+    expect(checkNewPeriod(BODY, NOW, DEFAULT_BUFFER_DAYS)).toEqual({
       contractType: 'regular',
       contractStart: day('2026-12-01'),
       contractEnd: day('2027-01-31'),
@@ -65,7 +66,7 @@ describe('checkNewPeriod', () => {
             fixedRate: '1500000',
             deadlines: ['2026-12-06'],
           },
-          NOW,
+          NOW, DEFAULT_BUFFER_DAYS,
         ),
       ),
     ).toEqual({
@@ -79,15 +80,15 @@ describe('checkNewPeriod', () => {
 
   it('refuses deadlines that do not match the quota or the buffer', () => {
     expect(
-      errorsOf(() => checkNewPeriod({ ...BODY, deadlines: ['2026-12-05', '2026-12-20'] }, NOW)),
+      errorsOf(() => checkNewPeriod({ ...BODY, deadlines: ['2026-12-05', '2026-12-20'] }, NOW, DEFAULT_BUFFER_DAYS)),
     ).toEqual({ deadlines: 'Deadline paling cepat 6 Des 2026' });
     expect(
-      errorsOf(() => checkNewPeriod({ ...BODY, deadlines: ['2026-12-06'] }, NOW)),
+      errorsOf(() => checkNewPeriod({ ...BODY, deadlines: ['2026-12-06'] }, NOW, DEFAULT_BUFFER_DAYS)),
     ).toEqual({ deadlines: 'Jumlah deadline harus sama dengan jumlah konten (2)' });
   });
 
   it('answers a missing body with the blank-form errors, not a TypeError', () => {
-    expect(Object.keys(errorsOf(() => checkNewPeriod(null, NOW)))).toEqual([
+    expect(Object.keys(errorsOf(() => checkNewPeriod(null, NOW, DEFAULT_BUFFER_DAYS)))).toEqual([
       'contractType',
       'contractStart',
       'contractEnd',
@@ -100,8 +101,8 @@ describe('checkNewPeriod', () => {
 
   it('never reads creator fields: a name or email in the body changes nothing', () => {
     expect(
-      checkNewPeriod({ ...BODY, name: '', email: 'not an email' }, NOW),
-    ).toEqual(checkNewPeriod(BODY, NOW));
+      checkNewPeriod({ ...BODY, name: '', email: 'not an email' }, NOW, DEFAULT_BUFFER_DAYS),
+    ).toEqual(checkNewPeriod(BODY, NOW, DEFAULT_BUFFER_DAYS));
   });
 });
 
@@ -193,7 +194,7 @@ describe('specificOutsidePeriod', () => {
           { name: 'Launch', deadline: day('2026-12-06') },
           { name: 'Promo', deadline: day('2027-01-26') },
         ],
-        NOW,
+        NOW, DEFAULT_BUFFER_DAYS,
       ),
     ).toBeUndefined();
   });
@@ -203,7 +204,7 @@ describe('specificOutsidePeriod', () => {
       specificOutsidePeriod(
         terms,
         [{ name: 'Launch', deadline: day('2026-12-05') }],
-        NOW,
+        NOW, DEFAULT_BUFFER_DAYS,
       ),
     ).toBe(
       'Konten "Launch" (deadline 5 Des 2026) di luar periode baru (6 Des 2026 – 26 Jan 2027); pindahkan atau hapus dulu',
@@ -215,7 +216,7 @@ describe('specificOutsidePeriod', () => {
       specificOutsidePeriod(
         terms,
         [{ name: 'Promo', deadline: day('2027-01-27') }],
-        NOW,
+        NOW, DEFAULT_BUFFER_DAYS,
       ),
     ).toBe(
       'Konten "Promo" (deadline 27 Jan 2027) di luar periode baru (6 Des 2026 – 26 Jan 2027); pindahkan atau hapus dulu',
@@ -223,7 +224,7 @@ describe('specificOutsidePeriod', () => {
   });
 
   it('passes a period with no Specific content', () => {
-    expect(specificOutsidePeriod(terms, [], NOW)).toBeUndefined();
+    expect(specificOutsidePeriod(terms, [], NOW, DEFAULT_BUFFER_DAYS)).toBeUndefined();
   });
 });
 

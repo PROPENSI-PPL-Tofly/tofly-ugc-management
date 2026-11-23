@@ -18,6 +18,7 @@ import {
   type PeriodKeeper,
 } from './contract-periods.service.js';
 import type { SavedPeriod } from './dto/contract-period.dto.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 type SignedIn = Pick<AdminRequest, 'principal'>;
 
@@ -42,7 +43,7 @@ export class ContractPeriodsController {
   ): Promise<SavedPeriod> {
     const now = new Date();
     // The admin the guard signed in; absent only behind the local development stand-in.
-    return this.periods.create(id, checkNewPeriod(body, now), now, request.principal?.userId);
+    return this.periods.create(id, checkNewPeriod(body, now, DEFAULT_BUFFER_DAYS), now, request.principal?.userId);
   }
 
   /** Changes a period that has not started; its Evergreen schedule is generated again. */
@@ -57,7 +58,7 @@ export class ContractPeriodsController {
     return this.periods.update(
       id,
       contractId,
-      checkNewPeriod(body, now),
+      checkNewPeriod(body, now, DEFAULT_BUFFER_DAYS),
       now,
       request.principal?.userId,
     );

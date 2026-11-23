@@ -20,6 +20,7 @@ import {
   splitName,
   type ScheduleErrors,
 } from './evergreen.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 const ONBOARDED_SELECT = {
   id: true,
@@ -186,7 +187,7 @@ export class CreatorOnboardingService implements CreatorOnboarder {
     now = new Date(),
     adminUserId?: string,
   ): Promise<OnboardedCreator> {
-    const errors = checkSchedule(input, jakartaDay(now));
+    const errors = checkSchedule(input, jakartaDay(now), DEFAULT_BUFFER_DAYS);
     if (Object.keys(errors).length > 0) {
       throw invalid(errors);
     }

@@ -2,6 +2,10 @@
 // deadlines the server accepts. Nothing here touches Nest or Prisma, so every rule is tested
 // without a database and the persistence code only has to wire the results together.
 
+// DeadlineWindow formats with readableDay from here; both only call each other inside functions,
+// so the import cycle resolves before either is used.
+import { DeadlineWindow } from '../deadline-buffer/deadline-window.js';
+
 /**
  * `Evg_<sequence>_<Creator Name>_DDMMYYYY`, the product's naming rule for Evergreen content:
  * the sequence counts from 1 in deadline order and stays fixed once saved. `day` is an ISO
@@ -133,7 +137,11 @@ export function jakartaMidnight(now: Date): Date {
   return new Date(`${jakartaDay(now)}T00:00:00Z`);
 }
 
-function deadlineProblem(schedule: Schedule): string | undefined {
+function deadlineProblem(
+  schedule: Schedule,
+  today: string,
+  bufferDays: number,
+): string | undefined {
   const { contractStart, contractEnd, quota, deadlines } = schedule;
   if (!deadlines.every(isCalendarDay)) {
     return 'Format tanggal deadline tidak valid';
@@ -142,8 +150,10 @@ function deadlineProblem(schedule: Schedule): string | undefined {
   if (deadlines.some((day) => day < contractStart || day > contractEnd)) {
     return 'Deadline harus di dalam periode kontrak';
   }
-  if (deadlines.some((day) => day > latestDeadline(contractEnd))) {
-    return pastLatestDeadline(contractEnd);
+  // PBI-23 AC 22: the stored buffer draws the latest line (PBI-38's H-5 is now H-N).
+  const window = DeadlineWindow.of({ ...schedule, today, bufferDays });
+  if (deadlines.some((day) => day > window.latest)) {
+    return window.tooLate();
   }
   if (deadlines.length !== quota) {
     return `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
@@ -159,6 +169,7 @@ function deadlineProblem(schedule: Schedule): string | undefined {
 export function checkSchedule(
   schedule: Schedule,
   today: string,
+  bufferDays: number,
 ): ScheduleErrors {
   const { contractStart, contractEnd, quota } = schedule;
   const errors: ScheduleErrors = {};
@@ -186,6 +197,6 @@ export function checkSchedule(
     return errors;
   }
 
-  const deadlines = deadlineProblem(schedule);
+  const deadlines = deadlineProblem(schedule, today, bufferDays);
   return deadlines === undefined ? {} : { deadlines };
 }
