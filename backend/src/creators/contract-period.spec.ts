@@ -4,6 +4,7 @@ import {
   overlappingPeriod,
   periodHasStarted,
   specificOutsidePeriod,
+  waitingPeriod,
 } from './contract-period.js';
 
 // 10:00 WIB on 18 November 2026.
@@ -79,11 +80,20 @@ describe('checkNewPeriod', () => {
 
   it('refuses deadlines that do not match the quota or the buffer', () => {
     expect(
-      errorsOf(() => checkNewPeriod({ ...BODY, deadlines: ['2026-12-05', '2026-12-20'] }, NOW)),
+      errorsOf(() =>
+        checkNewPeriod(
+          { ...BODY, deadlines: ['2026-12-05', '2026-12-20'] },
+          NOW,
+        ),
+      ),
     ).toEqual({ deadlines: 'Deadline paling cepat 6 Des 2026' });
     expect(
-      errorsOf(() => checkNewPeriod({ ...BODY, deadlines: ['2026-12-06'] }, NOW)),
-    ).toEqual({ deadlines: 'Jumlah deadline harus sama dengan jumlah konten (2)' });
+      errorsOf(() =>
+        checkNewPeriod({ ...BODY, deadlines: ['2026-12-06'] }, NOW),
+      ),
+    ).toEqual({
+      deadlines: 'Jumlah deadline harus sama dengan jumlah konten (2)',
+    });
   });
 
   it('answers a missing body with the blank-form errors, not a TypeError', () => {
@@ -124,7 +134,10 @@ describe('periodHasStarted', () => {
 });
 
 describe('overlappingPeriod', () => {
-  const terms = { contractStart: day('2026-12-01'), contractEnd: day('2027-01-31') };
+  const terms = {
+    contractStart: day('2026-12-01'),
+    contractEnd: day('2027-01-31'),
+  };
 
   it('accepts a period starting the day after the last one ends', () => {
     expect(
@@ -183,7 +196,10 @@ describe('overlappingPeriod', () => {
 });
 
 describe('specificOutsidePeriod', () => {
-  const terms = { contractStart: day('2026-12-01'), contractEnd: day('2027-01-31') };
+  const terms = {
+    contractStart: day('2026-12-01'),
+    contractEnd: day('2027-01-31'),
+  };
 
   it('passes Specific content inside the new window, edges included', () => {
     expect(
@@ -224,5 +240,34 @@ describe('specificOutsidePeriod', () => {
 
   it('passes a period with no Specific content', () => {
     expect(specificOutsidePeriod(terms, [], NOW)).toBeUndefined();
+  });
+});
+
+describe('waitingPeriod', () => {
+  it('names a period that has not started, so a renewal waits until it is changed or deleted', () => {
+    expect(
+      waitingPeriod(
+        [
+          { startDate: day('2026-06-01'), endDate: day('2026-11-30') },
+          { startDate: day('2026-12-01'), endDate: day('2027-01-31') },
+        ],
+        NOW,
+      ),
+    ).toBe(
+      'Periode 1 Des 2026 – 31 Jan 2027 belum dimulai. Ubah atau hapus periode itu dulu sebelum menambah periode baru',
+    );
+  });
+
+  it('passes when every period has started, the one starting today included', () => {
+    expect(
+      waitingPeriod(
+        [
+          { startDate: day('2026-06-01'), endDate: day('2026-11-17') },
+          { startDate: day('2026-11-18'), endDate: day('2027-01-31') },
+        ],
+        NOW,
+      ),
+    ).toBeUndefined();
+    expect(waitingPeriod([], NOW)).toBeUndefined();
   });
 });
