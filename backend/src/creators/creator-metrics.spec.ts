@@ -5,6 +5,7 @@ import {
   contractStatus,
   currentContract,
   daysRemaining,
+  nextPeriod,
   periodNumber,
   type MetricsContent,
   type MetricsContract,
@@ -95,6 +96,39 @@ describe('currentContract', () => {
     expect(currentContract([contract('next', 10, 100), finished], TODAY)).toBe(
       finished,
     );
+  });
+});
+
+describe('nextPeriod', () => {
+  // PBI-30 AC 10: Creator Database shows the current period, and a renewal still to start beside it.
+  it('is the renewal still to start after the current period, with its number', () => {
+    const first = contract('a', -200, -100);
+    const current = contract('b', -10, 10);
+    const next = contract('c', 11, 100);
+
+    expect(nextPeriod([next, first, current], current, TODAY)).toEqual({
+      periodNumber: 3,
+      startDate: day(11),
+    });
+  });
+
+  it('is the earliest of several renewals still to start', () => {
+    const current = contract('a', -10, 10);
+    const later = contract('c', 101, 200);
+    const next = contract('b', 11, 100);
+
+    expect(nextPeriod([later, current, next], current, TODAY)).toEqual({
+      periodNumber: 2,
+      startDate: day(11),
+    });
+  });
+
+  it('is nothing when the current period is itself the one still to start, or none waits', () => {
+    const upcoming = contract('a', 5, 50);
+    const ended = contract('b', -100, -1);
+
+    expect(nextPeriod([upcoming, ended], upcoming, TODAY)).toBeNull();
+    expect(nextPeriod([ended], ended, TODAY)).toBeNull();
   });
 });
 

@@ -525,6 +525,40 @@ describe('CreatorsService', () => {
     });
   });
 
+  it('names a renewal still to start beside the current period (PBI-30 AC 10)', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        contracts: [
+          {
+            id: 'next',
+            start_date: day(31),
+            end_date: day(120),
+            content_quota: 3,
+            contract_type: 'regular',
+            contents: [],
+          },
+          {
+            id: 'current',
+            start_date: day(-30),
+            end_date: day(30),
+            content_quota: 4,
+            contract_type: 'regular',
+            contents: [],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].contract).toMatchObject({
+      status: 'active',
+      periodNumber: 1,
+      next: { periodNumber: 2, startDate: '2026-10-19' },
+    });
+  });
+
   it('reports the page count from the total, not from the rows returned', async () => {
     prisma.creators.findMany.mockResolvedValue([]);
     prisma.creators.count.mockResolvedValue(23);
