@@ -1,10 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { redirect } from "next/navigation";
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
+import { fetchDeadlineBuffer } from "@/lib/deadline-buffer.server";
 import { currentRole } from "@/lib/session.server";
 import AdminLayout from "./layout";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
+vi.mock("@/lib/deadline-buffer.server", () => ({ fetchDeadlineBuffer: vi.fn(async () => 5) }));
+
+function BufferShown() {
+  return <p>Buffer {useDeadlineBuffer()} hari</p>;
+}
 
 async function renderLayout() {
   render(
@@ -27,6 +34,30 @@ describe("Admin area", () => {
 
     expect(screen.getByText("Data admin")).toBeInTheDocument();
     expect(redirect).not.toHaveBeenCalled();
+  });
+
+  // PBI-23 AC: one buffer, read once, holds every date picker under the admin area.
+  it("hands every admin page the buffer the API stores", async () => {
+    vi.mocked(currentRole).mockResolvedValue("admin");
+    vi.mocked(fetchDeadlineBuffer).mockResolvedValueOnce(9);
+
+    render(
+      await AdminLayout({
+        children: <BufferShown />,
+        params: Promise.resolve({}),
+      } as Parameters<typeof AdminLayout>[0]),
+    );
+
+    expect(screen.getByText("Buffer 9 hari")).toBeInTheDocument();
+  });
+
+  it("reads no buffer for a visitor it turns away", async () => {
+    vi.mocked(currentRole).mockResolvedValue("creator");
+    vi.mocked(fetchDeadlineBuffer).mockClear();
+
+    await renderLayout();
+
+    expect(fetchDeadlineBuffer).not.toHaveBeenCalled();
   });
 
   // Told why rather than bounced: a bookmarked page that silently turns into the login screen

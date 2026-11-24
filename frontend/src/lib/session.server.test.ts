@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { currentRole } from "./session.server";
+import { currentRole, isSuperAdmin } from "./session.server";
 
 vi.mock("next/headers", () => ({
   // No session unless a test says otherwise.
@@ -72,5 +72,43 @@ describe("currentRole", () => {
     browserHasSession();
 
     await expect(currentRole()).rejects.toThrow("BACKEND_URL is not configured");
+  });
+});
+
+describe("isSuperAdmin", () => {
+  beforeEach(() => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("is true only for an Admin the session names a Super Admin (PBI-23 AC)", async () => {
+    browserHasSession();
+    backendAnswers(200, { role: "admin", adminRole: "super_admin" });
+
+    await expect(isSuperAdmin()).resolves.toBe(true);
+  });
+
+  it.each([
+    ["an Admin", 200, { role: "admin", adminRole: "admin" }],
+    ["an Admin from before roles existed", 200, { role: "admin" }],
+    ["a creator", 200, { role: "creator", adminRole: "super_admin" }],
+    ["a refused session", 401, {}],
+    ["a server error", 500, {}],
+  ])("is false for %s, so the setting stays hidden", async (_label, status, body) => {
+    browserHasSession();
+    backendAnswers(status, body);
+
+    await expect(isSuperAdmin()).resolves.toBe(false);
+  });
+
+  it("is false without asking the backend when there is no session", async () => {
+    const fetchSpy = backendAnswers(200, { role: "admin", adminRole: "super_admin" });
+
+    await expect(isSuperAdmin()).resolves.toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
