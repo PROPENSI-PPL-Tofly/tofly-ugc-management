@@ -16,7 +16,7 @@ const CONTRACT_ID = '22222222-2222-4222-8222-222222222222';
 // 10:00 WIB on 24 November 2026.
 const NOW = new Date('2026-11-24T03:00:00Z');
 
-const body = { invoice: 'pay', lastDay: '2026-11-30', reason: 'breach', note: 'Fraud views.' };
+const body = { invoice: 'pay', lastDay: '2026-11-30', reason: 'violation', note: 'Fraud views.' };
 const signedIn = { principal: { userId: 'admin-1', role: 'admin' as const } };
 
 function paramPipes(method: string): Record<string, unknown[]> {

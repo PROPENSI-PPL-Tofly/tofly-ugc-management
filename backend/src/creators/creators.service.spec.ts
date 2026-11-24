@@ -104,7 +104,7 @@ type DetailContractRow = {
   fixed_rate: Prisma.Decimal;
   contract_type: 'probation' | 'regular';
   original_end_date: Date | null;
-  end_reason: 'breach' | 'fraud' | 'other' | null;
+  end_reason: 'violation' | 'fraud' | 'other' | null;
   end_note: string | null;
   ended_at: Date | null;
   invoice: { status: 'running' | 'paid'; paid_at: Date | null } | null;

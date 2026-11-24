@@ -59,7 +59,7 @@ const CONTENTS = [
 const PAY = {
   invoice: 'pay',
   lastDay: '2026-11-30',
-  reason: 'breach',
+  reason: 'violation',
   note: '  Konten diunggah ulang dari creator lain.  ',
 };
 const CANCEL = { ...PAY, invoice: 'cancel', reason: 'fraud', lastDay: undefined };
@@ -157,7 +157,7 @@ describe('ContractEndService.end', () => {
       data: {
         end_date: day('2026-11-30'),
         original_end_date: day('2026-12-15'),
-        end_reason: 'breach',
+        end_reason: 'violation',
         end_note: 'Konten diunggah ulang dari creator lain.',
         ended_at: NOW,
         ended_by: ADMIN_ID,
@@ -226,7 +226,7 @@ describe('ContractEndService.end', () => {
       newValues: {
         endDate: '2026-11-30',
         invoice: 'pay',
-        reason: 'breach',
+        reason: 'violation',
         closedContents: 1,
         deletedPeriods: [3],
       },

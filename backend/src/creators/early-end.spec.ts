@@ -34,7 +34,7 @@ const RUNNING: EndingContract = {
 const VALID = {
   invoice: 'pay',
   lastDay: '2026-11-30',
-  reason: 'breach',
+  reason: 'violation',
   note: 'Konten diunggah ulang dari creator lain.',
 };
 
@@ -119,12 +119,12 @@ describe('checkEarlyEnd (the "Akhiri Kontrak Lebih Awal" form)', () => {
     ).toEqual<EarlyEndRequest>({
       invoice: 'pay',
       lastDay: '2026-11-30',
-      reason: 'breach',
+      reason: 'violation',
       note: 'Fraud views.',
     });
   });
 
-  it.each(['breach', 'fraud', 'other'] as const)('accepts the reason %s', (reason) => {
+  it.each(['violation', 'fraud', 'other'] as const)('accepts the reason %s', (reason) => {
     expect(checkEarlyEnd({ ...VALID, reason }, RUNNING, NOW).reason).toBe(reason);
   });
 
@@ -179,7 +179,7 @@ describe('checkEarlyEnd (the "Akhiri Kontrak Lebih Awal" form)', () => {
     ).toEqual<EarlyEndRequest>({
       invoice: 'cancel',
       lastDay: '2026-11-24',
-      reason: 'breach',
+      reason: 'violation',
       note: VALID.note,
     });
     expect(
@@ -242,10 +242,10 @@ describe('checkEarlyEnd (the "Akhiri Kontrak Lebih Awal" form)', () => {
 
 describe('reasonMismatch (the warning on the confirmation)', () => {
   it.each([
-    ['breach', 'pay', true],
+    ['violation', 'pay', true],
     ['fraud', 'pay', true],
     ['other', 'cancel', true],
-    ['breach', 'cancel', false],
+    ['violation', 'cancel', false],
     ['fraud', 'cancel', false],
     ['other', 'pay', false],
   ] as const)('%s with %s warns: %s', (reason, invoice, warns) => {
@@ -281,7 +281,7 @@ describe('planEarlyEnd (the consequences, for the confirmation and the write ali
     return { id, name: `Evg_${id}`, deadline: day(deadline), status };
   }
 
-  const PAY: EarlyEndRequest = { ...VALID, invoice: 'pay', reason: 'breach' } as EarlyEndRequest;
+  const PAY: EarlyEndRequest = { ...VALID, invoice: 'pay', reason: 'violation' } as EarlyEndRequest;
   const CANCEL: EarlyEndRequest = { ...PAY, invoice: 'cancel', lastDay: '2026-11-24' };
 
   it('closes content due after the last day and lists what is still open up to it', () => {
@@ -397,7 +397,7 @@ describe('planEarlyEnd (the consequences, for the confirmation and the write ali
 describe('END_REASON_LABELS', () => {
   it('names each reason as the form lists it', () => {
     expect(END_REASON_LABELS).toEqual({
-      breach: 'Pelanggaran Kontrak',
+      violation: 'Pelanggaran Kontrak',
       fraud: 'Fraud',
       other: 'Lainnya',
     });

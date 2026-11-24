@@ -97,7 +97,7 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
 
     const { body } = await admin
       .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end/preview`)
-      .send({ invoice: 'pay', lastDay: iso(5), reason: 'breach', note: NOTE })
+      .send({ invoice: 'pay', lastDay: iso(5), reason: 'violation', note: NOTE })
       .expect(200);
 
     expect(body).toMatchObject({
@@ -117,7 +117,7 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
 
     await admin
       .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end`)
-      .send({ invoice: 'pay', lastDay: iso(5), reason: 'breach', note: NOTE })
+      .send({ invoice: 'pay', lastDay: iso(5), reason: 'violation', note: NOTE })
       .expect(200);
 
     const saved = await prisma.contracts.findUniqueOrThrow({
@@ -127,7 +127,7 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
     expect(saved).toMatchObject({
       end_date: day(5),
       original_end_date: day(29),
-      end_reason: 'breach',
+      end_reason: 'violation',
       end_note: NOTE,
       invoice: { status: 'running' },
     });

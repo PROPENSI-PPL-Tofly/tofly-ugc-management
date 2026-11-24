@@ -360,7 +360,9 @@ describe('toDraftEntries', () => {
 // offered only on a running period that was not, and the period shows its original end.
 describe('toContractPeriods, an early end', () => {
   it('reports no early end on a period that runs as agreed', () => {
-    expect(toContractPeriods([contract('only', -30, 150)], TODAY)[0].earlyEnd).toBeNull();
+    const [period] = toContractPeriods([contract('only', -30, 150)], TODAY);
+    expect(period.earlyEnd).toBeNull();
+    expect(period.earlyEndReason).toBeNull();
   });
 
   it('reports the original end, the reason, the admin note and when it was ended', () => {
@@ -374,6 +376,8 @@ describe('toContractPeriods, an early end', () => {
 
     expect(toContractPeriods([row], TODAY)[0]).toMatchObject({
       endDate: '2026-09-23',
+      // The field "Perpanjang Kontrak" reads for its warning (PBI-30, AC 3).
+      earlyEndReason: 'fraud',
       earlyEnd: {
         originalEndDate: '2026-11-17',
         reason: 'fraud',

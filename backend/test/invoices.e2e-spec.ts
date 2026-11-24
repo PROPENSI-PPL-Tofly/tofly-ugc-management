@@ -987,7 +987,7 @@ describe('Invoices API (e2e)', () => {
             start_date: day(-30),
             end_date: day(-2),
             original_end_date: day(30),
-            end_reason: 'breach',
+            end_reason: 'violation',
             end_note: 'Pelanggaran kontrak.',
             ended_at: day(-3),
             contract_type: 'regular',
