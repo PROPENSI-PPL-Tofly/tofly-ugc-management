@@ -1,7 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { formatJakartaDay, formatTimestamp } from "@/lib/format";
 import { adminUser } from "./admin.fixture";
 import { AdminUserTable } from "./admin-user-table";
+
+const { replaceQuery } = vi.hoisted(() => ({ replaceQuery: vi.fn() }));
+
+vi.mock("@/lib/url-query", () => ({ useUrlQuery: () => ({ replaceQuery }) }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
@@ -71,5 +75,13 @@ describe("Pengguna Admin's table", () => {
 
     const row = within(screen.getByRole("table")).getAllByRole("row")[1];
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+  });
+
+  it("clears the search from the address when a filtered empty list is reset", () => {
+    render(<AdminUserTable users={[]} total={0} filtered />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filter" }));
+
+    expect(replaceQuery).toHaveBeenCalledExactlyOnceWith("");
   });
 });

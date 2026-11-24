@@ -122,8 +122,27 @@ describe("the admin list's rows", () => {
     ["a row with no email", { items: [{ ...API_USER, email: null }], page: 1, pageSize: 10, total: 1 }],
     ["a role it does not know", { items: [{ ...API_USER, role: "owner" }], page: 1, pageSize: 10, total: 1 }],
     ["a row without a status", { items: [{ ...API_USER, isActive: "yes" }], page: 1, pageSize: 10, total: 1 }],
+    ["a row that is not a row", { items: [null], page: 1, pageSize: 10, total: 1 }],
+    ["an unreadable sign-in", { items: [{ ...API_USER, lastSignInAt: 123 }], page: 1, pageSize: 10, total: 1 }],
+    ["a row with no date added", { items: [{ ...API_USER, createdAt: undefined }], page: 1, pageSize: 10, total: 1 }],
+    ["a non-number page", { items: [API_USER], page: "1", pageSize: 10, total: 1 }],
+    ["a non-number page size", { items: [API_USER], page: 1, pageSize: "10", total: 1 }],
+    ["a zero page size", { items: [API_USER], page: 1, pageSize: 0, total: 1 }],
+    ["a non-number total", { items: [API_USER], page: 1, pageSize: 10, total: "one" }],
   ])("refuses %s rather than drawing a half-read table", (_label, answer) => {
     expect(() => toAdminUserList(answer)).toThrow();
+  });
+
+  it("reads a non-string name as the empty name the table falls back from", () => {
+    const list = toAdminUserList({
+      items: [{ ...API_USER, name: 42 }],
+      page: 1,
+      pageSize: 10,
+      total: 1,
+    });
+
+    expect(list.items[0].name).toBe("");
+    expect(adminUserDisplayName(list.items[0])).toBe(API_USER.email);
   });
 });
 
