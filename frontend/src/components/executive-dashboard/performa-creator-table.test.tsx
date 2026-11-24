@@ -25,7 +25,9 @@ const CREATORS = [
   creator({ creatorId: "c-3", creatorName: "Citra", views: 50_000 }),
 ];
 
-beforeEach(() => push.mockReset());
+beforeEach(() => {
+  push.mockReset();
+});
 
 function names(): string[] {
   const table = screen.getByRole("table", { name: "Performa Creator" });

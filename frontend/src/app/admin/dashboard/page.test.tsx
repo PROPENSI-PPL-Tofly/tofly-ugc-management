@@ -43,7 +43,10 @@ async function renderPage(params: Record<string, string> = {}) {
   return render(<>{await ExecutiveDashboardPage({ searchParams: Promise.resolve(params) })}</>);
 }
 
-beforeEach(() => mockedFetch.mockReset());
+// Braced: a returned mock would run as this hook's teardown.
+beforeEach(() => {
+  mockedFetch.mockReset();
+});
 
 describe("Executive dashboard page", () => {
   it("asks for the range in the address, falling back to six months for one it cannot hold", async () => {
