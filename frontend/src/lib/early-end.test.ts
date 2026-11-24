@@ -66,8 +66,8 @@ describe("endablePeriod (AC 1: only while the contract is active)", () => {
 
 describe("upcomingPeriodsOf", () => {
   it("lists the periods that have not started, oldest first", () => {
-    const third = period({ periodNumber: 3, status: "upcoming" });
-    const second = period({ periodNumber: 2, status: "upcoming" });
+    const third = period({ periodNumber: 3, status: "upcoming", startDate: "2027-04-01" });
+    const second = period({ periodNumber: 2, status: "upcoming", startDate: "2026-12-16" });
     expect(upcomingPeriodsOf([third, second, period()])).toEqual([second, third]);
   });
 });
