@@ -33,6 +33,15 @@ export interface ContractSummary {
 
   /** The current contract's type; null without a contract. */
   type: ContractType | null;
+
+  /**
+   * PBI-37: set when the current contract was ended early, for "Berakhir Lebih Awal" with its
+   * reason type; endDate is then the last day. The note stays on Creator Detail.
+   */
+  earlyEnd: {
+    originalEndDate: string;
+    reason: 'violation' | 'fraud' | 'other';
+  } | null;
 }
 
 export interface CreatorSummary {

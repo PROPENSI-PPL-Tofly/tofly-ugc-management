@@ -52,6 +52,8 @@ const CREATOR_SELECT = {
       end_date: true,
       content_quota: true,
       contract_type: true,
+      original_end_date: true,
+      end_reason: true,
       // The access rule reads every contract's invoice (PRD 3.1).
       invoice: { select: { status: true, paid_at: true } },
       contents: {
@@ -165,6 +167,7 @@ const NO_CONTRACT: ContractSummary = {
   periodNumber: 0,
   contentQuota: 0,
   type: null,
+  earlyEnd: null,
 };
 
 /** Creator-proposed content an admin has not accepted yet: not a commitment, so not counted. */
@@ -200,6 +203,16 @@ function toMetricsContract(
       submissionCount: content._count.submissions,
     })),
   };
+}
+
+/** "Berakhir Lebih Awal" and its reason (PBI-37), or null for a contract that runs as agreed. */
+function earlyEndSummary(
+  contract: Pick<SummaryRow['contracts'][number], 'original_end_date' | 'end_reason'>,
+): ContractSummary['earlyEnd'] {
+  // The database records an early end whole or not at all (contracts_early_end_check).
+  return contract.original_end_date === null
+    ? null
+    : { originalEndDate: calendarDay(contract.original_end_date), reason: contract.end_reason! };
 }
 
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
@@ -425,6 +438,7 @@ export class CreatorsService implements CreatorLister {
             periodNumber: periodNumber(contracts, current),
             contentQuota: current.contentQuota,
             type: current.contractType,
+            earlyEnd: earlyEndSummary(row.contracts.find(({ id }) => id === current.id)!),
           }
         : NO_CONTRACT,
 
