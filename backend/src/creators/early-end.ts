@@ -11,12 +11,13 @@ import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
 import { periodHasStarted } from './contract-period.js';
 import { jakartaDay, readableDay } from './evergreen.js';
 
-export const END_REASONS = ['breach', 'fraud', 'other'] as const;
+// The words the frontend already reads (PBI-30's warning, creators.ts EARLY_END_REASONS).
+export const END_REASONS = ['violation', 'fraud', 'other'] as const;
 export type EndReason = (typeof END_REASONS)[number];
 
 /** Each reason as the form's "Alasan" list names it. */
 export const END_REASON_LABELS: Readonly<Record<EndReason, string>> = {
-  breach: 'Pelanggaran Kontrak',
+  violation: 'Pelanggaran Kontrak',
   fraud: 'Fraud',
   other: 'Lainnya',
 };
@@ -158,7 +159,7 @@ export function checkEarlyEnd(
 }
 
 /**
- * Whether the reason and the invoice choice pull apart: a breach or fraud that is still paid, or
+ * Whether the reason and the invoice choice pull apart: a violation or fraud that is still paid, or
  * "Lainnya" that is not. The confirmation warns, the admin decides.
  */
 export function reasonMismatch({

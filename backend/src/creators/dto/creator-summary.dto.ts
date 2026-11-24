@@ -142,10 +142,13 @@ export interface ContractPeriod extends ContractHistoryEntry {
    */
   earlyEnd: {
     originalEndDate: string;
-    reason: 'breach' | 'fraud' | 'other';
+    reason: 'violation' | 'fraud' | 'other';
     note: string;
     endedAt: string;
   } | null;
+
+  /** The same reason on its own, as "Perpanjang Kontrak" reads it for its warning (PBI-30, AC 3). */
+  earlyEndReason: 'violation' | 'fraud' | 'other' | null;
 }
 
 export interface CreatorDetail extends CreatorSummary {

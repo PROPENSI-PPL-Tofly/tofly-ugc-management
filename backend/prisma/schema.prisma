@@ -111,7 +111,7 @@ model contracts {
 
 /// Why a contract was ended early (PBI-37): "Pelanggaran Kontrak", "Fraud" or "Lainnya".
 enum contract_end_reason {
-  breach
+  violation
   fraud
   other
 }

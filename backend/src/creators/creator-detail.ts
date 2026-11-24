@@ -138,6 +138,7 @@ export function toContractPeriods(
       progress,
       performance: computePerformance(metrics, today),
       earlyEnd: earlyEndOf(row),
+      earlyEndReason: row.end_reason,
     };
   });
 }

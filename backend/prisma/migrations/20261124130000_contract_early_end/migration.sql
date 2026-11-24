@@ -2,7 +2,7 @@
 -- creator: end_date becomes the last day, so every reader of the period (status, Finalize,
 -- penalties, the overlap check of Perpanjang Kontrak) follows it, and original_end_date keeps the
 -- end it had before.
-create type contract_end_reason as enum ('breach', 'fraud', 'other');
+create type contract_end_reason as enum ('violation', 'fraud', 'other');
 
 alter table contracts
   add column original_end_date date,

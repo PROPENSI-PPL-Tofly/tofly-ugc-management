@@ -203,7 +203,7 @@ describe('checkEarlyEnd (the "Akhiri Kontrak Lebih Awal" form)', () => {
     });
   });
 
-  it.each([undefined, '', 'violation', 3])('asks for the reason when it is %j', (reason) => {
+  it.each([undefined, '', 'breach', 3])('asks for the reason when it is %j', (reason) => {
     expect(errorsOf(() => checkEarlyEnd({ ...VALID, reason }, RUNNING, NOW))).toEqual({
       reason: 'Pilih alasan',
     });
