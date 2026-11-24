@@ -29,6 +29,8 @@ model contents {
   approval_bypassed            Boolean          @default(false)
   /// PBI-27: until when a performance sync holds this content; null when none does.
   performance_sync_lease_until DateTime?        @db.Timestamptz(6)
+  /// PBI-37: when an early end closed this content, due after the contract's last day; null while open.
+  closed_at                    DateTime?        @db.Timestamptz(6)
   contracts                    contracts        @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   submissions                  submissions[]
   content_events               content_events[]
@@ -90,11 +92,28 @@ model contracts {
   created_at    DateTime      @default(now()) @db.Timestamptz(6)
   updated_at    DateTime      @default(now()) @db.Timestamptz(6)
   contract_type contract_type
+  /// PBI-37: set once the contract was ended early, the end it had before; end_date is then the last day.
+  original_end_date DateTime?            @db.Date
+  end_reason        contract_end_reason?
+  /// Admin only, 1-500 characters.
+  end_note          String?              @db.VarChar(500)
+  ended_at          DateTime?            @db.Timestamptz(6)
+  /// The admin who ended it; null behind the local development stand-in.
+  ended_by          String?              @db.Uuid
   contents      contents[]
   invoice       invoices?
   creators      creators      @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ender         users?        @relation("contracts_ended_by", fields: [ended_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([creator_id, end_date(sort: Desc)], map: "contracts_creator_end_date_idx")
+  @@index([ended_by], map: "contracts_ended_by_idx")
+}
+
+/// Why a contract was ended early (PBI-37): "Pelanggaran Kontrak", "Fraud" or "Lainnya".
+enum contract_end_reason {
+  breach
+  fraud
+  other
 }
 
 model creators {
@@ -239,6 +258,8 @@ model users {
   invoices_finalized     invoices[]               @relation("invoices_finalized_by")
   invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
   invoices_paid          invoices[]               @relation("invoices_paid_by")
+  invoices_cancelled     invoices[]               @relation("invoices_cancelled_by")
+  contracts_ended        contracts[]              @relation("contracts_ended_by")
   rate_formula           rate_formula[]
   revision_followups     revision_followups[]
 }
@@ -269,10 +290,14 @@ model invoices {
   /// When and by whom the creator confirmed the payment arrived (13.1).
   paid_at         DateTime?               @db.Timestamptz(6)
   paid_by         String?                 @db.Uuid
+  /// PBI-37: when and by whom an early end cancelled it.
+  cancelled_at    DateTime?               @db.Timestamptz(6)
+  cancelled_by    String?                 @db.Uuid
   contracts       contracts               @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   finalizer       users?                  @relation("invoices_finalized_by", fields: [finalized_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   acknowledger    users?                  @relation("invoices_acknowledged_by", fields: [acknowledged_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   payee           users?                  @relation("invoices_paid_by", fields: [paid_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  canceller       users?                  @relation("invoices_cancelled_by", fields: [cancelled_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   adjustments     invoice_adjustments[]
   comments        invoice_comments[]
   payment_proof   invoice_payment_proofs?
@@ -280,6 +305,7 @@ model invoices {
   @@index([finalized_by], map: "invoices_finalized_by_idx")
   @@index([acknowledged_by], map: "invoices_acknowledged_by_idx")
   @@index([paid_by], map: "invoices_paid_by_idx")
+  @@index([cancelled_by], map: "invoices_cancelled_by_idx")
 }
 
 /// The proof an admin uploaded for one invoice; the file itself lives in object storage under

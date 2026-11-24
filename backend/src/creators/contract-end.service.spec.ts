@@ -134,11 +134,11 @@ describe('ContractEndService.end', () => {
 
     expect(lockStatements(setupResult.tx)).toEqual([
       {
-        sql: 'SELECT id FROM creators WHERE id = $1::uuid FOR UPDATE',
+        sql: 'SELECT id FROM creators WHERE id = ?::uuid FOR UPDATE',
         values: [CREATOR_ID],
       },
       {
-        sql: 'SELECT id FROM contracts WHERE id = $1::uuid FOR UPDATE',
+        sql: 'SELECT id FROM contracts WHERE id = ?::uuid FOR UPDATE',
         values: [RUNNING_ID],
       },
     ]);

@@ -14,6 +14,13 @@ import { jakartaDay, readableDay } from './evergreen.js';
 export const END_REASONS = ['breach', 'fraud', 'other'] as const;
 export type EndReason = (typeof END_REASONS)[number];
 
+/** Each reason as the form's "Alasan" list names it. */
+export const END_REASON_LABELS: Readonly<Record<EndReason, string>> = {
+  breach: 'Pelanggaran Kontrak',
+  fraud: 'Fraud',
+  other: 'Lainnya',
+};
+
 /** "Bayar Sesuai Kontrak" or "Batalkan Invoice". */
 export const INVOICE_CHOICES = ['pay', 'cancel'] as const;
 export type InvoiceChoice = (typeof INVOICE_CHOICES)[number];
