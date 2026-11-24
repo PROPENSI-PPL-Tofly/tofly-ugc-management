@@ -6,8 +6,21 @@ import { Panel, PanelHead } from "@/components/ui/panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { isEmptyChart, type ChartRow, type ChartSegment } from "@/lib/executive-dashboard";
+import { formatCompact, formatCount, formatRupiah, formatRupiahShort } from "@/lib/format";
 
 type Format = (value: number) => string;
+
+/**
+ * What a chart counts, by name. The page is a server component and a function cannot cross into
+ * a client one, so the page names the unit and the chart picks its formats here: the full value
+ * for the tooltip and the table, the short one for the axis.
+ */
+export type ChartUnit = "rupiah" | "count";
+
+const UNIT_FORMATS: Record<ChartUnit, { full: Format; axis: Format }> = {
+  rupiah: { full: formatRupiah, axis: formatRupiahShort },
+  count: { full: formatCount, axis: formatCompact },
+};
 
 /**
  * What hovering a month shows: each part of its stack and their total, in the chart's own
@@ -85,7 +98,7 @@ function ChartTable<K extends string>({
 /**
  * One of the executive Dashboard's monthly charts (PBI-24, AC Charts): a bar per month stacked
  * by part, a legend, the numbers on hover and the same numbers as a table behind "Lihat Tabel".
- * The axis is written short (`axisFormat`); the tooltip and the table write the full value.
+ * The axis is written short; the tooltip and the table write the full value (see ChartUnit).
  *
  * Open/Closed: Spending, Views and Ketepatan Pengiriman are the same component with other
  * rows, segments and formats; a fourth chart is another call, not an edit.
@@ -95,18 +108,17 @@ export function StackedBarChart<K extends string>({
   hint,
   rows,
   segments,
-  format,
-  axisFormat = format,
+  unit,
   emptyTitle,
 }: Readonly<{
   title: string;
   hint?: string;
   rows: readonly ChartRow<K>[];
   segments: readonly ChartSegment<K>[];
-  format: Format;
-  axisFormat?: Format;
+  unit: ChartUnit;
   emptyTitle: string;
 }>) {
+  const { full: format, axis: axisFormat } = UNIT_FORMATS[unit];
   const [asTable, setAsTable] = useState(false);
   const empty = isEmptyChart(rows);
 

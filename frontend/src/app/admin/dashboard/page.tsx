@@ -15,7 +15,6 @@ import {
   type ExecutiveDashboard,
 } from "@/lib/executive-dashboard";
 import { fetchExecutiveDashboard } from "@/lib/executive-dashboard.server";
-import { formatCompact, formatCount, formatRupiah, formatRupiahShort } from "@/lib/format";
 import type { SearchParams } from "@/lib/search-params";
 
 export const dynamic = "force-dynamic";
@@ -56,8 +55,7 @@ export default async function ExecutiveDashboardPage({
               hint="Invoice yang difinalisasi, setelah penalti dan penyesuaian."
               rows={spendingRows(dashboard.months)}
               segments={SPENDING_SEGMENTS}
-              format={formatRupiah}
-              axisFormat={formatRupiahShort}
+              unit="rupiah"
               emptyTitle="Belum ada spending di rentang ini."
             />
             <StackedBarChart
@@ -65,8 +63,7 @@ export default async function ExecutiveDashboardPage({
               hint="Views dari link yang dikirim di bulan itu."
               rows={viewsRows(dashboard.months)}
               segments={VIEWS_SEGMENTS}
-              format={formatCount}
-              axisFormat={formatCompact}
+              unit="count"
               emptyTitle="Belum ada views di rentang ini."
             />
           </div>
@@ -75,7 +72,7 @@ export default async function ExecutiveDashboardPage({
             hint="Konten yang jatuh tempo di bulan itu."
             rows={deliveryRows(dashboard.months)}
             segments={DELIVERY_SEGMENTS}
-            format={formatCount}
+            unit="count"
             emptyTitle="Belum ada konten yang jatuh tempo di rentang ini."
           />
           <PerformaCreatorTable creators={dashboard.creators} state={state} />
