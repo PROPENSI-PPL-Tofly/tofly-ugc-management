@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { FilterOption } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -11,7 +12,7 @@ import {
   type AuditLogList,
   type AuditLogState,
 } from "@/lib/audit-log";
-import { AuditLogFilters } from "./audit-log-filters";
+import { AuditLogFilters, AuditLogFiltersFrom } from "./audit-log-filters";
 import { AuditLogTable } from "./audit-log-table";
 
 // The panel of "Log Aktivitas" (PBI-23, 23.7). A null list is a request that failed, which is told
@@ -19,14 +20,13 @@ import { AuditLogTable } from "./audit-log-table";
 export function AuditLogPanel({
   state,
   list,
-  actors,
-  creators,
+  options,
   today,
 }: Readonly<{
   state: AuditLogState;
   list: AuditLogList | null;
-  actors: readonly FilterOption[];
-  creators: readonly FilterOption[];
+  // Streamed: reading them scans the whole log, so the table does not wait for them.
+  options: Promise<{ actors: FilterOption[]; creators: FilterOption[] }>;
   today: string;
 }>) {
   const query = buildAuditLogQuery(state);
@@ -47,7 +47,9 @@ export function AuditLogPanel({
           </>
         }
       />
-      <AuditLogFilters actors={actors} creators={creators} today={today} />
+      <Suspense fallback={<AuditLogFilters actors={[]} creators={[]} today={today} />}>
+        <AuditLogFiltersFrom options={options} today={today} />
+      </Suspense>
 
       {list === null ? (
         <LoadError title="Log Aktivitas tidak bisa dimuat." retryHref={auditLogHref(state)} />

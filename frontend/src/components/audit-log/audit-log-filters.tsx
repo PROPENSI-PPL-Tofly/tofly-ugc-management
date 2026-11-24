@@ -1,5 +1,6 @@
 "use client";
 
+import { use } from "react";
 import {
   FILTER_FIELD,
   FilterBar,
@@ -53,6 +54,18 @@ function DayFilter({
       />
     </label>
   );
+}
+
+// The bar once its Aktor and Creator choices have streamed in, read inside the panel's Suspense.
+export function AuditLogFiltersFrom({
+  options,
+  today,
+}: Readonly<{
+  options: Promise<{ actors: FilterOption[]; creators: FilterOption[] }>;
+  today: string;
+}>) {
+  const { actors, creators } = use(options);
+  return <AuditLogFilters actors={actors} creators={creators} today={today} />;
 }
 
 // The filter bar of "Log Aktivitas" (PBI-23, 23.7). The address is the only lasting state, read

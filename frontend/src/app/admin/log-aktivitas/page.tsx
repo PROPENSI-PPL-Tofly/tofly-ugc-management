@@ -37,20 +37,20 @@ export default async function AuditLogPage({
 
   const state = parseAuditLogParams(await searchParams);
 
+  // Not awaited: the choices stream in, so the table never waits for them, and losing them leaves
+  // the entries on screen.
+  const options = loadAuditLogFilterOptions().catch(
+    (): AuditLogFilterOptions => ({ actors: [], creators: [] }),
+  );
   // A null list is a request that failed, not a log that is empty: the panel offers it again.
-  // Losing only the filter choices leaves the entries on screen.
-  const [list, options] = await Promise.all([
-    loadAuditLogList(state).catch(() => null),
-    loadAuditLogFilterOptions().catch((): AuditLogFilterOptions => ({ actors: [], creators: [] })),
-  ]);
+  const list = await loadAuditLogList(state).catch(() => null);
 
   return (
     <AppShell title="Log Aktivitas">
       <AuditLogPanel
         state={state}
         list={list}
-        actors={options.actors}
-        creators={options.creators}
+        options={options}
         today={jakartaDay()}
       />
     </AppShell>

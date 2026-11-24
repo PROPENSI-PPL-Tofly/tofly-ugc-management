@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import type { AuditLogList, AuditLogRow, AuditLogState } from "@/lib/audit-log";
 import { AuditLogPanel } from "./audit-log-panel";
 
@@ -73,13 +73,15 @@ describe("AuditLogPanel", () => {
   });
 
   it("fills the filter bar once the choices arrive", async () => {
-    renderPanel(
-      list(),
-      NO_FILTERS,
-      Promise.resolve({ actors: [{ value: "system", label: "Sistem" }], creators: [] }),
-    );
+    await act(async () => {
+      renderPanel(
+        list(),
+        NO_FILTERS,
+        Promise.resolve({ actors: [{ value: "system", label: "Sistem" }], creators: [] }),
+      );
+    });
 
-    await waitFor(() => expect(screen.getByTestId("filters")).toHaveAttribute("data-actors", "1"));
+    expect(screen.getByTestId("filters")).toHaveAttribute("data-actors", "1");
   });
 
   // The Sprint 4 prototype's words.
