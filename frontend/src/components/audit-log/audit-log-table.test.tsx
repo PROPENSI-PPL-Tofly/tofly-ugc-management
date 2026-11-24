@@ -118,8 +118,14 @@ describe("AuditLogTable", () => {
   it("shows one changed field on the row as old and new", () => {
     render(<AuditLogTable rows={[entry()]} />);
 
-    expect(cellsOf()[5]).toHaveTextContent("7 → 5");
+    expect(cellsOf()[5]).toHaveTextContent("days: 7 → 5");
     expect(screen.queryByRole("button", { name: /perubahan/i })).not.toBeInTheDocument();
+  });
+
+  it("names and formats a single change", () => {
+    render(<AuditLogTable rows={[entry({ oldValues: null, newValues: { total: 4500000 } })]} />);
+
+    expect(cellsOf()[5]).toHaveTextContent(`Total: ${EMPTY} → Rp4.500.000`);
   });
 
   it("shows the dash for an entry without a change", () => {
@@ -143,7 +149,7 @@ describe("AuditLogTable", () => {
     fireEvent.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(cellsOf()[5]).toHaveTextContent("name: Lama → Baru");
+    expect(cellsOf()[5]).toHaveTextContent("Nama: Lama → Baru");
     expect(cellsOf()[5]).toHaveTextContent("role: admin → super_admin");
 
     fireEvent.click(toggle);

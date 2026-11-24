@@ -7,6 +7,7 @@ import {
   actionsInCategories,
   auditActionLabel,
   auditActorLines,
+  auditChangeShown,
   auditChangeView,
   auditChanges,
   auditDatesReversed,
@@ -16,7 +17,7 @@ import {
   keepActionsInCategories,
   parseAuditLogParams,
 } from "./audit-log";
-import { EMPTY } from "./format";
+import { EMPTY, formatDate } from "./format";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_ADMIN_ID = "22222222-2222-4222-8222-222222222222";
@@ -395,6 +396,56 @@ describe("auditChangeView", () => {
         { field: "b", from: "2", to: "8" },
       ],
     });
+  });
+});
+
+describe("auditChangeShown", () => {
+  const shown = (field: string, from: string, to: string) => auditChangeShown({ field, from, to });
+
+  // The backend stores real values; the row reads them in the app's words.
+  it.each([
+    ["status", "payment_uploaded", "paid", "Status", "Bukti Bayar Terkirim", "Paid"],
+    ["status", "running", "finalized", "Status", "Berjalan", "Invoice Terkirim"],
+    ["total", EMPTY, "4500000", "Total", EMPTY, "Rp4.500.000"],
+    ["fixedRate", "500000", "750000", "Fixed Rate", "Rp500.000", "Rp750.000"],
+    ["specificBonus", "0", "25000", "Bonus Spesifik", "Rp0", "Rp25.000"],
+    ["latePenaltyPerDay", "1000", "2000", "Denda per Hari", "Rp1.000", "Rp2.000"],
+    ["maxPenaltyDays", "3", "5", "Maks. Hari Denda", "3", "5"],
+    ["views", "1200", "25000", "Views", "1.200", "25.000"],
+    ["likes", "100", "200", "Likes", "100", "200"],
+    ["comments", "1", "2", "Komentar", "1", "2"],
+    ["shares", "1", "2", "Shares", "1", "2"],
+    ["quota", "4", "6", "Kuota", "4", "6"],
+    ["interval", "7", "14", "Interval (hari)", "7", "14"],
+    ["contractType", "a", "b", "Tipe Kontrak", "a", "b"],
+    ["platform", "tiktok", "instagram", "Platform", "tiktok", "instagram"],
+    ["fileName", EMPTY, "bukti.pdf", "Nama File", EMPTY, "bukti.pdf"],
+    ["name", "Lama", "Baru", "Nama", "Lama", "Baru"],
+    ["email", "a@x.id", "b@x.id", "Email", "a@x.id", "b@x.id"],
+    ["socialAccounts", "[1]", "[2]", "Akun Sosial", "[1]", "[2]"],
+    ["contract", "{}", '{"a":1}', "Kontrak", "{}", '{"a":1}'],
+    ["performanceBonus", "{}", '{"a":1}', "Bonus Performa", "{}", '{"a":1}'],
+  ])("reads %s from %s to %s", (field, from, to, label, shownFrom, shownTo) => {
+    expect(shown(field, from, to)).toEqual({ label, from: shownFrom, to: shownTo });
+  });
+
+  it.each(["startDate", "endDate"])("reads %s as a date", (field) => {
+    expect(shown(field, "2026-11-01", "2026-11-30")).toEqual({
+      label: field === "startDate" ? "Tanggal Mulai" : "Tanggal Selesai",
+      from: formatDate("2026-11-01"),
+      to: formatDate("2026-11-30"),
+    });
+  });
+
+  // An audit record never hides what was stored.
+  it("keeps a value it cannot read as it was stored", () => {
+    expect(shown("total", "n/a", "4500000").from).toBe("n/a");
+    expect(shown("startDate", "soon", "2026-11-30").from).toBe("soon");
+    expect(shown("status", "archived", "paid").from).toBe("archived");
+  });
+
+  it("keeps a field it does not know under its own name", () => {
+    expect(shown("days", "7", "5")).toEqual({ label: "days", from: "7", to: "5" });
   });
 });
 
