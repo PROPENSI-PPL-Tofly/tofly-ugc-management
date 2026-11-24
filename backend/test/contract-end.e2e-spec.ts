@@ -186,6 +186,37 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
     });
   });
 
+  // PBI-37 (AC 13): while waiting for payment the creator can open only "Pembayaran".
+  it('lets a creator whose contract is over but unpaid into Pembayaran only', async () => {
+    const created = await prisma.creators.create({
+      data: {
+        first_name: 'Dewi',
+        users: { create: { email: `${MARKER}-waiting@example.com` } },
+        contracts: {
+          create: {
+            start_date: day(-60),
+            end_date: day(-1),
+            contract_type: 'regular',
+            days_between: 14,
+            content_quota: 1,
+            fixed_rate: 1_000_000,
+            invoice: { create: {} },
+          },
+        },
+      },
+      select: { id: true, user_id: true },
+    });
+    const waiting = as(
+      app,
+      await signIn(app, { userId: created.user_id, role: 'creator', creatorId: created.id }),
+    );
+
+    expect((await waiting.get('/me/invoices')).status).toBe(200);
+    const tasks = await waiting.get('/me/contents');
+    expect(tasks.status).toBe(403);
+    expect(tasks.body).toMatchObject({ code: 'PAYMENTS_ONLY' });
+  });
+
   // OWASP A01:2025: only an admin ends a contract.
   it('refuses the creator themself', async () => {
     const dewi = await creatorWithRunningPeriod('self');

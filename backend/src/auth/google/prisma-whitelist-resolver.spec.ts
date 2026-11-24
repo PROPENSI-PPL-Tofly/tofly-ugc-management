@@ -105,12 +105,16 @@ describe('PrismaWhitelistResolver.resolve', () => {
     await expect(resolver.resolve('creator@example.com')).resolves.toEqual(CREATOR);
   });
 
-  it('lets a creator in after their period while its invoice is not paid', async () => {
+  // PBI-37 (AC 13): only "Pembayaran" is left to open.
+  it('lets a creator in after their period while its invoice is not paid, for payments only', async () => {
     const { resolver } = resolverFor(
       creatorUser([period('2026-10-31', { status: 'finalized', paid_at: null })]),
     );
 
-    await expect(resolver.resolve('creator@example.com')).resolves.toEqual(CREATOR);
+    await expect(resolver.resolve('creator@example.com')).resolves.toEqual({
+      ...CREATOR,
+      paymentsOnly: true,
+    });
   });
 
   it('denies a creator the day after their last invoice was paid', async () => {

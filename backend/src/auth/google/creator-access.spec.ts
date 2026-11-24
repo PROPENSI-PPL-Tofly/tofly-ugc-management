@@ -1,6 +1,7 @@
 import {
   accessClosedSince,
   creatorMaySignIn,
+  onlyPaymentsLeft,
   type BegunInvoice,
   type SignInContract,
 } from './creator-access.js';
@@ -148,5 +149,39 @@ describe('accessClosedSince', () => {
         contract('2026-08-31', paidOn('2026-09-05')),
       ]),
     ).toBe('2026-11-20');
+  });
+});
+
+// PBI-37 (AC 13): while waiting for payment the creator can open only "Pembayaran".
+describe('onlyPaymentsLeft', () => {
+  it('is false while a period runs or waits to start', () => {
+    expect(onlyPaymentsLeft(TODAY, [contract(TODAY)])).toBe(false);
+    expect(
+      onlyPaymentsLeft(TODAY, [contract('2026-10-31', { status: 'finalized', paid_at: null }), contract('2027-02-28')]),
+    ).toBe(false);
+  });
+
+  it('is true when every period has ended and an invoice still waits', () => {
+    expect(
+      onlyPaymentsLeft(TODAY, [contract('2026-10-31', { status: 'creator_acked', paid_at: null })]),
+    ).toBe(true);
+  });
+
+  it('is true on the day the last invoice is paid, the last day access is open', () => {
+    expect(onlyPaymentsLeft(TODAY, [contract('2026-10-31', paidOn(TODAY))])).toBe(true);
+  });
+
+  it('counts a period cancelled today as over, though its last day is today', () => {
+    expect(
+      onlyPaymentsLeft(TODAY, [
+        contract('2026-08-31', { status: 'finalized', paid_at: null }),
+        contract(TODAY, CANCELLED),
+      ]),
+    ).toBe(true);
+  });
+
+  it('is false once access is closed: nothing is left to open', () => {
+    expect(onlyPaymentsLeft(TODAY, [contract('2026-10-31', paidOn('2026-11-01'))])).toBe(false);
+    expect(onlyPaymentsLeft(TODAY, [])).toBe(false);
   });
 });
