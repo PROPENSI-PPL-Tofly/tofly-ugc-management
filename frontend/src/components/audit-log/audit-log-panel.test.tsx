@@ -149,6 +149,16 @@ describe("AuditLogPanel", () => {
   });
 
   // A request that failed is not a list that is empty.
+  it("says the dates are reversed instead of an error or an empty log", () => {
+    renderPanel(null, { ...NO_FILTERS, from: "2026-11-30", to: "2026-11-01" });
+
+    expect(screen.getByText("Tanggal mulai tidak boleh setelah tanggal akhir.")).toBeInTheDocument();
+    expect(screen.getByTestId("filters")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Menampilkan/)).not.toBeInTheDocument();
+  });
+
   it("offers a retry on the same filters when the list cannot be loaded", () => {
     renderPanel(null, { ...NO_FILTERS, page: 2, category: ["pengaturan"] });
 

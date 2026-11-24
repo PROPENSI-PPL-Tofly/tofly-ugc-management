@@ -95,6 +95,20 @@ describe("Log Aktivitas page", () => {
     });
   });
 
+  // The API answers 400 to this range, so the page asks for no entries and the panel says why.
+  it("loads no list for a reversed date range, keeping the filter choices", async () => {
+    await renderPage({ from: "2026-11-30", to: "2026-11-01" });
+
+    expect(load).not.toHaveBeenCalled();
+    expect(loadOptions).toHaveBeenCalled();
+    expect(panel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        list: null,
+        state: expect.objectContaining({ from: "2026-11-30", to: "2026-11-01" }),
+      }),
+    );
+  });
+
   // The options grow with the whole log, so the table never waits for them.
   it("shows the list while the filter choices are still loading", async () => {
     loadOptions.mockReturnValue(new Promise(() => {}));

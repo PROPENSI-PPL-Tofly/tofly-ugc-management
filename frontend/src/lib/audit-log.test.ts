@@ -9,6 +9,7 @@ import {
   auditActorLines,
   auditChangeView,
   auditChanges,
+  auditDatesReversed,
   auditTargetHref,
   auditTimeLabel,
   buildAuditLogQuery,
@@ -156,8 +157,35 @@ describe("parseAuditLogParams", () => {
     },
   );
 
-  it("ignores a range that ends before it starts", () => {
-    expect(parseAuditLogParams({ from: "2026-11-30", to: "2026-11-01" })).toEqual(NO_FILTERS);
+  // Dropping the dates would silently show more entries than were asked for.
+  it("keeps a range that ends before it starts, and names it reversed", () => {
+    const state = parseAuditLogParams({ from: "2026-11-30", to: "2026-11-01" });
+
+    expect(state).toMatchObject({ from: "2026-11-30", to: "2026-11-01" });
+    expect(auditDatesReversed(state)).toBe(true);
+  });
+
+  it.each([
+    ["2026-11-01", "2026-11-30"],
+    ["2026-11-21", "2026-11-21"],
+    ["2026-11-21", ""],
+    ["", "2026-11-21"],
+    ["", ""],
+  ])("does not call %s to %s reversed", (from, to) => {
+    expect(auditDatesReversed(parseAuditLogParams({ from, to }))).toBe(false);
+  });
+
+  // The API refuses more than 50 values, and a retry on that address would fail the same way.
+  it("keeps at most 50 values per filter", () => {
+    const ids = Array.from(
+      { length: 51 },
+      (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    );
+
+    const state = parseAuditLogParams({ actor: ids.join(","), creator: ids.join(",") });
+
+    expect(state.actor).toEqual(ids.slice(0, 50));
+    expect(state.creator).toEqual(ids.slice(0, 50));
   });
 
   // OWASP A05:2025: only values the page checked can reach the API.
@@ -199,7 +227,7 @@ describe("parseAuditLogParams", () => {
     });
   });
 
-  it.each(["0", "-1", "1.5", "abc"])("reads a page of %s as the first", (page) => {
+  it.each(["0", "-1", "1.5", "abc", "9007199254740992", "1000000000000000000000"])("reads a page of %s as the first", (page) => {
     expect(parseAuditLogParams({ page }).page).toBe(1);
   });
 });
