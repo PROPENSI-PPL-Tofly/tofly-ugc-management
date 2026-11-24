@@ -3,14 +3,16 @@ import type { AuditLogRow } from "@/lib/audit-log";
 import { jakartaDay } from "@/lib/format";
 import AuditLogPage, { metadata } from "./page";
 
-const { load, panel, session } = vi.hoisted(() => ({
+const { load, loadOptions, panel, session } = vi.hoisted(() => ({
   load: vi.fn(),
+  loadOptions: vi.fn(),
   panel: vi.fn(),
   session: vi.fn(),
 }));
 
 vi.mock("@/lib/audit-log.server", () => ({
-  loadAuditLog: (state: unknown) => load(state),
+  loadAuditLogList: (state: unknown) => load(state),
+  loadAuditLogFilterOptions: () => loadOptions(),
 }));
 
 vi.mock("@/lib/session.server", () => ({
@@ -46,7 +48,8 @@ async function renderPage(params: Record<string, string> = {}) {
 describe("Log Aktivitas page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    load.mockResolvedValue(LOADED);
+    load.mockResolvedValue(LOADED.list);
+    loadOptions.mockResolvedValue({ actors: LOADED.actors, creators: LOADED.creators });
     session.mockResolvedValue({ role: "admin", isSuperAdmin: true });
   });
 
@@ -63,6 +66,7 @@ describe("Log Aktivitas page", () => {
       "/admin/creators",
     );
     expect(load).not.toHaveBeenCalled();
+    expect(loadOptions).not.toHaveBeenCalled();
     expect(panel).not.toHaveBeenCalled();
   });
 
@@ -99,6 +103,20 @@ describe("Log Aktivitas page", () => {
     await renderPage();
 
     expect(screen.getByText("failed")).toBeInTheDocument();
-    expect(panel).toHaveBeenCalledWith(expect.objectContaining({ list: null, actors: [], creators: [] }));
+    expect(panel).toHaveBeenCalledWith(
+      expect.objectContaining({ list: null, actors: LOADED.actors, creators: LOADED.creators }),
+    );
+  });
+
+  // The entries are the page's purpose: losing the filter choices must not hide them.
+  it("still shows the list when only the filter choices fail", async () => {
+    loadOptions.mockRejectedValue(new Error("down"));
+
+    await renderPage();
+
+    expect(screen.getByText("loaded")).toBeInTheDocument();
+    expect(panel).toHaveBeenCalledWith(
+      expect.objectContaining({ list: LOADED.list, actors: [], creators: [] }),
+    );
   });
 });
