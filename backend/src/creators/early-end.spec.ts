@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertCanEndEarly,
   checkEarlyEnd,
+  END_REASON_LABELS,
   NOTE_MAX,
   planEarlyEnd,
   reasonMismatch,
@@ -390,5 +391,15 @@ describe('planEarlyEnd (the consequences, for the confirmation and the write ali
       NOW,
     );
     expect(plan.deletedPeriods).toEqual([]);
+  });
+});
+
+describe('END_REASON_LABELS', () => {
+  it('names each reason as the form lists it', () => {
+    expect(END_REASON_LABELS).toEqual({
+      breach: 'Pelanggaran Kontrak',
+      fraud: 'Fraud',
+      other: 'Lainnya',
+    });
   });
 });
