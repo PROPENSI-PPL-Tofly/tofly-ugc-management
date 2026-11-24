@@ -60,12 +60,12 @@ describe("PerformaCreatorTable", () => {
   it("marks the sorted column and writes a header press into the address, keeping the range", () => {
     render(<PerformaCreatorTable creators={CREATORS} state={{ months: 12, sort: "views", order: "desc" }} />);
 
-    expect(screen.getByRole("columnheader", { name: /Views/ })).toHaveAttribute("aria-sort", "descending");
+    expect(screen.getByRole("columnheader", { name: "Views" })).toHaveAttribute("aria-sort", "descending");
 
     fireEvent.click(screen.getByRole("button", { name: "Creator" }));
     expect(push).toHaveBeenCalledWith("/admin/dashboard?range=12&sort=name&order=asc", { scroll: false });
 
-    fireEvent.click(screen.getByRole("button", { name: /Views/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Views" }));
     expect(push).toHaveBeenLastCalledWith("/admin/dashboard?range=12&sort=views&order=asc", { scroll: false });
   });
 
