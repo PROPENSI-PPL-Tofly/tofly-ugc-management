@@ -87,13 +87,21 @@ describe("Log Aktivitas page", () => {
     await renderPage();
 
     expect(panel).toHaveBeenCalledWith(
-      expect.objectContaining({
-        list: LOADED.list,
-        actors: LOADED.actors,
-        creators: LOADED.creators,
-        today: jakartaDay(),
-      }),
+      expect.objectContaining({ list: LOADED.list, today: jakartaDay() }),
     );
+    await expect(panel.mock.calls[0][0].options).resolves.toEqual({
+      actors: LOADED.actors,
+      creators: LOADED.creators,
+    });
+  });
+
+  // The options grow with the whole log, so the table never waits for them.
+  it("shows the list while the filter choices are still loading", async () => {
+    loadOptions.mockReturnValue(new Promise(() => {}));
+
+    await renderPage();
+
+    expect(screen.getByText("loaded")).toBeInTheDocument();
   });
 
   // A request that failed is not a log that is empty.
@@ -103,9 +111,7 @@ describe("Log Aktivitas page", () => {
     await renderPage();
 
     expect(screen.getByText("failed")).toBeInTheDocument();
-    expect(panel).toHaveBeenCalledWith(
-      expect.objectContaining({ list: null, actors: LOADED.actors, creators: LOADED.creators }),
-    );
+    expect(panel).toHaveBeenCalledWith(expect.objectContaining({ list: null }));
   });
 
   // The entries are the page's purpose: losing the filter choices must not hide them.
@@ -115,8 +121,6 @@ describe("Log Aktivitas page", () => {
     await renderPage();
 
     expect(screen.getByText("loaded")).toBeInTheDocument();
-    expect(panel).toHaveBeenCalledWith(
-      expect.objectContaining({ list: LOADED.list, actors: [], creators: [] }),
-    );
+    await expect(panel.mock.calls[0][0].options).resolves.toEqual({ actors: [], creators: [] });
   });
 });

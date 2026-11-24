@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { AuditLogList, AuditLogRow, AuditLogState } from "@/lib/audit-log";
 import { AuditLogPanel } from "./audit-log-panel";
 
@@ -7,9 +7,22 @@ vi.mock("next/link", async (importOriginal) => {
   return { ...actual, useLinkStatus: vi.fn(() => ({ pending: false })) };
 });
 
-vi.mock("./audit-log-filters", () => ({
-  AuditLogFilters: ({ today }: { today: string }) => <div data-testid="filters">{today}</div>,
-}));
+vi.mock("./audit-log-filters", async () => {
+  const { use } = await import("react");
+  type Options = { actors: unknown[]; creators: unknown[] };
+  return {
+    AuditLogFilters: ({ today, actors }: { today: string; actors: unknown[] }) => (
+      <div data-testid="filters" data-actors={actors.length}>
+        {today}
+      </div>
+    ),
+    AuditLogFiltersFrom: ({ today, options }: { today: string; options: Promise<Options> }) => (
+      <div data-testid="filters" data-actors={use(options).actors.length}>
+        {today}
+      </div>
+    ),
+  };
+});
 
 const NO_FILTERS: AuditLogState = {
   page: 1,
@@ -39,11 +52,36 @@ function list(overrides: Partial<AuditLogList> = {}): AuditLogList {
   return { items: [ROW], page: 1, pageSize: 20, total: 1, totalPages: 1, ...overrides };
 }
 
-function renderPanel(loaded: AuditLogList | null, state: AuditLogState = NO_FILTERS) {
-  render(<AuditLogPanel state={state} list={loaded} actors={[]} creators={[]} today="2026-11-22" />);
+// Still loading unless a test says otherwise, so the bar shows with no choices yet.
+function renderPanel(
+  loaded: AuditLogList | null,
+  state: AuditLogState = NO_FILTERS,
+  options: Promise<{
+    actors: { value: string; label: string }[];
+    creators: { value: string; label: string }[];
+  }> = new Promise(() => {}),
+) {
+  render(<AuditLogPanel state={state} list={loaded} options={options} today="2026-11-22" />);
 }
 
 describe("AuditLogPanel", () => {
+  it("shows the rows and an empty filter bar while the choices load", () => {
+    renderPanel(list());
+
+    expect(screen.getByTestId("filters")).toHaveAttribute("data-actors", "0");
+    expect(screen.getByText("Rina Wijaya")).toBeInTheDocument();
+  });
+
+  it("fills the filter bar once the choices arrive", async () => {
+    renderPanel(
+      list(),
+      NO_FILTERS,
+      Promise.resolve({ actors: [{ value: "system", label: "Sistem" }], creators: [] }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId("filters")).toHaveAttribute("data-actors", "1"));
+  });
+
   // The Sprint 4 prototype's words.
   it("heads the panel with what the log is", () => {
     renderPanel(list());

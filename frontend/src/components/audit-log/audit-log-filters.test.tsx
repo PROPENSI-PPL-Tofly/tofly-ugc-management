@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { AuditLogFilters } from "./audit-log-filters";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { Suspense } from "react";
+import { AuditLogFilters, AuditLogFiltersFrom } from "./audit-log-filters";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const CREATOR_ID = "33333333-3333-4333-8333-333333333333";
@@ -52,6 +53,23 @@ describe("AuditLogFilters", () => {
     hook.current.pending = false;
     hook.current.param.mockImplementation((key) => hook.values[key] ?? "all");
     hook.current.listParam.mockImplementation((key) => hook.values[key] ?? "all");
+  });
+
+  it("offers the Aktor choices once they have streamed in", async () => {
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <AuditLogFiltersFrom
+            options={Promise.resolve({ actors: ACTORS, creators: CREATORS })}
+            today="2026-11-22"
+          />
+        </Suspense>,
+      );
+    });
+
+    openPill("Aktor");
+
+    expect(offered()).toEqual(expect.arrayContaining(["Rina Wijaya", "Sistem"]));
   });
 
   // The Sprint 4 prototype's filters, with the category before the action it narrows (SCRUM-297).
