@@ -75,3 +75,19 @@ export function accessClosedSince(
   if (contracts.length === 0 || creatorMaySignIn(today, contracts)) return null;
   return contracts.map(closingDay).reduce((latest, day) => (day > latest ? day : latest));
 }
+
+/**
+ * PBI-37 (AC 13): access is open only because an invoice still waits; no period runs or waits to
+ * start. The creator can then open only "Pembayaran". A period whose invoice was cancelled is over.
+ */
+export function onlyPaymentsLeft(
+  today: string,
+  contracts: readonly SignInContract[],
+): boolean {
+  return (
+    creatorMaySignIn(today, contracts) &&
+    !contracts.some(
+      ({ endDay, invoice }) => invoice?.status !== 'cancelled' && endDay >= today,
+    )
+  );
+}

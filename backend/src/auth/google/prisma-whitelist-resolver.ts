@@ -1,5 +1,9 @@
 import { jakartaDay } from '../../creators/evergreen.js';
-import { creatorMaySignIn, type BegunInvoice } from './creator-access.js';
+import {
+  creatorMaySignIn,
+  onlyPaymentsLeft,
+  type BegunInvoice,
+} from './creator-access.js';
 import type { Principal, WhitelistResolver } from './ports.js';
 
 type WhitelistUserRecord = {
@@ -81,7 +85,8 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       endDay: contract.end_date.toISOString().slice(0, 10),
       invoice: contract.invoice,
     }));
-    if (!creatorMaySignIn(jakartaDay(new Date()), contracts)) {
+    const today = jakartaDay(new Date());
+    if (!creatorMaySignIn(today, contracts)) {
       return null;
     }
 
@@ -89,6 +94,8 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       userId: user.id,
       role: 'creator',
       creatorId: creator.id,
+      // PBI-37 (AC 13): only "Pembayaran" is left while an invoice waits.
+      ...(onlyPaymentsLeft(today, contracts) && { paymentsOnly: true as const }),
     };
   }
 }
