@@ -534,6 +534,45 @@ describe('CreatorsService', () => {
     });
   });
 
+  // PBI-37 AC 18: the Creator Database shows "Berakhir Lebih Awal" with the reason type.
+  it('tells the current contract was ended early, with its original end and reason', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        contracts: [
+          {
+            id: 'ended',
+            start_date: day(-100),
+            end_date: day(-2),
+            content_quota: 6,
+            contract_type: 'regular',
+            original_end_date: day(80),
+            end_reason: 'fraud',
+            invoice: null,
+            contents: [],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].contract).toMatchObject({
+      status: 'expired',
+      endDate: '2026-09-16',
+      earlyEnd: { originalEndDate: '2026-12-07', reason: 'fraud' },
+    });
+  });
+
+  it('reports no early end on a contract that runs as agreed', async () => {
+    prisma.creators.findMany.mockResolvedValue([row()]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].contract.earlyEnd).toBeNull();
+  });
+
   // PRD 3.1: access follows the contracts, so the day it closed is derived from them.
   it('names the day access closed, the day after the last invoice was paid', async () => {
     prisma.creators.findMany.mockResolvedValue([
