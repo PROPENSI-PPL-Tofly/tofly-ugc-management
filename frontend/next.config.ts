@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   // Emits .next/standalone — a self-contained server bundle with only the
@@ -37,4 +38,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry uploads source maps so production stack traces stay readable. SENTRY_AUTH_TOKEN is a
+// CI secret, never committed; without it the build still succeeds and sends readable events.
+export default withSentryConfig(nextConfig, {
+  org: "tofly",
+  project: "tofly-ugc-management-frontend",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+});

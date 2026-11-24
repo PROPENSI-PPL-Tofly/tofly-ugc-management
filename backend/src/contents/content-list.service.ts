@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { social_platform } from '@prisma/client';
+import * as Sentry from '@sentry/nestjs';
 import { joinName } from '../creators/evergreen.js';
 import type { Paging } from '../creators/paging.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -203,28 +204,37 @@ export class ContentListService implements ContentListLister {
     };
     const listed: ContentListItem[] = [];
 
-    for (const row of rows) {
-      const item = this.toItem(row, now);
-      if (!matches(item)) {
-        continue;
-      }
-      const tab = tabOf(item.status);
-      const dated = inPeriod(item.deadline);
-      // Semua holds a row only inside the period; the row's own tab also holds it outside the
-      // period when that tab is Perlu Approval.
-      const inOwnTab = dated || tab === PERIOD_FREE_TAB;
-      if (dated) {
-        tabCounts.all += 1;
-      }
-      if (inOwnTab) {
-        tabCounts[tab] += 1;
-      }
-      const shown =
-        filters.tab === 'all' ? dated : filters.tab === tab && inOwnTab;
-      if (shown && (!statuses || statuses.includes(item.status))) {
-        listed.push(item);
-      }
-    }
+    // One span per request, not per row: toItem → contentTags calls jakartaDay several times
+    // for every content, so a span per call would cost more than the formatter it measures.
+    // This is the day-formatting hot path profiled at 89.6% before jakartaDay was hoisted
+    // (commit 6da0b0bd) — its production timing is now visible in Sentry Performance.
+    Sentry.startSpan(
+      { name: 'day-formatting.jakartaDay.batch', op: 'function' },
+      () => {
+        for (const row of rows) {
+          const item = this.toItem(row, now);
+          if (!matches(item)) {
+            continue;
+          }
+          const tab = tabOf(item.status);
+          const dated = inPeriod(item.deadline);
+          // Semua holds a row only inside the period; the row's own tab also holds it outside the
+          // period when that tab is Perlu Approval.
+          const inOwnTab = dated || tab === PERIOD_FREE_TAB;
+          if (dated) {
+            tabCounts.all += 1;
+          }
+          if (inOwnTab) {
+            tabCounts[tab] += 1;
+          }
+          const shown =
+            filters.tab === 'all' ? dated : filters.tab === tab && inOwnTab;
+          if (shown && (!statuses || statuses.includes(item.status))) {
+            listed.push(item);
+          }
+        }
+      },
+    );
     listed.sort(compareByDeadline(filters.sort));
 
     const { page, pageSize } = paging;

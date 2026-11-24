@@ -6,12 +6,18 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM node:24-slim AS build
+# NEXT_PUBLIC_* is inlined at build time, so the frontend DSN must be a build arg. The auth
+# token is mounted as a BuildKit secret: it uploads source maps for readable stack traces and
+# never lands in the image layers.
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # public/ holds no files right now, and git does not keep an empty folder; create it so the
 # runtime COPY below works whether or not the app ships static assets.
-RUN mkdir -p public && npm run build
+RUN --mount=type=secret,id=sentry_auth_token \
+  mkdir -p public && SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)" npm run build
 
 FROM node:24-slim AS runtime
 WORKDIR /app
