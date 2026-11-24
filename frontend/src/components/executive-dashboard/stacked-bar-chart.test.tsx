@@ -33,13 +33,35 @@ function renderChart(rows = ROWS) {
       title="Spending per Bulan"
       rows={rows}
       segments={SPENDING_SEGMENTS}
-      format={formatRupiah}
+      unit="rupiah"
       emptyTitle="Belum ada spending di rentang ini."
     />,
   );
 }
 
 describe("StackedBarChart", () => {
+  it("takes its unit by name, so a server page can pass it to this client chart", () => {
+    render(
+      <StackedBarChart
+        title="Views per Bulan"
+        rows={ROWS}
+        segments={SPENDING_SEGMENTS}
+        unit="count"
+        emptyTitle="Kosong"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Lihat Tabel" }));
+    const first = within(screen.getByRole("table")).getAllByRole("row")[1];
+    expect(within(first).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "Okt 2026",
+      "1.000.000",
+      "250.000",
+      "0",
+      "1.250.000",
+    ]);
+  });
+
   it("names the chart and every part of the stack in its legend", () => {
     renderChart();
 
