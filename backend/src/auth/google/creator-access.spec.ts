@@ -1,4 +1,5 @@
 import {
+  accessClosedSince,
   creatorMaySignIn,
   type BegunInvoice,
   type SignInContract,
@@ -106,5 +107,46 @@ describe('creatorMaySignIn', () => {
 
   it('keeps a creator with no contract out, since nothing is left to work on or settle', () => {
     expect(creatorMaySignIn(TODAY, [])).toBe(false);
+  });
+});
+
+// What Creator Detail and the Creator Database show as accessRevokeDate: the day access closed,
+// derived from the contracts by the same rule, or null while it is open.
+describe('accessClosedSince', () => {
+  it('is null while access is open', () => {
+    expect(accessClosedSince(TODAY, [contract('2026-12-15')])).toBeNull();
+    expect(
+      accessClosedSince(TODAY, [contract('2026-10-31', { status: 'finalized', paid_at: null })]),
+    ).toBeNull();
+  });
+
+  it('is null for a creator with no contract: there is no day to name', () => {
+    expect(accessClosedSince(TODAY, [])).toBeNull();
+  });
+
+  it('is the day after the last invoice was paid', () => {
+    expect(accessClosedSince(TODAY, [contract('2026-10-31', paidOn('2026-11-10'))])).toBe(
+      '2026-11-11',
+    );
+  });
+
+  it('is the day after the period ended when the invoice was paid before it ended', () => {
+    expect(accessClosedSince(TODAY, [contract('2026-10-31', paidOn('2026-10-20'))])).toBe(
+      '2026-11-01',
+    );
+  });
+
+  it('is the last day itself for a cancelled invoice, which closes access at once', () => {
+    expect(accessClosedSince(TODAY, [contract(TODAY, CANCELLED)])).toBe(TODAY);
+  });
+
+  it('is the latest of those days across every contract', () => {
+    expect(
+      accessClosedSince(TODAY, [
+        contract('2026-06-30', paidOn('2026-07-10')),
+        contract('2026-11-20', CANCELLED),
+        contract('2026-08-31', paidOn('2026-09-05')),
+      ]),
+    ).toBe('2026-11-20');
   });
 });

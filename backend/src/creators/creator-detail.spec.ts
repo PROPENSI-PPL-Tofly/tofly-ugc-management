@@ -56,6 +56,10 @@ function contract(
     content_quota: contents.length,
     fixed_rate: new Prisma.Decimal('1500000'),
     contract_type: 'regular',
+    original_end_date: null,
+    end_reason: null,
+    end_note: null,
+    ended_at: null,
     contents,
   };
 }
@@ -349,5 +353,33 @@ describe('toDraftEntries', () => {
         lastSubmittedAt: '2026-09-02',
       },
     ]);
+  });
+});
+
+// PBI-37: Creator Detail tells which period was ended early, so "Akhiri Kontrak Lebih Awal" is
+// offered only on a running period that was not, and the period shows its original end.
+describe('toContractPeriods, an early end', () => {
+  it('reports no early end on a period that runs as agreed', () => {
+    expect(toContractPeriods([contract('only', -30, 150)], TODAY)[0].earlyEnd).toBeNull();
+  });
+
+  it('reports the original end, the reason, the admin note and when it was ended', () => {
+    const row: DetailContractRow = {
+      ...contract('ended', -30, 5),
+      original_end_date: day(60),
+      end_reason: 'fraud',
+      end_note: 'Views dibeli.',
+      ended_at: new Date('2026-09-18T03:00:00Z'),
+    };
+
+    expect(toContractPeriods([row], TODAY)[0]).toMatchObject({
+      endDate: '2026-09-23',
+      earlyEnd: {
+        originalEndDate: '2026-11-17',
+        reason: 'fraud',
+        note: 'Views dibeli.',
+        endedAt: '2026-09-18T03:00:00.000Z',
+      },
+    });
   });
 });

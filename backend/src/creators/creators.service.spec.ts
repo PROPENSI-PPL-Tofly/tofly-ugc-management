@@ -49,6 +49,7 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
         end_date: day(80),
         content_quota: 6,
         contract_type: 'regular',
+        invoice: null,
         contents: [
           {
             deadline: day(-30),
@@ -519,6 +520,30 @@ describe('CreatorsService', () => {
       // The current period's type, not the first contract's.
       type: 'probation',
     });
+  });
+
+  // PRD 3.1: access follows the contracts, so the day it closed is derived from them.
+  it('names the day access closed, the day after the last invoice was paid', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        contracts: [
+          {
+            id: 'only',
+            start_date: day(-200),
+            end_date: day(-40),
+            content_quota: 6,
+            contract_type: 'regular',
+            invoice: { status: 'paid', paid_at: new Date('2026-08-20T03:00:00Z') },
+            contents: [],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].accessRevokeDate).toBe('2026-08-21');
   });
 
   it('reports the page count from the total, not from the rows returned', async () => {
