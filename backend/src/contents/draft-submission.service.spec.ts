@@ -31,6 +31,8 @@ function stub(
     content?: { id: string; status: string } | null;
     /** The start day of the content's contract period. */
     periodStart?: Date;
+    /** PBI-37: when an early end closed the content. */
+    closedAt?: Date;
     updated?: number;
     creator?: {
       first_name: string;
@@ -46,6 +48,7 @@ function stub(
           ? null
           : {
               ...(options.content ?? { id: CONTENT_ID, status: 'scheduled' }),
+              closed_at: options.closedAt ?? null,
               contracts: { start_date: options.periodStart ?? LONG_STARTED },
             },
       ),
@@ -140,6 +143,26 @@ describe('DraftSubmissionService.submit', () => {
     expect(transaction.contents.updateMany).not.toHaveBeenCalled();
     expect(transaction.submissions.create).not.toHaveBeenCalled();
     expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  // PBI-37: content due after the last day of a contract ended early is closed.
+  it('returns 409 CONTENT_CLOSED for content an early end closed and saves nothing', async () => {
+    const { transaction, service } = stub({ closedAt: new Date('2026-11-24T03:00:00Z') });
+
+    const error = await failure(service.submit(CONTENT_ID, CREATOR_ID, INPUT));
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toEqual({
+      code: 'CONTENT_CLOSED',
+      message: 'Konten ini ditutup karena kontrak diakhiri lebih awal',
+    });
+    expect(transaction.contents.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ closed_at: true }),
+      }),
+    );
+    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+    expect(transaction.submissions.create).not.toHaveBeenCalled();
   });
 
   it('accepts the draft from Jakarta midnight on the start date', async () => {

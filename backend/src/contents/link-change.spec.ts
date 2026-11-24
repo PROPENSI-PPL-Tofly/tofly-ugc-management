@@ -50,10 +50,13 @@ function content(
     accounts?: social_platform[];
     /** The contract period's start day; by default one that started before CLOCK. */
     periodStart?: string;
+    /** PBI-37: when an early end closed the content; open by default. */
+    closedAt?: Date;
   } = {},
 ): LinkedContent {
   return {
     id: CONTENT_ID,
+    closed_at: overrides.closedAt ?? null,
     status: overrides.status ?? 'draft_approved',
     deadline: day(overrides.deadline ?? '2026-10-20'),
     video_submitted_at:
@@ -200,6 +203,44 @@ describe('a contract period that has not started', () => {
       admin,
       LAST_MOMENT,
     );
+
+    expect(plan.result.status).toBe('link_submitted');
+  });
+});
+
+// PBI-37: content due after the last day of a contract ended early is closed; the creator can no
+// longer hand anything in for it.
+describe('a content closed by an early end', () => {
+  const CLOSED = new Date('2026-10-08T03:00:00.000Z');
+  const CONTENT_CLOSED = {
+    status: 409,
+    body: {
+      code: 'CONTENT_CLOSED',
+      message: 'Konten ini ditutup karena kontrak diakhiri lebih awal',
+    },
+  };
+  const REEL_LINK = [{ platform: 'instagram' as const, url: REEL }];
+
+  it("refuses a creator's links", () => {
+    expect(
+      refusal(() => new SubmitLinks(REEL_LINK).plan(content({ closedAt: CLOSED }), creator, CLOCK)),
+    ).toEqual(CONTENT_CLOSED);
+  });
+
+  it("refuses a creator's replacement link", () => {
+    expect(
+      refusal(() =>
+        new ReplaceLink({ platform: 'instagram', url: OTHER_REEL }, NO_PERFORMANCE_COLUMNS).plan(
+          linked({ closedAt: CLOSED }),
+          creator,
+          CLOCK,
+        ),
+      ),
+    ).toEqual(CONTENT_CLOSED);
+  });
+
+  it('leaves an admin able to record a link, as for the start date', () => {
+    const plan = new SubmitLinks(REEL_LINK).plan(content({ closedAt: CLOSED }), admin, CLOCK);
 
     expect(plan.result.status).toBe('link_submitted');
   });
