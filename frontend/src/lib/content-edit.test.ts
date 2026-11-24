@@ -81,6 +81,18 @@ describe("checkEdit", () => {
     });
   });
 
+  // PBI-23 AC: the API sends the window; the message names the buffer a Super Admin set.
+  it("names the configured buffer's H-n line when the deadline passes it", () => {
+    const errors = checkEdit(
+      { ...editFieldsOf(specific()), deadline: "2026-12-27" },
+      specific(),
+      WINDOW,
+      9,
+    );
+
+    expect(errors.deadline).toBe("Deadline paling lambat 26 Des 2026 (H-9 akhir kontrak)");
+  });
+
   it("does not judge a deadline that is not moving, so a brief can be fixed inside the buffer", () => {
     const close = specific({ deadline: "2026-11-07" });
 

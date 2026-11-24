@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import { DeadlineBufferProvider } from "@/components/settings/deadline-buffer-context";
 import { AddCreatorModal } from "./add-creator-modal";
 
 describe("AddCreatorModal", () => {
@@ -552,6 +553,26 @@ describe("AddCreatorModal", () => {
 
       expect(start).toHaveAttribute("max", "2026-12-31");
       expect(end).toHaveAttribute("min", "2026-10-06");
+    });
+
+    // PBI-23 AC: the buffer a Super Admin set, not a fixed five days, holds the pickers,
+    // the message and the calendar's first and last deadline.
+    it("counts every line with the configured buffer", () => {
+      render(
+        <DeadlineBufferProvider bufferDays={8}>
+          <AddCreatorModal onClose={() => {}} onSubmit={() => {}} />
+        </DeadlineBufferProvider>,
+      );
+      expect(screen.getByLabelText(/akhir kontrak/i)).toHaveAttribute("min", "2026-10-02");
+
+      fillContract("2026-10-01", "2026-10-05", "1");
+      expect(
+        screen.getByText("Akhir kontrak paling cepat 9 Okt 2026 (masa buffer 8 hari)"),
+      ).toBeInTheDocument();
+
+      fillContract("2026-10-01", "2026-10-17", "1");
+      expect(screen.getByTestId("deadline-2026-10-09")).toBeInTheDocument();
+      expect(screen.getByText(/1 \/ 1 teralokasi/i)).toBeInTheDocument();
     });
 
     // UAT: the calendar stayed on screen while the dates were still wrong.
