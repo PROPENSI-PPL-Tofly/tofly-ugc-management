@@ -3,8 +3,8 @@
 // stores (SCRUM-295), so a filter value reaches the API unchanged.
 
 import { isUuid } from "./creator-detail";
-import { EMPTY, formatTimestamp } from "./format";
-import { INVOICE_PATH } from "./invoice";
+import { EMPTY, formatDate, formatRupiah, formatTimestamp } from "./format";
+import { INVOICE_PATH, INVOICE_STATUS_LABELS } from "./invoice";
 import { calendarDay, list, listOf, pageNumber, single, type SearchParams } from "./search-params";
 
 // PBI-23 AC 17: rows per page.
@@ -268,6 +268,71 @@ export function auditChanges(
   return [...fields]
     .map((field) => ({ field, from: shownValue(before[field]), to: shownValue(after[field]) }))
     .filter(({ from, to }) => from !== to);
+}
+
+const FIELD_LABELS = new Map<string, string>([
+  ["status", "Status"],
+  ["total", "Total"],
+  ["fixedRate", "Fixed Rate"],
+  ["specificBonus", "Bonus Spesifik"],
+  ["performanceBonus", "Bonus Performa"],
+  ["latePenaltyPerDay", "Denda per Hari"],
+  ["maxPenaltyDays", "Maks. Hari Denda"],
+  ["startDate", "Tanggal Mulai"],
+  ["endDate", "Tanggal Selesai"],
+  ["contractType", "Tipe Kontrak"],
+  ["interval", "Interval (hari)"],
+  ["quota", "Kuota"],
+  ["views", "Views"],
+  ["likes", "Likes"],
+  ["comments", "Komentar"],
+  ["shares", "Shares"],
+  ["platform", "Platform"],
+  ["fileName", "Nama File"],
+  ["name", "Nama"],
+  ["email", "Email"],
+  ["socialAccounts", "Akun Sosial"],
+  ["contract", "Kontrak"],
+]);
+
+// The backend logs a running invoice as "running"; the app's pipeline calls that step "accruing".
+const STATUS_LABELS = new Map<string, string>([
+  ...Object.entries(INVOICE_STATUS_LABELS),
+  ["running", INVOICE_STATUS_LABELS.accruing],
+]);
+
+const isNumeric = (value: string) => /^-?\d+(\.\d+)?$/.test(value);
+const asMoney = (value: string) => (isNumeric(value) ? formatRupiah(Number(value)) : value);
+const asCount = (value: string) => (isNumeric(value) ? Number(value).toLocaleString("id-ID") : value);
+const asDay = (value: string) => (calendarDay(value) ? formatDate(value) : value);
+const asStatus = (value: string) => STATUS_LABELS.get(value) ?? value;
+
+const FIELD_FORMATS = new Map<string, (value: string) => string>([
+  ["status", asStatus],
+  ["total", asMoney],
+  ["fixedRate", asMoney],
+  ["specificBonus", asMoney],
+  ["latePenaltyPerDay", asMoney],
+  ["maxPenaltyDays", asCount],
+  ["startDate", asDay],
+  ["endDate", asDay],
+  ["interval", asCount],
+  ["quota", asCount],
+  ["views", asCount],
+  ["likes", asCount],
+  ["comments", asCount],
+  ["shares", asCount],
+]);
+
+// A change in the app's words. A field or value it cannot read stays as stored, because an audit
+// record never hides what happened.
+export function auditChangeShown({ field, from, to }: AuditChange): {
+  label: string;
+  from: string;
+  to: string;
+} {
+  const format = FIELD_FORMATS.get(field) ?? ((value: string) => value);
+  return { label: FIELD_LABELS.get(field) ?? field, from: format(from), to: format(to) };
 }
 
 export type AuditChangeView =

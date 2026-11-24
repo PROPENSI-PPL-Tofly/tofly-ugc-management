@@ -9,6 +9,7 @@ import {
   AUDIT_CATEGORY_LABELS,
   auditActionLabel,
   auditActorLines,
+  auditChangeShown,
   auditChangeView,
   auditTargetHref,
   auditTimeLabel,
@@ -34,10 +35,11 @@ const CATEGORY_TONES: Record<AuditCategory, Tone> = {
   pengaturan: "green",
 };
 
-function OldToNew({ change }: Readonly<{ change: AuditChange }>) {
+function NamedChange({ change }: Readonly<{ change: AuditChange }>) {
+  const { label, from, to } = auditChangeShown(change);
   return (
     <>
-      <span className="text-muted">{change.from}</span> → <b>{change.to}</b>
+      {label}: <span className="text-muted">{from}</span> → <b>{to}</b>
     </>
   );
 }
@@ -65,7 +67,7 @@ function ExpandableChanges({ changes }: Readonly<{ changes: AuditChange[] }>) {
         <ul id={listId} className="mt-1.5 flex flex-col gap-1">
           {changes.map((change) => (
             <li key={change.field} className="wrap-anywhere">
-              {change.field}: <OldToNew change={change} />
+              <NamedChange change={change} />
             </li>
           ))}
         </ul>
@@ -81,7 +83,7 @@ function ChangeCell({ row }: Readonly<{ row: AuditLogRow }>) {
     <div className="flex items-start gap-1.5">
       <div className="min-w-0 wrap-anywhere">
         {view.kind === "none" ? EMPTY : null}
-        {view.kind === "single" ? <OldToNew change={view.change} /> : null}
+        {view.kind === "single" ? <NamedChange change={view.change} /> : null}
         {view.kind === "expandable" ? <ExpandableChanges changes={view.changes} /> : null}
       </div>
       {row.note ? <InfoTip text={row.note} label="Catatan" align="end" /> : null}
