@@ -205,6 +205,7 @@ describe('GET /contents (e2e)', () => {
       type: 'specific',
       deadline: iso(12),
       status: 'draft_review',
+      closedAt: null,
       tags: [],
       revisionCount: 1,
       platforms: [],

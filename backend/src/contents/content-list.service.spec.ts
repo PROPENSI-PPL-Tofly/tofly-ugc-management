@@ -197,6 +197,7 @@ describe('ContentListService.list', () => {
           type: 'evergreen',
           deadline: '2026-10-21',
           status: 'draft_review',
+          closedAt: null,
           tags: [],
           revisionCount: 0,
           platforms: [],

@@ -25,6 +25,7 @@ function row(overrides: Partial<EditableRow> = {}): EditableRow {
     brief: 'Brief lama',
     deadline: new Date('2026-11-20T00:00:00Z'),
     status: 'scheduled',
+    closed_at: null,
     _count: { submissions: 0 },
     contracts: {
       start_date: new Date('2026-10-01T00:00:00Z'),
