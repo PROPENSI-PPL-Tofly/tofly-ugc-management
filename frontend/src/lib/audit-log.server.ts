@@ -1,13 +1,29 @@
-// Server-side only: what the "Log Aktivitas" page shows. Its API (23.6) does not exist yet, so
-// development answers sample rows and every other build fails into the page's error state: made-up
-// rows on a deployed app would read as a real record of who did what.
+// Server-side only: what the "Log Aktivitas" page reads from its API (23.6). Any failure throws, so
+// the page can tell a request that failed from a log that is empty.
 
-import type { AuditLogLoaded, AuditLogState } from "./audit-log";
+import { backendGet } from "./backend.server";
+import {
+  buildAuditLogQuery,
+  type AuditLogList,
+  type AuditLogLoaded,
+  type AuditLogState,
+} from "./audit-log";
 
-export async function loadAuditLog(state: AuditLogState): Promise<AuditLogLoaded> {
-  if (process.env.NODE_ENV !== "development") {
-    throw new Error("The Log Aktivitas API is not available yet");
+export type AuditLogFilterOptions = Omit<AuditLogLoaded, "list">;
+
+async function readJson<T>(path: string, what: string): Promise<T> {
+  const response = await backendGet(path);
+  if (!response.ok) {
+    throw new Error(`Loading the ${what} failed with HTTP ${response.status}`);
   }
-  const { mockAuditLog } = await import("./audit-log-mock");
-  return mockAuditLog(state);
+  return (await response.json()) as T;
+}
+
+export async function loadAuditLogList(state: AuditLogState): Promise<AuditLogList> {
+  const search = new URLSearchParams(buildAuditLogQuery(state)).toString();
+  return readJson(search ? `/audit-logs?${search}` : "/audit-logs", "audit log");
+}
+
+export async function loadAuditLogFilterOptions(): Promise<AuditLogFilterOptions> {
+  return readJson("/audit-logs/filter-options", "audit log filter options");
 }

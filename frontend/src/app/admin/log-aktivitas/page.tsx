@@ -1,8 +1,12 @@
 import { AuditLogPanel } from "@/components/audit-log/audit-log-panel";
 import { AccessDenied } from "@/components/shell/access-denied";
 import { AppShell } from "@/components/shell/app-shell";
-import { parseAuditLogParams, type AuditLogLoaded } from "@/lib/audit-log";
-import { loadAuditLog } from "@/lib/audit-log.server";
+import { parseAuditLogParams } from "@/lib/audit-log";
+import {
+  loadAuditLogFilterOptions,
+  loadAuditLogList,
+  type AuditLogFilterOptions,
+} from "@/lib/audit-log.server";
 import { jakartaDay } from "@/lib/format";
 import { homeFor } from "@/lib/session";
 import { currentSession } from "@/lib/session.server";
@@ -33,21 +37,20 @@ export default async function AuditLogPage({
 
   const state = parseAuditLogParams(await searchParams);
 
-  let loaded: AuditLogLoaded | null;
-  try {
-    loaded = await loadAuditLog(state);
-  } catch {
-    // A request that failed is not a log that is empty: this one is offered again.
-    loaded = null;
-  }
+  // A null list is a request that failed, not a log that is empty: the panel offers it again.
+  // Losing only the filter choices leaves the entries on screen.
+  const [list, options] = await Promise.all([
+    loadAuditLogList(state).catch(() => null),
+    loadAuditLogFilterOptions().catch((): AuditLogFilterOptions => ({ actors: [], creators: [] })),
+  ]);
 
   return (
     <AppShell title="Log Aktivitas">
       <AuditLogPanel
         state={state}
-        list={loaded?.list ?? null}
-        actors={loaded?.actors ?? []}
-        creators={loaded?.creators ?? []}
+        list={list}
+        actors={options.actors}
+        creators={options.creators}
         today={jakartaDay()}
       />
     </AppShell>
