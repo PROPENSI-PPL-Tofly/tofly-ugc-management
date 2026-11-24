@@ -249,6 +249,8 @@ enum invoice_status {
   creator_acked
   payment_uploaded
   paid
+  /// PBI-37: not paid because the contract was ended early; never opens again.
+  cancelled
 }
 
 /// Persisted lifecycle for one contract invoice; live calculation data remains derived.
