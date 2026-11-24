@@ -7,7 +7,7 @@ type WhitelistUserRecord = {
   is_admin: boolean;
   creators: {
     id: string;
-    access_revoke_date: Date | null;
+    contracts: { end_date: Date; invoice: BegunInvoice }[];
   } | null;
 };
 
@@ -15,25 +15,30 @@ type WhitelistPrismaClient = {
   users: {
     findUnique(args: {
       where: { email: string } | { id: string };
-      select: {
-        id: true;
-        is_admin: true;
-        creators: {
-          select: {
-            id: true;
-            access_revoke_date: true;
-          };
-        };
-      };
+      select: typeof USER_SELECT;
     }): Promise<WhitelistUserRecord | null>;
   };
-  contracts: {
-    findMany(args: {
-      where: { creator_id: string; start_date: { lte: Date } };
-      select: { invoice: { select: { status: true; paid_at: true } } };
-    }): Promise<{ invoice: BegunInvoice }[]>;
-  };
 };
+
+/**
+ * The user and, for a creator, every contract with its invoice: one call for a sign-in and for
+ * each request a session makes, as before the rule read contracts (PRD 3.1).
+ */
+const USER_SELECT = {
+  id: true,
+  is_admin: true,
+  creators: {
+    select: {
+      id: true,
+      contracts: {
+        select: {
+          end_date: true,
+          invoice: { select: { status: true, paid_at: true } },
+        },
+      },
+    },
+  },
+} as const;
 
 export class PrismaWhitelistResolver implements WhitelistResolver {
   constructor(private readonly prisma: WhitelistPrismaClient) {}
@@ -50,19 +55,7 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
   private async lookup(
     where: { email: string } | { id: string },
   ): Promise<Principal | null> {
-    const user = await this.prisma.users.findUnique({
-      where,
-      select: {
-        id: true,
-        is_admin: true,
-        creators: {
-          select: {
-            id: true,
-            access_revoke_date: true,
-          },
-        },
-      },
-    });
+    const user = await this.prisma.users.findUnique({ where, select: USER_SELECT });
 
     if (!user) {
       return null;
@@ -82,25 +75,13 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       return null;
     }
 
-    const today = jakartaDay(new Date());
-
-    // Postgres date values represent calendar days, so compare them as ISO dates.
-    const revokeDay =
-      creator.access_revoke_date?.toISOString().slice(0, 10) ?? null;
-
-    // Access remains valid until the scheduled revoke date is reached, and past it while the
-    // creator still has an invoice to settle (PBI-13). Only a revoked creator's invoices are read,
-    // so every other request costs the one query it always did.
-    // Stryker disable next-line ConditionalExpression: equivalent mutant. Without the null check, null <= "YYYY-MM-DD" compares 0 with NaN and is false, exactly what the check answers; it is there for the type checker.
-    const revoked = revokeDay !== null && revokeDay <= today;
-    if (
-      revoked &&
-      !creatorMaySignIn(
-        revokeDay,
-        today,
-        await this.begunInvoices(creator.id, today),
-      )
-    ) {
+    // Access follows the contracts (PRD Sprint 4, rule 1): an early end, a cancelled invoice or
+    // a paid last invoice closes it on the creator's next request.
+    const contracts = creator.contracts.map((contract) => ({
+      endDay: contract.end_date.toISOString().slice(0, 10),
+      invoice: contract.invoice,
+    }));
+    if (!creatorMaySignIn(jakartaDay(new Date()), contracts)) {
       return null;
     }
 
@@ -109,20 +90,5 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       role: 'creator',
       creatorId: creator.id,
     };
-  }
-
-  /** The invoice of each of the creator's contracts that has begun by today, in one query. */
-  private async begunInvoices(
-    creatorId: string,
-    today: string,
-  ): Promise<BegunInvoice[]> {
-    const contracts = await this.prisma.contracts.findMany({
-      where: {
-        creator_id: creatorId,
-        start_date: { lte: new Date(`${today}T00:00:00.000Z`) },
-      },
-      select: { invoice: { select: { status: true, paid_at: true } } },
-    });
-    return contracts.map(({ invoice }) => invoice);
   }
 }

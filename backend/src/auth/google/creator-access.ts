@@ -1,16 +1,23 @@
 import { jakartaDay } from '../../creators/evergreen.js';
 import type { InvoiceLifecycleStatus } from '../../invoices/invoice-lifecycle.js';
 
-// Whether a creator may sign in (PRD 3.1, PBI-13). Revoking a creator takes effect once nothing is
-// left for them to settle: the prototype's Pembayaran page says "akses login dicabut H+1 setelah
-// Paid". Until then they still have to acknowledge their invoice and confirm the payment arrived.
-// A pure rule, no Prisma and no clock, so every case is tested without a database.
+// Whether a creator may sign in: PRD Sprint 4 cross-PBI rule 1, shared by PBI-30 and PBI-37.
+// Access follows the contracts. It stays open while a period runs or has not started, or while an
+// invoice is not Paid or Cancelled; it closes the day after everything is settled (the prototype's
+// "akses login dicabut H+1 setelah Paid"), and at once when a cancelled invoice leaves nothing
+// else. A pure rule, no Prisma and no clock, so every case is tested without a database.
 
-/** The invoice of one contract that has begun, as the resolver reads it; null without a row. */
+/** A contract's invoice as the resolver reads it; null without a row. */
 export type BegunInvoice = {
   status: InvoiceLifecycleStatus;
   paid_at: Date | null;
 } | null;
+
+/** One of the creator's contracts: its last day (YYYY-MM-DD) and its invoice. */
+export interface SignInContract {
+  endDay: string;
+  invoice: BegunInvoice;
+}
 
 /** Whether this invoice still needs the creator, on the Jakarta day `today`. */
 function unsettled(invoice: BegunInvoice, today: string): boolean {
@@ -23,17 +30,21 @@ function unsettled(invoice: BegunInvoice, today: string): boolean {
   );
 }
 
+/** Whether this contract keeps the creator's access open on `today`. */
+function keepsAccess({ endDay, invoice }: SignInContract, today: string): boolean {
+  // A cancelled invoice is never paid: the period is settled the moment it is cancelled.
+  if (invoice?.status === 'cancelled') return false;
+  // Postgres date values are calendar days, so they compare as ISO dates.
+  return endDay >= today || unsettled(invoice, today);
+}
+
 /**
- * @param revokeDay the creator's access_revoke_date as YYYY-MM-DD, or null when never revoked
  * @param today the Jakarta day as YYYY-MM-DD
- * @param begun the invoice of every contract that has begun by today
+ * @param contracts every contract the creator has; none means nothing to work on or settle
  */
 export function creatorMaySignIn(
-  revokeDay: string | null,
   today: string,
-  begun: readonly BegunInvoice[],
+  contracts: readonly SignInContract[],
 ): boolean {
-  // Postgres date values are calendar days, so they compare as ISO dates.
-  if (revokeDay === null || revokeDay > today) return true;
-  return begun.some((invoice) => unsettled(invoice, today));
+  return contracts.some((contract) => keepsAccess(contract, today));
 }

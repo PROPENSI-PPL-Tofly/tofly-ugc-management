@@ -152,7 +152,7 @@ function matches(
   return (
     endsInRange(contract, filters) &&
     (!filters.contract ||
-      invoiceContractStatus(contract, today, row.access_revoke_date) ===
+      invoiceContractStatus(contract, today) ===
         filters.contract)
   );
 }

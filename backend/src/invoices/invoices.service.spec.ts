@@ -30,7 +30,6 @@ function row(overrides: Partial<InvoiceCreatorRow> = {}): InvoiceCreatorRow {
     first_name: 'Rangga',
     middle_name: null,
     last_name: 'Pratama',
-    access_revoke_date: null,
     contracts: [
       {
         id: 'contract-1',

@@ -39,7 +39,6 @@ const CREATOR_SELECT = {
   first_name: true,
   middle_name: true,
   last_name: true,
-  access_revoke_date: true,
   users: { select: { email: true } },
   social_accounts: {
     select: { platform: true, username: true, ...CONNECTION_COLUMNS },
@@ -74,7 +73,6 @@ const DETAIL_SELECT = {
   middle_name: true,
   last_name: true,
   phone_number: true,
-  access_revoke_date: true,
   users: {
     select: {
       email: true,
@@ -400,9 +398,9 @@ export class CreatorsService implements CreatorLister {
 
       socialConnections,
 
-      accessRevokeDate: row.access_revoke_date
-        ? calendarDay(row.access_revoke_date)
-        : null,
+      // The creator-level revoke date is gone (PRD 3.1: access follows the contracts); the day
+      // access closed is derived from them in the next step.
+      accessRevokeDate: null,
 
       contract: current
         ? {

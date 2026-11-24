@@ -288,7 +288,6 @@ describe('InvoiceCommandService', () => {
         end_date: day(-1),
         content_quota: 1,
         fixed_rate: new Prisma.Decimal('1000000'),
-        creators: { access_revoke_date: null },
         contents: [measured],
         ...overrides,
       };
@@ -620,14 +619,11 @@ describe('InvoiceCommandService', () => {
       expect(prisma.invoices.upsert).not.toHaveBeenCalled();
     });
 
-    // A contract that ends early stops on the day access was revoked; its end date stays as
-    // agreed, so the gate reads the last day the calculator counts, not end_date.
-    it('finalizes a contract that ended early once the day after access was revoked has begun', async () => {
+    // PBI-37: an early end moves end_date to the last day (the original end is kept apart), so
+    // the gate opens the day after it, as for any contract.
+    it('finalizes a contract that ended early once the day after its last day has begun', async () => {
       prisma.contracts.findUnique.mockResolvedValue(
-        endedContract({
-          end_date: day(30),
-          creators: { access_revoke_date: day(-1) },
-        }),
+        endedContract({ end_date: day(-1), original_end_date: day(30) }),
       );
 
       const result = await service.finalize('contract-1', 'admin-9', TODAY);
@@ -684,12 +680,9 @@ describe('InvoiceCommandService', () => {
       expect(lastSync.beforeFinalize).not.toHaveBeenCalled();
     });
 
-    it('refuses a contract ended early whose access was revoked today in Jakarta', async () => {
+    it('refuses a contract ended early whose last day is today in Jakarta', async () => {
       prisma.contracts.findUnique.mockResolvedValue(
-        endedContract({
-          end_date: day(30),
-          creators: { access_revoke_date: day(0) },
-        }),
+        endedContract({ end_date: day(0), original_end_date: day(30) }),
       );
 
       const error = await rejection(

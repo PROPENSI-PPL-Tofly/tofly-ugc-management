@@ -45,3 +45,23 @@ alter table invoices add constraint invoices_cancelled_check check (
 );
 
 create index invoices_cancelled_by_idx on invoices (cancelled_by);
+
+-- A cancelled invoice was never finalized nor acknowledged: it holds no snapshot and no creator
+-- move, like a running one. The two checks below listed every status before Cancelled existed.
+alter table invoices drop constraint invoices_finalized_snapshot_check;
+alter table invoices add constraint invoices_finalized_snapshot_check check (
+  (status in ('running', 'cancelled') and finalized_at is null and snapshot is null)
+  or (status not in ('running', 'cancelled') and finalized_at is not null and snapshot is not null)
+);
+
+alter table invoices drop constraint invoices_acknowledged_check;
+alter table invoices add constraint invoices_acknowledged_check check (
+  (
+    status in ('running', 'finalized', 'cancelled')
+    and acknowledged_at is null and acknowledged_by is null
+  )
+  or (
+    status in ('creator_acked', 'payment_uploaded', 'paid')
+    and acknowledged_at is not null and acknowledged_by is not null
+  )
+);

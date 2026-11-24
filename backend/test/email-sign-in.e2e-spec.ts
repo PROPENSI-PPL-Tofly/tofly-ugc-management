@@ -9,6 +9,7 @@ import {
   type EmailSender,
 } from '../src/email/email-sender.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { runningContract } from './contracts.js';
 
 // Signing in with an email code end to end against real Postgres (PBI-39): the code the request
 // emails is the one verification accepts, once, and wrong guesses are counted atomically.
@@ -68,7 +69,8 @@ describe('Email code sign-in (e2e)', () => {
       userIds.push(user.id);
       if (!isAdmin) {
         await prisma.creators.create({
-          data: { user_id: user.id, first_name: 'E2E' },
+          // Access follows the contracts (PRD 3.1): a creator signs in while one runs.
+          data: { user_id: user.id, first_name: 'E2E', contracts: { create: runningContract() } },
         });
       }
     }

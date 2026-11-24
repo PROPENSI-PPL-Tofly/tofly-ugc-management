@@ -33,7 +33,6 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
     first_name: 'Rangga',
     middle_name: null,
     last_name: 'Pratama',
-    access_revoke_date: null,
     users: { email: 'rangga@example.com' },
     social_accounts: [
       {
@@ -112,7 +111,6 @@ type DetailCreatorRow = {
   middle_name: string | null;
   last_name: string | null;
   phone_number: string | null;
-  access_revoke_date: Date | null;
   users: {
     email: string;
   };
@@ -130,7 +128,6 @@ function detailRow(): DetailCreatorRow {
     middle_name: null,
     last_name: 'Pratama',
     phone_number: '081234567001',
-    access_revoke_date: null,
     users: {
       email: 'rangga@example.com',
     },
@@ -490,7 +487,6 @@ describe('CreatorsService', () => {
   it("numbers the period from the creator's contract history", async () => {
     prisma.creators.findMany.mockResolvedValue([
       row({
-        access_revoke_date: day(-14),
         contracts: [
           {
             id: 'second',
@@ -515,7 +511,7 @@ describe('CreatorsService', () => {
 
     const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
-    expect(items[0].accessRevokeDate).toBe('2026-09-04');
+    expect(items[0].accessRevokeDate).toBeNull();
     expect(items[0].contract).toMatchObject({
       status: 'active',
       periodNumber: 2,
