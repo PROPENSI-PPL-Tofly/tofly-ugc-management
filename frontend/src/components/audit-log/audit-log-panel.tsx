@@ -7,6 +7,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import {
   AUDIT_LOG_PATH,
+  auditDatesReversed,
   auditLogHref,
   buildAuditLogQuery,
   type AuditLogList,
@@ -31,6 +32,7 @@ export function AuditLogPanel({
 }>) {
   const query = buildAuditLogQuery(state);
   const filtered = Object.keys(buildAuditLogQuery({ ...state, page: 1 })).length > 0;
+  const reversed = auditDatesReversed(state);
 
   return (
     // Not clipped: the filters' popups open past the panel's edge.
@@ -51,9 +53,11 @@ export function AuditLogPanel({
         <AuditLogFiltersFrom options={options} today={today} />
       </Suspense>
 
-      {list === null ? (
+      {reversed ? <EmptyState title="Tanggal mulai tidak boleh setelah tanggal akhir." /> : null}
+      {!reversed && list === null ? (
         <LoadError title="Log Aktivitas tidak bisa dimuat." retryHref={auditLogHref(state)} />
-      ) : (
+      ) : null}
+      {!reversed && list !== null ? (
         <>
           {list.items.length > 0 ? (
             <AuditLogTable rows={list.items} />
@@ -73,7 +77,7 @@ export function AuditLogPanel({
             totalPages={Math.max(1, list.totalPages)}
           />
         </>
-      )}
+      ) : null}
     </Panel>
   );
 }

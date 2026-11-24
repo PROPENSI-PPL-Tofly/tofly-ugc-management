@@ -1,7 +1,7 @@
 import { AuditLogPanel } from "@/components/audit-log/audit-log-panel";
 import { AccessDenied } from "@/components/shell/access-denied";
 import { AppShell } from "@/components/shell/app-shell";
-import { parseAuditLogParams } from "@/lib/audit-log";
+import { auditDatesReversed, parseAuditLogParams } from "@/lib/audit-log";
 import {
   loadAuditLogFilterOptions,
   loadAuditLogList,
@@ -43,7 +43,8 @@ export default async function AuditLogPage({
     (): AuditLogFilterOptions => ({ actors: [], creators: [] }),
   );
   // A null list is a request that failed, not a log that is empty: the panel offers it again.
-  const list = await loadAuditLogList(state).catch(() => null);
+  // A reversed range is not asked for at all: the API refuses it and the panel says why.
+  const list = auditDatesReversed(state) ? null : await loadAuditLogList(state).catch(() => null);
 
   return (
     <AppShell title="Log Aktivitas">

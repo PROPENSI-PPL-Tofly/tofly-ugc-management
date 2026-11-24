@@ -84,22 +84,30 @@ export interface AuditLogState {
   creator: string[];
 }
 
+// The API refuses more values than this per filter, and a retry would repeat the same address.
+const MAX_FILTER_VALUES = 50;
+
 function once<T>(values: readonly T[]): T[] {
-  return [...new Set(values)];
+  return [...new Set(values)].slice(0, MAX_FILTER_VALUES);
+}
+
+// A range that ends before it starts is kept and named, never dropped: dropping it would silently
+// show more entries than were asked for (OWASP A10:2025). One day on both ends is a valid range.
+export function auditDatesReversed({ from, to }: Pick<AuditLogState, "from" | "to">): boolean {
+  return from !== "" && to !== "" && from > to;
 }
 
 // The URL's values, every one checked, so a typed or stale address can only reach the API with
 // real days, ids, categories and actions (OWASP A05:2025). Anything else reads as no filter.
 export function parseAuditLogParams(params: SearchParams): AuditLogState {
-  const from = calendarDay(single(params.from));
-  const to = calendarDay(single(params.to));
-  const reversed = from !== "" && to !== "" && from > to;
+  const page = pageNumber(params.page);
   const category = once(listOf(AUDIT_CATEGORIES, params.category));
 
   return {
-    page: pageNumber(params.page),
-    from: reversed ? "" : from,
-    to: reversed ? "" : to,
+    // Past the safe range the number prints as 1e+21, which the API cannot read.
+    page: Number.isSafeInteger(page) ? page : 1,
+    from: calendarDay(single(params.from)),
+    to: calendarDay(single(params.to)),
     actor: once(list(params.actor).filter((actor) => actor === SYSTEM_ACTOR || isUuid(actor))),
     category,
     action: keepActionsInCategories(once(listOf(actionsInCategories([]), params.action)), category),
