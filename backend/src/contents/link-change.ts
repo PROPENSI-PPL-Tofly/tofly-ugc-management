@@ -15,7 +15,7 @@ import { adminActor } from './content-event-actors.js';
 import { normalizeVideoLink } from './content-links.js';
 import type { PlatformLink } from './link-request.js';
 import { LINK_RULES } from './link-rules.js';
-import { contentClosed } from './content-closed.js';
+import { assertNotPastEarlyEnd, contentClosed } from './content-closed.js';
 import { periodNotStarted } from './period-not-started.js';
 
 // Submitting, adding and replacing a content's video links (PBI-38 38.2). Each change is a
@@ -48,6 +48,9 @@ export interface LinkedContent {
   contracts: {
     /** The contract period's start day, which a creator's change waits for (PBI-30.2). */
     start_date: Date;
+    /** PBI-37: the last day, and the original end once ended early; no change after that day. */
+    end_date: Date;
+    original_end_date: Date | null;
     /** No row yet means the invoice is still running. */
     invoice: { status: InvoiceLifecycleStatus } | null;
     creators: {
@@ -94,6 +97,7 @@ export class CreatorLinkActor implements LinkActor {
     if (content.closed_at !== null) {
       throw contentClosed();
     }
+    assertNotPastEarlyEnd(content.contracts, clock.today);
   }
 
   submittedBy(content: LinkedContent): string {
@@ -115,8 +119,13 @@ export class AdminLinkActor implements LinkActor {
   /** Null only for the local development stand-in for sign-in, which has no account. */
   constructor(private readonly adminUserId: string | null) {}
 
-  /** An admin's link changes are not held to the period's start (PBI-30.2 is about creators). */
-  assertCanChangeLinks(): void {}
+  /**
+   * An admin's link changes are not held to the period's start (PBI-30.2 is about creators), but
+   * nothing counts past the last day of a contract ended early (PBI-37, AC 8).
+   */
+  assertCanChangeLinks(content: LinkedContent, clock: LinkClock): void {
+    assertNotPastEarlyEnd(content.contracts, clock.today);
+  }
 
   submittedBy(content: LinkedContent): string {
     // submitted_by must name a user; with no admin account the link stays the creator's.

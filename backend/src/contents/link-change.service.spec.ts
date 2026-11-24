@@ -37,6 +37,8 @@ function stored(overrides: Partial<LinkedContent> = {}): LinkedContent {
     contracts: {
       // A period that started before NOW; PBI-30.2's test moves it later.
       start_date: new Date('2026-09-01T00:00:00.000Z'),
+      end_date: new Date('2026-12-31T00:00:00.000Z'),
+      original_end_date: null,
       invoice: null,
       creators: {
         user_id: CREATOR_USER,

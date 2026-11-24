@@ -5,11 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
+import { jakartaDay } from '../creators/evergreen.js';
 import { StartedPeriodSpecification } from '../creators/started-period.specification.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import { nextDraftStatus, type DraftSubmission } from './draft-submission.js';
-import { contentClosed } from './content-closed.js';
+import { assertNotPastEarlyEnd, contentClosed } from './content-closed.js';
 import { periodNotStarted } from './period-not-started.js';
 
 export interface SubmittedDraft {
@@ -35,13 +36,13 @@ export interface DraftSubmissionTransaction {
         id: true;
         status: true;
         closed_at: true;
-        contracts: { select: { start_date: true } };
+        contracts: { select: { start_date: true; end_date: true; original_end_date: true } };
       };
     }) => Promise<{
       id: string;
       status: content_status;
       closed_at: Date | null;
-      contracts: { start_date: Date };
+      contracts: { start_date: Date; end_date: Date; original_end_date: Date | null };
     } | null>;
     updateMany: (args: {
       where: { id: string; status: content_status };
@@ -140,7 +141,7 @@ export class DraftSubmissionService implements DraftSubmitter {
           id: true,
           status: true,
           closed_at: true,
-          contracts: { select: { start_date: true } },
+          contracts: { select: { start_date: true, end_date: true, original_end_date: true } },
         },
       });
       if (!content) {
@@ -158,6 +159,7 @@ export class DraftSubmissionService implements DraftSubmitter {
       if (content.closed_at !== null) {
         throw contentClosed();
       }
+      assertNotPastEarlyEnd(content.contracts, jakartaDay(now));
 
       const status = nextDraftStatus(content.status);
       if (!status) {
