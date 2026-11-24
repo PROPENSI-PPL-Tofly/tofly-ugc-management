@@ -47,6 +47,8 @@ describe('checkInvoiceFilters, invoice status', () => {
     'creator_acked',
     'payment_uploaded',
     'paid',
+    // PBI-37: the Rate & Invoicing filter "Cancelled".
+    'cancelled',
   ])('reads the invoice status %s', (status) => {
     expect(checkInvoiceFilters(undefined, undefined, status)).toEqual({
       status,
@@ -57,7 +59,7 @@ describe('checkInvoiceFilters, invoice status', () => {
     'rejects the invoice status %j, naming the ones it takes',
     (status) => {
       expect(() => checkInvoiceFilters(undefined, undefined, status)).toThrow(
-        'status must be one of accruing, finalized, creator_acked, payment_uploaded, paid',
+        'status must be one of accruing, finalized, creator_acked, payment_uploaded, paid, cancelled',
       );
     },
   );
