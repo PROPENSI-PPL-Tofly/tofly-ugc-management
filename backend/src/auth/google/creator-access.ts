@@ -73,7 +73,8 @@ export function accessClosedSince(
   contracts: readonly SignInContract[],
 ): string | null {
   if (contracts.length === 0 || creatorMaySignIn(today, contracts)) return null;
-  return contracts.map(closingDay).reduce((latest, day) => (day > latest ? day : latest));
+  // Every ISO day sorts after '', so the latest closing day wins whatever the order (Sonar S6959).
+  return contracts.map(closingDay).reduce((latest, day) => (day > latest ? day : latest), '');
 }
 
 /**
