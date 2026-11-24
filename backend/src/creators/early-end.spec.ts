@@ -121,6 +121,7 @@ describe('checkEarlyEnd (the "Akhiri Kontrak Lebih Awal" form)', () => {
       lastDay: '2026-11-30',
       reason: 'violation',
       note: 'Fraud views.',
+      upcomingPeriods: null,
     });
   });
 
@@ -181,6 +182,7 @@ describe('checkEarlyEnd (the "Akhiri Kontrak Lebih Awal" form)', () => {
       lastDay: '2026-11-24',
       reason: 'violation',
       note: VALID.note,
+      upcomingPeriods: null,
     });
     expect(
       checkEarlyEnd({ ...VALID, invoice: 'cancel', lastDay: undefined }, RUNNING, NOW).lastDay,
@@ -224,6 +226,27 @@ describe('checkEarlyEnd (the "Akhiri Kontrak Lebih Awal" form)', () => {
 
   it('counts the note after trimming, so 500 characters with spaces around still fit', () => {
     expect(checkEarlyEnd({ ...VALID, note: ` ${'a'.repeat(500)} ` }, RUNNING, NOW).note).toHaveLength(500);
+  });
+
+  // AC 3: with a period that has not started, the form asks to keep or delete it; neither is chosen.
+  describe('the periods that have not started', () => {
+    it.each(['keep', 'delete'] as const)('takes %s when there is one', (upcomingPeriods) => {
+      expect(checkEarlyEnd({ ...VALID, upcomingPeriods }, RUNNING, NOW, 1).upcomingPeriods).toBe(
+        upcomingPeriods,
+      );
+    });
+
+    it.each([undefined, '', 'archive', ['keep']])('asks for a choice when it is %j', (upcomingPeriods) => {
+      expect(errorsOf(() => checkEarlyEnd({ ...VALID, upcomingPeriods }, RUNNING, NOW, 2))).toEqual({
+        upcomingPeriods: 'Pilih Pertahankan atau Hapus',
+      });
+    });
+
+    it('ignores the choice when there is no such period', () => {
+      expect(
+        checkEarlyEnd({ ...VALID, upcomingPeriods: 'delete' }, RUNNING, NOW, 0).upcomingPeriods,
+      ).toBeNull();
+    });
   });
 
   it('reports every field at once, and reads a missing body as a blank form', () => {
@@ -281,7 +304,12 @@ describe('planEarlyEnd (the consequences, for the confirmation and the write ali
     return { id, name: `Evg_${id}`, deadline: day(deadline), status };
   }
 
-  const PAY: EarlyEndRequest = { ...VALID, invoice: 'pay', reason: 'violation' } as EarlyEndRequest;
+  const PAY: EarlyEndRequest = {
+    ...VALID,
+    invoice: 'pay',
+    reason: 'violation',
+    upcomingPeriods: 'delete',
+  } as EarlyEndRequest;
   const CANCEL: EarlyEndRequest = { ...PAY, invoice: 'cancel', lastDay: '2026-11-24' };
 
   it('closes content due after the last day and lists what is still open up to it', () => {
@@ -317,7 +345,9 @@ describe('planEarlyEnd (the consequences, for the confirmation and the write ali
       finalizableFrom: '2026-12-01',
       closing: [],
       unfinished: [],
+      upcomingPeriods: 'delete',
       deletedPeriods: [],
+      keptPeriods: [],
       access: 'after_invoice_paid',
     });
   });
@@ -375,6 +405,36 @@ describe('planEarlyEnd (the consequences, for the confirmation and the write ali
     ]);
     // A period that is deleted never keeps the creator's access open.
     expect(plan.access).toBe('closed_now');
+  });
+
+  // AC 15: "Pertahankan" keeps the periods that have not started, and the creator keeps access for them.
+  it('keeps the periods that have not started when asked, and the access with them', () => {
+    const plan = planEarlyEnd(
+      { ...CANCEL, upcomingPeriods: 'keep' },
+      'contract-2',
+      [PERIOD_1, PERIOD_2, PERIOD_3],
+      [],
+      NOW,
+    );
+    expect(plan).toMatchObject({
+      upcomingPeriods: 'keep',
+      deletedPeriods: [],
+      keptPeriods: [
+        { contractId: 'contract-3', periodNumber: 3, startDate: '2026-12-16', endDate: '2027-03-15' },
+      ],
+      access: 'open_for_upcoming',
+    });
+  });
+
+  it('keeps access for a kept period whatever the invoice choice', () => {
+    const plan = planEarlyEnd(
+      { ...PAY, upcomingPeriods: 'keep' },
+      'contract-2',
+      [PERIOD_2, PERIOD_3],
+      [],
+      NOW,
+    );
+    expect(plan.access).toBe('open_for_upcoming');
   });
 
   it('numbers periods by start whatever order they arrive in', () => {

@@ -61,6 +61,8 @@ const PAY = {
   lastDay: '2026-11-30',
   reason: 'violation',
   note: '  Konten diunggah ulang dari creator lain.  ',
+  // Period 3 has not started, so the form asks to keep or delete it (AC 3).
+  upcomingPeriods: 'delete',
 };
 const CANCEL = { ...PAY, invoice: 'cancel', reason: 'fraud', lastDay: undefined };
 
@@ -206,11 +208,51 @@ describe('ContractEndService.end', () => {
       finalizableFrom: '2026-12-01',
       closing: [{ id: 'due-after', name: 'Evg_3', deadline: '2026-12-08' }],
       unfinished: [{ id: 'due-last-day', name: 'Evg_2', deadline: '2026-11-30' }],
+      upcomingPeriods: 'delete',
       deletedPeriods: [
         { contractId: NEXT_ID, periodNumber: 3, startDate: '2026-12-16', endDate: '2027-03-15' },
       ],
+      keptPeriods: [],
       access: 'after_invoice_paid',
     });
+  });
+
+  // AC 15: "Pertahankan" keeps them, and the creator's access with them.
+  it('keeps the periods that have not started when asked, deleting nothing', async () => {
+    const { tx, audit, service } = setup();
+    const ended = await service.end(
+      CREATOR_ID,
+      RUNNING_ID,
+      { ...CANCEL, upcomingPeriods: 'keep' },
+      NOW,
+      ADMIN_ID,
+    );
+
+    expect(tx.contracts.deleteMany).not.toHaveBeenCalled();
+    expect(ended).toMatchObject({
+      upcomingPeriods: 'keep',
+      keptPeriods: [{ contractId: NEXT_ID, periodNumber: 3 }],
+      access: 'open_for_upcoming',
+    });
+    expect(audit.recordBy).toHaveBeenCalledWith(
+      tx,
+      ADMIN_ID,
+      expect.objectContaining({
+        action: 'contract_ended_early',
+        newValues: expect.objectContaining({ upcomingPeriods: 'keep', keptPeriods: [3], deletedPeriods: [] }),
+      }),
+    );
+  });
+
+  it('asks to keep or delete when a period has not started, writing nothing', async () => {
+    const setupResult = setup();
+    const { error, body } = await refusal(
+      setupResult.service.end(CREATOR_ID, RUNNING_ID, { ...PAY, upcomingPeriods: undefined }, NOW, ADMIN_ID),
+    );
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect(body).toMatchObject({ errors: { upcomingPeriods: 'Pilih Pertahankan atau Hapus' } });
+    expectNothingWritten(setupResult);
   });
 
   // OWASP A09:2025: "Log Aktivitas" gets who ended what, from when to when, and why.
@@ -228,7 +270,9 @@ describe('ContractEndService.end', () => {
         invoice: 'pay',
         reason: 'violation',
         closedContents: 1,
+        upcomingPeriods: 'delete',
         deletedPeriods: [3],
+        keptPeriods: [],
       },
       note: 'Pelanggaran Kontrak · Konten diunggah ulang dari creator lain.',
     });

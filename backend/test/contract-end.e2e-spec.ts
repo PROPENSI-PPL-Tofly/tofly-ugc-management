@@ -97,7 +97,7 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
 
     const { body } = await admin
       .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end/preview`)
-      .send({ invoice: 'pay', lastDay: iso(5), reason: 'violation', note: NOTE })
+      .send({ invoice: 'pay', lastDay: iso(5), reason: 'violation', note: NOTE, upcomingPeriods: 'delete' })
       .expect(200);
 
     expect(body).toMatchObject({
@@ -117,7 +117,7 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
 
     await admin
       .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end`)
-      .send({ invoice: 'pay', lastDay: iso(5), reason: 'violation', note: NOTE })
+      .send({ invoice: 'pay', lastDay: iso(5), reason: 'violation', note: NOTE, upcomingPeriods: 'delete' })
       .expect(200);
 
     const saved = await prisma.contracts.findUniqueOrThrow({
@@ -145,7 +145,7 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
 
     const { body } = await admin
       .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end`)
-      .send({ invoice: 'cancel', reason: 'fraud', note: NOTE })
+      .send({ invoice: 'cancel', reason: 'fraud', note: NOTE, upcomingPeriods: 'delete' })
       .expect(200);
 
     expect(body).toMatchObject({ invoiceStatus: 'cancelled', lastDay: iso(0), access: 'closed_now' });
@@ -155,13 +155,27 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
     expect((await dewi.creator.get('/me/invoices')).status).toBe(401);
   });
 
+  // AC 15: "Pertahankan" keeps period 2 and, with it, the creator's access.
+  it('keeps the waiting period when asked, so a cancelled invoice leaves the creator in', async () => {
+    const dewi = await creatorWithRunningPeriod('keep');
+
+    const { body } = await admin
+      .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end`)
+      .send({ invoice: 'cancel', reason: 'other', note: NOTE, upcomingPeriods: 'keep' })
+      .expect(200);
+
+    expect(body).toMatchObject({ access: 'open_for_upcoming', deletedPeriods: [] });
+    expect(await prisma.contracts.count({ where: { id: dewi.waiting } })).toBe(1);
+    expect((await dewi.creator.get('/me/invoices')).status).toBe(200);
+  });
+
   // OWASP A06:2025: two admins at once. The Finalize lock lets one through; the other is told.
   it('ends the contract once when two admins confirm at the same moment', async () => {
     const dewi = await creatorWithRunningPeriod('race');
     const send = () =>
       admin
         .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end`)
-        .send({ invoice: 'pay', lastDay: iso(5), reason: 'other', note: NOTE });
+        .send({ invoice: 'pay', lastDay: iso(5), reason: 'other', note: NOTE, upcomingPeriods: 'delete' });
 
     const answers = await Promise.all([send(), send()]);
 
@@ -177,7 +191,7 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
     const dewi = await creatorWithRunningPeriod('self');
     const response = await dewi.creator
       .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end`)
-      .send({ invoice: 'cancel', reason: 'other', note: NOTE });
+      .send({ invoice: 'cancel', reason: 'other', note: NOTE, upcomingPeriods: 'delete' });
 
     expect(response.status).toBe(403);
     expect((await prisma.contracts.findUniqueOrThrow({ where: { id: dewi.running } })).original_end_date).toBeNull();
