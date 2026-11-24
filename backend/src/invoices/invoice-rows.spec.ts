@@ -188,7 +188,6 @@ describe('toInvoiceContent', () => {
 });
 
 describe('toInvoiceContract', () => {
-  // PBI-37: an early end moves end_date to the last day, so nothing else marks it here.
   it('reads the numeric fixed rate as rupiah', () => {
     expect(toInvoiceContract(contractRow())).toEqual({
       id: 'contract-1',
@@ -196,7 +195,6 @@ describe('toInvoiceContract', () => {
       endDate: day(60),
       fixedRate: 5_500_000,
       contentQuota: 11,
-      endedEarlyOn: null,
     });
   });
 });

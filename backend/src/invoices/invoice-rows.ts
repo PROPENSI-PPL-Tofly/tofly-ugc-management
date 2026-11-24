@@ -4,7 +4,6 @@
 
 import { Prisma } from '@prisma/client';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
-import { jakartaDay } from '../creators/evergreen.js';
 import { effectiveState } from '../performance/link-performance.js';
 import {
   CONNECTION_SELECT,
@@ -150,7 +149,6 @@ export function toInvoiceContract(row: InvoiceContractRow): InvoiceContract {
     endDate: row.end_date,
     fixedRate: row.fixed_rate.toNumber(),
     contentQuota: row.content_quota,
-    endedEarlyOn: null,
   };
 }
 
@@ -174,11 +172,7 @@ export function invoiceContractStatus(
   today: Date,
 ): InvoiceContractStatus {
   // A contract exists, so contractStatus never answers 'none' here.
-  const status = contractStatus(period(contract), today) as InvoiceContractStatus;
-  if (status !== 'active') return status;
-
-  const lastDay = contractLastDay(toInvoiceContract(contract));
-  return jakartaDay(today) > lastDay ? 'expired' : 'active';
+  return contractStatus(period(contract), today) as InvoiceContractStatus;
 }
 
 /**
