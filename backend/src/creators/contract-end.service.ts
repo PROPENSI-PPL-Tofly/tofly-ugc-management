@@ -15,6 +15,7 @@ import {
   type EarlyEndPlan,
   type EarlyEndRequest,
 } from './early-end.js';
+import { periodHasStarted } from './contract-period.js';
 import { joinName } from './evergreen.js';
 
 /** The creator and every period they have, with what an early end decides on. */
@@ -179,7 +180,9 @@ export class ContractEndService implements ContractEnder {
           invoice: request.invoice,
           reason: request.reason,
           closedContents: plan.closing.length,
+          upcomingPeriods: plan.upcomingPeriods,
           deletedPeriods: plan.deletedPeriods.map((deleted) => deleted.periodNumber),
+          keptPeriods: plan.keptPeriods.map((kept) => kept.periodNumber),
         },
         note: auditNote(request),
       });
@@ -246,10 +249,14 @@ export class ContractEndService implements ContractEnder {
       },
       now,
     );
+    const upcomingCount = creator.contracts.filter(
+      (contract) => !periodHasStarted(contract.start_date, now),
+    ).length;
     const request = checkEarlyEnd(
       body,
       { startDate: period.start_date, endDate: period.end_date, originalEndDate: null },
       now,
+      upcomingCount,
     );
     if (request.invoice === 'cancel') {
       invoiceState(period.invoice?.status ?? 'running').assertCanCancel();

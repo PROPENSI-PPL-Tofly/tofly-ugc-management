@@ -26,6 +26,10 @@ export const END_REASON_LABELS: Readonly<Record<EndReason, string>> = {
 export const INVOICE_CHOICES = ['pay', 'cancel'] as const;
 export type InvoiceChoice = (typeof INVOICE_CHOICES)[number];
 
+/** "Pertahankan" or "Hapus" for the periods that have not started (AC 3). */
+export const UPCOMING_CHOICES = ['keep', 'delete'] as const;
+export type UpcomingChoice = (typeof UPCOMING_CHOICES)[number];
+
 /** The note is for admins only and holds at most this many characters. */
 export const NOTE_MAX = 500;
 
@@ -36,6 +40,8 @@ export interface EarlyEndRequest {
   lastDay: string;
   reason: EndReason;
   note: string;
+  /** What happens to the periods that have not started; null when there are none. */
+  upcomingPeriods: UpcomingChoice | null;
 }
 
 /** The contract being ended, as stored. Postgres `date` columns arrive as midnight UTC. */
@@ -120,12 +126,14 @@ function isOneOf<T extends string>(list: readonly T[], value: unknown): value is
 
 /**
  * Validates the form against the contract, answering anything invalid with one 422 that names
- * every field. Cancelling the invoice locks the last day to today, whatever day was sent.
+ * every field. Cancelling the invoice locks the last day to today, whatever day was sent. With a
+ * period that has not started, keeping or deleting it must be chosen: nothing is preselected.
  */
 export function checkEarlyEnd(
   input: unknown,
   contract: EndingContract,
   now: Date,
+  upcomingCount = 0,
 ): EarlyEndRequest {
   // A missing or null body reads as a blank form, not a TypeError.
   const body: Record<string, unknown> = { ...(input as object) };
@@ -141,6 +149,9 @@ export function checkEarlyEnd(
   if (!isOneOf(END_REASONS, body.reason)) errors.reason = 'Pilih alasan';
   const note = noteError(body.note);
   if (note) errors.note = note;
+  if (upcomingCount > 0 && !isOneOf(UPCOMING_CHOICES, body.upcomingPeriods)) {
+    errors.upcomingPeriods = 'Pilih Pertahankan atau Hapus';
+  }
 
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
@@ -155,6 +166,7 @@ export function checkEarlyEnd(
     lastDay: invoice === 'cancel' ? today : (body.lastDay as string),
     reason: body.reason as EndReason,
     note: (body.note as string).trim(),
+    upcomingPeriods: upcomingCount > 0 ? (body.upcomingPeriods as UpcomingChoice) : null,
   };
 }
 
@@ -191,7 +203,7 @@ export interface PlannedContent {
   deadline: string;
 }
 
-export interface DeletedPeriod {
+export interface PlannedPeriod {
   contractId: string;
   periodNumber: number;
   startDate: string;
@@ -200,10 +212,14 @@ export interface DeletedPeriod {
 
 /**
  * When the creator's access closes, by the shared access rule (PRD 3.1): right away, once an earlier
- * period's invoice is paid, or the day after this invoice is paid.
+ * period's invoice is paid, or the day after this invoice is paid; or it stays open for a period
+ * that has not started and was kept.
  */
 export type AccessAfterEnd =
-  'closed_now' | 'after_previous_invoice_paid' | 'after_invoice_paid';
+  | 'closed_now'
+  | 'after_previous_invoice_paid'
+  | 'after_invoice_paid'
+  | 'open_for_upcoming';
 
 export interface EarlyEndPlan {
   lastDay: string;
@@ -216,8 +232,11 @@ export interface EarlyEndPlan {
   closing: PlannedContent[];
   /** Content due by the last day and not delivered yet: still open until then. */
   unfinished: PlannedContent[];
-  /** Periods that have not started: deleted with their schedule and empty invoice. */
-  deletedPeriods: DeletedPeriod[];
+  upcomingPeriods: UpcomingChoice | null;
+  /** Periods that have not started, on "Hapus": deleted with their schedule and empty invoice. */
+  deletedPeriods: PlannedPeriod[];
+  /** Periods that have not started, on "Pertahankan": kept as they are. */
+  keptPeriods: PlannedPeriod[];
   access: AccessAfterEnd;
 }
 
@@ -232,8 +251,8 @@ function stillOwed(status: InvoiceLifecycleStatus | null): boolean {
 
 /**
  * What ending this contract does. Delivered content stays as it is; everything else is closed
- * when it is due after the last day. Every period that has not started is deleted, so none of
- * them keeps the creator's access open.
+ * when it is due after the last day. The periods that have not started are deleted or kept as
+ * the admin chose; a kept one keeps the creator's access open.
  */
 export function planEarlyEnd(
   request: EarlyEndRequest,
@@ -249,7 +268,7 @@ export function planEarlyEnd(
   const open = contents.filter((content) => content.status !== 'link_submitted');
   const closes = (content: PlanContent) => isoDay(content.deadline) > request.lastDay;
 
-  const deletedPeriods = ordered.flatMap((period, index) =>
+  const upcoming = ordered.flatMap((period, index) =>
     periodHasStarted(period.startDate, now)
       ? []
       : [
@@ -269,8 +288,11 @@ export function planEarlyEnd(
       stillOwed(period.invoiceStatus),
   );
 
+  const keep = request.upcomingPeriods === 'keep';
   let access: AccessAfterEnd = 'after_invoice_paid';
-  if (request.invoice === 'cancel') {
+  if (keep && upcoming.length > 0) {
+    access = 'open_for_upcoming';
+  } else if (request.invoice === 'cancel') {
     access = earlierOwed ? 'after_previous_invoice_paid' : 'closed_now';
   }
 
@@ -283,7 +305,9 @@ export function planEarlyEnd(
       request.invoice === 'cancel' ? null : addDays(request.lastDay, 1),
     closing: open.filter(closes).map(planned),
     unfinished: open.filter((content) => !closes(content)).map(planned),
-    deletedPeriods,
+    upcomingPeriods: request.upcomingPeriods,
+    deletedPeriods: keep ? [] : upcoming,
+    keptPeriods: keep ? upcoming : [],
     access,
   };
 }
