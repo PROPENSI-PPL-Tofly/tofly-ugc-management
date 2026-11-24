@@ -9,6 +9,7 @@ import { StartedPeriodSpecification } from '../creators/started-period.specifica
 import { PrismaService } from '../prisma/prisma.service.js';
 import { COMMITTED_STATUSES } from './content-lifecycle.js';
 import { nextDraftStatus, type DraftSubmission } from './draft-submission.js';
+import { contentClosed } from './content-closed.js';
 import { periodNotStarted } from './period-not-started.js';
 
 export interface SubmittedDraft {
@@ -33,11 +34,13 @@ export interface DraftSubmissionTransaction {
       select: {
         id: true;
         status: true;
+        closed_at: true;
         contracts: { select: { start_date: true } };
       };
     }) => Promise<{
       id: string;
       status: content_status;
+      closed_at: Date | null;
       contracts: { start_date: Date };
     } | null>;
     updateMany: (args: {
@@ -136,6 +139,7 @@ export class DraftSubmissionService implements DraftSubmitter {
         select: {
           id: true,
           status: true,
+          closed_at: true,
           contracts: { select: { start_date: true } },
         },
       });
@@ -149,6 +153,10 @@ export class DraftSubmissionService implements DraftSubmitter {
       const started = new StartedPeriodSpecification(now);
       if (!started.isSatisfiedBy(content.contracts)) {
         throw periodNotStarted();
+      }
+      // PBI-37: due after the last day of a contract ended early.
+      if (content.closed_at !== null) {
+        throw contentClosed();
       }
 
       const status = nextDraftStatus(content.status);

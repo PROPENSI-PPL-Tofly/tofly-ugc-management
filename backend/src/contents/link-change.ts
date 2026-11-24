@@ -15,6 +15,7 @@ import { adminActor } from './content-event-actors.js';
 import { normalizeVideoLink } from './content-links.js';
 import type { PlatformLink } from './link-request.js';
 import { LINK_RULES } from './link-rules.js';
+import { contentClosed } from './content-closed.js';
 import { periodNotStarted } from './period-not-started.js';
 
 // Submitting, adding and replacing a content's video links (PBI-38 38.2). Each change is a
@@ -34,6 +35,8 @@ export interface LinkClock {
 export interface LinkedContent {
   id: string;
   status: content_status;
+  /** PBI-37: when an early end closed it; a creator hands nothing in after that. */
+  closed_at: Date | null;
   deadline: Date;
   video_submitted_at: Date | null;
   content_links: {
@@ -87,6 +90,9 @@ export class CreatorLinkActor implements LinkActor {
     const started = new StartedPeriodSpecification(clock.now);
     if (!started.isSatisfiedBy(content.contracts)) {
       throw periodNotStarted();
+    }
+    if (content.closed_at !== null) {
+      throw contentClosed();
     }
   }
 

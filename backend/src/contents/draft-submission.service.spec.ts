@@ -113,10 +113,12 @@ describe('DraftSubmissionService.submit', () => {
         status: { in: COMMITTED },
         contracts: { creator_id: CREATOR_ID },
       },
-      // Also the period's start day, to refuse a draft before the period starts (PBI-30.2).
+      // Also the period's start day, to refuse a draft before the period starts (PBI-30.2), and
+      // when an early end closed it (PBI-37).
       select: {
         id: true,
         status: true,
+        closed_at: true,
         contracts: { select: { start_date: true } },
       },
     });

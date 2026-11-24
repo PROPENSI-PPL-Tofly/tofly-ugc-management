@@ -59,6 +59,7 @@ export const LINK_PERFORMANCE_COLUMNS = Symbol('LINK_PERFORMANCE_COLUMNS');
 export const LINKED_CONTENT_SELECT = {
   id: true,
   status: true,
+  closed_at: true,
   deadline: true,
   video_submitted_at: true,
   content_links: {

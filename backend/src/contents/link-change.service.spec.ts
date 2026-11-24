@@ -30,6 +30,7 @@ function stored(overrides: Partial<LinkedContent> = {}): LinkedContent {
   return {
     id: CONTENT_ID,
     status: 'draft_approved',
+    closed_at: null,
     deadline: new Date('2026-10-20T00:00:00.000Z'),
     video_submitted_at: null,
     content_links: [],
