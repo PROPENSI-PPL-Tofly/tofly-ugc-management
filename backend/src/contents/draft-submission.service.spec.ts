@@ -33,6 +33,8 @@ function stub(
     periodStart?: Date;
     /** PBI-37: when an early end closed the content. */
     closedAt?: Date;
+    /** PBI-37: the last day of a contract ended early. */
+    endedEarlyOn?: Date;
     updated?: number;
     creator?: {
       first_name: string;
@@ -49,7 +51,11 @@ function stub(
           : {
               ...(options.content ?? { id: CONTENT_ID, status: 'scheduled' }),
               closed_at: options.closedAt ?? null,
-              contracts: { start_date: options.periodStart ?? LONG_STARTED },
+              contracts: {
+                start_date: options.periodStart ?? LONG_STARTED,
+                end_date: options.endedEarlyOn ?? new Date('2099-12-31T00:00:00Z'),
+                original_end_date: options.endedEarlyOn ? new Date('2099-12-31T00:00:00Z') : null,
+              },
             },
       ),
       updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
@@ -119,7 +125,7 @@ describe('DraftSubmissionService.submit', () => {
         id: true,
         status: true,
         closed_at: true,
-        contracts: { select: { start_date: true } },
+        contracts: { select: { start_date: true, end_date: true, original_end_date: true } },
       },
     });
   });
@@ -165,6 +171,30 @@ describe('DraftSubmissionService.submit', () => {
     );
     expect(transaction.contents.updateMany).not.toHaveBeenCalled();
     expect(transaction.submissions.create).not.toHaveBeenCalled();
+  });
+
+  // PBI-37 (AC 8): nothing is handed in after the last day of a contract ended early.
+  it('returns 409 CONTRACT_ENDED_EARLY the day after the last day and saves nothing', async () => {
+    const { transaction, service } = stub({ endedEarlyOn: new Date('2026-11-23T00:00:00Z') });
+
+    // 10:00 WIB on 24 November.
+    const error = await failure(
+      service.submit(CONTENT_ID, CREATOR_ID, INPUT, new Date('2026-11-24T03:00:00Z')),
+    );
+
+    expect((error as ConflictException).getResponse()).toEqual({
+      code: 'CONTRACT_ENDED_EARLY',
+      message: 'Kontrak sudah diakhiri lebih awal. Tidak ada kiriman setelah hari terakhir',
+    });
+    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('accepts the draft on the last day itself', async () => {
+    const { service } = stub({ endedEarlyOn: new Date('2026-11-24T00:00:00Z') });
+
+    await expect(
+      service.submit(CONTENT_ID, CREATOR_ID, INPUT, new Date('2026-11-24T16:59:00Z')),
+    ).resolves.toBeDefined();
   });
 
   it('accepts the draft from Jakarta midnight on the start date', async () => {

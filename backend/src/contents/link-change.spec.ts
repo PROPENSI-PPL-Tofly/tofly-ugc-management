@@ -52,6 +52,8 @@ function content(
     periodStart?: string;
     /** PBI-37: when an early end closed the content; open by default. */
     closedAt?: Date;
+    /** PBI-37: the last day of a contract ended early (its end_date); not ended early by default. */
+    endedEarlyOn?: string;
   } = {},
 ): LinkedContent {
   return {
@@ -71,6 +73,8 @@ function content(
     })),
     contracts: {
       start_date: day(overrides.periodStart ?? '2026-09-01'),
+      end_date: day(overrides.endedEarlyOn ?? '2026-12-31'),
+      original_end_date: overrides.endedEarlyOn ? day('2026-12-31') : null,
       invoice:
         overrides.invoice === undefined || overrides.invoice === null
           ? null
@@ -701,5 +705,45 @@ describe('error types', () => {
     expect(missing).toThrow(NotFoundException);
     expect(taken).toThrow(ConflictException);
     expect(noAccount).toThrow(UnprocessableEntityException);
+  });
+});
+
+// PBI-37 (AC 8): after the last day of a contract ended early nothing more is handed in, so content
+// counts as delivered only with a link by the last day, and no penalty or bonus runs past it.
+describe('a contract ended early, after its last day', () => {
+  const ENDED_EARLY = {
+    status: 409,
+    body: {
+      code: 'CONTRACT_ENDED_EARLY',
+      message: 'Kontrak sudah diakhiri lebih awal. Tidak ada kiriman setelah hari terakhir',
+    },
+  };
+  const REEL_LINK = [{ platform: 'instagram' as const, url: REEL }];
+  const lastDay = (offset: number) => {
+    const day = new Date(`${CLOCK.today}T00:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + offset);
+    return day.toISOString().slice(0, 10);
+  };
+
+  it("refuses a creator's links the day after the last day", () => {
+    expect(
+      refusal(() =>
+        new SubmitLinks(REEL_LINK).plan(content({ endedEarlyOn: lastDay(-1) }), creator, CLOCK),
+      ),
+    ).toEqual(ENDED_EARLY);
+  });
+
+  it("refuses an admin's links too: nothing past the last day counts", () => {
+    expect(
+      refusal(() =>
+        new SubmitLinks(REEL_LINK).plan(content({ endedEarlyOn: lastDay(-1) }), admin, CLOCK),
+      ),
+    ).toEqual(ENDED_EARLY);
+  });
+
+  it('takes links on the last day itself', () => {
+    const plan = new SubmitLinks(REEL_LINK).plan(content({ endedEarlyOn: CLOCK.today }), creator, CLOCK);
+
+    expect(plan.result.status).toBe('link_submitted');
   });
 });
