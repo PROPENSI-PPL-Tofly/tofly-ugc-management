@@ -37,6 +37,7 @@ function content(overrides: Partial<EditableContent> = {}): EditableContent {
     brief: 'Tunjukkan fitur kirim kilat.',
     deadline: new Date('2026-11-20T00:00:00Z'),
     status: 'scheduled',
+    closed_at: null,
     _count: { submissions: 0 },
     contracts: {
       start_date: new Date('2026-10-01T00:00:00Z'),
@@ -252,9 +253,15 @@ describe('editWindow', () => {
       contractStart: '2026-10-01',
       contractEnd: '2026-12-31',
       invoiceStatus: 'running',
+      closed: false,
       ...overrides,
     };
   }
+
+  // PBI-37 (AC 7): a closed content leaves new scheduling, so Ubah and Hapus are hidden.
+  it('opens no window for content an early end closed', () => {
+    expect(editWindow(facts({ closed: true }), RULES)).toBeNull();
+  });
 
   it('opens the days an edited deadline may take: today plus the buffer up to H-5 (AC 3)', () => {
     expect(editWindow(facts(), RULES)).toEqual({
@@ -528,5 +535,20 @@ describe('planContentEdit', () => {
     expect(
       planContentEdit(named, { deadline: '2026-11-25' }, RULES).data.name,
     ).toBe('Evg_1_Rangga Adi Pratama_25112026');
+  });
+});
+
+// PBI-37 (AC 7): content an early end closed cannot be rescheduled or deleted.
+describe('assertChangeable, a closed content', () => {
+  it('refuses it with CONTENT_CLOSED', () => {
+    expect(
+      refusalOf(() => assertChangeable(content({ closed_at: new Date('2026-11-24T03:00:00Z') }))),
+    ).toEqual({
+      status: 409,
+      body: {
+        code: 'CONTENT_CLOSED',
+        message: 'Konten ini ditutup karena kontrak diakhiri lebih awal',
+      },
+    });
   });
 });

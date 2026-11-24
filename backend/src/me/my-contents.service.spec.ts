@@ -85,9 +85,11 @@ const COMMITTED = [
   'link_submitted',
 ];
 // PBI-30.2 (AC 8.2.1): only periods that have started by today in Jakarta (10 October at NOW),
-// so content of a period still to come never reaches Task Saya.
+// so content of a period still to come never reaches Task Saya. PBI-37 (AC 7): content an early
+// end closed leaves Task Saya too.
 const OWN = {
   status: { in: COMMITTED },
+  closed_at: null,
   contracts: {
     creator_id: CREATOR_ID,
     start_date: { lte: new Date('2026-10-10T00:00:00.000Z') },

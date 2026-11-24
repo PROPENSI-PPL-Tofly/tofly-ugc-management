@@ -29,6 +29,8 @@ function row(
     latestDraftAt?: string;
     videoSubmittedAt?: string;
     approvalBypassed?: boolean;
+    /** PBI-37: when an early end closed it. */
+    closedAt?: Date;
     /** The platform of each stored link, null for one kept from before platforms were recorded. */
     links?: ('instagram' | 'tiktok' | null)[];
   } = {},
@@ -45,6 +47,7 @@ function row(
       ? new Date(`${overrides.videoSubmittedAt}T00:00:00.000Z`)
       : null,
     approval_bypassed: overrides.approvalBypassed ?? false,
+    closed_at: overrides.closedAt ?? null,
     content_links: (overrides.links ?? []).map((platform) => ({ platform })),
     contracts: {
       creators: overrides.creator ?? {
@@ -106,6 +109,21 @@ describe('ContentListService.list', () => {
     ]);
   });
 
+  // PBI-37 (AC 7): a content an early end closed shows "Ditutup", not Overdue.
+  it('says when a content was closed and flags nothing on it', async () => {
+    const { service } = stub([
+      row({ deadline: '2026-09-01', closedAt: new Date('2026-08-30T03:00:00.000Z') }),
+      row({ deadline: '2026-09-01' }),
+    ]);
+
+    const answer = await service.list(PAGE, NOW, EVERYTHING);
+
+    expect(answer.items.map((item) => [item.closedAt, item.tags])).toEqual([
+      ['2026-08-30T03:00:00.000Z', []],
+      [null, ['overdue']],
+    ]);
+  });
+
   it('reads only what the table shows and what its tags are judged on', async () => {
     const { client, service } = stub([]);
 
@@ -121,6 +139,7 @@ describe('ContentListService.list', () => {
         status: true,
         video_submitted_at: true,
         approval_bypassed: true,
+        closed_at: true,
         // Only which platforms have a link, for the row's icons (PBI-38 AC 13), never the links.
         content_links: { select: { platform: true } },
         contracts: {
