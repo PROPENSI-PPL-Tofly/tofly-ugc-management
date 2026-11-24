@@ -1,4 +1,6 @@
+import { DeadlineBufferProvider } from "@/components/settings/deadline-buffer-context";
 import { AccessDenied } from "@/components/shell/access-denied";
+import { fetchDeadlineBuffer } from "@/lib/deadline-buffer.server";
 import { homeFor } from "@/lib/session";
 import { currentRole } from "@/lib/session.server";
 
@@ -30,5 +32,9 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       />
     );
   }
-  return children;
+  // Read once here, after the role is known, so every date picker below counts with the one
+  // buffer a Super Admin set (PBI-23) and a save's refresh hands them all the new value.
+  return (
+    <DeadlineBufferProvider bufferDays={await fetchDeadlineBuffer()}>{children}</DeadlineBufferProvider>
+  );
 }

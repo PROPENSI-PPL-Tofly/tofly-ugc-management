@@ -38,3 +38,28 @@ export async function currentRole(): Promise<Role | null> {
   }
   return role;
 }
+
+/**
+ * Whether the signed-in Admin is a Super Admin (PBI-23), the one role that sees "Atur Buffer
+ * Deadline". It reads `adminRole` from the same session answer, which 23.1 adds; anything short
+ * of an Admin named super_admin, an error included, is false, so the setting fails closed. The
+ * backend's SuperAdminGuard still refuses everyone else.
+ */
+export async function isSuperAdmin(): Promise<boolean> {
+  const cookie = await appSessionCookieHeader();
+  const backendUrl = process.env.BACKEND_URL;
+  if (!cookie || !backendUrl) return false;
+
+  try {
+    const response = await fetch(`${withoutTrailingSlash(backendUrl)}/auth/session`, {
+      cache: "no-store",
+      headers: { cookie },
+    });
+    if (!response.ok) return false;
+
+    const { role, adminRole } = (await response.json()) as { role?: unknown; adminRole?: unknown };
+    return role === "admin" && adminRole === "super_admin";
+  } catch {
+    return false;
+  }
+}
