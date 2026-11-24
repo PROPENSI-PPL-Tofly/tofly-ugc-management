@@ -440,6 +440,7 @@ describe("auditChangeShown", () => {
   // An audit record never hides what was stored.
   it("keeps a value it cannot read as it was stored", () => {
     expect(shown("total", "n/a", "4500000").from).toBe("n/a");
+    expect(shown("views", "n/a", "1200").from).toBe("n/a");
     expect(shown("startDate", "soon", "2026-11-30").from).toBe("soon");
     expect(shown("status", "archived", "paid").from).toBe("archived");
   });
