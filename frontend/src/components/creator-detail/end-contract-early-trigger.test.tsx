@@ -153,9 +153,52 @@ describe("EndContractEarlyTrigger", () => {
     fireEvent.blur(screen.getByLabelText(/alasan/i));
     fireEvent.change(screen.getByLabelText(/catatan/i), { target: { value: "  " } });
 
-    expect(screen.getByText("Pilih alasan")).toBeInTheDocument();
+    // The select's placeholder reads "Pilih alasan" too; the message is the span under it.
+    expect(screen.getByText("Pilih alasan", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText("Catatan wajib diisi")).toBeInTheDocument();
     expect(screen.queryByText("Hari terakhir wajib diisi")).not.toBeInTheDocument();
+  });
+
+  it("asks for the last day and the note once they lose focus empty", () => {
+    renderTrigger();
+    open();
+
+    fireEvent.blur(screen.getByLabelText(/hari terakhir/i));
+    fireEvent.blur(screen.getByLabelText(/catatan/i));
+
+    expect(screen.getByText("Hari terakhir wajib diisi")).toBeInTheDocument();
+    expect(screen.getByText("Catatan wajib diisi")).toBeInTheDocument();
+  });
+
+  it("tells the admin to cancel on the original end day, when no day before it is left", () => {
+    vi.setSystemTime(new Date("2026-12-15T05:00:00Z"));
+    renderTrigger();
+    open();
+
+    fill({ lastDay: "2026-12-15" });
+
+    expect(screen.queryByRole("button", { name: "Info Hari Terakhir" })).not.toBeInTheDocument();
+    expect(screen.getByText("Tidak ada hari terakhir sebelum kontrak berakhir. Pilih Batalkan Invoice.")).toBeInTheDocument();
+  });
+
+  it("puts the server's refusal of the preview under its field", async () => {
+    previewEarlyEnd.mockResolvedValue({
+      ok: false,
+      message: "Data pengakhiran kontrak tidak valid",
+      errors: { upcomingPeriods: "Pilih Pertahankan atau Hapus" },
+    });
+    renderTrigger([NEXT, period()]);
+    open();
+    fill();
+    fireEvent.click(screen.getByRole("radio", { name: /Hapus/ }));
+    await goOn();
+
+    expect(screen.getByText("Pilih Pertahankan atau Hapus")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Choosing again clears the server's message.
+    fireEvent.click(screen.getByRole("radio", { name: /Pertahankan/ }));
+    expect(screen.queryByText("Pilih Pertahankan atau Hapus")).not.toBeInTheDocument();
   });
 
   it("refuses a last day outside the window in the API's words", () => {
