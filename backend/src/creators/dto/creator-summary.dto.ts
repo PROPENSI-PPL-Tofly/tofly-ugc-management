@@ -135,6 +135,17 @@ export interface ContractPeriod extends ContractHistoryEntry {
 
   progress: CreatorSummary['progress'];
   performance: CreatorSummary['performance'];
+
+  /**
+   * PBI-37: how the period was ended early, or null when it runs as agreed. endDate is then the
+   * last day; the note is for admins, and this endpoint is admin-only.
+   */
+  earlyEnd: {
+    originalEndDate: string;
+    reason: 'breach' | 'fraud' | 'other';
+    note: string;
+    endedAt: string;
+  } | null;
 }
 
 export interface CreatorDetail extends CreatorSummary {

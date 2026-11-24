@@ -1,7 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { content_status, Prisma } from '@prisma/client';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
+import { accessClosedSince } from '../auth/google/creator-access.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { jakartaDay } from './evergreen.js';
 import {
   computePerformance,
   computeProgress,
@@ -50,6 +52,8 @@ const CREATOR_SELECT = {
       end_date: true,
       content_quota: true,
       contract_type: true,
+      // The access rule reads every contract's invoice (PRD 3.1).
+      invoice: { select: { status: true, paid_at: true } },
       contents: {
         select: {
           deadline: true,
@@ -97,6 +101,11 @@ const DETAIL_SELECT = {
       content_quota: true,
       fixed_rate: true,
       contract_type: true,
+      original_end_date: true,
+      end_reason: true,
+      end_note: true,
+      ended_at: true,
+      invoice: { select: { status: true, paid_at: true } },
       // Deliberately no `take`: each period's progress, performance and remaining Evergreen
       // slots are computed from all of its contents, so a cut list would report wrong numbers.
       // Only the few columns those need are read; the table pages the contents themselves
@@ -398,9 +407,14 @@ export class CreatorsService implements CreatorLister {
 
       socialConnections,
 
-      // The creator-level revoke date is gone (PRD 3.1: access follows the contracts); the day
-      // access closed is derived from them in the next step.
-      accessRevokeDate: null,
+      // PRD 3.1: access follows the contracts, so the day it closed is derived from them.
+      accessRevokeDate: accessClosedSince(
+        jakartaDay(today),
+        row.contracts.map((contract) => ({
+          endDay: calendarDay(contract.end_date),
+          invoice: contract.invoice,
+        })),
+      ),
 
       contract: current
         ? {

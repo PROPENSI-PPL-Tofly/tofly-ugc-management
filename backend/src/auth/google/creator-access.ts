@@ -48,3 +48,30 @@ export function creatorMaySignIn(
 ): boolean {
   return contracts.some((contract) => keepsAccess(contract, today));
 }
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function nextDay(day: string): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+/** The day this contract stops keeping access open; called only once access has closed. */
+function closingDay({ endDay, invoice }: SignInContract): string {
+  // A cancelled invoice closes access on the day it was cancelled, the last day it locked.
+  if (invoice?.status === 'cancelled') return endDay;
+  // Closed means paid with its moment: access ends the day after the later of the two.
+  const paidDay = jakartaDay(invoice!.paid_at!);
+  return nextDay(paidDay > endDay ? paidDay : endDay);
+}
+
+/**
+ * The day the creator's access closed, as YYYY-MM-DD, or null while it is open or when there is
+ * no contract to date it from. Shown as accessRevokeDate on the Creator Database and Detail.
+ */
+export function accessClosedSince(
+  today: string,
+  contracts: readonly SignInContract[],
+): string | null {
+  if (contracts.length === 0 || creatorMaySignIn(today, contracts)) return null;
+  return contracts.map(closingDay).reduce((latest, day) => (day > latest ? day : latest));
+}

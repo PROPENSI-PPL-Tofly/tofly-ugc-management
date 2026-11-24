@@ -103,6 +103,11 @@ type DetailContractRow = {
   content_quota: number;
   fixed_rate: Prisma.Decimal;
   contract_type: 'probation' | 'regular';
+  original_end_date: Date | null;
+  end_reason: 'breach' | 'fraud' | 'other' | null;
+  end_note: string | null;
+  ended_at: Date | null;
+  invoice: { status: 'running' | 'paid'; paid_at: Date | null } | null;
   contents: DetailContentRow[];
 };
 
@@ -153,6 +158,11 @@ function detailRow(): DetailCreatorRow {
         content_quota: 6,
         fixed_rate: new Prisma.Decimal('2500000'),
         contract_type: 'regular',
+        original_end_date: null,
+        end_reason: null,
+        end_note: null,
+        ended_at: null,
+        invoice: null,
         contents: [
           {
             id: 'content-1',
@@ -495,6 +505,7 @@ describe('CreatorsService', () => {
             end_date: day(150),
             content_quota: 4,
             contract_type: 'probation',
+            invoice: null,
             contents: [],
           },
           {
@@ -503,6 +514,7 @@ describe('CreatorsService', () => {
             end_date: day(-40),
             content_quota: 6,
             contract_type: 'regular',
+            invoice: null,
             contents: [],
           },
         ],
@@ -606,6 +618,7 @@ describe('CreatorsService', () => {
             end_date: day(-40),
             content_quota: 4,
             contract_type: 'regular',
+            invoice: null,
             contents: [],
           },
         ],
@@ -633,6 +646,7 @@ describe('CreatorsService', () => {
             end_date: day(80),
             content_quota: 1,
             contract_type: 'regular',
+            invoice: null,
             contents: [
               {
                 deadline: day(-30),
@@ -716,6 +730,7 @@ describe('CreatorsService', () => {
             end_date: new Date('2999-01-01T00:00:00Z'),
             content_quota: 1,
             contract_type: 'regular',
+            invoice: null,
             contents: [],
           },
         ],
@@ -821,6 +836,11 @@ describe('CreatorsService', () => {
       content_quota: 1,
       fixed_rate: new Prisma.Decimal('1000000'),
       contract_type: 'probation',
+      original_end_date: null,
+      end_reason: null,
+      end_note: null,
+      ended_at: null,
+      invoice: null,
       contents: [
         {
           id: 'content-old',
