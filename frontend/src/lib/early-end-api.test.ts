@@ -67,7 +67,8 @@ describe.each([
 
   it("leaves upcomingPeriods out when the form has no such choice", async () => {
     const fetchSpy = respond(200, PLAN);
-    const { upcomingPeriods: _, ...withoutChoice } = REQUEST;
+    const withoutChoice: EarlyEndRequest = { ...REQUEST };
+    delete withoutChoice.upcomingPeriods;
 
     await call(CREATOR, CONTRACT, withoutChoice);
 
@@ -164,6 +165,7 @@ describe.each([
       unfinished: "none",
       deletedPeriods: [{ contractId: "p-3", periodNumber: "2", startDate: "a", endDate: "b" }],
       keptPeriods: [{ contractId: "p-4", periodNumber: 3, startDate: "2027-04-01", endDate: "2027-06-30" }],
+      upcomingPeriods: "keep",
     });
 
     const result = await call(CREATOR, CONTRACT, REQUEST);
@@ -176,7 +178,16 @@ describe.each([
         unfinished: [],
         deletedPeriods: [],
         keptPeriods: [{ contractId: "p-4", periodNumber: 3, startDate: "2027-04-01", endDate: "2027-06-30" }],
+        upcomingPeriods: "keep",
       },
+    });
+  });
+
+  it("reads no choice and no periods when the plan has none", async () => {
+    respond(200, { ...PLAN, upcomingPeriods: null, deletedPeriods: "none", keptPeriods: undefined });
+
+    await expect(call(CREATOR, CONTRACT, REQUEST)).resolves.toMatchObject({
+      plan: { upcomingPeriods: null, deletedPeriods: [], keptPeriods: [] },
     });
   });
 });
