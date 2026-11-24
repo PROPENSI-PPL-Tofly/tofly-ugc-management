@@ -75,7 +75,7 @@ describe('ContentDetailService', () => {
             data_state: true,
             last_synced_at: true,
             manual_at: true,
-            manual_users: { select: { email: true } },
+            manual_users: { select: { name: true, email: true } },
           },
         },
         // Whether each account is connected decides a waiting link's state; no token is read.
@@ -114,8 +114,8 @@ describe('ContentDetailService', () => {
             actor_role: true,
             occurred_at: true,
             event_data: true,
-            // The account behind an admin event, so the timeline names them by email.
-            users: { select: { email: true } },
+            // The account behind an admin event, so the timeline names them (PBI-23, 23.10).
+            users: { select: { name: true, email: true } },
           },
         },
       }),
@@ -143,6 +143,41 @@ describe('ContentDetailService', () => {
       earliestDeadline: '2026-09-25',
       latestDeadline: '2026-11-25',
     });
+  });
+
+  // SCRUM-298: the window an admin may move a deadline in is drawn by the stored buffer.
+  it('draws the edit window with the stored buffer (PBI-23 AC 22)', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+    const scheduling = {
+      today: () => NOW,
+      bufferDays: vi.fn(async () => 9),
+    };
+
+    const detail = await new ContentDetailService(
+      prisma as unknown as ContentDetailClient,
+      scheduling,
+    ).getDetail('11111111-1111-1111-1111-111111111111', NOW);
+
+    expect(detail.edit).toEqual({
+      earliestDeadline: '2026-09-29',
+      latestDeadline: '2026-11-21',
+    });
+  });
+
+  it('reads no buffer for a creator, who has no edit window', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+    const scheduling = { today: () => NOW, bufferDays: vi.fn() };
+
+    await new ContentDetailService(
+      prisma as unknown as ContentDetailClient,
+      scheduling,
+    ).getDetail('11111111-1111-1111-1111-111111111111', NOW, {
+      creatorId: 'creator-1',
+    });
+
+    expect(scheduling.bufferDays).not.toHaveBeenCalled();
   });
 
   it('gives a creator read no edit window', async () => {

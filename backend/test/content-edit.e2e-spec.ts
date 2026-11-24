@@ -3,7 +3,8 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
-import { latestDeadline, readableDay } from '../src/creators/evergreen.js';
+import { readableDay } from '../src/creators/evergreen.js';
+import { DEFAULT_BUFFER_DAYS } from '../src/deadline-buffer/deadline-window.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signIn, signInAsAdmin } from './sessions.js';
 import { day } from './days.js';
@@ -180,7 +181,7 @@ describe('PATCH and DELETE /contents/:id (e2e)', () => {
 
     it('refuses a deadline past the H-5 line or inside the buffer, changing nothing (AC 3)', async () => {
       const item = await scheduled(`${MARKER} Batas`);
-      const lastDay = latestDeadline(iso(60));
+      const lastDay = iso(60 - DEFAULT_BUFFER_DAYS);
 
       const late = await admin
         .patch(`/contents/${item.id}`)
@@ -280,7 +281,7 @@ describe('PATCH and DELETE /contents/:id (e2e)', () => {
   // PBI-38 AC 14: Tambah Konten holds the same H-5 line as an edit.
   describe('POST /contents', () => {
     it('refuses a deadline past the H-5 line and takes the H-5 day itself', async () => {
-      const lastDay = latestDeadline(iso(60));
+      const lastDay = iso(60 - DEFAULT_BUFFER_DAYS);
       const add = (deadline: string) =>
         admin.post('/contents').send({
           contractId,

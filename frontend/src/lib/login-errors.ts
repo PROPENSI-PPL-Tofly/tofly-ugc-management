@@ -2,6 +2,14 @@
 // `?error=`; the page shows the matching text and ignores anything else, so a crafted link can
 // never make the login page say something the app did not write.
 
+/**
+ * PBI-23: the one message for everyone without access: an email never added, a deactivated Admin,
+ * a creator whose access is closed. The same on the Google and email-code paths, so the page never
+ * tells which of them an address is (OWASP A07). Not a failure to retry: the same account would be
+ * refused again.
+ */
+export const ACCESS_CLOSED = "Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.";
+
 export type LoginError = "not_authorized" | "sign_in_failed" | "cancelled" | "session_expired";
 
 export const LOGIN_ERROR_MESSAGES: Record<LoginError, string> = {
@@ -9,11 +17,7 @@ export const LOGIN_ERROR_MESSAGES: Record<LoginError, string> = {
   cancelled: "Masuk dibatalkan. Pilih akun Google Anda untuk melanjutkan.",
   // Set by the browser when an action came back 401 (lib/api-client.ts), not by the callback.
   session_expired: "Sesi Anda sudah berakhir. Silakan masuk lagi untuk melanjutkan.",
-  // PRD 3.1: not a failure to retry, since the same account would be refused again. Worded to
-  // fit both an email never added and a creator whose access was revoked (flow 4.10). The Google
-  // screen always offers the account chooser, so another account is a real way out.
-  not_authorized:
-    "Email ini tidak punya akses ke Tofly. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
+  not_authorized: ACCESS_CLOSED,
 };
 
 function isLoginError(value: string): value is LoginError {

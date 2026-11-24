@@ -4,7 +4,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import type { AuditAction } from '../audit/audit-actions.js';
+import { AuditLogger } from '../audit/audit-logger.js';
+import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   AcknowledgedInvoiceDto,
@@ -23,13 +27,15 @@ import {
 /** The database operations this service uses. */
 export type InvoiceConfirmationClient = Pick<
   PrismaService,
-  'contracts' | 'invoices'
+  'contracts' | 'invoices' | '$transaction'
 >;
 
 /** One move of the creator: the step it leaves, the step it reaches and what it records. */
 interface CreatorMove {
   from: InvoiceLifecycleStatus;
   to: InvoiceLifecycleStatus;
+  // What "Log Aktivitas" calls this move (PBI-23).
+  auditAction: AuditAction;
   /** Whether the state the invoice is in allows the move; throws the reason when not. */
   allowedFrom(state: InvoiceState): void;
   /** The columns that keep who made the move and when. */
@@ -47,6 +53,7 @@ interface CreatorMove {
 const ACKNOWLEDGE: CreatorMove = {
   from: 'finalized',
   to: 'creator_acked',
+  auditAction: 'invoice_acknowledged',
   allowedFrom: (state) => state.assertCanAcknowledge(),
   stamp: (actorUserId, at) => ({
     acknowledged_at: at,
@@ -57,6 +64,7 @@ const ACKNOWLEDGE: CreatorMove = {
 const CONFIRM_RECEIPT: CreatorMove = {
   from: 'payment_uploaded',
   to: 'paid',
+  auditAction: 'payment_confirmed',
   allowedFrom: (state) => state.assertCanConfirmReceipt(),
   stamp: (actorUserId, at) => ({ paid_at: at, paid_by: actorUserId }),
 };
@@ -65,6 +73,9 @@ const CONFIRM_RECEIPT: CreatorMove = {
 export class InvoiceConfirmationService {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoiceConfirmationClient,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
   ) {}
 
   /** The creator accepts the frozen amount: Finalized → Acknowledged. */
@@ -105,8 +116,15 @@ export class InvoiceConfirmationService {
       where: { id: contractId },
       select: {
         creator_id: true,
-        creators: { select: { user_id: true } },
-        invoice: { select: { status: true } },
+        creators: {
+          select: {
+            user_id: true,
+            first_name: true,
+            middle_name: true,
+            last_name: true,
+          },
+        },
+        invoice: { select: { id: true, status: true } },
       },
     });
 
@@ -126,24 +144,44 @@ export class InvoiceConfirmationService {
     // A contract nobody has adjusted or finalized has no invoice row yet: it is still running.
     move.allowedFrom(invoiceState(contract.invoice?.status ?? 'running'));
 
-    const moved = await this.prisma.invoices.updateMany({
-      where: { contract_id: contractId, status: move.from },
-      data: {
-        status: move.to,
-        ...move.stamp(contract.creators.user_id, now),
-      },
-    });
+    // Both moves start from a status only a saved invoice row can have, so the row exists here.
+    const invoiceId = contract.invoice!.id;
+    const creatorName = joinName(contract.creators);
 
-    if (moved.count !== 1) {
-      const current = await this.prisma.invoices.findUnique({
-        where: { contract_id: contractId },
-        select: { status: true },
+    // The move and its entry land or fail together (PBI-23, OWASP A09:2025).
+    await this.prisma.$transaction(async (tx) => {
+      const moved = await tx.invoices.updateMany({
+        where: { contract_id: contractId, status: move.from },
+        data: {
+          status: move.to,
+          ...move.stamp(contract.creators.user_id, now),
+        },
       });
-      move.allowedFrom(invoiceState(current?.status ?? 'running'));
-      throw new ConflictException({
-        code: 'INVOICE_STATUS_CHANGED',
-        message: 'Status invoice berubah. Muat ulang lalu coba lagi.',
+
+      if (moved.count !== 1) {
+        const current = await tx.invoices.findUnique({
+          where: { contract_id: contractId },
+          select: { status: true },
+        });
+        move.allowedFrom(invoiceState(current?.status ?? 'running'));
+        throw new ConflictException({
+          code: 'INVOICE_STATUS_CHANGED',
+          message: 'Status invoice berubah. Muat ulang lalu coba lagi.',
+        });
+      }
+
+      await this.audit.record(tx, {
+        actor: {
+          userId: contract.creators.user_id,
+          name: creatorName,
+          role: 'creator',
+        },
+        action: move.auditAction,
+        target: { id: invoiceId, label: `Invoice ${creatorName}` },
+        creatorId,
+        oldValues: { status: move.from },
+        newValues: { status: move.to },
       });
-    }
+    });
   }
 }

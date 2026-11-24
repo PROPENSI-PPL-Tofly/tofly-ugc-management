@@ -9,7 +9,7 @@ import { adminActor, type AdminActor } from './content-event-actors.js';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { evergreenName, jakartaDay } from '../creators/evergreen.js';
-import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 import { checkEvergreenSlot } from '../creators/evergreen-slot.js';
 import type { NewContent } from './new-content.js';
 

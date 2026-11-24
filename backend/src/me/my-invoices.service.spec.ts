@@ -117,6 +117,7 @@ describe('MyInvoicesService', () => {
       fileName: 'transfer.pdf',
       url: '/api/me/invoices/earlier/payment-proof',
       uploadedAt: '2026-10-07T03:00:00.000Z',
+      uploadedBy: 'Sinta Dewi',
     };
     proofs.forContracts.mockResolvedValue(new Map([['earlier', proof]]));
     comments.forContracts.mockResolvedValue(new Map([['earlier', [COMMENT]]]));
@@ -165,6 +166,24 @@ describe('MyInvoicesService', () => {
       ...snapshot(),
       adjustments: [ADJUSTMENT_FOR_CREATOR],
     });
+    expect(JSON.stringify(item)).not.toContain(ADMIN);
+  });
+
+  // PBI-23 AC 25: invoice activity names the acting Admin for the creator too, never by id.
+  it('keeps the name of the admin who recorded an adjustment, without their id', async () => {
+    const { service } = stubs([
+      view('earlier', {
+        invoiceStatus: 'finalized',
+        adjustments: [{ ...ADJUSTMENT, actorName: 'Sinta Dewi' }],
+        snapshot: snapshot(),
+      }),
+    ]);
+
+    const [item] = (await service.list(CREATOR, TODAY)).items;
+
+    expect(item.adjustments).toEqual([
+      { ...ADJUSTMENT_FOR_CREATOR, actorName: 'Sinta Dewi' },
+    ]);
     expect(JSON.stringify(item)).not.toContain(ADMIN);
   });
 

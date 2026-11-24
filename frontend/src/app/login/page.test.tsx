@@ -96,12 +96,11 @@ describe("Login page", () => {
   });
 
   describe("a refused email (not_authorized)", () => {
-    it("says the email has no access and points to the Admin", async () => {
+    it("says the account has no access and points to the Tofly team (PBI-23)", async () => {
       await renderLogin({ error: "not_authorized" });
 
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent("Email ini tidak punya akses ke Tofly.");
-      expect(alert).toHaveTextContent("Hubungi Admin untuk meminta akses");
+      expect(alert).toHaveTextContent("Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.");
       expect(alert).not.toHaveTextContent("Gagal masuk dengan Google");
     });
 

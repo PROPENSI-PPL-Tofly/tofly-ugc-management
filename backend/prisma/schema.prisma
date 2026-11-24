@@ -225,6 +225,12 @@ model users {
   id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                  String                   @unique @db.Citext
   is_admin               Boolean                  @default(false)
+  /// PBI-23: null for a creator; every Admin has one (users_admin_role_matches_is_admin).
+  admin_role             admin_role?
+  /// PBI-23: at most 100 characters (users_name_length); shown instead of the email when set.
+  name                   String?
+  /// PBI-23: a deactivated Admin cannot sign in and every session of theirs is refused.
+  is_active              Boolean                  @default(true)
   created_at             DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
   creators               creators?
@@ -239,8 +245,38 @@ model users {
   invoices_finalized     invoices[]               @relation("invoices_finalized_by")
   invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
   invoices_paid          invoices[]               @relation("invoices_paid_by")
+  deadline_buffer        deadline_buffer[]
   rate_formula           rate_formula[]
   revision_followups     revision_followups[]
+}
+
+// PBI-23 "Log Aktivitas": append-only (a database trigger refuses UPDATE, DELETE and TRUNCATE).
+// Every value is a copy from that moment, so the model has no relations.
+model audit_logs {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  occurred_at   DateTime @default(now()) @db.Timestamptz(6)
+  actor_user_id String?  @db.Uuid
+  actor_name    String
+  actor_role    String
+  category      String
+  action        String
+  target_type   String
+  target_id     String?
+  target_label  String
+  creator_id    String?  @db.Uuid
+  old_values    Json?    @db.JsonB
+  new_values    Json?    @db.JsonB
+  note          String?
+
+  @@index([occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_occurred_id_idx")
+  @@index([category, action, occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_category_action_occurred_idx")
+  @@index([actor_user_id, occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_actor_occurred_idx")
+  @@index([creator_id, occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_creator_occurred_idx")
+}
+
+enum admin_role {
+  admin
+  super_admin
 }
 
 enum invoice_status {
@@ -331,6 +367,17 @@ model invoice_adjustments {
 
 /// The one Atur Formula Rate row (PBI-8); its id can only be true.
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// The deadline buffer (PBI-23 AC 20-22, SCRUM-298): one row, whole days from 1 to 14, drawing both
+/// the earliest and the latest deadline line. Changed by a Super Admin only.
+model deadline_buffer {
+  id          Boolean  @id @default(true)
+  buffer_days Int      @default(5)
+  /// The Super Admin who saved it last; the API never answers it.
+  updated_by  String?  @db.Uuid
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  users       users?   @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
 model rate_formula {
   id                   Boolean  @id @default(true)
   specific_bonus       Decimal  @db.Decimal

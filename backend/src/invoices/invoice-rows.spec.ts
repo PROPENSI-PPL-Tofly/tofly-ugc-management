@@ -2,9 +2,13 @@ import { Prisma } from '@prisma/client';
 import { FORMULA, SYNCED_AT, TODAY, day } from './invoice-test-data.js';
 import {
   CONTENT_SELECT,
+  INVOICE_ADJUSTMENT_READ_SELECT,
+  INVOICE_ADJUSTMENT_SELECT,
   INVOICE_SELECT,
+  adjustmentDto,
   creatorName,
   listedContracts,
+  namedAdjustmentDto,
   pickContract,
   savedSnapshot,
   toInvoiceContent,
@@ -770,5 +774,43 @@ describe('savedSnapshot', () => {
     ['a formula that is not an object', { ...complete, formula: 'FORMULA' }],
   ])('reads a saved value with %s as no usable snapshot', (_case, value) => {
     expect(savedSnapshot(value)).toBeNull();
+  });
+});
+
+// PBI-23, 23.10: who recorded an adjustment, for the admin's invoice activity.
+describe('namedAdjustmentDto', () => {
+  const saved = {
+    id: 'adj-1',
+    amount: new Prisma.Decimal('25000.50'),
+    reason: 'Koreksi',
+    actor_user_id: 'admin-1',
+    created_at: new Date('2026-09-10T02:00:00.000Z'),
+  };
+
+  it.each([
+    ['by name', { name: 'Sinta Dewi', email: 'sinta@tofly.id' }, 'Sinta Dewi'],
+    ['by email while the account has no name', { name: null, email: 'sinta@tofly.id' }, 'sinta@tofly.id'],
+  ])('names the admin who recorded it %s', (_label, users, actorName) => {
+    expect(namedAdjustmentDto({ ...saved, users })).toEqual({
+      id: 'adj-1',
+      amount: 25_000.5,
+      reason: 'Koreksi',
+      actorId: 'admin-1',
+      actorName,
+      createdAt: '2026-09-10T02:00:00.000Z',
+    });
+  });
+
+  it('reads the account by name and email only', () => {
+    expect(INVOICE_ADJUSTMENT_READ_SELECT).toEqual({
+      ...INVOICE_ADJUSTMENT_SELECT,
+      users: { select: { name: true, email: true } },
+    });
+  });
+
+  // OWASP A08: a snapshot is frozen, and a name that can change later has no place in it.
+  it('leaves the name out of what Finalize and a frozen adjustment store', () => {
+    expect(INVOICE_ADJUSTMENT_SELECT).not.toHaveProperty('users');
+    expect(adjustmentDto(saved)).not.toHaveProperty('actorName');
   });
 });

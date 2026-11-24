@@ -93,6 +93,15 @@ describe("InvoiceComments", () => {
     expect(only).toHaveTextContent(/^Admin · 20 Okt 2026/);
   });
 
+  // PBI-23, 23.11: an admin's comment carries their name, with the role beside it.
+  it("shows an admin's name with the role beside it", async () => {
+    const named: InvoiceComment = { ...FROM_ADMIN, id: "c8", author: "Sinta Dewi" };
+    await renderThread(gateway({ load: vi.fn().mockResolvedValue({ ok: true, comments: [named] }) }));
+
+    const [only] = items();
+    expect(only).toHaveTextContent(/^Sinta Dewi · Admin · 20 Okt 2026/);
+  });
+
   it("says there are no comments yet for an empty thread", async () => {
     await renderThread(gateway({ load: vi.fn().mockResolvedValue({ ok: true, comments: [] }) }));
 

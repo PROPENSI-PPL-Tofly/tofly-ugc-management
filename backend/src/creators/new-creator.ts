@@ -1,12 +1,7 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { contract_type, social_platform } from '@prisma/client';
-import {
-  latestDeadline,
-  pastLatestDeadline,
-  earliestDeadline,
-  jakartaMidnight,
-  readableDay,
-} from './evergreen.js';
+import { DeadlineWindow } from '../deadline-buffer/deadline-window.js';
+import { jakartaMidnight, readableDay } from './evergreen.js';
 
 /** Longer than any real name; keeps a hostile body from filling the table. */
 export const MAX_NAME_LENGTH = 100;
@@ -30,17 +25,11 @@ export const MAX_CONTENT_QUOTA = 100;
  */
 export const MAX_FIXED_RATE = 10_000_000;
 
-/**
- * Minimum days between max(today, contract start) and any new deadline (PRD 3.6). The PRD
- * makes this an admin-editable global setting; until that setting exists, its default holds.
- */
-export const DEFAULT_BUFFER_DAYS = 5;
-
 // PRD 3.4's format rules as one pattern: exactly one "@", dot-separated runs of allowed
 // characters on both sides (so no leading, trailing or doubled dots), and at least one dot in
 // the domain. Every run is anchored by a literal dot, so the pattern cannot backtrack
 // exponentially; the length cap is checked first regardless.
-const EMAIL_FORMAT =
+export const EMAIL_FORMAT =
   /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 /** A creator as POST /creators saves it: already validated, already in the database's terms. */
@@ -243,6 +232,7 @@ function checkContract(
   start: unknown,
   end: unknown,
   now: Date,
+  bufferDays: number,
   errors: NewCreatorErrors,
 ): ContractPeriod {
   const today = startOfDay(now);
@@ -263,13 +253,14 @@ function checkContract(
     !errors.contractEnd
   ) {
     // A contract that ends inside the buffer has no day any content could be due on.
-    const earliestEnd = earliestDeadline(
-      isoDay(contractStart),
-      isoDay(today),
-      DEFAULT_BUFFER_DAYS,
-    );
-    if (isoDay(contractEnd) < earliestEnd) {
-      errors.contractEnd = `Akhir kontrak paling cepat ${readableDay(earliestEnd)} (masa buffer ${DEFAULT_BUFFER_DAYS} hari)`;
+    const { earliest } = DeadlineWindow.of({
+      contractStart: isoDay(contractStart),
+      contractEnd: isoDay(contractEnd),
+      today: isoDay(today),
+      bufferDays,
+    });
+    if (isoDay(contractEnd) < earliest) {
+      errors.contractEnd = `Akhir kontrak paling cepat ${readableDay(earliest)} (masa buffer ${bufferDays} hari)`;
     }
   }
 
@@ -305,6 +296,7 @@ function checkDeadlines(
   { contractStart, contractEnd }: ContractPeriod,
   quota: number,
   now: Date,
+  bufferDays: number,
   errors: NewCreatorErrors,
 ): Date[] {
   if (!Array.isArray(value)) {
@@ -325,18 +317,20 @@ function checkDeadlines(
     return deadlines;
   }
 
-  const earliest = earliestDeadline(
-    isoDay(contractStart),
-    isoDay(startOfDay(now)),
-    DEFAULT_BUFFER_DAYS,
-  );
+  // PBI-23 AC 22: one buffer draws both lines.
+  const window = DeadlineWindow.of({
+    contractStart: isoDay(contractStart),
+    contractEnd: isoDay(contractEnd),
+    today: isoDay(startOfDay(now)),
+    bufferDays,
+  });
 
   if (deadlines.length !== quota) {
     errors.deadlines = `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
-  } else if (isoDay(deadlines[0]) < earliest) {
-    errors.deadlines = `Deadline paling cepat ${readableDay(earliest)}`;
-  } else if (isoDay(deadlines[deadlines.length - 1]) > latestDeadline(isoDay(contractEnd))) {
-    errors.deadlines = pastLatestDeadline(isoDay(contractEnd));
+  } else if (isoDay(deadlines[0]) < window.earliest) {
+    errors.deadlines = window.tooEarly();
+  } else if (isoDay(deadlines[deadlines.length - 1]) > window.latest) {
+    errors.deadlines = window.tooLate();
   }
   return deadlines;
 }
@@ -361,6 +355,7 @@ export type ContractTerms = Pick<
 export function checkContractTerms(
   body: Record<string, unknown>,
   today: Date,
+  bufferDays: number,
   errors: NewCreatorErrors,
 ): ContractTerms {
   const contractType = checkContractType(body.contractType, errors);
@@ -368,6 +363,7 @@ export function checkContractTerms(
     body.contractStart,
     body.contractEnd,
     today,
+    bufferDays,
     errors,
   );
 
@@ -379,6 +375,7 @@ export function checkContractTerms(
     contract,
     quota,
     today,
+    bufferDays,
     errors,
   );
 
@@ -396,7 +393,11 @@ export function checkContractTerms(
  * Validates the Add Creator body once, at the edge, and hands the service values it can save
  * without checking anything again.
  */
-export function checkNewCreator(input: unknown, today: Date): NewCreator {
+export function checkNewCreator(
+  input: unknown,
+  today: Date,
+  bufferDays: number,
+): NewCreator {
   // Spreading null or undefined yields {}, so a missing or null body gets the same per-field
   // 422 as a form left blank instead of a TypeError; a bare string only yields index keys.
   const body: Record<string, unknown> = { ...(input as object) };
@@ -404,7 +405,7 @@ export function checkNewCreator(input: unknown, today: Date): NewCreator {
   const name = checkName(body.name, errors);
   const email = checkEmail(body.email, errors);
   const socialAccounts = checkSocial(body, errors);
-  const terms = checkContractTerms(body, today, errors);
+  const terms = checkContractTerms(body, today, bufferDays, errors);
 
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({

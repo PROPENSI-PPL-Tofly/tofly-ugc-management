@@ -6,7 +6,15 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { latestDeadline, pastLatestDeadline } from '../creators/evergreen.js';
+import { jakartaDay } from '../creators/evergreen.js';
+import {
+  CONTENT_SCHEDULING,
+  type ContentScheduling,
+} from '../deadline-buffer/deadline-scheduling.js';
+import {
+  DEFAULT_BUFFER_DAYS,
+  DeadlineWindow,
+} from '../deadline-buffer/deadline-window.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   adminActor,
@@ -24,7 +32,7 @@ interface ProposalRow {
   status: string;
   name: string;
   deadline: Date;
-  contracts: { creator_id: string; end_date: Date };
+  contracts: { creator_id: string; start_date: Date; end_date: Date };
 }
 
 /** The slice of Prisma this service touches, so tests can stub exactly that. */
@@ -120,18 +128,34 @@ const PROPOSAL_SELECT = {
   status: true,
   name: true,
   deadline: true,
-  contracts: { select: { creator_id: true, end_date: true } },
+  contracts: { select: { creator_id: true, start_date: true, end_date: true } },
 } as const;
 
-/** The refusal of a proposal past the H-5 line (PBI-38 AC 15), or nothing when it fits. */
-function pastLatest(row: ProposalRow): UnprocessableEntityException | null {
-  const end = row.contracts.end_date.toISOString().slice(0, 10);
-  if (row.deadline.toISOString().slice(0, 10) <= latestDeadline(end)) {
+function isoDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The refusal of a proposal past the latest line (PBI-38 AC 15), or nothing when it fits. The line
+ * is the stored buffer before the contract end (PBI-23 AC 22), so H-5 reads H-N; approval checks
+ * only this line, as it did before.
+ */
+function pastLatest(
+  row: ProposalRow,
+  bufferDays: number,
+): UnprocessableEntityException | null {
+  const window = DeadlineWindow.of({
+    contractStart: isoDay(row.contracts.start_date),
+    contractEnd: isoDay(row.contracts.end_date),
+    today: jakartaDay(new Date()),
+    bufferDays,
+  });
+  if (isoDay(row.deadline) <= window.latest) {
     return null;
   }
   return new UnprocessableEntityException({
     code: 'PROPOSAL_PAST_LATEST_DEADLINE',
-    message: pastLatestDeadline(end),
+    message: window.tooLate(),
   });
 }
 
@@ -143,6 +167,12 @@ export class ProposalReviewService {
     @Optional()
     @Inject(PROPOSAL_NOTIFIER)
     private readonly notifier: ProposalNotifier = mockEmail,
+    // The stored buffer from DeadlineBufferModule, as Tambah Konten takes it (SCRUM-298).
+    @Optional()
+    @Inject(CONTENT_SCHEDULING)
+    private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    },
   ) {}
 
   /**
@@ -158,7 +188,7 @@ export class ProposalReviewService {
       if (!row) {
         throw contentNotFound();
       }
-      const refusal = pastLatest(row);
+      const refusal = pastLatest(row, await this.scheduling.bufferDays());
       if (row.status === 'pending' && refusal) {
         throw refusal;
       }

@@ -8,6 +8,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminName,
+} from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   FILE_STORE,
@@ -15,11 +19,13 @@ import {
   type OpenedFile,
 } from '../storage/file-store.js';
 import type {
-  PaymentProofDto,
+  SavedPaymentProofDto,
   UploadedPaymentProofDto,
 } from './dto/invoice-payment.dto.js';
 import { invoiceState, notAwaitingProof } from './invoice-lifecycle.js';
 import type { CheckedProof } from './payment-proof-file.js';
+import { AuditLogger } from '../audit/audit-logger.js';
+import { joinName } from '../creators/evergreen.js';
 
 /** The database operations this service uses. */
 export type PaymentProofClient = Pick<
@@ -35,7 +41,7 @@ export interface PaymentProofReader {
   forContracts(
     contractIds: readonly string[],
     audience: ProofAudience,
-  ): Promise<Map<string, PaymentProofDto>>;
+  ): Promise<Map<string, SavedPaymentProofDto>>;
 }
 
 /** Nest token for a fixed object-key factory; nothing provides it outside tests. */
@@ -73,6 +79,9 @@ export class PaymentProofService implements PaymentProofReader {
     @Optional()
     @Inject(PROOF_KEY_FACTORY)
     private readonly newObjectKey: () => string = randomUUID,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
   ) {}
 
   /**
@@ -88,7 +97,18 @@ export class PaymentProofService implements PaymentProofReader {
   ): Promise<UploadedPaymentProofDto> {
     const contract = await this.prisma.contracts.findUnique({
       where: { id: contractId },
-      select: { id: true, invoice: { select: { id: true, status: true } } },
+      select: {
+        id: true,
+        creators: {
+          select: {
+            id: true,
+            first_name: true,
+            middle_name: true,
+            last_name: true,
+          },
+        },
+        invoice: { select: { id: true, status: true } },
+      },
     });
     if (!contract) {
       throw new NotFoundException({
@@ -123,7 +143,7 @@ export class PaymentProofService implements PaymentProofReader {
           });
           if (moved.count !== 1) throw notAwaitingProof();
 
-          return tx.invoice_payment_proofs.create({
+          const record = await tx.invoice_payment_proofs.create({
             data: {
               invoice_id: invoiceId,
               object_key: objectKey,
@@ -134,6 +154,22 @@ export class PaymentProofService implements PaymentProofReader {
             },
             select: { file_name: true, uploaded_at: true },
           });
+
+          // The file's name only, never its contents (PBI-23 AC 19, OWASP A09:2025).
+          await this.audit.recordBy(tx, uploadedBy, {
+            action: 'payment_proof_uploaded',
+            target: {
+              id: invoiceId,
+              label: `Invoice ${joinName(contract.creators)}`,
+            },
+            creatorId: contract.creators.id,
+            oldValues: { status: 'creator_acked' },
+            newValues: {
+              status: 'payment_uploaded',
+              fileName: proof.fileName,
+            },
+          });
+          return record;
         },
         { isolationLevel: 'ReadCommitted' },
       );
@@ -186,7 +222,7 @@ export class PaymentProofService implements PaymentProofReader {
   async forContracts(
     contractIds: readonly string[],
     audience: ProofAudience,
-  ): Promise<Map<string, PaymentProofDto>> {
+  ): Promise<Map<string, SavedPaymentProofDto>> {
     if (contractIds.length === 0) return new Map();
 
     // Only the columns shown: no object key, and never the file.
@@ -196,6 +232,7 @@ export class PaymentProofService implements PaymentProofReader {
         file_name: true,
         uploaded_at: true,
         invoices: { select: { contract_id: true } },
+        users: { select: ADMIN_ACCOUNT_SELECT },
       },
     });
 
@@ -206,6 +243,7 @@ export class PaymentProofService implements PaymentProofReader {
           fileName: proof.file_name,
           url: proofUrl(proof.invoices.contract_id, audience),
           uploadedAt: proof.uploaded_at.toISOString(),
+          uploadedBy: adminName(proof.users),
         },
       ]),
     );

@@ -47,12 +47,31 @@ describe("InvoiceActivity", () => {
 
     const items = within(screen.getByRole("list", { name: "Aktivitas & komentar" })).getAllByRole("listitem");
     expect(items).toHaveLength(3);
-    expect(items[0]).toHaveTextContent("Invoice difinalisasi Admin");
+    expect(items[0]).toHaveTextContent("Admin memfinalisasi invoice · Rp550.000");
     expect(items[0]).toHaveTextContent("1 Des 2026");
     expect(items[1]).toHaveTextContent("Admin mengirim bukti bayar");
     expect(items[2]).toHaveTextContent("budi.admin@tofly.id");
     expect(items[2]).toHaveTextContent("Bukti transfer sudah aku upload, mohon dicek ya.");
     expect(items[2]).toHaveTextContent("4 Des 2026, 10.00 WIB");
+  });
+
+  // PBI-23 AC 25: the prototype's one log, naming the Admin for the creator too.
+  it("tells the creator which Admin added an adjustment, with its reason and amount", () => {
+    renderActivity({
+      adjustments: [
+        {
+          id: "adj-1",
+          amount: 50000,
+          reason: "Reimbursement ongkir produk",
+          createdAt: "2026-12-02T02:00:00Z",
+          actorName: "Sinta Dewi",
+        },
+      ],
+    });
+
+    const [item] = within(screen.getByRole("list", { name: "Aktivitas & komentar" })).getAllByRole("listitem");
+    expect(item).toHaveTextContent("Sinta Dewi menambah penyesuaian: Reimbursement ongkir produk (+Rp50.000)");
+    expect(item).toHaveTextContent("2 Des 2026");
   });
 
   it("says there is nothing yet when nothing happened", () => {
