@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import { PanelBand } from "@/components/ui/panel";
 import { useToast } from "@/components/ui/toast";
 import { currentAndHistory, type CreatorInvoice, type CreatorInvoiceAction } from "@/lib/creator-invoice";
+import { InvoiceDocumentButtons } from "@/components/invoicing/invoice-pdf-button";
 import { CreatorInvoiceView } from "./creator-invoice-view";
 import { InvoiceHistory } from "./invoice-history";
 import { InvoiceMove } from "./invoice-move";
@@ -71,6 +72,10 @@ export function CreatorInvoices({ invoices }: Readonly<{ invoices: readonly Crea
               renderAction={renderAction(current)}
               onCommented={readAgain}
             />
+            {/* PBI-31: the invoice once acknowledged, and its receipt once paid. */}
+            <div className="mt-4 flex flex-wrap justify-end gap-2 max-lg:justify-stretch">
+              <InvoiceDocumentButtons contractId={current.contractId} audience="creator" status={current.status} />
+            </div>
           </div>
         )}
       </section>
@@ -87,7 +92,12 @@ export function CreatorInvoices({ invoices }: Readonly<{ invoices: readonly Crea
           title={`Invoice Periode ${opened.periodNumber}`}
           placement="side"
           onClose={() => setOpenedId(null)}
-          footer={<Button onClick={() => setOpenedId(null)}>Tutup</Button>}
+          footer={
+            <>
+              <InvoiceDocumentButtons contractId={opened.contractId} audience="creator" status={opened.status} />
+              <Button onClick={() => setOpenedId(null)}>Tutup</Button>
+            </>
+          }
         >
           <CreatorInvoiceView
             invoice={opened}
