@@ -21,6 +21,8 @@ export interface EmailLogStore {
   markSent(eventKey: string, recipient: string, at: Date): Promise<void>;
   /** error is only the kind of failure: a provider's message can quote the address (OWASP A09). */
   markFailed(eventKey: string, recipient: string, error: string, at: Date): Promise<void>;
+  /** Templates or SMTP not set up: failed for now, with no attempt used, so it is sent once they are. */
+  markNotReady(eventKey: string, recipient: string, at: Date): Promise<void>;
 }
 
 /** The slice of Prisma the store touches, so tests hand in a stub of just that. */
@@ -86,6 +88,13 @@ export class PrismaEmailLogStore implements EmailLogStore {
         last_error: error,
         updated_at: at,
       },
+    });
+  }
+
+  async markNotReady(eventKey: string, recipient: string, at: Date): Promise<void> {
+    await this.prisma.email_log.update({
+      where: byEventAndRecipient(eventKey, recipient),
+      data: { status: 'failed', last_error: 'PortNotReady', updated_at: at },
     });
   }
 }
