@@ -1,5 +1,6 @@
 import {
   ContentCreationService,
+  type ContentNotifier,
   type ContentsClient,
   type ContentsTransaction,
 } from './contents.service.js';
@@ -526,69 +527,103 @@ describe('ContentCreationService', () => {
     expect(prisma.contents.create).toHaveBeenCalledOnce();
   });
 
-  it('triggers the temporary creator email notification marker after save', async () => {
-    const consoleInfo = vi
-      .spyOn(console, 'info')
-      .mockImplementation(() => undefined);
+  // PBI-11 (11.1, AC 9): the creator's email goes out once the content is saved, never inside
+  // the transaction, so a slow mail server holds no lock and a failed save sends nothing.
+  describe('the creator email', () => {
+    const input = {
+      contractId: CONTRACT_ID,
+      type: 'specific' as const,
+      deadline: '2026-10-10',
+      name: 'New Specific Content',
+      brief: 'Specific content brief',
+    };
 
-    try {
-      const input = {
-        contractId: CONTRACT_ID,
-        type: 'specific' as const,
-        deadline: '2026-10-10',
-        name: 'New Specific Content',
-        brief: 'Specific content brief',
-      };
-
-      const savedContent = {
-        id: CONTENT_ID,
-        contract_id: CONTRACT_ID,
-        type: 'specific',
-        name: input.name,
-        brief: input.brief,
-        deadline: new Date('2026-10-10T00:00:00.000Z'),
-        status: 'scheduled',
-      };
-
-      const prisma = {
+    function contract() {
+      return {
         contracts: {
           findUnique: vi.fn().mockResolvedValue({
             id: CONTRACT_ID,
             creator_id: '11111111-1111-4111-8111-111111111111',
             contents: [],
-            creators: {
-              first_name: 'Rangga',
-              middle_name: null,
-              last_name: 'Pratama',
-            },
+            creators: { first_name: 'Rangga', middle_name: null, last_name: 'Pratama' },
             content_quota: 2,
             start_date: new Date('2026-09-01T00:00:00.000Z'),
             end_date: new Date('2026-12-31T00:00:00.000Z'),
           }),
         },
         contents: {
-          create: vi.fn().mockResolvedValue(savedContent),
+          create: vi.fn().mockResolvedValue({
+            id: CONTENT_ID,
+            contract_id: CONTRACT_ID,
+            type: 'specific',
+            name: input.name,
+            brief: input.brief,
+            deadline: new Date('2026-10-10T00:00:00.000Z'),
+            status: 'scheduled',
+          }),
         },
       };
-
-      const service = creationService(
-        transactional(prisma),
-        TEST_SCHEDULING,
-      );
-
-      await service.create(input);
-
-      expect(consoleInfo).toHaveBeenCalledWith(
-        '[MOCK EMAIL] Creator content notification',
-        {
-          creatorId: '11111111-1111-4111-8111-111111111111',
-          contentName: 'New Specific Content',
-          deadline: '2026-10-10',
-        },
-      );
-    } finally {
-      consoleInfo.mockRestore();
     }
+
+    function emails() {
+      return { contentScheduled: vi.fn<ContentNotifier['contentScheduled']>().mockResolvedValue() };
+    }
+
+    it('tells the creator about the new content once the transaction is saved', async () => {
+      const notifier = emails();
+      let committed = false;
+      const prisma = transactional(contract());
+      const client: ContentsClient = {
+        $transaction: async (work) => {
+          const result = await prisma.$transaction(work);
+          committed = true;
+          return result;
+        },
+      };
+      notifier.contentScheduled.mockImplementation(async () => {
+        expect(committed).toBe(true);
+      });
+
+      await new ContentCreationService(client, TEST_SCHEDULING, notifier).create(
+        input,
+        ADMIN_USER_ID,
+      );
+
+      expect(notifier.contentScheduled).toHaveBeenCalledWith({
+        creatorId: '11111111-1111-4111-8111-111111111111',
+        contentId: CONTENT_ID,
+        contentName: 'New Specific Content',
+        deadline: '2026-10-10',
+      });
+    });
+
+    it('tells nobody when the content is not saved', async () => {
+      const notifier = emails();
+      const failing = contract();
+      failing.contents.create.mockRejectedValue(new Error('insert failed'));
+
+      await expect(
+        new ContentCreationService(transactional(failing), TEST_SCHEDULING, notifier).create(
+          input,
+          ADMIN_USER_ID,
+        ),
+      ).rejects.toThrow('insert failed');
+      expect(notifier.contentScheduled).not.toHaveBeenCalled();
+    });
+
+    it('sends no mock email any more', async () => {
+      const consoleInfo = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      try {
+        await new ContentCreationService(
+          transactional(contract()),
+          TEST_SCHEDULING,
+          emails(),
+        ).create(input, ADMIN_USER_ID);
+        expect(consoleInfo).not.toHaveBeenCalled();
+      } finally {
+        consoleInfo.mockRestore();
+      }
+    });
   });
 });
 
