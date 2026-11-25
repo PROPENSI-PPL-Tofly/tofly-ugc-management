@@ -236,3 +236,96 @@ describe('CreatorEmails, content events', () => {
     expect(notifier.notify).not.toHaveBeenCalled();
   });
 });
+
+// PBI-11 (11.2, AC 1 and AC 4): account, period, early end and proposal events.
+describe('CreatorEmails, account, contract and proposal events', () => {
+  const CREATOR_ROW = {
+    first_name: 'Rangga',
+    middle_name: null,
+    last_name: 'Pratama',
+    users: { email: 'rangga@example.com' },
+  };
+  const TO = { email: 'rangga@example.com', name: 'Rangga Pratama' };
+
+  function eventSetup() {
+    const prisma = {
+      creators: { findUnique: vi.fn().mockResolvedValue(CREATOR_ROW) },
+      contents: {
+        findUnique: vi.fn().mockResolvedValue({
+          name: 'Ide konten',
+          deadline: new Date('2026-12-01T00:00:00.000Z'),
+          contracts: { creators: CREATOR_ROW },
+        }),
+      },
+      contracts: { findUnique: vi.fn() },
+    } satisfies CreatorEmailClient;
+    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
+    return { notifier, emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }) };
+  }
+
+  it('sends the account ready email once per creator', async () => {
+    const { notifier, emails } = eventSetup();
+
+    await emails.accountReady({ creatorId: CREATOR });
+
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: `account_ready:${CREATOR}`,
+      template: 'account_ready',
+      to: TO,
+      data: {},
+    });
+  });
+
+  it('sends the new period email once per period', async () => {
+    const { notifier, emails } = eventSetup();
+
+    await emails.periodAdded({
+      creatorId: CREATOR,
+      contractId: 'contract-2',
+      startDate: '2027-01-01',
+      endDate: '2027-03-31',
+    });
+
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: 'period_added:contract-2',
+      template: 'period_added',
+      to: TO,
+      data: { contractId: 'contract-2', startDate: '2027-01-01', endDate: '2027-03-31' },
+    });
+  });
+
+  // AC 4 and AC 10: the last day and the invoice choice, never the reason type or note.
+  it('sends the early end email with the last day and the invoice choice only', async () => {
+    const { notifier, emails } = eventSetup();
+
+    await emails.contractEndedEarly({
+      creatorId: CREATOR,
+      contractId: 'contract-1',
+      lastDay: '2026-11-30',
+      invoice: 'cancelled',
+    });
+
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: 'contract_ended_early:contract-1',
+      template: 'contract_ended_early',
+      to: TO,
+      data: { contractId: 'contract-1', lastDay: '2026-11-30', invoice: 'cancelled' },
+    });
+  });
+
+  it.each([
+    ['proposalApproved', 'proposal_approved'],
+    ['proposalScheduled', 'proposal_scheduled'],
+  ] as const)('sends %s once per proposal', async (method, template) => {
+    const { notifier, emails } = eventSetup();
+
+    await emails[method]({ contentId: CONTENT });
+
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: `${template}:${CONTENT}`,
+      template,
+      to: TO,
+      data: { contentId: CONTENT, contentName: 'Ide konten' },
+    });
+  });
+});

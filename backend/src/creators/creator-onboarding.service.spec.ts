@@ -1,3 +1,4 @@
+import { CREATOR_NOTIFIER, type CreatorNotifier } from '../email/creator-notifier.js';
 import { UnprocessableEntityException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
@@ -272,5 +273,39 @@ describe('CreatorOnboardingService', () => {
     prisma.creators.create.mockRejectedValue(failure);
 
     await expect(service.onboard(INPUT, NOW)).rejects.toBe(failure);
+  });
+});
+
+// PBI-11 (11.2, AC 1): the creator gets an email when their account is ready.
+describe('CreatorOnboardingService, the creator email', () => {
+  async function built(create: ReturnType<typeof vi.fn>) {
+    const notifier = { accountReady: vi.fn<CreatorNotifier['accountReady']>().mockResolvedValue() };
+    const module = await Test.createTestingModule({
+      providers: [
+        CreatorOnboardingService,
+        { provide: PrismaService, useValue: { creators: { create } } },
+        { provide: CREATOR_NOTIFIER, useValue: notifier },
+      ],
+    }).compile();
+    return { notifier, service: module.get(CreatorOnboardingService) };
+  }
+
+  it('tells the creator their account is ready once it is saved', async () => {
+    const create = vi.fn().mockResolvedValue(CREATED);
+    const { notifier, service } = await built(create);
+    notifier.accountReady.mockImplementation(async () => {
+      expect(create).toHaveBeenCalled();
+    });
+
+    await service.onboard(INPUT, NOW, ADMIN_USER_ID);
+
+    expect(notifier.accountReady).toHaveBeenCalledExactlyOnceWith({ creatorId: 'creator-1' });
+  });
+
+  it('tells nobody when the email is already registered', async () => {
+    const { notifier, service } = await built(vi.fn().mockRejectedValue(uniqueViolation()));
+
+    await expect(service.onboard(INPUT, NOW, ADMIN_USER_ID)).rejects.toThrow();
+    expect(notifier.accountReady).not.toHaveBeenCalled();
   });
 });
