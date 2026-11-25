@@ -37,8 +37,11 @@ export interface InvoiceComment {
   createdAt: string;
 }
 
-/** The steps past Berjalan, each dated when the invoice reached it. */
-export type ReachedAt = Record<Exclude<InvoiceStatus, "accruing">, string | null>;
+/**
+ * The steps past Berjalan, each dated when the invoice reached it. Cancelled is not a step: an
+ * early end takes the invoice off the pipeline, and the API dates no such move (PBI-37).
+ */
+export type ReachedAt = Record<Exclude<InvoiceStatus, "accruing" | "cancelled">, string | null>;
 
 /** One of the creator's invoices, one per contract. */
 export interface CreatorInvoice {
@@ -101,7 +104,7 @@ export function totalNote(status: InvoiceStatus): string | null {
 }
 
 /** The pipeline in the order it walks, with the tracker's words for each step. */
-const STEPS: readonly { status: InvoiceStatus; label: string }[] = [
+const STEPS: readonly { status: Exclude<InvoiceStatus, "cancelled">; label: string }[] = [
   { status: "accruing", label: "Berjalan" },
   { status: "finalized", label: "Final" },
   { status: "creator_acked", label: "Di-ack Creator" },
@@ -170,6 +173,8 @@ const NEXT_STEPS: Record<InvoiceStatus, CreatorNextStep> = {
   creator_acked: { hint: "Menunggu bukti bayar dari Admin.", action: null },
   payment_uploaded: { hint: "Admin sudah mengirim bukti bayar.", action: "confirm" },
   paid: { hint: "Lunas", action: null },
+  // Nothing is left to acknowledge or confirm on an invoice an early end cancelled.
+  cancelled: { hint: null, action: null },
 };
 
 /**

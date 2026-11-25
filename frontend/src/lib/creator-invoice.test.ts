@@ -151,7 +151,8 @@ describe("creatorNextStep", () => {
   it("offers acknowledge only on a finalized invoice and confirm only once the proof is in", () => {
     const actions = INVOICE_STATUSES.map((status: InvoiceStatus) => creatorNextStep(invoice({ status })).action);
 
-    expect(actions).toEqual([null, "acknowledge", null, "confirm", null]);
+    // A cancelled invoice (PBI-37) offers no move at all.
+    expect(actions).toEqual([null, "acknowledge", null, "confirm", null, null]);
   });
 });
 
