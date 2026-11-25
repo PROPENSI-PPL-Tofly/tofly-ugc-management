@@ -25,10 +25,13 @@ export function downloadFilename(header: string | null): string {
 /** Pressed from the Rate & Invoicing table; hands the result to the board for the toast/notice. */
 export function BulkExportButton({
   ids,
+  exportable,
   onDone,
   onFailure,
 }: Readonly<{
   ids: readonly string[];
+  /** How many of the ids go into the file (Running and Cancelled are skipped); defaults to all. */
+  exportable?: number;
   onDone: (message: string) => void;
   onFailure: (message: string) => void;
 }>) {
@@ -56,7 +59,7 @@ export function BulkExportButton({
       } finally {
         URL.revokeObjectURL(url);
       }
-      onDone(`${filename} diunduh (${ids.length} invoice).`);
+      onDone(`${filename} diunduh (${exportable ?? ids.length} invoice).`);
     } catch {
       onFailure(EXPORT_FAILED);
     } finally {

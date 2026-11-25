@@ -314,13 +314,16 @@ export function InvoiceTable({
                     className={CELL}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <input
-                      type="checkbox"
-                      aria-label={`Pilih ${invoiceTitle(row)}`}
-                      checked={selection.ids.includes(row.contractId)}
-                      onChange={() => selection.onToggle(row.contractId)}
-                      className="size-4 min-h-11 min-w-11 cursor-pointer accent-accent"
-                    />
+                    {/* The label is the 44px touch target; the box keeps the header's size. */}
+                    <label className="-m-3.5 inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`Pilih ${invoiceTitle(row)}`}
+                        checked={selection.ids.includes(row.contractId)}
+                        onChange={() => selection.onToggle(row.contractId)}
+                        className="size-4 cursor-pointer accent-accent"
+                      />
+                    </label>
                   </td>
                 ) : null}
                 <td className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>

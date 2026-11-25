@@ -210,8 +210,9 @@ describe("InvoiceBoard", () => {
           "1 invoice dilewati karena masih Berjalan atau Cancelled: Rangga Pratama (Berjalan).",
         ),
       ).toBeInTheDocument();
+      // Only the Paid invoice went into the file, so the toast counts one.
       expect(
-        screen.getByText("Rekap_Invoice_20260720.zip diunduh (2 invoice)."),
+        screen.getByText("Rekap_Invoice_20260720.zip diunduh (1 invoice)."),
       ).toBeInTheDocument();
       expect(download).toHaveBeenCalledWith("/api/invoices/bulk-export", {
         method: "POST",

@@ -556,6 +556,19 @@ describe("InvoiceTable", () => {
       ).toBe("w-10");
     });
 
+    // The row checkbox looks like the header's (16px); the 44px touch target is the label
+    // around it, not the box itself, which drew a 44px empty square in every row.
+    it("draws each row checkbox at the header's size inside a 44px touch target", () => {
+      render(<InvoiceTable rows={[FULL]} selection={selection()} />);
+
+      const header = screen.getByRole("checkbox", { name: "Pilih semua di halaman ini" });
+      const row = screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" });
+
+      expect(row.className).toBe(header.className);
+      expect(row.closest("label")?.className).toContain("min-h-11");
+      expect(row.closest("label")?.className).toContain("min-w-11");
+    });
+
     it("reports a row press and a select-all press to the board", () => {
       const picked = selection();
       render(<InvoiceTable rows={[FULL, WAITING]} selection={picked} onOpen={vi.fn()} />);
