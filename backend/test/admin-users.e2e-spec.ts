@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import type { Response } from 'express';
+import type { Server } from 'node:http';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import {
@@ -448,11 +449,20 @@ describe('/admin-users (e2e)', () => {
       const guesses = Array.from({ length: 20 }, (_, n) => wrong(n + 1));
       guesses.splice(10, 0, code);
 
-      const answers = await Promise.all(
-        guesses.map((guess) =>
-          as(app, cookie).post('/admin-users/confirmation/verify').send({ code: guess }),
-        ),
-      );
+      // supertest starts the server on every request while it is not listening, and 21 of
+      // those at once on one server reset each other's connections; listen once for the burst.
+      const server = app.getHttpServer() as Server;
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      let answers: request.Response[];
+      try {
+        answers = await Promise.all(
+          guesses.map((guess) =>
+            as(app, cookie).post('/admin-users/confirmation/verify').send({ code: guess }),
+          ),
+        );
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
 
       const compared = answers.filter(
         (answer) => answer.status === 200 || answer.body.code === 'CONFIRMATION_WRONG',
