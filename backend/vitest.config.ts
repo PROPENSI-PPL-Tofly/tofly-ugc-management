@@ -82,6 +82,15 @@ export default defineConfig({
             functions: 100,
             statements: 100,
           },
+        // 31.4: an export that sends the wrong amount or skips the wrong invoice is a finance
+        // bug, so every line, branch and function in the new code is held to full coverage.
+        'src/invoices/{bulk-export-request,invoice-export*,prisma-invoice-export*,zip-archive}.ts':
+          {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
       },
     },
   },
