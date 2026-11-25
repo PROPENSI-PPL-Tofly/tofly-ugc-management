@@ -60,7 +60,7 @@ describe('email_log (e2e)', () => {
   // AC 8: the unique key is what stops a retried event from sending a second email.
   it('refuses a second email for the same event and recipient', async () => {
     expect(String(await insert('salsa@example.com'))).toMatch(
-      /email_log_event_key_recipient_key/,
+      /23505[\s\S]*Key \(event_key, recipient\)/,
     );
   });
 
