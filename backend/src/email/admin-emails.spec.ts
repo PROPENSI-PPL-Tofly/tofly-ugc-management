@@ -113,3 +113,16 @@ describe('AdminEmails', () => {
     expect(log.warn).toHaveBeenCalledWith('Email invoice_acknowledged failed (TypeError)');
   });
 });
+
+describe('AdminEmails, a contract without a creator', () => {
+  it('still tells every Admin, with no creator name', async () => {
+    const { prisma, notifier, emails } = setup();
+    prisma.contracts.findUnique.mockResolvedValue({ creators: null });
+
+    await emails.invoiceAcknowledged({ contractId: 'contract-1' });
+
+    expect(notifier.notifyAll).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { contractId: 'contract-1', creatorName: '' } }),
+    );
+  });
+});
