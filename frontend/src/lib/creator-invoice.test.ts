@@ -1,5 +1,6 @@
 import {
   COMMENT_MAX_LENGTH,
+  CREATOR_INVOICE_STATUS_LABELS,
   creatorNextStep,
   currentAndHistory,
   invoiceActivity,
@@ -10,11 +11,25 @@ import {
   type CreatorInvoice,
 } from "./creator-invoice";
 import { aCreatorInvoice, NONE_REACHED } from "./creator-invoice.builder";
-import { INVOICE_STATUSES, type InvoiceStatus } from "./invoice";
+import { INVOICE_STATUS_LABELS, INVOICE_STATUSES, type InvoiceStatus } from "./invoice";
 
 function invoice(overrides: Partial<CreatorInvoice> = {}): CreatorInvoice {
   return aCreatorInvoice(overrides);
 }
+
+// PBI-37: the creator reads a cancelled invoice in their own words, never the admin's "Cancelled".
+describe("CREATOR_INVOICE_STATUS_LABELS", () => {
+  it("calls a cancelled invoice Dibatalkan", () => {
+    expect(CREATOR_INVOICE_STATUS_LABELS.cancelled).toBe("Dibatalkan");
+  });
+
+  it.each(INVOICE_STATUSES.filter((status) => status !== "cancelled"))(
+    "words the %s step as the admin's table does",
+    (status) => {
+      expect(CREATOR_INVOICE_STATUS_LABELS[status]).toBe(INVOICE_STATUS_LABELS[status]);
+    },
+  );
+});
 
 describe("totalLabel", () => {
   it("calls a running total an estimate, since it moves until the invoice is frozen", () => {
@@ -153,6 +168,17 @@ describe("creatorNextStep", () => {
 
     // A cancelled invoice (PBI-37) offers no move at all.
     expect(actions).toEqual([null, "acknowledge", null, "confirm", null, null]);
+  });
+});
+
+describe("a cancelled invoice (PBI-37)", () => {
+  it("says it was cancelled and offers no move", () => {
+    expect(creatorNextStep(invoice({ status: "cancelled" }))).toEqual({ hint: "Dibatalkan", action: null });
+  });
+
+  // Off the pipeline: the tracker must not claim it still waits on Berjalan or any step after.
+  it("waits on no step of the pipeline", () => {
+    expect(invoiceSteps(invoice({ status: "cancelled" })).map((step) => step.state)).not.toContain("current");
   });
 });
 

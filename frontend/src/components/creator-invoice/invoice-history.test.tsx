@@ -28,6 +28,15 @@ describe("InvoiceHistory", () => {
     expect(row).toHaveTextContent("Rp1.200.000");
   });
 
+  // PBI-37: the creator's word for an invoice an early end cancelled, never the internal one.
+  it("calls a cancelled invoice Dibatalkan, not Cancelled", () => {
+    render(<InvoiceHistory invoices={[{ ...PAID, status: "cancelled" }]} onOpen={vi.fn()} />);
+
+    const [, row] = within(screen.getByRole("table", { name: "Riwayat Invoice" })).getAllByRole("row");
+    expect(row).toHaveTextContent("Dibatalkan");
+    expect(row).not.toHaveTextContent("Cancelled");
+  });
+
   // Measured on this table's real markup in Edge at true 320–390 px: the table is 484 px wide,
   // every Rincian sits off-screen, and the page itself widened to 411 px, because the hidden
   // Aksi heading was laid out against the page rather than the table's scroll area. jsdom lays
