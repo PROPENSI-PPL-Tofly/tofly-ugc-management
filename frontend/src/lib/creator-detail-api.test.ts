@@ -422,6 +422,45 @@ describe("toCreatorDetailView", () => {
     expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEndReason).toBeNull();
   });
 
+  // PBI-37, 37.3: the period's early end as GET /creators/:id sends it (37.1), for the label,
+  // the original end and the reason. The admin's note and the moment stay out of the view.
+  it("reads a period's early end, keeping only what the page shows", () => {
+    const raw = {
+      ...RAW,
+      contractHistory: [
+        period(NEWEST, {
+          endDate: "2026-11-20",
+          earlyEndReason: "fraud",
+          earlyEnd: {
+            originalEndDate: "2026-12-31",
+            reason: "fraud",
+            note: "Akun palsu",
+            endedAt: "2026-11-20T03:00:00.000Z",
+          },
+        }),
+      ],
+    };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEnd).toEqual({
+      originalEndDate: "2026-12-31",
+      reason: "fraud",
+    });
+  });
+
+  // OWASP A06 and A10: no earlyEnd, or a broken one, is a period that runs as agreed.
+  it.each([
+    ["not sent, as before PBI-37", undefined],
+    ["null for a contract not ended early", null],
+    ["broken", { reason: "fraud" }],
+  ])("reads no early end on a period when earlyEnd is %s", (_label, earlyEnd) => {
+    const raw = {
+      ...RAW,
+      contractHistory: [period(NEWEST, { earlyEnd } as unknown as Partial<RawCreatorPeriod>)],
+    };
+
+    expect(toCreatorDetailView(raw, CONTENTS, BARE).selected?.earlyEnd).toBeUndefined();
+  });
+
   // The invoice card's Total Pendapatan: a floored total is one the penalties ate, so Rp0.
   it.each([
     ["the invoice's total", false, 3_000_000],
