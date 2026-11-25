@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreatorContentBoard } from "@/components/creator-detail/creator-content-board";
 import { CreatorProfilePanel } from "@/components/creator-detail/creator-profile";
+import { EndContractEarlyTrigger } from "@/components/creator-detail/end-contract-early-trigger";
 import { ExtendContractTrigger } from "@/components/creator-detail/extend-contract-trigger";
 import { UpcomingPeriodActions } from "@/components/creator-detail/upcoming-period-actions";
 import { PeriodSummary, PeriodTabs } from "@/components/creator-detail/period-tabs";
@@ -80,6 +81,8 @@ export default async function CreatorDetailPage({
               <>
                 {/* At most one shows: a renewal still to start is changed, otherwise one is added. */}
                 <UpcomingPeriodActions creatorId={id} creatorName={view.creator.name} periods={view.periods} />
+                {/* PBI-37: only while a period runs and was not ended early; before the renewal, as the prototype orders them. */}
+                <EndContractEarlyTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />
                 <ExtendContractTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />
               </>
             }
