@@ -63,6 +63,13 @@ export interface InvoiceTableSort {
   onSort: (key: InvoiceSortKey) => void;
 }
 
+/** The board's page-local selection. Optional: the table stays plain everywhere else it is used. */
+export interface InvoiceTableSelection {
+  ids: readonly string[];
+  onToggle: (contractId: string) => void;
+  onToggleAll: (contractIds: readonly string[]) => void;
+}
+
 /**
  * The column widths, the prototype's. Classes, not inline styles, which the CSP refuses; each is
  * named by its column, since several columns share a width and a width alone cannot key one.
@@ -199,6 +206,7 @@ export function InvoiceTable({
   sort,
   summary,
   onOpen,
+  selection,
 }: Readonly<{
   rows: readonly InvoiceRow[];
   /** Draws one money cell; the plain amounts when it is not given. */
@@ -208,8 +216,19 @@ export function InvoiceTable({
   summary?: { total: number; count: number };
   /** Opens one row's invoice in full (Rincian). */
   onOpen?: (row: InvoiceRow) => void;
+  /** Adds the checkboxes the admin uses to tick invoices for a bulk download (31.5). */
+  selection?: InvoiceTableSelection;
 }>) {
-  const columns = COLUMNS;
+  const columns = selection
+    ? ([["select", "w-10"], ...COLUMNS] as ReadonlyArray<readonly [string, string]>)
+    : COLUMNS;
+  const pageIds = rows.map((row) => row.contractId);
+  const allSelected =
+    selection !== undefined &&
+    pageIds.length > 0 &&
+    pageIds.every((id) => selection.ids.includes(id));
+  const someSelected =
+    selection !== undefined && pageIds.some((id) => selection.ids.includes(id));
 
   return (
     // relative: the scroll region is the containing block of anything absolutely placed inside
@@ -226,6 +245,20 @@ export function InvoiceTable({
         </colgroup>
         <thead role="rowgroup" className="max-lg:sr-only">
           <tr role="row" className="border-b border-rule text-muted">
+            {selection ? (
+              <th role="columnheader" scope="col" className={HEAD}>
+                <input
+                  type="checkbox"
+                  aria-label="Pilih semua di halaman ini"
+                  checked={allSelected}
+                  ref={(input) => {
+                    if (input) input.indeterminate = someSelected && !allSelected;
+                  }}
+                  onChange={() => selection.onToggleAll(pageIds)}
+                  className="size-4 cursor-pointer accent-accent"
+                />
+              </th>
+            ) : null}
             {headerCell("Creator", "name", sort, "left")}
             {headerCell("Fixed Rate", "fixed", sort, "right")}
             <th role="columnheader" scope="col" className={NUM_HEAD}>
@@ -275,6 +308,20 @@ export function InvoiceTable({
                   onOpen ? "cursor-pointer" : ""
                 }`}
               >
+                {selection ? (
+                  <td
+                    className={CELL}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={`Pilih ${invoiceTitle(row)}`}
+                      checked={selection.ids.includes(row.contractId)}
+                      onChange={() => selection.onToggle(row.contractId)}
+                      className="size-4 min-h-11 min-w-11 cursor-pointer accent-accent"
+                    />
+                  </td>
+                ) : null}
                 <td className={`${CELL} min-w-44 max-lg:min-w-0 max-lg:pb-2`}>
                   <strong className="block truncate max-lg:whitespace-normal" title={invoiceTitle(row)}>
                     {onOpen ? (
@@ -329,7 +376,11 @@ export function InvoiceTable({
               role="row"
               className="border-t border-rule bg-surface-2 max-lg:flex max-lg:items-baseline max-lg:justify-between max-lg:gap-3 max-lg:rounded-(--radius-panel) max-lg:border max-lg:px-4 max-lg:py-3"
             >
-              <th scope="row" colSpan={5} className={`${CELL} text-left font-semibold max-lg:p-0`}>
+              <th
+                scope="row"
+                colSpan={selection ? 6 : 5}
+                className={`${CELL} text-left font-semibold max-lg:p-0`}
+              >
                 {`Total ${summary.count} invoice`}
               </th>
               <td className={`${CELL} whitespace-nowrap text-right tabular-nums max-lg:p-0`}>
