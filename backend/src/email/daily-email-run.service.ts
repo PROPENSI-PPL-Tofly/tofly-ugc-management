@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { jakartaDay } from '../creators/evergreen.js';
+import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EMAIL_LOG_STORE, type EmailLogStore, type LoggedEmail } from './email-log-store.js';
 import { EmailNotifier, type EmailEvent } from './email-notifier.js';
@@ -116,12 +116,7 @@ export class DailyEmailRun {
         // The deadline is in the key, so content moved to another day is reminded again.
         eventKey: `deadline_reminder:${content.id}:${deadline}`,
         template: 'deadline_reminder',
-        to: {
-          email: creator.users.email,
-          name: [creator.first_name, creator.middle_name, creator.last_name]
-            .filter(Boolean)
-            .join(' '),
-        },
+        to: { email: creator.users.email, name: joinName(creator) },
         data: { contentId: content.id, contentName: content.name, deadline },
       });
       reminded += 1;

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EMAIL_LOG } from './email-log.token.js';
 import { EmailNotifier, errorKind, type EmailEvent } from './email-notifier.js';
@@ -83,9 +84,9 @@ export class CreatorEmails {
     }
     if (!creator) return;
 
-    const name = [creator.first_name, creator.middle_name, creator.last_name]
-      .filter(Boolean)
-      .join(' ');
-    await this.notifier.notify({ ...event, to: { email: creator.users.email, name } });
+    await this.notifier.notify({
+      ...event,
+      to: { email: creator.users.email, name: joinName(creator) },
+    });
   }
 }
