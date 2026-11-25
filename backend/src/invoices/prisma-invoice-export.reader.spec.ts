@@ -56,8 +56,17 @@ describe('PrismaInvoiceExportReader (31.4)', () => {
 
     const sources = await reader.read([INVOICE_ID]);
 
+    // The admin table names a row by its contract; an invoice id is accepted too, so a deep
+    // link or a future table can name the saved invoice directly.
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: [INVOICE_ID] } } }),
+      expect.objectContaining({
+        where: {
+          OR: [
+            { id: { in: [INVOICE_ID] } },
+            { contract_id: { in: [INVOICE_ID] } },
+          ],
+        },
+      }),
     );
     expect(sources).toEqual([
       {

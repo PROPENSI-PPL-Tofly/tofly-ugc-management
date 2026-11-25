@@ -17,7 +17,13 @@ export class PrismaInvoiceExportReader implements InvoiceExportReader {
 
   async read(ids: readonly string[]): Promise<ExportSource[]> {
     const rows = await this.prisma.invoices.findMany({
-      where: { id: { in: [...ids] } },
+      // A ticked row names its contract; a saved invoice id works too (the 31.4 wording).
+      where: {
+        OR: [
+          { id: { in: [...ids] } },
+          { contract_id: { in: [...ids] } },
+        ],
+      },
       select: {
         id: true,
         status: true,
