@@ -55,6 +55,7 @@ describe('Tofly tables from the API roles (e2e)', () => {
         'contents',
         'contracts',
         'creators',
+        'invoice_rate_changes',
         'login_code_requests',
         'login_codes',
         'performance_bonus_metrics',
