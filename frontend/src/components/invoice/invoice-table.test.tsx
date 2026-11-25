@@ -162,6 +162,13 @@ describe("InvoiceTable", () => {
     expect(screen.getByText("Berjalan")).toBeInTheDocument();
   });
 
+  // PBI-37: an invoice an early end cancelled, in an existing tone rather than a new colour.
+  it("draws a cancelled invoice as a Cancelled pill in the danger tone", () => {
+    render(<InvoiceTable rows={[{ ...FULL, invoiceStatus: "cancelled" }]} />);
+
+    expect(screen.getByText("Cancelled").className).toContain("bg-red-wash");
+  });
+
   it("dashes every amount that is nothing, and never calls it a zero", () => {
     render(<InvoiceTable rows={[ZEROS]} />);
 

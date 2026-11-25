@@ -71,6 +71,11 @@ describe("parseInvoiceParams", () => {
     });
   });
 
+  // PBI-37: an early end can cancel an invoice instead of paying it; the filter names that too.
+  it("reads the Cancelled filter from the address", () => {
+    expect(parseInvoiceParams({ status: "cancelled" }).status).toBe("cancelled");
+  });
+
   // The contract-end period filter is gone, so an old link that still names one narrows nothing.
   it("ignores a contract-end period an old link still names", () => {
     expect(
@@ -249,6 +254,7 @@ describe("the label maps", () => {
       creator_acked: "Perlu Bukti Bayar",
       payment_uploaded: "Bukti Bayar Terkirim",
       paid: "Paid",
+      cancelled: "Cancelled",
     });
   });
 });
