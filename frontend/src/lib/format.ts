@@ -34,6 +34,11 @@ export const EMPTY = "—";
 /** A calendar day with no time of day, the way the API sends a Postgres `date`. */
 const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Whether a value is written as the API writes a calendar day, "YYYY-MM-DD". */
+export function isPlainDay(value: string): boolean {
+  return PLAIN_DAY.test(value);
+}
+
 /**
  * The API sends plain calendar days. Parsing and formatting them as UTC keeps the day as
  * written; letting the browser read them in local time moves a date across midnight for

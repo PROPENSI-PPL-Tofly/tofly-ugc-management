@@ -5,7 +5,7 @@
 
 import { EARLY_END_REASON_LABELS } from "./contract-extension";
 import { EARLY_END_REASONS, type EarlyEndReason } from "./creators";
-import { EMPTY, formatDate } from "./format";
+import { EMPTY, formatDate, isPlainDay } from "./format";
 
 /** PBI-37's label for a contract ended early. */
 export const EARLY_END_LABEL = "Berakhir Lebih Awal";
@@ -21,9 +21,6 @@ export interface EarlyEnd {
   reason: EarlyEndReason | null;
 }
 
-/** A calendar day as the API writes a Postgres date. */
-const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -36,7 +33,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function readEarlyEnd(raw: unknown): EarlyEnd | null {
   if (!isRecord(raw)) return null;
   const { originalEndDate, reason } = raw;
-  if (typeof originalEndDate !== "string" || !PLAIN_DAY.test(originalEndDate)) return null;
+  if (typeof originalEndDate !== "string" || !isPlainDay(originalEndDate)) return null;
 
   return {
     originalEndDate,
