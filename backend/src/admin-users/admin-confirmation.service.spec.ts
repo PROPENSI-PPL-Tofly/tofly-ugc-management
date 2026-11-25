@@ -31,7 +31,6 @@ function setup({ recent = 0, latest = null as unknown } = {}) {
     create: vi.fn().mockResolvedValue({ id: 'code-1' }),
     findFirst: vi.fn().mockResolvedValue(latest),
     updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-    delete: vi.fn().mockResolvedValue({}),
   };
   const tx = {
     admin_confirmation_codes: codes,
@@ -42,6 +41,8 @@ function setup({ recent = 0, latest = null as unknown } = {}) {
       findUnique: vi.fn().mockResolvedValue({ email: 'gunta@tofly.id' }),
     },
     admin_confirmation_codes: codes,
+    // A try taken on the code: the attempts it now has, or no row when none could be taken.
+    $queryRaw: vi.fn().mockResolvedValue([{ attempts: 1 }]),
     $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) =>
       work(tx),
     ),
@@ -141,14 +142,14 @@ describe('AdminConfirmationService.request', () => {
     expect(codes.findFirst).toHaveBeenCalledWith({
       where: { user_id: USER, created_at: { gt: minutes(-60) } },
       orderBy: { created_at: 'asc' },
-      skip: 0,
       select: { created_at: true },
     });
     expect(codes.create).not.toHaveBeenCalled();
     expect(sender.send).not.toHaveBeenCalled();
   });
 
-  it('removes the code it stored when the email cannot be sent, and says so', async () => {
+  // Kept and marked used rather than deleted, so a mail outage still counts toward five an hour.
+  it('kills the code it stored when the email cannot be sent, keeping it in the hourly count, and says so', async () => {
     const { codes, sender, service } = setup();
     sender.send.mockRejectedValue(new Error('smtp down'));
 
@@ -159,7 +160,10 @@ describe('AdminConfirmationService.request', () => {
       code: 'CONFIRMATION_NOT_SENT',
       message: 'Kode gagal dikirim. Coba lagi.',
     });
-    expect(codes.delete).toHaveBeenCalledWith({ where: { id: 'code-1' } });
+    expect(codes.updateMany).toHaveBeenCalledWith({
+      where: { id: 'code-1' },
+      data: { used_at: NOW },
+    });
   });
 
   it('answers 401 when the Super Admin no longer exists', async () => {
@@ -181,8 +185,17 @@ describe('AdminConfirmationService.verify', () => {
     used_at: null,
   };
 
+  /** The SQL and values of the try taken on the code. */
+  function tryTaken(prisma: ReturnType<typeof setup>['prisma']) {
+    const [strings, ...values] = prisma.$queryRaw.mock.calls[0] as [
+      TemplateStringsArray,
+      ...unknown[],
+    ];
+    return { sql: strings.join('?'), values };
+  }
+
   it('claims a right code and confirms this session for 15 minutes', async () => {
-    const { codes, sessions, service } = setup({ latest: LIVE });
+    const { prisma, codes, sessions, service } = setup({ latest: LIVE });
 
     await expect(service.verify(USER, SESSION, CODE)).resolves.toEqual({
       confirmedUntil: minutes(CONFIRMATION_WINDOW_MINUTES).toISOString(),
@@ -203,13 +216,45 @@ describe('AdminConfirmationService.verify', () => {
       where: { id: 'code-1', used_at: null },
       data: { used_at: NOW },
     });
+    // The try is taken before the code is even compared.
+    expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      codes.updateMany.mock.invocationCallOrder[0],
+    );
     expect(sessions.confirm).toHaveBeenCalledWith(SESSION, minutes(15));
   });
 
-  it('counts a wrong code and says how many tries are left', async () => {
-    const { codes, sessions, service } = setup({
+  it('takes a try in one statement that holds only while the code is live and has tries left', async () => {
+    const { prisma, service } = setup({ latest: LIVE });
+
+    await service.verify(USER, SESSION, CODE);
+
+    const { sql, values } = tryTaken(prisma);
+    expect(sql).toMatch(/update admin_confirmation_codes\s+set attempts = attempts \+ 1/i);
+    expect(sql).toMatch(/used_at is null/i);
+    expect(sql).toMatch(/expires_at > \?/i);
+    expect(sql).toMatch(/attempts < \?/i);
+    expect(sql).toMatch(/returning attempts/i);
+    expect(values).toEqual(['code-1', NOW, 5]);
+  });
+
+  // Twenty guesses at once read the same live row; only five can take a try, so a right code
+  // among them is compared only if it is one of those five (OWASP A07:2025).
+  it('refuses even a right code when parallel guesses already took the five tries', async () => {
+    const { prisma, codes, sessions, service } = setup({ latest: LIVE });
+    prisma.$queryRaw.mockResolvedValue([]);
+
+    const error = await refusal(service.verify(USER, SESSION, CODE));
+
+    expect(error.getResponse()).toMatchObject({ code: 'CONFIRMATION_EXPIRED' });
+    expect(codes.updateMany).not.toHaveBeenCalled();
+    expect(sessions.confirm).not.toHaveBeenCalled();
+  });
+
+  it('counts a wrong code and says how many tries are left after its own', async () => {
+    const { prisma, codes, sessions, service } = setup({
       latest: { ...LIVE, attempts: 1 },
     });
+    prisma.$queryRaw.mockResolvedValue([{ attempts: 2 }]);
 
     const error = await refusal(service.verify(USER, SESSION, '000000'));
 
@@ -219,15 +264,27 @@ describe('AdminConfirmationService.verify', () => {
       message: 'Kode salah. Sisa 3 percobaan.',
       attemptsLeft: 3,
     });
-    expect(codes.updateMany).toHaveBeenCalledWith({
-      where: { id: 'code-1', attempts: { lt: 5 } },
-      data: { attempts: { increment: 1 } },
-    });
+    expect(codes.updateMany).not.toHaveBeenCalled();
     expect(sessions.confirm).not.toHaveBeenCalled();
   });
 
+  // The row was read before other guesses landed; the tries left come from the count after this
+  // one's, never from the row as it was read.
+  it('says the tries left as of its own try, not as of the row it read', async () => {
+    const { prisma, service } = setup({ latest: { ...LIVE, attempts: 0 } });
+    prisma.$queryRaw.mockResolvedValue([{ attempts: 4 }]);
+
+    const error = await refusal(service.verify(USER, SESSION, '000000'));
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'CONFIRMATION_WRONG',
+      attemptsLeft: 1,
+    });
+  });
+
   it('kills the code on its fifth wrong try', async () => {
-    const { service } = setup({ latest: { ...LIVE, attempts: 4 } });
+    const { prisma, service } = setup({ latest: { ...LIVE, attempts: 4 } });
+    prisma.$queryRaw.mockResolvedValue([{ attempts: 5 }]);
 
     const error = await refusal(service.verify(USER, SESSION, '000000'));
 
@@ -235,8 +292,8 @@ describe('AdminConfirmationService.verify', () => {
   });
 
   it('reads a wrong try that lost the race to the limit as expired', async () => {
-    const { codes, service } = setup({ latest: { ...LIVE, attempts: 1 } });
-    codes.updateMany.mockResolvedValue({ count: 0 });
+    const { prisma, service } = setup({ latest: { ...LIVE, attempts: 1 } });
+    prisma.$queryRaw.mockResolvedValue([]);
 
     const error = await refusal(service.verify(USER, SESSION, '000000'));
 

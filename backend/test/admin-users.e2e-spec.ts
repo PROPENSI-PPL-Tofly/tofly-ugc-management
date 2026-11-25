@@ -26,8 +26,11 @@ import { as, signIn } from './sessions.js';
 /** Keeps what the app sends instead of sending it. */
 class OutboxSender implements EmailSender {
   readonly sent: EmailMessage[] = [];
+  /** While true, every send fails, as when the mail server is down. */
+  down = false;
 
   send(message: EmailMessage): Promise<void> {
+    if (this.down) return Promise.reject(new Error('smtp down'));
     this.sent.push(message);
     return Promise.resolve();
   }
@@ -431,6 +434,79 @@ describe('/admin-users (e2e)', () => {
       expect(refused.body.errors).toEqual({
         role: 'Kamu tidak bisa mengubah role akunmu sendiri.',
       });
+    });
+
+    // Satria's review on #231: twenty wrong codes and the right one, all at once. Each may read
+    // the code while it still has five tries, but only five can take one, so at most five are
+    // ever compared: five "wrong" answers, or four and the right code (OWASP A07:2025).
+    it('compares at most five codes per emailed code, however many arrive at once', async () => {
+      const guesser = await makeUser('guesser', { admin_role: 'super_admin' });
+      const cookie = await signIn(app, { userId: guesser.id, role: 'admin' });
+      await as(app, cookie).post('/admin-users/confirmation').expect(200);
+      const code = outbox.lastCode(email('guesser'));
+      const wrong = (n: number) => String((Number(code) + n) % 1_000_000).padStart(6, '0');
+      const guesses = Array.from({ length: 20 }, (_, n) => wrong(n + 1));
+      guesses.splice(10, 0, code);
+
+      const answers = await Promise.all(
+        guesses.map((guess) =>
+          as(app, cookie).post('/admin-users/confirmation/verify').send({ code: guess }),
+        ),
+      );
+
+      const compared = answers.filter(
+        (answer) => answer.status === 200 || answer.body.code === 'CONFIRMATION_WRONG',
+      );
+      expect(compared.length).toBeLessThanOrEqual(5);
+      const stored = await prisma.admin_confirmation_codes.findFirstOrThrow({
+        where: { user_id: guesser.id },
+      });
+      expect(stored.attempts).toBeLessThanOrEqual(5);
+    });
+
+    it('asks for the code before a deactivated Super Admin is reactivated', async () => {
+      const target = await makeUser('super-back', {
+        admin_role: 'super_admin',
+        is_active: false,
+      });
+      const reviver = await makeUser('reviver', { admin_role: 'super_admin' });
+      const cookie = await signIn(app, { userId: reviver.id, role: 'admin' });
+
+      await as(app, cookie)
+        .post(`/admin-users/${target.id}/reactivate`)
+        .expect(403)
+        .expect((response) => expect(response.body.code).toBe('CONFIRMATION_REQUIRED'));
+      await expect(
+        prisma.users.findUniqueOrThrow({ where: { id: target.id } }),
+      ).resolves.toMatchObject({ is_active: false });
+
+      await confirm(cookie, email('reviver'));
+      await as(app, cookie)
+        .post(`/admin-users/${target.id}/reactivate`)
+        .expect(200)
+        .expect((response) =>
+          expect(response.body).toMatchObject({ role: 'super_admin', status: 'active' }),
+        );
+    });
+
+    it('keeps a code whose email failed in the hourly count, dead', async () => {
+      const sender = await makeUser('mail-down', { admin_role: 'super_admin' });
+      const cookie = await signIn(app, { userId: sender.id, role: 'admin' });
+      outbox.down = true;
+      try {
+        await as(app, cookie)
+          .post('/admin-users/confirmation')
+          .expect(503)
+          .expect((response) => expect(response.body.code).toBe('CONFIRMATION_NOT_SENT'));
+      } finally {
+        outbox.down = false;
+      }
+
+      const stored = await prisma.admin_confirmation_codes.findMany({
+        where: { user_id: sender.id },
+      });
+      expect(stored).toHaveLength(1);
+      expect(stored[0].used_at).toBeInstanceOf(Date);
     });
 
     // Two Super Admins demoting each other at once: the row locks make the second one see the

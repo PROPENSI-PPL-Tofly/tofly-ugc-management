@@ -160,12 +160,13 @@ describe('AdminUsersController', () => {
     expect(confirmation.verify).not.toHaveBeenCalled();
   });
 
-  it('reactivates an Admin, answering 200', async () => {
-    const { service, controller } = setup();
+  it('reactivates an Admin, answering 200, passing on whether this session entered the code', async () => {
+    const { service, sessions, controller } = setup(true);
 
-    await controller.reactivate(ID, SUPER);
+    await controller.reactivate(ID, SIGNED_IN);
 
-    expect(service.reactivate).toHaveBeenCalledWith(ID, 'user-super');
+    expect(sessions.isConfirmed).toHaveBeenCalledWith('opaque-id');
+    expect(service.reactivate).toHaveBeenCalledWith(ID, 'user-super', true);
     expect(
       Reflect.getMetadata(HTTP_CODE_METADATA, AdminUsersController.prototype.reactivate),
     ).toBe(200);

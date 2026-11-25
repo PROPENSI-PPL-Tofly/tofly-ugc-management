@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   HttpException,
   NotFoundException,
   UnprocessableEntityException,
@@ -370,7 +371,7 @@ describe('AdminUsersService.reactivate', () => {
     targetIs(users, INACTIVE);
     users.update.mockResolvedValue(ROW);
 
-    await expect(service.reactivate('user-sinta', ACTOR)).resolves.toEqual(DTO);
+    await expect(service.reactivate('user-sinta', ACTOR, false)).resolves.toEqual(DTO);
 
     expect(users.update).toHaveBeenCalledWith({
       where: { id: 'user-sinta' },
@@ -387,11 +388,38 @@ describe('AdminUsersService.reactivate', () => {
     });
   });
 
+  // Deactivating one took the email code, so bringing back their Super Admin access does too.
+  it('asks for the email code before a deactivated Super Admin is reactivated, changing nothing', async () => {
+    const { tx, users, service } = setup();
+    targetIs(users, { ...INACTIVE, admin_role: 'super_admin' });
+
+    const error = await refusal(service.reactivate('user-sinta', ACTOR, false));
+
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect((error as ForbiddenException).getResponse()).toEqual({
+      code: 'CONFIRMATION_REQUIRED',
+      message: 'Konfirmasi dengan kode yang dikirim ke email kamu dulu.',
+    });
+    expect(users.update).not.toHaveBeenCalled();
+    expect(tx.audit_logs.create).not.toHaveBeenCalled();
+  });
+
+  it('reactivates a Super Admin once this session entered the code', async () => {
+    const { users, service } = setup();
+    targetIs(users, { ...INACTIVE, admin_role: 'super_admin' });
+    users.update.mockResolvedValue({ ...ROW, admin_role: 'super_admin' });
+
+    await expect(service.reactivate('user-sinta', ACTOR, true)).resolves.toMatchObject({
+      role: 'super_admin',
+      status: 'active',
+    });
+  });
+
   it('changes and records nothing for an Admin who is already active', async () => {
     const { tx, users, service } = setup();
     targetIs(users, ROW);
 
-    await expect(service.reactivate('user-sinta', ACTOR)).resolves.toEqual(DTO);
+    await expect(service.reactivate('user-sinta', ACTOR, false)).resolves.toEqual(DTO);
     expect(users.update).not.toHaveBeenCalled();
     expect(tx.audit_logs.create).not.toHaveBeenCalled();
   });
@@ -400,7 +428,7 @@ describe('AdminUsersService.reactivate', () => {
     const { users, service } = setup();
     targetIs(users, null);
 
-    await expect(refusal(service.reactivate('user-x', ACTOR))).resolves.toBeInstanceOf(
+    await expect(refusal(service.reactivate('user-x', ACTOR, false))).resolves.toBeInstanceOf(
       NotFoundException,
     );
   });
@@ -410,7 +438,7 @@ describe('AdminUsersService.reactivate', () => {
     targetIs(users, { ...INACTIVE, name: null });
     users.update.mockResolvedValue({ ...ROW, name: null });
 
-    await service.reactivate('user-sinta', ACTOR);
+    await service.reactivate('user-sinta', ACTOR, false);
 
     expect(tx.audit_logs.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ target_label: 'sinta@tofly.id' }),
