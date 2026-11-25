@@ -2,6 +2,8 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { InvoiceCommandService } from './invoice-command.service.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesModule } from './invoices.module.js';
+import { InvoicePdfController } from './invoice-pdf.controller.js';
+import { InvoicePdfService } from './invoice-pdf.service.js';
 import { InvoicesService } from './invoices.service.js';
 import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
@@ -17,6 +19,19 @@ import { INVOICE_ROSTER_REPOSITORY } from './invoice-roster.repository.js';
 import { PrismaInvoiceRosterRepository } from './prisma-invoice-roster.repository.js';
 
 describe('InvoicesModule', () => {
+  // PBI-31: the admin's Unduh PDF route, and the PDF service the creator's route imports.
+  it("serves invoice PDFs and lends the PDF service to the creator's routes", () => {
+    expect(Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, InvoicesModule)).toContain(
+      InvoicePdfController,
+    );
+    expect(Reflect.getMetadata(MODULE_METADATA.PROVIDERS, InvoicesModule)).toContain(
+      InvoicePdfService,
+    );
+    expect(Reflect.getMetadata(MODULE_METADATA.EXPORTS, InvoicesModule)).toContain(
+      InvoicePdfService,
+    );
+  });
+
   it('registers the invoices controller and service', () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, InvoicesModule),

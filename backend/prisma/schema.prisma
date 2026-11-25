@@ -292,6 +292,10 @@ model invoices {
   /// PBI-37: when and by whom an early end cancelled it.
   cancelled_at    DateTime?               @db.Timestamptz(6)
   cancelled_by    String?                 @db.Uuid
+  /// TOF-INV-YYYYMM-NNN, given when the creator acknowledges (PBI-31); null before.
+  invoice_number  String?                 @unique(map: "invoices_invoice_number_key")
+  /// TOF-RCP-YYYYMM-NNN, given when the creator confirms the payment (PBI-31); null before.
+  receipt_number  String?                 @unique(map: "invoices_receipt_number_key")
   contracts       contracts               @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   finalizer       users?                  @relation("invoices_finalized_by", fields: [finalized_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   acknowledger    users?                  @relation("invoices_acknowledged_by", fields: [acknowledged_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -305,6 +309,15 @@ model invoices {
   @@index([acknowledged_by], map: "invoices_acknowledged_by_idx")
   @@index([paid_by], map: "invoices_paid_by_idx")
   @@index([cancelled_by], map: "invoices_cancelled_by_idx")
+}
+
+/// The last number handed out per document kind ('invoice', 'receipt') and Jakarta month (YYYYMM).
+model document_number_counters {
+  kind        String
+  month       String @db.Char(6)
+  last_number Int
+
+  @@id([kind, month])
 }
 
 /// The proof an admin uploaded for one invoice; the file itself lives in object storage under

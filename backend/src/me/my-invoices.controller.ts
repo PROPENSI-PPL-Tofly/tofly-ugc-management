@@ -5,8 +5,10 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { CurrentCreator } from '../auth/current-creator.decorator.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
 import { PaymentsPage } from '../auth/payments-page.decorator.js';
@@ -15,6 +17,11 @@ import type {
   PaidInvoiceDto,
 } from '../invoices/dto/invoice-confirmation.dto.js';
 import { InvoiceConfirmationService } from '../invoices/invoice-confirmation.service.js';
+import {
+  InvoicePdfService,
+  type PdfDocument,
+} from '../invoices/invoice-pdf.service.js';
+import { sendDownload } from '../storage/open-file-response.js';
 import {
   MyInvoicesService,
   type CreatorInvoicesResponse,
@@ -37,6 +44,8 @@ export class MyInvoicesController {
       InvoiceConfirmationService,
       'acknowledge' | 'confirmReceipt'
     >,
+    @Inject(InvoicePdfService)
+    private readonly pdfs: Pick<InvoicePdfService, 'forContract'>,
   ) {}
 
   @Get()
@@ -52,6 +61,36 @@ export class MyInvoicesController {
     @Param('contractId', new ParseUUIDPipe()) contractId: string,
   ): Promise<AcknowledgedInvoiceDto> {
     return this.confirmations.acknowledge(contractId, creatorId);
+  }
+
+  /** "Unduh Invoice" (PBI-31): the creator's own invoice only (AC 6), once they acknowledged it. */
+  @Get(':contractId/invoice-pdf')
+  async invoicePdf(
+    @CurrentCreator() creatorId: string,
+    @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    await this.sendPdf(res, contractId, creatorId, 'invoice');
+  }
+
+  /** "Unduh Receipt" (PBI-31): the creator's own receipt only, once they confirmed the payment. */
+  @Get(':contractId/receipt-pdf')
+  async receiptPdf(
+    @CurrentCreator() creatorId: string,
+    @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    await this.sendPdf(res, contractId, creatorId, 'receipt');
+  }
+
+  private async sendPdf(
+    res: Response,
+    contractId: string,
+    creatorId: string,
+    document: PdfDocument,
+  ): Promise<void> {
+    const file = await this.pdfs.forContract(contractId, { creatorId }, document);
+    sendDownload(res, { ...file, contentType: 'application/pdf' });
   }
 
   @Post(':contractId/confirm-receipt')

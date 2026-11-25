@@ -471,6 +471,18 @@ describe('InvoicesService', () => {
         expect(contracts(result)).toEqual([['salsa-new', 2]]);
       });
 
+      // PBI-31: a paid earlier invoice still has its invoice and receipt to download, so the
+      // Paid filter finds it, though the default list leaves it out.
+      it('lists it again when the admin filters for Paid invoices', async () => {
+        pipeline = { 'salsa-old': 'paid' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+          status: 'paid',
+        });
+
+        expect(contracts(result)).toEqual([['salsa-old', 1]]);
+      });
+
       it('keeps the current contract listed whatever its invoice status', async () => {
         pipeline = { 'salsa-new': 'paid' };
 
