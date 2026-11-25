@@ -1,3 +1,4 @@
+import { PortNotReady } from '../auth/google/unready-ports.js';
 import type { EmailMessage, EmailSender } from './email-sender.js';
 import type { EmailLogStore, LoggedEmail } from './email-log-store.js';
 import type { EmailTemplates } from './email-templates.js';
@@ -17,7 +18,10 @@ function setup(overrides: { claim?: boolean; send?: EmailSender['send'] } = {}) 
     claim: vi.fn<EmailLogStore['claim']>().mockResolvedValue(overrides.claim ?? true),
     markSent: vi.fn<EmailLogStore['markSent']>().mockResolvedValue(),
     markFailed: vi.fn<EmailLogStore['markFailed']>().mockResolvedValue(),
+    markNotReady: vi.fn<EmailLogStore['markNotReady']>().mockResolvedValue(),
     failedToRetry: vi.fn<EmailLogStore['failedToRetry']>().mockResolvedValue([]),
+    claimRetry: vi.fn<EmailLogStore['claimRetry']>().mockResolvedValue(true),
+    abandon: vi.fn<EmailLogStore['abandon']>().mockResolvedValue(),
   };
   const sender = {
     send: vi.fn<EmailSender['send']>(overrides.send ?? (() => Promise.resolve())),
@@ -94,7 +98,7 @@ describe('EmailNotifier', () => {
       send: () => Promise.reject(Object.setPrototypeOf(refusal, SmtpError.prototype)),
     });
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
 
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'SmtpError', NOW);
     expect(store.markSent).not.toHaveBeenCalled();
@@ -143,7 +147,7 @@ describe('EmailNotifier', () => {
     const { store, log, notifier } = setup();
     store[step].mockRejectedValue(new TypeError('connection lost'));
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
     expect(log.warn).toHaveBeenCalledWith('Email content_scheduled failed (TypeError)');
   });
 
@@ -153,7 +157,7 @@ describe('EmailNotifier', () => {
       throw new RangeError('unknown template');
     });
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
     expect(sender.send).not.toHaveBeenCalled();
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RangeError', NOW);
   });
@@ -179,7 +183,7 @@ describe('EmailNotifier', () => {
     const { store, notifier } = setup({ send: () => Promise.reject(new Error('down')) });
     store.markFailed.mockRejectedValue(new Error('connection lost'));
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
   });
 
   it('stamps a sent email with the current time when no clock is given', async () => {
@@ -248,11 +252,145 @@ describe('EmailNotifier.retry', () => {
     );
   });
 
-  it('does not mark a sent email failed when only marking it sent fails', async () => {
+  // Review on #253 (Davin): sent but never marked is not reported as sent; it is not marked
+  // failed either, so its pending row is picked up again after 30 minutes (Gunta).
+  it('reports a send it could not mark as not sent, without marking it failed', async () => {
     const { store, notifier } = setup();
     store.markSent.mockRejectedValue(new TypeError('connection lost'));
 
-    await expect(notifier.retry(FAILED)).resolves.toBe(true);
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
     expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Review on #253 (Davin, Gunta): the row is claimed before sending, as a first send is.
+  it('claims the row before sending', async () => {
+    const { store, sender, notifier } = setup();
+
+    await notifier.retry(FAILED);
+
+    expect(store.claimRetry).toHaveBeenCalledWith(FAILED, NOW);
+    expect(store.claimRetry.mock.invocationCallOrder[0]).toBeLessThan(
+      sender.send.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('sends nothing when another run claimed the row first', async () => {
+    const { store, sender, notifier } = setup();
+    store.claimRetry.mockResolvedValue(false);
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
+    expect(sender.send).not.toHaveBeenCalled();
+  });
+
+  it('never throws when the claim itself fails', async () => {
+    const { store, sender, notifier } = setup();
+    store.claimRetry.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
+    expect(sender.send).not.toHaveBeenCalled();
+  });
+});
+
+// Review on #252: what the 08:00 run and the log need from a failed send.
+describe('EmailNotifier, review follow-ups', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Gunta: nodemailer throws a plain Error, so its code (ESOCKET, EAUTH, ETIMEDOUT) is what tells
+  // one SMTP failure from another. A code never names the address (OWASP A09).
+  it('keeps the SMTP error code when the error carries one', async () => {
+    const refusal = Object.assign(new Error('connect ECONNREFUSED to salsa@example.com'), {
+      code: 'ESOCKET',
+    });
+    const { store, log, notifier } = setup({ send: () => Promise.reject(refusal) });
+
+    await notifier.notify(EVENT);
+
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'ESOCKET', NOW);
+    expect(log.warn).toHaveBeenCalledWith('Email content_scheduled failed (ESOCKET)');
+  });
+
+  it('falls back to the class name for a code that is not a plain error code', async () => {
+    const refusal = Object.assign(new TypeError('bad'), { code: 'salsa@example.com' });
+    const { store, notifier } = setup({ send: () => Promise.reject(refusal) });
+
+    await notifier.notify(EVENT);
+
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'TypeError', NOW);
+  });
+
+  // Davin: while the templates (11.4) or the SMTP account are not set up, nothing was attempted,
+  // so the 3 attempts are kept for when they are.
+  it.each([
+    ['the templates are not ready', 'render'],
+    ['the SMTP account is not set up', 'send'],
+  ] as const)('keeps every attempt when %s', async (_, step) => {
+    const { store, templates, sender, notifier } = setup();
+    if (step === 'render') {
+      templates.render.mockImplementation(() => {
+        throw new PortNotReady('Email templates are not ready');
+      });
+    } else {
+      sender.send.mockRejectedValue(new PortNotReady('Email sending is not configured'));
+    }
+
+    await notifier.notify(EVENT);
+
+    expect(store.markNotReady).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+    expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Davin: SMTP accepted it, so one more try at marking it sent keeps the log honest.
+  it('tries once more to mark a sent email sent', async () => {
+    const { store, notifier } = setup();
+    store.markSent.mockRejectedValueOnce(new TypeError('connection lost'));
+
+    await notifier.notify(EVENT);
+
+    expect(store.markSent).toHaveBeenCalledTimes(2);
+    expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Gunta: every Admin at once, so a slow mail server holds the request 10 seconds, not 10 per Admin.
+  it('sends an event to all its recipients at once', async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const { sender, notifier } = setup({ send: () => held });
+
+    const sending = notifier.notifyAll({
+      ...EVENT,
+      to: [
+        { email: 'rina@example.com', name: 'Rina' },
+        { email: 'budi@example.com', name: 'Budi' },
+      ],
+    });
+    await vi.waitFor(() => expect(sender.send).toHaveBeenCalledTimes(2));
+    release();
+    await sending;
+  });
+});
+
+// Review on #253 (Davin): notify answers whether the email went out, so the run's report is honest.
+describe('EmailNotifier.notify, its answer', () => {
+  it('answers true once the email is sent and marked', async () => {
+    await expect(setup().notifier.notify(EVENT)).resolves.toBe(true);
+  });
+
+  it('answers false for an event this recipient already has', async () => {
+    await expect(setup({ claim: false }).notifier.notify(EVENT)).resolves.toBe(false);
+  });
+
+  it('answers false when the send fails', async () => {
+    const { notifier } = setup({ send: () => Promise.reject(new Error('down')) });
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
+  });
+
+  it('answers false when the email cannot be logged', async () => {
+    const { store, notifier } = setup();
+    store.claim.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
   });
 });

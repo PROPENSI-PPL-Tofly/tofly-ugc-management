@@ -24,8 +24,37 @@ export interface EmailLogStore {
   markSent(eventKey: string, recipient: string, at: Date): Promise<void>;
   /** error is only the kind of failure: a provider's message can quote the address (OWASP A09). */
   markFailed(eventKey: string, recipient: string, error: string, at: Date): Promise<void>;
-  /** The failed emails the 08:00 run may still try again, oldest first (11.3). */
-  failedToRetry(): Promise<LoggedEmail[]>;
+  /** Templates or SMTP not set up: failed for now, with no attempt used, so it is sent once they are. */
+  markNotReady(eventKey: string, recipient: string, at: Date): Promise<void>;
+  /** The failed emails the 08:00 run may still try again at `at`, oldest first (11.3). */
+  failedToRetry(at: Date): Promise<LoggedEmail[]>;
+  /** Moves a retryable row to pending in one guarded update; false when another run got it. */
+  claimRetry(email: LoggedEmail, at: Date): Promise<boolean>;
+  /** Closes a row for good, every attempt used, with why it will not be sent. */
+  abandon(eventKey: string, recipient: string, reason: string, at: Date): Promise<void>;
+}
+
+/** A pending row untouched this long was cut off mid-send (a crash or a lost mark): retry it. */
+export const STALE_PENDING_MS = 30 * 60 * 1000;
+
+/**
+ * What the 08:00 run may try again at `at` (review on #253): failed with attempts left, or pending
+ * and untouched for 30 minutes (Gunta), but never a send that timed out, which may still have gone
+ * out late (Davin). A null last_error is matched on its own: `not` alone would leave nulls out.
+ */
+function retryable(at: Date): Prisma.email_logWhereInput {
+  return {
+    attempts: { lt: MAX_EMAIL_ATTEMPTS },
+    AND: [
+      {
+        OR: [
+          { status: 'failed' },
+          { status: 'pending', updated_at: { lt: new Date(at.getTime() - STALE_PENDING_MS) } },
+        ],
+      },
+      { OR: [{ last_error: null }, { last_error: { not: 'EmailTimeout' } }] },
+    ],
+  };
 }
 
 /** The slice of Prisma the store touches, so tests hand in a stub of just that. */
@@ -39,6 +68,10 @@ export interface EmailLogClient {
       where: Prisma.email_logWhereUniqueInput;
       data: Prisma.email_logUpdateInput;
     }): Promise<unknown>;
+    updateMany(args: {
+      where: Prisma.email_logWhereInput;
+      data: Prisma.email_logUpdateManyMutationInput;
+    }): Promise<{ count: number }>;
     findMany(args: {
       where: Prisma.email_logWhereInput;
       orderBy: Prisma.email_logOrderByWithRelationInput[];
@@ -101,9 +134,16 @@ export class PrismaEmailLogStore implements EmailLogStore {
     });
   }
 
-  async failedToRetry(): Promise<LoggedEmail[]> {
+  async markNotReady(eventKey: string, recipient: string, at: Date): Promise<void> {
+    await this.prisma.email_log.update({
+      where: byEventAndRecipient(eventKey, recipient),
+      data: { status: 'failed', last_error: 'PortNotReady', updated_at: at },
+    });
+  }
+
+  async failedToRetry(at: Date): Promise<LoggedEmail[]> {
     const rows = await this.prisma.email_log.findMany({
-      where: { status: 'failed', attempts: { lt: MAX_EMAIL_ATTEMPTS } },
+      where: retryable(at),
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       select: { event_key: true, template: true, recipient: true, payload: true },
     });
@@ -114,5 +154,21 @@ export class PrismaEmailLogStore implements EmailLogStore {
       // Written by claim() as an object, never anything else.
       payload: row.payload as Record<string, unknown>,
     }));
+  }
+
+  async claimRetry({ eventKey, recipient }: LoggedEmail, at: Date): Promise<boolean> {
+    // The guard is in the UPDATE itself: of two runs at once, one row lock decides the winner.
+    const { count } = await this.prisma.email_log.updateMany({
+      where: { event_key: eventKey, recipient, ...retryable(at) },
+      data: { status: 'pending', updated_at: at },
+    });
+    return count === 1;
+  }
+
+  async abandon(eventKey: string, recipient: string, reason: string, at: Date): Promise<void> {
+    await this.prisma.email_log.update({
+      where: byEventAndRecipient(eventKey, recipient),
+      data: { status: 'failed', attempts: MAX_EMAIL_ATTEMPTS, last_error: reason, updated_at: at },
+    });
   }
 }

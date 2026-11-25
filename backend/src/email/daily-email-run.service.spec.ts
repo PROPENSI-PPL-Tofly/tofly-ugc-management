@@ -31,12 +31,17 @@ function setup({
 } = {}) {
   const prisma = {
     contents: { findMany: vi.fn().mockResolvedValue(due) },
+    users: { findUnique: vi.fn().mockResolvedValue({ id: 'user-1' }) },
   } satisfies DailyEmailClient;
   const notifier = {
-    notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue(),
+    notify: vi.fn<(event: EmailEvent) => Promise<boolean>>().mockResolvedValue(true),
     retry: vi.fn<(email: LoggedEmail) => Promise<boolean>>().mockResolvedValue(resent),
   };
-  const store = { failedToRetry: vi.fn<() => Promise<LoggedEmail[]>>().mockResolvedValue(failed) };
+  const store = {
+    failedToRetry: vi.fn<(at: Date) => Promise<LoggedEmail[]>>().mockResolvedValue(failed),
+    abandon: vi.fn<(eventKey: string, recipient: string, reason: string, at: Date) => Promise<void>>()
+      .mockResolvedValue(),
+  };
   return { prisma, notifier, store, run: new DailyEmailRun(prisma, notifier, store, () => NOW) };
 }
 
@@ -151,5 +156,39 @@ describe('DailyEmailRun', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// Review on #253: what the run tries again, and what its report counts.
+describe('DailyEmailRun, review follow-ups', () => {
+  it('reads the retryable rows as of the run, so stale pending rows count from now', async () => {
+    const { store, run } = setup({ due: [] });
+
+    await run.run();
+
+    expect(store.failedToRetry).toHaveBeenCalledWith(NOW);
+  });
+
+  // Gunta: the creator's address changed (PBI-16), so the old one is never written to again.
+  it('closes a failed email whose address no longer belongs to anyone, sending nothing', async () => {
+    const { prisma, notifier, store, run } = setup({ failed: [FAILED], due: [] });
+    prisma.users.findUnique.mockResolvedValue(null);
+
+    await expect(run.run()).resolves.toEqual({ retried: 0, resent: 0, reminded: 0 });
+
+    expect(prisma.users.findUnique).toHaveBeenCalledWith({
+      where: { email: 'salsa@example.com' },
+      select: { id: true },
+    });
+    expect(store.abandon).toHaveBeenCalledWith(FAILED.eventKey, FAILED.recipient, 'RecipientGone', NOW);
+    expect(notifier.retry).not.toHaveBeenCalled();
+  });
+
+  // Davin: a reminder counts only once it went out.
+  it('counts only the reminders that went out', async () => {
+    const { notifier, run } = setup({ due: [content(), content({ id: 'other' })] });
+    notifier.notify.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(run.run()).resolves.toMatchObject({ reminded: 1 });
   });
 });

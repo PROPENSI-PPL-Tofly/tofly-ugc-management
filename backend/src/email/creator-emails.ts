@@ -84,7 +84,8 @@ interface Addressed {
 export class CreatorEmails implements CreatorNotifier {
   constructor(
     @Inject(PrismaService) private readonly prisma: CreatorEmailClient,
-    @Inject(EmailNotifier) private readonly notifier: Pick<EmailNotifier, 'notify'>,
+    // Only that the email was tried matters here: its answer is the run's business, not the service's.
+    @Inject(EmailNotifier) private readonly notifier: { notify(event: EmailEvent): Promise<unknown> },
     @Inject(EMAIL_LOG) private readonly log: Pick<Logger, 'warn'>,
   ) {}
 
