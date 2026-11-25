@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { joinName } from '../creators/evergreen.js';
-import { adminName } from '../contents/content-event-actors.js';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminName,
+  type AdminAccount,
+} from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { FollowUpDto } from './follow-up.service.js';
 import { submissionNotFound } from './review-errors.js';
@@ -29,7 +33,7 @@ interface SubmissionDetailRow {
         id: string;
         body: string;
         created_at: Date;
-        users: { email: string };
+        users: AdminAccount;
       }[];
     }[];
   };
@@ -94,7 +98,7 @@ export interface SubmissionDetailClient {
                     id: true;
                     body: true;
                     created_at: true;
-                    users: { select: { email: true } };
+                    users: { select: typeof ADMIN_ACCOUNT_SELECT };
                   };
                 };
               };
@@ -154,7 +158,7 @@ export class SubmissionDetailService {
                     id: true,
                     body: true,
                     created_at: true,
-                    users: { select: { email: true } },
+                    users: { select: ADMIN_ACCOUNT_SELECT },
                   },
                 },
               },

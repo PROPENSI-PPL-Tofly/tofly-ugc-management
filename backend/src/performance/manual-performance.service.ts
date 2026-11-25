@@ -11,7 +11,12 @@ import type {
   Prisma,
   social_platform,
 } from '@prisma/client';
-import { adminActor } from '../contents/content-event-actors.js';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminActor,
+  adminLabel,
+  type AdminAccount,
+} from '../contents/content-event-actors.js';
 import {
   lockContractOfContent,
   type ContractLockClient,
@@ -107,8 +112,8 @@ export interface ManualPerformanceTransaction extends ContractLockClient {
   users: {
     findUnique(args: {
       where: { id: string };
-      select: { email: true };
-    }): Promise<{ email: string } | null>;
+      select: typeof ADMIN_ACCOUNT_SELECT;
+    }): Promise<AdminAccount | null>;
   };
 }
 
@@ -238,7 +243,7 @@ export class ManualPerformanceService {
       const admin = adminUserId
         ? await transaction.users.findUnique({
             where: { id: adminUserId },
-            select: { email: true },
+            select: ADMIN_ACCOUNT_SELECT,
           })
         : null;
 
@@ -249,7 +254,7 @@ export class ManualPerformanceService {
         state: 'manual',
         lastSyncedAt: null,
         manualAt: now.toISOString(),
-        manualBy: admin?.email ?? null,
+        manualBy: adminLabel(admin),
       };
     });
   }

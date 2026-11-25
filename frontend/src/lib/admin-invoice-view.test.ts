@@ -174,17 +174,62 @@ describe("ADMIN_EVENT_TEXT", () => {
     );
 
     expect(invoiceActivity(view, ADMIN_EVENT_TEXT).map((entry) => entry.text)).toEqual([
-      "Invoice difinalisasi",
+      "Admin memfinalisasi invoice · Rp2.500.000",
       "Creator meng-acknowledge invoice",
     ]);
   });
 
-  it("names every step past Berjalan", () => {
-    expect(ADMIN_EVENT_TEXT).toEqual({
-      finalized: "Invoice difinalisasi",
-      creator_acked: "Creator meng-acknowledge invoice",
-      payment_uploaded: "Bukti bayar dikirim ke creator",
-      paid: "Creator mengonfirmasi pembayaran diterima",
-    });
+  // PBI-23, 23.11: the finalizer comes with the breakdown, the proof's sender with the row, which
+  // the table reads again right after an upload, so the name shows without reopening the panel.
+  it("names the acting Admins on their steps", () => {
+    const view = adminInvoiceView(
+      {
+        ...ROW,
+        invoiceStatus: "paid",
+        frozenAt: "2026-09-21T02:00:00.000Z",
+        payment: {
+          acknowledgedAt: "2026-09-22T02:00:00.000Z",
+          receivedAt: "2026-09-24T02:00:00.000Z",
+          proof: {
+            fileName: "bukti.pdf",
+            href: "/api/invoices/c/payment-proof",
+            uploadedAt: "2026-09-23T02:00:00.000Z",
+            uploadedBy: "Bima Santoso",
+          },
+        },
+      },
+      { ...BREAKDOWN, finalizedBy: "Sinta Dewi" },
+    );
+
+    expect(invoiceActivity(view, ADMIN_EVENT_TEXT).map((entry) => entry.text)).toEqual([
+      "Sinta Dewi memfinalisasi invoice · Rp2.500.000",
+      "Creator meng-acknowledge invoice",
+      "Bima Santoso mengirim bukti bayar",
+      "Creator mengonfirmasi pembayaran diterima",
+    ]);
+  });
+
+  it("names the Admin who added an adjustment, beside the steps in time order", () => {
+    const adjustment = {
+      id: "22222222-2222-4222-8222-222222222222",
+      amount: -75000,
+      reason: "Koreksi kelebihan tagihan",
+      createdAt: "2026-09-21T05:00:00.000Z",
+      actorName: "Bima Santoso",
+    };
+    const view = adminInvoiceView(
+      { ...ROW, invoiceStatus: "finalized", frozenAt: "2026-09-21T02:00:00.000Z", adjustments: [adjustment] },
+      { ...BREAKDOWN, finalizedBy: "Sinta Dewi" },
+    );
+
+    expect(invoiceActivity(view, ADMIN_EVENT_TEXT).map((entry) => entry.text)).toEqual([
+      "Sinta Dewi memfinalisasi invoice · Rp2.500.000",
+      "Bima Santoso menambah penyesuaian: Koreksi kelebihan tagihan (−Rp75.000)",
+    ]);
+  });
+
+  it("words the two creator steps as they were", () => {
+    expect(ADMIN_EVENT_TEXT.creator_acked).toBe("Creator meng-acknowledge invoice");
+    expect(ADMIN_EVENT_TEXT.paid).toBe("Creator mengonfirmasi pembayaran diterima");
   });
 });

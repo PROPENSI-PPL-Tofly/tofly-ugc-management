@@ -378,6 +378,7 @@ describe('PaymentProofService', () => {
           file_name: 'a.pdf',
           uploaded_at: UPLOADED_AT,
           invoices: { contract_id: CONTRACT },
+          users: { name: 'Sinta Dewi', email: 'sinta.admin@tofly.id' },
         },
       ]);
 
@@ -397,6 +398,8 @@ describe('PaymentProofService', () => {
             file_name: true,
             uploaded_at: true,
             invoices: { select: { contract_id: true } },
+            // Who sent it, for the invoice's activity (PBI-23, 23.10); never their id.
+            users: { select: { name: true, email: true } },
           },
         },
       );
@@ -408,6 +411,7 @@ describe('PaymentProofService', () => {
               fileName: 'a.pdf',
               url: `/api/me/invoices/${CONTRACT}/payment-proof`,
               uploadedAt: '2026-10-20T03:00:00.000Z',
+              uploadedBy: 'Sinta Dewi',
             },
           ],
         ]),
@@ -415,6 +419,21 @@ describe('PaymentProofService', () => {
       expect(forAdmin.get(CONTRACT)?.url).toBe(
         `/api/invoices/${CONTRACT}/payment-proof`,
       );
+    });
+
+    it('names the admin who sent a proof by email while the account has no name', async () => {
+      prisma.invoice_payment_proofs.findMany.mockResolvedValue([
+        {
+          file_name: 'a.pdf',
+          uploaded_at: UPLOADED_AT,
+          invoices: { contract_id: CONTRACT },
+          users: { name: null, email: 'sinta.admin@tofly.id' },
+        },
+      ]);
+
+      const proofs = await service.forContracts([CONTRACT], 'admin');
+
+      expect(proofs.get(CONTRACT)?.uploadedBy).toBe('sinta.admin@tofly.id');
     });
 
     it('asks nothing for an empty page', async () => {

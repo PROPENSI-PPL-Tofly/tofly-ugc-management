@@ -50,7 +50,7 @@ describe("toCreatorInvoices", () => {
     });
   });
 
-  it("lists the adjustments with what the creator reads, without who recorded them", () => {
+  it("lists the adjustments with what the creator reads, never the Admin's id", () => {
     expect(only(RAW_MY_PAID).adjustments).toEqual([
       {
         id: "adadadad-0000-4000-8000-000000000001",
@@ -61,12 +61,51 @@ describe("toCreatorInvoices", () => {
     ]);
   });
 
+  // PBI-23 AC 25: the creator's activity names the Admin who recorded an adjustment.
+  it("keeps an adjustment's Admin name, trimmed, and never the Admin's id", () => {
+    const named = { ...RAW_MY_PAID.adjustments![0], actorName: "  Sinta Dewi  " };
+
+    const [line] = only({ ...RAW_MY_PAID, adjustments: [named] }).adjustments;
+
+    expect(line).toHaveProperty("actorName", "Sinta Dewi");
+    expect(line).not.toHaveProperty("actorId");
+  });
+
+  it.each([
+    ["null", null],
+    ["blank", "   "],
+    ["not text", 42],
+  ])("names no one on an adjustment when the name is %s", (_label, actorName) => {
+    const named = { ...RAW_MY_PAID.adjustments![0], actorName };
+
+    expect(only({ ...RAW_MY_PAID, adjustments: [named] }).adjustments[0]).not.toHaveProperty("actorName");
+  });
+
   it("keeps the payment proof with its link, file name and upload moment", () => {
     expect(only(RAW_MY_PAID).proof).toEqual({
       url: "https://files.tofly.test/proofs/rangga-1.pdf?token=abc",
       fileName: "transfer-rangga-agustus.pdf",
       uploadedAt: "2026-09-05T02:00:00Z",
     });
+  });
+
+  // PBI-23, 23.11: the creator's activity names the Admin who sent the proof.
+  it("keeps who sent the proof", () => {
+    const proof = RAW_MY_PAID.paymentProof!;
+
+    expect(only({ ...RAW_MY_PAID, paymentProof: { ...proof, uploadedBy: "Sinta Dewi" } }).proof?.uploadedBy).toBe(
+      "Sinta Dewi",
+    );
+  });
+
+  it("keeps who finalized the invoice", () => {
+    expect(only({ ...RAW_MY_PAID, finalizedBy: "Sinta Dewi" }).breakdown.finalizedBy).toBe("Sinta Dewi");
+  });
+
+  it("keeps the total frozen at Finalize", () => {
+    const snapshot = { finalizedAt: "2026-09-02T02:00:00Z", finalizedTotal: 1060000 };
+
+    expect(only({ ...RAW_MY_PAID, snapshot }).breakdown).toHaveProperty("finalizedTotal", 1060000);
   });
 
   it("has no proof before the admin uploads one", () => {

@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AdminUsersModule } from './admin-users/admin-users.module.js';
 import { AuditModule } from './audit/audit.module.js';
+import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
 import { EmailVerifyModule } from './auth/email/email-verify.module.js';
 import { requireLoginCodeSecretInProduction } from './auth/email/login-code-config.js';
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
@@ -53,6 +54,7 @@ export function validate(
     }),
     PrismaModule,
     AuditModule,
+    AuditLogsModule,
     CreatorsModule,
     InvoicesModule,
     ContentsModule,

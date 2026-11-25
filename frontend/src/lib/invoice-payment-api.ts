@@ -2,6 +2,7 @@
 // subtask 13.4). The field names are the ones agreed for 13.1 and 13.2; everything that knows
 // them lives here (Adapter), so a rename on the backend changes this file only.
 
+import { readActorName } from "./admin-actor";
 import { isSameSitePath, safeHref } from "./safe-href";
 
 // One saved payment proof as the API answers it, in the invoice and after an upload.
@@ -9,6 +10,8 @@ export interface RawPaymentProof {
   fileName: string;
   url: string;
   uploadedAt: string;
+  // The Admin who sent it (PBI-23, 23.10); an upload's own answer does not carry it.
+  uploadedBy?: string | null;
 }
 
 // The payment fields of one invoice as the API answers them. Each is optional: an answer from
@@ -27,6 +30,7 @@ export interface PaymentProof {
   fileName: string;
   href: string | null;
   uploadedAt: string;
+  uploadedBy?: string;
 }
 
 // The payment part of an invoice as the Rincian panel reads it.
@@ -51,7 +55,13 @@ function proofHref(url: string): string | null {
 
 // One saved proof under the page's names; the one place the proof's fields are renamed.
 export function toPaymentProof(raw: RawPaymentProof): PaymentProof {
-  return { fileName: raw.fileName, href: proofHref(raw.url), uploadedAt: raw.uploadedAt };
+  const uploadedBy = readActorName(raw.uploadedBy);
+  return {
+    fileName: raw.fileName,
+    href: proofHref(raw.url),
+    uploadedAt: raw.uploadedAt,
+    ...(uploadedBy && { uploadedBy }),
+  };
 }
 
 // The payment as a part of an invoice row: present once the answer sends any payment field, and

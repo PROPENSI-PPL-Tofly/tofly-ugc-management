@@ -299,13 +299,18 @@ export class InvoiceCommandService implements InvoiceCommands {
         });
 
         const adjustments = adjustmentRows.map(adjustmentDto);
+        const totals = adjustedTotals(
+          settled.rawTotal,
+          sumAdjustments(adjustments),
+        );
 
         // today is the request's instant, not a day: the breakdown is as of it, so it is when
         // the invoice was finalized.
         const snapshot: InvoiceSnapshotDto = {
           ...settled.components,
           adjustments,
-          ...adjustedTotals(settled.rawTotal, sumAdjustments(adjustments)),
+          ...totals,
+          finalizedTotal: totals.total,
           finalizedAt: today.toISOString(),
           formula,
           performanceBonusPending: settled.performanceBonusPending,
