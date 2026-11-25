@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
+import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
 import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
 import { lockContractOfContent } from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -136,6 +141,12 @@ export class ContentEditService implements ContentEditor {
     @Optional()
     @Inject('CONTENT_SCHEDULING')
     scheduling?: ContentEditScheduling,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<
+      CreatorNotifier,
+      'contentRescheduled' | 'contentDeleted'
+    > = noCreatorEmail,
   ) {
     this.scheduling = scheduling ?? {
       today: () => new Date(),
@@ -153,10 +164,12 @@ export class ContentEditService implements ContentEditor {
       bufferDays: await this.scheduling.bufferDays(),
     };
 
-    return this.prisma.$transaction(
+    let newDeadline: string | undefined;
+    const edited = await this.prisma.$transaction(
       async (transaction) => {
         const content = await this.lockChangeable(transaction, id);
         const plan = planContentEdit(content, edit, rules);
+        newDeadline = plan.changes.deadline?.to;
         if (Object.keys(plan.changes).length === 0) {
           return viewOf(content);
         }
@@ -179,6 +192,11 @@ export class ContentEditService implements ContentEditor {
       },
       { isolationLevel: 'ReadCommitted' },
     );
+    // PBI-11 (AC 1, AC 9): only a new deadline is emailed, once saved; never failing the edit.
+    if (newDeadline !== undefined) {
+      await this.notifier.contentRescheduled({ contentId: id, deadline: newDeadline });
+    }
+    return edited;
   }
 
   /**
@@ -186,13 +204,22 @@ export class ContentEditService implements ContentEditor {
    * Evergreen quota count and the penalties, which are all read from what is stored.
    */
   async remove(id: string): Promise<void> {
-    await this.prisma.$transaction(
+    // Read inside the lock, before the row is gone: the email names what was deleted.
+    const removed = await this.prisma.$transaction(
       async (transaction) => {
-        await this.lockChangeable(transaction, id);
+        const content = await this.lockChangeable(transaction, id);
         await transaction.contents.delete({ where: { id } });
+        return content;
       },
       { isolationLevel: 'ReadCommitted' },
     );
+    // PBI-11 (AC 1, AC 9): once deleted; the email never fails the delete.
+    await this.notifier.contentDeleted({
+      contractId: removed.contract_id,
+      contentId: id,
+      contentName: removed.name,
+      deadline: removed.deadline.toISOString().slice(0, 10),
+    });
   }
 
   private async lockChangeable(

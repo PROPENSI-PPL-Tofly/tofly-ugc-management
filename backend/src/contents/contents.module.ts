@@ -26,6 +26,7 @@ import {
 import { VideoSubmissionController } from './video-submission.controller.js';
 import { VideoSubmissionService } from './video-submission.service.js';
 import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
 import { EmailModule } from '../email/email.module.js';
 
 @Module({
@@ -45,6 +46,7 @@ import { EmailModule } from '../email/email.module.js';
     ContentEditService,
     ContentCreationService,
     { provide: CONTENT_NOTIFIER, useExisting: CreatorEmails },
+    { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
     ContentDetailService,
     ContentEventHistoryService,
     ContentListService,

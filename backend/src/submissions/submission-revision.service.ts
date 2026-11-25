@@ -1,3 +1,4 @@
+import { noCreatorEmail, type CreatorNotifier } from '../email/creator-notifier.js';
 import { checkReviewable } from './draft-review.js';
 import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import { reviewConflict, submissionNotFound } from './review-errors.js';
@@ -31,6 +32,7 @@ export interface RevisionStore {
 export class SubmissionRevisionService {
   constructor(
     private readonly repository: RevisionStore,
+    private readonly notifier: Pick<CreatorNotifier, 'revisionRequested'> = noCreatorEmail,
   ) {}
 
   async revise(
@@ -69,8 +71,9 @@ export class SubmissionRevisionService {
 
     if (!result) {
       throw reviewConflict('DRAFT_NOT_REVIEWABLE');
-    } else {
-      return result;
     }
+    // PBI-11 (AC 1, AC 9): once the note is saved; the email never fails the revision.
+    await this.notifier.revisionRequested({ contentId: submission.content_id, submissionId });
+    return result;
   }
 }
