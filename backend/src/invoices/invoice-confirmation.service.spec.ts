@@ -1,3 +1,4 @@
+import type { AdminNotifier } from '../email/admin-notifier.js';
 import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
@@ -52,6 +53,7 @@ function contract(status: string | null, creatorId = CREATOR) {
 function stubs(
   status: string | null = 'finalized',
   notifier?: Pick<CreatorNotifier, 'invoicePaid'>,
+  admins?: Pick<AdminNotifier, 'invoiceAcknowledged'>,
 ) {
   const prisma = {
     contracts: { findUnique: vi.fn().mockResolvedValue(contract(status)) },
@@ -68,6 +70,7 @@ function stubs(
   const service = new InvoiceConfirmationService(
     prisma as unknown as InvoiceConfirmationClient,
     notifier,
+    admins,
   );
   return { prisma, service };
 }
@@ -364,5 +367,41 @@ describe('InvoiceConfirmationService, the Paid email', () => {
     await service.acknowledge(CONTRACT, CREATOR, NOW);
 
     expect(notifier.invoicePaid).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-11 (11.2, AC 5): every Admin hears the creator acknowledged, so the proof can be uploaded.
+describe('InvoiceConfirmationService, the Admin email', () => {
+  function admins() {
+    return { invoiceAcknowledged: vi.fn<AdminNotifier['invoiceAcknowledged']>().mockResolvedValue() };
+  }
+
+  it('tells the Admins once the acknowledgement is saved', async () => {
+    const notifier = admins();
+    const { prisma, service } = stubs('finalized', undefined, notifier);
+    notifier.invoiceAcknowledged.mockImplementation(async () => {
+      expect(prisma.invoices.updateMany).toHaveBeenCalled();
+    });
+
+    await service.acknowledge(CONTRACT, CREATOR, NOW);
+
+    expect(notifier.invoiceAcknowledged).toHaveBeenCalledExactlyOnceWith({ contractId: CONTRACT });
+  });
+
+  it('tells nobody when the acknowledgement is refused', async () => {
+    const notifier = admins();
+    const { service } = stubs('running', undefined, notifier);
+
+    await expect(service.acknowledge(CONTRACT, CREATOR, NOW)).rejects.toThrow();
+    expect(notifier.invoiceAcknowledged).not.toHaveBeenCalled();
+  });
+
+  it('tells the Admins nothing when the creator confirms Paid', async () => {
+    const notifier = admins();
+    const { service } = stubs('payment_uploaded', undefined, notifier);
+
+    await service.confirmReceipt(CONTRACT, CREATOR, NOW);
+
+    expect(notifier.invoiceAcknowledged).not.toHaveBeenCalled();
   });
 });

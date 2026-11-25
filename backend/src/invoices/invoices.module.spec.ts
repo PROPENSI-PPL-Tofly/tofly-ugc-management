@@ -1,5 +1,7 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { InvoiceCommandService } from './invoice-command.service.js';
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
 import { CreatorEmails } from '../email/creator-emails.js';
 import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
 import { EmailModule } from '../email/email.module.js';
@@ -114,5 +116,7 @@ describe('InvoicesModule', () => {
 
     expect(imports).toContain(EmailModule);
     expect(providers).toContainEqual({ provide: CREATOR_NOTIFIER, useExisting: CreatorEmails });
+    // PBI-11 (11.2, AC 5): an acknowledged invoice emails every Admin.
+    expect(providers).toContainEqual({ provide: ADMIN_NOTIFIER, useExisting: AdminEmails });
   });
 });

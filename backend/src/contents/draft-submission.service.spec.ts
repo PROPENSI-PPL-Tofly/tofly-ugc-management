@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import type { AdminNotifier } from '../email/admin-notifier.js';
 import {
   DraftSubmissionService,
   type DraftSubmissionClient,
@@ -420,5 +421,37 @@ describe('DraftSubmissionService.submit', () => {
 
     expect(transaction.submissions.create).not.toHaveBeenCalled();
     expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-11 (11.2, AC 5): every Admin hears a draft waits for review, once it is saved.
+describe('DraftSubmissionService.submit, the Admin email', () => {
+  function emails() {
+    return { draftSubmitted: vi.fn<AdminNotifier['draftSubmitted']>().mockResolvedValue() };
+  }
+
+  it('tells the Admins after the draft is saved', async () => {
+    const notifier = emails();
+    const { client, transaction } = stub({});
+    notifier.draftSubmitted.mockImplementation(async () => {
+      expect(transaction.content_events.create).toHaveBeenCalled();
+    });
+
+    await new DraftSubmissionService(client, notifier).submit(CONTENT_ID, CREATOR_ID, INPUT);
+
+    expect(notifier.draftSubmitted).toHaveBeenCalledExactlyOnceWith({
+      contentId: CONTENT_ID,
+      submissionId: SUBMISSION_ID,
+    });
+  });
+
+  it('tells nobody when the draft is refused', async () => {
+    const notifier = emails();
+    const { client } = stub({ updated: 0 });
+
+    await expect(
+      new DraftSubmissionService(client, notifier).submit(CONTENT_ID, CREATOR_ID, INPUT),
+    ).rejects.toThrow();
+    expect(notifier.draftSubmitted).not.toHaveBeenCalled();
   });
 });
