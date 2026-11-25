@@ -161,6 +161,23 @@ function inOrder(months: readonly MonthSeries[]): boolean {
   return months.every((entry, index) => index === 0 || months[index - 1].month < entry.month);
 }
 
+/** "2026-12" → "2027-01": the calendar month after a "YYYY-MM" label. */
+function nextMonth(label: string): string {
+  const [year, month] = label.split("-").map(Number);
+  return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Exactly `count` months, each the calendar month after the one before. The range's last month
+ * is the backend's to say (this module has no clock), but a dropped or extra month is caught.
+ */
+export function coversRange(months: readonly MonthSeries[], count: number): boolean {
+  return (
+    months.length === count &&
+    months.every((entry, index) => index === 0 || nextMonth(months[index - 1].month) === entry.month)
+  );
+}
+
 /**
  * GET /dashboard/executive's answer as the charts and the table read it. A 200 the page cannot
  * use is a failure, never an empty dashboard: a chart that silently dropped a malformed month

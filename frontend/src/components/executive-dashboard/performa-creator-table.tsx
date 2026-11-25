@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Panel, PanelHead } from "@/components/ui/panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SortableTh } from "@/components/ui/sortable-th";
 import { creatorDetailBase } from "@/lib/creator-detail";
 import {
-  dashboardHref,
+  buildDashboardQuery,
   nextCreatorSort,
   sortCreators,
   type CreatorPerformance,
@@ -14,6 +14,7 @@ import {
   type DashboardState,
 } from "@/lib/executive-dashboard";
 import { EMPTY, formatCount, formatRate, formatRupiah } from "@/lib/format";
+import { useUrlQuery } from "@/lib/url-query";
 
 const NUMBER_HINTS = { asc: "Terendah dulu", desc: "Tertinggi dulu" } as const;
 
@@ -39,18 +40,23 @@ function cells(row: CreatorPerformance): string[] {
 /**
  * Performa Creator (PBI-24, AC Creators): the creators with a contract in the range, sorted by
  * any column. The order lives in the address with the range, so a reload or a shared link shows
- * the same table; the rows arrive whole and are sorted here, never re-fetched. A creator's name
- * opens their Creator Detail.
+ * the same table; the rows arrive whole and are sorted here, never re-fetched: a header press
+ * writes the order straight into the address, with no navigation that would load the dashboard
+ * again. A creator's name opens their Creator Detail.
  */
 export function PerformaCreatorTable({
   creators,
   state,
 }: Readonly<{ creators: readonly CreatorPerformance[]; state: DashboardState }>) {
-  const router = useRouter();
-  const rows = sortCreators(creators, state.sort, state.order);
+  const { replaceQuietly } = useUrlQuery();
+  const [sorting, setSorting] = useState({ sort: state.sort, order: state.order });
+  const current: DashboardState = { ...state, ...sorting };
+  const rows = sortCreators(creators, current.sort, current.order);
 
   const press = (key: CreatorSortKey) => {
-    router.push(dashboardHref({ ...state, ...nextCreatorSort(state, key) }), { scroll: false });
+    const next = nextCreatorSort(current, key);
+    setSorting(next);
+    replaceQuietly(new URLSearchParams(buildDashboardQuery({ ...current, ...next })).toString());
   };
 
   return (
@@ -69,7 +75,7 @@ export function PerformaCreatorTable({
                     key={column.key}
                     label={column.label}
                     align={column.numeric ? "right" : "left"}
-                    direction={state.sort === column.key ? state.order : null}
+                    direction={current.sort === column.key ? current.order : null}
                     hints={column.numeric ? NUMBER_HINTS : { asc: "A ke Z", desc: "Z ke A" }}
                     onToggle={() => press(column.key)}
                   />
