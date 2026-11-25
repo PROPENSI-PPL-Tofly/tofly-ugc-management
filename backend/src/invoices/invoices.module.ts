@@ -4,6 +4,11 @@ import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
 import { InvoicePaymentsModule } from './invoice-payments.module.js';
 import { InvoiceCommandService } from './invoice-command.service.js';
 import { InvoiceConfirmationService } from './invoice-confirmation.service.js';
+import { InvoiceExportController } from './invoice-export.controller.js';
+import {
+  INVOICE_EXPORT_READER,
+  InvoiceExportService,
+} from './invoice-export.service.js';
 import { INVOICE_ROSTER_REPOSITORY } from './invoice-roster.repository.js';
 import { INVOICE_STATUS_SOURCE } from './invoice-status.js';
 import { InvoicesController } from './invoices.controller.js';
@@ -11,6 +16,7 @@ import { InvoicesService } from './invoices.service.js';
 import { LAST_SYNC } from './last-sync.js';
 import { PerformanceLastSync } from './performance-last-sync.adapter.js';
 import { PersistedInvoiceStatusSource } from './persisted-invoice-status.source.js';
+import { PrismaInvoiceExportReader } from './prisma-invoice-export.reader.js';
 import { PrismaInvoiceRosterRepository } from './prisma-invoice-roster.repository.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
@@ -18,7 +24,7 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 @Module({
   // The payment proof each row shows (PBI-13); 27.4's sync for Finalize's last sync (PBI-28).
   imports: [RateFormulaModule, InvoicePaymentsModule, PerformanceSyncModule],
-  controllers: [InvoicesController],
+  controllers: [InvoicesController, InvoiceExportController],
   providers: [
     InvoicesService,
     // The creators, contracts and content the running invoice is calculated from (Repository).
@@ -35,6 +41,9 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
     { provide: INVOICE_STATUS_SOURCE, useClass: PersistedInvoiceStatusSource },
     // The creator's acknowledge and receipt confirmation (13.1).
     InvoiceConfirmationService,
+    // 31.4: the selected invoices are read from their snapshot and zipped for Finance.
+    InvoiceExportService,
+    { provide: INVOICE_EXPORT_READER, useClass: PrismaInvoiceExportReader },
     // Finalize's last sync (PBI-28 AC 7): 27.4's syncContract behind the LastSync port (Adapter).
     { provide: LAST_SYNC, useClass: PerformanceLastSync },
   ],
