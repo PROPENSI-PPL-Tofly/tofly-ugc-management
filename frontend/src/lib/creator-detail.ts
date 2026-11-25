@@ -26,6 +26,7 @@ import {
   type CreatorFilterState,
 } from "./creators";
 import { formatDate } from "./format";
+import type { EarlyEnd } from "./early-end-display";
 import type { InvoiceStatus } from "./invoice";
 import type { SocialConnections } from "./social-connection";
 import { calendarDay, listOf, oneOf, pageNumber, single, type SearchParams } from "./search-params";
@@ -177,6 +178,8 @@ export interface CreatorPeriod {
   fixedRate: number;
   /** Why the contract was ended early (PBI-37), or null when it was not. */
   earlyEndReason: EarlyEndReason | null;
+  /** PBI-37: the original end and reason of a period ended early; absent when it was not. */
+  earlyEnd?: EarlyEnd;
   /** API-calculated completed-content progress for this contract period. */
   progress: ContractPeriod["progress"];
   /** API-calculated on-time rate, revisions and productivity band for this period. */

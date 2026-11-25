@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { fetchCreatorDashboard, type CreatorDashboard } from "@/lib/creator-dashboard.server";
+import { aCreatorInvoice } from "@/lib/creator-invoice.builder";
+import { CreatorInvoicesError, type CreatorInvoice } from "@/lib/creator-invoice";
+import { fetchMyInvoices } from "@/lib/creator-invoice.server";
 import { MyTasksError, type MyTask } from "@/lib/my-tasks";
 import CreatorDashboardPage from "./page";
 
@@ -7,7 +10,22 @@ vi.mock("@/lib/creator-dashboard.server", () => ({
   fetchCreatorDashboard: vi.fn(),
 }));
 
+// GET /me/invoices, stubbed: the dashboard reads the contract's last day from it (PBI-37).
+vi.mock("@/lib/creator-invoice.server", () => ({
+  fetchMyInvoices: vi.fn(),
+}));
+
+const mockedInvoices = vi.mocked(fetchMyInvoices);
+
+const { redirect } = vi.hoisted(() => ({
+  // As Next does it: redirect() ends the render by throwing.
+  redirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT ${path}`);
+  }),
+}));
+
 vi.mock("next/navigation", () => ({
+  redirect,
   usePathname: () => "/creator/dashboard",
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
@@ -53,6 +71,8 @@ async function renderPage() {
 describe("Creator dashboard page", () => {
   beforeEach(() => {
     mockedFetch.mockReset();
+    mockedInvoices.mockReset();
+    mockedInvoices.mockResolvedValue([]);
     // Midday in Jakarta on 9 Oct 2026, so "today" is the same day whatever zone the test runs in.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-09T05:00:00Z"));
@@ -117,6 +137,88 @@ describe("Creator dashboard page", () => {
 
     expect(cards).toHaveLength(1);
     expect(within(cards[0]).getByText("—")).toBeInTheDocument();
+  });
+
+  // PBI-37, 37.3: the creator's own last day, the new one once a contract was ended early.
+  describe("the contract's last day", () => {
+    it("shows the last day of the contract being billed", async () => {
+      mockedFetch.mockResolvedValue(dashboard());
+      mockedInvoices.mockResolvedValue([aCreatorInvoice({ periodEnd: "2026-11-20", status: "cancelled" })]);
+
+      await renderPage();
+
+      expect(screen.getByText("Hari terakhir kontrak: 20 Nov 2026")).toBeInTheDocument();
+    });
+
+    // OWASP A01: the creator never reads that the contract was ended early, why, or the admin's
+    // note; even a stubbed answer carrying them shows only the day. The real boundary is the
+    // backend, which sends none of it to a creator (37.1).
+    it("never shows an early-end label, a reason or a note, whatever the answer carries", async () => {
+      mockedFetch.mockResolvedValue(dashboard());
+      const leaky = {
+        ...aCreatorInvoice({ periodEnd: "2026-11-20" }),
+        earlyEnd: { originalEndDate: "2026-12-31", reason: "fraud", note: "Akun palsu" },
+      } as CreatorInvoice;
+      mockedInvoices.mockResolvedValue([leaky]);
+
+      await renderPage();
+
+      expect(screen.queryByText(/Berakhir Lebih Awal/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Fraud|Pelanggaran Kontrak|Lainnya|Alasan/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Akun palsu/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/31 Des 2026/)).not.toBeInTheDocument();
+    });
+
+    // OWASP A10: the invoices failing to load costs the dashboard this one line, nothing more,
+    // and no server text reaches the page.
+    it.each([
+      ["a refused read", new CreatorInvoicesError(500)],
+      ["a network failure", new TypeError("fetch failed")],
+    ])("still shows the cards after %s, without the line", async (_label, error) => {
+      mockedFetch.mockResolvedValue(dashboard());
+      mockedInvoices.mockRejectedValue(error);
+
+      await renderPage();
+
+      expect(screen.getByText("Draft Perlu Disubmit")).toBeInTheDocument();
+      expect(screen.queryByText(/Hari terakhir kontrak/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/HTTP|fetch failed/)).not.toBeInTheDocument();
+    });
+
+    it("leaves the line out for a creator without invoices", async () => {
+      mockedFetch.mockResolvedValue(dashboard());
+
+      await renderPage();
+
+      expect(screen.queryByText(/Hari terakhir kontrak/)).not.toBeInTheDocument();
+    });
+  });
+
+  // PBI-37 (37.1, AC 13), OWASP A01: the backend lets a creator who only waits for payment open
+  // nothing but Pembayaran. The dashboard follows that refusal there; it never works around it.
+  describe("a creator who only waits for payment", () => {
+    beforeEach(() => {
+      redirect.mockClear();
+    });
+
+    it("is sent to Pembayaran when the backend refuses the dashboard with PAYMENTS_ONLY", async () => {
+      mockedFetch.mockRejectedValue(new MyTasksError(403, "PAYMENTS_ONLY"));
+
+      await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT /creator/payments");
+      expect(redirect).toHaveBeenCalledWith("/creator/payments");
+    });
+
+    it.each([
+      ["another refusal", new MyTasksError(403, "SOMETHING_ELSE")],
+      ["a refusal without a code", new MyTasksError(403)],
+    ])("is not redirected for %s, only told the dashboard did not load", async (_label, error) => {
+      mockedFetch.mockRejectedValue(error);
+
+      await renderPage();
+
+      expect(redirect).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent("Dashboard tidak bisa dimuat.");
+    });
   });
 
   it("tells a visitor who is not signed in as a creator, instead of empty cards", async () => {

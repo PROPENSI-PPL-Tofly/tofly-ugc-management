@@ -262,7 +262,14 @@ export interface MyTasksResponse {
 
 /** A failed answer from the API, keeping the status so a 401 can read differently. */
 export class MyTasksError extends Error {
-  constructor(readonly status: number) {
+  /**
+   * @param code the backend's refusal code, such as PAYMENTS_ONLY (PBI-37, AC 13), or null. Its
+   * message is never kept, so no server text reaches a page (OWASP A10).
+   */
+  constructor(
+    readonly status: number,
+    readonly code: string | null = null,
+  ) {
     super(`Loading my tasks failed with HTTP ${status}`);
     this.name = "MyTasksError";
   }

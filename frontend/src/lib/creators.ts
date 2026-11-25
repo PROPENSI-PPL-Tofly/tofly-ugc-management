@@ -65,6 +65,11 @@ export interface CreatorSummary {
     contentQuota: number;
     /** The current contract's type; null without a contract. */
     type: ContractType | null;
+    /**
+     * PBI-37 (37.1): set when the current contract was ended early; endDate is then its last day.
+     * Absent from an API before PBI-37. Read only through readEarlyEnd.
+     */
+    earlyEnd?: { originalEndDate: string; reason: EarlyEndReason } | null;
   };
   progress: {
     submitted: number;
@@ -102,6 +107,11 @@ export interface ContractPeriod {
   fixedRate: number;
   /** Set once PBI-37 ends the contract early; not sent by APIs from before it. */
   earlyEndReason?: EarlyEndReason | null;
+  /**
+   * PBI-37 (37.1): how the period was ended early, or null when it runs as agreed; endDate is
+   * then its last day. The note is the admin's own. Read only through readEarlyEnd.
+   */
+  earlyEnd?: { originalEndDate: string; reason: EarlyEndReason; note: string; endedAt: string } | null;
   /** Evergreen contents the period can still take before its quota is full; never below 0. */
   remainingEvergreenQuota: number;
   type: ContractType;

@@ -1,4 +1,4 @@
-import { LOGIN_ERROR_MESSAGES, loginErrorMessage } from "./login-errors";
+import { ACCESS_CLOSED, LOGIN_ERROR_MESSAGES, loginErrorMessage, type LoginError } from "./login-errors";
 
 describe("loginErrorMessage", () => {
   it("explains a failed sign-in and asks to try again", () => {
@@ -12,14 +12,24 @@ describe("loginErrorMessage", () => {
     );
   });
 
-  // PRD 3.1: an email the whitelist refuses is told to contact the Admin. That covers one never
-  // added and a creator whose access was revoked (flow 4.10), so it must not claim either. The
-  // Google screen always offers the account chooser, so trying another account is a real way out.
-  it("tells a refused email to ask the Admin for access or use another Google account", () => {
-    expect(loginErrorMessage("not_authorized")).toBe(
-      "Email ini tidak punya akses ke Tofly. Hubungi Admin untuk meminta akses, atau masuk dengan akun Google lain.",
-    );
+  // PBI-23's one message for every account without access, PBI-37's closed creator included.
+  it("is PBI-23's message for an account without access", () => {
+    expect(ACCESS_CLOSED).toBe("Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.");
   });
+
+  // OWASP A07: the backend answers not_authorized alike for an email never added and a creator
+  // whose access closed (37.1), so the page says the same to both and never tells them apart.
+  it("tells a refused account, closed or never added, that it has no access", () => {
+    expect(loginErrorMessage("not_authorized")).toBe(ACCESS_CLOSED);
+  });
+
+  // OWASP A07: only that refusal says so; every other way back keeps its own words.
+  it.each(["sign_in_failed", "cancelled", "session_expired"] satisfies LoginError[])(
+    "never shows the no-access message for %s",
+    (code) => {
+      expect(loginErrorMessage(code)).not.toBe(ACCESS_CLOSED);
+    },
+  );
 
   // A revoked creator was registered once, so "not registered" would be untrue for them.
   it("does not say the email was never registered", () => {

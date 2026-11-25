@@ -1,9 +1,8 @@
 import { INVOICE_TONES } from "@/components/invoice/invoice-table";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { totalAmountLabel, type CreatorInvoice } from "@/lib/creator-invoice";
+import { CREATOR_INVOICE_STATUS_LABELS, totalAmountLabel, type CreatorInvoice } from "@/lib/creator-invoice";
 import { formatContractWindow } from "@/lib/format";
-import { INVOICE_STATUS_LABELS } from "@/lib/invoice";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
@@ -69,7 +68,7 @@ export function InvoiceHistory({
                   </span>
                 </td>
                 <td data-label="Status" className={`${CELL} ${LABELLED}`}>
-                  <Pill tone={INVOICE_TONES[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Pill>
+                  <Pill tone={INVOICE_TONES[invoice.status]}>{CREATOR_INVOICE_STATUS_LABELS[invoice.status]}</Pill>
                 </td>
                 <td
                   data-label="Total"
