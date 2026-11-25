@@ -1,6 +1,12 @@
 import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   Inject,
   Injectable,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -138,6 +144,9 @@ export interface CreatorOnboarder {
 export class CreatorOnboardingService implements CreatorOnboarder {
   constructor(
     @Inject(PrismaService) private readonly prisma: OnboardingClient,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'accountReady'> = noCreatorEmail,
   ) {}
 
   /**
@@ -168,6 +177,8 @@ export class CreatorOnboardingService implements CreatorOnboarder {
           : error;
       });
 
+    // PBI-11 (AC 1, AC 9): once the account is saved; the email never fails it.
+    await this.notifier.accountReady({ creatorId: row.id });
     return this.toOnboarded(row);
   }
 

@@ -1,8 +1,14 @@
 import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -121,15 +127,20 @@ export interface PeriodKeeper {
  */
 @Injectable()
 export class ContractPeriodsService implements PeriodKeeper {
-  constructor(@Inject(PrismaService) private readonly prisma: PeriodsClient) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PeriodsClient,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'periodAdded'> = noCreatorEmail,
+  ) {}
 
-  create(
+  async create(
     creatorId: string,
     terms: ContractTerms,
     now: Date,
     adminUserId?: string,
   ): Promise<SavedPeriod> {
-    return this.prisma.$transaction(async (tx) => {
+    const saved = await this.prisma.$transaction(async (tx) => {
       const creator = await this.lockCreator(tx, creatorId);
       this.refuseOverlap(terms, creator.contracts);
 
@@ -145,6 +156,14 @@ export class ContractPeriodsService implements PeriodKeeper {
       });
       return toSaved(row);
     });
+    // PBI-11 (AC 1, AC 9): once the period is saved; the email never fails it.
+    await this.notifier.periodAdded({
+      creatorId,
+      contractId: saved.contractId,
+      startDate: saved.startDate,
+      endDate: saved.endDate,
+    });
+    return saved;
   }
 
   update(

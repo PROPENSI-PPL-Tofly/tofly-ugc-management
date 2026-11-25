@@ -18,6 +18,22 @@ export interface CreatorNotifier {
     contentName: string;
     deadline: string;
   }): Promise<void>;
+  /** AC 1: the creator's account is ready. */
+  accountReady(input: { creatorId: string }): Promise<void>;
+  /** AC 1: a new contract period is added. */
+  periodAdded(input: {
+    creatorId: string;
+    contractId: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<void>;
+  /** AC 1 and AC 4: the last day and the invoice choice, never the reason type or note. */
+  contractEndedEarly(input: {
+    creatorId: string;
+    contractId: string;
+    lastDay: string;
+    invoice: 'paid' | 'cancelled';
+  }): Promise<void>;
 }
 
 /** Nest injection token for CreatorNotifier, since an interface does not exist at runtime. */
@@ -32,4 +48,7 @@ export const noCreatorEmail: CreatorNotifier = {
   draftApproved: nothing,
   contentRescheduled: nothing,
   contentDeleted: nothing,
+  accountReady: nothing,
+  periodAdded: nothing,
+  contractEndedEarly: nothing,
 };

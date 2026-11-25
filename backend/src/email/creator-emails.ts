@@ -143,6 +143,53 @@ export class CreatorEmails implements CreatorNotifier {
     });
   }
 
+  accountReady({ creatorId }: { creatorId: string }): Promise<void> {
+    return this.byCreator(creatorId, {
+      eventKey: `account_ready:${creatorId}`,
+      template: 'account_ready',
+      data: {},
+    });
+  }
+
+  periodAdded(input: {
+    creatorId: string;
+    contractId: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<void> {
+    const { creatorId, contractId, startDate, endDate } = input;
+    return this.byCreator(creatorId, {
+      eventKey: `period_added:${contractId}`,
+      template: 'period_added',
+      data: { contractId, startDate, endDate },
+    });
+  }
+
+  // AC 10: the reason type and note are Admin-only, so they are never handed to the template.
+  contractEndedEarly(input: {
+    creatorId: string;
+    contractId: string;
+    lastDay: string;
+    invoice: 'paid' | 'cancelled';
+  }): Promise<void> {
+    const { creatorId, contractId, lastDay, invoice } = input;
+    return this.byCreator(creatorId, {
+      eventKey: `contract_ended_early:${contractId}`,
+      template: 'contract_ended_early',
+      data: { contractId, lastDay, invoice },
+    });
+  }
+
+  /** AC 1: Admin approved the creator's proposal. */
+  proposalApproved({ contentId }: { contentId: string }): Promise<void> {
+    return this.byContent(contentId, 'proposal_approved', contentId);
+  }
+
+  /** AC 1: a proposal still undecided at H-1 was scheduled by the system (PBI-14 AC 7). */
+  proposalScheduled({ contentId }: { contentId: string }): Promise<void> {
+    return this.byContent(contentId, 'proposal_scheduled', contentId);
+  }
+
   private byCreator(creatorId: string, event: Omit<EmailEvent, 'to'>): Promise<void> {
     return this.reach(event.template, async () => ({
       creator: await this.prisma.creators.findUnique({
