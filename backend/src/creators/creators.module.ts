@@ -28,9 +28,9 @@ import { CreatorsService } from './creators.service.js';
     // TODO(PBI-23, 23.5): useExisting: AuditLogger once the audit log store is merged.
     { provide: CONTRACT_END_AUDIT, useClass: PendingContractEndAudit },
     CreatorEditService,
-    // TODO(PBI-23, 23.5): useExisting: AuditLogger once the audit log store is merged.
+    // PBI-23, 23.5: becomes useExisting: AuditLogger when the audit log store is merged.
     { provide: CREATOR_EDIT_AUDIT, useClass: PendingCreatorEditAudit },
-    // TODO(PBI-11, 11.2): useExisting: CreatorEmails once it answers these two events.
+    // PBI-11, 11.2: becomes useExisting: CreatorEmails when it answers these two events.
     { provide: CREATOR_EDIT_NOTIFIER, useValue: silentCreatorEditNotifier },
   ],
 })
