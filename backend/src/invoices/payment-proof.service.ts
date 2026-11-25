@@ -1,3 +1,8 @@
+import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
 import { randomUUID } from 'node:crypto';
 import {
   Inject,
@@ -73,6 +78,9 @@ export class PaymentProofService implements PaymentProofReader {
     @Optional()
     @Inject(PROOF_KEY_FACTORY)
     private readonly newObjectKey: () => string = randomUUID,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'paymentProofUploaded'> = noCreatorEmail,
   ) {}
 
   /**
@@ -112,8 +120,9 @@ export class PaymentProofService implements PaymentProofReader {
       });
     }
 
+    let saved: { file_name: string; uploaded_at: Date };
     try {
-      const saved = await this.prisma.$transaction(
+      saved = await this.prisma.$transaction(
         async (tx) => {
           // The guarded update takes the invoice row's lock: a second upload waits, then finds
           // the status moved and changes nothing.
@@ -137,17 +146,20 @@ export class PaymentProofService implements PaymentProofReader {
         },
         { isolationLevel: 'ReadCommitted' },
       );
-
-      return {
-        fileName: saved.file_name,
-        url: proofUrl(contractId, 'admin'),
-        uploadedAt: saved.uploaded_at.toISOString(),
-        invoiceStatus: 'payment_uploaded',
-      };
     } catch (error) {
       await this.removeUnrecorded(key);
       throw isUniqueViolation(error) ? notAwaitingProof() : error;
     }
+
+    // PBI-11 (AC 1, AC 9): once recorded, and outside the clean-up above, so an email can never
+    // take the stored proof down; it never fails the upload either.
+    await this.notifier.paymentProofUploaded({ contractId });
+    return {
+      fileName: saved.file_name,
+      url: proofUrl(contractId, 'admin'),
+      uploadedAt: saved.uploaded_at.toISOString(),
+      invoiceStatus: 'payment_uploaded',
+    };
   }
 
   /** Opens a proof for an admin (any invoice) or a creator (only their own contracts). */

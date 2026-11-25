@@ -127,19 +127,10 @@ export class CreatorEmails implements CreatorNotifier {
     deadline: string;
   }): Promise<void> {
     const { contractId, contentId, contentName, deadline } = input;
-    return this.reach('content_deleted', async () => {
-      const contract = await this.prisma.contracts.findUnique({
-        where: { id: contractId },
-        select: { creators: { select: CREATOR_SELECT } },
-      });
-      return {
-        creator: contract?.creators ?? null,
-        event: {
-          eventKey: `content_deleted:${contentId}`,
-          template: 'content_deleted',
-          data: { contentName, deadline },
-        },
-      };
+    return this.byContract(contractId, {
+      eventKey: `content_deleted:${contentId}`,
+      template: 'content_deleted',
+      data: { contentName, deadline },
     });
   }
 
@@ -188,6 +179,33 @@ export class CreatorEmails implements CreatorNotifier {
   /** AC 1: a proposal still undecided at H-1 was scheduled by the system (PBI-14 AC 7). */
   proposalScheduled({ contentId }: { contentId: string }): Promise<void> {
     return this.byContent(contentId, 'proposal_scheduled', contentId);
+  }
+
+  invoiceFinalized({ contractId }: { contractId: string }): Promise<void> {
+    return this.byContract(contractId, {
+      eventKey: `invoice_finalized:${contractId}`,
+      template: 'invoice_finalized',
+      data: { contractId },
+    });
+  }
+
+  paymentProofUploaded({ contractId }: { contractId: string }): Promise<void> {
+    return this.byContract(contractId, {
+      eventKey: `payment_proof_uploaded:${contractId}`,
+      template: 'payment_proof_uploaded',
+      data: { contractId },
+    });
+  }
+
+  /** An invoice event: the creator is the one whose contract the invoice belongs to. */
+  private byContract(contractId: string, event: Omit<EmailEvent, 'to'>): Promise<void> {
+    return this.reach(event.template, async () => {
+      const contract = await this.prisma.contracts.findUnique({
+        where: { id: contractId },
+        select: { creators: { select: CREATOR_SELECT } },
+      });
+      return { creator: contract?.creators ?? null, event };
+    });
   }
 
   private byCreator(creatorId: string, event: Omit<EmailEvent, 'to'>): Promise<void> {

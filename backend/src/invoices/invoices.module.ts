@@ -1,3 +1,6 @@
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import { Module } from '@nestjs/common';
 import { PerformanceSyncModule } from '../performance/sync/performance-sync.module.js';
 import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
@@ -25,7 +28,8 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 
 @Module({
   // The payment proof each row shows (PBI-13); 27.4's sync for Finalize's last sync (PBI-28).
-  imports: [RateFormulaModule, InvoicePaymentsModule, PerformanceSyncModule],
+  // Finalize emails the creator (PBI-11).
+  imports: [RateFormulaModule, InvoicePaymentsModule, PerformanceSyncModule, EmailModule],
   controllers: [InvoicesController, InvoicePdfController, InvoiceExportController],
   providers: [
     InvoicesService,
@@ -37,6 +41,7 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
     // The admin's adjustments and finalizing (PBI-12), for this module's admin-only controller.
     // Not exported: the creator's routes that import this module cannot inject them.
     InvoiceCommandService,
+    { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
     // The formula admins saved in "Atur Formula Rate" (8.1).
     { provide: RATE_FORMULA_SOURCE, useClass: StoredRateFormulaSource },
     // Where each invoice stands, from the lifecycle finalizing saves (PBI-12).

@@ -34,6 +34,10 @@ export interface CreatorNotifier {
     lastDay: string;
     invoice: 'paid' | 'cancelled';
   }): Promise<void>;
+  /** AC 1: an invoice is finalized and waits for the creator's check. */
+  invoiceFinalized(input: { contractId: string }): Promise<void>;
+  /** AC 1: Admin uploaded the payment proof. */
+  paymentProofUploaded(input: { contractId: string }): Promise<void>;
 }
 
 /** Nest injection token for CreatorNotifier, since an interface does not exist at runtime. */
@@ -51,4 +55,6 @@ export const noCreatorEmail: CreatorNotifier = {
   accountReady: nothing,
   periodAdded: nothing,
   contractEndedEarly: nothing,
+  invoiceFinalized: nothing,
+  paymentProofUploaded: nothing,
 };
