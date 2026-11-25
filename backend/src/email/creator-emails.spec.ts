@@ -329,3 +329,37 @@ describe('CreatorEmails, account, contract and proposal events', () => {
     });
   });
 });
+
+// PBI-11 (11.2, AC 1): invoice events, found by the contract the invoice belongs to.
+describe('CreatorEmails, invoice events', () => {
+  const CREATOR_ROW = {
+    first_name: 'Rangga',
+    middle_name: null,
+    last_name: 'Pratama',
+    users: { email: 'rangga@example.com' },
+  };
+
+  it.each([
+    ['invoiceFinalized', 'invoice_finalized'],
+    ['paymentProofUploaded', 'payment_proof_uploaded'],
+  ] as const)('sends %s once per invoice', async (method, template) => {
+    const prisma = {
+      creators: { findUnique: vi.fn() },
+      contents: { findUnique: vi.fn() },
+      contracts: { findUnique: vi.fn().mockResolvedValue({ creators: CREATOR_ROW }) },
+    } satisfies CreatorEmailClient;
+    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
+
+    await new CreatorEmails(prisma, notifier, { warn: vi.fn() })[method]({ contractId: 'contract-1' });
+
+    expect(prisma.contracts.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'contract-1' } }),
+    );
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: `${template}:contract-1`,
+      template,
+      to: { email: 'rangga@example.com', name: 'Rangga Pratama' },
+      data: { contractId: 'contract-1' },
+    });
+  });
+});
