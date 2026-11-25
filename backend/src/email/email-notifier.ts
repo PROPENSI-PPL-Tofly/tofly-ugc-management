@@ -1,5 +1,5 @@
 import type { Logger } from '@nestjs/common';
-import type { EmailLogStore } from './email-log-store.js';
+import type { EmailLogStore, LoggedEmail } from './email-log-store.js';
 import type { EmailSender } from './email-sender.js';
 import type { EmailTemplates } from './email-templates.js';
 
@@ -48,31 +48,28 @@ export class EmailNotifier {
 
   /** Sends the event's email to one recipient; resolves whatever happens. */
   async notify({ eventKey, template, to, data }: EmailEvent): Promise<void> {
-    const recipient = to.email;
-    const payload = { ...data, recipientName: to.name };
-    let claimed = false;
-    let sent = false;
-
+    const email: LoggedEmail = {
+      eventKey,
+      template,
+      recipient: to.email,
+      payload: { ...data, recipientName: to.name },
+    };
+    let claimed: boolean;
     try {
-      claimed = await this.store.claim({ eventKey, template, recipient, payload });
-      if (!claimed) return;
-
-      const rendered = this.templates.render(template, payload);
-      await this.withinTimeout(
-        this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered }),
-      );
-      sent = true;
-      await this.store.markSent(eventKey, recipient, this.clock());
+      claimed = await this.store.claim(email);
     } catch (error) {
-      const kind = errorKind(error);
-      this.log.warn(`Email ${template} failed (${kind})`);
-      // A sent email is never marked failed, or the 08:00 run would send it twice.
-      if (claimed && !sent) {
-        await this.store
-          .markFailed(eventKey, recipient, kind, this.clock())
-          .catch(() => undefined);
-      }
+      this.warn(template, error);
+      return;
     }
+    if (claimed) await this.deliver(email);
+  }
+
+  /**
+   * The 08:00 run's second or third attempt at a failed email (11.3, AC 9): the same template and
+   * recipient, rendered again from the data its row kept. True when it was sent.
+   */
+  retry(email: LoggedEmail): Promise<boolean> {
+    return this.deliver(email);
   }
 
   /** The same event to several recipients (every active Admin, AC 5): one email each. */
@@ -82,6 +79,35 @@ export class EmailNotifier {
     for (const to of event.to) {
       await this.notify({ ...event, to });
     }
+  }
+
+  /** Renders, sends within the timeout and marks the logged row; never throws. */
+  private async deliver({ eventKey, template, recipient, payload }: LoggedEmail): Promise<boolean> {
+    let sent = false;
+    try {
+      const rendered = this.templates.render(template, payload);
+      await this.withinTimeout(
+        this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered }),
+      );
+      sent = true;
+      await this.store.markSent(eventKey, recipient, this.clock());
+    } catch (error) {
+      const kind = this.warn(template, error);
+      // A sent email is never marked failed, or the 08:00 run would send it twice.
+      if (!sent) {
+        await this.store
+          .markFailed(eventKey, recipient, kind, this.clock())
+          .catch(() => undefined);
+      }
+    }
+    return sent;
+  }
+
+  /** The one warning a failed email leaves: its template and error kind, never the recipient. */
+  private warn(template: string, error: unknown): string {
+    const kind = errorKind(error);
+    this.log.warn(`Email ${template} failed (${kind})`);
+    return kind;
   }
 
   private async withinTimeout(sending: Promise<void>): Promise<void> {
