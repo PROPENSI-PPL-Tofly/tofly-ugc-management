@@ -89,8 +89,9 @@ export function EditCreatorModal({
   const locks = editLocks(usernameLocks, period);
   const next = nextPeriod(period, periods);
   const liveErrors = validateCreatorEdit(form, initial, period, next);
-  const changes = editChangesWhenValid();
   const isValid = Object.keys(liveErrors).length === 0;
+  // A half-filled form has nothing to list: a cleared date or type has no wording.
+  const changes = isValid ? editChanges(form, initial) : [];
   const isDirty = (Object.keys(initial) as EditField[]).some((field) => form[field] !== initial[field]);
   const { markTouched, markEdited, fieldError } = useFieldErrors<keyof CreatorFormErrors>(
     liveErrors,
@@ -101,11 +102,6 @@ export function EditCreatorModal({
     onDiscard: onClose,
     title: "Buang perubahan?",
   });
-
-  // A half-filled form has nothing to list: a cleared date or type has no wording.
-  function editChangesWhenValid() {
-    return Object.keys(liveErrors).length === 0 ? editChanges(form, initial) : [];
-  }
 
   function change<F extends EditField>(field: F, value: CreatorEditInput[F]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -234,7 +230,7 @@ export function EditCreatorModal({
             <Button
               variant="accent"
               onClick={() => setConfirming(true)}
-              disabled={loading || !isValid || changes.length === 0}
+              disabled={loading || changes.length === 0}
             >
               {loading ? "Menyimpan…" : "Simpan"}
             </Button>
