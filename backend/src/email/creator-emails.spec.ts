@@ -363,3 +363,20 @@ describe('CreatorEmails, invoice events', () => {
     });
   });
 });
+
+describe('CreatorEmails, a contract that is gone', () => {
+  it('sends nothing for an invoice whose contract no longer exists', async () => {
+    const prisma = {
+      creators: { findUnique: vi.fn() },
+      contents: { findUnique: vi.fn() },
+      contracts: { findUnique: vi.fn().mockResolvedValue(null) },
+    } satisfies CreatorEmailClient;
+    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
+
+    await new CreatorEmails(prisma, notifier, { warn: vi.fn() }).invoiceFinalized({
+      contractId: 'contract-gone',
+    });
+
+    expect(notifier.notify).not.toHaveBeenCalled();
+  });
+});
