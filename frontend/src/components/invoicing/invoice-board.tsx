@@ -71,6 +71,7 @@ export function InvoiceBoard({
       <div className="flex justify-end px-5 pt-3">
         <BulkExportButton
           ids={ticked}
+          exportable={ticked.length - skipped.length}
           onDone={(message) => {
             show(message);
             setSelected([]);
