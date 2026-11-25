@@ -48,6 +48,7 @@ export const EDITABLE_CONTENT_SELECT = {
   brief: true,
   deadline: true,
   status: true,
+  closed_at: true,
   _count: { select: { submissions: true } },
   contracts: {
     select: {

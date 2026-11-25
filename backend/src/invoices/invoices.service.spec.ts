@@ -30,7 +30,6 @@ function row(overrides: Partial<InvoiceCreatorRow> = {}): InvoiceCreatorRow {
     first_name: 'Rangga',
     middle_name: null,
     last_name: 'Pratama',
-    access_revoke_date: null,
     contracts: [
       {
         id: 'contract-1',
@@ -463,6 +462,15 @@ describe('InvoicesService', () => {
         expect(contracts(result)).toEqual([['salsa-new', 2]]);
       });
 
+      // PBI-37: a cancelled invoice is never paid, so nothing is left to do on it either.
+      it('stops listing it once cancelled', async () => {
+        pipeline = { 'salsa-old': 'cancelled' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(contracts(result)).toEqual([['salsa-new', 2]]);
+      });
+
       it('keeps the current contract listed whatever its invoice status', async () => {
         pipeline = { 'salsa-new': 'paid' };
 
@@ -674,6 +682,31 @@ describe('InvoicesService', () => {
 
         // Rangga's running Rp5.500.000 and Nadia's ended Rp2.000.000; Kevin has not started.
         expect(result.summary.total).toBe(7_500_000);
+      });
+
+      // PBI-37: a cancelled invoice is not owed, so the outstanding total leaves it out while
+      // the row stays listed under its own status.
+      it('leaves a cancelled invoice out of the total but keeps its row', async () => {
+        pipeline = { 'rangga-c': 'cancelled' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+        expect(result.summary.total).toBe(2_000_000);
+        expect(result.items.map((item) => [item.contract.id, item.invoiceStatus])).toContainEqual([
+          'rangga-c',
+          'cancelled',
+        ]);
+      });
+
+      it('filters on Cancelled like any other status', async () => {
+        pipeline = { 'rangga-c': 'cancelled' };
+
+        const result = await service.list({ page: 1, pageSize: 10 }, TODAY, {
+          status: 'cancelled',
+        });
+
+        expect(result.items.map((item) => item.contract.id)).toEqual(['rangga-c']);
+        expect(result.summary.total).toBe(0);
       });
 
       it('adds up only what the filters keep', async () => {

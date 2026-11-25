@@ -59,6 +59,7 @@ export const LINK_PERFORMANCE_COLUMNS = Symbol('LINK_PERFORMANCE_COLUMNS');
 export const LINKED_CONTENT_SELECT = {
   id: true,
   status: true,
+  closed_at: true,
   deadline: true,
   video_submitted_at: true,
   content_links: {
@@ -68,6 +69,9 @@ export const LINKED_CONTENT_SELECT = {
     select: {
       // PBI-30.2: a creator's change waits for the period's start (CreatorLinkActor).
       start_date: true,
+      // PBI-37: no change after the last day of a contract ended early.
+      end_date: true,
+      original_end_date: true,
       invoice: { select: { status: true } },
       creators: {
         select: {

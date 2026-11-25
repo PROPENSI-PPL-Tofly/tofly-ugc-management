@@ -972,8 +972,9 @@ describe('Invoices API (e2e)', () => {
     });
   });
 
-  // OWASP Top 10:2025 A06 — an early end counts: the contract stops on the day access was revoked.
-  it('finalizes a contract that ended early, before its end date, and lists the day it stopped', async () => {
+  // OWASP Top 10:2025 A06 — an early end counts: the contract stops on its last day (PBI-37), the
+  // end_date an early end moves while original_end_date keeps the agreed one.
+  it('finalizes a contract that ended early, before its original end, and lists the day it stopped', async () => {
     const user = await prisma.users.create({
       data: { email: `${MARKER}-early-end@example.com` },
     });
@@ -981,11 +982,14 @@ describe('Invoices API (e2e)', () => {
       data: {
         user_id: user.id,
         first_name: `${MARKER} Early End`,
-        access_revoke_date: day(-2),
         contracts: {
           create: {
             start_date: day(-30),
-            end_date: day(30),
+            end_date: day(-2),
+            original_end_date: day(30),
+            end_reason: 'violation',
+            end_note: 'Pelanggaran kontrak.',
+            ended_at: day(-3),
             contract_type: 'regular',
             days_between: 14,
             content_quota: 1,

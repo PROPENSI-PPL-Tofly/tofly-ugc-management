@@ -33,7 +33,6 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
     first_name: 'Rangga',
     middle_name: null,
     last_name: 'Pratama',
-    access_revoke_date: null,
     users: { email: 'rangga@example.com' },
     social_accounts: [
       {
@@ -50,6 +49,9 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
         end_date: day(80),
         content_quota: 6,
         contract_type: 'regular',
+        original_end_date: null,
+        end_reason: null,
+        invoice: null,
         contents: [
           {
             deadline: day(-30),
@@ -103,6 +105,11 @@ type DetailContractRow = {
   content_quota: number;
   fixed_rate: Prisma.Decimal;
   contract_type: 'probation' | 'regular';
+  original_end_date: Date | null;
+  end_reason: 'violation' | 'fraud' | 'other' | null;
+  end_note: string | null;
+  ended_at: Date | null;
+  invoice: { status: 'running' | 'paid'; paid_at: Date | null } | null;
   contents: DetailContentRow[];
 };
 
@@ -112,7 +119,6 @@ type DetailCreatorRow = {
   middle_name: string | null;
   last_name: string | null;
   phone_number: string | null;
-  access_revoke_date: Date | null;
   users: {
     email: string;
   };
@@ -130,7 +136,6 @@ function detailRow(): DetailCreatorRow {
     middle_name: null,
     last_name: 'Pratama',
     phone_number: '081234567001',
-    access_revoke_date: null,
     users: {
       email: 'rangga@example.com',
     },
@@ -155,6 +160,11 @@ function detailRow(): DetailCreatorRow {
         content_quota: 6,
         fixed_rate: new Prisma.Decimal('2500000'),
         contract_type: 'regular',
+        original_end_date: null,
+        end_reason: null,
+        end_note: null,
+        ended_at: null,
+        invoice: null,
         contents: [
           {
             id: 'content-1',
@@ -260,6 +270,7 @@ describe('CreatorsService', () => {
             periodNumber: 1,
             contentQuota: 6,
             type: 'regular',
+            earlyEnd: null,
           },
           progress: {
             submitted: 2,
@@ -490,7 +501,6 @@ describe('CreatorsService', () => {
   it("numbers the period from the creator's contract history", async () => {
     prisma.creators.findMany.mockResolvedValue([
       row({
-        access_revoke_date: day(-14),
         contracts: [
           {
             id: 'second',
@@ -498,6 +508,9 @@ describe('CreatorsService', () => {
             end_date: day(150),
             content_quota: 4,
             contract_type: 'probation',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
             contents: [],
           },
           {
@@ -506,6 +519,9 @@ describe('CreatorsService', () => {
             end_date: day(-40),
             content_quota: 6,
             contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
             contents: [],
           },
         ],
@@ -515,7 +531,7 @@ describe('CreatorsService', () => {
 
     const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
-    expect(items[0].accessRevokeDate).toBe('2026-09-04');
+    expect(items[0].accessRevokeDate).toBeNull();
     expect(items[0].contract).toMatchObject({
       status: 'active',
       periodNumber: 2,
@@ -523,6 +539,71 @@ describe('CreatorsService', () => {
       // The current period's type, not the first contract's.
       type: 'probation',
     });
+  });
+
+  // PBI-37 AC 18: the Creator Database shows "Berakhir Lebih Awal" with the reason type.
+  it('tells the current contract was ended early, with its original end and reason', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        contracts: [
+          {
+            id: 'ended',
+            start_date: day(-100),
+            end_date: day(-2),
+            content_quota: 6,
+            contract_type: 'regular',
+            original_end_date: day(80),
+            end_reason: 'fraud',
+            invoice: null,
+            contents: [],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].contract).toMatchObject({
+      status: 'expired',
+      endDate: '2026-09-16',
+      earlyEnd: { originalEndDate: '2026-12-07', reason: 'fraud' },
+    });
+  });
+
+  it('reports no early end on a contract that runs as agreed', async () => {
+    prisma.creators.findMany.mockResolvedValue([row()]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].contract.earlyEnd).toBeNull();
+  });
+
+  // PRD 3.1: access follows the contracts, so the day it closed is derived from them.
+  it('names the day access closed, the day after the last invoice was paid', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        contracts: [
+          {
+            id: 'only',
+            start_date: day(-200),
+            end_date: day(-40),
+            content_quota: 6,
+            contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: { status: 'paid', paid_at: new Date('2026-08-20T03:00:00Z') },
+            contents: [],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].accessRevokeDate).toBe('2026-08-21');
   });
 
   it('reports the page count from the total, not from the rows returned', async () => {
@@ -585,6 +666,9 @@ describe('CreatorsService', () => {
             end_date: day(-40),
             content_quota: 4,
             contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
             contents: [],
           },
         ],
@@ -612,6 +696,9 @@ describe('CreatorsService', () => {
             end_date: day(80),
             content_quota: 1,
             contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
             contents: [
               {
                 deadline: day(-30),
@@ -695,6 +782,9 @@ describe('CreatorsService', () => {
             end_date: new Date('2999-01-01T00:00:00Z'),
             content_quota: 1,
             contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
             contents: [],
           },
         ],
@@ -800,6 +890,11 @@ describe('CreatorsService', () => {
       content_quota: 1,
       fixed_rate: new Prisma.Decimal('1000000'),
       contract_type: 'probation',
+      original_end_date: null,
+      end_reason: null,
+      end_note: null,
+      ended_at: null,
+      invoice: null,
       contents: [
         {
           id: 'content-old',

@@ -18,6 +18,8 @@ export interface ContentListItem {
   deadline: string;
   /** Raw lifecycle status; the frontend owns its label. */
   status: ContentStatus;
+  /** PBI-37 (AC 7): when an early end closed it ("Ditutup"), as an ISO instant; null while open. */
+  closedAt: string | null;
   /** Overdue or approval bypassed; empty when nothing is flagged. */
   tags: ContentTag[];
   /** How many times an admin asked for a revision, counted from the moment it is asked. */
