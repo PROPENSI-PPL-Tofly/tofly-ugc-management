@@ -1,3 +1,4 @@
+import { readBody } from "./response-body";
 import { appSessionCookieHeader } from "./session-cookie";
 import {
     MY_TASKS_PAGE_SIZE,
@@ -32,6 +33,12 @@ function isRawMyContents(body: unknown): body is RawMyContents {
     );
 }
 
+/** The machine code of a refusal, such as PAYMENTS_ONLY, or null when it sends none. */
+async function refusalCode(response: Response): Promise<string | null> {
+    const code = (await readBody(response) as { code?: unknown } | null)?.code;
+    return typeof code === "string" ? code : null;
+}
+
 /**
  * Server-side only: talks to the backend directly so its address never reaches the browser.
  * The backend resolves whose tasks these are from the forwarded application session (OWASP A01).
@@ -61,7 +68,7 @@ export async function fetchMyTasks(
     });
 
     if (!response.ok) {
-        throw new MyTasksError(response.status);
+        throw new MyTasksError(response.status, await refusalCode(response));
     }
 
     const body: unknown = await response.json();

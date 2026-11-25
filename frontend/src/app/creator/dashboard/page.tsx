@@ -1,9 +1,11 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
 import { DeadlineAgenda } from "@/components/dashboard/deadline-agenda";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { contractLastDay, contractLastDayLabel, nearestDeadlineLabel } from "@/lib/creator-dashboard";
 import { fetchCreatorDashboard, type CreatorDashboard } from "@/lib/creator-dashboard.server";
+import { CREATOR_INVOICES_PATH } from "@/lib/creator-invoice";
 import { fetchMyInvoices } from "@/lib/creator-invoice.server";
 import { jakartaDay } from "@/lib/format";
 import { MyTasksError } from "@/lib/my-tasks";
@@ -19,15 +21,17 @@ const BASE_PATH = "/creator/dashboard";
 type Loaded =
   | { kind: "ok"; dashboard: CreatorDashboard }
   | { kind: "signed_out" }
+  | { kind: "payments_only" }
   | { kind: "failed" };
 
 async function load(): Promise<Loaded> {
   try {
     return { kind: "ok", dashboard: await fetchCreatorDashboard() };
   } catch (error) {
-    return error instanceof MyTasksError && error.status === 401
-      ? { kind: "signed_out" }
-      : { kind: "failed" };
+    if (!(error instanceof MyTasksError)) return { kind: "failed" };
+    if (error.status === 401) return { kind: "signed_out" };
+    // PBI-37 (AC 13): the backend opens only Pembayaran while an invoice is all that is left.
+    return error.code === "PAYMENTS_ONLY" ? { kind: "payments_only" } : { kind: "failed" };
   }
 }
 
@@ -77,6 +81,9 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
  */
 export default async function CreatorDashboardPage() {
   const [loaded, lastDay] = await Promise.all([load(), loadLastDay()]);
+  // Followed, never worked around: the backend decides; the page only goes where it allows
+  // (OWASP A01). Outside load()'s try, since redirect() works by throwing.
+  if (loaded.kind === "payments_only") redirect(CREATOR_INVOICES_PATH);
   const now = new Date();
 
   return (
