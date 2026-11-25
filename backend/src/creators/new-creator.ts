@@ -75,7 +75,7 @@ type NameParts = Pick<NewCreator, 'firstName' | 'middleName' | 'lastName'>;
  * The form has one name field and the table has three columns: the first word is the first
  * name, the last word the last name, and everything between is the middle name.
  */
-function checkName(value: unknown, errors: NewCreatorErrors): NameParts {
+export function checkName(value: unknown, errors: NewCreatorErrors): NameParts {
   const name = trimmed(value);
   const words = name.split(/\s+/);
 
@@ -110,10 +110,23 @@ export interface SocialAccount {
 }
 
 /** The form's username field for each platform, in the order the accounts are saved. */
-const USERNAME_FIELDS: Record<social_platform, string> = {
+export const USERNAME_FIELDS: Record<social_platform, string> = {
   instagram: 'instagramUsername',
   tiktok: 'tiktokUsername',
 };
+
+/** One username field, trimmed; blank when the admin has none to give. */
+export function checkUsername(
+  field: string,
+  value: unknown,
+  errors: NewCreatorErrors,
+): string {
+  const username = trimmed(value);
+  if (username.length > MAX_USERNAME_LENGTH) {
+    errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
+  }
+  return username;
+}
 
 /**
  * One optional username per platform. The admin's handle is only a starting record: connecting
@@ -127,10 +140,8 @@ function checkSocial(
   const accounts: SocialAccount[] = [];
   for (const platform of SOCIAL_PLATFORMS) {
     const field = USERNAME_FIELDS[platform];
-    const username = trimmed(body[field]);
-    if (username.length > MAX_USERNAME_LENGTH) {
-      errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
-    } else if (username !== '') {
+    const username = checkUsername(field, body[field], errors);
+    if (username !== '') {
       accounts.push({ platform, username });
     }
   }
@@ -144,7 +155,7 @@ function checkSocial(
  * "2026-10" (parsed as the first of the year/month) and anything that is not a string.
  * Month 13 is not a Date at all, and toISOString() would throw on it, hence the NaN check.
  */
-function toDay(value: unknown): Date | null {
+export function toDay(value: unknown): Date | null {
   const day = new Date(`${String(value)}T00:00:00Z`);
   return !Number.isNaN(day.getTime()) &&
     day.toISOString().slice(0, 10) === value
@@ -217,7 +228,7 @@ const NUMBER_RULES: Record<
  * Reads one positive whole number. Only a JSON number counts: "7" or true would be coerced by
  * JavaScript but mean the client is sending something other than what the form holds.
  */
-function readNumber(
+export function readNumber(
   field: NumberField,
   value: unknown,
   errors: NewCreatorErrors,
@@ -283,7 +294,7 @@ function isoDay(day: Date): string {
   return day.toISOString().slice(0, 10);
 }
 
-function checkContractType(
+export function checkContractType(
   value: unknown,
   errors: NewCreatorErrors,
 ): contract_type {
