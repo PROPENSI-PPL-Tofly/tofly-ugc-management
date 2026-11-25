@@ -19,7 +19,17 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.d.ts', 'src/**/layout.tsx', '**/*.config.{ts,mts,js}'],
-      thresholds: { lines: 80 },
+      thresholds: {
+        lines: 80,
+        // 31.5: an export that ticks the wrong rows or hides a skip is a finance bug, so every
+        // line, branch, function and statement of the new selection/download code is covered.
+        'src/components/invoicing/{bulk-selection*,bulk-export-button*}.{ts,tsx}': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+      },
     },
   },
 });
