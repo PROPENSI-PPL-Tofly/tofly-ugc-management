@@ -16,7 +16,9 @@ function answer(status: number, body: unknown = {}) {
 }
 
 describe("saveCreatorEdit", () => {
-  beforeEach(() => apiFetch.mockReset());
+  beforeEach(() => {
+    apiFetch.mockReset();
+  });
 
   it("patches the creator with just the changed fields", async () => {
     answer(200, { id: CREATOR, changed: ["name"] });

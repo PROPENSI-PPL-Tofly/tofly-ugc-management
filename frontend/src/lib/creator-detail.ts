@@ -176,6 +176,10 @@ export interface CreatorPeriod {
   daysBetween: number;
   /** In rupiah; Perpanjang Kontrak opens with the previous period's (PBI-30 AC 2). */
   fixedRate: number;
+  /** The Evergreen contents the period really has, the floor of its quota (PBI-16). */
+  evergreenPlanned?: number;
+  /** Where its invoice stands: Ubah Data offers the fixed rate only while it is running (PBI-16). */
+  invoiceStatus?: PeriodInvoiceStatus;
   /** Why the contract was ended early (PBI-37), or null when it was not. */
   earlyEndReason: EarlyEndReason | null;
   /** PBI-37: the original end and reason of a period ended early; absent when it was not. */
@@ -185,6 +189,9 @@ export interface CreatorPeriod {
   /** API-calculated on-time rate, revisions and productivity band for this period. */
   performance: ContractPeriod["performance"];
 }
+
+/** The invoice's status as GET /creators/:id stores it; `running` is the invoice pages' accruing. */
+export type PeriodInvoiceStatus = ContractPeriod["invoiceStatus"];
 
 export interface PeriodEarnings {
   amount: number;
