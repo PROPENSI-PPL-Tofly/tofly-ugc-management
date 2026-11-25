@@ -23,7 +23,7 @@ export default defineConfig({
         lines: 80,
         // 31.5: an export that ticks the wrong rows or hides a skip is a finance bug, so every
         // line, branch, function and statement of the new selection/download code is covered.
-        'src/components/invoicing/{bulk-selection*,bulk-export-button*}.{ts,tsx}': {
+        'src/components/invoicing/{bulk-selection*,bulk-export-button*,invoice-board*}.{ts,tsx}': {
           lines: 100,
           branches: 100,
           functions: 100,

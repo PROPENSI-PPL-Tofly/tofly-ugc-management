@@ -221,6 +221,22 @@ describe("InvoiceBoard", () => {
       expect(screen.getByRole("button", { name: "Unduh Terpilih" })).toBeDisabled();
     });
 
+    it("downloads without a notice when every ticked invoice can be exported", async () => {
+      download.mockResolvedValue(okResponse());
+      render(<InvoiceBoard rows={[ROW, PAID]} />);
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Hana Safira" }));
+      fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (1)" }));
+
+      expect(
+        await screen.findByText("Rekap_Invoice_20260720.zip diunduh (1 invoice)."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("status", { name: "Pemberitahuan ekspor" }),
+      ).toBeNull();
+      expect(screen.getByRole("button", { name: "Unduh Terpilih" })).toBeDisabled();
+    });
+
     it("keeps the notice until the admin closes it", async () => {
       download.mockResolvedValue(okResponse());
       render(<InvoiceBoard rows={[ROW]} />);
