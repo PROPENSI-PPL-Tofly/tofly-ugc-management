@@ -17,6 +17,7 @@ function setup(overrides: { claim?: boolean; send?: EmailSender['send'] } = {}) 
     claim: vi.fn<EmailLogStore['claim']>().mockResolvedValue(overrides.claim ?? true),
     markSent: vi.fn<EmailLogStore['markSent']>().mockResolvedValue(),
     markFailed: vi.fn<EmailLogStore['markFailed']>().mockResolvedValue(),
+    failedToRetry: vi.fn<EmailLogStore['failedToRetry']>().mockResolvedValue([]),
   };
   const sender = {
     send: vi.fn<EmailSender['send']>(overrides.send ?? (() => Promise.resolve())),
@@ -188,5 +189,70 @@ describe('EmailNotifier', () => {
     await new EmailNotifier(store, sender, templates, log).notify(EVENT);
 
     expect(store.markSent).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
+});
+
+// PBI-11 (11.3, AC 9): the 08:00 run sends a failed email again from what its row kept.
+describe('EmailNotifier.retry', () => {
+  const FAILED: LoggedEmail = {
+    eventKey: EVENT.eventKey,
+    template: 'content_scheduled',
+    recipient: 'salsa@example.com',
+    payload: { contentName: 'Evg_1', recipientName: 'Salsa Amelia' },
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders the kept data again and sends it to the same recipient, never claiming a new row', async () => {
+    const { store, sender, templates, notifier } = setup();
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(true);
+
+    expect(store.claim).not.toHaveBeenCalled();
+    expect(templates.render).toHaveBeenCalledWith('content_scheduled', FAILED.payload);
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'salsa@example.com', senderName: 'Tofly' }),
+    );
+    expect(store.markSent).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
+
+  it('marks it failed again with the error kind, and never throws', async () => {
+    const { store, log, notifier } = setup({ send: () => Promise.reject(new TypeError('down')) });
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
+
+    expect(store.markFailed).toHaveBeenCalledWith(
+      EVENT.eventKey,
+      'salsa@example.com',
+      'TypeError',
+      NOW,
+    );
+    expect(log.warn).toHaveBeenCalledWith('Email content_scheduled failed (TypeError)');
+  });
+
+  it('still waits 10 seconds at most', async () => {
+    vi.useFakeTimers();
+    const { store, notifier } = setup({ send: () => new Promise(() => {}) });
+
+    const retrying = notifier.retry(FAILED);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+
+    await expect(retrying).resolves.toBe(false);
+    expect(store.markFailed).toHaveBeenCalledWith(
+      EVENT.eventKey,
+      'salsa@example.com',
+      'EmailTimeout',
+      NOW,
+    );
+  });
+
+  it('does not mark a sent email failed when only marking it sent fails', async () => {
+    const { store, notifier } = setup();
+    store.markSent.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(true);
+    expect(store.markFailed).not.toHaveBeenCalled();
   });
 });
