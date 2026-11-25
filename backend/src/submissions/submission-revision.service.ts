@@ -71,9 +71,18 @@ export class SubmissionRevisionService {
 
     if (!result) {
       throw reviewConflict('DRAFT_NOT_REVIEWABLE');
+    } else {
+      return this.announced(result, submission.content_id, submissionId);
     }
-    // PBI-11 (AC 1, AC 9): once the note is saved; the email never fails the revision.
-    await this.notifier.revisionRequested({ contentId: submission.content_id, submissionId });
-    return result;
+  }
+
+  // PBI-11 (AC 1, AC 9): the creator hears once the note is saved; the email never fails it.
+  private async announced(
+    revised: RevisedSubmission,
+    contentId: string,
+    submissionId: string,
+  ): Promise<RevisedSubmission> {
+    await this.notifier.revisionRequested({ contentId, submissionId });
+    return revised;
   }
 }
