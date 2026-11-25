@@ -610,6 +610,7 @@ describe("toInvoiceBreakdown", () => {
   it("reads a contract that has not started, with no formula saved, as nothing billed or stated yet", () => {
     expect(toInvoiceBreakdown(RAW_UPCOMING_NO_FORMULA)).toEqual({
       creatorName: "Farah Nur Aini",
+      rateChanges: [],
       fixed: {
         period: { number: 1, start: "2026-11-01", end: "2027-01-31", quotaDone: 0, quotaTotal: 3 },
         total: 0,

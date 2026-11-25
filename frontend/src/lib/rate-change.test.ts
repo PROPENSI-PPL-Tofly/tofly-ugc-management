@@ -14,8 +14,7 @@ describe("readRateChanges", () => {
   });
 
   it("reads the creator's copy, which names no admin", () => {
-    const { actorName: _, ...mine } = RAW;
-    expect(readRateChanges([mine])).toEqual([{ ...mine, actorName: null }]);
+    expect(readRateChanges([{ ...RAW, actorName: undefined }])).toEqual([{ ...RAW, actorName: null }]);
   });
 
   // An answer from before PBI-16 lists none; a broken entry costs its line, not the page.

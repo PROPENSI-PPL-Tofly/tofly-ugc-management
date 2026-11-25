@@ -23,6 +23,7 @@ import {
 } from "./invoice";
 import { periodRange } from "./deadline-period";
 import { DATA_STATE_LABELS, type DataState } from "./link-performance";
+import { readRateChanges } from "./rate-change";
 import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -109,6 +110,8 @@ export interface RawInvoiceDetail extends RawInvoiceRow {
   periodNumber: number;
   /** Null while no admin has saved a formula. */
   formula: RawRateFormula | null;
+  /** Sent by 16.1; read only through readRateChanges. */
+  rateChanges?: unknown;
 }
 
 /** The page's state as the query GET /invoices reads: the filters that are applied, the page and its size. */
@@ -259,6 +262,7 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
 
   return {
     creatorName: raw.creatorName,
+    rateChanges: readRateChanges(raw.rateChanges),
     fixed: {
       period: {
         number: raw.periodNumber,
