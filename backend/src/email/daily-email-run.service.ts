@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -11,6 +11,9 @@ import { EmailNotifier, type EmailEvent } from './email-notifier.js';
 // a second run that day from sending anything twice (AC 8).
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** Lets a test fix the run's moment; the app leaves it unbound and runs on the current time. */
+export const DAILY_EMAIL_CLOCK = Symbol('DAILY_EMAIL_CLOCK');
 
 const DUE_CONTENT = {
   id: true,
@@ -77,6 +80,8 @@ export class DailyEmailRun {
       retry(email: LoggedEmail): Promise<boolean>;
     },
     @Inject(EMAIL_LOG_STORE) private readonly store: Pick<EmailLogStore, 'failedToRetry'>,
+    @Optional()
+    @Inject(DAILY_EMAIL_CLOCK)
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
