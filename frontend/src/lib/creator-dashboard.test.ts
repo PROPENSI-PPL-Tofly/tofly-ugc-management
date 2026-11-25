@@ -1,5 +1,39 @@
-import { nearestDeadlineLabel, STAT_CARDS, statCardHref } from "./creator-dashboard";
+import { contractLastDay, contractLastDayLabel, nearestDeadlineLabel, STAT_CARDS, statCardHref } from "./creator-dashboard";
+import { aCreatorInvoice } from "./creator-invoice.builder";
 import { TASK_STATUS_FILTERS } from "./my-tasks";
+
+// PBI-37, 37.3: the creator's last day, read off GET /me/invoices. An early end moves the
+// contract's endDate to the last day (37.1), so the same field serves every contract.
+describe("contractLastDay", () => {
+  it("is the end of the contract being billed now", () => {
+    expect(
+      contractLastDay([
+        aCreatorInvoice({ periodNumber: 1, periodEnd: "2026-05-31", status: "paid" }),
+        aCreatorInvoice({ periodNumber: 2, periodEnd: "2026-11-20", status: "cancelled" }),
+      ]),
+    ).toBe("2026-11-20");
+  });
+
+  // PBI-30: a renewal waiting to start is not the contract running now.
+  it("is not a renewal that has not started", () => {
+    expect(
+      contractLastDay([
+        aCreatorInvoice({ periodNumber: 1, periodEnd: "2026-11-20" }),
+        aCreatorInvoice({ periodNumber: 2, periodEnd: "2027-05-31", notStarted: true }),
+      ]),
+    ).toBe("2026-11-20");
+  });
+
+  it("is unknown for a creator without invoices", () => {
+    expect(contractLastDay([])).toBeNull();
+  });
+});
+
+describe("contractLastDayLabel", () => {
+  it("names the last day as a plain calendar day", () => {
+    expect(contractLastDayLabel("2026-11-01")).toBe("Hari terakhir kontrak: 1 Nov 2026");
+  });
+});
 
 describe("STAT_CARDS", () => {
   it("has exactly three status cards, in the order the dashboard shows them", () => {

@@ -23,13 +23,10 @@ export function onTime(deadline: Date, handedIn: Date | null): boolean {
   return handedIn !== null && daysLate(deadline, handedIn) === 0;
 }
 
-/** The last day the contract counts: its end, or the day access was revoked if that came first. */
-export function contractLastDay(contract: {
-  endDate: Date;
-  endedEarlyOn: Date | null;
-}): string {
-  const end = jakartaDay(contract.endDate);
-  if (contract.endedEarlyOn === null) return end;
-  const revoked = jakartaDay(contract.endedEarlyOn);
-  return revoked < end ? revoked : end;
+/**
+ * The last day the contract counts: its end date. An early end (PBI-37) moves end_date to the last
+ * day and keeps the agreed end apart, so this is that day too.
+ */
+export function contractLastDay(contract: { endDate: Date }): string {
+  return jakartaDay(contract.endDate);
 }

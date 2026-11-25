@@ -5,9 +5,9 @@ import type { Response } from 'express';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { AppSessionService } from '../src/auth/session/session.service.js';
-import { jakartaDay } from '../src/creators/evergreen.js';
 import type { Principal } from '../src/auth/google/ports.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { runningContract } from './contracts.js';
 
 const MARKER = 'e2e-session-cookie';
 
@@ -35,9 +35,10 @@ describe('application session cookie (e2e)', () => {
     const user = await prisma.users.create({
       data: {
         email: `${MARKER}@example.com`,
-        creators: { create: { first_name: MARKER } },
+        // Access follows the contracts (PRD 3.1): signed in while one runs.
+        creators: { create: { first_name: MARKER, contracts: { create: runningContract() } } },
       },
-      include: { creators: true },
+      include: { creators: { include: { contracts: true } } },
     });
     principal = {
       userId: user.id,
@@ -87,7 +88,8 @@ describe('application session cookie (e2e)', () => {
     },
   );
 
-  // PRD 3.1: the session persists until sign-out or until access is revoked.
+  // PRD 3.1: the session persists until sign-out or until access is revoked; PBI-37: cancelling the
+  // only invoice revokes it at once.
   it('refuses a live session on the request after the creator access is revoked', async () => {
     const creatorId = principal.role === 'creator' ? principal.creatorId : '';
     const { id } = await sessions.start(
@@ -96,17 +98,14 @@ describe('application session cookie (e2e)', () => {
     );
     expect((await taskList(`${cookieName}=${id}`)).status).toBe(200);
 
-    await prisma.creators.update({
-      where: { id: creatorId },
-      data: { access_revoke_date: new Date(`${jakartaDay(new Date())}Z`) },
+    const contract = await prisma.contracts.findFirstOrThrow({ where: { creator_id: creatorId } });
+    await prisma.invoices.create({
+      data: { contract_id: contract.id, status: 'cancelled', cancelled_at: new Date() },
     });
     try {
       expect((await taskList(`${cookieName}=${id}`)).status).toBe(401);
     } finally {
-      await prisma.creators.update({
-        where: { id: creatorId },
-        data: { access_revoke_date: null },
-      });
+      await prisma.invoices.delete({ where: { contract_id: contract.id } });
     }
   });
 

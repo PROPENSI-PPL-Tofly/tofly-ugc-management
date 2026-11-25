@@ -22,6 +22,18 @@ export default defineConfig({
       // only build config files (root/*.config.*) stay out, and they are outside include anyway.
       exclude: ['src/**/*.d.ts', 'src/**/layout.tsx'],
       thresholds: { lines: 80 },
+      exclude: ['src/**/*.d.ts', 'src/**/layout.tsx', '**/*.config.{ts,mts,js}'],
+      thresholds: {
+        lines: 80,
+        // 31.5: an export that ticks the wrong rows or hides a skip is a finance bug, so every
+        // line, branch, function and statement of the new selection/download code is covered.
+        'src/components/invoicing/{bulk-selection*,bulk-export-button*,invoice-board*}.{ts,tsx}': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+      },
     },
   },
 });

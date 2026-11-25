@@ -352,6 +352,16 @@ describe("CreatorInvoiceView", () => {
       expect(screen.queryByRole("button", { name: /^aksi/ })).not.toBeInTheDocument();
     });
 
+    // PBI-37: an early end cancelled the invoice; there is nothing left for the creator to do.
+    it("says a cancelled invoice is Dibatalkan and offers no move", () => {
+      renderView({ status: "cancelled" }, action);
+
+      expect(screen.getByText("Dibatalkan")).toBeInTheDocument();
+      expect(screen.queryByText("Cancelled")).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Giliran kamu" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^aksi/ })).not.toBeInTheDocument();
+    });
+
     it("offers no move on a running invoice", () => {
       renderView({}, action);
 

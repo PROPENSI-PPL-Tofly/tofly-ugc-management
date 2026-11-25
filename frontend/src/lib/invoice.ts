@@ -42,6 +42,8 @@ export const INVOICE_STATUS_LABELS = {
   creator_acked: "Perlu Bukti Bayar",
   payment_uploaded: "Bukti Bayar Terkirim",
   paid: "Paid",
+  // PBI-37: off the pipeline, an invoice an early end cancelled instead of paying.
+  cancelled: "Cancelled",
 } as const;
 
 export type InvoiceStatus = keyof typeof INVOICE_STATUS_LABELS;
