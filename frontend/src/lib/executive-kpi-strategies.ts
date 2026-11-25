@@ -48,15 +48,19 @@ export interface Polarity {
 /** More spending is not bad by itself, nor less spending good. */
 export const NEUTRAL: Polarity = { judge: () => "flat" };
 
-export const HIGHER_IS_BETTER: Polarity = {
-  judge: (direction) =>
-    direction === "flat" ? "flat" : direction === "up" ? "good" : "bad",
-};
+/** A polarity that calls one direction good and the other bad; no move is neither. */
+function favouring(good: Exclude<Direction, "flat">): Polarity {
+  return {
+    judge(direction) {
+      if (direction === "flat") return "flat";
+      return direction === good ? "good" : "bad";
+    },
+  };
+}
 
-export const LOWER_IS_BETTER: Polarity = {
-  judge: (direction) =>
-    direction === "flat" ? "flat" : direction === "down" ? "good" : "bad",
-};
+export const HIGHER_IS_BETTER: Polarity = favouring("up");
+
+export const LOWER_IS_BETTER: Polarity = favouring("down");
 
 export interface KpiStrategy {
   key: KpiKey;
