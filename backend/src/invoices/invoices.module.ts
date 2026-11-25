@@ -7,6 +7,8 @@ import { InvoiceConfirmationService } from './invoice-confirmation.service.js';
 import { INVOICE_ROSTER_REPOSITORY } from './invoice-roster.repository.js';
 import { INVOICE_STATUS_SOURCE } from './invoice-status.js';
 import { InvoicesController } from './invoices.controller.js';
+import { InvoicePdfController } from './invoice-pdf.controller.js';
+import { InvoicePdfService } from './invoice-pdf.service.js';
 import { InvoicesService } from './invoices.service.js';
 import { LAST_SYNC } from './last-sync.js';
 import { PerformanceLastSync } from './performance-last-sync.adapter.js';
@@ -18,7 +20,7 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 @Module({
   // The payment proof each row shows (PBI-13); 27.4's sync for Finalize's last sync (PBI-28).
   imports: [RateFormulaModule, InvoicePaymentsModule, PerformanceSyncModule],
-  controllers: [InvoicesController],
+  controllers: [InvoicesController, InvoicePdfController],
   providers: [
     InvoicesService,
     // The creators, contracts and content the running invoice is calculated from (Repository).
@@ -37,8 +39,15 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
     InvoiceConfirmationService,
     // Finalize's last sync (PBI-28 AC 7): 27.4's syncContract behind the LastSync port (Adapter).
     { provide: LAST_SYNC, useClass: PerformanceLastSync },
+    // "Unduh PDF" for an admin here and for the creator in MeModule (PBI-31).
+    InvoicePdfService,
   ],
   // The creator's routes in MeModule read their invoices and make their moves through these.
-  exports: [InvoicesService, InvoiceConfirmationService, InvoicePaymentsModule],
+  exports: [
+    InvoicesService,
+    InvoiceConfirmationService,
+    InvoicePdfService,
+    InvoicePaymentsModule,
+  ],
 })
 export class InvoicesModule {}

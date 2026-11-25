@@ -335,8 +335,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
     const kept = everyone.filter(
       (creator) =>
         // An earlier contract's invoice stays listed until it is paid, then there is nothing
-        // left to do on it.
-        (creator.current || statuses.get(creator.contract.id) !== 'paid') &&
+        // left to do on it; the Paid filter still finds it, for its invoice and receipt (PBI-31).
+        (creator.current ||
+          filters.status === 'paid' ||
+          statuses.get(creator.contract.id) !== 'paid') &&
         matches(creator, filters, today) &&
         (!filters.status ||
           statuses.get(creator.contract.id) === filters.status),

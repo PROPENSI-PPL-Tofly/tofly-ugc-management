@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import { ForbiddenException, type INestApplication } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -7,6 +7,7 @@ import {
   DevCreatorGuard,
 } from '../auth/dev-creator.guard.js';
 import { InvoiceConfirmationService } from '../invoices/invoice-confirmation.service.js';
+import { InvoicePdfService } from '../invoices/invoice-pdf.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MyInvoicesController } from './my-invoices.controller.js';
 import { MyInvoicesService } from './my-invoices.service.js';
@@ -23,6 +24,7 @@ describe('MyInvoicesController', () => {
 
   const invoices = { list: vi.fn() };
   const confirmations = { acknowledge: vi.fn(), confirmReceipt: vi.fn() };
+  const pdfs = { forContract: vi.fn() };
   const prisma = { creators: { findUnique: vi.fn() } };
   let app: INestApplication;
 
@@ -32,6 +34,7 @@ describe('MyInvoicesController', () => {
       providers: [
         { provide: MyInvoicesService, useValue: invoices },
         { provide: InvoiceConfirmationService, useValue: confirmations },
+        { provide: InvoicePdfService, useValue: pdfs },
         { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
@@ -116,6 +119,44 @@ describe('MyInvoicesController', () => {
         CONTRACT,
         CREATOR,
       );
+    });
+  });
+
+  // PBI-31 AC 6: the creator downloads only their own invoices; the service answers 403 otherwise.
+  describe('GET /me/invoices/:contractId/invoice-pdf and receipt-pdf', () => {
+    it.each([
+      ['invoice', 'invoice-pdf', 'Invoice_RanggaPratama_Periode2.pdf'],
+      ['receipt', 'receipt-pdf', 'Receipt_RanggaPratama_Periode2.pdf'],
+    ] as const)("sends the signed-in creator's %s as a PDF to save", async (document, route, fileName) => {
+      pdfs.forContract.mockResolvedValue({ fileName, bytes: Buffer.from('%PDF-1.3') });
+
+      const res = await server()
+        .get(`/me/invoices/${CONTRACT}/${route}`)
+        .set(DEV_CREATOR_HEADER, CREATOR)
+        .expect(200);
+
+      expect(pdfs.forContract).toHaveBeenCalledWith(CONTRACT, { creatorId: CREATOR }, document);
+      expect(res.headers).toMatchObject({
+        'content-type': 'application/pdf',
+        'content-disposition': `attachment; filename*=UTF-8''${fileName}`,
+        'cache-control': 'private, no-store',
+      });
+    });
+
+    it("answers 403 for another creator's invoice", async () => {
+      pdfs.forContract.mockRejectedValue(new ForbiddenException());
+
+      await server()
+        .get(`/me/invoices/${CONTRACT}/receipt-pdf`)
+        .set(DEV_CREATOR_HEADER, CREATOR)
+        .expect(403);
+    });
+
+    it('refuses without a creator, or with an id that is not a UUID', async () => {
+      await server().get(`/me/invoices/${CONTRACT}/invoice-pdf`).expect(401);
+      await server().get('/me/invoices/not-a-uuid/receipt-pdf').set(DEV_CREATOR_HEADER, CREATOR).expect(400);
+
+      expect(pdfs.forContract).not.toHaveBeenCalled();
     });
   });
 
