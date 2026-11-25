@@ -84,7 +84,7 @@ describe('pdfRupiah', () => {
   });
 });
 
-// Benchmarked on Stripe's invoice, the one Claude sends: a title, who pays whom, one amount up
+// Benchmarked on Stripe's invoice: a title, who pays whom, one amount up
 // top, a two-column table, subtotal and total on the right, a footer per page.
 describe('invoicePdfModel (AC 2)', () => {
   const model = invoicePdfModel(DATA);

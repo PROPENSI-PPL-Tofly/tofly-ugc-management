@@ -17,7 +17,7 @@ import type { InvoiceStatus } from './invoice-status.js';
 // that text on A4 portrait pages. Every amount is read from the snapshot, so a file always says
 // what the screen says (AC 3).
 //
-// The layout follows Stripe's invoice and receipt, the ones Claude sends: a title, who pays whom,
+// The layout follows Stripe's invoice and receipt: a title, who pays whom,
 // one amount up top, a two-column table, subtotal and total on the right, and a footer on every
 // page naming the document. Tofly pays the creator, so the parties read "Dari" and "Dibayarkan
 // kepada", never "Bill to". The invoice exists once the creator acknowledged it, when nothing
