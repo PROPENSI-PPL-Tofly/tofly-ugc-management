@@ -116,6 +116,20 @@ function unfold(name: string) {
 }
 
 describe("InvoiceRincian", () => {
+  // PBI-31: the invoice beside Tutup once the creator acknowledged it, the receipt once paid.
+  it.each(["accruing", "finalized"] as const)("offers no document for a %s invoice", (invoiceStatus) => {
+    setup({ row: { ...ROW, invoiceStatus } });
+
+    expect(screen.queryByRole("button", { name: /^Unduh/ })).toBeNull();
+  });
+
+  it("offers Unduh Invoice and Unduh Receipt in the footer of a paid invoice", () => {
+    setup({ row: { ...ROW, invoiceStatus: "paid" } });
+
+    expect(screen.getByRole("button", { name: "Unduh Invoice" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unduh Receipt" })).toBeInTheDocument();
+  });
+
   it("opens as a side panel titled Rincian Invoice, as the creator's page is", () => {
     setup();
 
