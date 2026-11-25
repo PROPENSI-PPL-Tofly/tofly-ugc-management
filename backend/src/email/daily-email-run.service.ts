@@ -56,6 +56,12 @@ export interface DailyEmailClient {
       orderBy: Prisma.contentsOrderByWithRelationInput[];
     }): Promise<DueContent[]>;
   };
+  users: {
+    findUnique(args: {
+      where: { email: string };
+      select: { id: true };
+    }): Promise<{ id: string } | null>;
+  };
 }
 
 /** What one run did, answered to Cloud Scheduler and kept in the request log. */
@@ -76,30 +82,45 @@ export class DailyEmailRun {
     @Inject(PrismaService) private readonly prisma: DailyEmailClient,
     @Inject(EmailNotifier)
     private readonly notifier: {
-      notify(event: EmailEvent): Promise<void>;
+      notify(event: EmailEvent): Promise<boolean>;
       retry(email: LoggedEmail): Promise<boolean>;
     },
-    @Inject(EMAIL_LOG_STORE) private readonly store: Pick<EmailLogStore, 'failedToRetry'>,
+    @Inject(EMAIL_LOG_STORE)
+    private readonly store: Pick<EmailLogStore, 'failedToRetry' | 'abandon'>,
     @Optional()
     @Inject(DAILY_EMAIL_CLOCK)
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
   async run(): Promise<DailyEmailReport> {
-    const failed = await this.store.failedToRetry();
+    const now = this.clock();
+    const failed = await this.store.failedToRetry(now);
+    let retried = 0;
     let resent = 0;
     for (const email of failed) {
+      // Review on #253 (Gunta): an address that no longer belongs to anyone (the creator's email
+      // was changed) is never written to again.
+      if (!(await this.stillSomeones(email.recipient))) {
+        await this.store.abandon(email.eventKey, email.recipient, 'RecipientGone', now);
+        continue;
+      }
+      retried += 1;
       if (await this.notifier.retry(email)) resent += 1;
     }
 
-    return { retried: failed.length, resent, reminded: await this.remind() };
+    return { retried, resent, reminded: await this.remind(now) };
+  }
+
+  private async stillSomeones(email: string): Promise<boolean> {
+    const user = await this.prisma.users.findUnique({ where: { email }, select: { id: true } });
+    return user !== null;
   }
 
   /** AC 2: one reminder per content due tomorrow with no link yet; closed content is left out. */
-  private async remind(): Promise<number> {
+  private async remind(now: Date): Promise<number> {
     const due = await this.prisma.contents.findMany({
       where: {
-        deadline: tomorrowInJakarta(this.clock()),
+        deadline: tomorrowInJakarta(now),
         status: { not: 'link_submitted' },
         closed_at: null,
       },
@@ -112,14 +133,15 @@ export class DailyEmailRun {
       const creator = content.contracts.creators;
       if (!creator) continue;
       const deadline = content.deadline.toISOString().slice(0, 10);
-      await this.notifier.notify({
+      const sent = await this.notifier.notify({
         // The deadline is in the key, so content moved to another day is reminded again.
         eventKey: `deadline_reminder:${content.id}:${deadline}`,
         template: 'deadline_reminder',
         to: { email: creator.users.email, name: joinName(creator) },
         data: { contentId: content.id, contentName: content.name, deadline },
       });
-      reminded += 1;
+      // Review on #253 (Davin): counted once it went out, not when it was only tried.
+      if (sent) reminded += 1;
     }
     return reminded;
   }

@@ -98,7 +98,7 @@ describe('EmailNotifier', () => {
       send: () => Promise.reject(Object.setPrototypeOf(refusal, SmtpError.prototype)),
     });
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
 
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'SmtpError', NOW);
     expect(store.markSent).not.toHaveBeenCalled();
@@ -147,7 +147,7 @@ describe('EmailNotifier', () => {
     const { store, log, notifier } = setup();
     store[step].mockRejectedValue(new TypeError('connection lost'));
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
     expect(log.warn).toHaveBeenCalledWith('Email content_scheduled failed (TypeError)');
   });
 
@@ -157,7 +157,7 @@ describe('EmailNotifier', () => {
       throw new RangeError('unknown template');
     });
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
     expect(sender.send).not.toHaveBeenCalled();
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RangeError', NOW);
   });
@@ -183,7 +183,7 @@ describe('EmailNotifier', () => {
     const { store, notifier } = setup({ send: () => Promise.reject(new Error('down')) });
     store.markFailed.mockRejectedValue(new Error('connection lost'));
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
   });
 
   it('stamps a sent email with the current time when no clock is given', async () => {

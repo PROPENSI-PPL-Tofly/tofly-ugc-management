@@ -56,8 +56,8 @@ export class EmailNotifier {
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
-  /** Sends the event's email to one recipient; resolves whatever happens. */
-  async notify({ eventKey, template, to, data }: EmailEvent): Promise<void> {
+  /** Sends the event's email to one recipient; true only once it went out and was logged sent. */
+  async notify({ eventKey, template, to, data }: EmailEvent): Promise<boolean> {
     const email: LoggedEmail = {
       eventKey,
       template,
@@ -69,17 +69,25 @@ export class EmailNotifier {
       claimed = await this.store.claim(email);
     } catch (error) {
       this.warn(template, error);
-      return;
+      return false;
     }
-    if (claimed) await this.deliver(email);
+    return claimed && this.deliver(email);
   }
 
   /**
    * The 08:00 run's second or third attempt at a failed email (11.3, AC 9): the same template and
    * recipient, rendered again from the data its row kept. True when it was sent.
    */
-  retry(email: LoggedEmail): Promise<boolean> {
-    return this.deliver(email);
+  async retry(email: LoggedEmail): Promise<boolean> {
+    // Claimed first, like a first send, so two runs at once send it once (review on #253).
+    let claimed: boolean;
+    try {
+      claimed = await this.store.claimRetry(email, this.clock());
+    } catch (error) {
+      this.warn(email.template, error);
+      return false;
+    }
+    return claimed && this.deliver(email);
   }
 
   /**
@@ -93,7 +101,10 @@ export class EmailNotifier {
     await Promise.all(event.to.map((to) => this.notify({ ...event, to })));
   }
 
-  /** Renders, sends within the timeout and marks the logged row; never throws. */
+  /**
+   * Renders, sends within the timeout and marks the logged row; never throws. True only when the
+   * row says sent: a send it could not mark stays pending and is picked up again (review on #253).
+   */
   private async deliver({ eventKey, template, recipient, payload }: LoggedEmail): Promise<boolean> {
     let sent = false;
     try {
@@ -103,6 +114,7 @@ export class EmailNotifier {
       );
       sent = true;
       await this.markSent(eventKey, recipient);
+      return true;
     } catch (error) {
       const kind = this.warn(template, error);
       // A sent email is never marked failed, or the 08:00 run would send it twice.
@@ -114,8 +126,8 @@ export class EmailNotifier {
             : this.store.markFailed(eventKey, recipient, kind, this.clock());
         await marking.catch(() => undefined);
       }
+      return false;
     }
-    return sent;
   }
 
   /** SMTP accepted it, so one more try at the mark keeps the log honest; a second failure throws. */
