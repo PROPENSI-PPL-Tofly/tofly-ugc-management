@@ -266,7 +266,11 @@ export function planEarlyEnd(
   );
   const ending = ordered.find((period) => period.id === contractId)!;
   const open = contents.filter((content) => content.status !== 'link_submitted');
-  const closes = (content: PlanContent) => isoDay(content.deadline) > request.lastDay;
+  // Due after the last day; on a cancel also due on it (today): nothing is paid and the creator
+  // can hand nothing in, so it would only look open and turn Overdue tomorrow (PR #241 review).
+  const closes = (content: PlanContent) =>
+    isoDay(content.deadline) > request.lastDay ||
+    (request.invoice === 'cancel' && isoDay(content.deadline) === request.lastDay);
 
   const upcoming = ordered.flatMap((period, index) =>
     periodHasStarted(period.startDate, now)
