@@ -317,7 +317,7 @@ describe('content links API (e2e)', () => {
       expect(response.body.items).toHaveLength(1);
       expect(response.body.items[0].progress).toMatchObject({
         submitted: 1,
-        total: 4,
+        total: 5,
       });
     });
   });

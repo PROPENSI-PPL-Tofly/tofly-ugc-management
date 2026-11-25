@@ -168,6 +168,47 @@ describe('CreatorEditService.edit', () => {
     );
   });
 
+  // The stub answers every column whatever is selected, so the select is pinned: without is_admin
+  // an admin account's address could be changed here (OWASP A01).
+  it('reads the named creator with everything the rules judge', async () => {
+    const s = setup();
+    await save(s, {});
+
+    expect(s.tx.creators.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { id: CREATOR_ID },
+      select: {
+        user_id: true,
+        first_name: true,
+        middle_name: true,
+        last_name: true,
+        users: { select: { email: true, is_admin: true } },
+        social_accounts: {
+          select: {
+            platform: true,
+            username: true,
+            is_connected: true,
+            platform_user_id: true,
+            connected_at: true,
+          },
+        },
+        contracts: {
+          orderBy: { start_date: 'asc' },
+          select: {
+            id: true,
+            start_date: true,
+            end_date: true,
+            original_end_date: true,
+            contract_type: true,
+            content_quota: true,
+            fixed_rate: true,
+            invoice: { select: { status: true } },
+            _count: { select: { contents: { where: { type: 'evergreen' } } } },
+          },
+        },
+      },
+    });
+  });
+
   it('answers 404 for a creator that does not exist', async () => {
     const s = setup(null);
     await expect(save(s, { email: 'x@example.com' })).rejects.toBeInstanceOf(NotFoundException);
@@ -403,6 +444,28 @@ describe('CreatorEditService.edit', () => {
       expectNothingWritten(s);
     });
 
+    // Each platform is judged by its own account.
+    it('changes TikTok while Instagram is connected', async () => {
+      const s = setup(
+        creatorRow({
+          social_accounts: [
+            { ...INSTAGRAM, is_connected: true, platform_user_id: 'ig-1' },
+            { ...INSTAGRAM, platform: 'tiktok', username: 'salsa.tt' },
+          ],
+        }),
+      );
+      await expect(save(s, { usernames: { tiktok: 'x' } })).resolves.toMatchObject({
+        changed: ['tiktokUsername'],
+      });
+    });
+
+    it('lets an Admin’s creator change anything but the address', async () => {
+      const s = setup(creatorRow({ users: { email: 'salsa@example.com', is_admin: true } }));
+      await expect(save(s, { usernames: { instagram: 'x' } })).resolves.toMatchObject({
+        changed: ['instagramUsername'],
+      });
+    });
+
     it('leaves the other platform’s username editable', async () => {
       const s = setup(creatorRow(), ['tiktok']);
       await expect(save(s, { usernames: { instagram: 'x' } })).resolves.toMatchObject({
@@ -426,7 +489,12 @@ describe('CreatorEditService.edit', () => {
       s.tx.social_accounts[write].mockResolvedValue({ count: 0 });
       const work = save(s, { usernames });
       await expect(work).rejects.toBeInstanceOf(ConflictException);
-      expect(await refusal(work)).toMatchObject({ body: { code: 'USERNAME_LOCKED' } });
+      expect(await refusal(work)).toMatchObject({
+        body: {
+          code: 'USERNAME_LOCKED',
+          message: expect.stringContaining('mengikuti akun yang terhubung'),
+        },
+      });
       expect(s.committed).not.toHaveBeenCalled();
     });
   });
