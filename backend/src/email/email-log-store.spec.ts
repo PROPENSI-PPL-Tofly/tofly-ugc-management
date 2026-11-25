@@ -84,3 +84,17 @@ describe('PrismaEmailLogStore', () => {
     });
   });
 });
+
+// Review on #252 (Davin): a send that was never attempted keeps its attempts.
+describe('PrismaEmailLogStore.markNotReady', () => {
+  it('marks the email failed as not ready, without counting an attempt', async () => {
+    const prisma = client();
+
+    await new PrismaEmailLogStore(prisma).markNotReady('e1', 'salsa@example.com', AT);
+
+    expect(prisma.email_log.update).toHaveBeenCalledWith({
+      where: KEY,
+      data: { status: 'failed', last_error: 'PortNotReady', updated_at: AT },
+    });
+  });
+});

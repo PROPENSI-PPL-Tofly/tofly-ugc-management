@@ -1,3 +1,4 @@
+import { PortNotReady } from '../auth/google/unready-ports.js';
 import type { EmailMessage, EmailSender } from './email-sender.js';
 import type { EmailLogStore, LoggedEmail } from './email-log-store.js';
 import type { EmailTemplates } from './email-templates.js';
@@ -17,6 +18,7 @@ function setup(overrides: { claim?: boolean; send?: EmailSender['send'] } = {}) 
     claim: vi.fn<EmailLogStore['claim']>().mockResolvedValue(overrides.claim ?? true),
     markSent: vi.fn<EmailLogStore['markSent']>().mockResolvedValue(),
     markFailed: vi.fn<EmailLogStore['markFailed']>().mockResolvedValue(),
+    markNotReady: vi.fn<EmailLogStore['markNotReady']>().mockResolvedValue(),
   };
   const sender = {
     send: vi.fn<EmailSender['send']>(overrides.send ?? (() => Promise.resolve())),
@@ -188,5 +190,85 @@ describe('EmailNotifier', () => {
     await new EmailNotifier(store, sender, templates, log).notify(EVENT);
 
     expect(store.markSent).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
+});
+
+// Review on #252: what the 08:00 run and the log need from a failed send.
+describe('EmailNotifier, review follow-ups', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Gunta: nodemailer throws a plain Error, so its code (ESOCKET, EAUTH, ETIMEDOUT) is what tells
+  // one SMTP failure from another. A code never names the address (OWASP A09).
+  it('keeps the SMTP error code when the error carries one', async () => {
+    const refusal = Object.assign(new Error('connect ECONNREFUSED to salsa@example.com'), {
+      code: 'ESOCKET',
+    });
+    const { store, log, notifier } = setup({ send: () => Promise.reject(refusal) });
+
+    await notifier.notify(EVENT);
+
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'ESOCKET', NOW);
+    expect(log.warn).toHaveBeenCalledWith('Email content_scheduled failed (ESOCKET)');
+  });
+
+  it('falls back to the class name for a code that is not a plain error code', async () => {
+    const refusal = Object.assign(new TypeError('bad'), { code: 'salsa@example.com' });
+    const { store, notifier } = setup({ send: () => Promise.reject(refusal) });
+
+    await notifier.notify(EVENT);
+
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'TypeError', NOW);
+  });
+
+  // Davin: while the templates (11.4) or the SMTP account are not set up, nothing was attempted,
+  // so the 3 attempts are kept for when they are.
+  it.each([
+    ['the templates are not ready', 'render'],
+    ['the SMTP account is not set up', 'send'],
+  ] as const)('keeps every attempt when %s', async (_, step) => {
+    const { store, templates, sender, notifier } = setup();
+    if (step === 'render') {
+      templates.render.mockImplementation(() => {
+        throw new PortNotReady('Email templates are not ready');
+      });
+    } else {
+      sender.send.mockRejectedValue(new PortNotReady('Email sending is not configured'));
+    }
+
+    await notifier.notify(EVENT);
+
+    expect(store.markNotReady).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+    expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Davin: SMTP accepted it, so one more try at marking it sent keeps the log honest.
+  it('tries once more to mark a sent email sent', async () => {
+    const { store, notifier } = setup();
+    store.markSent.mockRejectedValueOnce(new TypeError('connection lost'));
+
+    await notifier.notify(EVENT);
+
+    expect(store.markSent).toHaveBeenCalledTimes(2);
+    expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Gunta: every Admin at once, so a slow mail server holds the request 10 seconds, not 10 per Admin.
+  it('sends an event to all its recipients at once', async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const { sender, notifier } = setup({ send: () => held });
+
+    const sending = notifier.notifyAll({
+      ...EVENT,
+      to: [
+        { email: 'rina@example.com', name: 'Rina' },
+        { email: 'budi@example.com', name: 'Budi' },
+      ],
+    });
+    await vi.waitFor(() => expect(sender.send).toHaveBeenCalledTimes(2));
+    release();
+    await sending;
   });
 });
