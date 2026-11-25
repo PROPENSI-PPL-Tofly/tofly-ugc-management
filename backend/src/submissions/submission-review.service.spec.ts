@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   SubmissionReviewService,
   type SubmissionReviewClient,
@@ -317,5 +318,39 @@ describe('SubmissionReviewService.approve', () => {
     ).rejects.toThrow('Approval event recording requires a transaction client');
 
     expect(client.contents.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-11 (11.2, AC 1): an approved draft emails its creator, once the approval is saved.
+describe('SubmissionReviewService.approve, the creator email', () => {
+  function emails() {
+    return { draftApproved: vi.fn<CreatorNotifier['draftApproved']>().mockResolvedValue() };
+  }
+
+  it('tells the creator after the approval is saved', async () => {
+    const client = stubClient({ status: 'draft_review', latestIds: [SUBMISSION_ID] });
+    const notifier = emails();
+    notifier.draftApproved.mockImplementation(async () => {
+      expect(client.contents.updateMany).toHaveBeenCalled();
+    });
+
+    await new SubmissionReviewService(client, notifier).approve(SUBMISSION_ID);
+
+    expect(notifier.draftApproved).toHaveBeenCalledExactlyOnceWith({
+      contentId: CONTENT_ID,
+      submissionId: SUBMISSION_ID,
+    });
+  });
+
+  it('tells nobody when another decision came first', async () => {
+    const notifier = emails();
+
+    await expect(
+      new SubmissionReviewService(
+        stubClient({ status: 'draft_review', latestIds: [SUBMISSION_ID] }, 0),
+        notifier,
+      ).approve(SUBMISSION_ID),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(notifier.draftApproved).not.toHaveBeenCalled();
   });
 });
