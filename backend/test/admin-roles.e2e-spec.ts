@@ -270,6 +270,32 @@ describe('Admin roles and status (e2e)', () => {
     });
   });
 
+  // PBI-23 AC 3: the frontend hides the Super Admin menus and button by this answer.
+  describe('GET /auth/session', () => {
+    it("answers a Super Admin's role, and a plain Admin's once demoted, on the next request", async () => {
+      const user = await prisma.users.create({
+        data: {
+          email: email('session-role'),
+          is_admin: true,
+          admin_role: 'super_admin',
+        },
+      });
+      const cookie = await signIn(app, { userId: user.id, role: 'admin' });
+
+      await as(app, cookie)
+        .get('/auth/session')
+        .expect(200, { role: 'admin', adminRole: 'super_admin' });
+
+      await prisma.users.update({
+        where: { id: user.id },
+        data: { admin_role: 'admin' },
+      });
+      await as(app, cookie)
+        .get('/auth/session')
+        .expect(200, { role: 'admin', adminRole: 'admin' });
+    });
+  });
+
   it('keeps the health check open while all of this runs', async () => {
     await request(app.getHttpServer()).get('/health').expect(200);
   });
