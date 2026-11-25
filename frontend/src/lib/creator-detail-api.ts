@@ -17,6 +17,7 @@ import type {
   CreatorProfile,
 } from "./creator-detail";
 import { EARLY_END_REASONS, type ContractPeriod, type EarlyEndReason } from "./creators";
+import { readEarlyEnd } from "./early-end-display";
 import type { RawInvoiceDetail } from "./invoice-api";
 import { jakartaDay } from "./format";
 import { readConnections } from "./social-connection";
@@ -40,6 +41,7 @@ export type RawCreatorPeriod = Pick<
   | "daysBetween"
   | "fixedRate"
   | "earlyEndReason"
+  | "earlyEnd"
   | "remainingEvergreenQuota"
   | "progress"
   | "performance"
@@ -155,6 +157,7 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
   // The API counts the room left; it no longer lists a period's contents to count them here.
   // Kept within the quota, so a stray number never opens a slot the contract does not have.
   const remaining = Math.min(Math.max(period.remainingEvergreenQuota, 0), period.contentQuota);
+  const earlyEnd = readEarlyEnd(period.earlyEnd);
 
   return {
     contractId: period.id,
@@ -175,6 +178,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
       : null,
     progress: period.progress,
     performance: period.performance,
+    // PBI-37: only a period the API says was ended early carries one (OWASP A06).
+    ...(earlyEnd && { earlyEnd }),
   };
 }
 

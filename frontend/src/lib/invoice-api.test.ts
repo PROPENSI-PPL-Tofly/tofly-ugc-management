@@ -31,6 +31,11 @@ describe("toInvoiceListQuery", () => {
     );
   });
 
+  // The backend filters the list (37.1), so the Cancelled pick must reach it in its own word.
+  it("asks the API for the cancelled invoices when Cancelled is picked", () => {
+    expect(toInvoiceListQuery({ ...STATE, status: "cancelled" }, TODAY).get("status")).toBe("cancelled");
+  });
+
   it("leaves out a filter that is not applied, and still names the page and its size", () => {
     expect(toInvoiceListQuery(DEFAULT_INVOICE_PARAMS, TODAY).toString()).toBe("page=1&pageSize=10");
   });

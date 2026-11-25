@@ -178,17 +178,13 @@ export class InvoiceCommandService implements InvoiceCommands {
         end_date: true,
         content_quota: true,
         fixed_rate: true,
-        creators: { select: { access_revoke_date: true } },
         invoice: { select: { status: true } },
       },
     });
     if (!contract) this.contractNotFound();
 
-    const { creators, invoice, ...row } = contract;
-    assertContractEnded(
-      toInvoiceContract(row, creators.access_revoke_date),
-      today,
-    );
+    const { invoice, ...row } = contract;
+    assertContractEnded(toInvoiceContract(row), today);
     if (invoice) {
       invoiceState(invoice.status).assertCanFinalize();
     }
@@ -232,7 +228,6 @@ export class InvoiceCommandService implements InvoiceCommands {
             end_date: true,
             content_quota: true,
             fixed_rate: true,
-            creators: { select: { access_revoke_date: true } },
             contents: {
               select: CONTENT_SELECT,
               orderBy: { deadline: 'asc' },
@@ -250,7 +245,6 @@ export class InvoiceCommandService implements InvoiceCommands {
             content_quota: contract.content_quota,
             fixed_rate: contract.fixed_rate,
           },
-          contract.creators.access_revoke_date,
         );
 
         assertContractEnded(invoiceContract, today);

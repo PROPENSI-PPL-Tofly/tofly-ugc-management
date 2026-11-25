@@ -14,6 +14,7 @@ import {
   invoiceState,
   type InvoiceLifecycleStatus,
 } from '../invoices/invoice-lifecycle.js';
+import { contentClosed } from './content-closed.js';
 import { MAX_BRIEF_LENGTH, MAX_CONTENT_NAME_LENGTH } from './new-content.js';
 
 // Editing and deleting scheduled content (PBI-25, 25.1). Pure rules over plain values: what an
@@ -35,6 +36,8 @@ export interface EditableContent {
   brief: string;
   deadline: Date;
   status: content_status;
+  /** PBI-37: when an early end closed it; null while open. */
+  closed_at: Date | null;
   _count: { submissions: number };
   contracts: {
     start_date: Date;
@@ -149,6 +152,8 @@ export interface ChangeFacts {
   contractEnd: string;
   /** Null before the contract has an invoice at all. */
   invoiceStatus: InvoiceLifecycleStatus | null;
+  /** PBI-37 (AC 7): closed by an early end, so it leaves new scheduling. */
+  closed: boolean;
 }
 
 /** The days an edited deadline may take (AC 3), as the date picker offers them. */
@@ -163,6 +168,9 @@ export interface EditWindow {
  * draft is named first: it is the one the admin can see on the panel.
  */
 function changeRefusal(facts: ChangeFacts): ConflictException | null {
+  if (facts.closed) {
+    return contentClosed();
+  }
   if (facts.status !== 'scheduled' || facts.drafts > 0) {
     return new ConflictException({
       code: 'CONTENT_NOT_EDITABLE',
@@ -185,6 +193,7 @@ function changeFactsOf(content: EditableContent): ChangeFacts {
     contractStart: isoDay(content.contracts.start_date),
     contractEnd: isoDay(content.contracts.end_date),
     invoiceStatus: content.contracts.invoice?.status ?? null,
+    closed: content.closed_at !== null,
   };
 }
 

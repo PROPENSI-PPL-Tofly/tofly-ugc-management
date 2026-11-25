@@ -361,7 +361,9 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       expect(JSON.stringify(res.body)).not.toContain(`${MARKER}-nadia@example.com`);
     });
 
-    it('GET /me/invoices answers an empty list for a creator with no contract', async () => {
+    // PRD Sprint 4, rule 1: access follows the contracts, so a creator with none has nothing to
+    // work on or settle and is refused before the list is read.
+    it('GET /me/invoices refuses a creator with no contract', async () => {
       const user = await prisma.users.create({
         data: { email: `${MARKER}-tanpa-kontrak@example.com` },
       });
@@ -380,8 +382,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
 
       const res = await fresh.get('/me/invoices');
 
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual({ items: [] });
+      expect(res.status).toBe(401);
     });
   });
 
@@ -515,17 +516,12 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
     });
   });
 
-  // PBI-13 + prototype ("akses login dicabut H+1 setelah Paid"): revoking a creator takes effect
-  // once nothing is left for them to settle, so a creator whose access was revoked after their
-  // contract ended can still acknowledge and confirm their last invoice.
-  describe('a creator whose access was revoked', () => {
+  // PBI-13 + prototype ("akses login dicabut H+1 setelah Paid"): access follows the contracts, so a
+  // creator whose contract ended can still acknowledge and confirm their last invoice.
+  describe('a creator whose contract has ended', () => {
     it('settles their last invoice, keeps access the day it is paid, and loses it the day after', async () => {
       const revoked = await creator('Dicabut', [{ start: -60, end: -10 }]);
       const [contractId] = revoked.contractIds;
-      await prisma.creators.update({
-        where: { id: revoked.creatorId },
-        data: { access_revoke_date: day(-5) },
-      });
       await finalize(contractId);
 
       const list = await revoked.client.get('/me/invoices');
@@ -545,7 +541,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       // Paid today: still in until tomorrow.
       expect((await revoked.client.get('/me/invoices')).status).toBe(200);
 
-      // The day after it was paid, the revoke date is in force again.
+      // The day after it was paid, nothing is left to settle.
       await prisma.invoices.update({
         where: { contract_id: contractId },
         data: { paid_at: day(-1) },

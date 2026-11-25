@@ -56,8 +56,6 @@ export interface InvoiceContract {
   /** Paid in full for the contract period, whatever the number of items delivered. */
   fixedRate: number;
   contentQuota: number;
-  /** When access was revoked before endDate; the contract stops counting days from then. */
-  endedEarlyOn: Date | null;
 }
 
 export interface InvoiceContext {

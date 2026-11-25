@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { CurrentCreator } from '../auth/current-creator.decorator.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
+import { PaymentsPage } from '../auth/payments-page.decorator.js';
 import type {
   AcknowledgedInvoiceDto,
   PaidInvoiceDto,
@@ -25,6 +26,8 @@ import {
  */
 @Controller('me/invoices')
 @UseGuards(DevCreatorGuard)
+// PBI-37 (AC 13): open to a creator who only waits for payment.
+@PaymentsPage()
 export class MyInvoicesController {
   constructor(
     @Inject(MyInvoicesService)

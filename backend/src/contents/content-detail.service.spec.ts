@@ -21,6 +21,7 @@ function row() {
     content_links: [],
     video_submitted_at: null,
     approval_bypassed: false,
+    closed_at: null,
     created_at: new Date('2026-09-01T03:00:00.000Z'),
     updated_at: new Date('2026-09-01T03:00:00.000Z'),
     contracts: {

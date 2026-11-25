@@ -13,6 +13,8 @@ export const INVOICE_STATUSES = [
   'creator_acked',
   'payment_uploaded',
   'paid',
+  // PBI-37: off the pipeline, an invoice an early end cancelled instead of paying.
+  'cancelled',
 ] as const;
 
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];

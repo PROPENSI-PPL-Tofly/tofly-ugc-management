@@ -33,6 +33,15 @@ export interface ContractSummary {
 
   /** The current contract's type; null without a contract. */
   type: ContractType | null;
+
+  /**
+   * PBI-37: set when the current contract was ended early, for "Berakhir Lebih Awal" with its
+   * reason type; endDate is then the last day. The note stays on Creator Detail.
+   */
+  earlyEnd: {
+    originalEndDate: string;
+    reason: 'violation' | 'fraud' | 'other';
+  } | null;
 }
 
 export interface CreatorSummary {
@@ -135,6 +144,20 @@ export interface ContractPeriod extends ContractHistoryEntry {
 
   progress: CreatorSummary['progress'];
   performance: CreatorSummary['performance'];
+
+  /**
+   * PBI-37: how the period was ended early, or null when it runs as agreed. endDate is then the
+   * last day; the note is for admins, and this endpoint is admin-only.
+   */
+  earlyEnd: {
+    originalEndDate: string;
+    reason: 'violation' | 'fraud' | 'other';
+    note: string;
+    endedAt: string;
+  } | null;
+
+  /** The same reason on its own, as "Perpanjang Kontrak" reads it for its warning (PBI-30, AC 3). */
+  earlyEndReason: 'violation' | 'fraud' | 'other' | null;
 }
 
 export interface CreatorDetail extends CreatorSummary {

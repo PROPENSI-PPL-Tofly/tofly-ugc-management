@@ -46,6 +46,7 @@ export const INVOICE_TONES: Record<InvoiceStatus, Tone> = {
   creator_acked: "accent",
   payment_uploaded: "amber",
   paid: "green",
+  cancelled: "red",
 };
 
 /** What each sortable column's two directions mean, for the header's title. */

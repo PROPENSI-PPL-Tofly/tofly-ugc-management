@@ -77,7 +77,6 @@ function creatorRow(
     first_name: 'Rangga',
     middle_name: null,
     last_name: 'Pratama',
-    access_revoke_date: null,
     contracts: [contractRow()],
     ...overrides,
   };
@@ -189,14 +188,13 @@ describe('toInvoiceContent', () => {
 });
 
 describe('toInvoiceContract', () => {
-  it('reads the numeric fixed rate as rupiah and the revocation as the early end', () => {
-    expect(toInvoiceContract(contractRow(), day(-3))).toEqual({
+  it('reads the numeric fixed rate as rupiah', () => {
+    expect(toInvoiceContract(contractRow())).toEqual({
       id: 'contract-1',
       startDate: day(-60),
       endDate: day(60),
       fixedRate: 5_500_000,
       contentQuota: 11,
-      endedEarlyOn: day(-3),
     });
   });
 });
@@ -315,10 +313,13 @@ describe('toInvoiceItem', () => {
     expect(item.components.fixedRate.amount).toBe(0);
   });
 
-  it('stops counting a never-delivered item at the day access was revoked', () => {
+  // PBI-37: a contract ended early has its last day as end_date (the original end is kept apart).
+  const endedEarly = () => contractRow({ end_date: day(-11) });
+
+  it('stops counting a never-delivered item at the last day of a contract ended early', () => {
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-11) }),
-      contractRow(),
+      creatorRow({ contracts: [endedEarly()] }),
+      endedEarly(),
       [contentRow({ deadline: day(-12) })],
       FORMULA,
       TODAY,
@@ -327,29 +328,28 @@ describe('toInvoiceItem', () => {
     expect(item.components.penalty.lines[0].basis.daysLate).toBe(1);
   });
 
-  // An early end moves the day the contract stops, not its end date: the period still reads as
-  // agreed, and lastDay is what finalizing waits for.
-  it('gives the day access was revoked as the last day of a contract that ended early', () => {
+  // lastDay is what finalizing waits for: the last day an early end set.
+  it('gives the last day of a contract that ended early', () => {
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-11) }),
-      contractRow(),
+      creatorRow({ contracts: [endedEarly()] }),
+      endedEarly(),
       [],
       FORMULA,
       TODAY,
     );
 
     expect(item.contract).toMatchObject({
-      endDate: '2026-11-17',
+      endDate: '2026-09-07',
       lastDay: '2026-09-07',
     });
   });
 
   // OWASP Top 10:2025 A06 (Insecure Design): the contract column, its filter and the
   // needs-action order all read an early end as the end, as finalizing does.
-  it('marks a contract that ended early as ended, although its end date has not come', () => {
+  it('marks a contract that ended early as ended, although its original end has not come', () => {
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-11) }),
-      contractRow(),
+      creatorRow({ contracts: [endedEarly()] }),
+      endedEarly(),
       [],
       FORMULA,
       TODAY,
@@ -358,10 +358,11 @@ describe('toInvoiceItem', () => {
     expect(item.contract.status).toBe('expired');
   });
 
-  it('keeps a contract running on the day access is revoked', () => {
+  it('keeps a contract ended early running on its last day', () => {
+    const lastDayToday = contractRow({ end_date: day(0) });
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(0) }),
-      contractRow(),
+      creatorRow({ contracts: [lastDayToday] }),
+      lastDayToday,
       [],
       FORMULA,
       TODAY,
@@ -377,19 +378,6 @@ describe('toInvoiceItem', () => {
 
     expect(toInvoiceItem(row, first, [], FORMULA, TODAY).contract.period).toBe(1);
     expect(toInvoiceItem(row, renewal, [], FORMULA, TODAY).contract.period).toBe(2);
-  });
-
-  it('keeps the end date as the last day when access is revoked after it', () => {
-    const ended = contractRow({ start_date: day(-60), end_date: day(-5) });
-    const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-1), contracts: [ended] }),
-      ended,
-      [],
-      FORMULA,
-      TODAY,
-    );
-
-    expect(item.contract.lastDay).toBe('2026-09-13');
   });
 
   it('pays the fixed rate and waits on the rest while no formula is saved', () => {
@@ -575,7 +563,6 @@ describe('the columns an invoice is read from', () => {
       first_name: true,
       middle_name: true,
       last_name: true,
-      access_revoke_date: true,
       contracts: {
         select: {
           id: true,

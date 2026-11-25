@@ -304,6 +304,23 @@ describe("Creator Detail page", () => {
     expect(screen.getByRole("button", { name: "Hapus Periode" })).toBeInTheDocument();
   });
 
+  // PBI-37 AC 1: the early end is offered on the same panel, only while the contract runs.
+  it("offers Akhiri Kontrak Lebih Awal on the Periode Kontrak panel while the contract runs", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Akhiri Kontrak Lebih Awal" })).toBeInTheDocument();
+  });
+
+  it("offers no early end once the contract was ended early", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(
+      viewOf({ periods: [{ ...NEWEST, earlyEndReason: "fraud" }, OLDEST] }),
+    );
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "Akhiri Kontrak Lebih Awal" })).not.toBeInTheDocument();
+  });
+
   it("still shows the profile of a creator without any contract", async () => {
     vi.mocked(fetchCreatorDetail).mockResolvedValue(
       viewOf({ periods: [], selected: null, rows: [], total: 0 }),
