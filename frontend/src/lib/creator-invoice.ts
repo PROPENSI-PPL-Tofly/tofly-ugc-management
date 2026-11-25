@@ -7,7 +7,7 @@
 // creator reads exactly what the admin froze.
 
 import type { AdjustmentLine } from "./invoice-adjustment";
-import type { InvoiceStatus } from "./invoice";
+import { INVOICE_STATUS_LABELS, type InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
 import { formatDate, formatRupiah, jakartaDay } from "./format";
 import type { Role } from "./session";
@@ -82,6 +82,15 @@ export class CreatorInvoicesError extends Error {
   }
 }
 
+/**
+ * Each status as the creator reads it: the admin table's words, except an invoice an early end
+ * cancelled, which the creator reads as "Dibatalkan" rather than the internal "Cancelled" (PBI-37).
+ */
+export const CREATOR_INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  ...INVOICE_STATUS_LABELS,
+  cancelled: "Dibatalkan",
+};
+
 /** The total's name as the prototype gives it to a creator: an estimate until it is frozen. */
 export function totalLabel(status: InvoiceStatus): string {
   if (status === "accruing") return "Estimasi Pendapatan";
@@ -144,7 +153,8 @@ export function invoiceSteps(invoice: CreatorInvoice): InvoiceStep[] {
   return STEPS.map((step, index) => {
     let state: StepState = "todo";
     if (index <= reached) state = "done";
-    else if (index === reached + 1) state = "current";
+    // A cancelled invoice is off the pipeline, so it waits on no step.
+    else if (index === reached + 1 && invoice.status !== "cancelled") state = "current";
 
     let caption: string | null;
     if (step.status === "accruing") {
@@ -174,7 +184,7 @@ const NEXT_STEPS: Record<InvoiceStatus, CreatorNextStep> = {
   payment_uploaded: { hint: "Admin sudah mengirim bukti bayar.", action: "confirm" },
   paid: { hint: "Lunas", action: null },
   // Nothing is left to acknowledge or confirm on an invoice an early end cancelled.
-  cancelled: { hint: null, action: null },
+  cancelled: { hint: CREATOR_INVOICE_STATUS_LABELS.cancelled, action: null },
 };
 
 /**
