@@ -1,4 +1,5 @@
 import type { Logger } from '@nestjs/common';
+import { PortNotReady } from '../auth/google/unready-ports.js';
 import type { EmailLogStore, LoggedEmail } from './email-log-store.js';
 import type { EmailSender } from './email-sender.js';
 import type { EmailTemplates } from './email-templates.js';
@@ -32,9 +33,18 @@ export interface EmailEvent {
 /** The mail server took longer than EMAIL_TIMEOUT_MS. */
 class EmailTimeout extends Error {}
 
-/** Only the class of a failure is kept: a provider's message can quote the address (OWASP A09). */
+/** An SMTP error code such as ESOCKET, EAUTH or ETIMEDOUT: letters, digits and underscores only. */
+const ERROR_CODE = /^[A-Z][A-Z0-9_]{1,31}$/;
+
+/**
+ * What a failure is, never what it says: a provider's message can quote the address (OWASP A09).
+ * nodemailer throws a plain Error, so its code tells one SMTP failure from another; anything that
+ * does not look like a code falls back to the class name.
+ */
 export function errorKind(error: unknown): string {
-  return error instanceof Error ? error.constructor.name : typeof error;
+  if (!(error instanceof Error)) return typeof error;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && ERROR_CODE.test(code) ? code : error.constructor.name;
 }
 
 export class EmailNotifier {
@@ -72,13 +82,15 @@ export class EmailNotifier {
     return this.deliver(email);
   }
 
-  /** The same event to several recipients (every active Admin, AC 5): one email each. */
+  /**
+   * The same event to several recipients (every active Admin, AC 5): one email each, all at
+   * once, so a slow mail server holds the action 10 seconds, not 10 per recipient. notify never
+   * rejects, so one recipient's failure never stops the others.
+   */
   async notifyAll(
     event: Omit<EmailEvent, 'to'> & { to: readonly EmailRecipient[] },
   ): Promise<void> {
-    for (const to of event.to) {
-      await this.notify({ ...event, to });
-    }
+    await Promise.all(event.to.map((to) => this.notify({ ...event, to })));
   }
 
   /** Renders, sends within the timeout and marks the logged row; never throws. */
@@ -90,17 +102,29 @@ export class EmailNotifier {
         this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered }),
       );
       sent = true;
-      await this.store.markSent(eventKey, recipient, this.clock());
+      await this.markSent(eventKey, recipient);
     } catch (error) {
       const kind = this.warn(template, error);
       // A sent email is never marked failed, or the 08:00 run would send it twice.
       if (!sent) {
-        await this.store
-          .markFailed(eventKey, recipient, kind, this.clock())
-          .catch(() => undefined);
+        // Templates or SMTP not set up yet: nothing was attempted, so no attempt is used up.
+        const marking =
+          error instanceof PortNotReady
+            ? this.store.markNotReady(eventKey, recipient, this.clock())
+            : this.store.markFailed(eventKey, recipient, kind, this.clock());
+        await marking.catch(() => undefined);
       }
     }
     return sent;
+  }
+
+  /** SMTP accepted it, so one more try at the mark keeps the log honest; a second failure throws. */
+  private async markSent(eventKey: string, recipient: string): Promise<void> {
+    try {
+      await this.store.markSent(eventKey, recipient, this.clock());
+    } catch {
+      await this.store.markSent(eventKey, recipient, this.clock());
+    }
   }
 
   /** The one warning a failed email leaves: its template and error kind, never the recipient. */
