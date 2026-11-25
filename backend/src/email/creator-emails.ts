@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { joinName } from '../creators/evergreen.js';
+import type { BegunInvoice } from '../auth/google/creator-access.js';
+import { jakartaDay, joinName } from '../creators/evergreen.js';
+import { accessClosesAfterPaid } from './access-after-paid.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreatorNotifier } from './creator-notifier.js';
 import { EMAIL_LOG } from './email-log.token.js';
@@ -23,6 +25,16 @@ interface CreatorRow {
   users: { email: string };
 }
 
+/** The creator with every contract and its invoice, for the access rule (PBI-11 AC 3). */
+const CREATOR_WITH_CONTRACTS = {
+  ...CREATOR_SELECT,
+  contracts: { select: { end_date: true, invoice: { select: { status: true, paid_at: true } } } },
+} as const;
+
+interface CreatorWithContracts extends CreatorRow {
+  contracts: { end_date: Date; invoice: BegunInvoice }[];
+}
+
 const CONTENT_SELECT = {
   name: true,
   deadline: true,
@@ -38,6 +50,11 @@ interface ContentRow {
 /** The slice of Prisma the adapter reads, so tests hand in a stub of just that. */
 export interface CreatorEmailClient {
   creators: {
+    // The wider select first, so a call that asks for the contracts gets them back typed.
+    findUnique(args: {
+      where: { id: string };
+      select: typeof CREATOR_WITH_CONTRACTS;
+    }): Promise<CreatorWithContracts | null>;
     findUnique(args: {
       where: { id: string };
       select: typeof CREATOR_SELECT;
@@ -194,6 +211,36 @@ export class CreatorEmails implements CreatorNotifier {
       eventKey: `payment_proof_uploaded:${contractId}`,
       template: 'payment_proof_uploaded',
       data: { contractId },
+    });
+  }
+
+  /**
+   * AC 1 and AC 3: the Paid email. On the creator's last invoice it names the day access closes,
+   * by the same rule sign-in follows; otherwise that day is null.
+   */
+  invoicePaid(input: { creatorId: string; contractId: string; paidAt: Date }): Promise<void> {
+    const { creatorId, contractId, paidAt } = input;
+    return this.reach('invoice_paid', async () => {
+      const creator = await this.prisma.creators.findUnique({
+        where: { id: creatorId },
+        select: CREATOR_WITH_CONTRACTS,
+      });
+      if (!creator) return null;
+      const accessClosesOn = accessClosesAfterPaid(
+        jakartaDay(paidAt),
+        creator.contracts.map((contract) => ({
+          endDay: contract.end_date.toISOString().slice(0, 10),
+          invoice: contract.invoice,
+        })),
+      );
+      return {
+        creator,
+        event: {
+          eventKey: `invoice_paid:${contractId}`,
+          template: 'invoice_paid',
+          data: { contractId, accessClosesOn },
+        },
+      };
     });
   }
 

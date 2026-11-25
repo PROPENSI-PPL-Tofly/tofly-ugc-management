@@ -1,9 +1,15 @@
 import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
@@ -75,6 +81,9 @@ const LOST_MOVE = Symbol('LOST_MOVE');
 export class InvoiceConfirmationService {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoiceConfirmationClient,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'invoicePaid'> = noCreatorEmail,
   ) {}
 
   /** The creator accepts the frozen amount: Finalized → Acknowledged. */
@@ -97,6 +106,8 @@ export class InvoiceConfirmationService {
     now = new Date(),
   ): Promise<PaidInvoiceDto> {
     await this.move(CONFIRM_RECEIPT, contractId, creatorId, now);
+    // PBI-11 (AC 1, AC 3, AC 9): once Paid is saved; the email never fails the confirmation.
+    await this.notifier.invoicePaid({ creatorId, contractId, paidAt: now });
     return { invoiceStatus: 'paid', paidAt: now.toISOString() };
   }
 
