@@ -51,6 +51,7 @@ type TargetRow = AdminUserRow & { is_admin: boolean };
 export interface AdminUsersTable {
   findMany(args: object): Promise<AdminUserRow[]>;
   count(args: object): Promise<number>;
+  groupBy(args: object): Promise<{ is_active: boolean; _count: { _all: number } }[]>;
   findUnique(args: object): Promise<unknown>;
   create(args: object): Promise<AdminUserRow>;
   update(args: object): Promise<AdminUserRow>;
@@ -136,7 +137,7 @@ export class AdminUsersService {
           ],
         }
       : ADMINS;
-    const [rows, total, activeCount, inactiveCount] = await Promise.all([
+    const [rows, groups, searched] = await Promise.all([
       this.prisma.users.findMany({
         where,
         // Active first, then by name; an Admin with no name yet sorts by email after the named ones.
@@ -149,10 +150,20 @@ export class AdminUsersService {
         take: pageSize,
         select: ADMIN_USER_SELECT,
       }),
-      this.prisma.users.count({ where }),
-      this.prisma.users.count({ where: { ...ADMINS, is_active: true } }),
-      this.prisma.users.count({ where: { ...ADMINS, is_active: false } }),
+      // The header's two numbers from one snapshot, in one query instead of two.
+      this.prisma.users.groupBy({
+        by: ['is_active'],
+        where: ADMINS,
+        _count: { _all: true },
+      }),
+      q ? this.prisma.users.count({ where }) : undefined,
     ]);
+    const countOf = (active: boolean) =>
+      groups.find((group) => group.is_active === active)?._count._all ?? 0;
+    const activeCount = countOf(true);
+    const inactiveCount = countOf(false);
+    // With no search the page lists the whole team, which the two groups already count.
+    const total = searched ?? activeCount + inactiveCount;
     return {
       items: rows.map((row) => adminUserDto(row, actorId)),
       page,
