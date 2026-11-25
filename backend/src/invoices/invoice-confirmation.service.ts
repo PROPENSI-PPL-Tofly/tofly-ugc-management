@@ -1,4 +1,9 @@
 import {
+  ADMIN_NOTIFIER,
+  noAdminEmail,
+  type AdminNotifier,
+} from '../email/admin-notifier.js';
+import {
   CREATOR_NOTIFIER,
   noCreatorEmail,
   type CreatorNotifier,
@@ -84,6 +89,9 @@ export class InvoiceConfirmationService {
     @Optional()
     @Inject(CREATOR_NOTIFIER)
     private readonly notifier: Pick<CreatorNotifier, 'invoicePaid'> = noCreatorEmail,
+    @Optional()
+    @Inject(ADMIN_NOTIFIER)
+    private readonly admins: Pick<AdminNotifier, 'invoiceAcknowledged'> = noAdminEmail,
   ) {}
 
   /** The creator accepts the frozen amount: Finalized → Acknowledged. */
@@ -93,6 +101,8 @@ export class InvoiceConfirmationService {
     now = new Date(),
   ): Promise<AcknowledgedInvoiceDto> {
     await this.move(ACKNOWLEDGE, contractId, creatorId, now);
+    // PBI-11 (AC 5, AC 9): every Admin hears the proof can be uploaded; never failing the move.
+    await this.admins.invoiceAcknowledged({ contractId });
     return {
       invoiceStatus: 'creator_acked',
       acknowledgedAt: now.toISOString(),

@@ -1,3 +1,5 @@
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
 import { CreatorEmails } from '../email/creator-emails.js';
 import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
 import { EmailModule } from '../email/email.module.js';
@@ -42,6 +44,7 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
     // Not exported: the creator's routes that import this module cannot inject them.
     InvoiceCommandService,
     { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
+    { provide: ADMIN_NOTIFIER, useExisting: AdminEmails },
     // The formula admins saved in "Atur Formula Rate" (8.1).
     { provide: RATE_FORMULA_SOURCE, useClass: StoredRateFormulaSource },
     // Where each invoice stands, from the lifecycle finalizing saves (PBI-12).

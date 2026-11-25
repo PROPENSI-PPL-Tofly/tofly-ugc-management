@@ -25,6 +25,8 @@ import {
 } from './link-change.service.js';
 import { VideoSubmissionController } from './video-submission.controller.js';
 import { VideoSubmissionService } from './video-submission.service.js';
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
 import { CreatorEmails } from '../email/creator-emails.js';
 import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
 import { EmailModule } from '../email/email.module.js';
@@ -47,6 +49,7 @@ import { EmailModule } from '../email/email.module.js';
     ContentCreationService,
     { provide: CONTENT_NOTIFIER, useExisting: CreatorEmails },
     { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
+    { provide: ADMIN_NOTIFIER, useExisting: AdminEmails },
     ContentDetailService,
     ContentEventHistoryService,
     ContentListService,

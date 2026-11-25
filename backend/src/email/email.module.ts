@@ -1,4 +1,5 @@
 import { Logger, Module } from '@nestjs/common';
+import { AdminEmails } from './admin-emails.js';
 import { CreatorEmails } from './creator-emails.js';
 import { EMAIL_LOG_STORE, PrismaEmailLogStore, type EmailLogStore } from './email-log-store.js';
 import { EMAIL_LOG } from './email-log.token.js';
@@ -47,7 +48,8 @@ export { EMAIL_LOG };
       inject: [EMAIL_LOG_STORE, EMAIL_SENDER, EMAIL_TEMPLATES, EMAIL_LOG],
     },
     { provide: CreatorEmails, useClass: CreatorEmails },
+    { provide: AdminEmails, useClass: AdminEmails },
   ],
-  exports: [EMAIL_SENDER, EMAIL_LOG_STORE, EmailNotifier, CreatorEmails],
+  exports: [EMAIL_SENDER, EMAIL_LOG_STORE, EmailNotifier, CreatorEmails, AdminEmails],
 })
 export class EmailModule {}
