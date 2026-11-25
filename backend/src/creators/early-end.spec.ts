@@ -352,6 +352,40 @@ describe('planEarlyEnd (the consequences, for the confirmation and the write ali
     });
   });
 
+  // PR #241 review: a cancel ends the contract today and nothing is paid, so content due today
+  // cannot be delivered for anything either; it is closed with the rest, not left looking open.
+  it('cancelling closes undelivered content due on the last day too, today', () => {
+    const plan = planEarlyEnd(
+      CANCEL,
+      'contract-2',
+      [PERIOD_1, PERIOD_2],
+      [
+        content('due-today', '2026-11-24'),
+        content('due-later', '2026-11-29'),
+        content('done-today', '2026-11-24', 'link_submitted'),
+        content('overdue', '2026-11-20', 'scheduled'),
+      ],
+      NOW,
+    );
+
+    expect(plan.closing.map((closed) => closed.id)).toEqual(['due-today', 'due-later']);
+    // Already past due before the end: it stays as it was, its history untouched.
+    expect(plan.unfinished.map((open) => open.id)).toEqual(['overdue']);
+  });
+
+  it('paying as agreed keeps content due on the last day open until then', () => {
+    const plan = planEarlyEnd(
+      { ...PAY, lastDay: '2026-11-24' },
+      'contract-2',
+      [PERIOD_1, PERIOD_2],
+      [content('due-today', '2026-11-24')],
+      NOW,
+    );
+
+    expect(plan.closing).toEqual([]);
+    expect(plan.unfinished.map((open) => open.id)).toEqual(['due-today']);
+  });
+
   it('cancelling closes access now when no earlier invoice is still unpaid', () => {
     const plan = planEarlyEnd(CANCEL, 'contract-2', [PERIOD_1, PERIOD_2], [], NOW);
     expect(plan).toMatchObject({
