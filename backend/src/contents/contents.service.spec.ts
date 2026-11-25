@@ -624,6 +624,15 @@ describe('ContentCreationService', () => {
         consoleInfo.mockRestore();
       }
     });
+
+    it('still saves the content when built without an email adapter', async () => {
+      await expect(
+        new ContentCreationService(transactional(contract()), TEST_SCHEDULING).create(
+          input,
+          ADMIN_USER_ID,
+        ),
+      ).resolves.toMatchObject({ id: CONTENT_ID, status: 'scheduled' });
+    });
   });
 });
 
