@@ -12,6 +12,9 @@ create table document_number_counters (
   primary key (kind, month)
 );
 
+-- Backend-only, as every app table: no API role may read or write it (data-api-access e2e).
+alter table document_number_counters enable row level security;
+
 alter table invoices
   add column invoice_number text,
   add column receipt_number text;
