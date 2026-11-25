@@ -685,3 +685,12 @@ describe("toInvoiceBreakdown", () => {
     expect(bare.fixed.period).toMatchObject({ quotaDone: 0, quotaTotal: 0 });
   });
 });
+
+// PBI-16 AC 9.
+describe("toInvoiceBreakdown with fixed rate changes", () => {
+  const change = { id: "c1", oldRate: 1, newRate: 2, actorName: "rina@example.com", createdAt: "2026-11-25T03:00:00Z" };
+
+  it("carries them for the Aktivitas", () => {
+    expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, rateChanges: [change] }).rateChanges).toEqual([change]);
+  });
+});
