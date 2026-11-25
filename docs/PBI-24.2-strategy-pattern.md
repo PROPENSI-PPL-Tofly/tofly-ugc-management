@@ -18,12 +18,12 @@ Written inline, one card component would carry a growing `switch` on the KPI for
 Strategy (Gamma et al., _Design Patterns_): a family of interchangeable algorithms behind one
 interface, chosen by the client instead of branched on inside it.
 
-| Role               | Name                                                | File                                                    |
-| ------------------ | --------------------------------------------------- | ------------------------------------------------------- |
-| Strategy           | `KpiStrategy` (`format`, `tip`, `change`, `polarity`, `note`) | `frontend/src/lib/executive-kpi-strategies.ts` |
-| Concrete strategies | the six entries of `KPI_STRATEGIES`                | same                                                    |
-| Sub-strategies     | `ChangeMeasure`: `RELATIVE`, `POINTS`; `Polarity`: `NEUTRAL`, `HIGHER_IS_BETTER`, `LOWER_IS_BETTER` | same |
-| Context            | `KpiCard`, via `describeTrend`                      | `frontend/src/components/executive-dashboard/kpi-card.tsx` |
+| Role                | Name                                                                                                | File                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Strategy            | `KpiStrategy` (`format`, `tip`, `change`, `polarity`, `note`)                                       | `frontend/src/lib/executive-kpi-strategies.ts`             |
+| Concrete strategies | the six entries of `KPI_STRATEGIES`                                                                 | same                                                       |
+| Sub-strategies      | `ChangeMeasure`: `RELATIVE`, `POINTS`; `Polarity`: `NEUTRAL`, `HIGHER_IS_BETTER`, `LOWER_IS_BETTER` | same                                                       |
+| Context             | `KpiCard`, via `describeTrend`                                                                      | `frontend/src/components/executive-dashboard/kpi-card.tsx` |
 
 `KpiCard` never asks which KPI it draws. A new KPI is one more entry in `KPI_STRATEGIES`; a new
 way to measure change or judge a direction is one more `ChangeMeasure` or `Polarity`. Each strategy
@@ -64,14 +64,34 @@ must confirm it rather than the frontend assuming it.
 
 ## Security (OWASP Top 10 2025)
 
-| Category | Frontend control | Test | Backend enforcement it relies on |
-| -------- | ---------------- | ---- | -------------------------------- |
-| A01 Broken Access Control | A refused load (401/403) shows each card's error, never figures or zeros | `kpi-section.test.tsx` | SCRUM-311 must restrict `/dashboard/executive` to admins; the admin layout guard is the existing frontend gate |
-| A02 Security Misconfiguration | A failed load never shows its reason, which may carry backend detail | `kpi-section.test.tsx` | Backend error bodies stay generic |
-| A05 Injection | Period label rendered as text; range and retry links drawn only for same-site paths (`isSameSitePath`); tooltip text fixed in code | `range-header.test.tsx`, `kpi-card.test.tsx` | Backend still validates `months` itself |
-| A06 Insecure Design | Fail closed: only the six allow-listed own keys are read; a missing value fails its card instead of reading as no data | `executive-kpis.test.ts` | — |
-| A08 Software or Data Integrity Failures | Each value checked by type and range (whole ≥ 0, finite ≥ 0, 0–100) before display | `executive-kpis.test.ts` | The backend's figures are correct at source |
-| A10 Mishandling of Exceptional Conditions | No division by a previous 0; null and failure kept apart; one failed KPI leaves the other five and the charts standing | `executive-kpi-strategies.test.ts`, `kpi-card.test.tsx`, `kpi-cards.test.tsx` | — |
+### Implemented and tested in this frontend branch
+
+| Category                                  | Frontend control                                                                                                                   | Test                                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| A01 Broken Access Control                 | A refused load (401/403) shows each card's error, never figures or zeros                                                           | `kpi-section.test.tsx`                                                        |
+| A02 Security Misconfiguration             | A failed load never shows its reason, which may carry backend detail                                                               | `kpi-section.test.tsx`                                                        |
+| A05 Injection                             | Period label rendered as text; range and retry links drawn only for same-site paths (`isSameSitePath`); tooltip text fixed in code | `range-header.test.tsx`, `kpi-card.test.tsx`                                  |
+| A06 Insecure Design                       | Fail closed: only the six allow-listed own keys are read; a missing value fails its card instead of reading as no data             | `executive-kpis.test.ts`                                                      |
+| A08 Software or Data Integrity Failures   | Each value checked by type and range (whole ≥ 0, finite ≥ 0, 0–100) before display                                                 | `executive-kpis.test.ts`                                                      |
+| A10 Mishandling of Exceptional Conditions | No division by a previous 0; null and failure kept apart; one failed KPI leaves the other five standing                            | `executive-kpi-strategies.test.ts`, `kpi-card.test.tsx`, `kpi-cards.test.tsx` |
+
+### Depends on backend enforcement (SCRUM-311)
+
+The frontend controls above limit what a bad or refused answer can do on screen. They do not replace:
+
+- **A01:** `/dashboard/executive` must allow admins only. The frontend never decides who may read
+  the figures; it only makes sure a refusal cannot read as data. (The existing admin layout guard is
+  a convenience gate, not the authority.)
+- **A02:** error bodies stay generic, with no stack traces or query detail.
+- **A05:** the backend validates `months` against 3 / 6 / 12 itself and never builds a query from it.
+- **A08:** the figures are correct at the source; the frontend can check their shape, not their truth.
+
+### Still to add when wiring the page (blocked by SCRUM-313)
+
+- **A05:** page test that `?range=` values outside 3 / 6 / 12 (and injection strings) fall back to 6
+  and only `months` reaches the API.
+- **A02:** test that the KPIs come from the page's `no-store` request on a `force-dynamic` page, so one
+  admin's figures are never cached for another.
 
 ## Technical learnings
 
@@ -84,20 +104,53 @@ must confirm it rather than the frontend assuming it.
 3. **Suspense keyed by the URL's search parameters (Next.js 16 App Router).** A route's `loading.tsx`
    wraps the page once; a navigation that only changes `?range=` happens inside a transition, so React
    can keep the old cards instead of showing the fallback. `KpiSection` is an async server component
-   meant for `<Suspense key={months} fallback={<KpiCardsSkeleton />}>`: a new key remounts the
-   boundary, so the skeleton shows on each range change. **Still to verify in a browser** once
-   SCRUM-313's page is merged (see below); the bundled Next 16.4.3 docs do not state this behaviour
-   directly.
+   meant for `<Suspense key={months} fallback={<KpiCardsSkeleton />}>`: a new key should remount the
+   boundary, so the skeleton shows on each range change. **Not yet verified** (see Status).
 
-## Not done yet: waits on SCRUM-313
+## Status
 
-SCRUM-313 owns `/admin/dashboard`, its URL parsing and its loader, and is not merged into the PBI-24
-integration branch yet. Once it is, a small wiring step:
+### Implemented and tested (this branch)
+
+- KPI adapter `toExecutiveKpis` and the shared contract fixture.
+- The design's number formats, the six `KPI_STRATEGIES` and `describeTrend`.
+- `RangeHeader` (period label, 3 / 6 / 12 Bulan links with `aria-current`, wider phone press).
+- `KpiCard`, `KpiCards`, `KpiCardsSkeleton` and `KpiSection`, with per-card no-data, failed and
+  loading states (AC 13).
+- `buttonClasses` small size and the `animate-shimmer` token.
+- Every new and touched file at 100% statements, branches, functions and lines. Each RED commit fails
+  and its GREEN commit passes.
+
+### Blocked by SCRUM-313 being merged
+
+SCRUM-313 owns `/admin/dashboard`, its URL parsing and its loader. None of these files are on this
+branch, and this branch does not change them until 313 is in the PBI-24 integration branch. Then:
 
 - `lib/executive-dashboard.server.ts`: also return the answer's raw `kpis` block.
-- `app/admin/dashboard/page.tsx`: `RangeHeader` (period from `monthLabel` of the first and last
-  month, options from `RANGE_MONTHS` and `dashboardHref`), then
+- `app/admin/dashboard/page.tsx`: `RangeHeader` (period from `monthLabel` of the first and last month,
+  options from `RANGE_MONTHS` and `dashboardHref`), then
   `<Suspense key={state.months} fallback={<KpiCardsSkeleton />}><KpiSection … /></Suspense>` above the
   charts.
-- The browser spike for learning 3, plus page tests for `?range=` injection, the A02 `no-store`
-  request and `force-dynamic`.
+- The page tests listed under Security.
+
+Reported to the 313 owner, not changed here: the design shows an error per chart ("{judul} tidak
+bisa dimuat.") and one empty text ("Belum ada data di rentang ini."), where 313 has one page-wide
+error and a different empty text per chart.
+
+### Depends on the SCRUM-311 backend contract
+
+- The `kpis` block's key names and shape (provisional, above). If they change, only
+  `executive-kpis.ts` and the fixture change.
+- The six formulas, computed by the backend.
+- **Open:** whether Total Spending is the finalized snapshot total after penalties and adjustments,
+  excluding Cancelled invoices.
+- The access control and error hygiene listed under Security.
+
+### Needs browser verification
+
+- **Keyed Suspense:** that `<Suspense key={state.months}>` shows `KpiCardsSkeleton` on each range change
+  under Next 16.4.3, and that Back and bookmarks keep working. Unit tests only show `KpiSection` waits
+  for its load; the bundled docs do not state the navigation behaviour.
+- **Phone press:** the range links' about-47px press at 375px (jsdom loads no CSS, so tests check the
+  classes, not the size).
+- **Shimmer:** the bar sweeps, and stays still under reduced motion.
+- **Grid:** 3 / 2 columns around 900px and the 20px figures at 560px.
