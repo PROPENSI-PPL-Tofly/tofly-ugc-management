@@ -91,6 +91,8 @@ interface MyContentsWhere {
   contracts: { creator_id: string; start_date: { lte: Date } };
   // Always named: a pending proposal, which is not assigned work yet, never reaches Task Saya.
   status: { in: MyTaskStatus[] };
+  /** PBI-37 (AC 7): content an early end closed leaves Task Saya. */
+  closed_at: null;
   type?: { in: ContentListType[] };
   OR?: [
     { deadline: DeadlineRange },
@@ -179,6 +181,7 @@ function narrowing(
   const where: MyContentsWhere = {
     contracts: { creator_id: creatorId, ...started.asWhere() },
     status: { in: [...MY_TASK_TAB_STATUSES.all] },
+    closed_at: null,
   };
   if (filters.types) {
     where.type = { in: filters.types };

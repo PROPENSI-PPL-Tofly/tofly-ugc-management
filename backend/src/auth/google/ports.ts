@@ -22,7 +22,13 @@ export interface IdTokenVerifier {
 /** Who the whitelist says the person is. The role comes from the whitelist, never from Google. */
 export type Principal =
   | { userId: string; role: 'admin' }
-  | { userId: string; role: 'creator'; creatorId: string };
+  | {
+      userId: string;
+      role: 'creator';
+      creatorId: string;
+      /** PBI-37 (AC 13): every period is over and only an invoice waits; set only then. */
+      paymentsOnly?: true;
+    };
 
 /** Looks the verified email up in Tofly's whitelist; null when it is absent or revoked. */
 export interface WhitelistResolver {

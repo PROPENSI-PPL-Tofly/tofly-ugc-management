@@ -60,6 +60,31 @@ const OBSOLETE_CARDS = ["Kuota Konten", "Sisa Kuota Evergreen", "Jarak Antar-Dea
 const PERFORMANCE_CARDS = ["Progres Konten", "Tepat Waktu", "Rata-rata Revisi", "Produktivitas", "Total Pendapatan"];
 
 describe("PeriodTabs", () => {
+  // PBI-37, 37.3 (AC 16): the tab of a period ended early says so, with both days and why.
+  it("marks a period ended early with its last day, its original end and the reason", () => {
+    const ended = period({
+      status: "expired",
+      endDate: "2026-11-20",
+      earlyEndReason: "other",
+      earlyEnd: { originalEndDate: "2026-12-31", reason: "other" },
+    });
+
+    render(<PeriodTabs creatorId={CREATOR} periods={[ended, OLDEST]} selected={ended} />);
+
+    const [, newest] = tabs();
+    expect(within(newest).getByText("Berakhir Lebih Awal")).toBeInTheDocument();
+    expect(within(newest).getByText("Berakhir lebih awal pada 20 Nov 2026, semula 31 Des 2026.")).toBeInTheDocument();
+    expect(within(newest).getByText("Alasan: Lainnya")).toBeInTheDocument();
+  });
+
+  // OWASP A06: a period that ended as agreed, or one running, keeps its usual tab.
+  it("says nothing of an early end on periods that ran as agreed", () => {
+    render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
+
+    expect(screen.queryByText("Berakhir Lebih Awal")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Alasan:/)).not.toBeInTheDocument();
+  });
+
   it("is headed Periode Kontrak", () => {
     render(<PeriodTabs creatorId={CREATOR} periods={PERIODS} selected={NEWEST} />);
 

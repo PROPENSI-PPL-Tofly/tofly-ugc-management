@@ -10,6 +10,7 @@ import {
   type EmailSender,
 } from '../src/email/email-sender.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { runningContract } from './contracts.js';
 
 // POST /auth/email/request through the whole app and a real database (PBI-39, SCRUM-240). Only the
 // outgoing email is faked: 39.1 owns the SMTP adapter, and a test must never send real mail.
@@ -60,11 +61,12 @@ describe('POST /auth/email/request (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
 
-    const yesterday = new Date(Date.now() - 2 * 86_400_000);
-    for (const [email, isAdmin, revokedOn] of [
-      [CREATOR, false, null],
-      [ADMIN, true, null],
-      [REVOKED, false, yesterday],
+    // Access follows the contracts (PRD 3.1): the creator has one running; the revoked one has
+    // none left to work on or settle.
+    for (const [email, isAdmin, contracted] of [
+      [CREATOR, false, true],
+      [ADMIN, true, false],
+      [REVOKED, false, false],
     ] as const) {
       const user = await prisma.users.create({
         data: { email, is_admin: isAdmin },
@@ -75,7 +77,7 @@ describe('POST /auth/email/request (e2e)', () => {
           data: {
             user_id: user.id,
             first_name: 'E2E',
-            access_revoke_date: revokedOn,
+            ...(contracted && { contracts: { create: runningContract() } }),
           },
         });
       }

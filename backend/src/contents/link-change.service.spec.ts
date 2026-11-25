@@ -30,12 +30,15 @@ function stored(overrides: Partial<LinkedContent> = {}): LinkedContent {
   return {
     id: CONTENT_ID,
     status: 'draft_approved',
+    closed_at: null,
     deadline: new Date('2026-10-20T00:00:00.000Z'),
     video_submitted_at: null,
     content_links: [],
     contracts: {
       // A period that started before NOW; PBI-30.2's test moves it later.
       start_date: new Date('2026-09-01T00:00:00.000Z'),
+      end_date: new Date('2026-12-31T00:00:00.000Z'),
+      original_end_date: null,
       invoice: null,
       creators: {
         user_id: CREATOR_USER,

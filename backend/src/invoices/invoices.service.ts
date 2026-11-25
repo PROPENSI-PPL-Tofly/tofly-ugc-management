@@ -38,6 +38,7 @@ import {
 } from './invoice-sort.js';
 import {
   INVOICE_STATUS_SOURCE,
+  type InvoiceStatus,
   type InvoiceStatusSource,
 } from './invoice-status.js';
 import {
@@ -105,6 +106,9 @@ interface SavedLifecycle extends SavedInvoice {
   confirmations: InvoiceConfirmationFields;
 }
 
+/** Where an invoice has nothing left to do: paid, or cancelled by an early end (PBI-37). */
+const SETTLED: ReadonlySet<InvoiceStatus> = new Set<InvoiceStatus>(['paid', 'cancelled']);
+
 /** Neither of the creator's moves: no saved invoice, or one they have not moved yet. */
 const NO_CONFIRMATIONS: InvoiceConfirmationFields = {
   acknowledgedAt: null,
@@ -148,7 +152,7 @@ function matches(
   return (
     endsInRange(contract, filters) &&
     (!filters.contract ||
-      invoiceContractStatus(contract, today, row.access_revoke_date) ===
+      invoiceContractStatus(contract, today) ===
         filters.contract)
   );
 }
@@ -220,7 +224,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       total: items.length,
       totalPages,
       summary: {
-        total: items.reduce((sum, item) => sum + item.total, 0),
+        // A cancelled invoice is not owed (PBI-37), so the outstanding total leaves it out.
+        total: items
+          .filter((item) => item.invoiceStatus !== 'cancelled')
+          .reduce((sum, item) => sum + item.total, 0),
         runningInvoices,
         formulaSet,
       },
@@ -334,9 +341,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     const kept = everyone.filter(
       (creator) =>
-        // An earlier contract's invoice stays listed until it is paid, then there is nothing
-        // left to do on it.
-        (creator.current || statuses.get(creator.contract.id) !== 'paid') &&
+        // An earlier contract's invoice stays listed until it is paid or cancelled, then there
+        // is nothing left to do on it; the Paid filter still finds a paid one, for its invoice
+        // and receipt (PBI-31).
+        (creator.current ||
+          filters.status === 'paid' ||
+          !SETTLED.has(statuses.get(creator.contract.id)!)) &&
         matches(creator, filters, today) &&
         (!filters.status ||
           statuses.get(creator.contract.id) === filters.status),

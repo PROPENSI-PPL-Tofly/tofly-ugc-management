@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import {
+  CancelledInvoiceState,
   FinalizedInvoiceState,
   invoiceState,
   type InvoiceLifecycleStatus,
@@ -210,4 +211,45 @@ describe('invoiceState', () => {
       'Unsupported invoice status',
     );
   });
+});
+
+// PBI-37: an invoice cancelled by an early end is never paid and never opens again.
+describe('CancelledInvoiceState', () => {
+  const CANCELLED = {
+    code: 'INVOICE_CANCELLED',
+    message: 'Invoice sudah dibatalkan',
+  };
+
+  it('is reported under its own pipeline name', () => {
+    expect(invoiceState('cancelled')).toBeInstanceOf(CancelledInvoiceState);
+    expect(invoiceState('cancelled').pipelineStatus).toBe('cancelled');
+  });
+
+  it.each([
+    'assertCanAdjust',
+    'assertCanFinalize',
+    'assertCanUploadProof',
+    'assertCanAcknowledge',
+    'assertCanConfirmReceipt',
+    'assertCanChangeLinks',
+    'assertCanChangeSchedule',
+    'assertCanCancel',
+  ] as const)('refuses %s', (move) => {
+    expect(refusalOf(() => invoiceState('cancelled')[move]())).toEqual(CANCELLED);
+  });
+});
+
+describe('assertCanCancel', () => {
+  it('lets a running invoice be cancelled', () => {
+    expect(() => invoiceState('running').assertCanCancel()).not.toThrow();
+  });
+
+  it.each(['finalized', 'creator_acked', 'payment_uploaded', 'paid'] as const)(
+    'refuses a %s invoice: its amount is already frozen',
+    (status) => {
+      expect(refusalOf(() => invoiceState(status).assertCanCancel())).toEqual(
+        FINALIZED,
+      );
+    },
+  );
 });

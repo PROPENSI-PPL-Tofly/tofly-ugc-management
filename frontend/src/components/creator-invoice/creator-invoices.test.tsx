@@ -50,6 +50,16 @@ function panel(name: string): HTMLElement {
 }
 
 describe("CreatorInvoices", () => {
+  // PBI-31: the invoice in play as a file once the creator acknowledged it, never before.
+  it("offers Unduh Invoice on the current invoice only once it is acknowledged", () => {
+    const { unmount } = render(<CreatorInvoices invoices={[{ ...CURRENT, status: "finalized" }]} />);
+    expect(within(panel("Invoice Periode Ini")).queryByRole("button", { name: "Unduh Invoice" })).toBeNull();
+    unmount();
+
+    render(<CreatorInvoices invoices={[{ ...CURRENT, status: "creator_acked" }]} />);
+    expect(within(panel("Invoice Periode Ini")).getByRole("button", { name: "Unduh Invoice" })).toBeInTheDocument();
+  });
+
   // Approved Pembayaran: the invoice in play in the creator's accent, the history quieter, each
   // titled in a band; the history counts what it holds.
   describe("as the approved design draws it", () => {

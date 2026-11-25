@@ -1,96 +1,187 @@
-import { creatorMaySignIn, type BegunInvoice } from './creator-access.js';
+import {
+  accessClosedSince,
+  creatorMaySignIn,
+  onlyPaymentsLeft,
+  type BegunInvoice,
+  type SignInContract,
+} from './creator-access.js';
 
-const TODAY = '2026-10-20';
+const TODAY = '2026-11-24';
 
-/** A begun contract's invoice as the resolver reads it; null when it has no invoice row yet. */
 function paidOn(day: string): BegunInvoice {
   return { status: 'paid', paid_at: new Date(`${day}T05:00:00.000Z`) };
 }
 
+function contract(endDay: string, invoice: BegunInvoice = null): SignInContract {
+  return { endDay, invoice };
+}
+
+const CANCELLED: BegunInvoice = { status: 'cancelled', paid_at: null };
+
+// PRD Sprint 4, cross-PBI rule 1 (PBI-30 + PBI-37): access follows the contracts. Open while a
+// period runs or has not started, or while an invoice is not Paid or Cancelled; closed the day
+// after everything is settled, and at once when a cancelled invoice leaves nothing else.
 describe('creatorMaySignIn', () => {
-  describe('before access is revoked', () => {
+  describe('while a period runs or waits to start', () => {
     it.each([
-      ['no revoke date', null],
-      ['a revoke date still ahead', '2026-10-21'],
-    ])(
-      'lets the creator in with %s, whatever their invoices',
-      (_, revokeDay) => {
-        expect(creatorMaySignIn(revokeDay, TODAY, [])).toBe(true);
-      },
-    );
-  });
-
-  // The prototype's rule (Pembayaran: "akses login dicabut H+1 setelah Paid"): revoking a
-  // creator takes effect only once there is nothing left for them to acknowledge or confirm.
-  describe('once the revoke date is reached', () => {
-    it.each([
-      ['today', TODAY],
-      ['in the past', '2026-10-01'],
-    ])(
-      'keeps a revoke date %s in force when nothing is left to settle',
-      (_, revokeDay) => {
-        expect(creatorMaySignIn(revokeDay, TODAY, [paidOn('2026-10-10')])).toBe(
-          false,
-        );
-      },
-    );
-
-    it('keeps a creator with no begun contract out, since there is nothing to settle', () => {
-      expect(creatorMaySignIn('2026-10-01', TODAY, [])).toBe(false);
+      ['ends today', TODAY],
+      ['ends next month', '2026-12-24'],
+    ])('lets the creator in when a period %s, whatever its invoice', (_, endDay) => {
+      expect(creatorMaySignIn(TODAY, [contract(endDay, paidOn('2026-11-01'))])).toBe(true);
     });
 
+    it('lets a renewed creator in on the strength of the period waiting to start', () => {
+      expect(
+        creatorMaySignIn(TODAY, [
+          contract('2026-10-31', paidOn('2026-11-05')),
+          contract('2027-02-28', { status: 'running', paid_at: null }),
+        ]),
+      ).toBe(true);
+    });
+  });
+
+  describe('once every period has ended', () => {
     it.each([
       ['has no invoice row yet', null],
       ['is still running', { status: 'running', paid_at: null }],
-      [
-        'is finalized, waiting for the acknowledge',
-        { status: 'finalized', paid_at: null },
-      ],
-      [
-        'is acknowledged, waiting for the proof',
-        { status: 'creator_acked', paid_at: null },
-      ],
-      [
-        'has its proof, waiting for the receipt',
-        { status: 'payment_uploaded', paid_at: null },
-      ],
-    ] as const)(
-      'lets the creator in while an invoice %s',
-      (_, unsettled: BegunInvoice) => {
-        expect(
-          creatorMaySignIn('2026-10-01', TODAY, [
-            paidOn('2026-09-01'),
-            unsettled,
-          ]),
-        ).toBe(true);
-      },
-    );
-
-    it('lets the creator in on the day their last invoice is paid, and not the day after', () => {
-      expect(creatorMaySignIn('2026-10-01', TODAY, [paidOn(TODAY)])).toBe(true);
+      ['is finalized, waiting for the acknowledge', { status: 'finalized', paid_at: null }],
+      ['is acknowledged, waiting for the proof', { status: 'creator_acked', paid_at: null }],
+      ['has its proof, waiting for the receipt', { status: 'payment_uploaded', paid_at: null }],
+    ] as const)('lets the creator in while an invoice %s', (_, unsettled: BegunInvoice) => {
       expect(
-        creatorMaySignIn('2026-10-01', TODAY, [paidOn('2026-10-19')]),
-      ).toBe(false);
+        creatorMaySignIn(TODAY, [
+          contract('2026-06-30', paidOn('2026-07-10')),
+          contract('2026-10-31', unsettled),
+        ]),
+      ).toBe(true);
     });
 
-    // A paid_at is a Jakarta day: 18.00 UTC on the 19th is already the 20th in Jakarta.
-    it('reads the day an invoice was paid in Jakarta', () => {
-      const lateEvening = {
-        status: 'paid',
-        paid_at: new Date('2026-10-19T18:00:00.000Z'),
-      } as const;
+    it('lets the creator in on the day the last invoice is paid, and not the day after', () => {
+      expect(creatorMaySignIn(TODAY, [contract('2026-10-31', paidOn(TODAY))])).toBe(true);
+      expect(creatorMaySignIn(TODAY, [contract('2026-10-31', paidOn('2026-11-23'))])).toBe(
+        false,
+      );
+    });
 
-      expect(creatorMaySignIn('2026-10-01', TODAY, [lateEvening])).toBe(true);
+    // A paid_at is a Jakarta day: 18.00 UTC on the 23rd is already the 24th in Jakarta.
+    it('reads the day an invoice was paid in Jakarta', () => {
+      const lateEvening: BegunInvoice = {
+        status: 'paid',
+        paid_at: new Date('2026-11-23T18:00:00.000Z'),
+      };
+      expect(creatorMaySignIn(TODAY, [contract('2026-10-31', lateEvening)])).toBe(true);
     });
 
     // OWASP Top 10:2025 A10: a paid invoice with no recorded moment (the database forbids it) is
     // read as not yet settled rather than crash the sign-in.
     it('reads a paid invoice with no recorded moment as unsettled', () => {
       expect(
-        creatorMaySignIn('2026-10-01', TODAY, [
-          { status: 'paid', paid_at: null },
-        ]),
+        creatorMaySignIn(TODAY, [contract('2026-10-31', { status: 'paid', paid_at: null })]),
       ).toBe(true);
     });
+  });
+
+  // PBI-37: a cancelled invoice is never paid, so it settles the period at once.
+  describe('a cancelled invoice', () => {
+    it('closes access at once, even on the last day of the period it cancelled', () => {
+      expect(creatorMaySignIn(TODAY, [contract(TODAY, CANCELLED)])).toBe(false);
+    });
+
+    it('closes it only once an earlier invoice is settled too', () => {
+      expect(
+        creatorMaySignIn(TODAY, [
+          contract('2026-08-31', { status: 'creator_acked', paid_at: null }),
+          contract(TODAY, CANCELLED),
+        ]),
+      ).toBe(true);
+      expect(
+        creatorMaySignIn(TODAY, [contract('2026-08-31', paidOn('2026-09-10')), contract(TODAY, CANCELLED)]),
+      ).toBe(false);
+    });
+
+    it('never closes a period that waits to start', () => {
+      expect(
+        creatorMaySignIn(TODAY, [contract(TODAY, CANCELLED), contract('2027-02-28')]),
+      ).toBe(true);
+    });
+  });
+
+  it('keeps a creator with no contract out, since nothing is left to work on or settle', () => {
+    expect(creatorMaySignIn(TODAY, [])).toBe(false);
+  });
+});
+
+// What Creator Detail and the Creator Database show as accessRevokeDate: the day access closed,
+// derived from the contracts by the same rule, or null while it is open.
+describe('accessClosedSince', () => {
+  it('is null while access is open', () => {
+    expect(accessClosedSince(TODAY, [contract('2026-12-15')])).toBeNull();
+    expect(
+      accessClosedSince(TODAY, [contract('2026-10-31', { status: 'finalized', paid_at: null })]),
+    ).toBeNull();
+  });
+
+  it('is null for a creator with no contract: there is no day to name', () => {
+    expect(accessClosedSince(TODAY, [])).toBeNull();
+  });
+
+  it('is the day after the last invoice was paid', () => {
+    expect(accessClosedSince(TODAY, [contract('2026-10-31', paidOn('2026-11-10'))])).toBe(
+      '2026-11-11',
+    );
+  });
+
+  it('is the day after the period ended when the invoice was paid before it ended', () => {
+    expect(accessClosedSince(TODAY, [contract('2026-10-31', paidOn('2026-10-20'))])).toBe(
+      '2026-11-01',
+    );
+  });
+
+  it('is the last day itself for a cancelled invoice, which closes access at once', () => {
+    expect(accessClosedSince(TODAY, [contract(TODAY, CANCELLED)])).toBe(TODAY);
+  });
+
+  it('is the latest of those days across every contract', () => {
+    expect(
+      accessClosedSince(TODAY, [
+        contract('2026-06-30', paidOn('2026-07-10')),
+        contract('2026-11-20', CANCELLED),
+        contract('2026-08-31', paidOn('2026-09-05')),
+      ]),
+    ).toBe('2026-11-20');
+  });
+});
+
+// PBI-37 (AC 13): while waiting for payment the creator can open only "Pembayaran".
+describe('onlyPaymentsLeft', () => {
+  it('is false while a period runs or waits to start', () => {
+    expect(onlyPaymentsLeft(TODAY, [contract(TODAY)])).toBe(false);
+    expect(
+      onlyPaymentsLeft(TODAY, [contract('2026-10-31', { status: 'finalized', paid_at: null }), contract('2027-02-28')]),
+    ).toBe(false);
+  });
+
+  it('is true when every period has ended and an invoice still waits', () => {
+    expect(
+      onlyPaymentsLeft(TODAY, [contract('2026-10-31', { status: 'creator_acked', paid_at: null })]),
+    ).toBe(true);
+  });
+
+  it('is true on the day the last invoice is paid, the last day access is open', () => {
+    expect(onlyPaymentsLeft(TODAY, [contract('2026-10-31', paidOn(TODAY))])).toBe(true);
+  });
+
+  it('counts a period cancelled today as over, though its last day is today', () => {
+    expect(
+      onlyPaymentsLeft(TODAY, [
+        contract('2026-08-31', { status: 'finalized', paid_at: null }),
+        contract(TODAY, CANCELLED),
+      ]),
+    ).toBe(true);
+  });
+
+  it('is false once access is closed: nothing is left to open', () => {
+    expect(onlyPaymentsLeft(TODAY, [contract('2026-10-31', paidOn('2026-11-01'))])).toBe(false);
+    expect(onlyPaymentsLeft(TODAY, [])).toBe(false);
   });
 });

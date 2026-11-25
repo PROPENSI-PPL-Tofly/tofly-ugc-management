@@ -122,6 +122,31 @@ describe("fetchMyTasks", () => {
       },
   );
 
+  // PBI-37 (37.1, AC 13): a creator who only waits for payment is refused every page but
+  // Pembayaran with 403 PAYMENTS_ONLY. The code goes with the error so the page can follow it;
+  // the backend's message never does (OWASP A10).
+  it("carries the backend's refusal code, and not its words", async () => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    respond(403, { code: "PAYMENTS_ONLY", message: "Hanya halaman Pembayaran yang bisa dibuka sampai invoice selesai" });
+
+    const failure = fetchMyTasks(FIRST, TODAY);
+
+    await expect(failure).rejects.toMatchObject({ status: 403, code: "PAYMENTS_ONLY" });
+    await expect(failure).rejects.not.toHaveProperty("message", expect.stringContaining("Pembayaran"));
+  });
+
+  it.each([
+    ["no JSON at all", "<html>Forbidden</html>"],
+    ["a code that is not text", JSON.stringify({ code: 403 })],
+  ])("carries no code for a refusal with %s", async (_label, body) => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body, { status: 403 }));
+
+    const failure = fetchMyTasks(FIRST, TODAY);
+
+    await expect(failure).rejects.toMatchObject({ status: 403, code: null });
+  });
+
   it.each([
     ["an empty object", {}],
     ["a list instead of a page", [response.items[0]]],

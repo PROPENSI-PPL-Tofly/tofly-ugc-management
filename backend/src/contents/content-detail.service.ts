@@ -30,6 +30,7 @@ const CONTENT_DETAIL_SELECT = {
   },
   video_submitted_at: true,
   approval_bypassed: true,
+  closed_at: true,
   created_at: true,
   updated_at: true,
   // The contract's dates and invoice decide whether and where an admin may move the deadline
