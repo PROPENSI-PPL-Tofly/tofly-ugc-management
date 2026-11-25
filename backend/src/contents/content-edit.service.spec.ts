@@ -67,7 +67,7 @@ function setup(
       })),
       delete: vi.fn(async () => ({})),
     },
-    content_events: { create: vi.fn(async () => ({})) },
+    content_events: { create: vi.fn(async () => ({ id: 'event-1' })) },
   };
   const client: ContentEditClient = {
     $transaction: vi.fn(async (work, options) => {
@@ -273,7 +273,25 @@ describe('ContentEditService, the creator email', () => {
     expect(notifier.contentRescheduled).toHaveBeenCalledExactlyOnceWith({
       contentId: CONTENT_ID,
       deadline: '2026-11-25',
+      editId: 'event-1',
     });
+  });
+
+  // Review on #254 (Davin, Gunta): each edit is its own email, so 10 → 12 → 10 → 12 sends three.
+  it('names each deadline change by the history event it recorded', async () => {
+    const notifier = emails();
+    const { service, transaction } = setup(row(), notifier);
+    transaction.content_events.create
+      .mockResolvedValueOnce({ id: 'event-1' })
+      .mockResolvedValueOnce({ id: 'event-2' });
+
+    await service.update(CONTENT_ID, { deadline: '2026-11-25' }, ADMIN_ID);
+    await service.update(CONTENT_ID, { deadline: '2026-11-26' }, ADMIN_ID);
+
+    expect(notifier.contentRescheduled.mock.calls.map(([input]) => input.editId)).toEqual([
+      'event-1',
+      'event-2',
+    ]);
   });
 
   // AC 1 names the deadline only, so a brief or name change sends nothing.

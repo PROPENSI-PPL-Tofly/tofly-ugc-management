@@ -165,7 +165,8 @@ describe('CreatorEmails, content events', () => {
     ['revisionRequested', { contentId: CONTENT, submissionId: 'sub-1' }, 'revision_requested:sub-1', 'revision_requested', { contentId: CONTENT, contentName: 'Promo Lebaran' }],
     ['followUpAdded', { contentId: CONTENT, followUpId: 'fu-1' }, 'follow_up_added:fu-1', 'follow_up_added', { contentId: CONTENT, contentName: 'Promo Lebaran' }],
     ['draftApproved', { contentId: CONTENT, submissionId: 'sub-1' }, 'draft_approved:sub-1', 'draft_approved', { contentId: CONTENT, contentName: 'Promo Lebaran' }],
-    ['contentRescheduled', { contentId: CONTENT, deadline: '2026-11-25' }, `content_rescheduled:${CONTENT}:2026-11-25`, 'content_rescheduled', { contentId: CONTENT, contentName: 'Promo Lebaran', deadline: '2026-11-25' }],
+    // Review on #254: keyed by the edit itself, so a deadline moved back and forth is emailed each time.
+    ['contentRescheduled', { contentId: CONTENT, deadline: '2026-11-25', editId: 'event-7' }, 'content_rescheduled:event-7', 'content_rescheduled', { contentId: CONTENT, contentName: 'Promo Lebaran', deadline: '2026-11-25' }],
   ] as const)('sends %s once per event', async (method, input, eventKey, template, data) => {
     const { notifier, emails } = contentSetup();
 
