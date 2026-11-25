@@ -5,6 +5,7 @@ import { InvoiceParts } from "@/components/creator-invoice/invoice-parts";
 import { InvoiceTabs } from "@/components/creator-invoice/invoice-tabs";
 import { InvoiceTracker } from "@/components/creator-invoice/invoice-tracker";
 import { Button } from "@/components/ui/button";
+import { InvoiceDocumentButtons } from "./invoice-pdf-button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -157,6 +158,9 @@ export function InvoiceRincian({
             >
               {hint}
             </p>
+          )}
+          {view === null ? null : (
+            <InvoiceDocumentButtons contractId={row.contractId} audience="admin" status={view.status} />
           )}
           {actions}
           <Button onClick={onClose}>Tutup</Button>

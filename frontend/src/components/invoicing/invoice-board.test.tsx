@@ -3,7 +3,12 @@ import type { InvoiceRow } from "@/lib/invoice";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import { InvoiceBoard } from "./invoice-board";
 
-const { refresh, load, replace } = vi.hoisted(() => ({ refresh: vi.fn(), load: vi.fn(), replace: vi.fn() }));
+const { refresh, load, replace, download } = vi.hoisted(() => ({
+  refresh: vi.fn(),
+  load: vi.fn(),
+  replace: vi.fn(),
+  download: vi.fn(),
+}));
 let searchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
@@ -14,6 +19,8 @@ vi.mock("next/navigation", () => ({
 
 // The real loader is a server action; here it answers from the breakdown below.
 vi.mock("@/lib/invoice-breakdown.server", () => ({ loadInvoiceBreakdown: load }));
+
+vi.mock("@/lib/api-client", () => ({ apiFetch: download }));
 
 // The invoice moves are server actions too; here every move is accepted.
 vi.mock("@/lib/invoice-actions.server", () => ({
@@ -70,6 +77,12 @@ describe("InvoiceBoard", () => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();
     load.mockResolvedValue(BREAKDOWN);
+    Object.defineProperty(URL, "createObjectURL", {
+      value: vi.fn().mockReturnValue("blob:rekap"),
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   });
 
   it("draws the Pembayaran table with its money cells as breakdown triggers", () => {
@@ -160,5 +173,83 @@ describe("InvoiceBoard", () => {
 
     expect(screen.getByText("Total 3 invoice")).toBeInTheDocument();
     expect(screen.getByText("Rp900.000")).toBeInTheDocument();
+  });
+
+  describe("bulk select and export (31.5)", () => {
+    const PAID: InvoiceRow = { ...ROW, contractId: "22222222-2222-4222-8222-222222222222", creatorName: "Hana Safira", invoiceStatus: "paid", periodNumber: 1 };
+
+    function okResponse() {
+      return {
+        ok: true,
+        blob: vi.fn().mockResolvedValue(new Blob(["PK"])),
+        headers: { get: () => "attachment; filename*=UTF-8''Rekap_Invoice_20260720.zip" },
+      } as unknown as Response;
+    }
+
+    it("counts the ticked rows and disables the download until one is ticked", () => {
+      render(<InvoiceBoard rows={[ROW, PAID]} />);
+
+      const button = screen.getByRole("button", { name: "Unduh Terpilih" });
+      expect(button).toBeDisabled();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" }));
+      expect(screen.getByRole("button", { name: "Unduh Terpilih (1)" })).toBeEnabled();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih semua di halaman ini" }));
+      expect(screen.getByRole("button", { name: "Unduh Terpilih (2)" })).toBeEnabled();
+    });
+
+    it("downloads the ZIP and names the Running invoice that was skipped", async () => {
+      download.mockResolvedValue(okResponse());
+      render(<InvoiceBoard rows={[ROW, PAID]} />);
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Hana Safira" }));
+      fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (2)" }));
+
+      expect(
+        await screen.findByText(
+          "1 invoice dilewati karena masih Berjalan atau Cancelled: Rangga Pratama (Berjalan).",
+        ),
+      ).toBeInTheDocument();
+      // Only the Paid invoice went into the file, so the toast counts one.
+      expect(
+        screen.getByText("Rekap_Invoice_20260720.zip diunduh (1 invoice)."),
+      ).toBeInTheDocument();
+      expect(download).toHaveBeenCalledWith("/api/invoices/bulk-export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ invoiceIds: [ROW.contractId, PAID.contractId] }),
+      });
+      expect(screen.getByRole("button", { name: "Unduh Terpilih" })).toBeDisabled();
+    });
+
+    it("downloads without a notice when every ticked invoice can be exported", async () => {
+      download.mockResolvedValue(okResponse());
+      render(<InvoiceBoard rows={[ROW, PAID]} />);
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Hana Safira" }));
+      fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (1)" }));
+
+      expect(
+        await screen.findByText("Rekap_Invoice_20260720.zip diunduh (1 invoice)."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("status", { name: "Pemberitahuan ekspor" }),
+      ).toBeNull();
+      expect(screen.getByRole("button", { name: "Unduh Terpilih" })).toBeDisabled();
+    });
+
+    it("keeps the notice until the admin closes it", async () => {
+      download.mockResolvedValue(okResponse());
+      render(<InvoiceBoard rows={[ROW]} />);
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" }));
+      fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (1)" }));
+      const notice = await screen.findByRole("status", { name: "Pemberitahuan ekspor" });
+      fireEvent.click(notice.querySelector("button")!);
+
+      expect(
+        screen.queryByRole("status", { name: "Pemberitahuan ekspor" }),
+      ).toBeNull();
+    });
   });
 });

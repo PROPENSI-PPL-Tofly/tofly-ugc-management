@@ -55,7 +55,12 @@ function stubs(status: string | null = 'finalized') {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
     },
+    // The month's document counter answers 7.
+    $queryRaw: vi.fn().mockResolvedValue([{ last_number: 7 }]),
+    // The transaction client is the same stub, so each test reads what ran inside it.
+    $transaction: vi.fn(),
   };
+  prisma.$transaction.mockImplementation((work: (tx: typeof prisma) => Promise<unknown>) => work(prisma));
   const service = new InvoiceConfirmationService(
     prisma as unknown as InvoiceConfirmationClient,
   );
@@ -100,8 +105,28 @@ describe('InvoiceConfirmationService', () => {
           status: 'creator_acked',
           acknowledged_at: NOW,
           acknowledged_by: CREATOR_USER,
+          // Issued now (PBI-31): the invoice number of the Jakarta month of the acknowledge.
+          invoice_number: 'TOF-INV-202610-007',
         },
       });
+      const counter = prisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+      expect(counter.values).toEqual(['invoice', '202610']);
+    });
+
+    // OWASP Top 10:2025 A08: the number is taken in the transaction that moves the invoice, so a
+    // lost move rolls it back and leaves no gap.
+    it('takes the number in the same transaction as the move, which a lost race rolls back', async () => {
+      const { prisma, service } = stubs('finalized');
+      prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+      prisma.invoices.findUnique.mockResolvedValue({ status: 'creator_acked' });
+
+      await refusalOf(service.acknowledge(CONTRACT, CREATOR, NOW));
+
+      expect(prisma.$transaction).toHaveBeenCalledOnce();
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.invoices.updateMany.mock.invocationCallOrder[0],
+      );
+      await expect(prisma.$transaction.mock.results[0].value).rejects.toBeDefined();
     });
 
     it('is stamped with the current moment when none is given', async () => {
@@ -195,6 +220,15 @@ describe('InvoiceConfirmationService', () => {
       ).toEqual(NOT_FINALIZED);
     });
 
+    // OWASP Top 10:2025 A10: a database failure is passed on as it is, never read as a lost move.
+    it('passes on a failure of the transaction itself', async () => {
+      const { prisma, service } = stubs('finalized');
+      prisma.$queryRaw.mockRejectedValue(new Error('connection lost'));
+
+      await expect(service.acknowledge(CONTRACT, CREATOR, NOW)).rejects.toThrow('connection lost');
+      expect(prisma.invoices.findUnique).not.toHaveBeenCalled();
+    });
+
     // OWASP Top 10:2025 A10 (Mishandling of Exceptional Conditions): a guarded update that
     // changed nothing never answers as a success, even when the reread still allows the move.
     it('fails closed when nothing changed although the invoice still allows the move', async () => {
@@ -224,8 +258,16 @@ describe('InvoiceConfirmationService', () => {
 
       expect(prisma.invoices.updateMany).toHaveBeenCalledWith({
         where: { contract_id: CONTRACT, status: 'payment_uploaded' },
-        data: { status: 'paid', paid_at: NOW, paid_by: CREATOR_USER },
+        data: {
+          status: 'paid',
+          paid_at: NOW,
+          paid_by: CREATOR_USER,
+          // Its receipt (PBI-31), numbered in the Jakarta month the payment was confirmed.
+          receipt_number: 'TOF-RCP-202610-007',
+        },
       });
+      const counter = prisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+      expect(counter.values).toEqual(['receipt', '202610']);
     });
 
     it('is stamped with the current moment when none is given', async () => {
