@@ -5,6 +5,7 @@ import type {
   InvoiceLine,
 } from '../invoice-component.js';
 import type { InvoiceStatus } from '../invoice-status.js';
+import type { RateChangeDto } from '../rate-change.js';
 import type { RateFormula } from '../rate-formula.js';
 import type { InvoiceConfirmationFields } from './invoice-confirmation.dto.js';
 import type { InvoicePaymentFields } from './invoice-payment.dto.js';
@@ -99,6 +100,8 @@ export interface InvoiceListItem extends CalculatedInvoice {
 export interface InvoiceView
   extends InvoiceListItem, InvoiceConfirmationFields {
   periodNumber: number;
+  /** Every change of the fixed rate while the invoice ran, oldest first (PBI-16). */
+  rateChanges: RateChangeDto[];
   /**
    * The current formula while the invoice is calculated live; once finalized, the one saved with
    * its snapshot, or null when that snapshot predates keeping it.
