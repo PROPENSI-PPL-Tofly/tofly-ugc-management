@@ -117,6 +117,21 @@ export interface ContentsClient {
   ): Promise<T>;
 }
 
+/** Who hears that Admin scheduled new content for a creator (PBI-11 AC 1); it never throws. */
+export interface ContentNotifier {
+  contentScheduled(input: {
+    creatorId: string;
+    contentId: string;
+    contentName: string;
+    deadline: string;
+  }): Promise<void>;
+}
+
+export const CONTENT_NOTIFIER = Symbol('CONTENT_NOTIFIER');
+
+/** For a service built without one, as the unit tests of scheduling rules do. */
+const noContentEmail: ContentNotifier = { contentScheduled: () => Promise.resolve() };
+
 @Injectable()
 export class ContentCreationService {
   private readonly scheduling: SchedulingDependencies;
@@ -128,6 +143,10 @@ export class ContentCreationService {
     @Optional()
     @Inject('CONTENT_SCHEDULING')
     scheduling?: SchedulingDependencies,
+
+    @Optional()
+    @Inject(CONTENT_NOTIFIER)
+    private readonly notifier: ContentNotifier = noContentEmail,
   ) {
     this.scheduling = scheduling ?? {
       today: () => new Date(),
@@ -136,7 +155,7 @@ export class ContentCreationService {
   }
 
   async create(input: NewContent, adminUserId: string): Promise<CreatedContent> {
-    return this.prisma.$transaction(
+    const { created, email } = await this.prisma.$transaction(
       async (transaction) => {
         // Lock before reading: the next request must see the preceding insert
         // before checking quota and assigning an Evergreen sequence.
@@ -205,15 +224,16 @@ export class ContentCreationService {
           },
         });
 
-        if (contract.creator_id) {
-          this.notifyCreatorMock({
-            creatorId: contract.creator_id,
-            contentName: saved.name,
-            deadline: toDay(saved.deadline),
-          });
-        }
+        const email = contract.creator_id
+          ? {
+              creatorId: contract.creator_id,
+              contentId: saved.id,
+              contentName: saved.name,
+              deadline: toDay(saved.deadline),
+            }
+          : null;
 
-        return {
+        const created: CreatedContent = {
           id: saved.id,
           contractId: saved.contract_id,
           type: input.type,
@@ -222,9 +242,15 @@ export class ContentCreationService {
           deadline: toDay(saved.deadline),
           status: 'scheduled',
         };
+        return { created, email };
       },
       { isolationLevel: 'ReadCommitted' },
     );
+
+    // PBI-11 (AC 9): sent once the content is saved, never inside the transaction, so a slow
+    // mail server holds no lock; the helper never throws.
+    if (email) await this.notifier.contentScheduled(email);
+    return created;
   }
 
   private async validateSlot(
@@ -275,14 +301,6 @@ export class ContentCreationService {
       .join(' ');
 
     return evergreenName(fullName, deadline, evergreenCount + 1);
-  }
-
-  private notifyCreatorMock(input: {
-    creatorId: string;
-    contentName: string;
-    deadline: string;
-  }): void {
-    console.info('[MOCK EMAIL] Creator content notification', input);
   }
 
   private async requireContract(

@@ -1,4 +1,6 @@
+import { Inject, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 // Where PBI-11 keeps every email it sends (11.1): the email_log row is written before the email
 // goes out, so the unique (event_key, recipient) key decides whether it may go out at all (AC 8),
@@ -39,8 +41,12 @@ function byEventAndRecipient(eventKey: string, recipient: string) {
   return { event_key_recipient: { event_key: eventKey, recipient } };
 }
 
+/** Nest injection token for EmailLogStore, since an interface does not exist at runtime. */
+export const EMAIL_LOG_STORE = Symbol('EMAIL_LOG_STORE');
+
+@Injectable()
 export class PrismaEmailLogStore implements EmailLogStore {
-  constructor(private readonly prisma: EmailLogClient) {}
+  constructor(@Inject(PrismaService) private readonly prisma: EmailLogClient) {}
 
   async claim({ eventKey, template, recipient, payload }: LoggedEmail): Promise<boolean> {
     // skipDuplicates is ON CONFLICT DO NOTHING: of two requests claiming at once, one inserts.

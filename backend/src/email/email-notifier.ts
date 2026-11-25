@@ -33,7 +33,7 @@ export interface EmailEvent {
 class EmailTimeout extends Error {}
 
 /** Only the class of a failure is kept: a provider's message can quote the address (OWASP A09). */
-function errorKind(error: unknown): string {
+export function errorKind(error: unknown): string {
   return error instanceof Error ? error.constructor.name : typeof error;
 }
 

@@ -1,5 +1,6 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
+import { PrismaModule } from '../prisma/prisma.module.js';
 import { CreatorEmails } from './creator-emails.js';
 import { EmailNotifier } from './email-notifier.js';
 import { EMAIL_TEMPLATES, unreadyEmailTemplates } from './email-templates.js';
@@ -35,7 +36,8 @@ function logger() {
 async function builtSender(
   log: ReturnType<typeof logger>,
 ): Promise<EmailSender> {
-  const module = await Test.createTestingModule({ imports: [EmailModule] })
+  // PrismaModule as AppModule has it: the email_log store needs PrismaService (PBI-11).
+  const module = await Test.createTestingModule({ imports: [EmailModule, PrismaModule] })
     .overrideProvider(EMAIL_LOG)
     .useValue(log)
     .compile();
