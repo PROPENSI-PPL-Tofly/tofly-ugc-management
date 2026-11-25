@@ -17,7 +17,15 @@ vi.mock("@/lib/creator-invoice.server", () => ({
 
 const mockedInvoices = vi.mocked(fetchMyInvoices);
 
+const { redirect } = vi.hoisted(() => ({
+  // As Next does it: redirect() ends the render by throwing.
+  redirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT ${path}`);
+  }),
+}));
+
 vi.mock("next/navigation", () => ({
+  redirect,
   usePathname: () => "/creator/dashboard",
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
@@ -183,6 +191,33 @@ describe("Creator dashboard page", () => {
       await renderPage();
 
       expect(screen.queryByText(/Hari terakhir kontrak/)).not.toBeInTheDocument();
+    });
+  });
+
+  // PBI-37 (37.1, AC 13), OWASP A01: the backend lets a creator who only waits for payment open
+  // nothing but Pembayaran. The dashboard follows that refusal there; it never works around it.
+  describe("a creator who only waits for payment", () => {
+    beforeEach(() => {
+      redirect.mockClear();
+    });
+
+    it("is sent to Pembayaran when the backend refuses the dashboard with PAYMENTS_ONLY", async () => {
+      mockedFetch.mockRejectedValue(new MyTasksError(403, "PAYMENTS_ONLY"));
+
+      await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT /creator/payments");
+      expect(redirect).toHaveBeenCalledWith("/creator/payments");
+    });
+
+    it.each([
+      ["another refusal", new MyTasksError(403, "SOMETHING_ELSE")],
+      ["a refusal without a code", new MyTasksError(403)],
+    ])("is not redirected for %s, only told the dashboard did not load", async (_label, error) => {
+      mockedFetch.mockRejectedValue(error);
+
+      await renderPage();
+
+      expect(redirect).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent("Dashboard tidak bisa dimuat.");
     });
   });
 
