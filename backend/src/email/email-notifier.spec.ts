@@ -173,4 +173,20 @@ describe('EmailNotifier', () => {
       'budi@example.com',
     ]);
   });
+
+  it('never throws when marking a failed email fails as well', async () => {
+    const { store, notifier } = setup({ send: () => Promise.reject(new Error('down')) });
+    store.markFailed.mockRejectedValue(new Error('connection lost'));
+
+    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+  });
+
+  it('stamps a sent email with the current time when no clock is given', async () => {
+    const { store, sender, templates, log } = setup();
+    vi.useFakeTimers({ now: NOW });
+
+    await new EmailNotifier(store, sender, templates, log).notify(EVENT);
+
+    expect(store.markSent).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
 });
