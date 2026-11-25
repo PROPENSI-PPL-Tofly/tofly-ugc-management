@@ -380,3 +380,84 @@ describe('CreatorEmails, a contract that is gone', () => {
     expect(notifier.notify).not.toHaveBeenCalled();
   });
 });
+
+// PBI-11 (11.2, AC 1 and AC 3): the Paid email, with the day access closes when it is the last.
+describe('CreatorEmails, the Paid email', () => {
+  function paidSetup(contracts: unknown[]) {
+    const prisma = {
+      creators: {
+        findUnique: vi.fn().mockResolvedValue({
+          first_name: 'Rangga',
+          middle_name: null,
+          last_name: 'Pratama',
+          users: { email: 'rangga@example.com' },
+          contracts,
+        }),
+      },
+      contents: { findUnique: vi.fn() },
+      contracts: { findUnique: vi.fn() },
+    } satisfies CreatorEmailClient;
+    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
+    return { prisma, notifier, emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }) };
+  }
+  const PAID_AT = new Date('2026-11-25T03:00:00.000Z');
+
+  it('reads the creator with every contract and its invoice, for the access rule', async () => {
+    const { prisma, emails } = paidSetup([]);
+
+    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+
+    expect(prisma.creators.findUnique).toHaveBeenCalledWith({
+      where: { id: CREATOR },
+      select: {
+        first_name: true,
+        middle_name: true,
+        last_name: true,
+        users: { select: { email: true } },
+        contracts: {
+          select: { end_date: true, invoice: { select: { status: true, paid_at: true } } },
+        },
+      },
+    });
+  });
+
+  it('sends the Paid email once per invoice, naming the day access closes on the last one', async () => {
+    const { notifier, emails } = paidSetup([
+      {
+        end_date: new Date('2026-11-20T00:00:00.000Z'),
+        invoice: { status: 'paid', paid_at: PAID_AT },
+      },
+    ]);
+
+    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: 'invoice_paid:contract-1',
+      template: 'invoice_paid',
+      to: { email: 'rangga@example.com', name: 'Rangga Pratama' },
+      data: { contractId: 'contract-1', accessClosesOn: '2026-11-26' },
+    });
+  });
+
+  it('names no day while another period keeps access open', async () => {
+    const { notifier, emails } = paidSetup([
+      { end_date: new Date('2026-11-20T00:00:00.000Z'), invoice: { status: 'paid', paid_at: PAID_AT } },
+      { end_date: new Date('2027-02-28T00:00:00.000Z'), invoice: { status: 'running', paid_at: null } },
+    ]);
+
+    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+
+    expect(notifier.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { contractId: 'contract-1', accessClosesOn: null } }),
+    );
+  });
+
+  it('sends nothing for a creator who no longer exists', async () => {
+    const { prisma, notifier, emails } = paidSetup([]);
+    prisma.creators.findUnique.mockResolvedValue(null);
+
+    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+
+    expect(notifier.notify).not.toHaveBeenCalled();
+  });
+});

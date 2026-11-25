@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   ForbiddenException,
@@ -48,7 +49,10 @@ function contract(status: string | null, creatorId = CREATOR) {
   };
 }
 
-function stubs(status: string | null = 'finalized') {
+function stubs(
+  status: string | null = 'finalized',
+  notifier?: Pick<CreatorNotifier, 'invoicePaid'>,
+) {
   const prisma = {
     contracts: { findUnique: vi.fn().mockResolvedValue(contract(status)) },
     invoices: {
@@ -63,6 +67,7 @@ function stubs(status: string | null = 'finalized') {
   prisma.$transaction.mockImplementation((work: (tx: typeof prisma) => Promise<unknown>) => work(prisma));
   const service = new InvoiceConfirmationService(
     prisma as unknown as InvoiceConfirmationClient,
+    notifier,
   );
   return { prisma, service };
 }
@@ -318,5 +323,46 @@ describe('InvoiceConfirmationService', () => {
         (await refusalOf(service.confirmReceipt(CONTRACT, CREATOR, NOW))).body,
       ).toEqual(ALREADY_PAID);
     });
+  });
+});
+
+// PBI-11 (11.2, AC 1 and AC 3): the creator's own Paid move still sends the Paid email, as Kania
+// confirmed: it carries the receipt and the day access closes, which the screen does not.
+describe('InvoiceConfirmationService, the Paid email', () => {
+  function emails() {
+    return { invoicePaid: vi.fn<CreatorNotifier['invoicePaid']>().mockResolvedValue() };
+  }
+
+  it('sends the Paid email once the confirmation is saved', async () => {
+    const notifier = emails();
+    const { prisma, service } = stubs('payment_uploaded', notifier);
+    notifier.invoicePaid.mockImplementation(async () => {
+      expect(prisma.invoices.updateMany).toHaveBeenCalled();
+    });
+
+    await service.confirmReceipt(CONTRACT, CREATOR, NOW);
+
+    expect(notifier.invoicePaid).toHaveBeenCalledExactlyOnceWith({
+      creatorId: CREATOR,
+      contractId: CONTRACT,
+      paidAt: NOW,
+    });
+  });
+
+  it('sends nothing when the confirmation is refused', async () => {
+    const notifier = emails();
+    const { service } = stubs('creator_acked', notifier);
+
+    await expect(service.confirmReceipt(CONTRACT, CREATOR, NOW)).rejects.toThrow();
+    expect(notifier.invoicePaid).not.toHaveBeenCalled();
+  });
+
+  it('sends the creator nothing for their own acknowledgement', async () => {
+    const notifier = emails();
+    const { service } = stubs('finalized', notifier);
+
+    await service.acknowledge(CONTRACT, CREATOR, NOW);
+
+    expect(notifier.invoicePaid).not.toHaveBeenCalled();
   });
 });
