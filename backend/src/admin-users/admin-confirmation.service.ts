@@ -48,7 +48,6 @@ export interface ConfirmationCodes {
   create(args: object): Promise<{ id: string }>;
   findFirst(args: object): Promise<unknown>;
   updateMany(args: object): Promise<{ count: number }>;
-  delete(args: object): Promise<unknown>;
 }
 
 export interface ConfirmationClient {
@@ -59,6 +58,7 @@ export interface ConfirmationClient {
     }): Promise<{ email: string } | null>;
   };
   admin_confirmation_codes: ConfirmationCodes;
+  $queryRaw<T>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
   $transaction<T>(
     work: (tx: {
       admin_confirmation_codes: ConfirmationCodes;
@@ -149,7 +149,6 @@ export class AdminConfirmationService {
         const oldest = (await tx.admin_confirmation_codes.findFirst({
           where: recent,
           orderBy: { created_at: 'asc' },
-          skip: 0,
           select: { created_at: true },
         })) as { created_at: Date };
         const freesAt = addMinutes(oldest.created_at, REQUEST_WINDOW_MINUTES);
@@ -179,9 +178,12 @@ export class AdminConfirmationService {
     try {
       await this.sender.send(confirmationEmail(user.email, code));
     } catch {
-      // The email layer has logged the failure; a code nobody received must not stay live.
-      await this.prisma.admin_confirmation_codes.delete({
+      // The email layer has logged the failure; a code nobody received must not stay live. It is
+      // marked used, not deleted, so the request still counts toward five an hour, sent or not,
+      // as a sign-in code's does.
+      await this.prisma.admin_confirmation_codes.updateMany({
         where: { id: stored.id },
+        data: { used_at: now },
       });
       throw new ServiceUnavailableException({
         code: 'CONFIRMATION_NOT_SENT',
@@ -213,14 +215,21 @@ export class AdminConfirmationService {
     })) as CodeRow | null;
     if (row === null || !isLive(row, now)) throw expired();
 
+    // Every submission takes one of the five tries before its code is compared, in one statement
+    // that holds only while the code is live. Guesses that arrive together all read the row with
+    // tries left, but only five of them get one, so no more than five codes are ever compared
+    // against one email (OWASP A07:2025). It answers the count after this try, not the stale one
+    // the row was read with.
+    const taken = await this.prisma.$queryRaw<{ attempts: number }[]>`
+      update admin_confirmation_codes set attempts = attempts + 1
+      where id = ${row.id}::uuid and used_at is null and expires_at > ${now}
+        and attempts < ${MAX_CODE_ATTEMPTS}
+      returning attempts`;
+    if (taken.length !== 1) throw expired();
+
     if (!sameToken(row.code_hash, this.hash(subjectOf(userId), code))) {
-      // Atomic, so parallel guesses cannot share one count.
-      const counted = await codes.updateMany({
-        where: { id: row.id, attempts: { lt: MAX_CODE_ATTEMPTS } },
-        data: { attempts: { increment: 1 } },
-      });
-      const left = attemptsLeft(row.attempts + 1);
-      if (counted.count !== 1 || left <= 0) throw expired();
+      const left = attemptsLeft(taken[0].attempts);
+      if (left <= 0) throw expired();
       throw new UnprocessableEntityException({
         code: 'CONFIRMATION_WRONG',
         message: `Kode salah. Sisa ${left} percobaan.`,

@@ -92,7 +92,10 @@ function emailTaken(): UnprocessableEntityException {
   });
 }
 
-/** A role change, making someone Super Admin and a deactivation wait for the email code (AC). */
+/**
+ * A role change, making someone Super Admin, a deactivation and bringing a Super Admin back wait
+ * for the email code (AC).
+ */
 function confirmationRequired(): ForbiddenException {
   return new ForbiddenException({
     code: 'CONFIRMATION_REQUIRED',
@@ -337,11 +340,21 @@ export class AdminUsersService {
     return adminUserDto(row, actorId);
   }
 
-  /** A deactivated Admin can sign in again with the same email (AC: never hard-deleted). */
-  async reactivate(id: string, actorId: string): Promise<AdminUserDto> {
+  /**
+   * A deactivated Admin can sign in again with the same email (AC: never hard-deleted). A Super
+   * Admin's access comes back only after the email code, as taking it away needed one.
+   */
+  async reactivate(
+    id: string,
+    actorId: string,
+    confirmed: boolean,
+  ): Promise<AdminUserDto> {
     const row = await this.prisma.$transaction(async (tx) => {
       const target = await this.lockAdmin(tx, id);
       if (target.is_active) return target;
+      if (target.admin_role === 'super_admin' && !confirmed) {
+        throw confirmationRequired();
+      }
       const reactivated = await tx.users.update({
         where: { id },
         data: { is_active: true },

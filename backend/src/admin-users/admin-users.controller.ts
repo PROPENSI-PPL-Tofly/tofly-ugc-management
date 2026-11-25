@@ -135,6 +135,7 @@ export class AdminUsersController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() request: SignedIn,
   ): Promise<AdminUserDto> {
-    return this.admins.reactivate(id, actorOf(request));
+    const actor = actorOf(request);
+    return this.admins.reactivate(id, actor, await this.confirmed(request));
   }
 }
